@@ -1,0 +1,24 @@
+{
+    "main_directory": "/users/40247882/projects/oxides/gdp-main",
+    "machines": {
+        "trainer": "/users/40247882/repository/BIAS/GDPy/templates/inputs/machine-gpu.json",
+        "sampler": "/users/40247882/repository/BIAS/GDPy/templates/inputs/machine-gpu.json",
+        "labeler": "/users/40247882/repository/BIAS/GDPy/templates/inputs/machine-gpu.json"
+    },
+    "elements": ["O", "Pt"],
+    "systems": [
+        "O64Pt48"
+    ],
+    "training": {
+        "num_models": 4,
+        "json": "/users/40247882/projects/oxides/dptrain/PtOx_se_a.json"
+    },
+    "explorations": {
+        "strategy": "ensemble_deviation",
+        "MD": {
+            "thermostat": "nvt",
+            "temperatures": [300,600,1200,2400],
+            "timestep": 2.0
+        }
+    }
+}

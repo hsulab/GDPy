@@ -1,0 +1,16 @@
+{
+    "machine": "slurm",
+    "mode": "gpu",
+    "job-name": "slurm-gpu",
+    "partition": "k2-gpu",
+    "time": "12:00:00",
+    "nodes": 1,
+    "ntasks": 1,
+    "cpus-per-task": 12,
+    "gres": "gpu:1",
+    "mem-per-cpu": "10G",
+    "mem-per-gpu": "32G",
+    "environs": "conda activate tf2",
+    "modules": "module load nvidia-cuda",
+    "command": "dp train ./dp.json 2>&1 > dp.out"
+}

@@ -1,0 +1,11 @@
+{
+    "machine": "slurm",
+    "partition": "k2-hipri",
+    "time": "24:00:00",
+    "nodes": 1,
+    "cpus_per_node": 32,
+    "memory": "10G",
+    "environs": "",
+    "modules": "module purge\nmodule load services/s3cmd\nmodule load libs/intel/2016u1\nmodule load libs/intel-mkl/2016u1/bin\nmodule load mpi/intel-mpi/2016u1/bin\n",
+    "command": "mpirun -n 32 /mnt/scratch/chemistry-apps/dkb01416/vasp/installed/intel-2016/5.4.1-TS/vasp_std 2>&1 > vasp.out"
+}
