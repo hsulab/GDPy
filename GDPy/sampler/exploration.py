@@ -10,9 +10,13 @@ import numpy as np
 from pathlib import Path
 
 from ase import units
+from ase.data import atomic_numbers, atomic_masses
 from ase.io import read, write
 from ase.build import make_supercell
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+from ase.constraints import FixAtoms
+
+from GDPy.md.md_utils import force_temperature
 
 from GDPy.calculator.dp import DP
 
@@ -62,26 +66,36 @@ def check_stdvar(atoms):
     
     return unlearned, max_stdvar
 
-
-def loop_over_temperatures(cwd, atoms, temperatures, model_path):
-    """run MD at various temperatures"""
-    calc = DP(
-        model=model_path,
-        type_dict={'O': 0, 'Pt': 1}
+def write_model_devi(fname, step, atoms):
+    """"""
+    energy_stdvar = atoms.calc.results.get('energy_stdvar', None)
+    forces_stdvar = atoms.calc.results.get('forces_stdvar', None)
+    content = "{:>12d}" + " {:>18.6e}"*6 + "\n"
+    content = content.format(
+        step, np.max(energy_stdvar), np.min(energy_stdvar), np.mean(energy_stdvar),
+        np.max(forces_stdvar), np.min(forces_stdvar), np.mean(forces_stdvar)
     )
+    with open(fname, 'a') as fopen:
+        fopen.write(content)
 
-    for temp in temperatures:
-        md_atoms = atoms.copy()
-        md_atoms.calc = calc
-        md_atoms.calc.reset()
-        run_md(cwd, md_atoms, temp, nsteps=500, save_traj=True)
+    return
+
+def write_md_info(fname, step, atoms):
+    content = "{:>12d}" + " {:>18.6f}"*2 + "\n"
+    content = content.format(
+        step, atoms.get_temperature(), atoms.get_potential_energy()
+    )
+    with open(fname, 'a') as fopen:
+        fopen.write(content)
 
     return 
 
-def run_md(cwd, atoms, temperature, nsteps=500, save_traj=False):
+
+def run_md(cwd, atoms, temperature, nsteps=500):
     print('===== temperature at %.2f =====' %temperature)
     # run MD
     MaxwellBoltzmannDistribution(atoms, temperature*units.kB)
+    force_temperature(atoms, temperature)
 
     timestep = 2.0
 
@@ -94,60 +108,95 @@ def run_md(cwd, atoms, temperature, nsteps=500, save_traj=False):
 
     #nvt_dyn.attach(print_temperature, atoms=atoms)
     #nvt_dyn.run(steps=10)
-    xyz_fname = 'temp-'+str(temperature)+'K.xyz'
-    with open(test_dir/xyz_fname, 'w') as fopen:
+    xyz_fname = cwd / 'traj.xyz'
+    with open(xyz_fname, 'w') as fopen:
         fopen.write('')
 
-    traj_xyz_fname = 'traj-'+str(temperature)+'K.xyz'
-    with open(test_dir/traj_xyz_fname, 'w') as fopen:
-        fopen.write('')
+    out_fname = cwd / 'ase.out'
+    with open(out_fname, 'w') as fopen:
+        content = "{:>12s}" + " {:>18s}"*2 + "\n"
+        content = content.format(
+            '#       step', 'temperature', 'pot energy'
+        )
+        fopen.write(content)
 
+    devi_fname = cwd / 'model_devi.out'
+    with open(devi_fname, 'w') as fopen:
+        content = "{:>12s}" + " {:>18s}"*6 + "\n"
+        content = content.format(
+            '#       step',
+            'max_devi_e', 'min_devi_e', 'avg_devi_e',
+            'max_devi_f', 'min_devi_f', 'avg_devi_f'
+        )
+        fopen.write(content)
+
+    dummy = atoms.get_forces()
     check_stdvar_freq = 10
     for step in range(nsteps):
-        #print('old', atoms.positions.flatten())
-        nvt_dyn.step()
-        #print('new', atoms.positions.flatten())
         if step % check_stdvar_freq == 0:
-            write(test_dir/traj_xyz_fname, atoms, append=True)
-            unlearned, max_stdvar = check_stdvar(atoms)
-            if unlearned:
-                write(test_dir/xyz_fname, atoms, append=True)
-                print('unlearned!!!')
-            print('step %d with max_stdvar %.4f' %(step, max_stdvar))
+            write(xyz_fname, atoms, append=True)
+            write_md_info(out_fname, step, atoms)
+            write_model_devi(devi_fname, step, atoms)
+        nvt_dyn.step()
+    
+    return
 
-        pass
 
-def sample_configuration(iter_directory, main_database):
+def sample_configuration(data_path, type_map, model, sample_variables, temperatures):
     """
     explore configurations with a given system (fixed box and fixed number of elements)
     """
-    # read model ensemble
-    ensemble_path = iter_directory / 'ensemble'
+    z_types = [atomic_numbers[x] for x in type_map.keys()]
+    atoms = read(data_path, format='lammps-data', style='atomic', units='metal', Z_of_type=z_types)
 
-    model_dirs = []
-    for p in ensemble_path.glob('model*'):
-        model_dirs.append(p)
-    model_dirs.sort()
+    if True:
+        height = 5.0
+        indices = [atom.index for atom in atoms if atom.position[2] < height]
+        atoms.set_constraint(FixAtoms(indices=indices))
 
-    graph_ensemble = [str(model/'graph.pb') for model in model_dirs]
+    calc = DP(
+        model=model,
+        type_dict=type_map
+    )
+    print(sample_variables)
+    nsteps = sample_variables['nsteps']+1 # this can save the last step
 
-    # setting MD parameters
-    test_dir = "/users/40247882/projects/oxides/dptrain"
-    test_dir = Path(test_dir)
-
-    init_stru = 'opts/Pt3O4_opt.xyz' # initial structure path
-
-    atoms = read(test_dir/init_stru)
-    atoms = make_supercell(atoms, 2.0*np.eye(3)) # (2x2x2) cell
-    print(atoms.cell)
-
-    temperatures = [300, 600, 1200, 2400]
-
-    loop_over_temperatures(test_dir, atoms, temperatures, graph_ensemble)
+    name_path = Path('/users/40247882/projects/oxides/gdp-main/it-0003/MD0/Pt111-nvt')
+    for temp in temperatures:
+        temp_dir = name_path / str(temp)
+        try:
+            temp_dir.mkdir(parents=True)
+        except FileExistsError:
+            print('skip this %s' %temp_dir)
+            continue
+        md_atoms = atoms.copy()
+        md_atoms.calc = calc
+        md_atoms.calc.reset()
+        run_md(temp_dir, md_atoms, temp, nsteps=nsteps)
 
     return 
-    
+
 
 if __name__ == '__main__':
     """"""
+    data_path = '/users/40247882/projects/oxides/gdp-main/init-systems/Pt111.data'
+    type_map = {'O': 0, 'Pt': 1}
+    model = [
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-0/graph.pb', 
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-1/graph.pb', 
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-2/graph.pb', 
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-3/graph.pb'
+    ]
+    sample_variables = {
+        'nsteps': 1000, 
+        'thermo_freq': 10, 
+        'dtime': 0.002, 
+        'temp': 300, 
+        'pres': -1, 
+        'tau_t': 0.1, 
+        'tau_p': 0.5
+    }
+    temperatures = [150, 300, 450, 600, 900, 1200, 1500, 1800, 2100, 2400]
+
+    sample_configuration(data_path, type_map, model, sample_variables, temperatures)
     pass
