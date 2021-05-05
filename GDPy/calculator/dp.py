@@ -113,3 +113,28 @@ class DP(Calculator):
             self.results = results
 
         return 
+
+if __name__ == '__main__':
+    # read structures 
+    from ase.io import read, write
+    frames = read('test.xyz', ':')
+
+    # set calculator
+    type_map = {'O': 0, 'Pt': 1}
+    model = [
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-0/graph.pb', 
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-1/graph.pb', 
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-2/graph.pb', 
+        '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-3/graph.pb'
+    ]
+
+
+    calc = DP(model=model, type_dict=type_map)
+
+    # calculate
+    for atoms in frames:
+        calc.reset()
+        atoms.calc = calc
+        dummy = atoms.get_forces() # carry out one calculation
+        energy_stdvar = atoms.calc.results.get('energy_stdvar', None)
+        forces_stdvar = atoms.calc.results.get('forces_stdvar', None) # shape (natoms,3)
