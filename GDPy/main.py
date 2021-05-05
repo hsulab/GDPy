@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 
-def _main():
+def main():
     # arguments 
     parser = argparse.ArgumentParser(
         prog='gdp', 
@@ -30,17 +30,23 @@ def _main():
         help='sub-command help'
     )
     
-    # rss
-    parser_rss = subparsers.add_parser(
+    # automatic training
+    parser_train = subparsers.add_parser(
         'train', help='automatic training with an iterative process'
     )
-    parser_rss.add_argument(
+    parser_train.add_argument(
         'INPUTS',
         help='a directory with input json files'
     )
 
-    # others
- 
+    # sample
+    parser_sample = subparsers.add_parser(
+        'sample', help='prepare/execute/analyse training samples'
+    )
+    parser_train.add_argument(
+        'INPUTS',
+        help='a directory with input json files'
+    )
     
     # === execute 
     args = parser.parse_args()
@@ -53,18 +59,10 @@ def _main():
     # use subcommands
     if args.subcommand == 'train':
         iterative_train(args.INPUTS)
+    elif args.subcommand == 'sample':
+        iterative_train(args.INPUTS)
     else:
         pass
-
-from ase.io import read, write
-from ase.build import make_supercell
-
-from .pertubater import pertubate_stucture
-
-from .trainer.train_potential import read_dptrain_json
-def main():
-    read_dptrain_json(num_models=4)
-    pass
 
 
 if __name__ == '__main__':
