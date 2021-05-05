@@ -29,8 +29,9 @@ def check_finished(model_path):
     if dpout_path.exists():
         content = dpout_path.read_text()
         line = content.split('\n')[-3]
-        if 'finished' in line:
-            converged = True
+        print(line)
+        #if 'finished' in line:
+        #    converged = True
     
     return converged
 
@@ -49,8 +50,8 @@ def freeze_ensemble(ensemble_path):
 
     # freeze models
     for model_dir in model_dirs:
-        #if check_finished(model_dir):
-        #    freeze_model(model_dir)
+        if check_finished(model_dir):
+            freeze_model(model_dir)
         freeze_model(model_dir)
 
     return
@@ -58,6 +59,6 @@ def freeze_ensemble(ensemble_path):
 
 if __name__ == '__main__':
     #ensemble_path = Path('/users/40247882/projects/oxides/gdp-main/it-0002/ensemble')
-    ensemble_path = Path('/users/40247882/projects/oxides/gdp-main/it-0002/ensemble-more')
+    ensemble_path = Path('/users/40247882/projects/oxides/gdp-main/it-0004/ensemble')
     freeze_ensemble(ensemble_path)
     pass

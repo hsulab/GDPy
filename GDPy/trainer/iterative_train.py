@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from GDPy.trainer.train_potential import read_dptrain_json
-from GDPy.sampler.exploration import sample_configuration
+from GDPy.sampler.sample_main import sampler_main, collect_sample_data
 
 MAXITER = 100
 
@@ -98,13 +98,21 @@ class IterativeTrainer():
     
         return
 
-    def irun(self, cur_iter, stage):
+    def irun(self, cur_iter, stage, step=0):
         """"""
         iter_directory = self.main_directory / ('it-'+str(cur_iter).zfill(4))
         if stage == 'trainer':
             read_dptrain_json(iter_directory, self.main_database, self.main_dict)
         elif stage == 'sampler':
-            sample_configuration(iter_directory, self.main_database, self.main_dict)
+            print('sampler...')
+            if step == 0:
+                print('make sample dirs...')
+                sampler_main(iter_directory, self.main_database, self.main_dict)
+            elif step == 1:
+                print('collect')
+                collect_sample_data(iter_directory, self.main_database, self.main_dict)
+            else:
+                pass
         elif stage == 'labeler':
             pass                    
         else:
@@ -114,7 +122,8 @@ class IterativeTrainer():
 
 
 if __name__ == '__main__':
-    inputs = '/users/40247882/repository/BIAS/GDPy/templates/inputs'
+    inputs = '/users/40247882/repository/GDPy/templates/inputs'
     it = IterativeTrainer(inputs)
-    it.irun(2, 'trainer')
+    #it.irun(5, 'trainer')
+    it.irun(5, 'sampler', 1)
     pass

@@ -94,6 +94,7 @@ def read_dptrain_json(iter_directory, main_database, main_dict):
     train_json = main_dict['training']['json']
 
     # prepare dataset
+    """
     xyz_files = []
     for p in main_database.glob('*.xyz'):
         xyz_files.append(p)
@@ -103,15 +104,15 @@ def read_dptrain_json(iter_directory, main_database, main_dict):
         frames.extend(read(xyz_file, ':'))
     
     print(len(frames))
+    """
 
     # find systems
-    data_path = Path('/users/40247882/projects/oxides/gdp-main/raw_data')
+    data_path = Path('/users/40247882/projects/oxides/gdp-main/merged-dataset/raw_data')
     systems = find_systems(data_path)
 
     # machine file
     from ..machine.machine import SlurmMachine
     slurm_machine = SlurmMachine(machine_json)
-    #slurm_machine.write('/users/40247882/projects/oxides/dptrain/test.slurm')
 
     # read json
     with open(train_json, 'r') as fopen:
@@ -133,7 +134,14 @@ def read_dptrain_json(iter_directory, main_database, main_dict):
             json.dump(params_dict, fopen, indent=4)
 
         # write machine 
+        restart = True
         slurm_machine.machine_dict['job-name'] = 'model-'+str(idx)
+        if restart:
+            parent_model = '/users/40247882/projects/oxides/gdp-main/it-0004/ensemble/model-%d/model.ckpt' %idx
+            command = "dp train ./dp.json --init-model %s 2>&1 > dp.out" %parent_model
+            slurm_machine.machine_dict['command'] = command
+        else:
+            pass
         slurm_machine.write(model_dir/'dptrain.slurm')
 
         # submit job
@@ -143,4 +151,8 @@ def read_dptrain_json(iter_directory, main_database, main_dict):
     return
 
 if __name__ == '__main__':
+    #iter_directory = "/users/40247882/projects/oxides/gdp-main/it-0003"
+    #main_database = "dummy"
+    #main_dict = 
+    #read_dptrain_json()
     pass
