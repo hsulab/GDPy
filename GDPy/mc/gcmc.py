@@ -23,21 +23,24 @@ from ase.constraints import FixAtoms
 For each element, thermal de broglie wavelengths are needed.
 """
 
+Reservior = namedtuple('Reservior', ['particle', 'temperature', 'pressure', 'mu']) # Kelvin, atm, eV
+RunParam = namedtuple('RunParam', ['backend', 'calculator', 'optimiser', 'convergence', 'constraint']) # 
+
 class ReducedRegion():
     """
     spherical or cubic box
     """
 
-    def __init__(self, cell, mindis=1.0):
+    def __init__(self, cell, caxis: list, mindis=1.5):
         """"""
         # box
         self.cell = cell.copy()
-        self.cell[2,2] = 10.5 # TODO: add height
+        
+        assert len(caxis) == 2
+        self.cmin, self.cmax = caxis
+        self.cell[2,2] = self.cmax 
 
         self.cvect = cell[2] / np.linalg.norm(cell[2])
-        self.cmin = 4.5 # 4.5
-        self.cmax = 10.5
-
         self.volume = np.dot(
             self.cvect*(self.cmax-self.cmin), np.cross(self.cell[0], self.cell[1])
         )
@@ -125,7 +128,8 @@ class GCMC():
         self.chem_pot = gc_params.mu
 
         # - beta
-        kBT_eV = units.kB * gc_params.temperature
+        self.temperature, self.pressure = gc_params.temperature, gc_params.pressure
+        kBT_eV = units.kB * self.temperature
         self.beta = 1./kBT_eV # 1/(kb*T), eV
 
         # - cubic thermo de broglie 
@@ -135,7 +139,7 @@ class GCMC():
         kbT_J = kBT_eV * units._e # J = kg*m2*s-2
         self.cubic_wavelength = (hplanck/np.sqrt(2*np.pi*_mass*kbT_J)*1e10)**3 # thermal de broglie wavelength
 
-        # TODO: reduced region 
+        # reduced region 
         self.acc_volume = self.region.calc_acc_volume(self.atoms)
 
         # few iterative properties
@@ -153,22 +157,28 @@ class GCMC():
 
         return
 
-    def run(self, calc, backend=''):
+    def run(self, params: namedtuple):
         """"""
         # start info
         content = '===== Simulation Information =====\n\n'
-        content += 'Temperature %.4f [K] Beta %.4f [eV]\n' %(1./self.beta/units.kB, self.beta)
+        content += 'Temperature %.4f [K] Pressure %.4f [atm]\n' %(self.temperature, self.pressure)
+        content += 'Beta %.4f [eV-1]\n' %(self.beta)
         content += 'Cubic Thermal de Broglie Wavelength %f\n' %self.cubic_wavelength
         content += 'Chemical Potential of %s is %.4f [eV]\n' %(self.expart, self.chem_pot)
         print(content)
         
         # set calculator
-        self.calc = calc
+        self.calc = params.calculator
         self.calc.reset() # remove info stored in calculator
+
+        # optimisation
+        self.optimiser = params.optimiser
+        self.constraint = params.constraint
+        self.convergence = params.convergence
 
         #self.atoms.calc = self.calc
         #self.energy_stored = self.atoms.get_potential_energy()
-        self.energy_stored = self.optimise(self.atoms)
+        self.energy_stored, self.atoms = self.optimise(self.atoms)
         print(self.atoms.cell)
         print('energy_stored ', self.energy_stored)
 
@@ -255,24 +265,28 @@ class GCMC():
         cur_atoms[idx_pick].position = pos
 
         # TODO: change this to optimisation
-        energy_after = self.optimise(cur_atoms)
+        energy_after, opt_atoms = self.optimise(cur_atoms)
 
         coef = 1.0
         energy_change = energy_after - self.energy_stored
         acc_ratio = coef * np.exp(-self.beta*(energy_change))
 
+        content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
+            self.acc_volume, self.nexatoms, self.cubic_wavelength, coef
+        )
+        content += 'Energy Change %.4f [eV]\n' %energy_change
+        content += 'Accept Ratio %.4f\n' %acc_ratio
+        print(content)
+
         rn_motion = self.rng.uniform()
         if rn_motion < acc_ratio:
-            self.atoms = cur_atoms
+            self.atoms = opt_atoms
             self.energy_stored = energy_after
         else:
             print('fail to move')
             pass
         
-        content = '\nCoefficient %.4f Energy Change %.4f [eV]\n' %(coef, energy_change)
-        content += 'Translation Probability %.4f\n' %rn_motion
-        content += 'Accept Ratio %.4f\n' %acc_ratio
-        print(content)
+        print('Translation Probability %.4f' %rn_motion)
 
         print('energy_stored is %12.4f' %self.energy_stored)
         
@@ -288,27 +302,30 @@ class GCMC():
         cur_atoms.extend(extra_atom)
 
         # TODO: change this to optimisation
-        energy_after = self.optimise(cur_atoms)
+        energy_after, opt_atoms = self.optimise(cur_atoms)
 
         # try insert
         coef = self.acc_volume/(self.nexatoms+1)/self.cubic_wavelength
         energy_change = energy_after-self.energy_stored-self.chem_pot
         acc_ratio = np.min([1.0, coef * np.exp(-self.beta*(energy_change))])
-        rn_insertion = self.rng.uniform()
 
+        content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
+            self.acc_volume, self.nexatoms, self.cubic_wavelength, coef
+        )
+        content += 'Energy Change %.4f [eV]\n' %energy_change
+        content += 'Accept Ratio %.4f\n' %acc_ratio
+        print(content)
+
+        rn_insertion = self.rng.uniform()
         if rn_insertion < acc_ratio:
-            self.atoms = cur_atoms
+            self.atoms = opt_atoms
             self.energy_stored = energy_after
             # update exchangeable atoms
             self.exatom_indices = list(range(self.nparts, len(self.atoms)))
         else:
             print('fail to insert...')
             pass
-
-        content = '\nCoefficient %.4f Energy Change %.4f [eV]\n' %(coef, energy_change)
-        content += 'Insertion Probability %.4f\n' %rn_insertion
-        content += 'Accept Ratio %.4f\n' %acc_ratio
-        print(content)
+        print('Insertion Probability %.4f' %rn_insertion)
 
         print('energy_stored is %12.4f' %self.energy_stored)
 
@@ -330,25 +347,29 @@ class GCMC():
         del cur_atoms[idx_pick]
 
         # TODO: change this to optimisation
-        energy_after = self.optimise(cur_atoms)
+        energy_after, opt_atoms = self.optimise(cur_atoms)
 
         coef = self.nexatoms*self.cubic_wavelength/self.acc_volume
-        energy_change = energy_after + self.chem_pot - self.energy_stored
+        energy_change  = energy_after + self.chem_pot - self.energy_stored
         acc_ratio = np.min([1.0, coef*np.exp(-self.beta*(energy_change))])
-        rn_deletion = self.rng.uniform()
 
+        content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
+            self.acc_volume, self.nexatoms, self.cubic_wavelength, coef
+        )
+        content += 'Energy Change %.4f [eV]\n' %energy_change
+        content += 'Accept Ratio %.4f\n' %acc_ratio
+        print(content)
+
+        rn_deletion = self.rng.uniform()
         if rn_deletion < acc_ratio:
-            self.atoms = cur_atoms
+            self.atoms = opt_atoms
             self.energy_stored = energy_after
             # update exchangeable atoms
             self.exatom_indices = list(range(self.nparts, len(self.atoms)))
         else:
             pass
 
-        content = '\nCoefficient %.4f Energy Change %.4f [eV]\n' %(coef, energy_change)
-        content += 'Deletion Probability %.4f\n' %rn_deletion
-        content += 'Accept Ratio %.4f\n' %acc_ratio
-        print(content)
+        print('Deletion Probability %.4f' %rn_deletion)
 
         print('energy_stored is %12.4f' %self.energy_stored)
 
@@ -359,15 +380,19 @@ class GCMC():
         self.calc.reset()
         atoms.calc = self.calc
 
-        # TODO: check constraint from the region
-        cons = FixAtoms(
-            indices = [atom.index for atom in atoms if atom.position[2] < self.region.cmin]
-        )
-        atoms.set_constraint(cons)
+        if self.constraint is not None:
+            atoms.set_constraint(self.constraint)
 
-        # TODO: use opt as arg
-        dyn = BFGS(atoms)
-        dyn.run(fmax=0.05, steps=200)
+        fmax, steps = self.convergence
+        if self.optimiser == BFGS:
+            # TODO: use opt as arg
+            dyn = BFGS(atoms)
+            dyn.run(fmax=fmax, steps=steps)
+        elif self.optimiser == 'lammps':
+            # run lammps
+            atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
+            print(min_stat)
+
         # TODO: change this to optimisation
         forces = atoms.get_forces()
         max_force = np.max(np.linalg.norm(forces, axis=1))
@@ -377,7 +402,7 @@ class GCMC():
             print('not converged')
         en = atoms.get_potential_energy()
 
-        return en
+        return en, atoms
 
 def calc_chem_pot():
     """ calculate the chemical potential
@@ -399,7 +424,8 @@ if __name__ == '__main__':
         #chemical_potential = 0.5*(molecule_energy + thermo_correction - dissociation_energy)
         chemical_potential = 0.5*(molecule_energy + thermo_correction)
     elif pot == 'reax':
-        molecule_energy, dissociation_energy = -5.588397899826529, (-5.588397899826529-2*(-0.1086425742653097))
+        #molecule_energy, dissociation_energy = -5.588397899826529, (-5.588397899826529-2*(-0.1086425742653097))
+        molecule_energy, dissociation_energy = -5.588397899826529, -2*(-0.1086425742653097)
         # 300K, PBE-ZPE, experimental data https://janaf.nist.gov
         thermo_correction = 0.09714 + (8.683 * 0.01036427) - 298.15 * (205.147 * 0.0000103642723)
         # no pressure correction
@@ -407,7 +433,6 @@ if __name__ == '__main__':
     else:
         pass
 
-    Reservior = namedtuple('Reservior', ['particle', 'temperature', 'pressure', 'mu']) # Kelvin, atm, eV
     res = Reservior(particle='O', temperature=300, pressure=1.0, mu=chemical_potential) # Kelvin, atm, eV
 
     # set region
@@ -416,7 +441,7 @@ if __name__ == '__main__':
     # start mc
     type_map = {'O': 0, 'Pt': 1}
     transition_array = [0.5,0.5] # move and exchange
-    gcmc = GCMC(type_map, res, atoms, region, 10000, transition_array)
+    gcmc = GCMC(type_map, res, atoms, region, 1000, transition_array)
 
     # set calculator
     backend = 'lammps'
@@ -436,4 +461,11 @@ if __name__ == '__main__':
     else:
         pass
 
-    gcmc.run(calc)
+    # TODO: check constraint from the region
+    cons = FixAtoms(
+        indices = [atom.index for atom in atoms if atom.position[2] < region.cmin]
+    )
+
+    run_params = RunParam(backend='reax', calculator=calc, optimiser='lammps', constraint=cons)
+
+    gcmc.run(run_params)
