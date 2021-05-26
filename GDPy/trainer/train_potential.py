@@ -107,7 +107,8 @@ def read_dptrain_json(iter_directory, main_database, main_dict):
     """
 
     # find systems
-    data_path = Path('/users/40247882/projects/oxides/gdp-main/merged-dataset/raw_data')
+    # data_path = Path('/users/40247882/projects/oxides/gdp-main/merged-dataset/raw_data')
+    data_path = iter_directory / 'raw_data'
     systems = find_systems(data_path)
 
     # machine file
@@ -135,9 +136,10 @@ def read_dptrain_json(iter_directory, main_database, main_dict):
 
         # write machine 
         restart = True
+        #restart = False
         slurm_machine.machine_dict['job-name'] = 'model-'+str(idx)
         if restart:
-            parent_model = '/users/40247882/projects/oxides/gdp-main/it-0004/ensemble/model-%d/model.ckpt' %idx
+            parent_model = '/users/40247882/projects/oxides/gdp-main/it-0007/ensemble/model-%d/model.ckpt' %idx
             command = "dp train ./dp.json --init-model %s 2>&1 > dp.out" %parent_model
             slurm_machine.machine_dict['command'] = command
         else:

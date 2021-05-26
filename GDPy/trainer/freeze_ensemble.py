@@ -59,6 +59,6 @@ def freeze_ensemble(ensemble_path):
 
 if __name__ == '__main__':
     #ensemble_path = Path('/users/40247882/projects/oxides/gdp-main/it-0002/ensemble')
-    ensemble_path = Path('/users/40247882/projects/oxides/gdp-main/it-0004/ensemble')
+    ensemble_path = Path('/users/40247882/projects/oxides/gdp-main/it-0007/ensemble')
     freeze_ensemble(ensemble_path)
     pass
