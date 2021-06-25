@@ -99,35 +99,6 @@ class SlurmMachine(AbstractMachine):
             content += self.user_commands
         else:
             raise ValueError('not initialise properly')
-        """
-        machine_dict = self.machine_dict
-        content = "#!/bin/bash -l \n"
-        content += "#SBATCH --job-name=%s         \n" %(machine_dict['job-name'])
-        content += "#SBATCH --partition=%s        \n" %machine_dict['partition']
-        content += "#SBATCH --time=%s             \n" %machine_dict['time']
-        content += "#SBATCH --nodes=1-%s          \n" %(int(machine_dict['nodes']))
-        if machine_dict['mode'] == 'cpu':
-            content += "#SBATCH --ntasks=%s           \n" %(int(self.machine_dict['nodes'])*int(self.machine_dict['cpus_per_node']))
-            content += "#SBATCH --cpus-per-task=1     \n"
-            content += "#SBATCH --mem=10G             \n"
-            content += "#SBATCH --output=slurm.o%j    \n"
-            content += "#SBATCH --error=slurm.e%j     \n"
-        elif machine_dict['mode'] == 'gpu':
-            content += "#SBATCH --ntasks=%s           \n" %(machine_dict['ntasks'])
-            content += "#SBATCH --cpus-per-task=%s    \n" %(machine_dict['cpus-per-task'])
-            content += "#SBATCH --gres=%s             \n" %(machine_dict['gres'])
-            content += "#SBATCH --mem-per-cpu=%s      \n" %(machine_dict['mem-per-cpu'])
-            content += "#SBATCH --mem-per-gpu=%s      \n" %(machine_dict['mem-per-gpu'])
-            content += "#SBATCH --output=slurm.o%j    \n"
-            content += "#SBATCH --error=slurm.e%j     \n"
-        else:
-            raise ValueError('machine mode must be cpu or gpu.')
-        content += "\n"
-        content += "%s\n" %machine_dict['environs']
-        content += "%s\n" %machine_dict['modules']
-        content += "\n"
-        content += "%s\n" %machine_dict['command']
-        """
 
         return content
 
