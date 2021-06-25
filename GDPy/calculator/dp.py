@@ -34,7 +34,7 @@ import deepmd.DeepPot as DeepPot
 
 class DP(Calculator):
     name = "DP"
-    implemented_properties = ["energy", "forces", "virial", "stress"]
+    implemented_properties = ["energy", "energies", "free_energy", "forces", "virial", "stress"]
 
     def __init__(self, model, label="DP", type_dict=None, **kwargs):
         Calculator.__init__(self, label=label, **kwargs)
@@ -59,24 +59,28 @@ class DP(Calculator):
         symbols = atoms.get_chemical_symbols()
         atype = [self.type_dict[k] for k in symbols]
 
-        self.dp_input = {'coords': coord, 'cells': cell, 'atom_types': atype}
+        self.dp_input = {'coords': coord, 'cells': cell, 'atom_types': atype, 'atomic': True}
 
         return 
 
     def icalculate(self, dp_model, properties=["energy", "forces", "virial"], system_changes=all_changes):
         """"""
         results = {}
-        e, f, v = dp_model.eval(**self.dp_input)
+        e, f, v, ae, av = dp_model.eval(**self.dp_input) # for energy uncertainty estimation
         results['energy'] = e[0][0]
+        results['energies'] = ae[0]
+        results['free_energy'] = results['energy']
         results['forces'] = f[0]
         results['virial'] = v[0].reshape(3,3)
 
         # convert virial into stress for lattice relaxation
         if "stress" in properties:
             if self.pbc:
+                cell = self.dp_input['cells'][0]
+                volume = np.dot(np.cross(cell[0:3], cell[3:6]), cell[6:9])
                 # the usual convention (tensile stress is positive)
                 # stress = -virial / volume
-                stress = -0.5*(v[0].copy()+v[0].copy().T) / atoms.get_volume()
+                stress = -0.5*(v[0].copy()+v[0].copy().T) / volume
                 # Voigt notation 
                 results['stress'] = stress.flat[[0,4,8,5,2,1]] 
             else:
@@ -89,7 +93,7 @@ class DP(Calculator):
         self.prepare_input(atoms)
         all_results = []
         for dp_model in self.dp_models:
-            cur_results = self.icalculate(dp_model) # return current results
+            cur_results = self.icalculate(dp_model, properties, system_changes) # return current results
             all_results.append(cur_results)
         
         if len(self.dp_models) == 1:
@@ -99,6 +103,8 @@ class DP(Calculator):
             results = {}
             energy_array = [r['energy'] for r in all_results]
             results['energy'] = np.mean(energy_array)
+            energies_array = [r['energies'] for r in all_results] 
+            results['energies'] = np.mean(energies_array)
             forces_array = np.array([r['forces'] for r in all_results])
             results['forces'] = np.mean(forces_array, axis=0)
             if 'stress' in properties:
@@ -108,8 +114,8 @@ class DP(Calculator):
                 else:
                     raise PropertyNotImplementedError 
             # estimate standard variance
-            results['energy_stdvar'] = np.sqrt(np.var(energy_array))
-            results['forces_stdvar'] = np.sqrt(np.var(forces_array, axis=0))
+            results['energy_stdvar'] = np.sqrt(np.var(energies_array, axis=0)) # atomic energies uncertainty
+            results['forces_stdvar'] = np.sqrt(np.var(forces_array, axis=0)) # atomic forces
             self.results = results
 
         return 
@@ -117,7 +123,7 @@ class DP(Calculator):
 if __name__ == '__main__':
     # read structures 
     from ase.io import read, write
-    frames = read('test.xyz', ':')
+    frames = read('../../templates/structures/Pt_opt.xyz', ':')
 
     # set calculator
     type_map = {'O': 0, 'Pt': 1}
@@ -128,7 +134,6 @@ if __name__ == '__main__':
         '/users/40247882/projects/oxides/gdp-main/it-0003/ensemble/model-3/graph.pb'
     ]
 
-
     calc = DP(model=model, type_dict=type_map)
 
     # calculate
@@ -138,3 +143,5 @@ if __name__ == '__main__':
         dummy = atoms.get_forces() # carry out one calculation
         energy_stdvar = atoms.calc.results.get('energy_stdvar', None)
         forces_stdvar = atoms.calc.results.get('forces_stdvar', None) # shape (natoms,3)
+        print(energy_stdvar)
+        print(forces_stdvar)
