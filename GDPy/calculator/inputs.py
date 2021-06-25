@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import random
 from pathlib import Path
 
@@ -123,10 +124,38 @@ class LammpsInput():
 
         return content 
 
-    def write(self, input_path):
+    def write(self, dir_path, fname='in.lammps'):
+        """write the input"""
+        input_path = os.path.join(dir_path, fname)
         with open(input_path, 'w') as fopen:
             fopen.write(str(self))
         return
+    
+    @staticmethod
+    def map_md_variables(exp_dict: dict):
+        # set default variables
+        default_variables = dict(
+            nsteps = 0, 
+            thermo_freq = 0, 
+            dtime = 0.002, # be care with the unit
+            temp = 300,
+            pres = -1,
+            tau_t = 0.1,
+            tau_p = 0.5
+        )
+        
+        # update variables
+        temperatures = exp_dict.pop('temperatures', None)
+        pressures = exp_dict.pop('pressures', None)
+
+        sample_variables = default_variables.copy()
+        sample_variables['nsteps'] = exp_dict['nsteps']
+        sample_variables['dtime'] = exp_dict['timestep']
+        sample_variables['thermo_freq'] = exp_dict.get('freq', 10)
+        sample_variables['tau_t'] = exp_dict.get('tau_t', 0.1)
+        sample_variables['tau_p'] = exp_dict.get('tau_p', 0.5)
+
+        return temperatures, pressures, sample_variables
 
 
 if __name__ == '__main__':

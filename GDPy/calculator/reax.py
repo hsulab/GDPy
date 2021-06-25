@@ -15,6 +15,7 @@ from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.calculators.calculator import (
     Calculator, all_changes, PropertyNotImplementedError
 )
+from ase.calculators.singlepoint import SinglePointCalculator
 
 
 class ReaxLMP(Calculator):
@@ -65,7 +66,7 @@ class ReaxLMP(Calculator):
             os.path.join(self.directory, 'surface.dump'), ':', 'lammps-dump-text', 
             specorder=specorder, units='real'
         )[-1]
-        self.results['forces'] = dump_atoms.get_forces()
+        self.results['forces'] = dump_atoms.get_forces() * units.kcal / units.mol
 
         return
     
@@ -86,8 +87,74 @@ class ReaxLMP(Calculator):
             raise ValueError(msg)
 
         return 
+    
+    def minimise(self, atoms=None, steps=200, fmax=0.05, zmin=None):
+        # init for creating the directory
+        Calculator.calculate(self, atoms, ['energy'], all_changes)
 
-    def write_reax_in(self, specorder):
+        # elements
+        specorder = list(set(atoms.get_chemical_symbols()))
+        specorder.sort() # by alphabet
+
+        # write input
+        stru_data = os.path.join(self.directory, 'stru.data')
+        write_lammps_data(
+            stru_data, self.atoms, specorder=specorder, force_skew=True, units='real', atom_style='charge'
+        )
+        self.write_reax_in(specorder, steps, fmax, zmin)
+
+        self.run_lammps()
+
+        # obtain results
+        results = {}
+
+        # read energy
+        with open(os.path.join(self.directory, 'log.lammps'), 'r') as fopen:
+            lines = fopen.readlines()
+        for idx, line in enumerate(lines):
+            if line.startswith('Minimization stats:'):
+                stat_idx = idx
+                break
+        else:
+            raise ValueError('error in lammps minimization.')
+        stat_content = ''.join(lines[stat_idx:stat_idx+9])
+        results['energy'] = float(lines[stat_idx+3].split()[-1]) * units.kcal / units.mol
+
+        # read forces from dump file
+        dump_atoms = read(
+            os.path.join(self.directory, 'surface.dump'), ':', 'lammps-dump-text', 
+            specorder=specorder, units='real'
+        )[-1]
+
+        results['forces'] = dump_atoms.get_forces() * units.kcal / units.mol
+
+        dump_atoms.calc = SinglePointCalculator(
+            dump_atoms,
+            energy = results['energy'],
+            forces = results['forces']
+        )
+
+        return dump_atoms, stat_content
+    
+    def run_lammps(self):
+        # calculate
+        command = (
+            "%s " %self.command + "-in in.lammps 2>&1 > lmp.out"
+        )
+
+        # run lammps
+        proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+        errorcode = proc.wait()
+        if errorcode:
+            path = os.path.abspath(self.directory)
+            msg = ('Failed with command "{}" failed in '
+                   '{} with error code {}'.format(command, path, errorcode))
+
+            raise ValueError(msg)
+
+        return 
+
+    def write_reax_in(self, specorder, steps=0, fmax=0.05, zmin=None):
         """"""
         mass_line = ''.join(
             'mass %d %f\n' %(idx+1,atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(specorder)
@@ -108,19 +175,19 @@ class ReaxLMP(Calculator):
         content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(specorder))
         content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
         content += "\n"
-        if False:
-            content += "region bottom block INF INF INF INF 0.0 4.5\n"
-            content += "group bottom_layer region bottom\n"
-            content += "fix 1 bottom_layer setforce 0.0 0.0 0.0\n"
-            content += "\n"
         content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
         content += "thermo          10\n"
         content += "\n"
+        if zmin is not None:
+            content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
+            content += "group bottom_layer region bottom\n"
+            content += "fix 1 bottom_layer setforce 0.0 0.0 0.0\n"
+            content += "\n"
         content += "dump		1 all custom 10 surface.dump id type x y z fx fy fz\n"
         content += "\n"
         content += "min_style       fire\n"
         content += "min_modify      integrator verlet tmax 4 # see more on lammps doc about min_modify\n"
-        content += "minimize        0.0 0.05 0 1000 # energy tol, force tol, step, force step\n"
+        content += "minimize        0.0 %f %d 1000 # energy tol, force tol, step, force step\n" %(fmax/(units.kcal/units.mol), steps)
 
         in_file = os.path.join(self.directory, 'in.lammps')
         with open(in_file, 'w') as fopen:
