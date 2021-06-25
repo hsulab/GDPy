@@ -103,6 +103,7 @@ class DP(Calculator):
             results = {}
             energy_array = [r['energy'] for r in all_results]
             results['energy'] = np.mean(energy_array)
+            results['free_energy'] = results['energy']
             energies_array = [r['energies'] for r in all_results] 
             results['energies'] = np.mean(energies_array)
             forces_array = np.array([r['forces'] for r in all_results])
@@ -114,7 +115,8 @@ class DP(Calculator):
                 else:
                     raise PropertyNotImplementedError 
             # estimate standard variance
-            results['energy_stdvar'] = np.sqrt(np.var(energies_array, axis=0)) # atomic energies uncertainty
+            results['energy_stdvar'] = np.sqrt(np.var(energy_array)) # total energy uncertainty
+            results['energies_stdvar'] = np.sqrt(np.var(energies_array, axis=0)) # atomic energies uncertainty
             results['forces_stdvar'] = np.sqrt(np.var(forces_array, axis=0)) # atomic forces
             self.results = results
 
