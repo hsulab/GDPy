@@ -3,7 +3,7 @@
     "mode": "gpu",
     "job-name": "slurm-gpu",
     "partition": "k2-gpu",
-    "time": "12:00:00",
+    "time": "18:00:00",
     "nodes": 1,
     "ntasks": 1,
     "cpus-per-task": 12,

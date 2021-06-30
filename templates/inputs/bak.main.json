@@ -1,0 +1,168 @@
+{
+    "main_directory": "/users/40247882/projects/oxides/gdp-main",
+    "machines": {
+        "trainer": "/users/40247882/repository/GDPy/templates/inputs/machine-gpu.json",
+        "sampler": "/users/40247882/repository/GDPy/templates/inputs/machine-gpu.json",
+        "labeler": "/users/40247882/repository/GDPy/templates/inputs/machine-gpu.json"
+    },
+    "elements": ["O", "Pt"],
+    "type_map": {"O": 0, "Pt": 1},
+    "systems": {
+        "Pt": {
+            "name": "O0Pt32",
+            "composition": "O0Pt32",
+            "exploration": ["MD0"]
+        },
+        "Pt100": {
+            "name": "Pt100",
+            "composition": "Pt36",
+            "exploration": "MD00",
+            "constraint": ["10:36","1:9"]
+        },
+        "Pt110": {
+            "name": "Pt110",
+            "composition": "Pt54",
+            "exploration": "MD00",
+            "constraint": ["10:54","1:9"]
+        },
+        "Pt111": {
+            "name": "Pt111",
+            "composition": "Pt36",
+            "exploration": "MD00",
+            "constraint": ["10:36","1:9"]
+        },
+        "PtO": {
+            "name": "O16Pt16",
+            "composition": "O16Pt16",
+            "exploration": "MD12"
+        },
+        "PtO_100": {
+            "name": "PtO_100",
+            "composition": "O24Pt24",
+            "exploration": "MD00",
+            "constraint": ["9:24 33:48","1:8 25:32"],
+            "comment": "3x3 supercell O-terminated"
+        },
+        "PtO_101": {
+            "name": "PtO_101",
+            "composition": "O24Pt24",
+            "exploration": "MD00",
+            "constraint": ["9:24 33:48","1:8 25:32"],
+            "comment": "3x3 supercell O-terminated"
+        },
+        "aPtO2": {
+            "name": "O16Pt8",
+            "composition": "O16Pt8",
+            "exploration": "MD12"
+        },
+        "aPtO2_001": {
+            "name": "aPtO2_001",
+            "composition": "O36Pt18",
+            "exploration": "MD00",
+            "constraint": ["10:54","1:9"],
+            "comment": "3x3x2 six-atomic-layer supercell (0001) O-terminated"
+        },
+        "aPtO2_210": {
+            "name": "aPtO2_210",
+            "composition": "O64Pt32",
+            "exploration": "MD00",
+            "constraint": ["9:64 69:96","1:8 65:68"],
+            "comment": "2x2 supercell (10-10) O-terminated"
+        },
+        "aPtO2_300": {
+            "name": "aPtO2_300",
+            "composition": "O54Pt27",
+            "exploration": "MD00",
+            "constraint": ["10:81","1:9"],
+            "comment": "3x3 supercell (2-1-10) O-terminated"
+        },
+        "bPtO2": {
+            "name": "O32Pt16",
+            "composition": "O32Pt16",
+            "exploration": "MD12"
+        },
+        "bPtO2_001": {
+            "name": "bPtO2_001",
+            "composition": "O32Pt16",
+            "exploration": "MD00",
+            "constraint": ["9:48","1:8"],
+            "comment": "2x2x4 supercell Pt-terminated"
+        },
+        "Pt3O4": {
+            "name": "O64Pt48",
+            "composition": "O64Pt48",
+            "exploration": "MD12"
+        },
+        "Pt3O4_100": {
+            "name": "Pt3O4_100",
+            "composition": "O32Pt24",
+            "exploration": "MD00",
+            "constraint": ["1:32 41:56","33:40"],
+            "comment": "2x2x1 supercell O-terminated"
+        }
+    },
+    "training": {
+        "num_models": 4,
+        "json": "/users/40247882/repository/GDPy/templates/inputs/PtOx_se_a_300k.json"
+    },
+    "surrogate": {
+        "reax": "/users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO"
+    },
+    "explorations": {
+        "MD0": {
+            "backend": "ase",
+            "potential": "deepmd",
+            "thermostat": "nvt",
+            "temperatures": [150,300,450,600,900,1200,1500,1800,2100,2400],
+            "timestep": 2,
+            "nsteps": 1000,
+            "freq": 10
+        },
+        "MD00": {
+            "backend": "lammps",
+            "potential": "reax",
+            "thermostat": "nvt",
+            "temperatures": [150,300,450,600,900,1200,1500,1800,2100,2400],
+            "timestep": 0.25,
+            "nsteps": 8000,
+            "freq": 80,
+            "tau_t": 10
+        },
+        "MD-lmpdp-npt": {
+            "backend": "lammps",
+            "potential": "deepmd",
+            "thermostat": "npt",
+            "temperatures": [600],
+            "pressures": [1,1000,10000,50000],
+            "timestep": 2,
+            "nsteps": 1000,
+            "freq": 10,
+            "tau_t": 0.1,
+            "tau_p": 0.5
+        },
+        "MD1": {
+            "backend": "lammps",
+            "potential": "deepmd",
+            "thermostat": "nvt",
+            "temperatures": [100,200,300,400,500,600,700,800,900,1000],
+            "timestep": 0.002,
+            "nsteps": 1000,
+            "freq": 10
+        },
+        "MD12": {
+            "backend": "lammps",
+            "potential": "reax",
+            "thermostat": "npt",
+            "temperatures": [600],
+            "pressures": [1,1000,10000,50000],
+            "timestep": 0.25,
+            "nsteps": 8000,
+            "freq": 80,
+            "tau_t": 10,
+            "tau_p": 50
+        }
+    },
+    "validations": {
+        "dimer": "miaow"
+    }
+}

@@ -1,0 +1,16 @@
+{
+    "systems": {
+        "surf-1O": {
+            "composition": {"O": 1, "Pt": 36},
+            "structures": ["/users/40247882/projects/oxides/gdp-main/init-systems/surfaces/surf-1O"],
+            "constraint": ["10:37","1:9"],
+            "comment": "3x3x1 supercell with 1 O"
+        },
+        "surf-3O": {
+            "composition": {"O": 1, "Pt": 36},
+            "structures": ["/users/40247882/projects/oxides/gdp-main/init-systems/surfaces/surf-3O"],
+            "constraint": ["10:39", "1:9"],
+            "_comment": "3x3x1 Pt(111) with 3 O"
+        }
+    }
+}
