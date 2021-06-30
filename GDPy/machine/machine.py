@@ -87,7 +87,7 @@ class SlurmMachine(AbstractMachine):
         
         return
 
-    def __repr__(self):
+    def __str__(self):
         content = self.SHELL + '\n'
         for key, value in self.machine_dict.items():
             if value:
@@ -145,6 +145,8 @@ class SlurmMachine(AbstractMachine):
         return
 
     def submit_script(self):
+        """ submit jobs and taks job ids
+        """
         pass
 
     def check_status(self):
@@ -152,11 +154,19 @@ class SlurmMachine(AbstractMachine):
 
 class PbsMachine(AbstractMachine):
 
+    PREFIX = "#$"
+    SUFFIX = ".slurm"
+    SHELL = "#!/bin/bash -l"
+
     def __init__(self):
 
-        pass
+        return
 
-    def miaow(self):
+    def parse_params(self):
+
+        return
+
+    def __str__(self):
         content = "#!/bin/bash -l\n"
         content += "#$ -N %s\n" %Path(directory).name
         content += "#$ -l h_rt=24:00:00\n"
@@ -168,10 +178,11 @@ class PbsMachine(AbstractMachine):
         content += "\n"
         content += "gerun /home/mmm0586/apps/vasp/installed/5.4.1-TS/vasp_std 2>&1 > vasp.out\n"
 
-        return 
+        return content
 
 if __name__ == '__main__':
     vasp_slurm = SlurmMachine('../../templates/inputs/machine.json')
     vasp_slurm.read('../../templates/jobscripts/vasp.slurm')
+    print(vasp_slurm)
     #vasp_slurm.write_script()
     pass

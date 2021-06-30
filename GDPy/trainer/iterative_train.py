@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from GDPy.trainer.train_potential import read_dptrain_json
-from GDPy.sampler.sample_main import Sampler, collect_sample_data
+from GDPy.sampler.sample_main import Sampler
 
 MAXITER = 100
 
@@ -130,6 +130,6 @@ def iterative_train(inputs):
 if __name__ == '__main__':
     inputs = '/users/40247882/repository/GDPy/templates/inputs'
     it = IterativeTrainer(inputs)
-    it.irun(8, 'trainer')
+    it.irun(11, 'trainer')
     #it.irun(5, 'sampler', 1)
     pass

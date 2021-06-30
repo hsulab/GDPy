@@ -12,7 +12,7 @@ from ase.data import atomic_numbers, atomic_masses
 
 class LammpsInput():
 
-    def __init__(self, type_map, data, model: dict, ensemble='nvt', variables: dict = {}, constraint=None):
+    def __init__(self, type_map, model: str, variables: dict = {}):
         """"""
         # form mass line
         self.mass_line = ''
@@ -20,28 +20,11 @@ class LammpsInput():
             anum = atomic_numbers[key]
             self.mass_line += 'mass %d %.4f\n' %(value+1, atomic_masses[anum])
 
-        # structure data
-        self.data_file = data
-
         # model line
-        assert len(model) == 1
-        model_type = list(model.keys())[0]
-        model_value = list(model.values())[0]
-        if model_type == 'deepmd':
-            model_line = 'pair_style      deepmd %s out_freq ${THERMO_FREQ} out_file model_devi.out\n' \
-                %(' '.join([str(p) for p in model_value]))
-            model_line += 'pair_coeff    \n'
-        elif model_type == 'reax/c':
-            model_line = 'pair_style  reax/c NULL\n'
-            model_line += 'pair_coeff  * * %s %s\n' %(model_value, ' '.join(list(type_map.keys())))
-            model_line += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-        else:
-            raise ValueError('unsupported pair_style')
-        self.model_type = model_type
-        self.model_line = model_line
+        self.model_line = model
 
         # ensemble
-        self.ensemble = ensemble
+        self.thermostat = variables.get('thermostat', 'nvt')
 
         # Be careful with units. 
         # dp uses metal while reax uses real
@@ -53,10 +36,16 @@ class LammpsInput():
         self.tau_t = variables.get('tau_t', 0.1) # unit ps
         self.tau_p = variables.get('tau_p', 0.5) # ps
 
+        return 
+    
+    def bind_structure(self, data, constraint):
         # constraint
         self.constraint = constraint
 
-        return 
+        # structure data
+        self.data_file = data
+
+        return
 
     def __repr__(self):
         """"""
@@ -70,22 +59,12 @@ class LammpsInput():
         content += "variable        TAU_P           equal %f\n" %self.tau_p
         content += "\n"
 
-        # md
-        if self.model_type == 'deepmd':
-            content += "units           metal\n"
-            content += "boundary        p p p\n"
-            content += "atom_style      atomic\n"
-            content += "\n"
-            content += "neighbor        1.0 bin\n"
-        elif self.model_type == 'reax/c':
-            content += "units           real\n"
-            content += "boundary        p p p\n"
-            content += "atom_style      charge\n"
-            content += "\n"
-            content += "neighbor            1.0 bin\n" # for npt, ghost atom issue
-            content += "neigh_modify     every 10 delay 0 check no\n"
+        # deepmd
+        content += "units           metal\n"
+        content += "atom_style      atomic\n"
 
         content += "\n"
+        content += "boundary        p p p\n"
         content += "box          tilt large\n"
         content += "read_data    %s\n" %self.data_file
         content += "change_box   all triclinic\n"
@@ -110,11 +89,11 @@ class LammpsInput():
             content += "\n"
             content += "velocity        mobile create ${TEMP} %d\n" %(random.randrange(10000-1)+1)
             content += "fix 3 freezed setforce 0.0 0.0 0.0\n"
-        if self.ensemble == 'nvt':
+        if self.thermostat == 'nvt':
             content += "fix             1 all nvt temp ${TEMP} ${TEMP} ${TAU_T}\n"
-        elif self.ensemble == 'npt':
+        elif self.thermostat == 'npt':
             content += "fix             1 all npt temp ${TEMP} ${TEMP} ${TAU_T} aniso ${PRES} ${PRES} ${TAU_P}\n"
-        elif self.ensemble == 'nve':
+        elif self.thermostat == 'nve':
             content += "fix             1 all nve \n"
         else:
             pass
@@ -130,32 +109,6 @@ class LammpsInput():
         with open(input_path, 'w') as fopen:
             fopen.write(str(self))
         return
-    
-    @staticmethod
-    def map_md_variables(exp_dict: dict):
-        # set default variables
-        default_variables = dict(
-            nsteps = 0, 
-            thermo_freq = 0, 
-            dtime = 0.002, # be care with the unit
-            temp = 300,
-            pres = -1,
-            tau_t = 0.1,
-            tau_p = 0.5
-        )
-        
-        # update variables
-        temperatures = exp_dict.pop('temperatures', None)
-        pressures = exp_dict.pop('pressures', None)
-
-        sample_variables = default_variables.copy()
-        sample_variables['nsteps'] = exp_dict['nsteps']
-        sample_variables['dtime'] = exp_dict['timestep']
-        sample_variables['thermo_freq'] = exp_dict.get('freq', 10)
-        sample_variables['tau_t'] = exp_dict.get('tau_t', 0.1)
-        sample_variables['tau_p'] = exp_dict.get('tau_p', 0.5)
-
-        return temperatures, pressures, sample_variables
 
 
 if __name__ == '__main__':

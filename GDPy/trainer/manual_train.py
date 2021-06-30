@@ -5,7 +5,7 @@ import json
 import pathlib
 
 from GDPy.trainer.train_potential import read_dptrain_json
-from GDPy.sampler.sample_main import Sampler, collect_sample_data
+from GDPy.sampler.sample_main import Sampler
 
 
 def manual_train(main_json, niter, stage):
@@ -36,6 +36,10 @@ def manual_train(main_json, niter, stage):
             print('collect')
             # collect_sample_data(iter_directory, main_database, main_dict)
             scout.collect(iter_directory)
+        elif step == 2:
+            print('select')
+            # collect_sample_data(iter_directory, main_database, main_dict)
+            scout.select(iter_directory)
         else:
             print('no action...')
             pass
