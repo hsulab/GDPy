@@ -19,7 +19,6 @@ from ase.data import atomic_numbers, atomic_masses
 
 from GDPy.calculator.ase_interface import AseInput
 from GDPy.calculator.inputs import LammpsInput
-from GDPy.sampler.exploration import sample_configuration
 from GDPy.selector.structure_selection import calc_feature, cur_selection
 
 from GDPy.machine.machine import SlurmMachine
@@ -40,6 +39,8 @@ class Sampler():
     Units
         fs, eV, eV/AA
     """
+
+    supported_potentials = ["reax", "deepmd", "eann"]
 
     # set default variables
     # be care with the unit
@@ -93,8 +94,12 @@ class Sampler():
         job_script = exp_dict.get('jobscript', None)
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
-            # some general parameters
-            potential = exp_dict.pop('potential', 'deepmd') # dummy
+            # check potential parameters
+            #potential = exp_dict.pop("potential", None) 
+            #if potential not in self.supported_potentials:
+            #    raise ValueError("Potential %s is not supported..." %potential)
+
+            # MD exploration params
             exp_params = exp_dict['params']
             thermostat = exp_params.pop('thermostat', None)
             temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
@@ -103,58 +108,45 @@ class Sampler():
                 system_dict = self.init_systems[slabel] # system name
                 structure = system_dict['structure']
                 scomp = system_dict['composition'] # system composition
+                atypes = []
+                for atype, number in scomp.items():
+                    if number > 0:
+                        atypes.append(atype)
+
                 cons = system_dict.get('constraint', None)
                 name_path = working_directory / exp_name / (slabel+'-'+thermostat)
                 # create directories
-                if potential == 'deepmd':
-                    runovers = [] # [(structure,working_dir),...,()]
-                    if structure.endswith('.data'):
-                        runovers.append((structure,name_path))
-                    else:
-                        data_path = pathlib.Path(system_dict['structure'])
-                        for f in data_path.glob(slabel+'*'+'.data'):
-                            cur_path = name_path / f.stem
-                            runovers.append((f, cur_path))
-                    # create all 
-                    calc_input = self.create_input(self.pot_manager, sample_variables) # use inputs with preset md params
-                    for (stru_path, work_path) in runovers:
-                        self.create_exploration(
-                            work_path, job_script, calc_input, stru_path, cons, temperatures, pressures
-                        )
-                elif potential == 'reax':
-                    pass
-                    """
-                    # TODO: better use OrderedDict
-                    reax_element_map = self.type_map.copy()
-                    for ele, num in scomp.items():
-                        if num == 0:
-                            reax_element_map.pop(ele, None)
-                    for idx, ele in enumerate(reax_element_map.keys()):
-                        reax_element_map[ele] = idx
-                    model = {
-                        'reax/c': self.potentials['reax']
-                    }
-                    if backend == 'ase':
-                        raise NotImplementedError('ase does not support reax...')
-                    elif backend == 'lammps':
-                        data = pathlib.Path('/users/40247882/projects/oxides/gdp-main/init-systems/charge') / ('miaow'+'.data')
-                        lmpin = LammpsInput(reax_element_map, data, model, thermostat, sample_variables, cons)
-                        self.create_exploration(name_path, job_script, lmpin, temperatures, pressures)
-                    """
+                # check single data or a list of structures
+                runovers = [] # [(structure,working_dir),...,()]
+                if structure.endswith('.data'):
+                    runovers.append((structure,name_path))
                 else:
-                    raise NotImplementedError('other potentials...')
+                    data_path = pathlib.Path(system_dict['structure'])
+                    for f in data_path.glob(slabel+'*'+'.data'):
+                        cur_path = name_path / f.stem
+                        runovers.append((f, cur_path))
+                # create all 
+                calc_input = self.create_input(self.pot_manager, atypes, sample_variables) # use inputs with preset md params
+                for (stru_path, work_path) in runovers:
+                    self.create_exploration(
+                        work_path, job_script, calc_input, stru_path, cons, temperatures, pressures
+                    )
 
         return
     
-    def create_input(self, pot_manager, md_params: dict):
+    def create_input(
+        self, pot_manager, 
+        atypes: list,
+        md_params: dict
+    ):
         """ create calculation input object
         """
         # create calculation input object
-        calc = pot_manager.generate_calculator()
-        if pot_manager.backend == 'ase':
-            calc_input = AseInput(self.type_map, calc, md_params)
-        elif pot_manager.backend == 'lammps':
-            calc_input = LammpsInput(self.type_map, calc, md_params)
+        calc = pot_manager.generate_calculator(atypes)
+        if pot_manager.backend == "ase":
+            calc_input = AseInput(atypes, calc, md_params)
+        elif pot_manager.backend == "lammps":
+            calc_input = LammpsInput(atypes, calc, md_params)
 
         return calc_input
     
@@ -222,7 +214,7 @@ class Sampler():
 
         return
 
-    def icollect(self, exp_name, working_directory):
+    def icollect(self, exp_name, working_directory, skipped_systems=[]):
         """collect data from single calculation"""
         exp_dict = self.explorations[exp_name]
         # deviation
@@ -234,12 +226,12 @@ class Sampler():
             print("checking system %s ..."  %md_prefix)
             exp_params = exp_dict['params']
             thermostat = exp_params.pop('thermostat', None)
-            temperatures, pressures, sample_variables = LammpsInput.map_md_variables(exp_params)
+            temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
 
             # loop over systems
             for slabel in included_systems:
-                # TODO: more flexible
-                if slabel not in ["surf-5O","surf-6O","surf-7O","surf-8O","surf-9O"]:
+                # TODO: make this into system
+                if slabel in skipped_systems:
                     continue
                 # TODO: better use OrderedDict
                 system_dict = self.init_systems[slabel] # system name
@@ -326,7 +318,7 @@ class Sampler():
                                     continue
                             print('nframes at temp %sK: %d' %(temp,len(frames)))
 
-                            self.extract_deviation(sys_prefix/temp, frames, devi)
+                            frames = self.extract_deviation(sys_prefix/temp, frames, devi)
 
                             # sometimes all frames have small deviations
                             if frames:
@@ -346,7 +338,10 @@ class Sampler():
         if devi is not None:
             low_devi, high_devi = devi
             devi_out = cur_dir / 'model_devi.out'
-            max_fdevi = np.loadtxt(devi_out)[1:,4]
+            # TODO: DP and EANN has different formats
+            # max_fdevi = np.loadtxt(devi_out)[1:,4] # DP
+            max_fdevi = np.loadtxt(devi_out)[1:,5] # EANN
+
             err =  '%d != %d' %(len(frames), max_fdevi.shape[0])
             assert len(frames) == max_fdevi.shape[0], err # not necessary
 
@@ -495,6 +490,8 @@ def run_exploration(pot_json, exp_json, chosen_step):
     scout = Sampler(pm, exp_dict)
     if chosen_step == 'create':
         scout.create('./')
+    elif chosen_step == "collect":
+        scout.collect("./")
     else:
         pass
 
