@@ -6,6 +6,7 @@ import re
 import shutil
 import json
 import sys
+from typing import overload
 import warnings
 import pathlib
 import numpy as np
@@ -22,6 +23,8 @@ from GDPy.calculator.inputs import LammpsInput
 from GDPy.selector.structure_selection import calc_feature, cur_selection
 
 from GDPy.machine.machine import SlurmMachine
+
+from GDPy.utils.data import vasp_creator
 
 
 class Sampler():
@@ -41,6 +44,7 @@ class Sampler():
     """
 
     supported_potentials = ["reax", "deepmd", "eann"]
+    supported_procedures = ["create", "collect", "select", "calculate"]
 
     # set default variables
     # be care with the unit
@@ -53,6 +57,12 @@ class Sampler():
         tau_t = 0.1, # ps
         tau_p = 0.5 # ps
     )
+
+    default_params = {
+        "collect": {
+            "deviation": None
+        }
+    }
 
     def __init__(self, pm, main_dict: dict):
         """"""
@@ -81,12 +91,15 @@ class Sampler():
 
         return temperatures, pressures, sample_variables
     
-    def create(self, working_directory):
+    def run(self, operator, working_directory): 
         """create for all explorations"""
         working_directory = pathlib.Path(working_directory)
         for exp_name in self.explorations.keys():
-            self.icreate(exp_name, working_directory)
-        return
+            exp_directory = working_directory / exp_name
+            # note: check dir existence in sub function
+            operator(exp_name, working_directory)
+
+        return 
 
     def icreate(self, exp_name, working_directory):
         """create for each exploration"""
@@ -202,23 +215,15 @@ class Sampler():
 
         return
     
-    def collect(self, working_directory):
-        # backend and potential
-        working_directory = pathlib.Path(working_directory)
-        for exp_name in self.explorations.keys():
-            exp_directory = working_directory / exp_name
-            if exp_directory.exists():
-                self.icollect(exp_name, working_directory)
-            else:
-                warnings.warn('there is no %s ...' %exp_directory, UserWarning)
-
-        return
-
     def icollect(self, exp_name, working_directory, skipped_systems=[]):
         """collect data from single calculation"""
         exp_dict = self.explorations[exp_name]
         # deviation
-        devi = exp_dict.get('deviation', None)
+        if self.default_params["collect"]["deviation"] is None:
+            devi = exp_dict.get('deviation', None)
+        else:
+            devi = self.default_params["collect"]["deviation"]
+            print("deviation: ", devi)
 
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
@@ -294,11 +299,17 @@ class Sampler():
                             write(sorted_path/str(slabel+'_ALL.xyz'), all_frames)
                     else:
                         # make sort dir
-                        sorted_path = sys_prefix / 'sorted'
+                        sorted_path = sys_prefix / "sorted"
                         print("===== collecting system %s =====" %sys_prefix)
                         if sorted_path.exists():
-                            warnings.warn('sorted_path exists in %s' %sys_prefix, UserWarning)
-                            continue
+                            override = True
+                            if override:
+                                warnings.warn('sorted_path removed in %s' %sys_prefix, UserWarning)
+                                shutil.rmtree(sorted_path)
+                                sorted_path.mkdir()
+                            else:
+                                warnings.warn('sorted_path exists in %s' %sys_prefix, UserWarning)
+                                continue
                         else:
                             sorted_path.mkdir()
                         # extract frames
@@ -327,7 +338,8 @@ class Sampler():
                                 all_frames.extend(frames)
 
                         print('TOTAL NUMBER OF FRAMES %d in %s' %(len(all_frames),sys_prefix))
-                        write(sorted_path/str(slabel+'_ALL.xyz'), all_frames)
+                        if len(all_frames) > 0:
+                            write(sorted_path/str(slabel+'_ALL.xyz'), all_frames)
                 else:
                     raise NotImplementedError('no other thermostats')
 
@@ -364,18 +376,6 @@ class Sampler():
             pass
 
         return frames
-    
-    def select(self, working_directory):
-        # backend and potential
-        working_directory = pathlib.Path(working_directory)
-        for exp_name in self.explorations.keys():
-            exp_directory = working_directory / exp_name
-            if exp_directory.exists():
-                self.iselect(exp_name, working_directory)
-            else:
-                warnings.warn('there is no %s ...' %exp_directory, UserWarning)
-
-        return
     
     def iselect(self, exp_name, working_directory):
         """select data from single calculation"""
@@ -470,8 +470,64 @@ class Sampler():
         
         return selected_frames
     
+    def icalc(self, exp_name, working_directory):
+        """calculate configurations with reference method"""
+        exp_dict = self.explorations[exp_name]
 
-def run_exploration(pot_json, exp_json, chosen_step):
+        # some parameters
+        calc_dict = exp_dict["calculation"]
+        nstructures = calc_dict.get("nstructures", 100000) # number of structures in each calculation dirs
+        incar_template = calc_dict.get("incar")
+        prefix = calc_dict.get("prefix", "miaow")
+
+        # start 
+        included_systems = exp_dict.get('systems', None)
+        if included_systems is not None:
+            # MD exploration params
+            exp_params = exp_dict['params']
+            thermostat = exp_params.pop("thermostat", None)
+            temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
+            # loop over systems
+            for slabel in included_systems:
+                system_dict = self.init_systems[slabel] # system name
+                structure = system_dict["structure"]
+                scomp = system_dict["composition"] # system composition
+                atypes = []
+                for atype, number in scomp.items():
+                    if number > 0:
+                        atypes.append(atype)
+
+                name_path = working_directory / exp_name / (slabel+'-'+thermostat) # system directory
+                # create directories
+                # check single data or a list of structures
+                runovers = [] # [(structure,working_dir),...,()]
+                if structure.endswith('.data'):
+                    runovers.append((structure,name_path))
+                else:
+                    data_path = pathlib.Path(system_dict['structure'])
+                    for f in data_path.glob(slabel+'*'+'.data'):
+                        cur_path = name_path / f.stem
+                        runovers.append((f, cur_path))
+                # create all calculation dirs
+                for (stru_path, name_path) in runovers:
+                    sorted_path = name_path / "sorted" # directory with collected xyz configurations
+                    collected_path = sorted_path / (slabel + "_ALL.xyz")
+                    if collected_path.exists():
+                        #frames = read(collected_path, ":")
+                        #print("There are %d configurations in %s." %(len(frames), collected_path))
+                        vasp_creator.create_files(
+                            pathlib.Path(prefix),
+                            "/users/40247882/repository/GDPy/GDPy/utils/data/vasp_calculator.py",
+                            incar_template,
+                            collected_path
+                        )
+                    else:
+                        warnings.warn("There is no %s." %collected_path, UserWarning)
+
+        return
+    
+
+def run_exploration(pot_json, exp_json, chosen_step, global_params = None):
     # create potential manager
     with open(pot_json, 'r') as fopen:
         pot_dict = json.load(fopen)
@@ -488,12 +544,23 @@ def run_exploration(pot_json, exp_json, chosen_step):
         exp_dict = json.load(fopen)
     
     scout = Sampler(pm, exp_dict)
-    if chosen_step == 'create':
-        scout.create('./')
-    elif chosen_step == "collect":
-        scout.collect("./")
+
+    # adjust global params
+    print("optional params ", global_params)
+    if global_params is not None:
+        assert len(global_params)%2 == 0, "optional params must be key-pair"
+        for first in range(0, len(global_params), 2):
+            print(global_params[first], " -> ", global_params[first+1])
+            scout.default_params[chosen_step][global_params[first]] = eval(global_params[first+1])
+
+    # compute
+    op_name = "i" + chosen_step
+    assert isinstance(op_name, str), "op_nam must be a string"
+    op = getattr(scout, op_name, None)
+    if op is not None:
+        scout.run(op, "./")
     else:
-        pass
+        raise ValueError("Wrong chosen step %s..." %op_name)
 
     return
 
@@ -509,4 +576,3 @@ if __name__ == '__main__':
     type_map = {'O': 0, 'Pt': 1}
 
     icollect_data(exp_dict, md_prefix, init_systems, type_map)
-    pass
