@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple
+from sys import prefix
 
 import numpy as np
 
@@ -26,12 +27,50 @@ For each element, thermal de broglie wavelengths are needed.
 Reservior = namedtuple('Reservior', ['particle', 'temperature', 'pressure', 'mu']) # Kelvin, atm, eV
 RunParam = namedtuple('RunParam', ['backend', 'calculator', 'optimiser', 'convergence', 'constraint']) # 
 
+def estimate_chemical_potential(
+    temperature: float, 
+    pressure: float, # pressure, 1 bar
+    total_energy: float,
+    zpe: float,
+    dU: float,
+    dS: float, # entropy
+    coef: float = 1.0
+) -> float:
+    """
+    See experimental data
+        https://janaf.nist.gov
+    Examples
+        O2 by ReaxFF
+            molecular energy -5.588 atomic energy -0.109
+        O2 by vdW-DF spin-polarised 
+            molecular energy -9.196 atomic energy -1.491
+            ZPE 0.09714 
+            dU 8.683 kJ/mol (exp)
+            entropy@298.15K 205.147 J/mol (exp)
+    Formula
+        FreeEnergy = E_DFT + ZPE + U(T) + TS + pV
+    """
+    kJm2eV = units.kJ / units.mol # from kJ/mol to eV
+    # 300K, PBE-ZPE, experimental data https://janaf.nist.gov
+    temp_correction = zpe + (dU*kJm2eV) - temperature*(dS/1000*kJm2eV)
+    pres_correction = units.kB*temperature*np.log(pressure/1.0) # eV
+    chemical_potential = coef*(
+        total_energy + temp_correction + pres_correction
+    )
+
+    return chemical_potential
+
 class ReducedRegion():
     """
     spherical or cubic box
     """
 
-    def __init__(self, cell, caxis: list, mindis=1.5):
+    def __init__(
+        self, 
+        cell, # (3x3) lattice
+        caxis: list, # min and max in z-axis
+        mindis: float = 1.5 # minimum distance between atoms
+    ):
         """"""
         # box
         self.cell = cell.copy()
@@ -66,7 +105,7 @@ class ReducedRegion():
 
         return ran_pos
     
-    def calc_acc_volume(self, atoms):
+    def calc_acc_volume(self, atoms) -> float:
         """calculate acceptable volume"""
         atoms_inside = [atom for atom in atoms if atom.position[2] > self.cmin]
         print(len(atoms_inside))
@@ -96,8 +135,8 @@ class GCMC():
     def __init__(
         self, 
         type_map: dict, 
-        gc_params: namedtuple, 
-        atoms, 
+        reservior: dict, 
+        atoms: Atoms, 
         reduced_region: ReducedRegion,
         nMCmoves: int = 10, 
         transition_array: np.array = np.array([0.0,0.0])
@@ -105,12 +144,17 @@ class GCMC():
         """
         """
         # simulation system
-        self.expart = gc_params.particle # exchangeable particle
         self.atoms = atoms # current atoms
         self.nparts = len(atoms)
         self.nattempts = nMCmoves
 
         self.region = reduced_region
+
+        # constraint
+        cons = FixAtoms(
+            indices = [atom.index for atom in atoms if atom.position[2] < self.region.cmin]
+        )
+        atoms.set_constraint(cons)
 
         # probs
         self.trans_probs = transition_array # transition probabilities: motion, insertion, deletion
@@ -125,16 +169,23 @@ class GCMC():
 
         # TODO: reservoir
         self.nexatoms = 0
-        self.chem_pot = gc_params.mu
+        self.expart = reservior["particle"] # exchangeable particle
+
+        self.temperature, self.pressure = reservior["temperature"], reservior["pressure"]
+
+        # - chemical potenttial
+        self.chem_pot = estimate_chemical_potential(
+            temperature=self.temperature, pressure=self.pressure,
+            **reservior["energy_params"]
+        )
 
         # - beta
-        self.temperature, self.pressure = gc_params.temperature, gc_params.pressure
         kBT_eV = units.kB * self.temperature
         self.beta = 1./kBT_eV # 1/(kb*T), eV
 
         # - cubic thermo de broglie 
         hplanck = units._hplanck # J/Hz = kg*m2*s-1
-        _mass = data.atomic_masses[data.atomic_numbers[gc_params.particle]] # g/mol
+        _mass = data.atomic_masses[data.atomic_numbers[self.expart]] # g/mol
         _mass = _mass * units._amu
         kbT_J = kBT_eV * units._e # J = kg*m2*s-2
         self.cubic_wavelength = (hplanck/np.sqrt(2*np.pi*_mass*kbT_J)*1e10)**3 # thermal de broglie wavelength
@@ -157,7 +208,9 @@ class GCMC():
 
         return
 
-    def run(self, params: namedtuple):
+    def run(
+        self, params: dict
+    ):
         """"""
         # start info
         content = '===== Simulation Information =====\n\n'
@@ -168,16 +221,17 @@ class GCMC():
         print(content)
         
         # set calculator
-        self.calc = params.calculator
-        self.calc.reset() # remove info stored in calculator
+        self.backend = params.pop("backend", None)
+        self.convergence = params.pop("convergence", None)
+        self.constraint = None
+        if self.backend == "lammps":
+            from GDPy.calculator.reax import LMPMin
+            self.calc = LMPMin(**params) # change this to class with same methods as ASE-Dyn
+            self.calc.reset() # remove info stored in calculator
+        else:
+            pass
 
-        # optimisation
-        self.optimiser = params.optimiser
-        self.constraint = params.constraint
-        self.convergence = params.convergence
-
-        #self.atoms.calc = self.calc
-        #self.energy_stored = self.atoms.get_potential_energy()
+        # opt init structure
         self.energy_stored, self.atoms = self.optimise(self.atoms)
         print(self.atoms.cell)
         print('energy_stored ', self.energy_stored)
@@ -195,6 +249,8 @@ class GCMC():
             # TODO: save state
             write('miaow.xyz', self.atoms, append=True)
 
+            # check uncertainty
+
         return
 
     def step(self):
@@ -204,11 +260,22 @@ class GCMC():
         rn_mcmove = self.rng.uniform()
         print('prob action', rn_mcmove)
         # check if the action is valid, otherwise set the prob to zero
-        if rn_mcmove < self.accum_probs[0]:
-            # atomic motion
-            print('current attempt is motion')
-            self.attempt_move_atom()
-        elif rn_mcmove < self.accum_probs[1]:
+        if len(self.exatom_indices) > 0:
+            if rn_mcmove < self.accum_probs[0]:
+                # atomic motion
+                print('current attempt is motion')
+                self.attempt_move_atom()
+            elif rn_mcmove < self.accum_probs[1]:
+                # exchange (insertion/deletion)
+                rn_ex = self.rng.uniform()
+                print('prob exchange', rn_ex)
+                if rn_ex < 0.5:
+                    print('current attempt is insertion')
+                    self.attempt_insert_atom()
+                else:
+                    print('current attempt is deletion')
+                    self.attempt_delete_atom()
+        else:
             # exchange (insertion/deletion)
             rn_ex = self.rng.uniform()
             print('prob exchange', rn_ex)
@@ -217,7 +284,6 @@ class GCMC():
                 self.attempt_insert_atom()
             else:
                 print('current attempt is deletion')
-                self.attempt_delete_atom()
 
         return
     
@@ -384,11 +450,11 @@ class GCMC():
             atoms.set_constraint(self.constraint)
 
         fmax, steps = self.convergence
-        if self.optimiser == BFGS:
+        if self.backend == "ase":
             # TODO: use opt as arg
             dyn = BFGS(atoms)
             dyn.run(fmax=fmax, steps=steps)
-        elif self.optimiser == 'lammps':
+        elif self.backend == "lammps":
             # run lammps
             atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
             print(min_stat)
@@ -407,7 +473,7 @@ class GCMC():
 def calc_chem_pot():
     """ calculate the chemical potential
     """
-    pass
+    return
 
 if __name__ == '__main__':
     # set initial structure - bare metal surface
@@ -416,7 +482,7 @@ if __name__ == '__main__':
     # set reservior
     pot = 'reax'
     if pot == 'dp':
-        # vdW-DF energy
+        # vdW-DF spin-polarised energy
         molecule_energy, dissociation_energy = -9.19578234, (-9.19578234-2*(-1.49092275))
         # 300K, PBE-ZPE, experimental data https://janaf.nist.gov
         thermo_correction = 0.09714 + (8.683 * 0.01036427) - 298.15 * (205.147 * 0.0000103642723)
