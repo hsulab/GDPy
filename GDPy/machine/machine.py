@@ -152,6 +152,7 @@ class SlurmMachine(AbstractMachine):
     def check_status(self):
         pass
 
+
 class PbsMachine(AbstractMachine):
 
     PREFIX = "#$"

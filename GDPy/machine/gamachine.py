@@ -194,17 +194,33 @@ class SlurmQueueRun:
                 else:
                     # TODO: save relaxation trajectory for MLP?
                     # still leave queued=1 in the db, but resubmit
+                    # TODO: manage a failed job list
+                    # failed_confs = [95]
+                    failed_confs = []
                     resubmit = True
                     if resubmit:
-                        print('copy data...')
-                        saved_cards = ['POSCAR', 'CONTCAR', 'OUTCAR']
-                        for card in saved_cards:
-                            card_path = cand_dir / card
-                            saved_card_path = cand_dir / (card+'_old')
-                            shutil.copy(card_path, saved_card_path)
-                        shutil.copy(cand_dir / 'CONTCAR', cand_dir / 'POSCAR')
-                        print('resubmit job...')
-                        print(self.__submit_job(cand_dir))
+                        if confid not in failed_confs:
+                            print('copy data...')
+                            saved_cards = ['POSCAR', 'CONTCAR', 'OUTCAR']
+                            for card in saved_cards:
+                                card_path = cand_dir / card
+                                saved_card_path = cand_dir / (card+'_old')
+                                shutil.copy(card_path, saved_card_path)
+                            shutil.copy(cand_dir / 'CONTCAR', cand_dir / 'POSCAR')
+                            print('resubmit job...')
+                            print(self.__submit_job(cand_dir))
+                        else:
+                            print('save failed configuration to the database')
+                            atoms.info['confid'] = confid
+                            # add few information
+                            atoms.info['data'] = {}
+                            atoms.info['key_value_pairs'] = {'extinct': 0, 'failed': 1}
+                            atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
+                            self.dc.add_relaxed_step(
+                                atoms,
+                                find_neighbors=self.find_neighbors,
+                                perform_parametrization=self.perform_parametrization
+                            )
                     else:
                         pass
             else:
