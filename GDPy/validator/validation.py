@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from GDPy.potential.manager import PotManager
 import json
 import pathlib
 from typing import Union
 
 from collections import namedtuple, Counter
-from ase.io.trajectory import OldCalculatorWrapper
 
 import numpy as np
 
@@ -17,6 +15,8 @@ import matplotlib.pyplot as plt
 
 from ase import Atoms
 from ase.io import read, write
+
+from ase.calculators import calculator
 
 import ase.optimize
 from ase.optimize import BFGS
@@ -49,7 +49,7 @@ Adsorption, Reaction, ...
 
 class AbstractValidator(ABC):
 
-    def __init__(self, validation: Union[str, pathlib.Path], pot, *args, **kwargs):
+    def __init__(self, validation: Union[str, pathlib.Path], *args, **kwargs):
         """"""
         with open(validation, 'r') as fopen:
             valid_dict = json.load(fopen)
@@ -59,10 +59,30 @@ class AbstractValidator(ABC):
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True)
         
-        self.pot = pot # potential manager
-        self.calc = pot.generate_calculator()
-
+        self.calc = self.__parse_calculator(valid_dict)
+        
         return
+    
+    def __parse_calculator(self, input_dict: dict) -> calculator:
+        """ parse and construct ase calculator
+        """
+        calc_dict = input_dict.get('calculator', None)
+        if calc_dict is not None:
+            calc_name = calc_dict.pop('name', None)
+            if calc_name == "DP":
+                pass
+            elif calc_name == "EANN":
+                # TODO: remove this and make eann in the path
+                #import sys
+                #sys.path.append('/users/40247882/repository/EANN')
+                from eann.interface.ase.calculator import Eann
+                calc = Eann(**calc_dict)
+            else:
+                raise ValueError('There is no calculator {}'.format(calc_name))
+        else:
+            raise KeyError('No calculator keyword...')
+
+        return calc
 
     @abstractmethod
     def run(self, *args, **kwargs):
@@ -71,17 +91,17 @@ class AbstractValidator(ABC):
 
 class ReactionValidator(AbstractValidator):
 
-    def __init__(self, validation: Union[str, pathlib.Path], pot):
+    def __init__(self, validation: Union[str, pathlib.Path]):
         """ reaction formula
             how to postprocess
         """
-        super().__init__(validation, pot)
+        super().__init__(validation)
 
         return
 
-    def run_dynamics(atoms, calc, cons=None):
-        if cons is not None:
-            atoms.set_constraint(cons)
+    def __run_dynamics(atoms, calc):
+        """"""
+        calc.reset()
         atoms.calc = calc
         dyn = BFGS(atoms)
         dyn.run(fmax=0.05, steps=200)
@@ -90,37 +110,77 @@ class ReactionValidator(AbstractValidator):
         print(np.linalg.norm(atoms[0].position-atoms[1].position))
         return 
     
-    def _run_group(self, group_data: dict, dyn_data):
+    def __parse_dynamics(self, dyn_dict: dict):
+        """"""
+        cur_dict = dyn_dict.copy()
+        dyn_name = cur_dict.pop('name')
+
+        return getattr(ase.optimize, dyn_name), cur_dict
+    
+    def _run_group(self, group_data: dict, dyn_dict: dict):
         """ run group of structures
         """
         group_output = [] # [[name, atoms],...,[]]
-        for stru_file, cons_data in zip(group_data['structures'], group_data['constraints']):
-            atoms_name = pathlib.Path(stru_file).stem
-            print('===== ', atoms_name, ' =====')
-            frames = read(stru_file, ':')
-            assert len(frames) == 1, 'only one structure at a time now'
-            atoms = frames[0]
-            atoms.calc = self.calc
-            if cons_data[0] == "FixAtoms":
-                if cons_data[1] is not None:
-                    cons = FixAtoms(
-                        indices = [atom.index for atom in atoms if atom.z < cons_data[1]]
-                    )
-                    atoms.set_constraint(cons)
-                    print('constraint: natoms', cons)
+        if False:
+            for stru_file, cons_data in zip(group_data['structures'], group_data['constraints']):
+                atoms_name = pathlib.Path(stru_file).stem
+                print('===== ', atoms_name, ' =====')
+                frames = read(stru_file, ':')
+                assert len(frames) == 1, 'only one structure at a time now'
+                atoms = frames[0]
+                atoms.calc = self.calc
+                if cons_data[0] == "FixAtoms":
+                    if cons_data[1] is not None:
+                        cons = FixAtoms(
+                            indices = [atom.index for atom in atoms if atom.z < cons_data[1]]
+                        )
+                        atoms.set_constraint(cons)
+                        print('constraint: natoms', cons)
+                    else:
+                        pass
+                elif cons_data[0] == "UnitCellFilter":
+                    atoms = UnitCellFilter(atoms, constant_volume=False)
+                    print('constraint: UnitcellFilter')
                 else:
-                    pass
-            elif cons_data[0] == "UnitCellFilter":
-                atoms = UnitCellFilter(atoms, constant_volume=False)
-                print('constraint: UnitcellFilter')
+                    raise ValueError("unsupported constraint type.")
+                dynamics = getattr(ase.optimize, dyn_data[0])
+                dyn = dynamics(atoms)
+                dyn.run(dyn_data[1], dyn_data[2])
+                #if self.pot.uncertainty:
+                #    print(atoms.calc.results['energy_stdvar'])
+                group_output.append([atoms_name, atoms])
+        else:
+            # read structures
+            frames = []
+            if isinstance(group_data['structures'], list):
+                for stru_file in group_data['structures']:
+                    stru_name = pathlib.Path(stru_file).stem
+                    cur_frames = read(stru_file, ':')
+                    assert len(cur_frames) == 1, 'only one structure in this mode' 
+                    atoms = cur_frames[0]
+                    atoms.info['description'] = stru_name
+                    frames.append(atoms)
             else:
-                raise ValueError("unsupported constraint type.")
-            dynamics = getattr(ase.optimize, dyn_data[0])
-            dyn = dynamics(atoms)
-            dyn.run(dyn_data[1], dyn_data[2])
-            if self.pot.uncertainty:
-                print(atoms.calc.results['energy_stdvar'])
-            group_output.append([atoms_name, atoms])
+                #print(group_data['structures'])
+                cur_frames = read(group_data['structures'], ':')
+                frames.extend(cur_frames)
+            
+            # parse dynamics inputs
+            # optimise/dynamics class, run_params
+            dyn_cls, dyn_opts = self.__parse_dynamics(dyn_dict)
+            
+            # start dynamics
+            for i, atoms in enumerate(frames):
+                atoms_name = atoms.info.get('description', 'structure %d' %i)
+                print(
+                    'calculating {} ...'.format(atoms_name)
+                )
+                self.calc.reset()
+                atoms.calc = self.calc
+                dyn = dyn_cls(atoms)
+                dyn.run(**dyn_opts)
+                
+                group_output.append([atoms_name, atoms])
 
         return group_output
     
@@ -128,6 +188,7 @@ class ReactionValidator(AbstractValidator):
         self.my_references = []
         self.outputs = []
         for (task_name, task_data) in self.tasks.items():
+            print('start task ', task_name)
             basics_output = self._run_group(task_data['basics'], task_data['dynamics'])
             composites_output = self._run_group(task_data['composites'], task_data['dynamics'])
             self.outputs.append({'basics': basics_output, 'composites': composites_output})
@@ -151,11 +212,12 @@ class ReactionValidator(AbstractValidator):
                     relative_energy -= c*en
                 saved_frames.append(atoms)
                 if composites_references is not None:
-                    if self.pot.uncertainty > 1:
-                        # print(atoms_name, relative_energy, atoms.info['energy_stdvar'], composites_references[idx])
-                        print(atoms_name, relative_energy, composites_references[idx])
-                    else:
-                        print(atoms_name, relative_energy, composites_references[idx])
+                    #if self.pot.uncertainty > 1:
+                    #    # print(atoms_name, relative_energy, atoms.info['energy_stdvar'], composites_references[idx])
+                    #    print(atoms_name, relative_energy, composites_references[idx])
+                    #else:
+                    #    print(atoms_name, relative_energy, composites_references[idx])
+                    print(atoms_name, relative_energy, composites_references[idx])
                 else:
                     print(atoms_name, relative_energy)
         write(self.output_path / 'saved.xyz', saved_frames)
@@ -281,28 +343,24 @@ class SinglePointValidator(AbstractValidator):
 
         return
 
-def run_validation(input_json: Union[str, pathlib.Path], pot_params: list):
-    # sg = SinglePointValidator('./valid.json')
-    # sg.run()
-    type_map = {'O': 0, 'Pt': 1}
-
+def run_validation(input_json: Union[str, pathlib.Path]):
     # check potential
-    pot_name = pot_params[0]
-    pot_path = pathlib.Path(pot_params[1])
-    pot_dir = pot_path.parent
-    pot_pattern = pot_path.name
-    print(pot_dir)
-    print(pot_pattern)
+    #pot_name = pot_params[0]
+    #pot_path = pathlib.Path(pot_params[1])
+    #pot_dir = pot_path.parent
+    #pot_pattern = pot_path.name
+    #print(pot_dir)
+    #print(pot_pattern)
 
-    models = []
-    for pot in pot_dir.glob(pot_pattern):
-        models.append(str(pot/'graph.pb'))
-    print(models)
-    pm = PotManager()
-    pot = pm.create_potential(pot_name, 'ase', models, type_map)
+    #models = []
+    #for pot in pot_dir.glob(pot_pattern):
+    #    models.append(str(pot/'graph.pb'))
+    #print(models)
+    #pm = PotManager()
+    #pot = pm.create_potential(pot_name, 'ase', models, type_map)
 
     # test surface related energies
-    rv = ReactionValidator(input_json, pot)
+    rv = ReactionValidator(input_json)
     rv.run()
     rv.analyse()
 
