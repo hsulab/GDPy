@@ -204,6 +204,7 @@ def create_by_ase(atoms, incar=None, directory=Path('vasp-test')):
         vasp_creator.read_incar(incar)
     vasp_creator.input_params['gamma'] = True
     vasp_creator.input_params['kpts'] = (2,3,1)
+    vasp_creator.string_params['system'] = directory.name
 
     # write inputs
     if not directory.exists():
@@ -215,7 +216,7 @@ def create_by_ase(atoms, incar=None, directory=Path('vasp-test')):
 
     # write job script
     # TODO: replace by SlurmMachine
-    create_slurm(directory)
+    create_slurm(directory, time="12:00:00")
 
     return
 

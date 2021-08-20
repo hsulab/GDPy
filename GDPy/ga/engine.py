@@ -63,6 +63,11 @@ class GeneticAlgorithemEngine():
         self.ga_dict = ga_dict
         self.calc_dict = ga_dict['calculation']
         self.db_name = pathlib.Path(ga_dict['database'])
+
+        # check prefix, should not be too long since qstat cannot display
+        #if len(self.calc_dict["prefix"]) > 6:
+        #    raise ValueError("prefix is too long...")
+
         return
 
     def run(self):
@@ -117,6 +122,47 @@ class GeneticAlgorithemEngine():
             else:
                 # local
                 pass
+
+        return
+    
+    def check_status(self):
+        """"""
+        if self.db_name.exists():
+            print('restart the database...')
+            self._restart()
+            if self.calc_dict['machine'] == 'slurm':
+                # register machine and check jobs in virtual queue
+                self.register_machine()
+                self.pbs_run.check_status()
+                exit()
+                # TODO: resubmit some jobs
+                # try mutation and pairing
+                self.register_operators()
+                self.form_population()
+                # TODO: check is the current population is full
+                cur_gen_num = self.da.get_generation_number()
+                print('generation number: ', cur_gen_num)
+
+                max_gen = self.ga_dict['convergence']['generation']
+                if cur_gen_num > max_gen:
+                    print('reach maximum generation...')
+                    exit()
+
+                #print(len(self.da.get_all_relaxed_candidates_after_generation(cur_gen_num)))
+                unrelaxed_num_strus_gen = len(list(self.da.c.select('unrelaxed=1,generation=%d'%cur_gen_num)))
+                relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%cur_gen_num)))
+                population_size = self.ga_dict['population']['init_size']
+                cur_jobs_running = self.pbs_run.number_of_jobs_running()
+                print('number of relaxed in current generation: ', relaxed_num_strus_gen)
+                print('number of running jobs in current generation: ', cur_jobs_running)
+                #while (
+                #    self.pbs_run.number_of_jobs_running() + relaxed_num_strus_gen < population_size
+                #):
+                #    self.reproduce()
+                #else:
+                #    print('enough jobs are running for current generation...')
+        else:
+            print("The database has not been initialised...")
 
         return
     
@@ -206,7 +252,7 @@ class GeneticAlgorithemEngine():
         for atoms in mosted:
             dname = pathlib.Path.cwd() / 'accurate' / ('cand{0}'.format(atoms.info['confid']))
             create_by_ase(
-                atoms, '/users/40247882/scratch2/voxaop/surfaces-1/goffee-ga/accurate/PGO/INCAR',
+                atoms, self.ga_dict["postprocess"]["incar"],
                 dname
             )
 
