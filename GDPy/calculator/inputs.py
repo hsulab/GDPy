@@ -12,13 +12,17 @@ from ase.data import atomic_numbers, atomic_masses
 
 class LammpsInput():
 
-    def __init__(self, type_map, model: str, variables: dict = {}):
+    def __init__(
+        self, 
+        atypes: list, 
+        model: str, variables: dict = {}
+    ):
         """"""
         # form mass line
-        self.mass_line = ''
-        for key, value in type_map.items():
-            anum = atomic_numbers[key]
-            self.mass_line += 'mass %d %.4f\n' %(value+1, atomic_masses[anum])
+        self.mass_line = ""
+        for i, atype in enumerate(atypes):
+            anum = atomic_numbers[atype]
+            self.mass_line += "mass %d %.4f\n" %(i+1, atomic_masses[anum])
 
         # model line
         self.model_line = model
@@ -89,6 +93,8 @@ class LammpsInput():
             content += "\n"
             content += "velocity        mobile create ${TEMP} %d\n" %(random.randrange(10000-1)+1)
             content += "fix 3 freezed setforce 0.0 0.0 0.0\n"
+        
+        # thermostats
         if self.thermostat == 'nvt':
             content += "fix             1 all nvt temp ${TEMP} ${TEMP} ${TAU_T}\n"
         elif self.thermostat == 'npt':

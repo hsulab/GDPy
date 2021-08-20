@@ -3,6 +3,7 @@
 """
 
 import os
+from posixpath import commonpath
 import subprocess
 
 import numpy as np
@@ -18,14 +19,37 @@ from ase.calculators.calculator import (
 from ase.calculators.singlepoint import SinglePointCalculator
 
 
-class ReaxLMP(Calculator):
-    name = "ReaxLMP"
+class LMPMin(Calculator):
+
+    name = "LMPMin"
+    supported_pairstyles = ["deepmd", "eann", "reax/c"]
     implemented_properties = ["energy", "forces", "stress"]
 
-    def __init__(self, command=None, label=name, type_dict=None, **kwargs):
+    STRUCTURE_FILE = "stru.data"
+
+    # only for energy and forces, eV and eV/AA
+    CONVERTOR = {
+        "metal": 1.0,
+        "real": units.kcal / units.mol
+    }
+
+    def __init__(
+        self, 
+        command = None, 
+        label = name, 
+        type_map: dict = None, 
+        units: str = "metal",
+        atom_style: str = "atomic",
+        model_params = None, # pair_style specific parameters
+        **kwargs
+    ):
+        """"""
         Calculator.__init__(self, command=command, label=label, **kwargs)
 
         self.command = command
+        self.units = units
+        self.atom_style = atom_style
+        self.model_params = model_params
 
         return
     
@@ -39,17 +63,19 @@ class ReaxLMP(Calculator):
         specorder.sort() # by alphabet
 
         # write input
-        stru_data = os.path.join(self.directory, 'stru.data')
+        stru_data = os.path.join(self.directory, self.STRUCTURE_FILE)
         write_lammps_data(
-            stru_data, self.atoms, specorder=specorder, force_skew=True, units='real', atom_style='charge'
+            stru_data, self.atoms, specorder=specorder, force_skew=True, 
+            units=self.units, atom_style=self.atom_style
         )
-        self.write_reax_in(specorder)
+        self.__write_reax_in(specorder)
 
-        self.run_lammps()
+        self.__run_lammps()
 
         # obtain results
         self.results = {}
 
+        # Be careful with UNITS
         # read energy
         with open(os.path.join(self.directory, 'log.lammps'), 'r') as fopen:
             lines = fopen.readlines()
@@ -59,22 +85,23 @@ class ReaxLMP(Calculator):
                 break
         else:
             raise ValueError('error in lammps minimization.')
-        self.results['energy'] = float(lines[stat_idx+3].split()[-1]) * units.kcal / units.mol
+        self.results["energy"] = float(lines[stat_idx+3].split()[-1]) * self.CONVERTOR[self.units]
 
         # read forces from dump file
         dump_atoms = read(
             os.path.join(self.directory, 'surface.dump'), ':', 'lammps-dump-text', 
-            specorder=specorder, units='real'
+            specorder=specorder, units=self.units
         )[-1]
-        self.results['forces'] = dump_atoms.get_forces() * units.kcal / units.mol
+        self.results['forces'] = dump_atoms.get_forces() * self.CONVERTOR[self.units]
 
         return
     
-    def run_lammps(self):
+    def __run_lammps(self):
         # calculate
-        command = (
-            "%s " %self.command + "-in in.lammps 2>&1 > lmp.out"
-        )
+        #command = (
+        #    "%s " %self.command + "-in in.lammps 2>&1 > lmp.out"
+        #)
+        command = self.command
 
         # run lammps
         proc = subprocess.Popen(command, shell=True, cwd=self.directory)
@@ -92,18 +119,19 @@ class ReaxLMP(Calculator):
         # init for creating the directory
         Calculator.calculate(self, atoms, ['energy'], all_changes)
 
-        # elements
+        # elements in system
         specorder = list(set(atoms.get_chemical_symbols()))
         specorder.sort() # by alphabet
 
         # write input
-        stru_data = os.path.join(self.directory, 'stru.data')
+        stru_data = os.path.join(self.directory, self.STRUCTURE_FILE)
         write_lammps_data(
-            stru_data, self.atoms, specorder=specorder, force_skew=True, units='real', atom_style='charge'
+            stru_data, self.atoms, specorder=specorder, force_skew=True, 
+            units=self.units, atom_style=self.atom_style
         )
-        self.write_reax_in(specorder, steps, fmax, zmin)
+        self.__write_reax_in(specorder, steps, fmax, zmin)
 
-        self.run_lammps()
+        self.__run_lammps()
 
         # obtain results
         results = {}
@@ -118,15 +146,15 @@ class ReaxLMP(Calculator):
         else:
             raise ValueError('error in lammps minimization.')
         stat_content = ''.join(lines[stat_idx:stat_idx+9])
-        results['energy'] = float(lines[stat_idx+3].split()[-1]) * units.kcal / units.mol
+        results['energy'] = float(lines[stat_idx+3].split()[-1]) * self.CONVERTOR[self.units]
 
         # read forces from dump file
         dump_atoms = read(
             os.path.join(self.directory, 'surface.dump'), ':', 'lammps-dump-text', 
-            specorder=specorder, units='real'
+            specorder=specorder, units=self.units
         )[-1]
 
-        results['forces'] = dump_atoms.get_forces() * units.kcal / units.mol
+        results['forces'] = dump_atoms.get_forces() * self.CONVERTOR[self.units]
 
         dump_atoms.calc = SinglePointCalculator(
             dump_atoms,
@@ -136,58 +164,62 @@ class ReaxLMP(Calculator):
 
         return dump_atoms, stat_content
     
-    def run_lammps(self):
-        # calculate
-        command = (
-            "%s " %self.command + "-in in.lammps 2>&1 > lmp.out"
-        )
-
-        # run lammps
-        proc = subprocess.Popen(command, shell=True, cwd=self.directory)
-        errorcode = proc.wait()
-        if errorcode:
-            path = os.path.abspath(self.directory)
-            msg = ('Failed with command "{}" failed in '
-                   '{} with error code {}'.format(command, path, errorcode))
-
-            raise ValueError(msg)
-
-        return 
-
-    def write_reax_in(self, specorder, steps=0, fmax=0.05, zmin=None):
+    def __write_reax_in(self, specorder, steps=0, fmax=0.05, zmin=None):
         """"""
         mass_line = ''.join(
             'mass %d %f\n' %(idx+1,atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(specorder)
         )
         # write in.lammps
-        content = "units           real\n"
+        content = ""
+        content += "units           %s\n" %self.units
+        content += "atom_style      %s\n" %self.atom_style
+        
+        # simulation box
         content += "boundary        p p p\n"
-        content += "atom_style      charge\n"
-        content += "\n"
-        content += "neighbor        1.0 bin\n"
         content += "\n"
         content += "box             tilt large\n"
-        content += "read_data	    stru.data\n"
+        content += "read_data	    %s\n" %self.STRUCTURE_FILE
         content += "change_box      all triclinic\n"
+
+        # particle masses
         content += mass_line
         content += "\n"
-        content += "pair_style	reax/c NULL\n"
-        content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(specorder))
-        content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-        content += "\n"
-        content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
-        content += "thermo          10\n"
-        content += "\n"
+
+        # pair
+        if self.model_params["model"] == "reax/c":
+            content += "pair_style	reax/c NULL\n"
+            content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(specorder))
+            content += "neighbor        0.0 bin\n"
+            content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+            content += "\n"
+        elif self.model_params["model"] == "eann":
+            content += "pair_style	eann %s\n" %self.model_params["file"]
+            content += "pair_coeff	* * double %s\n" %(" ".join(specorder))
+            content += "neighbor        0.0 bin\n"
+            content += "\n"
+        elif self.model_params["model"] == "deepmd":
+            content += "pair_style	deepmd %s\n" %self.model_params["file"]
+            content += "pair_coeff	\n" 
+            content += "neighbor        0.0 bin\n"
+            content += "\n"
+
+        # constraint
         if zmin is not None:
             content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
             content += "group bottom_layer region bottom\n"
             content += "fix 1 bottom_layer setforce 0.0 0.0 0.0\n"
             content += "\n"
+
+        # outputs
+        content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
+        content += "thermo          10\n"
         content += "dump		1 all custom 10 surface.dump id type x y z fx fy fz\n"
         content += "\n"
+        
+        # minimisation
         content += "min_style       fire\n"
         content += "min_modify      integrator verlet tmax 4 # see more on lammps doc about min_modify\n"
-        content += "minimize        0.0 %f %d 1000 # energy tol, force tol, step, force step\n" %(fmax/(units.kcal/units.mol), steps)
+        content += "minimize        0.0 %f %d %d # energy tol, force tol, step, force step\n" %(fmax/self.CONVERTOR[self.units], steps, 2.0*steps)
 
         in_file = os.path.join(self.directory, 'in.lammps')
         with open(in_file, 'w') as fopen:
@@ -199,7 +231,7 @@ class ReaxLMP(Calculator):
 if __name__ == '__main__':
     # reaxff uses real unit, force kcal/mol/A
     from ase import Atom, Atoms
-    calc = ReaxLMP(
+    calc = LMPMin(
         directory = 'reax-worker',
         command='mpirun -n 1 lmp'
     )

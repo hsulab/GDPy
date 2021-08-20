@@ -14,9 +14,11 @@ from ase.build import make_supercell
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.constraints import FixAtoms
 
+from ase.calculators.emt import EMT
+
 from GDPy.md.md_utils import force_temperature
 
-from GDPy.calculator.dp import DP
+#from GDPy.calculator.dp import DP
 
 from GDPy.md.nosehoover import NoseHoover
 
@@ -108,9 +110,12 @@ def run_ase_calculator(input_json):
     # read potential
     type_map = input_dict['type_map']
     model = input_dict['potential']['deepmd']
-    calc = DP(
-        model = model, type_dict = type_map
-    )
+
+    # TODO: change this interface
+    #calc = DP(
+    #    model = model, type_dict = type_map
+    #)
+    calc = EMT()
 
     # read structure
     data_path = input_dict['data']
