@@ -131,6 +131,75 @@ class DPManager(AbstractPotential):
 
         return
 
+class EANNManager(AbstractPotential):
+
+    name = "EANN"
+    implemented_backends = ["ase", "lammps"]
+
+    def __init__(self, backend: str, models: Union[str, list], type_map: dict):
+        """ create a dp manager
+        """
+        self.backend = backend
+        if self.backend not in self.implemented_backends:
+            raise NotImplementedError('Backend %s is not implemented.' %self.backend)
+
+        # check models
+        self.models = models
+        self.__parse_models()
+        self.__check_uncertainty_support()
+
+        self.type_map = type_map
+
+        return
+    
+    def __parse_models(self):
+        """"""
+        if isinstance(self.models, str):
+            pot_path = pathlib.Path(self.models)
+            pot_dir, pot_pattern = pot_path.parent, pot_path.name
+            models = []
+            for pot in pot_dir.glob(pot_pattern):
+                models.append(str(pot))
+            self.models = models
+        else:
+            for m in self.models:
+                if not pathlib.Path(m).exists():
+                    raise ValueError('Model %s does not exist.' %m)
+
+        return
+    
+    def __check_uncertainty_support(self):
+        """"""
+        self.uncertainty = False
+        if len(self.models) > 1:
+            self.uncertainty = True
+
+        return
+    
+    def generate_calculator(self, atypes=None):
+        """ generate calculator with various backends
+        """
+        if self.backend == 'ase':
+            # return ase calculator
+            #from GDPy.calculator.dp import DP
+            #calc = DP(model=self.models, type_dict=self.type_map)
+            pass
+        elif self.backend == "lammps":
+            # return deepmd pair related content
+            #content = "units           metal\n"
+            #content += "atom_style      atomic\n"
+            content = "neighbor        0.0 bin\n"
+            content += "pair_style      eann %s \n" \
+                %(' '.join([m for m in self.models]))
+            content += "pair_coeff * * double %s" %(" ".join(atypes))
+            calc = content
+
+        return calc
+    
+    def create_thermostat(self):
+
+        return
+
 class NPManager(AbstractPotential):
 
     name = 'NP'

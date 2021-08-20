@@ -10,7 +10,7 @@ TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 class PotManager():
 
     SUFFIX = 'Manager'
-    potential_names = ['DP']
+    potential_names = ["DP", "EANN"]
 
     def __init__(self):
         """
