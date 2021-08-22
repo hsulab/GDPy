@@ -8,8 +8,10 @@ deals with various machine learning potentials
 
 import abc
 import pathlib
-from sys import implementation
+from sys import implementation, path
 from typing import Union
+
+from GDPy.utils.command import run_command
 
 
 class AbstractPotential(abc.ABC):
@@ -131,13 +133,50 @@ class DPManager(AbstractPotential):
 
         return
 
+    def freeze_ensemble(self):
+        """ freeze trained potentials
+        """
+        # find models
+        model_dirs = []
+        for p in self.ensemble_path.glob('model*'):
+            model_dirs.append(p)
+        model_dirs.sort()
+
+        # freeze models
+        for model_dir in model_dirs:
+            if self.check_finished(model_dir):
+                self.__freeze(model_dir)
+            self.__freeze(model_dir)
+
+        return
+
+    def check_finished(self, model_path):
+        """check if the training is finished"""
+        converged = False
+        model_path = pathlib.Path(model_path)
+        dpout_path = model_path / 'dp.out'
+        if dpout_path.exists():
+            content = dpout_path.read_text()
+            line = content.split('\n')[-3]
+            print(line)
+            #if 'finished' in line:
+            #    converged = True
+
+        return converged
+
+    def __freeze(self, model_path):
+        command = "dp freeze -o graph.pb"
+        output = run_command(model_path, command)
+        print(output)
+        return 
+
 class EANNManager(AbstractPotential):
 
     name = "EANN"
     implemented_backends = ["ase", "lammps"]
 
     def __init__(self, backend: str, models: Union[str, list], type_map: dict):
-        """ create a dp manager
+        """ create a eann manager
         """
         self.backend = backend
         if self.backend not in self.implemented_backends:
@@ -196,23 +235,44 @@ class EANNManager(AbstractPotential):
 
         return calc
     
-    def create_thermostat(self):
+    def create_ensemble(self):
 
         return
 
-class NPManager(AbstractPotential):
+    def freeze_ensemble(self):
+        """freeze model"""
+        # find models
+        cwd = pathlib.Path.cwd()
+        model_dirs = []
+        for p in cwd.glob("model*"):
+            model_dirs.append(p)
+        model_dirs.sort()
 
-    name = 'NP'
+        print(model_dirs)
 
-    def __init__(self, what):
-
-        print(what)
+        # freeze models
+        for model_dir in model_dirs:
+            #if self.check_finished(model_dir):
+            #    self.freeze_model(model_dir)
+            self.__freeze(model_dir)
 
         return
+    
+    def __freeze(self, model_path):
+        """freeze single model"""
+        # find best
+        best_path = list(model_path.glob("*BEST*"))
+        assert len(best_path) == 1, "there are two or more best models..."
+        best_path = best_path[0]
+        print(best_path)
 
-    def generate_calculator(self):
-
-        return
+        # TODO: change later
+        command = "python -u /users/40247882/repository/EANN/eann freeze -pt {0} -o eann_best_".format(
+            best_path
+        )
+        output = run_command(model_path, command)
+        print(output)
+        return 
 
 
 if __name__ == '__main__':

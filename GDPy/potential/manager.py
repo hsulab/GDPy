@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import json
 import importlib
 import typing
 
@@ -9,7 +10,7 @@ TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 
 class PotManager():
 
-    SUFFIX = 'Manager'
+    SUFFIX = "Manager"
     potential_names = ["DP", "EANN"]
 
     def __init__(self):
@@ -42,6 +43,20 @@ class PotManager():
             raise NotImplementedError('%s is not registered as a potential.' %(pot_name))
 
         return potential
+
+def create_manager(input_json):
+    """create a potential manager"""
+    # create potential manager
+    with open(input_json, 'r') as fopen:
+        pot_dict = json.load(fopen)
+    mpm = PotManager() # main potential manager
+    pm = mpm.create_potential(
+        pot_dict["name"], pot_dict["backend"], 
+        **pot_dict["kwargs"]
+    )
+    #print(pm.models)
+
+    return pm
 
 
 if __name__ == '__main__':
