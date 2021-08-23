@@ -61,8 +61,14 @@ class GeneticAlgorithemEngine():
     def __init__(self, ga_dict: dict):
         """"""
         self.ga_dict = ga_dict
-        self.calc_dict = ga_dict['calculation']
-        self.db_name = pathlib.Path(ga_dict['database'])
+        self.db_name = pathlib.Path(ga_dict["database"])
+
+        # settings for minimisation
+        self.calc_dict = ga_dict["calculation"]
+        self.machine = self.calc_dict["machine"]
+
+        # mutation operators
+        self.mutation_dict = ga_dict["mutation"]
 
         # check prefix, should not be too long since qstat cannot display
         #if len(self.calc_dict["prefix"]) > 6:
@@ -73,22 +79,63 @@ class GeneticAlgorithemEngine():
     def run(self):
         """ main procedure
         """
+        # TODO: check database existence and generation number to determine restart
         if not self.db_name.exists():
-            print('create a new database...')
+            print("create a new database...")
             self.create_surface()
             self.create_init_population()
-            self.run_local_optimisation()
         else:
             print('restart the database...')
-            self._restart()
-            if self.calc_dict['machine'] == 'slurm':
+            self.__restart()
+            if self.machine == "serial":
+                # find z-axis constraint
+                cons_maxidx = self.ga_dict["surface"].get("constraint", None)
+                positions = self.slab.get_positions()
+                self.zmin = np.max(positions[range(cons_maxidx),2])
+                print("fixed atoms lower than {0} AA".format(self.zmin))
+
+                # start minimisation
+                self.__register_calculator()
+                print("===== Initial Population =====")
+                while (self.da.get_number_of_unrelaxed_candidates()):
+                    atoms = self.da.get_an_unrelaxed_candidate()
+                    print("start to run structure %s" %atoms.info["confid"])
+                    self.worker.reset()
+                    atoms.calc = self.worker
+                    min_atoms, min_results = self.worker.minimise(
+                        atoms,
+                        **self.calc_dict["minimisation"],
+                        zmin = self.zmin + 0.2
+                    )
+                    confid = atoms.info["confid"]
+                    min_atoms.info['confid'] = confid
+                    # add few information
+                    min_atoms.info['data'] = {}
+                    min_atoms.info['key_value_pairs'] = {'extinct': 0}
+                    min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
+                    self.da.add_relaxed_step(min_atoms)
+                    print(min_results)
+                
+                # start reproduce
+                self.form_population()
+                population_size = self.ga_dict['population']['init_size']
+                max_gen = self.ga_dict["convergence"]["generation"]
+                for ig in range(1,max_gen+1):
+                    cur_gen = self.da.get_generation_number()
+                    assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
+                    print("===== Generation {0} =====".format(cur_gen))
+                    for j in range(population_size):
+                        print("  offspring ", j)
+                        self.reproduce()
+                print("finished!!!")
+            elif self.machine == "slurm":
                 # register machine and check jobs in virtual queue
                 self.register_machine()
                 self.pbs_run.check_status()
-                # TODO: resubmit some jobs
+                # TODO: if generation one and no relaxed ones, run_init_optimisation
                 # try mutation and pairing
-                self.register_operators()
                 self.form_population()
+
                 # TODO: check is the current population is full
                 cur_gen_num = self.da.get_generation_number()
                 print('generation number: ', cur_gen_num)
@@ -112,13 +159,6 @@ class GeneticAlgorithemEngine():
                 else:
                     print('enough jobs are running for current generation...')
 
-                # submit single candidate
-                # atoms = self.da.c.get_atoms(selection=101)
-                # print('101', atoms)
-                # atoms.info['confid'] = 101
-                # atoms.info['key_value_pairs'] = {}
-                # self.pbs_run.relax(atoms)
-                # check convergence
             else:
                 # local
                 pass
@@ -170,7 +210,7 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def _restart(self):
+    def __restart(self):
         """"""
         # basic system info
         self.da = DataConnection(self.db_name)
@@ -185,6 +225,9 @@ class GeneticAlgorithemEngine():
             all_atom_types,
             ratio_of_covalent_radii=0.7
         )
+
+        # mutation operators
+        self.register_operators()
 
         return
     
@@ -283,8 +326,19 @@ class GeneticAlgorithemEngine():
         )
 
         return
+    
+    def __register_calculator(self):
+        """register serial calculator"""
+        from GDPy.calculator.reax import LMPMin
+        self.worker = LMPMin(
+            **self.calc_dict["kwargs"], 
+            model_params = self.calc_dict["potential"]
+        )
+
+        return
 
     def register_machine(self):
+        """register PBS/Slurm machine for computationally massive jobs"""
         tmp_folder = 'tmp_folder/'
         # The PBS queing interface is created
         self.pbs_run = SlurmQueueRun(
@@ -373,9 +427,10 @@ class GeneticAlgorithemEngine():
             d.add_unrelaxed_candidate(a)
         
         # TODO: change this to the DB interface
+        print("save population size {0} into database...".format(population_size))
         row = d.c.get(1)
         new_data = row['data'].copy()
-        new_data['population_size'] = 20
+        new_data['population_size'] = population_size
         d.c.update(1, data=new_data)
 
         return
@@ -392,6 +447,7 @@ class GeneticAlgorithemEngine():
         This is for initial population optimisation
         """
         self.da = DataConnection(self.db_name)
+
         self.register_machine()
         # Relax all unrelaxed structures (e.g. the starting population)
         while (self.da.get_number_of_unrelaxed_candidates() and not self.pbs_run.enough_jobs_running()):
@@ -443,13 +499,33 @@ class GeneticAlgorithemEngine():
                     if a3_mut is not None:
                         self.da.add_unrelaxed_step(a3_mut, mut_desc)
                         a3 = a3_mut
-                self.pbs_run.relax(a3)
                 print('generate offspring a3 ', desc + ' ' + mut_desc)
+                if self.machine == "serial":
+                    print("start to run structure %s" %a3.info["confid"])
+                    self.worker.reset()
+                    a3.calc = self.worker
+                    min_atoms, min_results = self.worker.minimise(
+                        a3,
+                        **self.calc_dict["minimisation"],
+                        zmin = self.zmin + 0.2
+                    )
+                    confid = a3.info["confid"]
+                    min_atoms.info['confid'] = confid
+                    # add few information
+                    min_atoms.info['data'] = {}
+                    min_atoms.info['key_value_pairs'] = {'extinct': 0}
+                    min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
+                    self.da.add_relaxed_step(min_atoms)
+                    print(min_results)
+                elif self.machine == "slurm":
+                    self.pbs_run.relax(a3)
+                else:
+                    pass
                 break
             else:
                 continue
         else:
-            print('cannot generate offspring a3')
+            print('cannot generate offspring a3 after {0} attempts'.format(10))
 
         return
 

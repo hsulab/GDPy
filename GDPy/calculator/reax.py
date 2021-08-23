@@ -37,7 +37,7 @@ class LMPMin(Calculator):
         self, 
         command = None, 
         label = name, 
-        type_map: dict = None, 
+        type_list: dict = None, 
         units: str = "metal",
         atom_style: str = "atomic",
         model_params = None, # pair_style specific parameters
@@ -158,8 +158,8 @@ class LMPMin(Calculator):
 
         dump_atoms.calc = SinglePointCalculator(
             dump_atoms,
-            energy = results['energy'],
-            forces = results['forces']
+            energy = results["energy"],
+            forces = results["forces"]
         )
 
         return dump_atoms, stat_content
