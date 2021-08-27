@@ -1,30 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from math import frexp
 import re
+import time
 import shutil
 import json
 import sys
-from typing import overload
+from typing import Counter, Union
 import warnings
 import pathlib
+from joblib import Parallel, delayed
+import joblib
 import numpy as np
-from numpy.core.fromnumeric import sort
-from numpy.lib.type_check import common_type
 import numpy.ma as ma
 
+from ase import Atoms
 from ase.io import read, write
 from ase.io.lammpsrun import read_lammps_dump_text
 from ase.data import atomic_numbers, atomic_masses
+from numpy.ma.extras import isin
 
 from GDPy.calculator.ase_interface import AseInput
 from GDPy.calculator.inputs import LammpsInput
-from GDPy.selector.structure_selection import calc_feature, cur_selection
+from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 
 from GDPy.machine.machine import SlurmMachine
 
-from GDPy.utils.data import vasp_creator
+from GDPy.utils.data import vasp_creator, vasp_collector
 
 
 class Sampler():
@@ -68,10 +70,14 @@ class Sampler():
         """"""
         self.pot_manager = pm
         self.type_map = main_dict['type_map']
+        self.type_list = list(self.type_map.keys())
         self.explorations = main_dict['explorations']
         self.init_systems = main_dict['systems']
 
         assert self.pot_manager.type_map == self.type_map, 'type map should be consistent'
+
+        # for job prefix
+        self.job_prefix = ""
 
         return
     
@@ -94,6 +100,8 @@ class Sampler():
     def run(self, operator, working_directory): 
         """create for all explorations"""
         working_directory = pathlib.Path(working_directory)
+        self.job_prefix = working_directory.resolve().name # use resolve to get abspath
+        print("job prefix: ", self.job_prefix)
         for exp_name in self.explorations.keys():
             exp_directory = working_directory / exp_name
             # note: check dir existence in sub function
@@ -175,10 +183,8 @@ class Sampler():
                 #with open(name_path / job_script.name, 'w') as fopen:
                 #    fopen.write(create_test_slurm(name_path.name))
                 slurm = SlurmMachine(job_script)
-                slurm.machine_dict['job-name'] = name_path.name
+                slurm.machine_dict["job-name"] = self.job_prefix + "-" + name_path.name
                 slurm.write(name_path / job_script.name)
-
-            # TODO: transform this purepath to a slurm machine, maybe sumbit?
 
         except FileExistsError:
             print('skip this %s' %name_path)
@@ -212,6 +218,12 @@ class Sampler():
                     calc_input.write(temp_dir)
         else:
             raise NotImplementedError('no other thermostats')
+        
+        # TODO: submit job
+        # if not dry-run
+        output = slurm.submit(name_path / job_script.name)
+        print("try to submit: ", name_path / job_script.name)
+        print(output)
 
         return
     
@@ -381,7 +393,8 @@ class Sampler():
         """select data from single calculation"""
         exp_dict = self.explorations[exp_name]
 
-        pattern = "surf-9O*"
+        #pattern = "surf-9O*"
+        pattern = "Pt32*"
 
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
@@ -389,16 +402,22 @@ class Sampler():
             print("checking system %s ..."  %md_prefix)
             exp_params = exp_dict['params']
             thermostat = exp_params.pop('thermostat', None)
-            temperatures, pressures, sample_variables = LammpsInput.map_md_variables(exp_params)
+            #temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
+
+            selected_numbers = exp_dict["selection"]["num"]
+            if isinstance(selected_numbers, list):
+                assert len(selected_numbers) == len(included_systems), "each system must have a number"
+            else:
+                selected_numbers = selected_numbers * len(included_systems)
 
             # loop over systems
-            for slabel in included_systems:
+            for slabel, num in zip(included_systems, selected_numbers):
                 if re.match(pattern, slabel):
                     # TODO: better use OrderedDict
                     system_dict = self.init_systems[slabel] # system name
-                    if thermostat == 'nvt':
+                    if thermostat == "nvt":
                         sys_prefix = md_prefix / (slabel+'-'+thermostat)
-                        if True: # run over configurations
+                        if False: # run over configurations
                             sorted_dirs = []
                             for p in sys_prefix.glob(pattern):
                                 sorted_dirs.append(p)
@@ -412,8 +431,8 @@ class Sampler():
                             write(sys_prefix / (slabel + '-tot-sel.xyz'), total_selected_frames)
 
                         else:
-                            selected_frames = self.perform_cur(sys_prefix, slabel, exp_dict)
-
+                            selected_frames = self.perform_cur(sys_prefix, slabel, exp_dict, num)
+                            write(sys_prefix / (slabel + '-tot-sel.xyz'), selected_frames)
                     else:
                         # TODO: npt
                         pass
@@ -422,11 +441,10 @@ class Sampler():
 
         return
     
-    def perform_cur(self, cur_prefix, slabel, exp_dict):
+    def perform_cur(self, cur_prefix, slabel, exp_dict, num):
         """"""
         soap_parameters = exp_dict['selection']['soap']
         njobs = exp_dict['selection']['njobs']
-        num = exp_dict['selection']['num']
         zeta, strategy = exp_dict['selection']['selection']['zeta'], exp_dict['selection']['selection']['strategy']
 
         sorted_path = cur_prefix / 'sorted'
@@ -478,7 +496,12 @@ class Sampler():
         calc_dict = exp_dict["calculation"]
         nstructures = calc_dict.get("nstructures", 100000) # number of structures in each calculation dirs
         incar_template = calc_dict.get("incar")
-        prefix = calc_dict.get("prefix", "miaow")
+
+        prefix = working_directory / (exp_name + "-fp")
+        if prefix.exists():
+            warnings.warn("fp directory exists...", UserWarning)
+        else:
+            prefix.mkdir(parents=True)
 
         # start 
         included_systems = exp_dict.get('systems', None)
@@ -486,7 +509,7 @@ class Sampler():
             # MD exploration params
             exp_params = exp_dict['params']
             thermostat = exp_params.pop("thermostat", None)
-            temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
+            #temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
             # loop over systems
             for slabel in included_systems:
                 system_dict = self.init_systems[slabel] # system name
@@ -511,7 +534,12 @@ class Sampler():
                 # create all calculation dirs
                 for (stru_path, name_path) in runovers:
                     sorted_path = name_path / "sorted" # directory with collected xyz configurations
-                    collected_path = sorted_path / (slabel + "_ALL.xyz")
+                    collected_path = sorted_path / (slabel + "-sel.xyz")
+                    if collected_path.exists():
+                        print("use selected frames...")
+                    else:
+                        print("use all candidates...")
+                        collected_path = sorted_path / (slabel + "_ALL.xyz")
                     if collected_path.exists():
                         #frames = read(collected_path, ":")
                         #print("There are %d configurations in %s." %(len(frames), collected_path))
@@ -523,6 +551,70 @@ class Sampler():
                         )
                     else:
                         warnings.warn("There is no %s." %collected_path, UserWarning)
+
+        return
+    
+    def iharvest(self, exp_name, working_directory: Union[str, pathlib.Path]):
+        """harvest all vasp results"""
+        # run over directories and check
+        main_dir = pathlib.Path(working_directory) / exp_name
+        vasp_main_dirs = []
+        for p in main_dir.iterdir():
+            calc_file = p / "calculated_0.xyz"
+            if p.is_dir() and calc_file.exists():
+                vasp_main_dirs.append(p)
+        print(vasp_main_dirs)
+
+        # TODO: optional parameters
+        pot_gen = "eamd13s" # !!!
+        pattern = "vasp_0_*"
+        njobs = 4
+        vaspfile, indices = "vasprun.xml", "-1:"
+        main_database = pathlib.Path("/users/40247882/scratch2/PtOx-dataset")
+
+        for d in vasp_main_dirs:
+            print("\n===== =====")
+            vasp_dirs = []
+            for p in d.parent.glob(d.name+'*'):
+                if p.is_dir():
+                    vasp_dirs.extend(vasp_collector.find_vasp_dirs(p, pattern))
+            print('total vasp dirs: %d' %(len(vasp_dirs)))
+
+            print("sorted by last integer number...")
+            vasp_dirs_sorted = sorted(
+                vasp_dirs, key=lambda k: int(k.name.split('_')[-1])
+            ) # sort by name
+
+            st = time.time()
+            print("using num of jobs: ", njobs)
+            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
+            if isinstance(cur_frames, Atoms):
+                cur_frames = [cur_frames]
+            frames = []
+            for f in cur_frames:
+                frames.extend(f) # merge all frames
+
+            et = time.time()
+            print("cost time: ", et-st)
+
+            # move structures to data path
+            if len(frames) > 0:
+                print("Number of frames: ", len(frames))
+                # check system
+                atoms = frames[0]
+                c = Counter(atoms.get_chemical_symbols())
+                #print(c)
+                sys_name_list = []
+                for s in self.type_list:
+                    sys_name_list.append(s)
+                    num = c.get(s, 0)
+                    sys_name_list.append(str(num))
+                sys_name = "".join(sys_name_list)
+                #print(sys_name)
+                out_name = main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
+                write(out_name, frames)
+            else:
+                print("No frames...")
 
         return
     
