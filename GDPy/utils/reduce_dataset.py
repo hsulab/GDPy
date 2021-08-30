@@ -12,6 +12,7 @@ from ase.io.formats import F
 import numpy as np
 
 from ase.io import read, write
+from numpy.lib.function_base import _meshgrid_dispatcher
 
 from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 
@@ -84,6 +85,10 @@ def select_structures(
         content += '{:>12d}  {:>12.8f}  {:>2s}\n'.format(idx, cur_score, stat) 
     with open(cwd / (prefix+"cur_scores.txt"), 'w') as writer:
         writer.write(content)
+
+    # map selected indices
+    if index_map is not None:
+        selected = [index_map[s] for s in selected]
     np.save(cwd / (prefix+"indices.npy"), selected)
 
     selected_frames = []
@@ -135,20 +140,30 @@ if args.count == 0:
         features = calc_desc(frames)
         select_structures(args.name, features, args.number, prefix=prefix)
 else:
-    previous_indices_path = pathlib.Path("r" + str(args.count-1) + "-indices.npy")
+    merged_indices = []
+    for i in range(args.count):
+        previous_indices_path = pathlib.Path("r" + str(i) + "-indices.npy")
+        indices = np.load(previous_indices_path).tolist()
+        merged_indices.extend(indices)
+    print(
+        "Number of unique frames: ",
+        len(set(merged_indices))
+    )
+
     if previous_indices_path.exists() and args.more:
         features_path = cwd / "features.npy"
-        indices = np.load(previous_indices_path)
         features = np.load(features_path)
 
         index_map = []
         rest_features = []
         rest_frames = []
         for idx, atoms in enumerate(frames):
-            if idx not in indices:
+            if idx not in merged_indices:
                 rest_frames.append(atoms)
                 rest_features.append(features[idx])
                 index_map.append(idx)
+        if len(rest_frames) < args.number:
+            raise ValueError("Not enough structures left...")
         rest_features = np.array(rest_features)
         select_structures(args.name, rest_features, args.number, index_map=index_map, prefix=prefix)
 
