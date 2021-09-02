@@ -120,11 +120,14 @@ class GeneticAlgorithemEngine():
                 self.form_population()
                 population_size = self.ga_dict['population']['init_size']
                 max_gen = self.ga_dict["convergence"]["generation"]
-                for ig in range(1,max_gen+1):
-                    cur_gen = self.da.get_generation_number()
-                    assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
+                cur_gen = self.da.get_generation_number()
+                for ig in range(cur_gen,max_gen+1):
+                    #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
                     print("===== Generation {0} =====".format(cur_gen))
-                    for j in range(population_size):
+                    relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%cur_gen)))
+                    print('number of relaxed in current generation: ', relaxed_num_strus_gen)
+                    # TODO: check remain population
+                    for j in range(relaxed_num_strus_gen, population_size+1):
                         print("  offspring ", j)
                         self.reproduce()
                 print("finished!!!")
@@ -233,7 +236,7 @@ class GeneticAlgorithemEngine():
     
     def report(self):
         print('restart the database...')
-        self._restart()
+        self.__restart()
         results = pathlib.Path.cwd() / 'results'
         if not results.exists():
             results.mkdir()
@@ -488,6 +491,7 @@ class GeneticAlgorithemEngine():
         #       len(self.population.get_current_population()) > 2):
         a1, a2 = self.population.get_two_candidates()
         for i in range(10):
+            print("attempt ", i)
             # try 10 times
             a3, desc = self.pairing.get_new_individual([a1, a2])
             if a3 is not None:
