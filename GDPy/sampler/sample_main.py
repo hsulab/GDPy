@@ -394,7 +394,7 @@ class Sampler():
         exp_dict = self.explorations[exp_name]
 
         #pattern = "surf-9O*"
-        pattern = "Pt32*"
+        pattern = "O*"
 
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
@@ -412,6 +412,9 @@ class Sampler():
 
             # loop over systems
             for slabel, num in zip(included_systems, selected_numbers):
+                if num <= 0:
+                    print("selected number is zero...")
+                    continue
                 if re.match(pattern, slabel):
                     # TODO: better use OrderedDict
                     system_dict = self.init_systems[slabel] # system name
@@ -432,7 +435,10 @@ class Sampler():
 
                         else:
                             selected_frames = self.perform_cur(sys_prefix, slabel, exp_dict, num)
-                            write(sys_prefix / (slabel + '-tot-sel.xyz'), selected_frames)
+                            if selected_frames is None:
+                                print("No candidates in {0}".format(sys_prefix))
+                            else:
+                                write(sys_prefix / (slabel + '-tot-sel.xyz'), selected_frames)
                     else:
                         # TODO: npt
                         pass
@@ -482,7 +488,8 @@ class Sampler():
                 write(sorted_path / (slabel+'-sel.xyz'), selected_frames)
                 print('')
             else:
-                pass
+                # no candidates
+                selected_frames = None
         else:
             raise ValueError('miaow')
         
@@ -509,9 +516,17 @@ class Sampler():
             # MD exploration params
             exp_params = exp_dict['params']
             thermostat = exp_params.pop("thermostat", None)
-            #temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
-            # loop over systems
-            for slabel in included_systems:
+
+            selected_numbers = exp_dict["selection"]["num"]
+            if isinstance(selected_numbers, list):
+                assert len(selected_numbers) == len(included_systems), "each system must have a number"
+            else:
+                selected_numbers = selected_numbers * len(included_systems)
+
+            for slabel, num in zip(included_systems, selected_numbers):
+                if num <= 0:
+                    print("selected number is zero...")
+                    continue
                 system_dict = self.init_systems[slabel] # system name
                 structure = system_dict["structure"]
                 scomp = system_dict["composition"] # system composition
@@ -620,15 +635,8 @@ class Sampler():
     
 
 def run_exploration(pot_json, exp_json, chosen_step, global_params = None):
-    # create potential manager
-    with open(pot_json, 'r') as fopen:
-        pot_dict = json.load(fopen)
-    from ..potential.manager import PotManager
-    mpm = PotManager() # main potential manager
-    pm = mpm.create_potential(
-        pot_dict['name'], pot_dict['backend'], 
-        **pot_dict['kwargs']
-    )
+    from GDPy.potential.manager import create_manager
+    pm = create_manager(pot_json)
     print(pm.models)
 
     # create exploration
