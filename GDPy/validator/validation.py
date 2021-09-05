@@ -53,13 +53,14 @@ class AbstractValidator(ABC):
         """"""
         with open(validation, 'r') as fopen:
             valid_dict = json.load(fopen)
+        self.valid_dict = valid_dict
 
         self.tasks = valid_dict['tasks']
         self.output_path = pathlib.Path(valid_dict['output'])
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True)
         
-        self.calc = self.__parse_calculator(valid_dict)
+        # self.calc = self.__parse_calculator(valid_dict)
         
         return
     
@@ -91,24 +92,36 @@ class AbstractValidator(ABC):
 
 class ReactionValidator(AbstractValidator):
 
-    def __init__(self, validation: Union[str, pathlib.Path]):
+    def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
         """ reaction formula
             how to postprocess
         """
         super().__init__(validation)
+        self.pm = pot_manager
+
+        self.calc = self.__parse_calculator(self.valid_dict)
 
         return
+    
+    def __parse_calculator(self, input_dict: dict) -> calculator:
 
-    def __run_dynamics(atoms, calc):
+        return self.pm.generate_calculator()
+
+    def __run_dynamics(
+        self, atoms, dyn_cls, dyn_opts: dict
+    ):
         """"""
-        calc.reset()
-        atoms.calc = calc
-        dyn = BFGS(atoms)
-        dyn.run(fmax=0.05, steps=200)
+        init_positions = atoms.get_positions().copy()
 
-        print('energy: ', atoms.get_potential_energy())
-        print(np.linalg.norm(atoms[0].position-atoms[1].position))
-        return 
+        self.calc.reset()
+        atoms.calc = self.calc
+        dyn = dyn_cls(atoms)
+        dyn.run(**dyn_opts)
+
+        opt_positions = atoms.get_positions().copy()
+        rmse = np.sqrt(np.var(opt_positions - init_positions))
+
+        return atoms, rmse
     
     def __parse_dynamics(self, dyn_dict: dict):
         """"""
@@ -175,10 +188,17 @@ class ReactionValidator(AbstractValidator):
                 print(
                     'calculating {} ...'.format(atoms_name)
                 )
-                self.calc.reset()
-                atoms.calc = self.calc
-                dyn = dyn_cls(atoms)
-                dyn.run(**dyn_opts)
+                opt_atoms, rmse = self.__run_dynamics(
+                    atoms, dyn_cls, dyn_opts
+                )
+                print("Structure Deviation: ", rmse)
+                if self.pm.uncertainty:
+                    self.calc.reset()
+                    self.calc.calc_uncertainty = True
+                    opt_atoms.calc = self.calc
+                    energy = opt_atoms.get_potential_energy()
+                    stdvar = opt_atoms.calc.results["en_stdvar"]
+                    print("Final energy: {:.4f} Deviation: {:.4f}".format(energy, stdvar))
                 
                 group_output.append([atoms_name, atoms])
 
@@ -199,6 +219,7 @@ class ReactionValidator(AbstractValidator):
         # check data
         saved_frames = []
         for (task_name, task_data), output_data in zip(self.tasks.items(), self.outputs):
+            print("\n\n===== Task {0} Summary =====".format(task_name))
             basics_output = output_data['basics']
             basics_energies = []
             for (atoms_name, atoms), coef in zip(basics_output, task_data['basics']['coefs']):
@@ -217,7 +238,12 @@ class ReactionValidator(AbstractValidator):
                     #    print(atoms_name, relative_energy, composites_references[idx])
                     #else:
                     #    print(atoms_name, relative_energy, composites_references[idx])
-                    print(atoms_name, relative_energy, composites_references[idx])
+                    print(
+                        "{0:<20s}  {1:.4f}  {2:.4f}  {3:.4f}".format(
+                            atoms_name, atoms.get_potential_energy(),
+                            relative_energy, composites_references[idx]
+                        )
+                    )
                 else:
                     print(atoms_name, relative_energy)
         write(self.output_path / 'saved.xyz', saved_frames)
@@ -343,24 +369,17 @@ class SinglePointValidator(AbstractValidator):
 
         return
 
-def run_validation(input_json: Union[str, pathlib.Path]):
-    # check potential
-    #pot_name = pot_params[0]
-    #pot_path = pathlib.Path(pot_params[1])
-    #pot_dir = pot_path.parent
-    #pot_pattern = pot_path.name
-    #print(pot_dir)
-    #print(pot_pattern)
-
-    #models = []
-    #for pot in pot_dir.glob(pot_pattern):
-    #    models.append(str(pot/'graph.pb'))
-    #print(models)
-    #pm = PotManager()
-    #pot = pm.create_potential(pot_name, 'ase', models, type_map)
+def run_validation(
+    input_json: Union[str, pathlib.Path],
+    pot_json: Union[str, pathlib.Path]
+):
+    # parse potential
+    from GDPy.potential.manager import create_manager
+    pm = create_manager(pot_json)
+    print(pm.models)
 
     # test surface related energies
-    rv = ReactionValidator(input_json)
+    rv = ReactionValidator(input_json, pm)
     rv.run()
     rv.analyse()
 
