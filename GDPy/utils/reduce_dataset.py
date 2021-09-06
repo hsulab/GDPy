@@ -12,7 +12,7 @@ from ase.io.formats import F
 import numpy as np
 
 from ase.io import read, write
-from numpy.lib.function_base import _meshgrid_dispatcher
+from ase.constraints import FixAtoms
 
 from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 
@@ -27,7 +27,7 @@ various oxides
 """
 
 FULL_DATASET_PATH = "/users/40247882/scratch2/PtOx-dataset/"
-DESC_JSON_PATH = "/users/40247882/projects/oxides/input-jsons/soap_param.json"
+DESC_JSON_PATH = "/users/40247882/scratch2/oxides/input-jsons/soap_param.json"
 
 def read_frames(system_name, pattern):
     # read xyz dataset
@@ -37,8 +37,13 @@ def read_frames(system_name, pattern):
     print(str(system_path))
     # TODO: should sort dirs to make frames consistent
 
-    total_frames = []
+    sorted_paths = []
     for p in system_path.glob(pattern):
+        sorted_paths.append(p)
+    sorted_paths.sort()
+
+    total_frames = []
+    for p in sorted_paths:
         print(p)
         frames = read(p, ":")
         print("number of frames: ", len(frames))
@@ -70,9 +75,11 @@ def calc_desc(frames):
     return features
 
 def select_structures(
-    system_name, features, num, zeta=-1, strategy="descent", index_map=None, prefix=""
+    system_name, features, num, zeta=-1, strategy="descent", index_map=None, prefix="",
+    manually_selected = None
 ):
-    """"""
+    """ 
+    """
     # cur decomposition 
     cur_scores, selected = cur_selection(features, num, zeta, strategy)
     content = '# idx cur sel\n'
@@ -89,16 +96,15 @@ def select_structures(
     # map selected indices
     if index_map is not None:
         selected = [index_map[s] for s in selected]
+    if manually_selected is not None:
+        selected.extend(manually_selected)
     np.save(cwd / (prefix+"indices.npy"), selected)
 
     selected_frames = []
-    print("Writing structure file... ")
     for idx, sidx in enumerate(selected):
         selected_frames.append(frames[int(sidx)])
-    write(cwd / (prefix+system_name+'-sel.xyz'), selected_frames)
-    print("")
 
-    return
+    return selected_frames
 
 def create_training():
     # train model ensemble and run MD calculation to test properties
@@ -130,15 +136,43 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+patword = args.pattern.strip("*.xyz")
+
 cwd = pathlib.Path.cwd()
 print("read frames from system directory")
 frames = read_frames(args.name, args.pattern)
 
+write(patword+"-tot.xyz", frames)
+
 prefix = "r" + str(args.count) + "-"
 if args.count == 0:
     if args.number > 0:
+        converged_frames = []
+        converged_indices = []
+        # add converged structures
+        for idx, atoms in enumerate(frames):
+            # add constraint to neglect forces of frozen atoms
+            cons = FixAtoms(indices=[a.index for a in atoms if a.position[2] < 2.5])
+            atoms.set_constraint(cons)
+            max_force = np.max(np.fabs(atoms.get_forces()))
+            if max_force < 0.05:
+                converged_frames.append(atoms)
+                converged_indices.append(idx)
+
+        # select frames
+        nconverged = len(converged_frames)
+        print("Number of converged: ", nconverged)
         features = calc_desc(frames)
-        select_structures(args.name, features, args.number, prefix=prefix)
+        selected_frames = select_structures(
+            args.name, features, args.number-nconverged, prefix=prefix,
+            manually_selected = converged_indices
+        ) # include manually selected structures
+        # selected_frames.extend(converged_frames)
+        # TODO: sometims the converged one will be selected... so duplicate...
+
+        print("Writing structure file... ")
+        write(cwd / (prefix+patword+'-sel.xyz'), selected_frames)
+        print("")
 else:
     merged_indices = []
     for i in range(args.count):
@@ -154,6 +188,8 @@ else:
         features_path = cwd / "features.npy"
         features = np.load(features_path)
 
+        assert len(frames) == features.shape[0]
+
         index_map = []
         rest_features = []
         rest_frames = []
@@ -165,7 +201,11 @@ else:
         if len(rest_frames) < args.number:
             raise ValueError("Not enough structures left...")
         rest_features = np.array(rest_features)
-        select_structures(args.name, rest_features, args.number, index_map=index_map, prefix=prefix)
+        selected_frames = select_structures(args.name, rest_features, args.number, index_map=index_map, prefix=prefix)
+
+        print("Writing structure file... ")
+        write(cwd / (prefix+patword+'-sel.xyz'), selected_frames)
+        print("")
 
 
 if __name__ == "__main__":
