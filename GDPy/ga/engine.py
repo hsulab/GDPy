@@ -85,8 +85,11 @@ class GeneticAlgorithemEngine():
             self.tmp_folder.mkdir()
         else:
             print('restart the database...')
+            # balh
             self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
             self.__restart()
+            # check current generation number
+            cur_gen = self.da.get_generation_number()
             if self.machine == "serial":
                 # find z-axis constraint
                 cons_maxidx = self.ga_dict["surface"].get("constraint", None)
@@ -98,42 +101,43 @@ class GeneticAlgorithemEngine():
                 print("===== register calculator =====")
                 self.__register_calculator()
 
-                print("===== Initial Population =====")
-                while (self.da.get_number_of_unrelaxed_candidates()):
-                    atoms = self.da.get_an_unrelaxed_candidate()
+                if cur_gen == 0:
+                    print("===== Initial Population =====")
+                    while (self.da.get_number_of_unrelaxed_candidates()):
+                        atoms = self.da.get_an_unrelaxed_candidate()
 
-                    print("start to run structure %s" %atoms.info["confid"])
-                    confid = atoms.info["confid"]
-                    # TODO: maybe move this part to evaluate_structure
-                    self.worker.reset()
-                    self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-                    atoms.calc = self.worker
-                    min_atoms, min_results = self.worker.minimise(
-                        atoms,
-                        **self.calc_dict["minimisation"],
-                        zmin = self.zmin + 0.2
-                    )
-                    confid = atoms.info["confid"]
-                    min_atoms.info['confid'] = confid
-                    # add few information
-                    min_atoms.info['data'] = {}
-                    min_atoms.info['key_value_pairs'] = {'extinct': 0}
-                    min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
-                    self.da.add_relaxed_step(min_atoms)
-                    print(min_results)
+                        print("start to run structure %s" %atoms.info["confid"])
+                        confid = atoms.info["confid"]
+                        # TODO: maybe move this part to evaluate_structure
+                        self.worker.reset()
+                        self.worker.directory = self.tmp_folder / ("cand" + str(confid))
+                        atoms.calc = self.worker
+                        min_atoms, min_results = self.worker.minimise(
+                            atoms,
+                            **self.calc_dict["minimisation"],
+                            zmin = self.zmin + 0.2
+                        )
+                        confid = atoms.info["confid"]
+                        min_atoms.info['confid'] = confid
+                        # add few information
+                        min_atoms.info['data'] = {}
+                        min_atoms.info['key_value_pairs'] = {'extinct': 0}
+                        min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
+                        self.da.add_relaxed_step(min_atoms)
+                        print(min_results)
                 
                 # start reproduce
                 self.form_population()
                 population_size = self.ga_dict["population"]["init_size"]
                 max_gen = self.ga_dict["convergence"]["generation"]
                 cur_gen = self.da.get_generation_number()
-                for ig in range(cur_gen,max_gen+1):
+                for ig in range(cur_gen,max_gen+1): # TODO-2
                     #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
-                    print("===== Generation {0} =====".format(cur_gen))
-                    relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%cur_gen)))
+                    print("===== Generation {0} =====".format(ig))
+                    relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%ig)))
                     print('number of relaxed in current generation: ', relaxed_num_strus_gen)
                     # TODO: check remain population
-                    for j in range(relaxed_num_strus_gen, population_size+1):
+                    for j in range(relaxed_num_strus_gen, population_size):
                         print("  offspring ", j)
                         self.reproduce()
                 
@@ -508,7 +512,7 @@ class GeneticAlgorithemEngine():
         #       len(self.population.get_current_population()) > 2):
         a1, a2 = self.population.get_two_candidates()
         for i in range(10):
-            print("attempt ", i)
+            # print("attempt ", i)
             # try 10 times
             a3, desc = self.pairing.get_new_individual([a1, a2])
             if a3 is not None:
