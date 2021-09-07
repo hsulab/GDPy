@@ -70,10 +70,6 @@ class GeneticAlgorithemEngine():
         # mutation operators
         self.mutation_dict = ga_dict["mutation"]
 
-        # check prefix, should not be too long since qstat cannot display
-        #if len(self.calc_dict["prefix"]) > 6:
-        #    raise ValueError("prefix is too long...")
-
         return
 
     def run(self):
@@ -84,8 +80,12 @@ class GeneticAlgorithemEngine():
             print("create a new database...")
             self.create_surface()
             self.create_init_population()
+            # make calculation dir
+            self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
+            self.tmp_folder.mkdir()
         else:
             print('restart the database...')
+            self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
             self.__restart()
             if self.machine == "serial":
                 # find z-axis constraint
@@ -95,12 +95,18 @@ class GeneticAlgorithemEngine():
                 print("fixed atoms lower than {0} AA".format(self.zmin))
 
                 # start minimisation
+                print("===== register calculator =====")
                 self.__register_calculator()
+
                 print("===== Initial Population =====")
                 while (self.da.get_number_of_unrelaxed_candidates()):
                     atoms = self.da.get_an_unrelaxed_candidate()
+
                     print("start to run structure %s" %atoms.info["confid"])
+                    confid = atoms.info["confid"]
+                    # TODO: maybe move this part to evaluate_structure
                     self.worker.reset()
+                    self.worker.directory = self.tmp_folder / ("cand" + str(confid))
                     atoms.calc = self.worker
                     min_atoms, min_results = self.worker.minimise(
                         atoms,
@@ -118,7 +124,7 @@ class GeneticAlgorithemEngine():
                 
                 # start reproduce
                 self.form_population()
-                population_size = self.ga_dict['population']['init_size']
+                population_size = self.ga_dict["population"]["init_size"]
                 max_gen = self.ga_dict["convergence"]["generation"]
                 cur_gen = self.da.get_generation_number()
                 for ig in range(cur_gen,max_gen+1):
@@ -130,6 +136,13 @@ class GeneticAlgorithemEngine():
                     for j in range(relaxed_num_strus_gen, population_size+1):
                         print("  offspring ", j)
                         self.reproduce()
+                
+                # report results
+                results = pathlib.Path.cwd() / 'results'
+                if not results.exists():
+                    results.mkdir()
+                all_relaxed_candidates = self.da.get_all_relaxed_candidates()
+                write(results / 'all_candidates.xyz', all_relaxed_candidates)
                 print("finished!!!")
             elif self.machine == "slurm":
                 # register machine and check jobs in virtual queue
@@ -228,6 +241,10 @@ class GeneticAlgorithemEngine():
             all_atom_types,
             ratio_of_covalent_radii=0.7
         )
+        # print(self.blmin)
+        # for key, value in self.blmin.items():
+        #     self.blmin[key] = 0.90
+        # print(self.blmin)
 
         # mutation operators
         self.register_operators()
@@ -468,9 +485,9 @@ class GeneticAlgorithemEngine():
         population_size = self.ga_dict['population']['init_size']
         # create the population
         self.population = Population(
-            data_connection=self.da,
-            population_size=population_size,
-            comparator=self.comp
+            data_connection = self.da,
+            population_size = population_size,
+            comparator = self.comp
         )
 
         # print out population info
@@ -506,7 +523,9 @@ class GeneticAlgorithemEngine():
                 print('generate offspring a3 ', desc + ' ' + mut_desc)
                 if self.machine == "serial":
                     print("start to run structure %s" %a3.info["confid"])
+                    confid = a3.info["confid"]
                     self.worker.reset()
+                    self.worker.directory = self.tmp_folder / ("cand" + str(confid))
                     a3.calc = self.worker
                     min_atoms, min_results = self.worker.minimise(
                         a3,
