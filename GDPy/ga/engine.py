@@ -4,7 +4,7 @@
 from random import random
 import pathlib
 from typing import Union
-from ase.ga import population
+import warnings
 import numpy as np
 
 import ase.data
@@ -83,6 +83,7 @@ class GeneticAlgorithemEngine():
             # make calculation dir
             self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
             self.tmp_folder.mkdir()
+            print("create a new tmp_folder...")
         else:
             print('restart the database...')
             # balh
@@ -104,27 +105,10 @@ class GeneticAlgorithemEngine():
                 if cur_gen == 0:
                     print("===== Initial Population =====")
                     while (self.da.get_number_of_unrelaxed_candidates()):
+                        # calculate structures from init population
                         atoms = self.da.get_an_unrelaxed_candidate()
-
                         print("start to run structure %s" %atoms.info["confid"])
-                        confid = atoms.info["confid"]
-                        # TODO: maybe move this part to evaluate_structure
-                        self.worker.reset()
-                        self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-                        atoms.calc = self.worker
-                        min_atoms, min_results = self.worker.minimise(
-                            atoms,
-                            **self.calc_dict["minimisation"],
-                            zmin = self.zmin + 0.2
-                        )
-                        confid = atoms.info["confid"]
-                        min_atoms.info['confid'] = confid
-                        # add few information
-                        min_atoms.info['data'] = {}
-                        min_atoms.info['key_value_pairs'] = {'extinct': 0}
-                        min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
-                        self.da.add_relaxed_step(min_atoms)
-                        print(min_results)
+                        self.__run_local_optimisation(atoms)
                 
                 # start reproduce
                 self.form_population()
@@ -466,18 +450,42 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def run_local_optimisation(self):
+    def __run_local_optimisation(self, atoms):
         """
         This is for initial population optimisation
         """
-        self.da = DataConnection(self.db_name)
+        # check database alive
+        assert hasattr(self, "da") == True
 
-        self.register_machine()
-        # Relax all unrelaxed structures (e.g. the starting population)
-        while (self.da.get_number_of_unrelaxed_candidates() and not self.pbs_run.enough_jobs_running()):
-            a = self.da.get_an_unrelaxed_candidate()
-            print('start to run structure %s' %a.info['confid'])
-            self.pbs_run.relax(a)
+        repeat = self.calc_dict["repeat"]
+
+        # TODO: maybe move this part to evaluate_structure
+        confid = atoms.info["confid"]
+        self.worker.reset()
+        self.worker.directory = self.tmp_folder / ("cand" + str(confid))
+        atoms.calc = self.worker
+        for i in range(repeat):
+            print(f"\nStart {repeat} minimisation...")
+            min_atoms, min_results = self.worker.minimise(
+                atoms,
+                **self.calc_dict["minimisation"],
+                zmin = self.zmin + 0.2
+            )
+            print(min_results)
+            confid = atoms.info["confid"]
+            min_atoms.info['confid'] = confid
+            # add few information
+            min_atoms.info['data'] = {}
+            min_atoms.info['key_value_pairs'] = {'extinct': 0}
+            min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
+            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
+            if maxforce < self.calc_dict["minimisation"]["fmax"]:
+                self.da.add_relaxed_step(min_atoms)
+                break
+            else:
+                atoms = min_atoms
+        else:
+            warnings.warn(f"Not converged after {repeat} minimisations...", UserWarning)
 
         return
     
@@ -527,23 +535,7 @@ class GeneticAlgorithemEngine():
                 print('generate offspring a3 ', desc + ' ' + mut_desc)
                 if self.machine == "serial":
                     print("start to run structure %s" %a3.info["confid"])
-                    confid = a3.info["confid"]
-                    self.worker.reset()
-                    self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-                    a3.calc = self.worker
-                    min_atoms, min_results = self.worker.minimise(
-                        a3,
-                        **self.calc_dict["minimisation"],
-                        zmin = self.zmin + 0.2
-                    )
-                    confid = a3.info["confid"]
-                    min_atoms.info['confid'] = confid
-                    # add few information
-                    min_atoms.info['data'] = {}
-                    min_atoms.info['key_value_pairs'] = {'extinct': 0}
-                    min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
-                    self.da.add_relaxed_step(min_atoms)
-                    print(min_results)
+                    self.__run_local_optimisation(a3)
                 elif self.machine == "slurm":
                     self.pbs_run.relax(a3)
                 else:
