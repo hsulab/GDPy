@@ -463,9 +463,9 @@ class GeneticAlgorithemEngine():
         confid = atoms.info["confid"]
         self.worker.reset()
         self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-        atoms.calc = self.worker
+        print(f"\nStart minimisation maximum try {repeat} times...")
         for i in range(repeat):
-            print(f"\nStart {repeat} minimisation...")
+            atoms.calc = self.worker
             min_atoms, min_results = self.worker.minimise(
                 atoms,
                 **self.calc_dict["minimisation"],
