@@ -485,7 +485,9 @@ class GeneticAlgorithemEngine():
             else:
                 atoms = min_atoms
         else:
-            warnings.warn(f"Not converged after {repeat} minimisations...", UserWarning)
+            # TODO: !!!
+            self.da.add_relaxed_step(min_atoms)
+            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
 
         return
     
