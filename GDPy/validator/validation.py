@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from itertools import permutations
 import json
 import pathlib
+from pathlib import Path
 from typing import Union
 
 from collections import namedtuple, Counter
@@ -22,6 +24,7 @@ import ase.optimize
 from ase.optimize import BFGS
 from ase.constraints import FixAtoms
 from ase.constraints import UnitCellFilter
+from ase.neb import NEB
 
 from GDPy.potential.manager import PotManager
 
@@ -56,7 +59,7 @@ class AbstractValidator(ABC):
         self.valid_dict = valid_dict
 
         self.tasks = valid_dict['tasks']
-        self.output_path = pathlib.Path(valid_dict['output'])
+        self.output_path = pathlib.Path(valid_dict.get("output", "miaow"))
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True)
         
@@ -90,10 +93,11 @@ class AbstractValidator(ABC):
         return
 
 
-class ReactionValidator(AbstractValidator):
+class MinimaValidator(AbstractValidator):
 
     def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
-        """ reaction formula
+        """ run minimisation on various configurations and
+            compare relative energy
             how to postprocess
         """
         super().__init__(validation)
@@ -251,6 +255,133 @@ class ReactionValidator(AbstractValidator):
         return
 
 
+class ReactionValidator(AbstractValidator):
+
+    def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
+        """ reaction formula
+            how to postprocess
+        """
+        super().__init__(validation)
+        self.pm = pot_manager
+
+        self.calc = self.__parse_calculator(self.valid_dict)
+
+        return
+    
+    def __parse_calculator(self, input_dict: dict) -> calculator:
+
+        return self.pm.generate_calculator()
+
+    def __run_dynamics(
+        self, atoms, dyn_cls, dyn_opts: dict
+    ):
+        """"""
+        init_positions = atoms.get_positions().copy()
+
+        self.calc.reset()
+        atoms.calc = self.calc
+        dyn = dyn_cls(atoms)
+        dyn.run(**dyn_opts)
+
+        opt_positions = atoms.get_positions().copy()
+        rmse = np.sqrt(np.var(opt_positions - init_positions))
+
+        return atoms, rmse
+
+    def __parse_dynamics(self, dyn_dict: dict):
+        """"""
+        cur_dict = dyn_dict.copy()
+        dyn_name = cur_dict.pop('name')
+
+        return getattr(ase.optimize, dyn_name), cur_dict
+    
+    def run(self):
+        """run NEB calculation"""
+        #prepared_images = read("./start_images.xyz", ":")
+        for task in self.tasks:
+            print("===== Run Task {} =====".format(task))
+            # parse inputs
+            task_dict = self.valid_dict["tasks"][task]
+            output_path = task_dict.get("output", None)
+            if output_path is None:
+                output_path = self.output_path
+            else:
+                output_path = Path(output_path)
+            if not output_path.exists():
+                output_path.mkdir()
+
+            stru_path = task_dict["structure"]
+            prepared_images = read(stru_path, ":")
+
+            # parse minimisation method
+            dyn_cls, dyn_params = self.__parse_dynamics(task_dict["dynamics"])
+
+            # minimise IS and FS
+            print("start IS...")
+            initial = prepared_images[0].copy()
+            self.calc.reset()
+            initial.calc = self.calc
+            dyn = dyn_cls(initial)
+            dyn.run(**dyn_params)
+            print("IS energy: ", initial.get_potential_energy())
+
+            final = prepared_images[-1].copy()
+            self.calc.reset()
+            final.calc = self.calc
+            dyn = dyn_cls(initial)
+            dyn.run(**dyn_params)
+            print("FS energy: ", final.get_potential_energy())
+
+            # prepare NEB
+            nimages = task_dict["neb"]["nimages"]
+            images = [initial]
+            if len(prepared_images) == nimages:
+                print("NEB calculation uses preminised structures...")
+                images.extend(prepared_images[1:-1])
+            else:
+                print("NEB calculation uses two structures...")
+                images += [initial.copy() for i in range(nimages-2)]
+            images.append(final)
+
+            # set calculator
+            self.calc.reset()
+            for atoms in images:
+                atoms.calc = self.calc
+
+            # start 
+            print("start NEB calculation...")
+            neb = NEB(
+                images, 
+                allow_shared_calculator=True,
+                #k=0.1
+                # dynamic_relaxation = False
+            )
+            if len(prepared_images) == 2:
+                neb.interpolate() # interpolate configurations
+
+            traj_path = str((output_path / "neb.traj").absolute())
+            #traj_path =  "./neb.traj"
+            qn = dyn_cls(neb, trajectory=traj_path)
+            qn.run(**dyn_params)
+
+            # recheck energy
+            opt_images = read(traj_path, "-%s:" %nimages)
+            energies = []
+            for a in opt_images:
+                self.calc.reset()
+                a.calc = self.calc
+                energies.append(a.get_potential_energy())
+            energies = np.array(energies)
+            energies = energies - energies[0]
+            print(energies)
+
+        return
+    
+    def analyse(self):
+
+        return
+
+
 class RunCalculation():
 
     def __init__(self):
@@ -378,8 +509,15 @@ def run_validation(
     pm = create_manager(pot_json)
     print(pm.models)
 
+    with open(input_json, "r") as fopen:
+        valid_dict = json.load(fopen)
+
     # test surface related energies
-    rv = ReactionValidator(input_json, pm)
+    method = valid_dict.get("method", "minima")
+    if method == "minima":
+        rv = MinimaValidator(input_json, pm)
+    elif method == "reaction":
+        rv = ReactionValidator(input_json, pm)
     rv.run()
     rv.analyse()
 
