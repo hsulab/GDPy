@@ -132,13 +132,14 @@ class ReducedRegion():
 
 class GCMC():
 
+    MCTRAJ = "./miaow.xyz"
+
     def __init__(
         self, 
-        type_map: dict, 
+        type_list: list, 
         reservior: dict, 
         atoms: Atoms, 
         reduced_region: ReducedRegion,
-        nMCmoves: int = 10, 
         transition_array: np.array = np.array([0.0,0.0])
     ):
         """
@@ -146,7 +147,6 @@ class GCMC():
         # simulation system
         self.atoms = atoms # current atoms
         self.nparts = len(atoms)
-        self.nattempts = nMCmoves
 
         self.region = reduced_region
 
@@ -209,11 +209,12 @@ class GCMC():
         return
 
     def run(
-        self, params: dict
+        self, nattempts,
+        params: dict
     ):
         """"""
         # start info
-        content = '===== Simulation Information =====\n\n'
+        content = "===== Simulation Information =====\n\n"
         content += 'Temperature %.4f [K] Pressure %.4f [atm]\n' %(self.temperature, self.pressure)
         content += 'Beta %.4f [eV-1]\n' %(self.beta)
         content += 'Cubic Thermal de Broglie Wavelength %f\n' %self.cubic_wavelength
@@ -237,17 +238,17 @@ class GCMC():
         print('energy_stored ', self.energy_stored)
 
         print('\n\nrenew trajectory file')
-        with open('miaow.xyz', 'w') as fopen:
+        with open(self.MCTRAJ, "w") as fopen:
             fopen.write('')
 
         # start monte carlo
-        for idx in range(self.nattempts):
+        for idx in range(nattempts):
             print('\n\n===== MC Move %04d =====\n' %idx)
             # run standard MC move
             self.step()
 
             # TODO: save state
-            write('miaow.xyz', self.atoms, append=True)
+            write(self.MCTRAJ, self.atoms, append=True)
 
             # check uncertainty
 
@@ -470,10 +471,6 @@ class GCMC():
 
         return en, atoms
 
-def calc_chem_pot():
-    """ calculate the chemical potential
-    """
-    return
 
 if __name__ == '__main__':
     # set initial structure - bare metal surface
