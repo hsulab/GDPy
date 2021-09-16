@@ -119,6 +119,7 @@ class ReducedRegion():
     @staticmethod
     def check_overlap(mindis, ran_pos, positions):
         """"""
+        # TODO: change this to the faste neigbour list construction
         overlapped = False
         for pos in positions:
             # TODO: use neighbour list?
@@ -155,12 +156,13 @@ class GCMC():
             indices = [atom.index for atom in atoms if atom.position[2] < self.region.cmin]
         )
         atoms.set_constraint(cons)
+        self.constraint = cons
 
         # probs
         self.trans_probs = transition_array # transition probabilities: motion, insertion, deletion
         self.accum_probs = np.cumsum(transition_array) / np.sum(transition_array)
 
-        self.maxdisp = 2.0 # angstrom
+        self.maxdisp = 2.0 # angstrom, for atom random move
 
         self.mc_atoms = atoms.copy() # atoms after MC move
 
@@ -179,16 +181,10 @@ class GCMC():
             **reservior["energy_params"]
         )
 
-        # - beta
-        kBT_eV = units.kB * self.temperature
-        self.beta = 1./kBT_eV # 1/(kb*T), eV
-
-        # - cubic thermo de broglie 
-        hplanck = units._hplanck # J/Hz = kg*m2*s-1
-        _mass = data.atomic_masses[data.atomic_numbers[self.expart]] # g/mol
-        _mass = _mass * units._amu
-        kbT_J = kBT_eV * units._e # J = kg*m2*s-2
-        self.cubic_wavelength = (hplanck/np.sqrt(2*np.pi*_mass*kbT_J)*1e10)**3 # thermal de broglie wavelength
+        # statistical mechanics
+        self.beta, self.cubic_wavelength = self.compute_thermo_wavelength(
+            self.expart, self.temperature
+        )
 
         # reduced region 
         self.acc_volume = self.region.calc_acc_volume(self.atoms)
@@ -199,12 +195,39 @@ class GCMC():
         return
     
     @staticmethod
-    def compute_thermo_wavelength():
-        return
+    def compute_thermo_wavelength(expart: str, temperature: float):
+        # - beta
+        kBT_eV = units.kB * temperature
+        beta = 1./kBT_eV # 1/(kb*T), eV
+
+        # - cubic thermo de broglie 
+        hplanck = units._hplanck # J/Hz = kg*m2*s-1
+        _mass = data.atomic_masses[data.atomic_numbers[expart]] # g/mol
+        _mass = _mass * units._amu
+        kbT_J = kBT_eV * units._e # J = kg*m2*s-2
+        cubic_wavelength = (hplanck/np.sqrt(2*np.pi*_mass*kbT_J)*1e10)**3 # thermal de broglie wavelength
+
+        return beta, cubic_wavelength
     
     def set_rng(self):
         drng = np.random.default_rng()
         self.rng = drng
+
+        return
+    
+    def __register_calculator(self, calc_params: dict):
+        """"""
+        self.backend = calc_params.pop("backend", None)
+        self.convergence = calc_params.pop("convergence", None)
+        self.repeat = calc_params.pop("repeat", 3) # try few times optimisation
+        if self.backend == "lammps":
+            from GDPy.calculator.minimiser import LMPMin
+            self.calc = LMPMin(**calc_params) # change this to class with same methods as ASE-Dyn
+            self.calc.reset() # remove info stored in calculator
+        else:
+            pass
+        
+        print("\n===== Calculator INFO =====\n")
 
         return
 
@@ -222,15 +245,7 @@ class GCMC():
         print(content)
         
         # set calculator
-        self.backend = params.pop("backend", None)
-        self.convergence = params.pop("convergence", None)
-        self.constraint = None
-        if self.backend == "lammps":
-            from GDPy.calculator.reax import LMPMin
-            self.calc = LMPMin(**params) # change this to class with same methods as ASE-Dyn
-            self.calc.reset() # remove info stored in calculator
-        else:
-            pass
+        self.__register_calculator(params)
 
         # opt init structure
         self.energy_stored, self.atoms = self.optimise(self.atoms)
@@ -264,17 +279,17 @@ class GCMC():
         if len(self.exatom_indices) > 0:
             if rn_mcmove < self.accum_probs[0]:
                 # atomic motion
-                print('current attempt is motion')
+                print('current attempt is *motion*')
                 self.attempt_move_atom()
             elif rn_mcmove < self.accum_probs[1]:
                 # exchange (insertion/deletion)
                 rn_ex = self.rng.uniform()
                 print('prob exchange', rn_ex)
                 if rn_ex < 0.5:
-                    print('current attempt is insertion')
+                    print('current attempt is *insertion*')
                     self.attempt_insert_atom()
                 else:
-                    print('current attempt is deletion')
+                    print("current attempt is *deletion*")
                     self.attempt_delete_atom()
         else:
             # exchange (insertion/deletion)
@@ -320,15 +335,26 @@ class GCMC():
         cur_atoms = self.atoms.copy()
         pos = cur_atoms[idx_pick].position.copy()
 
-        for idx in range(1):
+        MAX_MOVE_ATTEMPTS = 100
+        for idx in range(MAX_MOVE_ATTEMPTS):
             # get random motion vector
             rsq = 1.1
             while (rsq > 1.0):
                 rvec = 2*self.rng.uniform(size=3) - 1.0
                 rsq = np.linalg.norm(rvec)
             pos = pos + rvec*self.maxdisp
+
             # TODO: check if conflict with nerighbours
-            # self.region.check_overlap(1.0, pos, )
+            overlapped = self.region.check_overlap(
+                self.region.mindis, pos, cur_atoms.positions
+            )
+            if not overlapped:
+                print("find suitable position for moving...")
+                break
+        else:
+            print("Fail to move...")
+            return
+
         cur_atoms[idx_pick].position = pos
 
         # TODO: change this to optimisation
@@ -391,7 +417,6 @@ class GCMC():
             self.exatom_indices = list(range(self.nparts, len(self.atoms)))
         else:
             print('fail to insert...')
-            pass
         print('Insertion Probability %.4f' %rn_insertion)
 
         print('energy_stored is %12.4f' %self.energy_stored)
@@ -447,88 +472,37 @@ class GCMC():
         self.calc.reset()
         atoms.calc = self.calc
 
-        if self.constraint is not None:
-            atoms.set_constraint(self.constraint)
-
+        repeat = 3
         fmax, steps = self.convergence
-        if self.backend == "ase":
-            # TODO: use opt as arg
-            dyn = BFGS(atoms)
-            dyn.run(fmax=fmax, steps=steps)
-        elif self.backend == "lammps":
-            # run lammps
-            atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
-            print(min_stat)
+        
+        for i in range(repeat):
+            if self.backend == "ase":
+                # TODO: use opt as arg
+                if self.constraint is not None:
+                    atoms.set_constraint(self.constraint)
 
-        # TODO: change this to optimisation
-        forces = atoms.get_forces()
-        max_force = np.max(np.linalg.norm(forces, axis=1))
-        if max_force < 0.05:
-            pass
+                print("\n----- ASE MIN INFO -----\n")
+                dyn = BFGS(atoms)
+                dyn.run(fmax=fmax, steps=steps)
+            elif self.backend == "lammps":
+                # run lammps
+                atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
+                print("\n----- LAMMPS MIN INFO -----\n")
+                print(min_stat)
+
+            # TODO: change this to optimisation
+            forces = atoms.get_forces()
+            max_force = np.max(np.linalg.norm(forces, axis=1))
+            if max_force < fmax:
+                print("minisation converged...")
+                break
         else:
-            print('not converged')
+            print("minisation failed, use lateset energy...")
+
         en = atoms.get_potential_energy()
 
         return en, atoms
 
 
 if __name__ == '__main__':
-    # set initial structure - bare metal surface
-    atoms = read('/users/40247882/projects/oxides/gdp-main/mc-test/Pt_111_0.xyz')
-
-    # set reservior
-    pot = 'reax'
-    if pot == 'dp':
-        # vdW-DF spin-polarised energy
-        molecule_energy, dissociation_energy = -9.19578234, (-9.19578234-2*(-1.49092275))
-        # 300K, PBE-ZPE, experimental data https://janaf.nist.gov
-        thermo_correction = 0.09714 + (8.683 * 0.01036427) - 298.15 * (205.147 * 0.0000103642723)
-        # no pressure correction
-        #chemical_potential = 0.5*(molecule_energy + thermo_correction - dissociation_energy)
-        chemical_potential = 0.5*(molecule_energy + thermo_correction)
-    elif pot == 'reax':
-        #molecule_energy, dissociation_energy = -5.588397899826529, (-5.588397899826529-2*(-0.1086425742653097))
-        molecule_energy, dissociation_energy = -5.588397899826529, -2*(-0.1086425742653097)
-        # 300K, PBE-ZPE, experimental data https://janaf.nist.gov
-        thermo_correction = 0.09714 + (8.683 * 0.01036427) - 298.15 * (205.147 * 0.0000103642723)
-        # no pressure correction
-        chemical_potential = 0.5*(molecule_energy + thermo_correction - dissociation_energy)
-    else:
-        pass
-
-    res = Reservior(particle='O', temperature=300, pressure=1.0, mu=chemical_potential) # Kelvin, atm, eV
-
-    # set region
-    region = ReducedRegion(atoms.cell)
-
-    # start mc
-    type_map = {'O': 0, 'Pt': 1}
-    transition_array = [0.5,0.5] # move and exchange
-    gcmc = GCMC(type_map, res, atoms, region, 1000, transition_array)
-
-    # set calculator
-    backend = 'lammps'
-    if backend == 'ase':
-        from GDPy.calculator.dp import DP
-        calc = DP(
-            type_dict = type_map,
-            model = '/users/40247882/projects/oxides/gdp-main/it-0005/ensemble/model-0/graph.pb'
-        )
-    elif backend == 'lammps':
-        # reaxff uses real unit, force kcal/mol/A
-        from GDPy.calculator.reax import ReaxLMP
-        calc = ReaxLMP(
-            directory = 'reax-worker',
-            command='mpirun -n 1 lmp'
-        )
-    else:
-        pass
-
-    # TODO: check constraint from the region
-    cons = FixAtoms(
-        indices = [atom.index for atom in atoms if atom.position[2] < region.cmin]
-    )
-
-    run_params = RunParam(backend='reax', calculator=calc, optimiser='lammps', constraint=cons)
-
-    gcmc.run(run_params)
+    pass
