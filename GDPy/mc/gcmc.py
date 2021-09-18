@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple
-from sys import prefix
+from pathlib import Path
+import shutil
 
 import numpy as np
 
@@ -108,7 +109,7 @@ class ReducedRegion():
     def calc_acc_volume(self, atoms) -> float:
         """calculate acceptable volume"""
         atoms_inside = [atom for atom in atoms if atom.position[2] > self.cmin]
-        print(len(atoms_inside))
+        print("number of atoms inside the region", len(atoms_inside))
         radii = [data.covalent_radii[data.atomic_numbers[atom.symbol]] for atom in atoms_inside]
         atoms_volume = np.sum([4./3.*np.pi*r**3 for r in radii])
 
@@ -134,6 +135,7 @@ class ReducedRegion():
 class GCMC():
 
     MCTRAJ = "./miaow.xyz"
+    SUSPECT_DIR = "./suspects"
 
     def __init__(
         self, 
@@ -145,6 +147,12 @@ class GCMC():
     ):
         """
         """
+        # elements
+        self.type_list = type_list
+        self.type_map = {}
+        for i, e in enumerate(self.type_list):
+            self.type_map[e] = i
+
         # simulation system
         self.atoms = atoms # current atoms
         self.nparts = len(atoms)
@@ -220,6 +228,25 @@ class GCMC():
         self.backend = calc_params.pop("backend", None)
         self.convergence = calc_params.pop("convergence", None)
         self.repeat = calc_params.pop("repeat", 3) # try few times optimisation
+        self.devi_tol = calc_params.pop("devi_tol", 0.015) # try few times optimisation
+        calc_params["directory"] = Path(calc_params["directory"])
+
+        # find uncertainty support
+        model_files = calc_params["model_params"]["file"]
+        if isinstance(model_files, str):
+            num_models = 0
+        else:
+            num_models = len(model_files)
+            calc_params["model_params"]["file"] = " ".join(model_files)
+        self.suspects = None
+        if num_models > 1:
+            self.suspects = Path(self.SUSPECT_DIR)
+            if self.suspects.exists():
+                raise FileExistsError("{} already exists...".format(self.suspects))
+            else:
+                self.suspects.mkdir()
+
+        # calculator instance
         if self.backend == "lammps":
             from GDPy.calculator.minimiser import LMPMin
             self.calc = LMPMin(**calc_params) # change this to class with same methods as ASE-Dyn
@@ -248,16 +275,19 @@ class GCMC():
         self.__register_calculator(params)
 
         # opt init structure
+        self.step_index = "-init"
         self.energy_stored, self.atoms = self.optimise(self.atoms)
         print(self.atoms.cell)
         print('energy_stored ', self.energy_stored)
 
+        # add optimised initial structure
         print('\n\nrenew trajectory file')
-        with open(self.MCTRAJ, "w") as fopen:
-            fopen.write('')
+        write(self.MCTRAJ, self.atoms, append=False)
 
         # start monte carlo
+        self.step_index = 0
         for idx in range(nattempts):
+            self.step_index = idx
             print('\n\n===== MC Move %04d =====\n' %idx)
             # run standard MC move
             self.step()
@@ -266,6 +296,8 @@ class GCMC():
             write(self.MCTRAJ, self.atoms, append=True)
 
             # check uncertainty
+        
+        print("\n\nFINISHED PROPERLY.")
 
         return
 
@@ -295,12 +327,13 @@ class GCMC():
             # exchange (insertion/deletion)
             rn_ex = self.rng.uniform()
             print('prob exchange', rn_ex)
-            if rn_ex < 0.5:
-                print('current attempt is insertion')
-                self.attempt_insert_atom()
-            else:
-                print('current attempt is deletion')
-
+            # if rn_ex < 0.5:
+            #     print('current attempt is insertion')
+            #     self.attempt_insert_atom()
+            # else:
+            #     print('current attempt is deletion')
+            print('current attempt is insertion')
+            self.attempt_insert_atom()
         return
     
     def pick_random_atom(self):
@@ -470,12 +503,13 @@ class GCMC():
     def optimise(self, atoms):
         """"""
         self.calc.reset()
-        atoms.calc = self.calc
+        old_calc_dir = self.calc.directory
 
         repeat = 3
         fmax, steps = self.convergence
         
         for i in range(repeat):
+            atoms.calc = self.calc
             if self.backend == "ase":
                 # TODO: use opt as arg
                 if self.constraint is not None:
@@ -486,22 +520,48 @@ class GCMC():
                 dyn.run(fmax=fmax, steps=steps)
             elif self.backend == "lammps":
                 # run lammps
-                atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
+                min_atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
                 print("\n----- LAMMPS MIN INFO -----\n")
                 print(min_stat)
 
             # TODO: change this to optimisation
-            forces = atoms.get_forces()
+            forces = min_atoms.get_forces()
             max_force = np.max(np.linalg.norm(forces, axis=1))
             if max_force < fmax:
-                print("minisation converged...")
+                atoms = min_atoms
+                print("minimisation converged...")
+                if self.suspects is not None:
+                    print("check uncertainty...")
+                    self.calc.directory = self.suspects / ("step" + str(self.step_index))
+                    # TODO: use potential manager
+                    min_atoms.calc = self.calc
+                    __dummy = min_atoms.get_forces()
+                    devi_file = Path(self.calc.directory) / "model_devi.out"
+                    devi_info = np.loadtxt(devi_file) # EANN
+                    en_devi = float(devi_info[1])
+                    print("total energy deviation: {:.4f}  tolerance: {:.4f}".format(en_devi, self.devi_tol*len(min_atoms)))
+                    if en_devi > self.devi_tol*len(min_atoms) :
+                        print("large deviation, and save trajectory...")
+                        shutil.copytree(old_calc_dir, self.suspects / ("step" + str(self.step_index)+"-traj"))
                 break
+            else:
+                atoms = min_atoms
         else:
-            print("minisation failed, use lateset energy...")
+            print("minimisation failed, use lateset energy...")
+
+        self.calc.directory = old_calc_dir
 
         en = atoms.get_potential_energy()
 
         return en, atoms
+    
+    @staticmethod
+    def __parse_deviation(devi_file):
+        # TODO: check deviation
+        # max_fdevi = np.loadtxt(devi_out)[1:,4] # DP
+        max_fdevi = np.loadtxt(devi_file)[1:,5] # EANN
+
+        return
 
 
 if __name__ == '__main__':
