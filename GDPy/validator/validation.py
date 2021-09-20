@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import Union
 
 from collections import namedtuple, Counter
+from ase.optimize.bfgs import oldBFGS
 
 import numpy as np
 
 import matplotlib
 matplotlib.use('Agg') #silent mode
 import matplotlib.pyplot as plt
+plt.style.use("presentation")
 
 from ase import Atoms
 from ase.io import read, write
@@ -119,6 +121,11 @@ class MinimaValidator(AbstractValidator):
 
         self.calc.reset()
         atoms.calc = self.calc
+        # check bulk optimisation
+        check_bulk = atoms.info.get("constraint", None)
+        if check_bulk is not None:
+            print("use {}".format(check_bulk))
+            atoms = UnitCellFilter(atoms, constant_volume=False)
         dyn = dyn_cls(atoms)
         dyn.run(**dyn_opts)
 
@@ -366,14 +373,41 @@ class ReactionValidator(AbstractValidator):
 
             # recheck energy
             opt_images = read(traj_path, "-%s:" %nimages)
-            energies = []
+            energies, en_stdvars = [], []
             for a in opt_images:
                 self.calc.reset()
                 a.calc = self.calc
+                # EANN uncertainty
+                a.calc.calc_uncertainty = True
+                __dummy = a.get_forces()
                 energies.append(a.get_potential_energy())
+                en_stdvars.append(a.calc.results["en_stdvar"])
             energies = np.array(energies)
             energies = energies - energies[0]
             print(energies)
+
+            # save mep
+            write(output_path / "neb_opt.xyz", opt_images)
+
+            from ase.geometry import find_mic
+
+            differences = np.zeros(len(opt_images))
+            init_pos = opt_images[0].get_positions()
+            for i in range(1,nimages):
+                a = opt_images[i]
+                vector = a.get_positions() - init_pos
+                vmin, vlen = find_mic(vector, a.get_cell())
+                differences[i] = np.linalg.norm(vlen)
+
+            # save results to file
+            neb_data = output_path / "neb.dat"
+            content = ""
+            for i in range(nimages):
+                content += "{:4d}  {:10.6f}  {:10.6f}  {:10.6f}\n".format(
+                    i, differences[i], energies[i], en_stdvars[i]
+                )
+            with open(neb_data, "w") as fopen:
+                fopen.write(content)
 
         return
     
@@ -525,4 +559,48 @@ def run_validation(
 
 
 if __name__ == '__main__':
-    run_validation('./valid-opt.json')
+    # run_validation('./valid-opt.json')
+    bulk = "/mnt/scratch2/users/40247882/oxides/bulk/Pt-bulk.xyz"
+    frames = read(bulk, ":")
+
+    # parse potential
+    from GDPy.potential.manager import create_manager
+    pm = create_manager("/mnt/scratch2/users/40247882/oxides/eann-main/train-all/m19/validations/potential.json")
+    print(pm.models)
+
+    calc = pm.generate_calculator()
+
+    natoms_array = np.array([len(a) for a in frames])
+    volumes = np.array([a.get_volume() for a in frames])
+    dft_energies = np.array([a.get_potential_energy() for a in frames])
+    print(volumes)
+    print(dft_energies)
+
+    mlp_energies = []
+    for a in frames:
+        calc.reset()
+        a.calc = calc
+        mlp_energies.append(
+            a.get_potential_energy()
+        )
+    mlp_energies = np.array(mlp_energies)
+    print(mlp_energies)
+
+    # plot
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16,12))
+    plt.suptitle(
+        #"Birch-Murnaghan (Constant-Volume Optimisation)"
+        "Energy-Volume Curve"
+    )
+    
+    ax.set_xlabel("Volume [Å^3/atom]")
+    ax.set_ylabel("Energy [eV/atom]")
+
+    #ax.plot(dft_curve[:,0], dft_curve[:,1])
+
+    ax.scatter(volumes/natoms_array, dft_energies/natoms_array, marker="*", label="DFT")
+    ax.scatter(volumes/natoms_array, mlp_energies/natoms_array, marker="x", label="MLP")
+
+    ax.legend()
+
+    plt.savefig('bm.png')
