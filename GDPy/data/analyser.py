@@ -198,6 +198,8 @@ class DataOperator():
     def remove_large_force_structures(self) -> NoReturn:
         # remove large-force frames
         # TODO: move this part to the main reading procedure
+        force_tolerance = 150
+        print("force criteria: ", force_tolerance)
         new_frames = []
         for atoms in self.frames:
             max_force = np.max(np.fabs(atoms.get_forces()))
@@ -235,19 +237,27 @@ class DataOperator():
 
         return used_frames, other_frames
 
-    def compress_based_on_deviation(self, calc):
+    def compress_based_on_deviation(
+        self, calc,
+        energy_tolerance=0.020,
+        energy_shift=0.0
+    ):
         """ select candidates based on 
             true error or model ensemble deviation
 
             possible criteria 
             energy error 0.020 eV / atom
         """
+        print(f"tolerance {energy_tolerance} shift {energy_shift}")
+
         frames = self.frames
+        #calc_frames = frames.copy() # WARN: torch-based calc will contaminate results
 
         dft_energies, dft_forces = xyz2results(frames, calc=None)
         mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
 
         # preprocess
+        print("\n\n--- data statistics ---")
         dft_energies = np.array(dft_energies)
         mlp_energies = np.array(mlp_energies)
         natoms_per_structure = np.sum(list(self.type_numbers.values()))
@@ -262,19 +272,41 @@ class DataOperator():
         print(_bin_edges)
 
         cand_indices = [] # structure index with large error
+        cand_frames = []
         for i, x in enumerate(abs_error):
             # TODO: make this a parameter
-            if x > 0.020: 
+            if x > energy_tolerance: 
                 cand_indices.append(i)
+                _energy = frames[i].get_potential_energy()
+                _forces = frames[i].get_forces()
+                cand_atoms = frames[i].copy()
+                #print(cand_atoms.calc)
+                singlepoint = SinglePointCalculator(
+                    cand_atoms, energy=_energy,
+                    forces=_forces
+                )
+                cand_atoms.calc = singlepoint
+                #print(cand_atoms.calc)
+                #print(cand_atoms.get_potential_energy())
+                #cand_atoms.calc = None # torch results cannot be direct to joblib
+                cand_frames.append(cand_atoms)
         ncand = len(cand_indices)
         print("number of candidates: ", ncand)
+        #exit()
 
-        num_cur = np.min([320, np.floor(ncand / 32)*32])
+        num_cur = int(np.min([320, np.floor(ncand / 32)*32]))
         print("number to select: ", num_cur)
+
+        # go for cur
+        self.compress_frames(num_cur, cand_frames, energy_shift)
 
         return
     
-    def compress_frames(self, number=320, energy_shift=0.0):
+    def compress_frames(
+        self, number=320, 
+        frames=None, 
+        energy_shift=0.0
+    ):
         """ Strategy for compressing large dataset
             1. if atomic energy is way large, skip them
             2. random selection based on (
@@ -282,7 +314,15 @@ class DataOperator():
                 # geometric, phase volume, energy-wise
             )
         """
-        frames = self.frames.copy()
+        print("\n\n")
+        if frames is None:
+            print("Use pre-loaded dataset...")
+            frames = self.frames.copy()
+        else:
+            print("Use user-input dataset...")
+        print("!!! number of frames in compressing: ", len(frames))
+        #for atoms in frames:
+        #    print(atoms)
 
         # find converged structures
         converged_indices = []
@@ -309,7 +349,7 @@ class DataOperator():
         bin_edges = np.arange(en_min, en_max+en_width, en_width)
         nbins = len(bin_edges) - 1 # number of bins
 
-        print(f"AtomicEnergy Range: {en_min} - {en_max}")
+        print(f"AtomicEnergy Range: {en_min} _ {en_max}")
         print(f"number of bins: {nbins}")
 
         _, bin_edges, binnumber = sp.stats.binned_statistic(
@@ -353,11 +393,20 @@ class DataOperator():
 
         # select structures in each bin
         print("\n\n--- start cur decompostion ---")
+
         all_indices = []
         for bin_i, (bin_num, bin_idx) in enumerate(zip(final_num_array, fidx_list)):
             nframes_bin = len(bin_idx)
             if bin_num == 0 or nframes_bin == 0:
                 continue
+            # TODO: check number available
+            #if bin_num >= nframes_bin:
+            #    nframes_bin = int(np.ceil(nframes_bin/32)*32) # TODO
+            #    bin_num = nframes_bin
+            #else:
+            #    bin_num = int(np.ceil(nframes_bin/32)*32) # TODO
+            #    nframes_bin = bin_num
+            #    # TODO
             print(
                 "{} candidates are selected from {} structures in bin {}...".format(
                     bin_num, nframes_bin, bin_i
