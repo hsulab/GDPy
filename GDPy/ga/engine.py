@@ -144,6 +144,16 @@ class GeneticAlgorithemEngine():
                 cur_gen_num = self.da.get_generation_number()
                 print('generation number: ', cur_gen_num)
 
+                if cur_gen_num == 0:
+                    print("===== Initial Population =====")
+                    while (self.da.get_number_of_unrelaxed_candidates()):
+                        # calculate structures from init population
+                        atoms = self.da.get_an_unrelaxed_candidate()
+                        print("start to run structure %s" %atoms.info["confid"])
+                        # TODO: provide unified interface to mlp and dft
+                        #self.__run_local_optimisation(atoms)
+                        self.pbs_run.relax(atoms)
+
                 max_gen = self.ga_dict['convergence']['generation']
                 if cur_gen_num > max_gen:
                     print('reach maximum generation...')
@@ -337,7 +347,7 @@ class GeneticAlgorithemEngine():
     
     def __register_calculator(self):
         """register serial calculator"""
-        from GDPy.calculator.reax import LMPMin
+        from GDPy.calculator.minimiser import LMPMin
         self.worker = LMPMin(
             **self.calc_dict["kwargs"], 
             model_params = self.calc_dict["potential"]
