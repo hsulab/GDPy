@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from itertools import permutations
 import json
 import pathlib
 from pathlib import Path
-from typing import Union
-
-from collections import namedtuple, Counter
-from ase.optimize.bfgs import oldBFGS
+from typing import NoReturn, List, Union
 
 import numpy as np
 
@@ -27,8 +23,6 @@ from ase.optimize import BFGS
 from ase.constraints import FixAtoms
 from ase.constraints import UnitCellFilter
 from ase.neb import NEB
-
-from GDPy.potential.manager import PotManager
 
 from abc import ABC
 from abc import abstractmethod
@@ -60,13 +54,20 @@ class AbstractValidator(ABC):
             valid_dict = json.load(fopen)
         self.valid_dict = valid_dict
 
-        self.tasks = valid_dict['tasks']
-        self.output_path = pathlib.Path(valid_dict.get("output", "miaow"))
-        if not self.output_path.exists():
-            self.output_path.mkdir(parents=True)
+        self.tasks = valid_dict.get("tasks", None)
         
+        self.__parse_outputs(valid_dict)
         # self.calc = self.__parse_calculator(valid_dict)
         
+        return
+    
+    def __parse_outputs(self, input_dict: dict) -> NoReturn:
+        """ parse and create ouput folders and files
+        """
+        self.output_path = pathlib.Path(input_dict.get("output", "miaow"))
+        if not self.output_path.exists():
+            self.output_path.mkdir(parents=True)
+
         return
     
     def __parse_calculator(self, input_dict: dict) -> calculator:
@@ -456,60 +457,73 @@ class RunCalculation():
 
 class SinglePointValidator(AbstractValidator):
 
-    def __init__(self, validation):
-        """"""
-        super().__init__()
+    """
+    calculate energies on each structures and save them to file
+    """
+
+    def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
+        """ run bulk validation
+        """
+        super().__init__(validation)
+        self.pm = pot_manager
+
+        self.calc = self.__parse_calculator(self.valid_dict)
+
+        self.task = self.valid_dict.get("task", None) # TODO: move this to the main function
+        #self.output_path = Path(self.valid_dict.get("output", "validation"))
+        #if self.output_path.exists():
+        #    raise FileExistsError("The output path for current validation exists.")
+        #else:
+        #    self.output_path.mkdir()
+        
+        self.structure_paths = self.valid_dict.get("structures", None)
+
+        return
+    
+    def __parse_calculator(self, input_dict: dict) -> calculator:
+
+        return self.pm.generate_calculator()
+    
+    def __calc_results(self, frames: List[Atoms]):
 
         return
 
-    def run_calculation(frames, calc):
-        dp_energies = []
-        for atoms in frames:
-            calc.reset()
-            atoms.calc = calc
-            dp_energies.append(atoms.get_potential_energy())
-        dp_energies = np.array(dp_energies)
-
-        return dp_energies
-    
-    def run(self, calc=None, output_path=None):
+    def run(self):
         """
         lattice constant
         equation of state
         """
-        if output_path is None:
-            output_path = self.output_path
-        if calc is None:
-            calc = self.calc
-
-        runrun = RunCalculation()
-
-        # run over various validations
-        for validation, systems in self.tasks.items():
-            print(validation, systems)
-            for stru_path in systems:
+        if self.task == "bulk":
+            for stru_path in self.structure_paths:
                 # set output file name
-                stru_path = pathlib.Path(stru_path)
+                stru_path = Path(stru_path)
                 stru_name = stru_path.stem
-                fname = output_path / (stru_name + '-dpx.dat')
+                fname = self.output_path / (stru_name + "-valid.dat")
+                pname = self.output_path / (stru_name + "-valid.png")
 
                 # run dp calculation
-                frames = read(stru_path, ':')
-                properties, dft_energies = runrun.run(frames, validation)
-                dp_energies = self.run_calculation(frames, calc)
+                frames = read(stru_path, ":")
+                volumes = [a.get_volume() for a in frames]
+                dft_energies = [a.get_potential_energy() for a in frames]
+
+                mlp_energies = []
+                self.calc.reset()
+                for a in frames:
+                    a.calc = self.calc
+                    mlp_energies.append(a.get_potential_energy())
 
                 # save to data file
-                data = np.array([properties, dft_energies, dp_energies]).T
-                np.savetxt(fname, data, fmt='%.4f', header='Prop DFT DP')
+                data = np.array([volumes, dft_energies, mlp_energies]).T
+                np.savetxt(fname, data, fmt="%12.4f", header="Prop DFT MLP")
 
-                # plot comparison
-                # pic_path = output_path / (stru_name+'-dpx.png')
-                # print(pic_path)
-                # energies = {
-                #     'reference': dft_energies, 
-                #     'learned': dp_energies
-                # }
-                # plot_dimer(validation, volumes, energies, pic_path)
+                self.plot_dimer(
+                    "Bulk EOS", volumes, 
+                    {
+                        "DFT": dft_energies, 
+                        "MLP": mlp_energies
+                    },
+                    pname
+                )
 
         return
 
@@ -534,10 +548,34 @@ class SinglePointValidator(AbstractValidator):
 
         return
 
+    def analyse(self):        
+        # plot
+        """
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16,12))
+        plt.suptitle(
+            #"Birch-Murnaghan (Constant-Volume Optimisation)"
+            "Energy-Volume Curve"
+        )
+    
+        ax.set_xlabel("Volume [Å^3/atom]")
+        ax.set_ylabel("Energy [eV/atom]")
+
+        ax.scatter(volumes/natoms_array, dft_energies/natoms_array, marker="*", label="DFT")
+        ax.scatter(volumes/natoms_array, mlp_energies/natoms_array, marker="x", label="MLP")
+
+        ax.legend()
+
+        plt.savefig('bm.png')
+        """
+
+        return
+
 def run_validation(
     input_json: Union[str, pathlib.Path],
     pot_json: Union[str, pathlib.Path]
 ):
+    """ This is a factory to deal with various validations...
+    """
     # parse potential
     from GDPy.potential.manager import create_manager
     pm = create_manager(pot_json)
@@ -552,55 +590,13 @@ def run_validation(
         rv = MinimaValidator(input_json, pm)
     elif method == "reaction":
         rv = ReactionValidator(input_json, pm)
+    elif method == "bulk":
+        rv = SinglePointValidator(input_json, pm)
     rv.run()
     rv.analyse()
 
     return
 
 
-if __name__ == '__main__':
-    # run_validation('./valid-opt.json')
-    bulk = "/mnt/scratch2/users/40247882/oxides/bulk/Pt-bulk.xyz"
-    frames = read(bulk, ":")
-
-    # parse potential
-    from GDPy.potential.manager import create_manager
-    pm = create_manager("/mnt/scratch2/users/40247882/oxides/eann-main/train-all/m19/validations/potential.json")
-    print(pm.models)
-
-    calc = pm.generate_calculator()
-
-    natoms_array = np.array([len(a) for a in frames])
-    volumes = np.array([a.get_volume() for a in frames])
-    dft_energies = np.array([a.get_potential_energy() for a in frames])
-    print(volumes)
-    print(dft_energies)
-
-    mlp_energies = []
-    for a in frames:
-        calc.reset()
-        a.calc = calc
-        mlp_energies.append(
-            a.get_potential_energy()
-        )
-    mlp_energies = np.array(mlp_energies)
-    print(mlp_energies)
-
-    # plot
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16,12))
-    plt.suptitle(
-        #"Birch-Murnaghan (Constant-Volume Optimisation)"
-        "Energy-Volume Curve"
-    )
-    
-    ax.set_xlabel("Volume [Å^3/atom]")
-    ax.set_ylabel("Energy [eV/atom]")
-
-    #ax.plot(dft_curve[:,0], dft_curve[:,1])
-
-    ax.scatter(volumes/natoms_array, dft_energies/natoms_array, marker="*", label="DFT")
-    ax.scatter(volumes/natoms_array, mlp_energies/natoms_array, marker="x", label="MLP")
-
-    ax.legend()
-
-    plt.savefig('bm.png')
+if __name__ == "__main__":
+    pass
