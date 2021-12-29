@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import json
+import pathlib
+import yaml
 import argparse
+import datetime
 
 from GDPy.ga.engine import GeneticAlgorithemEngine
 
@@ -30,11 +33,24 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-with open(args.INPUT, 'r') as fopen:
-    ga_dict = json.load(fopen)
+print("\n\n===== Modified ASE-based Genetic Algorithem Structure Search =====\n\n")
+
+input_file = pathlib.Path(args.INPUT)
+# print(input_file.suffix)
+if input_file.suffix == ".json":
+    with open(input_file, "r") as fopen:
+        ga_dict = json.load(fopen)
+elif input_file.suffix == ".yaml":
+    with open(input_file, "r") as fopen:
+        ga_dict = yaml.safe_load(fopen)
+else:
+    raise ValueError("wrong input file format...")
+with open("params.json", "w") as fopen:
+    json.dump(ga_dict, fopen, indent=4)
+print("See params.json for values of all parameters...")
 
 gae = GeneticAlgorithemEngine(ga_dict)
-print('initialise GA engine...')
+print("initialise GA engine at ", datetime.datetime.now())
 
 if args.check:
     gae.check_status()
