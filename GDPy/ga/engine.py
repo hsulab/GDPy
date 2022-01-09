@@ -3,12 +3,12 @@
 
 from random import random
 import pathlib
-from typing import Union
 import warnings
 import numpy as np
 
 import ase.data
 
+from ase import Atoms
 from ase.io import read, write
 from ase.ga.data import PrepareDB, DataConnection
 from ase.ga.startgenerator import StartGenerator
@@ -58,9 +58,22 @@ class GeneticAlgorithemEngine():
     Genetic Algorithem Engine
     """
 
+    implemented_systems = ["bulk", "cluster", "surface"]
+
     def __init__(self, ga_dict: dict):
         """"""
         self.ga_dict = ga_dict
+
+        # check system type
+        system_type = ga_dict["system"].get("type", None)
+        if system_type in self.implemented_systems:
+            self.system_type = system_type
+        else:
+            raise KeyError("Must declare system type for exploration [bulk, cluster, surface].")
+
+        self.__parse_system_parameters(ga_dict)
+
+        # check database
         self.db_name = pathlib.Path(ga_dict["database"])
 
         # settings for minimisation
@@ -71,6 +84,13 @@ class GeneticAlgorithemEngine():
         self.mutation_dict = ga_dict["mutation"]
 
         return
+    
+    def __parse_system_parameters(self, ga_dict):
+        """ parse system-specific parameters
+        """
+        self.type_list = list(ga_dict["system"]["composition"].keys())
+
+        return
 
     def run(self):
         """ main procedure
@@ -78,14 +98,14 @@ class GeneticAlgorithemEngine():
         # TODO: check database existence and generation number to determine restart
         if not self.db_name.exists():
             print("create a new database...")
-            self.create_surface()
-            self.create_init_population()
+            self.__create_random_structure_generator()
+            self.__create_initial_population()
             # make calculation dir
             self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
             self.tmp_folder.mkdir()
             print("create a new tmp_folder...")
         else:
-            print('restart the database...')
+            print("restart the database...")
             # balh
             self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
             self.__restart()
@@ -93,10 +113,12 @@ class GeneticAlgorithemEngine():
             cur_gen = self.da.get_generation_number()
             if self.machine == "serial":
                 # find z-axis constraint
-                cons_maxidx = self.ga_dict["surface"].get("constraint", None)
-                positions = self.slab.get_positions()
-                self.zmin = np.max(positions[range(cons_maxidx),2])
-                print("fixed atoms lower than {0} AA".format(self.zmin))
+                self.zmin = None
+                if self.system_type == "surface":
+                    cons_maxidx = self.ga_dict["surface"].get("constraint", None)
+                    positions = self.slab.get_positions()
+                    self.zmin = np.max(positions[range(cons_maxidx),2]) + 0.2
+                    print("fixed atoms lower than {0} AA".format(self.zmin))
 
                 # start minimisation
                 print("===== register calculator =====")
@@ -234,18 +256,38 @@ class GeneticAlgorithemEngine():
         self.n_to_optimize = len(self.atom_numbers_to_optimize)
         self.slab = self.da.get_slab()
 
+        # set bond list minimum
         all_atom_types = get_all_atom_types(self.slab, self.atom_numbers_to_optimize)
         self.blmin = closest_distances_generator(
             all_atom_types,
             ratio_of_covalent_radii=0.7
         )
-        # print(self.blmin)
-        # for key, value in self.blmin.items():
-        #     self.blmin[key] = 0.90
-        # print(self.blmin)
+        self.__print_blmin()
 
         # mutation operators
         self.register_operators()
+
+        return
+    
+    def __print_blmin(self):
+        """"""
+        elements = get_all_atom_types(self.slab, self.atom_numbers_to_optimize)
+        nelements = len(elements)
+        index_map = {}
+        for i, e in enumerate(elements):
+            index_map[e] = i
+        distance_map = np.zeros((nelements, nelements))
+        for (i, j), dis in self.blmin.items():
+            distance_map[index_map[i], index_map[j]] = dis
+
+        symbols = [ase.data.chemical_symbols[e] for e in elements]
+
+        content =  "----- Bond Distance Minimum -----\n"
+        content += " "*4+("{:>6}  "*nelements).format(*symbols) + "\n"
+        for i, s in enumerate(symbols):
+            content += ("{:<4}"+"{:>8.4f}"*nelements+"\n").format(s, *list(distance_map[i]))
+        content += "note: default too far tolerance is 2 times\n"
+        print(content)
 
         return
     
@@ -334,14 +376,25 @@ class GeneticAlgorithemEngine():
         self.pairing = CutAndSplicePairing(
             self.slab, self.n_to_optimize, self.blmin
         )
-        self.mutations = OperationSelector(
-            [1., 1., 1.], # probabilities for each mutation
-            [
-                RattleMutation(self.blmin, self.n_to_optimize),
-                MirrorMutation(self.blmin, self.n_to_optimize),
-                PermutationMutation(self.n_to_optimize)
-            ] # operator list
-        )
+        # TODO: expose to custom input file
+        natypes = len(self.type_list)
+        if natypes > 1:
+            self.mutations = OperationSelector(
+                [1., 1., 1.], # probabilities for each mutation
+                [
+                    RattleMutation(self.blmin, self.n_to_optimize),
+                    MirrorMutation(self.blmin, self.n_to_optimize),
+                    PermutationMutation(self.n_to_optimize)
+                ] # operator list
+            )
+        else:
+            self.mutations = OperationSelector(
+                [1., 1.], # probabilities for each mutation
+                [
+                    RattleMutation(self.blmin, self.n_to_optimize),
+                    MirrorMutation(self.blmin, self.n_to_optimize)
+                ] # operator list
+            )
 
         return
     
@@ -369,69 +422,127 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def create_surface(self) -> None:
+    def __create_random_structure_generator(self) -> None:
+        """ create a random structure generator
+        """
         # unpack info
-        init_dict = self.ga_dict['surface']
-        substrate = init_dict['substrate']
-        surfsize = init_dict['surfsize']
+        init_dict = self.ga_dict["system"]
         composition = init_dict['composition']
-        constraint = init_dict.get('constraint', None)
 
-        # create the surface
-        self.slab = read(substrate)
-        if constraint is not None:
-            # TODO: convert index string to list
-            self.slab.set_constraint(FixAtoms(indices=range(constraint)))
+        if self.system_type == "bulk":
+            # TODO: specific routine for bulks
+            pass
+        elif self.system_type == "cluster":
+            cell = np.array(init_dict["lattice"])
+            self.slab = Atoms(cell = cell, pbc=True)
+            self.cell_centre = np.sum(0.5*cell, axis=1)
+            
+            # set box to explore
+            box_cell = np.array(init_dict["space"])
+            p0 = np.zeros(3)
+            #p0 = np.sum(0.5*cell, axis=1) # centre of the cell
+            v1 = box_cell[0, :] 
+            v2 = box_cell[1, :] 
+            v3 = box_cell[2, :]
 
-        # define the volume in which the adsorbed cluster is optimized
-        # the volume is defined by a corner position (p0)
-        # and three spanning vectors (v1, v2, v3)
-        pos = self.slab.get_positions()
-        cell = self.slab.get_cell()
-        p0 = np.array([0., 0., max(pos[:, 2]) + surfsize[0]]) # origin of the box
-        v1 = cell[0, :] * 1.0
-        v2 = cell[1, :] * 1.0
-        v3 = cell[2, :]
-        v3[2] = surfsize[1]
+            # parameters
+            box_to_place_in = [p0, [v1, v2, v3]]
+            test_dist_to_slab = False
+            test_too_far = False
+
+        elif self.system_type == "surface":
+            substrate_dict = init_dict["substrate"]
+            substrate_file = substrate_dict["file"]
+            surfsize = substrate_dict["surfsize"]
+            constraint = substrate_dict.get("constraint", None)
+
+            # create the surface
+            self.slab = read(substrate_file)
+            if constraint is not None:
+                # TODO: convert index string to list
+                self.slab.set_constraint(FixAtoms(indices=range(constraint)))
+
+            # define the volume in which the adsorbed cluster is optimized
+            # the volume is defined by a corner position (p0)
+            # and three spanning vectors (v1, v2, v3)
+            pos = self.slab.get_positions()
+            cell = self.slab.get_cell()
+            cell = cell.complete() 
+            p0 = np.array([0., 0., max(pos[:, 2]) + surfsize[0]]) # origin of the box
+            v1 = cell[0, :] * 1.0
+            v2 = cell[1, :] * 1.0
+            v3 = cell[2, :]
+            v3[2] = surfsize[1]
+
+            # two parameters
+            box_to_place_in = [p0, [v1, v2, v3]]
+            test_dist_to_slab = True
+            test_too_far = True
 
         # output summary
-        print("system cell", cell.complete())
+        print("system cell", cell)
         vec3_format = '{:>8.4f}  {:>8.4f}  {:>8.4f}\n'
         print("variation box")
-        content = 'origin ' + vec3_format.format(*list(p0))
-        content += 'xxxxxx ' + vec3_format.format(*list(v1))
-        content += 'xxxxxx ' + vec3_format.format(*list(v2))
-        content += 'xxxxxx ' + vec3_format.format(*list(v3))
+        content =  "origin " + vec3_format.format(*list(p0))
+        content += "xxxxxx " + vec3_format.format(*list(v1))
+        content += "xxxxxx " + vec3_format.format(*list(v2))
+        content += "xxxxxx " + vec3_format.format(*list(v3))
         print(content)
+        print(self.slab)
 
         # Define the composition of the atoms to optimize
-        self.atom_numbers = []
+        atom_numbers = []
         for elem, num in composition.items():
-            self.atom_numbers.extend([ase.data.atomic_numbers[elem]]*num)
+            atom_numbers.extend([ase.data.atomic_numbers[elem]]*num)
+        self.atom_numbers = atom_numbers
+        unique_atom_types = get_all_atom_types(self.slab, atom_numbers)
 
         # define the closest distance two atoms of a given species can be to each other
-        unique_atom_types = get_all_atom_types(self.slab, self.atom_numbers)
         blmin = closest_distances_generator(
             atom_numbers=unique_atom_types,
-            ratio_of_covalent_radii=0.7
+            ratio_of_covalent_radii=0.7 # be careful with test too far
         )
+
+        print("neighbour distance restriction")
+        self.__print_blmin()
 
         # create the starting population
         self.generator = StartGenerator(
-            self.slab, self.atom_numbers, blmin,
-            box_to_place_in=[p0, [v1, v2, v3]]
+            self.slab, 
+            self.atom_numbers, # blocks
+            blmin,
+            number_of_variable_cell_vectors=0,
+            box_to_place_in=box_to_place_in,
+            box_volume=None,
+            splits=None,
+            cellbounds=None,
+            test_dist_to_slab = test_dist_to_slab,
+            test_too_far = test_too_far
         ) # structure generator
 
         return 
 
-    def create_init_population(
+    def __create_initial_population(
             self, 
         ):
         # unpack info
         population_size = self.ga_dict['population']['init_size']
 
         # generate the starting population
-        starting_population = [self.generator.get_new_candidate() for i in range(population_size)]
+        print("start to create initial population")
+        starting_population = []
+        while len(starting_population) < population_size:
+            maxiter = 100
+            candidate = self.generator.get_new_candidate(maxiter=maxiter)
+            # TODO: add some geometric restriction here
+            if candidate is None:
+                print(f"This creation failed after {maxiter} attempts...")
+            else:
+                if self.system_type == "cluster":
+                    com = candidate.get_center_of_mass().copy()
+                    candidate.positions += self.cell_centre - com
+                starting_population.append(candidate)
+            #print("now we have ", len(starting_population))
 
         # create the database to store information in
         d = PrepareDB(
@@ -479,7 +590,7 @@ class GeneticAlgorithemEngine():
             min_atoms, min_results = self.worker.minimise(
                 atoms,
                 **self.calc_dict["minimisation"],
-                zmin = self.zmin + 0.2
+                zmin = self.zmin
             )
             print(min_results)
             confid = atoms.info["confid"]
