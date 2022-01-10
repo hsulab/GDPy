@@ -115,9 +115,12 @@ class GeneticAlgorithemEngine():
                 # find z-axis constraint
                 self.zmin = None
                 if self.system_type == "surface":
-                    cons_maxidx = self.ga_dict["surface"].get("constraint", None)
+                    substrate = self.da.get_slab()
+                    cons_indices = substrate.constraints[0].index
+                    print(cons_indices)
                     positions = self.slab.get_positions()
-                    self.zmin = np.max(positions[range(cons_maxidx),2]) + 0.2
+                    self.zmin = np.max(positions[cons_indices, 2]) + 0.2
+                    print(self.zmin)
                     print("fixed atoms lower than {0} AA".format(self.zmin))
 
                 # start minimisation
@@ -451,6 +454,7 @@ class GeneticAlgorithemEngine():
             test_too_far = False
 
         elif self.system_type == "surface":
+            # read substrate
             substrate_dict = init_dict["substrate"]
             substrate_file = substrate_dict["file"]
             surfsize = substrate_dict["surfsize"]
@@ -459,23 +463,42 @@ class GeneticAlgorithemEngine():
             # create the surface
             self.slab = read(substrate_file)
             if constraint is not None:
-                # TODO: convert index string to list
-                self.slab.set_constraint(FixAtoms(indices=range(constraint)))
+                index_group = constraint.split()
+                indices = []
+                for s in index_group:
+                    r = [int(x) for x in s.split(":")]
+                    indices.extend(list(range(r[0], r[1])))
+                print(indices)
+                self.slab.set_constraint(FixAtoms(indices=indices))
 
             # define the volume in which the adsorbed cluster is optimized
             # the volume is defined by a corner position (p0)
             # and three spanning vectors (v1, v2, v3)
             pos = self.slab.get_positions()
-            cell = self.slab.get_cell()
-            cell = cell.complete() 
-            p0 = np.array([0., 0., max(pos[:, 2]) + surfsize[0]]) # origin of the box
-            v1 = cell[0, :] * 1.0
-            v2 = cell[1, :] * 1.0
-            v3 = cell[2, :]
-            v3[2] = surfsize[1]
+            if init_dict["lattice"] is None:
+                cell = self.slab.get_cell()
+                cell = cell.complete() 
+            else:
+                cell = np.array(init_dict["lattice"])
+            
+            # create box for atoms to explore
+            box_cell = init_dict.get("space", None)
+            if box_cell is None:
+                p0 = np.array([0., 0., np.max(pos[:, 2]) + surfsize[0]]) # origin of the box
+                v1 = cell[0, :]
+                v2 = cell[1, :]
+                v3 = cell[2, :]
+                v3[2] = surfsize[1]
+                box_to_place_in = [p0, [v1, v2, v3]]
+            else:
+                box_cell = np.array(box_cell)
+                if box_cell.shape[0] == 3:
+                    # auto add origin for [0, 0, 0]
+                    pass
+                elif box_cell.shape[0] == 4:
+                    box_to_place_in = box_cell
 
             # two parameters
-            box_to_place_in = [p0, [v1, v2, v3]]
             test_dist_to_slab = True
             test_too_far = True
 
@@ -494,7 +517,7 @@ class GeneticAlgorithemEngine():
         atom_numbers = []
         for elem, num in composition.items():
             atom_numbers.extend([ase.data.atomic_numbers[elem]]*num)
-        self.atom_numbers = atom_numbers
+        self.atom_numbers_to_optimize = atom_numbers
         unique_atom_types = get_all_atom_types(self.slab, atom_numbers)
 
         # define the closest distance two atoms of a given species can be to each other
@@ -502,6 +525,7 @@ class GeneticAlgorithemEngine():
             atom_numbers=unique_atom_types,
             ratio_of_covalent_radii=0.7 # be careful with test too far
         )
+        self.blmin = blmin
 
         print("neighbour distance restriction")
         self.__print_blmin()
@@ -509,7 +533,7 @@ class GeneticAlgorithemEngine():
         # create the starting population
         self.generator = StartGenerator(
             self.slab, 
-            self.atom_numbers, # blocks
+            self.atom_numbers_to_optimize, # blocks
             blmin,
             number_of_variable_cell_vectors=0,
             box_to_place_in=box_to_place_in,
@@ -548,7 +572,7 @@ class GeneticAlgorithemEngine():
         d = PrepareDB(
             db_file_name = self.db_name,
             simulation_cell = self.slab,
-            stoichiometry = self.atom_numbers
+            stoichiometry = self.atom_numbers_to_optimize
         )
 
         print('save population to database')
@@ -578,6 +602,8 @@ class GeneticAlgorithemEngine():
         # check database alive
         assert hasattr(self, "da") == True
 
+        # write("cand2.xyz", atoms)
+
         repeat = self.calc_dict["repeat"]
 
         # TODO: maybe move this part to evaluate_structure
@@ -586,6 +612,7 @@ class GeneticAlgorithemEngine():
         self.worker.directory = self.tmp_folder / ("cand" + str(confid))
         print(f"\nStart minimisation maximum try {repeat} times...")
         for i in range(repeat):
+            print("attempt ", i)
             atoms.calc = self.worker
             min_atoms, min_results = self.worker.minimise(
                 atoms,
@@ -605,6 +632,7 @@ class GeneticAlgorithemEngine():
                 break
             else:
                 atoms = min_atoms
+            # exit()
         else:
             # TODO: !!!
             self.da.add_relaxed_step(min_atoms)
