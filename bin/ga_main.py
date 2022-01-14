@@ -27,8 +27,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--make', type=int, default=0,
-    help='make the most promising structures for accurate calculation'
+    "--refine", type=int, default=0,
+    help='refine the most promising structures for accurate calculation'
 )
 
 args = parser.parse_args()
@@ -61,8 +61,8 @@ if args.run:
 if args.report:
     gae.report()
 
-if args.make != 0:
-    gae.make(args.make)
+if args.refine != 0:
+    gae.refine(args.refine)
 
 if __name__ == "__main__":
     pass

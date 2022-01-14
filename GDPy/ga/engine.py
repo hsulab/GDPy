@@ -3,7 +3,9 @@
 
 from random import random
 import pathlib
+from pathlib import Path
 import warnings
+from xml.dom import INVALID_CHARACTER_ERR
 import numpy as np
 
 import ase.data
@@ -337,10 +339,17 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def make(self, num):
+    def refine(
+        self, 
+        number=50, # minimum number of structures selected
+        aediff=0.05 # maximum atomic energy difference to the putative global minimum
+    ):
+        """ refine structures with DFT (VASP)
+            the number of structures is determined by the rule
+        """
         print('restart the database...')
-        self._restart()
-        results = pathlib.Path.cwd() / 'results'
+        self.__restart()
+        results = pathlib.Path.cwd() / "results"
         if not results.exists():
             results.mkdir()
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
@@ -348,12 +357,30 @@ class GeneticAlgorithemEngine():
             all_relaxed_candidates, key=lambda atoms:atoms.info['key_value_pairs']['raw_score'],
             reverse=True
         )
-        mosted = sorted_candidates[:num]
-        print('Most %d Structures' %num)
-        for atoms in mosted:
-            print(atoms.info['confid'], 'raw_score: ', atoms.info['key_value_pairs']['raw_score'])
-        write(results / ('most-%s.xyz' %num), mosted)
+        nframes = len(sorted_candidates)
+        energies = np.array([a.get_potential_energy() for a in sorted_candidates])
+        natoms_array = np.array([len(a) for a in sorted_candidates]) # TODO: change this to the number of explored atoms
+        atomic_energies = energies / natoms_array
+        min_ae = atomic_energies[0] # minimum atomic energy
 
+        for i in range(len(atomic_energies)):
+            if atomic_energies[i] >= min_ae + aediff:
+                new_number = i
+                print(f"There are {new_number} structures in the range.")
+                break
+        else:
+            print("All structures are in the energy range.")
+        number = np.min([number, new_number])
+
+        print(f"Select {number} structures out of {nframes}...")
+        mosted = sorted_candidates[:number]
+        #for atoms in mosted:
+        #    print(atoms.info['confid'], 'raw_score: ', atoms.info['key_value_pairs']['raw_score'])
+        print("energy range: ", mosted[0].get_potential_energy(), "  ", mosted[-1].get_potential_energy())
+        saved_xyz = results / (Path.cwd().name + f"-accurate-{number}.xyz")
+        write(saved_xyz, mosted)
+
+        """
         from GDPy.ga.make_all_vasp import create_by_ase
         for atoms in mosted:
             dname = pathlib.Path.cwd() / 'accurate' / ('cand{0}'.format(atoms.info['confid']))
@@ -361,6 +388,25 @@ class GeneticAlgorithemEngine():
                 atoms, self.ga_dict["postprocess"]["incar"],
                 dname
             )
+        """
+        print("create refinement directory...")
+        from GDPy.utils.data import vasp_creator, vasp_collector
+        incar_template = self.ga_dict["postprocess"]["incar"]
+        # prefix = Path.cwd() / "accurate"
+        prefix = Path("/mnt/scratch2/users/40247882/oxides/eann-main/train-all/m25r/ga-Pt533-fp")
+        if not prefix.exists():
+            prefix.mkdir()
+        else:
+            print("skip accurate...")
+
+        vasp_creator.create_files(
+            prefix,
+            "/users/40247882/repository/GDPy/GDPy/utils/data/vasp_calculator.py",
+            incar_template,
+            saved_xyz,
+            #to_submit = False
+            to_submit = True
+        )
 
         return
     
