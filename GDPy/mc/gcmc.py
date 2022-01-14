@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import time
 from collections import namedtuple
 from pathlib import Path
 import shutil
@@ -48,6 +49,9 @@ def estimate_chemical_potential(
             ZPE 0.09714 
             dU 8.683 kJ/mol (exp)
             entropy@298.15K 205.147 J/mol (exp)
+        For two reservoirs, O and Pt
+        Pt + O2 -> aPtO2
+        mu_Pt = E_aPtO2 - G_O2
     Formula
         FreeEnergy = E_DFT + ZPE + U(T) + TS + pV
     """
@@ -121,6 +125,7 @@ class ReducedRegion():
     def check_overlap(mindis, ran_pos, positions):
         """"""
         # TODO: change this to the faste neigbour list construction
+        # maybe use scipy
         overlapped = False
         for pos in positions:
             # TODO: use neighbour list?
@@ -178,27 +183,35 @@ class GCMC():
         self.set_rng()
 
         # TODO: reservoir
-        self.nexatoms = 0
-        self.expart = reservior["particle"] # exchangeable particle
+        if reservior["format"] == "direct":
+            self.temperature, self.pressure = reservior["temperature"], -1000. # NOTE: pressure is None
+            self.chem_pot = reservior["particle"]
+            self.exparts = list(self.chem_pot.keys())
+        else:
+            self.exparts = reservior["particle"] # exchangeable particle
+            self.temperature, self.pressure = reservior["temperature"], reservior["pressure"]
 
-        self.temperature, self.pressure = reservior["temperature"], reservior["pressure"]
-
-        # - chemical potenttial
-        self.chem_pot = estimate_chemical_potential(
-            temperature=self.temperature, pressure=self.pressure,
-            **reservior["energy_params"]
-        )
+            # - chemical potenttial
+            self.chem_pot = estimate_chemical_potential(
+                temperature=self.temperature, pressure=self.pressure,
+                **reservior["energy_params"]
+            )
 
         # statistical mechanics
-        self.beta, self.cubic_wavelength = self.compute_thermo_wavelength(
-            self.expart, self.temperature
-        )
+        self.beta = {}
+        self.cubic_wavelength = {}
+        for expart in self.exparts:
+            self.beta[expart], self.cubic_wavelength[expart] = self.compute_thermo_wavelength(
+                expart, self.temperature
+            )
 
         # reduced region 
         self.acc_volume = self.region.calc_acc_volume(self.atoms)
 
         # few iterative properties
-        self.exatom_indices = []
+        self.exatom_indices = {}
+        for expart in self.exparts:
+            self.exatom_indices[expart] = []
 
         return
     
@@ -264,11 +277,13 @@ class GCMC():
     ):
         """"""
         # start info
-        content = "===== Simulation Information =====\n\n"
+        content = "===== Simulation Information @%s =====\n\n" % time.asctime( time.localtime(time.time()) )
         content += 'Temperature %.4f [K] Pressure %.4f [atm]\n' %(self.temperature, self.pressure)
-        content += 'Beta %.4f [eV-1]\n' %(self.beta)
-        content += 'Cubic Thermal de Broglie Wavelength %f\n' %self.cubic_wavelength
-        content += 'Chemical Potential of %s is %.4f [eV]\n' %(self.expart, self.chem_pot)
+        for expart in self.exparts:
+            content += "--- %s ---\n" %expart
+            content += 'Beta %.4f [eV-1]\n' %(self.beta[expart])
+            content += 'Cubic Thermal de Broglie Wavelength %f\n' %self.cubic_wavelength[expart]
+            content += 'Chemical Potential of is %.4f [eV]\n' %self.chem_pot[expart]
         print(content)
         
         # set calculator
@@ -297,7 +312,7 @@ class GCMC():
 
             # check uncertainty
         
-        print("\n\nFINISHED PROPERLY.")
+        print("\n\nFINISHED PROPERLY @ %s." %time.asctime( time.localtime(time.time()) ))
 
         return
 
@@ -306,58 +321,68 @@ class GCMC():
         [0]: move, [1]: exchange (insertion/deletion)
         """
         rn_mcmove = self.rng.uniform()
-        print('prob action', rn_mcmove)
+        print("prob action", rn_mcmove)
         # check if the action is valid, otherwise set the prob to zero
-        if len(self.exatom_indices) > 0:
+        tot_nexatoms = np.sum([len(x) for x in self.exatom_indices.values()])
+        if tot_nexatoms > 0:
+            # check if there are atoms
+            nexpart = 0
+            while nexpart == 0:
+                expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
+                nexpart = len(self.exatom_indices[expart])
             if rn_mcmove < self.accum_probs[0]:
                 # atomic motion
                 print('current attempt is *motion*')
-                self.attempt_move_atom()
+                self.attempt_move_atom(expart)
             elif rn_mcmove < self.accum_probs[1]:
                 # exchange (insertion/deletion)
                 rn_ex = self.rng.uniform()
                 print('prob exchange', rn_ex)
                 if rn_ex < 0.5:
                     print('current attempt is *insertion*')
-                    self.attempt_insert_atom()
+                    self.attempt_insert_atom(expart)
                 else:
                     print("current attempt is *deletion*")
-                    self.attempt_delete_atom()
+                    self.attempt_delete_atom(expart)
         else:
             # exchange (insertion/deletion)
             rn_ex = self.rng.uniform()
             print('prob exchange', rn_ex)
+            expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
             # if rn_ex < 0.5:
             #     print('current attempt is insertion')
             #     self.attempt_insert_atom()
             # else:
             #     print('current attempt is deletion')
             print('current attempt is insertion')
-            self.attempt_insert_atom()
+            self.attempt_insert_atom(expart)
         return
     
-    def pick_random_atom(self):
+    def pick_random_atom(self, expart):
         """"""
-        if self.nexatoms == 0:
+        nexpart = len(self.exatom_indices[expart])
+        if nexpart == 0:
             idx_pick = None
         else:
-            idx_pick = self.rng.choice(self.exatom_indices)
+            idx_pick = self.rng.choice(self.exatom_indices[expart])
         #print(idx_pick, type(idx_pick))
 
         return idx_pick
     
     def update_exlist(self):
         """update the list of exchangeable particles"""
-        self.nexatoms = len(self.exatom_indices)
-        print('number of particles: ', self.nexatoms, self.exatom_indices)
+        print("number of particles: ")
+        for expart, indices in self.exatom_indices.items():
+            print("{:<4s}  {:<8d}".format(expart, len(indices)))
+            print(indices)
 
         return
     
-    def attempt_move_atom(self):
+    def attempt_move_atom(self, expart):
         """"""
         # pick an atom
         self.update_exlist()
-        idx_pick = self.pick_random_atom()
+        idx_pick = self.pick_random_atom(expart)
         if idx_pick is not None:
             print('select atom with index of %d' %idx_pick)
         else:
@@ -393,12 +418,15 @@ class GCMC():
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
+        beta = self.beta[expart]
+        cubic_wavelength = self.cubic_wavelength[expart]
+
         coef = 1.0
         energy_change = energy_after - self.energy_stored
-        acc_ratio = coef * np.exp(-self.beta*(energy_change))
+        acc_ratio = np.min([1.0, coef * np.exp(-beta*(energy_change))])
 
         content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
-            self.acc_volume, self.nexatoms, self.cubic_wavelength, coef
+            self.acc_volume, len(self.exatom_indices[expart]), cubic_wavelength, coef
         )
         content += 'Energy Change %.4f [eV]\n' %energy_change
         content += 'Accept Ratio %.4f\n' %acc_ratio
@@ -418,25 +446,30 @@ class GCMC():
         
         return
     
-    def attempt_insert_atom(self):
+    def attempt_insert_atom(self, expart):
         """atomic insertion"""
         self.update_exlist()
         # only one element for now
         cur_atoms = self.atoms.copy()
         ran_pos = self.region.random_position(cur_atoms.positions)
-        extra_atom = Atom(self.expart, position=ran_pos)
+        extra_atom = Atom(expart, position=ran_pos)
         cur_atoms.extend(extra_atom)
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
+        nexatoms = len(self.exatom_indices[expart])
+        beta = self.beta[expart]
+        chem_pot = self.chem_pot[expart]
+        cubic_wavelength = self.cubic_wavelength[expart]
+
         # try insert
-        coef = self.acc_volume/(self.nexatoms+1)/self.cubic_wavelength
-        energy_change = energy_after-self.energy_stored-self.chem_pot
-        acc_ratio = np.min([1.0, coef * np.exp(-self.beta*(energy_change))])
+        coef = self.acc_volume/(nexatoms+1)/cubic_wavelength
+        energy_change = energy_after-self.energy_stored-chem_pot
+        acc_ratio = np.min([1.0, coef * np.exp(-beta*(energy_change))])
 
         content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
-            self.acc_volume, self.nexatoms, self.cubic_wavelength, coef
+            self.acc_volume, nexatoms, cubic_wavelength, coef
         )
         content += 'Energy Change %.4f [eV]\n' %energy_change
         content += 'Accept Ratio %.4f\n' %acc_ratio
@@ -447,7 +480,7 @@ class GCMC():
             self.atoms = opt_atoms
             self.energy_stored = energy_after
             # update exchangeable atoms
-            self.exatom_indices = list(range(self.nparts, len(self.atoms)))
+            self.exatom_indices[expart].append(len(self.atoms)-1)
         else:
             print('fail to insert...')
         print('Insertion Probability %.4f' %rn_insertion)
@@ -456,11 +489,11 @@ class GCMC():
 
         return
 
-    def attempt_delete_atom(self):
+    def attempt_delete_atom(self, expart):
         """"""
         # pick an atom
         self.update_exlist()
-        idx_pick = self.pick_random_atom()
+        idx_pick = self.pick_random_atom(expart)
         if idx_pick is not None:
             print('select atom with index of %d' %idx_pick)
         else:
@@ -474,12 +507,17 @@ class GCMC():
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
-        coef = self.nexatoms*self.cubic_wavelength/self.acc_volume
-        energy_change  = energy_after + self.chem_pot - self.energy_stored
-        acc_ratio = np.min([1.0, coef*np.exp(-self.beta*(energy_change))])
+        nexatoms = len(self.exatom_indices[expart])
+        beta = self.beta[expart]
+        cubic_wavelength = self.cubic_wavelength[expart]
+        chem_pot = self.chem_pot[expart]
+
+        coef = nexatoms*cubic_wavelength/self.acc_volume
+        energy_change  = energy_after + chem_pot - self.energy_stored
+        acc_ratio = np.min([1.0, coef*np.exp(-beta*(energy_change))])
 
         content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
-            self.acc_volume, self.nexatoms, self.cubic_wavelength, coef
+            self.acc_volume, nexatoms, cubic_wavelength, coef
         )
         content += 'Energy Change %.4f [eV]\n' %energy_change
         content += 'Accept Ratio %.4f\n' %acc_ratio
@@ -490,7 +528,7 @@ class GCMC():
             self.atoms = opt_atoms
             self.energy_stored = energy_after
             # update exchangeable atoms
-            self.exatom_indices = list(range(self.nparts, len(self.atoms)))
+            self.exatom_indices[expart].append(len(self.atoms)-1)
         else:
             pass
 
