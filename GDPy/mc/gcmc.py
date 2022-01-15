@@ -160,7 +160,7 @@ class GCMC():
 
         # simulation system
         self.atoms = atoms # current atoms
-        self.nparts = len(atoms)
+        self.substrate_natoms = len(atoms)
 
         self.region = reduced_region
 
@@ -527,8 +527,14 @@ class GCMC():
         if rn_deletion < acc_ratio:
             self.atoms = opt_atoms
             self.energy_stored = energy_after
-            # update exchangeable atoms
-            self.exatom_indices[expart].append(len(self.atoms)-1)
+            # reformat exchangeable atoms
+            # self.exatom_indices[expart].append(len(self.atoms)-1)
+            self.exatoms_indices = {}
+            for expart in self.exparts:
+                self.exatom_indices[expart] = []
+            chemical_symbols = self.atoms.get_chemical_symbols()
+            for i in range(self.substrate_natoms, len(self.atoms)):
+                self.exatom_indices[chemical_symbols[i]].append(i)
         else:
             pass
 
