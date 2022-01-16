@@ -320,16 +320,14 @@ class GCMC():
         """ various actions
         [0]: move, [1]: exchange (insertion/deletion)
         """
+        expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
+        print("selected particle: ", expart)
         rn_mcmove = self.rng.uniform()
         print("prob action", rn_mcmove)
-        # check if the action is valid, otherwise set the prob to zero
-        tot_nexatoms = np.sum([len(x) for x in self.exatom_indices.values()])
-        if tot_nexatoms > 0:
-            # check if there are atoms
-            nexpart = 0
-            while nexpart == 0:
-                expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
-                nexpart = len(self.exatom_indices[expart])
+
+        # step for selected type of particles
+        nexatoms = len(self.exatom_indices[expart])
+        if nexatoms > 0:
             if rn_mcmove < self.accum_probs[0]:
                 # atomic motion
                 print('current attempt is *motion*')
@@ -337,25 +335,19 @@ class GCMC():
             elif rn_mcmove < self.accum_probs[1]:
                 # exchange (insertion/deletion)
                 rn_ex = self.rng.uniform()
-                print('prob exchange', rn_ex)
+                print("prob exchange", rn_ex)
                 if rn_ex < 0.5:
                     print('current attempt is *insertion*')
                     self.attempt_insert_atom(expart)
                 else:
                     print("current attempt is *deletion*")
                     self.attempt_delete_atom(expart)
+            else:
+                pass # never execute here
         else:
-            # exchange (insertion/deletion)
-            rn_ex = self.rng.uniform()
-            print('prob exchange', rn_ex)
-            expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
-            # if rn_ex < 0.5:
-            #     print('current attempt is insertion')
-            #     self.attempt_insert_atom()
-            # else:
-            #     print('current attempt is deletion')
-            print('current attempt is insertion')
+            print('current attempt is *insertion*')
             self.attempt_insert_atom(expart)
+
         return
     
     def pick_random_atom(self, expart):
