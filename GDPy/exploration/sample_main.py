@@ -10,7 +10,6 @@ from typing import Counter, Union
 import warnings
 import pathlib
 from joblib import Parallel, delayed
-import joblib
 import numpy as np
 import numpy.ma as ma
 
@@ -572,7 +571,7 @@ class Sampler():
     def iharvest(self, exp_name, working_directory: Union[str, pathlib.Path]):
         """harvest all vasp results"""
         # run over directories and check
-        main_dir = pathlib.Path(working_directory) / exp_name
+        main_dir = pathlib.Path(working_directory) / (exp_name + "-fp")
         vasp_main_dirs = []
         for p in main_dir.iterdir():
             calc_file = p / "calculated_0.xyz"
@@ -581,7 +580,7 @@ class Sampler():
         print(vasp_main_dirs)
 
         # TODO: optional parameters
-        pot_gen = "eamd13s" # !!!
+        pot_gen = pathlib.Path.cwd().name
         pattern = "vasp_0_*"
         njobs = 4
         vaspfile, indices = "vasprun.xml", "-1:"
@@ -643,7 +642,15 @@ def run_exploration(pot_json, exp_json, chosen_step, global_params = None):
     with open(exp_json, 'r') as fopen:
         exp_dict = json.load(fopen)
     
-    scout = Sampler(pm, exp_dict)
+    method = exp_dict.get("method", "MD")
+    if method == "MD":
+        scout = Sampler(pm, exp_dict)
+    elif method == "GA":
+        from GDPy.exploration.structure_exploration import RandomExplorer
+        scout = RandomExplorer(pm, exp_dict)
+    else:
+        raise ValueError(f"Unknown method {method}")
+
 
     # adjust global params
     print("optional params ", global_params)
