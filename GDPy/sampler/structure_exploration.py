@@ -36,6 +36,7 @@ class RandomExplorer(AbstractExplorer):
     """
 
     # select params
+    method_name = "GA"
 
     # general parameters
     general_params = dict(
@@ -63,6 +64,7 @@ class RandomExplorer(AbstractExplorer):
         # parse a few general parameters
         general_params = main_dict.get("general", self.general_params)
         self.ignore_exists = general_params.get("ignore_exists", self.general_params["ignore_exists"])
+        print("IGNORE_EXISTS ", self.ignore_exists)
 
         return
     
@@ -128,7 +130,7 @@ class RandomExplorer(AbstractExplorer):
                 continue
             selection_path = system_path / "selection"
             if selection_path.exists():
-                if not self.ignore_exists:
+                if self.ignore_exists:
                     print("selection exists, and skip this system...")
                     continue
                 else:
@@ -461,7 +463,7 @@ class RandomExplorer(AbstractExplorer):
         # run over directories and check
         main_dir = Path(working_directory) / (exp_name + "-fp")
         vasp_main_dirs = []
-        for p in main_dir.iterdir():
+        for p in main_dir.glob("*-"+self.method_name+"*"):
             # use this to check if calculated
             calc_file = p / "calculated_0.xyz"
             if p.is_dir() and calc_file.exists():
@@ -478,8 +480,9 @@ class RandomExplorer(AbstractExplorer):
 
         for d in vasp_main_dirs:
             print("\n===== =====")
+            # check selected GA structures
             vasp_dirs = []
-            for p in d.parent.glob(d.name+'*'):
+            for p in d.parent.glob(d.name+"*"): # TODO: ???
                 if p.is_dir():
                     vasp_dirs.extend(vasp_collector.find_vasp_dirs(p, pattern))
             print('total vasp dirs: %d' %(len(vasp_dirs)))
@@ -491,9 +494,7 @@ class RandomExplorer(AbstractExplorer):
 
             st = time.time()
             print("using num of jobs: ", njobs)
-            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
-            if isinstance(cur_frames, Atoms):
-                cur_frames = [cur_frames]
+            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, ":") for p in vasp_dirs_sorted)
             frames = []
             for f in cur_frames:
                 frames.extend(f) # merge all frames
@@ -513,7 +514,66 @@ class RandomExplorer(AbstractExplorer):
                     sys_name_list.append(s)
                     num = c.get(s, 0)
                     sys_name_list.append(str(num))
-                sys_name = "".join(sys_name_list)
+                sys_name = exp_name.split("-")[-1] + "-" + "".join(sys_name_list) # the first section is the exploration name without method
+                print("system name: ", sys_name)
+                #print(sys_name)
+                system_path = main_database / sys_name 
+                if not system_path.exists():
+                    system_path.mkdir()
+                out_name = system_path / (d.name + "-" + pot_gen + ".xyz")
+                write(out_name, frames)
+            else:
+                print("No frames...")
+            
+        # check refined (accurate) optimisation trajectory
+        vasp_main_dirs = []
+        for p in main_dir.glob("*-"+"accurate"+"*"):
+            # use this to check if calculated
+            calc_file = p / "calculated_0.xyz"
+            if p.is_dir() and calc_file.exists():
+                vasp_main_dirs.append(p)
+        vasp_main_dirs.sort()
+        if len(vasp_main_dirs) > 0:
+            print("harvest accurate structure optimisation trajectories...")
+
+        for d in vasp_main_dirs:
+            print("\n===== =====")
+            # check selected GA structures
+            vasp_dirs = []
+            for p in d.parent.glob(d.name+"*"):
+                if p.is_dir():
+                    vasp_dirs.extend(vasp_collector.find_vasp_dirs(p, pattern))
+            print('total vasp dirs: %d' %(len(vasp_dirs)))
+
+            print("sorted by last integer number...")
+            vasp_dirs_sorted = sorted(
+                vasp_dirs, key=lambda k: int(k.name.split('_')[-1])
+            ) # sort by name
+
+            st = time.time()
+            print("using num of jobs: ", njobs)
+            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
+            frames = []
+            for f in cur_frames:
+                frames.extend(f) # merge all frames
+
+            et = time.time()
+            print("cost time: ", et-st)
+
+            # move structures to data path
+            if len(frames) > 0:
+                print("Number of frames: ", len(frames))
+                # check system
+                atoms = frames[0]
+                c = Counter(atoms.get_chemical_symbols())
+                #print(c)
+                sys_name_list = []
+                for s in self.type_list:
+                    sys_name_list.append(s)
+                    num = c.get(s, 0)
+                    sys_name_list.append(str(num))
+                sys_name = exp_name.split("-")[-1] + "-" + "".join(sys_name_list) # the first section is the exploration name without method
+                print("system name: ", sys_name)
                 #print(sys_name)
                 system_path = main_database / sys_name 
                 if not system_path.exists():
