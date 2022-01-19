@@ -33,7 +33,7 @@ class Sampler():
     """
     Exploration Strategies
         1. random structure sampling
-        2. samll pertubations on given structures
+        2. small pertubations on given structures
         3. molecular dynamics with surrogate potential
         4. molecular dynamics with uncertainty-aware potential
     
@@ -43,6 +43,13 @@ class Sampler():
     Units
         fs, eV, eV/AA
     """
+
+    # TODO: !!!!
+    # check whether submit jobs
+    # check system symbols with type list
+    # check lost atoms when collecting
+    # check overwrite during collect and select and calc
+    # check different structures input format in collect
 
     supported_potentials = ["reax", "deepmd", "eann"]
     supported_procedures = ["create", "collect", "select", "calculate"]
@@ -65,6 +72,12 @@ class Sampler():
         }
     }
 
+    # general parameters
+    general_params = dict(
+        ignore_exists = False
+    )
+
+
     def __init__(self, pm, main_dict: dict):
         """"""
         self.pot_manager = pm
@@ -77,6 +90,11 @@ class Sampler():
 
         # for job prefix
         self.job_prefix = ""
+
+        # parse a few general parameters
+        general_params = main_dict.get("general", self.general_params)
+        self.ignore_exists = general_params.get("ignore_exists", self.general_params["ignore_exists"])
+        print("IGNORE_EXISTS ", self.ignore_exists)
 
         return
     
@@ -148,6 +166,7 @@ class Sampler():
                 # create all 
                 calc_input = self.create_input(self.pot_manager, atypes, sample_variables) # use inputs with preset md params
                 for (stru_path, work_path) in runovers:
+                    print(work_path)
                     self.create_exploration(
                         work_path, job_script, calc_input, stru_path, cons, temperatures, pressures
                     )
@@ -271,13 +290,13 @@ class Sampler():
                             sorted_path = cur_prefix / 'sorted'
                             print("===== collecting system %s =====" %cur_prefix)
                             if sorted_path.exists():
-                                self.override = True
-                                if self.override:
+                                if self.ignore_exists:
                                     warnings.warn('sorted_path removed in %s' %cur_prefix, UserWarning)
                                     shutil.rmtree(sorted_path)
                                     sorted_path.mkdir()
                                 else:
                                     warnings.warn('sorted_path exists in %s' %cur_prefix, UserWarning)
+                                    print("collection output exists, then skip...")
                                     continue
                             else:
                                 sorted_path.mkdir()
@@ -313,8 +332,7 @@ class Sampler():
                         sorted_path = sys_prefix / "sorted"
                         print("===== collecting system %s =====" %sys_prefix)
                         if sorted_path.exists():
-                            override = True
-                            if override:
+                            if self.ignore_exists:
                                 warnings.warn('sorted_path removed in %s' %sys_prefix, UserWarning)
                                 shutil.rmtree(sorted_path)
                                 sorted_path.mkdir()
@@ -419,6 +437,16 @@ class Sampler():
                     system_dict = self.init_systems[slabel] # system name
                     if thermostat == "nvt":
                         sys_prefix = md_prefix / (slabel+'-'+thermostat)
+                        if (sys_prefix / (slabel + '-tot-sel.xyz')).exists():
+                            if self.ignore_exists:
+                                warnings.warn('selected xyz removed in %s' %sys_prefix, UserWarning)
+                                shutil.remove(sys_prefix / (slabel + '-tot-sel.xyz'))
+                            else:
+                                warnings.warn('sorted_path exists in %s' %sys_prefix, UserWarning)
+                                continue
+                        else:
+                            pass
+
                         if False: # run over configurations
                             sorted_dirs = []
                             for p in sys_prefix.glob(pattern):
