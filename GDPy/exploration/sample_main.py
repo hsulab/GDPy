@@ -96,6 +96,12 @@ class Sampler():
         self.ignore_exists = general_params.get("ignore_exists", self.general_params["ignore_exists"])
         print("IGNORE_EXISTS ", self.ignore_exists)
 
+        main_database = main_dict.get("dataset", None) #"/users/40247882/scratch2/PtOx-dataset"
+        if main_database is None:
+            raise ValueError("dataset should not be None")
+        else:
+            self.main_database = pathlib.Path(main_database)
+
         return
     
     @staticmethod
@@ -612,7 +618,6 @@ class Sampler():
         pattern = "vasp_0_*"
         njobs = 4
         vaspfile, indices = "vasprun.xml", "-1:"
-        main_database = pathlib.Path("/users/40247882/scratch2/PtOx-dataset")
 
         for d in vasp_main_dirs:
             print("\n===== =====")
@@ -653,7 +658,7 @@ class Sampler():
                     sys_name_list.append(str(num))
                 sys_name = "".join(sys_name_list)
                 #print(sys_name)
-                out_name = main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
+                out_name = self.main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
                 write(out_name, frames)
             else:
                 print("No frames...")
