@@ -17,7 +17,6 @@ from ase import Atoms
 from ase.io import read, write
 from ase.io.lammpsrun import read_lammps_dump_text
 from ase.data import atomic_numbers, atomic_masses
-from numpy.ma.extras import isin
 
 from GDPy.calculator.ase_interface import AseInput
 from GDPy.calculator.inputs import LammpsInput
@@ -96,6 +95,7 @@ class Sampler():
         self.ignore_exists = general_params.get("ignore_exists", self.general_params["ignore_exists"])
         print("IGNORE_EXISTS ", self.ignore_exists)
 
+        # database path
         main_database = main_dict.get("dataset", None) #"/users/40247882/scratch2/PtOx-dataset"
         if main_database is None:
             raise ValueError("dataset should not be None")
@@ -632,6 +632,35 @@ class Sampler():
                 vasp_dirs, key=lambda k: int(k.name.split('_')[-1])
             ) # sort by name
 
+            # check number of frames equal output?
+            input_xyz = []
+            for p in d.iterdir():
+                if p.name.endswith("-sel.xyz"):
+                    input_xyz.append(p)
+                if p.name.endswith("_ALL.xyz"):
+                    input_xyz.append(p)
+            if len(input_xyz) == 1:
+                input_xyz = input_xyz[0]
+            else:
+                raise ValueError(d, " has both sel and ALL xyz file...")
+            nframes_input = len(read(input_xyz, ":"))
+
+            atoms = read(input_xyz, "0")
+            c = Counter(atoms.get_chemical_symbols())
+            sys_name_list = []
+            for s in self.type_list:
+                sys_name_list.append(s)
+                num = c.get(s, 0)
+                sys_name_list.append(str(num))
+            sys_name = "".join(sys_name_list)
+            out_name = self.main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
+            if out_name.exists():
+                nframes_out = len(read(out_name, ":"))
+                if nframes_input == nframes_out:
+                    print(d, "already has been harvested...")
+                    continue
+
+            # start harvest
             st = time.time()
             print("using num of jobs: ", njobs)
             cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
@@ -647,18 +676,6 @@ class Sampler():
             # move structures to data path
             if len(frames) > 0:
                 print("Number of frames: ", len(frames))
-                # check system
-                atoms = frames[0]
-                c = Counter(atoms.get_chemical_symbols())
-                #print(c)
-                sys_name_list = []
-                for s in self.type_list:
-                    sys_name_list.append(s)
-                    num = c.get(s, 0)
-                    sys_name_list.append(str(num))
-                sys_name = "".join(sys_name_list)
-                #print(sys_name)
-                out_name = self.main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
                 write(out_name, frames)
             else:
                 print("No frames...")
