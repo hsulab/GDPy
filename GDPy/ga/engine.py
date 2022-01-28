@@ -5,7 +5,6 @@ from random import random
 import pathlib
 from pathlib import Path
 import warnings
-from xml.dom import INVALID_CHARACTER_ERR
 import numpy as np
 
 import ase.data
@@ -62,6 +61,8 @@ class GeneticAlgorithemEngine():
 
     implemented_systems = ["bulk", "cluster", "surface"]
 
+    supported_calculators = ["vasp", "lammps", "lasp"]
+
     def __init__(self, ga_dict: dict):
         """"""
         self.ga_dict = ga_dict
@@ -114,16 +115,6 @@ class GeneticAlgorithemEngine():
             # check current generation number
             cur_gen = self.da.get_generation_number()
             if self.machine == "serial":
-                # find z-axis constraint
-                self.zmin = None
-                if self.system_type == "surface":
-                    substrate = self.da.get_slab()
-                    cons_indices = substrate.constraints[0].index
-                    print(cons_indices)
-                    positions = self.slab.get_positions()
-                    self.zmin = np.max(positions[cons_indices, 2]) + 0.2
-                    print(self.zmin)
-                    print("fixed atoms lower than {0} AA".format(self.zmin))
 
                 # start minimisation
                 print("===== register calculator =====")
@@ -134,7 +125,7 @@ class GeneticAlgorithemEngine():
                     while (self.da.get_number_of_unrelaxed_candidates()):
                         # calculate structures from init population
                         atoms = self.da.get_an_unrelaxed_candidate()
-                        print("start to run structure %s" %atoms.info["confid"])
+                        print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                         self.__run_local_optimisation(atoms)
                 
                 # start reproduce
@@ -393,7 +384,7 @@ class GeneticAlgorithemEngine():
         from GDPy.utils.data import vasp_creator, vasp_collector
         incar_template = self.ga_dict["postprocess"]["incar"]
         # prefix = Path.cwd() / "accurate"
-        prefix = Path("/mnt/scratch2/users/40247882/oxides/eann-main/train-all/m25r/ga-Pt533-fp")
+        prefix = Path("/mnt/scratch2/users/40247882/oxides/eann-main/train-all/m25r/ga-Pt322-fp")
         if not prefix.exists():
             prefix.mkdir()
         else:
@@ -448,12 +439,85 @@ class GeneticAlgorithemEngine():
         return
     
     def __register_calculator(self):
-        """register serial calculator"""
-        from GDPy.calculator.minimiser import LMPMin
-        self.worker = LMPMin(
-            **self.calc_dict["kwargs"], 
-            model_params = self.calc_dict["potential"]
-        )
+        """ register serial calculator and optimisation worker
+        """
+        model = self.calc_dict["potential"]["model"]
+        if model == "lasp":
+            from GDPy.calculator.lasp import LaspNN
+            self.calc = LaspNN(**self.calc_dict["kwargs"])
+        elif model == "eann": # and inteface to lammps
+            from GDPy.calculator.lammps import Lammps
+            self.calc = Lammps(
+                **self.calc_dict["kwargs"],
+                pair_style = self.calc_dict["potential"]
+            )
+        else:
+            raise ValueError("Unknown potential to calculation...")
+        
+        interface = self.calc_dict["interface"]
+        if interface == "ase":
+            from GDPy.calculator.ase_interface import AseDynamics
+            self.worker = AseDynamics(self.calc, directory=self.calc.directory)
+            # use ase no need to recaclc constraint since atoms has one
+            self.cons_indices = None
+        elif interface == "lammps":
+            from GDPy.calculator.lammps import LmpDynamics
+            # find z-axis constraint
+            self.cons_indices = None
+            if self.system_type == "surface":
+                self.cons_indices = self.ga_dict["system"]["substrate"]["constraint"]
+                print("constraint indices: ", self.cons_indices)
+        
+            # use lammps optimisation
+            self.worker = LmpDynamics(
+                self.calc, directory=self.calc.directory
+            )
+        else:
+            raise ValueError("Unknown interface to optimisation...")
+
+        return
+
+    def __run_local_optimisation(self, atoms):
+        """
+        This is for initial population optimisation
+        """
+        # check database alive
+        assert hasattr(self, "da") == True
+
+        repeat = self.calc_dict["repeat"]
+
+        # TODO: maybe move this part to evaluate_structure
+        confid = atoms.info["confid"]
+        self.worker.reset()
+        # self.worker.directory = self.tmp_folder / ("cand" + str(confid))
+        self.calc.directory = self.tmp_folder / ("cand" + str(confid))
+        self.worker.set_output_path(self.tmp_folder / ("cand" + str(confid)))
+
+        print(f"\nStart minimisation maximum try {repeat} times...")
+        for i in range(repeat):
+            print("attempt ", i)
+            # atoms.calc = self.worker # TODO:
+            min_atoms, min_results = self.worker.minimise(
+                atoms,
+                **self.calc_dict["minimisation"],
+                constraint = self.cons_indices # for lammps
+            )
+            print(min_results)
+            min_atoms.info['confid'] = confid
+            # add few information
+            min_atoms.info['data'] = {}
+            min_atoms.info['key_value_pairs'] = {'extinct': 0}
+            min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
+            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
+            if maxforce < self.calc_dict["minimisation"]["fmax"]:
+                self.da.add_relaxed_step(min_atoms)
+                break
+            else:
+                atoms = min_atoms
+        else:
+            # TODO: !!!
+            self.da.add_relaxed_step(min_atoms)
+            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
 
         return
 
@@ -567,9 +631,11 @@ class GeneticAlgorithemEngine():
         unique_atom_types = get_all_atom_types(self.slab, atom_numbers)
 
         # define the closest distance two atoms of a given species can be to each other
+        covalent_ratio = init_dict.get("covalent_ratio", 0.8)
+        print("colvent ratio is: ", covalent_ratio)
         blmin = closest_distances_generator(
             atom_numbers=unique_atom_types,
-            ratio_of_covalent_radii=0.7 # be careful with test too far
+            ratio_of_covalent_radii = covalent_ratio # be careful with test too far
         )
         self.blmin = blmin
 
@@ -600,19 +666,22 @@ class GeneticAlgorithemEngine():
 
         # generate the starting population
         print("start to create initial population")
+        nfailed = 0
         starting_population = []
         while len(starting_population) < population_size:
             maxiter = 100
             candidate = self.generator.get_new_candidate(maxiter=maxiter)
             # TODO: add some geometric restriction here
             if candidate is None:
-                print(f"This creation failed after {maxiter} attempts...")
+                # print(f"This creation failed after {maxiter} attempts...")
+                nfailed += 1
             else:
                 if self.system_type == "cluster":
                     com = candidate.get_center_of_mass().copy()
                     candidate.positions += self.cell_centre - com
                 starting_population.append(candidate)
             #print("now we have ", len(starting_population))
+        print(f"Finished creating initial population with {nfailed} attempts...")
 
         # create the database to store information in
         d = PrepareDB(
@@ -641,50 +710,7 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def __run_local_optimisation(self, atoms):
-        """
-        This is for initial population optimisation
-        """
-        # check database alive
-        assert hasattr(self, "da") == True
 
-        # write("cand2.xyz", atoms)
-
-        repeat = self.calc_dict["repeat"]
-
-        # TODO: maybe move this part to evaluate_structure
-        confid = atoms.info["confid"]
-        self.worker.reset()
-        self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-        print(f"\nStart minimisation maximum try {repeat} times...")
-        for i in range(repeat):
-            print("attempt ", i)
-            atoms.calc = self.worker
-            min_atoms, min_results = self.worker.minimise(
-                atoms,
-                **self.calc_dict["minimisation"],
-                zmin = self.zmin
-            )
-            print(min_results)
-            confid = atoms.info["confid"]
-            min_atoms.info['confid'] = confid
-            # add few information
-            min_atoms.info['data'] = {}
-            min_atoms.info['key_value_pairs'] = {'extinct': 0}
-            min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
-            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
-            if maxforce < self.calc_dict["minimisation"]["fmax"]:
-                self.da.add_relaxed_step(min_atoms)
-                break
-            else:
-                atoms = min_atoms
-            # exit()
-        else:
-            # TODO: !!!
-            self.da.add_relaxed_step(min_atoms)
-            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
-
-        return
     
     def form_population(self):
         """"""
