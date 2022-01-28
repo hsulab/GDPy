@@ -2,6 +2,7 @@
 
 """
 
+from logging import StringTemplateStyle
 import os
 from posixpath import commonpath
 import subprocess
@@ -104,12 +105,17 @@ class LMPMin(Calculator):
         command = self.command
 
         # run lammps
-        proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+        proc = subprocess.Popen(
+            command, shell=True, cwd=self.directory,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            encoding = 'utf-8'
+        )
         errorcode = proc.wait()
         if errorcode:
             path = os.path.abspath(self.directory)
             msg = ('Failed with command "{}" failed in '
-                   '{} with error code {}'.format(command, path, errorcode))
+                   '{} with error code {}\n'.format(command, path, errorcode))
+            msg += "".join(proc.stdout.readlines())
 
             raise ValueError(msg)
 
@@ -173,6 +179,9 @@ class LMPMin(Calculator):
         content = ""
         content += "units           %s\n" %self.units
         content += "atom_style      %s\n" %self.atom_style
+
+        # mpi settings
+        content += "processors * * 1\n" # if 2D simulation
         
         # simulation box
         content += "boundary        p p p\n"
@@ -193,7 +202,12 @@ class LMPMin(Calculator):
             content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
             content += "\n"
         elif self.model_params["model"] == "eann":
-            content += "pair_style	eann %s\n" %self.model_params["file"]
+            out_freq = self.model_params.get("out_freq", 10)
+            if out_freq == 10:
+                style_args = "{}".format(self.model_params["file"])
+            else:
+                style_args = "{} out_freq {}".format(self.model_params["file"], out_freq)
+            content += "pair_style	eann %s\n" %style_args
             content += "pair_coeff	* * double %s\n" %(" ".join(specorder))
             content += "neighbor        0.0 bin\n"
             content += "\n"
