@@ -165,11 +165,13 @@ class GCMC():
         self.region = reduced_region
 
         # constraint
+        cons_indices = [atom.index for atom in atoms if atom.position[2] < self.region.cmin]
         cons = FixAtoms(
-            indices = [atom.index for atom in atoms if atom.position[2] < self.region.cmin]
+            indices = cons_indices
         )
         atoms.set_constraint(cons)
         self.constraint = cons
+        self.cons_indices = " ".join([str(i+1) for i in cons_indices])
 
         # probs
         self.trans_probs = transition_array # transition probabilities: motion, insertion, deletion
@@ -183,16 +185,19 @@ class GCMC():
         self.set_rng()
 
         # TODO: reservoir
-        if reservior["format"] == "direct":
+        res_format = reservior.get("format", "otf") # on-the-fly calculation
+        if res_format == "direct":
             self.temperature, self.pressure = reservior["temperature"], -1000. # NOTE: pressure is None
             self.chem_pot = reservior["particle"]
             self.exparts = list(self.chem_pot.keys())
         else:
-            self.exparts = reservior["particle"] # exchangeable particle
+            # for single particle reservoir
+            self.exparts = [reservior["particle"]] # exchangeable particle
             self.temperature, self.pressure = reservior["temperature"], reservior["pressure"]
 
             # - chemical potenttial
-            self.chem_pot = estimate_chemical_potential(
+            self.chem_pot = {}
+            self.chem_pot[self.exparts[0]] = estimate_chemical_potential(
                 temperature=self.temperature, pressure=self.pressure,
                 **reservior["energy_params"]
             )
@@ -235,12 +240,41 @@ class GCMC():
         self.rng = drng
 
         return
-    
+
     def __register_calculator(self, calc_params: dict):
         """"""
-        self.backend = calc_params.pop("backend", None)
         self.convergence = calc_params.pop("convergence", None)
         self.repeat = calc_params.pop("repeat", 3) # try few times optimisation
+
+        print("\n===== Calculator INFO =====\n")
+        model = calc_params["model_params"]["model"]
+        if model == "lasp":
+            from GDPy.calculator.lasp import LaspNN
+            self.calc = LaspNN(**self.calc_dict["kwargs"])
+        elif model == "eann": # and inteface to lammps
+            from GDPy.calculator.lammps import Lammps
+            self.calc = Lammps(
+                command = calc_params["command"],
+                directory = calc_params["directory"],
+                pair_style = calc_params["model_params"]
+            )
+        else:
+            raise ValueError("Unknown potential to calculation...")
+        
+        backend = calc_params.pop("backend", None)
+        if backend == "ase":
+            from GDPy.calculator.ase_interface import AseDynamics
+            self.worker = AseDynamics(self.calc, directory=self.calc.directory)
+        elif backend == "lammps":
+            from GDPy.calculator.lammps import LmpDynamics
+            # use lammps optimisation
+            self.worker = LmpDynamics(
+                self.calc, directory=self.calc.directory
+            )
+        else:
+            raise ValueError("Unknown interface to optimisation...")
+
+        # TODO: check uncertainty control
         self.devi_tol = calc_params.pop("devi_tol", 0.015) # try few times optimisation
         calc_params["directory"] = Path(calc_params["directory"])
 
@@ -258,16 +292,6 @@ class GCMC():
                 raise FileExistsError("{} already exists...".format(self.suspects))
             else:
                 self.suspects.mkdir()
-
-        # calculator instance
-        if self.backend == "lammps":
-            from GDPy.calculator.minimiser import LMPMin
-            self.calc = LMPMin(**calc_params) # change this to class with same methods as ASE-Dyn
-            self.calc.reset() # remove info stored in calculator
-        else:
-            pass
-        
-        print("\n===== Calculator INFO =====\n")
 
         return
 
@@ -535,30 +559,26 @@ class GCMC():
         print('energy_stored is %12.4f' %self.energy_stored)
 
         return
-    
+
+
     def optimise(self, atoms):
         """"""
-        self.calc.reset()
+        self.worker.reset()
+        self.worker.set_output_path(self.calc.directory)
         old_calc_dir = self.calc.directory
 
         repeat = 3
         fmax, steps = self.convergence
         
         for i in range(repeat):
-            atoms.calc = self.calc
-            if self.backend == "ase":
-                # TODO: use opt as arg
-                if self.constraint is not None:
-                    atoms.set_constraint(self.constraint)
+            min_atoms, min_results = self.worker.minimise(
+                atoms,
+                fmax=fmax, steps=steps,
+                constraint = self.cons_indices # for lammps
+            )
 
-                print("\n----- ASE MIN INFO -----\n")
-                dyn = BFGS(atoms)
-                dyn.run(fmax=fmax, steps=steps)
-            elif self.backend == "lammps":
-                # run lammps
-                min_atoms, min_stat = atoms.calc.minimise(atoms, steps=steps, fmax=fmax, zmin=self.region.cmin)
-                print("\n----- LAMMPS MIN INFO -----\n")
-                print(min_stat)
+            print("\n----- DYNAMICS MIN INFO -----\n")
+            print(min_results) # TODO: extract force info from output
 
             # TODO: change this to optimisation
             forces = min_atoms.get_forces()
