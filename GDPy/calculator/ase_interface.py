@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import os
+import copy
+import time
 import json
 import pathlib
 
@@ -14,6 +16,8 @@ from ase.build import make_supercell
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.constraints import FixAtoms
 
+from ase.optimize import BFGS
+
 from ase.calculators.emt import EMT
 
 from GDPy.md.md_utils import force_temperature
@@ -21,6 +25,71 @@ from GDPy.md.md_utils import force_temperature
 #from GDPy.calculator.dp import DP
 
 from GDPy.md.nosehoover import NoseHoover
+
+class AseDynamics():
+
+    def __init__(self, calc=None, directory="./", logfile="dyn.log", trajfile="dyn.traj"):
+
+        self.calc = calc
+        self.calc.reset()
+
+        self.logfile = logfile
+        self.trajfile = trajfile
+        self.set_output_path(directory)
+
+        self.dynamics = BFGS
+
+        return
+    
+    def reset(self):
+        """ remove calculated quantities
+        """
+        self.calc.reset()
+
+        return
+    
+    def set_output_path(self, directory):
+        """"""
+        self._directory_path = pathlib.Path(directory)
+        self._logfile_path = self._directory_path / self.logfile
+        self._trajfile_path = self._directory_path / self.trajfile
+
+        return
+    
+    def run(self, atoms, **kwargs):
+        """"""
+        # calc_old = atoms.calc
+        # params_old = copy.deepcopy(self.calc.parameters)
+
+        # set special keywords
+        atoms.calc = self.calc
+
+        if not self._directory_path.exists():
+            self._directory_path.mkdir(parents=True)
+
+        # run dynamics
+        dyn = self.dynamics(
+            atoms, logfile=self._logfile_path,
+            trajectory=str(self._trajfile_path)
+        )
+        dyn.run(kwargs["fmax"], kwargs["steps"])
+
+        # back up atoms
+        # self.calc.parameters = params_old
+        # self.calc.reset()
+        # if calc_old is not None:
+        #     atoms.calc = calc_old
+
+        return atoms
+    
+    def minimise(self, atoms, **kwargs):
+        """ compatibilty to lammps
+        """
+        min_atoms = self.run(atoms, **kwargs)
+        with open(self._logfile_path, "r") as fopen:
+            min_results = fopen.read()
+
+        return min_atoms, min_results
 
 class AseInput():
 
@@ -76,11 +145,19 @@ class AseInput():
 
 def write_model_devi(fname, step, atoms):
     """"""
-    energies_stdvar = atoms.calc.results.get('energies_stdvar', None)
-    forces_stdvar = atoms.calc.results.get('forces_stdvar', None)
-    content = "{:>12d}" + " {:>18.6e}"*6 + "\n"
+    # DP
+    #energies_stdvar = atoms.calc.results.get('energies_stdvar', None)
+    #forces_stdvar = atoms.calc.results.get('forces_stdvar', None)
+    # EANN
+    energy_stdvar = atoms.calc.results.get("en_stdvar", None)
+    energies_stdvar = atoms.calc.results.get('energies_stdvar', [0.])
+    forces_stdvar = atoms.calc.results.get("force_stdvar", None)
+    #print(energy_stdvar)
+    #print(forces_stdvar)
+    content = "{:>12d}" + " {:>18.6e}"*7 + "\n"
     content = content.format(
-        step, np.max(energies_stdvar), np.min(energies_stdvar), np.mean(energies_stdvar),
+        step, energy_stdvar,
+        np.max(energies_stdvar), np.min(energies_stdvar), np.mean(energies_stdvar),
         np.max(forces_stdvar), np.min(forces_stdvar), np.mean(forces_stdvar)
     )
     with open(fname, 'a') as fopen:
@@ -99,25 +176,24 @@ def write_md_info(fname, step, atoms):
     return
     
 
-def run_ase_calculator(input_json):
+def run_ase_calculator(input_json, pot_json):
     """"""
-    with open(input_json, 'r') as fopen:
+    # parse calculator
+    from ..potential.manager import create_manager
+    pm = create_manager(pot_json)
+
+    # 
+    with open(input_json, "r") as fopen:
         input_dict = json.load(fopen)
     
     temperature = input_dict['temperature']
     
     print('===== temperature at %.2f =====' %temperature)
     # read potential
-    type_map = input_dict['type_map']
-    model = input_dict['potential']['deepmd']
-
-    # TODO: change this interface
-    #calc = DP(
-    #    model = model, type_dict = type_map
-    #)
-    calc = EMT()
+    calc = pm.generate_calculator()
 
     # read structure
+    type_map = input_dict["type_map"]
     data_path = input_dict['data']
     z_types = [atomic_numbers[x] for x in type_map.keys()]
     atoms = read(data_path, format='lammps-data', style='atomic', units='metal', Z_of_type=z_types)
@@ -137,7 +213,7 @@ def run_ase_calculator(input_json):
     MaxwellBoltzmannDistribution(atoms, temperature*units.kB)
     force_temperature(atoms, temperature)
 
-    timestep = input_dict['timestep']
+    timestep = input_dict["timestep"]
 
     nvt_dyn = NoseHoover(
         atoms = atoms,
@@ -163,23 +239,36 @@ def run_ase_calculator(input_json):
 
     devi_fname = cwd / 'model_devi.out'
     with open(devi_fname, 'w') as fopen:
-        content = "{:>12s}" + " {:>18s}"*6 + "\n"
+        content = "{:>12s}" + " {:>18s}"*7 + "\n"
         content = content.format(
-            '#       step',
+            '#       step', 'tot_devi_e',
             'max_devi_e', 'min_devi_e', 'avg_devi_e',
             'max_devi_f', 'min_devi_f', 'avg_devi_f'
         )
         fopen.write(content)
 
+    # calculate at the first step
+    #atoms.calc.calc_uncertainty = True
+    #dummy = atoms.get_forces()
+
+    st = time.time()
+
     nsteps = input_dict['nsteps']
-    dummy = atoms.get_forces()
     check_stdvar_freq = input_dict['disp_freq']
-    for step in range(nsteps):
+    for step in range(-1,nsteps+check_stdvar_freq):
         if step % check_stdvar_freq == 0:
+            atoms.calc.calc_uncertainty = True
+            nvt_dyn.step()
             write(xyz_fname, atoms, append=True)
             write_md_info(out_fname, step, atoms)
             write_model_devi(devi_fname, step, atoms)
-        nvt_dyn.step()
+        else:
+            atoms.calc.calc_uncertainty = False
+            nvt_dyn.step()
+
+    et = time.time()
+
+    print("time cost: ", et-st)
 
     return
 
