@@ -13,9 +13,12 @@ from ase import data
 #from ase.data import atomic_numbers, atomic_names, atomic_masses, covalent_radii
 from ase import Atom, Atoms
 from ase.io import read, write
+from ase.neighborlist import natural_cutoffs, NeighborList
 
 from ase.optimize import BFGS
 from ase.constraints import FixAtoms
+
+from ase.ga.utilities import closest_distances_generator # generate bond distance list
 
 
 """
@@ -70,13 +73,24 @@ class ReducedRegion():
     spherical or cubic box
     """
 
+    MAX_RANDOM_ATTEMPS = 1000
+
     def __init__(
         self, 
+        type_list, # chemical symbols for cutoff radii
         cell, # (3x3) lattice
         caxis: list, # min and max in z-axis
         mindis: float = 1.5 # minimum distance between atoms
     ):
         """"""
+        # cutoff radii
+        unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
+        covalent_ratio = 0.8
+        self.blmin = closest_distances_generator(
+            atom_numbers=unique_atomic_numbers,
+            ratio_of_covalent_radii = covalent_ratio # be careful with test too far
+        )
+
         # box
         self.cell = cell.copy()
         
@@ -102,13 +116,66 @@ class ReducedRegion():
         for i in range(1000): # maximum number of attempts
             ran_frac_pos = self.rng.uniform(0,1,3)
             ran_pos = np.dot(ran_frac_pos, self.cell) 
-            # TODO: better
             ran_pos[2] = self.cmin + ran_frac_pos[2] * (self.cmax-self.cmin)
-            if not self.check_overlap(self.mindis,ran_pos, positions):
+            # TODO: better
+            if not self.check_overlap(self.mindis, ran_pos, positions):
                 print('ran pos', ran_pos)
                 break
+        else:
+            print("Failed to generate a random position...")
 
         return ran_pos
+
+    def random_position_neighbour(self, atoms: Atoms, expart):
+        """"""
+        print("\n---- Generate Random Position -----\n")
+        st = time.time()
+
+        new_atoms = atoms.copy()
+        extra_atom = Atom(expart, position=[0., 0., 0.])
+        new_atoms.extend(extra_atom)
+        chemical_symbols = new_atoms.get_chemical_symbols()
+
+        nl = NeighborList(natural_cutoffs(new_atoms), skin=0.3, self_interaction=False)
+        for i in range(self.MAX_RANDOM_ATTEMPS): # maximum number of attempts
+            ran_frac_pos = self.rng.uniform(0,1,3)
+            ran_pos = np.dot(ran_frac_pos, self.cell) 
+            ran_pos[2] = self.cmin + ran_frac_pos[2] * (self.cmax-self.cmin)
+            new_atoms[-1].position = ran_pos
+            # use neighbour list
+            if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, ran_pos, expart):
+                print(f"succeed to insert after {i} attempts...")
+                break
+        else:
+            print("failed to insert after {self.MAX_RANDOM_ATTEMPS} attempts...")
+
+        et = time.time()
+        print("used time: ", et - st)
+
+        return new_atoms
+    
+    def check_overlap_neighbour(self, nl, new_atoms, chemical_symbols, ran_pos, expart):
+        """ use neighbour list to check newly added atom is neither too close or too
+            far from other atoms
+        """
+        nl.update(new_atoms)
+        indices, offsets = nl.get_neighbors(-1)
+        if len(indices) > 0:
+            print("nneighs: ", len(indices))
+            overlapped = False
+            # should close to other atoms
+            for ni, offset in zip(indices, offsets):
+                dis = np.linalg.norm(ran_pos - (new_atoms.positions[ni] + np.dot(offset, self.cell)))
+                pairs = [chemical_symbols[ni], expart]
+                pairs = tuple([data.atomic_numbers[p] for p in pairs])
+                print("distance: ", ni, dis, self.blmin[pairs])
+                if dis < self.blmin[pairs]:
+                    overlapped = True
+                    break
+        else:
+            overlapped = True
+
+        return overlapped
     
     def calc_acc_volume(self, atoms) -> float:
         """calculate acceptable volume"""
@@ -121,9 +188,11 @@ class ReducedRegion():
 
         return acc_volume
 
+
     @staticmethod
     def check_overlap(mindis, ran_pos, positions):
         """"""
+        st = time.time()
         # TODO: change this to the faste neigbour list construction
         # maybe use scipy
         overlapped = False
@@ -133,6 +202,8 @@ class ReducedRegion():
             if dis < mindis:
                 overlapped = True
                 break
+        et = time.time()
+        print("time for overlap: ", et-st)
 
         return overlapped
 
@@ -141,6 +212,8 @@ class GCMC():
 
     MCTRAJ = "./miaow.xyz"
     SUSPECT_DIR = "./suspects"
+
+    MAX_MOVE_ATTEMPTS = 100
 
     def __init__(
         self, 
@@ -406,30 +479,34 @@ class GCMC():
             return 
         
         # try move
-        cur_atoms = self.atoms.copy()
-        pos = cur_atoms[idx_pick].position.copy()
+        st = time.time()
 
-        MAX_MOVE_ATTEMPTS = 100
-        for idx in range(MAX_MOVE_ATTEMPTS):
+        cur_atoms = self.atoms.copy()
+        org_pos = cur_atoms[idx_pick].position.copy() # original position
+        chemical_symbols = cur_atoms.get_chemical_symbols()
+        nl = NeighborList(natural_cutoffs(cur_atoms), skin=0.3, self_interaction=False)
+
+        for idx in range(self.MAX_MOVE_ATTEMPTS):
             # get random motion vector
             rsq = 1.1
             while (rsq > 1.0):
                 rvec = 2*self.rng.uniform(size=3) - 1.0
                 rsq = np.linalg.norm(rvec)
-            pos = pos + rvec*self.maxdisp
+            ran_pos = org_pos + rvec*self.maxdisp
 
             # TODO: check if conflict with nerighbours
-            overlapped = self.region.check_overlap(
-                self.region.mindis, pos, cur_atoms.positions
-            )
-            if not overlapped:
-                print("find suitable position for moving...")
+            if not self.region.check_overlap_neighbour(
+                nl, cur_atoms, chemical_symbols, ran_pos, expart
+            ):
+                print(f"succeed to move after {idx+1} attempts...")
+                cur_atoms[idx_pick].position = ran_pos
                 break
         else:
-            print("Fail to move...")
+            print(f"failed to move after {self.MAX_MOVE_ATTEMPTS} attempts...")
             return
-
-        cur_atoms[idx_pick].position = pos
+        
+        et = time.time()
+        print("used time: ", et - st)
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
@@ -467,9 +544,10 @@ class GCMC():
         self.update_exlist()
         # only one element for now
         cur_atoms = self.atoms.copy()
-        ran_pos = self.region.random_position(cur_atoms.positions)
-        extra_atom = Atom(expart, position=ran_pos)
-        cur_atoms.extend(extra_atom)
+        #ran_pos = self.region.random_position(cur_atoms.positions)
+        #extra_atom = Atom(expart, position=ran_pos)
+        #cur_atoms.extend(extra_atom)
+        cur_atoms = self.region.random_position_neighbour(cur_atoms, expart)
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)

@@ -49,7 +49,7 @@ atoms = read(gc_dict["structure"])
 #res = Reservior(particle='O', temperature=300, pressure=1.0, mu=chemical_potential) # Kelvin, atm, eV
 
 # set region
-region = ReducedRegion(atoms.cell, caxis=gc_dict["region"]["caxis"], mindis=gc_dict["region"]["mindis"])
+region = ReducedRegion(gc_dict["type_list"], atoms.cell, caxis=gc_dict["region"]["caxis"], mindis=gc_dict["region"]["mindis"])
 
 # start mc
 transition_array = gc_dict["probabilities"] # move and exchange
