@@ -100,13 +100,19 @@ class LmpDynamics():
             converged = True
 
         # NOTE: always use dynamics calc
-        # back up atoms
+        # read optimised atoms
+        new_atoms = read(
+            self._directory_path / "surface.dump", ':', "lammps-dump-text", 
+            specorder=self.calc.specorder, units=self.calc.units
+        )[-1]
+        sp_calc = SinglePointCalculator(new_atoms, **copy.deepcopy(self.calc.results))
+        new_atoms.calc = sp_calc
         # self.calc.parameters = params_old
         # self.calc.reset()
         # if calc_old is not None:
         #     atoms.calc = calc_old
 
-        return atoms
+        return new_atoms
     
     def minimise(self, atoms, **kwargs):
         """ compatibilty to lammps
@@ -117,12 +123,12 @@ class LmpDynamics():
         with open(self._directory_path / "log.lammps", "r") as fopen:
             lines = fopen.readlines()
         for idx, line in enumerate(lines):
-            if line.startswith('Minimization stats:'):
+            if line.startswith("Minimization stats:"):
                 stat_idx = idx
                 break
         else:
             raise ValueError('error in lammps minimization.')
-        stat_content = ''.join(lines[stat_idx:stat_idx+9])
+        stat_content = "".join(lines[stat_idx:stat_idx+9])
 
         return min_atoms, stat_content
 
