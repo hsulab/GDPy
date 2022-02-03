@@ -63,6 +63,10 @@ class GeneticAlgorithemEngine():
 
     supported_calculators = ["vasp", "lammps", "lasp"]
 
+    CALC_DIRNAME = "tmp_folder"
+
+    MAX_REPROC_TRY = 10
+
     def __init__(self, ga_dict: dict):
         """"""
         self.ga_dict = ga_dict
@@ -83,15 +87,15 @@ class GeneticAlgorithemEngine():
         self.calc_dict = ga_dict["calculation"]
         self.machine = self.calc_dict["machine"]
 
-        # mutation operators
-        self.mutation_dict = ga_dict["mutation"]
-
         return
     
     def __parse_system_parameters(self, ga_dict):
         """ parse system-specific parameters
         """
         self.type_list = list(ga_dict["system"]["composition"].keys())
+
+        # mutation operators
+        self.mutation_dict = ga_dict["mutation"]
 
         return
 
@@ -104,20 +108,20 @@ class GeneticAlgorithemEngine():
             self.__create_random_structure_generator()
             self.__create_initial_population()
             # make calculation dir
-            self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
+            self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
             self.tmp_folder.mkdir()
             print("create a new tmp_folder...")
         else:
             print("restart the database...")
             # balh
-            self.tmp_folder = pathlib.Path.cwd() / "tmp_folder"
+            self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
             self.__restart()
             # check current generation number
             cur_gen = self.da.get_generation_number()
             if self.machine == "serial":
 
                 # start minimisation
-                print("===== register calculator =====")
+                print("\n\n===== register calculator =====")
                 self.__register_calculator()
 
                 if cur_gen == 0:
@@ -417,25 +421,37 @@ class GeneticAlgorithemEngine():
             self.slab, self.n_to_optimize, self.blmin
         )
 
+        op_classes = {
+            "Rattle": RattleMutation,
+            "Mirror": MirrorMutation,
+            "Permutation": PermutationMutation
+        }
+
         # TODO: expose to custom input file
-        natypes = len(self.type_list)
-        if natypes > 1:
-            self.mutations = OperationSelector(
-                [1., 1., 1.], # probabilities for each mutation
-                [
-                    RattleMutation(self.blmin, self.n_to_optimize),
-                    MirrorMutation(self.blmin, self.n_to_optimize),
-                    PermutationMutation(self.n_to_optimize)
-                ] # operator list
-            )
-        else:
-            self.mutations = OperationSelector(
-                [1., 1.], # probabilities for each mutation
-                [
-                    RattleMutation(self.blmin, self.n_to_optimize),
-                    MirrorMutation(self.blmin, self.n_to_optimize)
-                ] # operator list
-            )
+        op_names = self.mutation_dict.get("ops", ["Rattle", "Mirror", "Permutation"])
+        rel_probs = self.mutation_dict.get("probs", [1.]*len(op_names)) # relative 
+        assert len(op_names) == len(rel_probs), "number of mutation operators and probs is not consistent..."
+        if len(self.type_list) == 1 and "Permutation" in op_names:
+            raise RuntimeError("Single element system cannot use PermutationMutation...")
+        
+        # output
+        content = "\n\n===== register mutations =====\n"
+        for op_name, rel_prob in zip(op_names, rel_probs):
+            content += "  {}  {}\n".format(op_name, rel_prob)
+        print(content)
+
+        # register
+        operators = []
+        for op_name in op_names:
+            if op_name == "Rattle":
+                op = RattleMutation(self.blmin, self.n_to_optimize)
+            elif op_name == "Mirror":
+                op = MirrorMutation(self.blmin, self.n_to_optimize)
+            elif op_name == "Permutation":
+                op = PermutationMutation(self.n_to_optimize)
+            operators.append(op)
+
+        self.mutations = OperationSelector(rel_probs, operators)
 
         return
     
@@ -537,11 +553,10 @@ class GeneticAlgorithemEngine():
 
     def register_machine(self):
         """register PBS/Slurm machine for computationally massive jobs"""
-        tmp_folder = 'tmp_folder/'
         # The PBS queing interface is created
         self.pbs_run = SlurmQueueRun(
             self.da,
-            tmp_folder=tmp_folder,
+            tmp_folder=self.CALC_DIRNAME,
             n_simul=20,
             incar = self.calc_dict['incar'],
             prefix = self.calc_dict['prefix'] # TODO: move to input json
@@ -724,8 +739,6 @@ class GeneticAlgorithemEngine():
 
         return
 
-
-    
     def form_population(self):
         """"""
         # set current population
@@ -752,24 +765,26 @@ class GeneticAlgorithemEngine():
     def reproduce(self):
         """generate an offspring"""
         # Submit new candidates until enough are running
-        mutation_probability = self.ga_dict['mutation']['prob']
+        mutation_probability = self.mutation_dict["pmut"]
+
         #while (not self.pbs_run.enough_jobs_running() and
         #       len(self.population.get_current_population()) > 2):
         a1, a2 = self.population.get_two_candidates()
-        for i in range(10):
-            # print("attempt ", i)
+        for i in range(self.MAX_REPROC_TRY):
             # try 10 times
             a3, desc = self.pairing.get_new_individual([a1, a2])
             if a3 is not None:
                 self.da.add_unrelaxed_candidate(a3, description=desc) # if mutation happens, it will not be relaxed
 
-                mut_desc = ''
+                mut_desc = ""
                 if random() < mutation_probability:
                     a3_mut, mut_desc = self.mutations.get_new_individual([a3])
                     if a3_mut is not None:
                         self.da.add_unrelaxed_step(a3_mut, mut_desc)
                         a3 = a3_mut
-                print('generate offspring a3 ', desc + ' ' + mut_desc)
+                print("generate offspring a3 ", desc + " " + mut_desc + " after ", i+1, " attempts..." )
+
+                # run opt
                 if self.machine == "serial":
                     print("start to run structure %s" %a3.info["confid"])
                     self.__run_local_optimisation(a3)
@@ -781,7 +796,7 @@ class GeneticAlgorithemEngine():
             else:
                 continue
         else:
-            print('cannot generate offspring a3 after {0} attempts'.format(10))
+            print('cannot generate offspring a3 after {0} attempts'.format(self.MAX_REPROC_TRY))
 
         return
 
