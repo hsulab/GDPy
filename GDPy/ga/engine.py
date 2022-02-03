@@ -209,7 +209,7 @@ class GeneticAlgorithemEngine():
                 exit()
                 # TODO: resubmit some jobs
                 # try mutation and pairing
-                self.register_operators()
+                self.__register_operators()
                 self.form_population()
                 # TODO: check is the current population is full
                 cur_gen_num = self.da.get_generation_number()
@@ -261,7 +261,7 @@ class GeneticAlgorithemEngine():
         self.__print_blmin()
 
         # mutation operators
-        self.register_operators()
+        self.__register_operators()
 
         return
     
@@ -401,7 +401,7 @@ class GeneticAlgorithemEngine():
 
         return
     
-    def register_operators(self):
+    def __register_operators(self):
         """ register various operators
             comparator, pairing, mutation
         """
@@ -416,6 +416,7 @@ class GeneticAlgorithemEngine():
         self.pairing = CutAndSplicePairing(
             self.slab, self.n_to_optimize, self.blmin
         )
+
         # TODO: expose to custom input file
         natypes = len(self.type_list)
         if natypes > 1:
@@ -460,20 +461,33 @@ class GeneticAlgorithemEngine():
             self.worker = AseDynamics(self.calc, directory=self.calc.directory)
             # use ase no need to recaclc constraint since atoms has one
             self.cons_indices = None
-        elif interface == "lammps":
-            from GDPy.calculator.lammps import LmpDynamics
+        else: 
             # find z-axis constraint
             self.cons_indices = None
             if self.system_type == "surface":
-                self.cons_indices = self.ga_dict["system"]["substrate"]["constraint"]
+                constraint = self.ga_dict["system"]["substrate"]["constraint"]
+                if constraint is not None:
+                    index_group = constraint.split()
+                    indices = []
+                    for s in index_group:
+                        r = [int(x) for x in s.split(":")]
+                        indices.append([r[0]+1, r[1]]) # starts from 1
+                self.cons_indices = ""
+                for s, e in indices:
+                    self.cons_indices += "{}:{} ".format(s, e)
                 print("constraint indices: ", self.cons_indices)
         
-            # use lammps optimisation
-            self.worker = LmpDynamics(
+            if interface == "lammps":
+                from GDPy.calculator.lammps import LmpDynamics as dyn
+                # use lammps optimisation
+            elif interface == "lasp":
+                from GDPy.calculator.lasp import LaspDynamics as dyn
+            else:
+                raise ValueError("Unknown interface to optimisation...")
+
+            self.worker = dyn(
                 self.calc, directory=self.calc.directory
             )
-        else:
-            raise ValueError("Unknown interface to optimisation...")
 
         return
 
@@ -491,7 +505,7 @@ class GeneticAlgorithemEngine():
         self.worker.reset()
         # self.worker.directory = self.tmp_folder / ("cand" + str(confid))
         self.calc.directory = self.tmp_folder / ("cand" + str(confid))
-        self.worker.set_output_path(self.tmp_folder / ("cand" + str(confid)))
+        self.worker.set_output_path(self.calc.directory)
 
         print(f"\nStart minimisation maximum try {repeat} times...")
         for i in range(repeat):
