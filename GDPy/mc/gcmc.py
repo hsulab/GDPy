@@ -143,8 +143,9 @@ class ReducedRegion():
             ran_pos[2] = self.cmin + ran_frac_pos[2] * (self.cmax-self.cmin)
             new_atoms[-1].position = ran_pos
             # use neighbour list
-            if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, ran_pos, expart):
+            if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, expart, -1):
                 print(f"succeed to insert after {i} attempts...")
+                print("random position: ", ran_pos)
                 break
         else:
             print("failed to insert after {self.MAX_RANDOM_ATTEMPS} attempts...")
@@ -154,18 +155,21 @@ class ReducedRegion():
 
         return new_atoms
     
-    def check_overlap_neighbour(self, nl, new_atoms, chemical_symbols, ran_pos, expart):
+    def check_overlap_neighbour(
+        self, nl, new_atoms, chemical_symbols, 
+        expart, idx_pick = -1
+    ):
         """ use neighbour list to check newly added atom is neither too close or too
             far from other atoms
         """
         nl.update(new_atoms)
-        indices, offsets = nl.get_neighbors(-1)
+        indices, offsets = nl.get_neighbors(idx_pick)
         if len(indices) > 0:
             print("nneighs: ", len(indices))
             overlapped = False
             # should close to other atoms
             for ni, offset in zip(indices, offsets):
-                dis = np.linalg.norm(ran_pos - (new_atoms.positions[ni] + np.dot(offset, self.cell)))
+                dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, self.cell)))
                 pairs = [chemical_symbols[ni], expart]
                 pairs = tuple([data.atomic_numbers[p] for p in pairs])
                 print("distance: ", ni, dis, self.blmin[pairs])
@@ -173,7 +177,8 @@ class ReducedRegion():
                     overlapped = True
                     break
         else:
-            overlapped = True
+            # TODO: is no neighbours valid?
+            overlapped = False
 
         return overlapped
     
@@ -417,6 +422,8 @@ class GCMC():
         """ various actions
         [0]: move, [1]: exchange (insertion/deletion)
         """
+        st = time.time()
+
         expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
         print("selected particle: ", expart)
         rn_mcmove = self.rng.uniform()
@@ -444,6 +451,9 @@ class GCMC():
         else:
             print('current attempt is *insertion*')
             self.attempt_insert_atom(expart)
+
+        et = time.time()
+        print("step time: ", et - st)
 
         return
     
@@ -496,10 +506,12 @@ class GCMC():
 
             # TODO: check if conflict with nerighbours
             if not self.region.check_overlap_neighbour(
-                nl, cur_atoms, chemical_symbols, ran_pos, expart
+                nl, cur_atoms, chemical_symbols, 
+                expart, idx_pick
             ):
-                print(f"succeed to move after {idx+1} attempts...")
                 cur_atoms[idx_pick].position = ran_pos
+                print(f"succeed to move after {idx+1} attempts...")
+                print("origin position: ", org_pos, "-> random position: ", ran_pos)
                 break
         else:
             print(f"failed to move after {self.MAX_MOVE_ATTEMPTS} attempts...")
@@ -647,6 +659,9 @@ class GCMC():
 
         repeat = 3
         fmax, steps = self.convergence
+
+        print("\n----- DYNAMICS MIN INFO -----\n")
+        st = time.time()
         
         for i in range(repeat):
             min_atoms, min_results = self.worker.minimise(
@@ -655,7 +670,6 @@ class GCMC():
                 constraint = self.cons_indices # for lammps
             )
 
-            print("\n----- DYNAMICS MIN INFO -----\n")
             print(min_results) # TODO: extract force info from output
 
             # TODO: change this to optimisation
@@ -686,6 +700,9 @@ class GCMC():
         self.calc.directory = old_calc_dir
 
         en = atoms.get_potential_energy()
+
+        et = time.time()
+        print("opt time: ", et - st)
 
         return en, atoms
     
