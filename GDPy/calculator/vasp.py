@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import time
 import json
 import argparse
 import subprocess 
+from typing import Union
+
+import shutil
 
 from pathlib import Path 
 
@@ -12,10 +16,37 @@ import numpy as np
 
 from ase import Atoms 
 from ase.io import read, write
+
 from ase.calculators.vasp.create_input import GenerateVaspInput
+from ase.calculators.singlepoint import SinglePointCalculator
+
+from GDPy.utils.atomUtils import check_convergence
+from GDPy.utils.command import run_command
+from GDPy.machine.machine import SlurmMachine
 
 """ wrap ase-vasp into a few utilities
 """
+
+
+# vasp utils
+def read_sort(directory):
+    """Create the sorting and resorting list from ase-sort.dat.
+    If the ase-sort.dat file does not exist, the sorting is redone.
+    """
+    sortfile = directory / 'ase-sort.dat'
+    if os.path.isfile(sortfile):
+        sort = []
+        resort = []
+        with open(sortfile, 'r') as fd:
+            for line in fd:
+                s, rs = line.split()
+                sort.append(int(s))
+                resort.append(int(rs))
+    else:
+        # warnings.warn(UserWarning, 'no ase-sort.dat')
+        raise ValueError('no ase-sort.dat')
+
+    return sort, resort
 
 
 class VaspMachine():
@@ -53,15 +84,36 @@ class VaspMachine():
         "potim": 0.2, 
     } 
 
-    def __init__(self, command, incar, pp_path, vdw_path=None, **kwargs):
+    script_name = "vasp.slurm"
+
+    def __init__(
+        self, 
+        command, 
+        incar, 
+        pp_path, 
+        vdw_path=None, 
+        vasp_script=None,
+        **kwargs
+    ):
         """"""
         self.command = command
         self.__incar = incar
 
+        self.vasp_script = None
+        if vasp_script is not None:
+            self.vasp_script = SlurmMachine(use_gpu=False)
+            self.vasp_script.update(vasp_script)
+
         self.pp_path = pp_path
         self.vdw_path = vdw_path
 
+        self.__kpts = kwargs.get("kpts", None)
+
         self.__set_environs()
+
+        # TODO: electronic convergence
+        # geometric convergence
+        self.fmax = 0.05
 
         return
     
@@ -80,11 +132,10 @@ class VaspMachine():
 
         return
 
-    def create_by_ase(
+    def create(
         self, 
         atoms, 
-        kpts = None,
-        directory=Path('vasp-test')
+        directory=Path("vasp-test")
     ):
         # ===== set basic params
         vasp_creator = GenerateVaspInput()
@@ -94,14 +145,21 @@ class VaspMachine():
         else:
             vasp_creator.set(**self.default_parameters)
 
+        # geometric convergence
+        self.fmax = np.fabs(vasp_creator.exp_params.get("ediffg", 0.05))
+
         # overwrite some structure specific parameters
         vasp_creator.set(system=directory.name)
 
         # TODO: use not gamma-centred mesh?
         vasp_creator.set(gamma=True)
-        if kpts is None:
+        if self.__kpts is None:
             kpts = np.linalg.norm(atoms.cell, axis=1).tolist()
             kpts = [int(20./k)+1 for k in kpts] 
+        else:
+            # NOTE: this vasp setting maybe used for various systems
+            # this self.__kpts should be None if not set in the first place
+            kpts = self.__kpts
         vasp_creator.set(kpts=kpts)
 
         # write inputs
@@ -112,6 +170,229 @@ class VaspMachine():
 
         vasp_creator.initialize(atoms)
         vasp_creator.write_input(atoms, directory)
+
+        if self.vasp_script is not None:
+            # vasp_script = self.vasp_script.copy() # TODO: add copy
+            self.vasp_script.machine_dict["job-name"] = directory.name
+            self.vasp_script.write(directory / self.script_name)
+
+        return
+    
+    def get_results(
+        self,
+        vasp_dir, # directory where vasp was performed
+        fmax: float = 0.05, # geometric convergence
+        extra_info: dict = None # info to add in atoms
+    ) -> Union[None, Atoms]:
+
+        atoms = None
+
+        print(vasp_dir)
+        vasp_dir = Path(vasp_dir)
+        # TODO: this only works for vasp, should be more general
+        vasprun = vasp_dir / "vasprun.xml"
+        if vasprun.exists() and vasprun.stat().st_size > 0:
+            frames = read(vasprun, ':')
+            print("nframes: ", len(frames))
+            atoms_sorted = frames[-1] # TODO: for now, only last one of interest
+            # resort
+            sort, resort = read_sort(vasp_dir)
+            atoms = atoms_sorted.copy()[resort]
+            calc = SinglePointCalculator(
+                atoms,
+                energy=atoms_sorted.get_potential_energy(),
+                forces=atoms_sorted.get_forces(apply_constraint=False)[resort]
+            )
+            calc.name = "vasp"
+            atoms.calc = calc
+
+            # add extra info
+            if extra_info is not None:
+                atoms.info.update(extra_info)
+        else:
+            print("the job isnot running...")
+
+        return atoms
+    
+    def __icalculate(self):
+        # TODO: move vasp calculation to this one
+
+        return
+
+class VaspQueue:
+
+    prefix = "cand"
+
+    def __init__(
+            self, data_connection, tmp_folder, 
+            vasp_machine,
+            n_simul, prefix,
+            repeat = -1,
+            submit_command="sbatch", stat_command="squeue",
+            find_neighbors=None, perform_parametrization=None
+        ):
+        self.dc = data_connection
+        self.n_simul = n_simul
+
+        self.vasp_machine = vasp_machine # deal with vasp inputs and outputs
+
+        self.prefix = prefix
+
+        self.repeat = repeat
+
+        self.submit_command = submit_command
+        self.stat_command = stat_command
+        self.calc_command = "{0} {1}".format(self.submit_command, self.vasp_machine.script_name) 
+
+        self.tmp_folder = Path(tmp_folder)
+
+        self.find_neighbors = find_neighbors
+        self.perform_parametrization = perform_parametrization
+        self.__cleanup__()
+
+        return
+
+    def relax(self, a: Atoms):
+        """ Add a structure to the queue. This method does not fail
+            if sufficient jobs are already running, but simply
+            submits the job. """
+        # check candidate
+        self.__cleanup__()
+        self.dc.mark_as_queued(a) # this marks relaxation is in the queue
+        if not os.path.isdir(self.tmp_folder):
+            os.mkdir(self.tmp_folder)
+        
+        # create atom structure
+        dpath = Path("{0}/{1}{2}".format(self.tmp_folder, self.prefix, a.info["confid"]))
+        self.vasp_machine.create(a, dpath)
+
+        # submit job
+        msg = run_command(dpath, self.calc_command, comment="submitting job", timeout=30)
+
+        return
+
+    def enough_jobs_running(self):
+        """ Determines if sufficient jobs are running. """
+        return self.number_of_jobs_running() >= self.n_simul
+
+    def number_of_jobs_running(self):
+        return len(self.__get_running_job_ids())
+
+    def __get_running_job_ids(self):
+        """ Determines how many jobs are running. The user
+            should use this or the enough_jobs_running method
+            to verify that a job needs to be started before
+            calling the relax method."""
+        # self.__cleanup__()
+        # TODO: reform
+        p = subprocess.Popen(
+            ['`which {0}` -u `whoami` --format=\"%.12i %.12P %.24j %.4t %.12M %.12L %.5D %.4C\"'.format(self.stat_command)],
+            shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            close_fds=True, universal_newlines=True
+        )
+        fout = p.stdout
+        lines = fout.readlines()
+        # print(''.join(lines)) # output of squeue
+        confids = []
+        for line in lines[1:]: # skipe first info line
+            data = line.strip().split()
+            jobid, name, status = data[0], data[2], data[3]
+            if name.startswith(self.prefix) and status in ['R','Q','PD']:
+                #print(jobid)
+                #print(name)
+                indices = re.match(self.prefix+"*", name).span()
+                if indices is not None:
+                    confid = int(name[indices[1]:])
+                confids.append(int(confid))
+        #print(len(confids))
+
+        return confids
+    
+    def __get_failed_job_ids(self):
+        """"""
+        fpath = Path(self.tmp_folder / "FAILED_IDS")
+        if fpath.exists():
+            failed_ids = np.loadtxt(fpath, dtype=int).tolist()
+        else:
+            failed_ids = []
+
+        return failed_ids
+    
+    def check_status(self):
+        """
+        check job status
+        """
+        print('\n===== check job status =====')
+        running_ids = self.__get_running_job_ids()
+        failed_ids = self.__get_failed_job_ids()
+
+        confs = self.dc.get_all_candidates_in_queue() # conf ids
+        print("cand in queue: ", confs)
+        for confid in confs:
+            if confid in running_ids:
+                continue
+            cand_dir = self.tmp_folder / (self.prefix+str(confid))
+            print("current cand: ", cand_dir)
+            # TODO: this only works for vasp, should be more general
+            atoms = self.vasp_machine.get_results(cand_dir)
+
+            # check forces
+            if isinstance(atoms, Atoms):
+                if check_convergence(atoms, fmax=self.vasp_machine.fmax): # check geometric convergence
+                    print('save this configuration to the database')
+                    atoms.info['confid'] = confid
+                    # add few information
+                    atoms.info['data'] = {}
+                    atoms.info['key_value_pairs'] = {'extinct': 0}
+                    atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
+                    self.dc.add_relaxed_step(
+                        atoms,
+                        find_neighbors=self.find_neighbors,
+                        perform_parametrization=self.perform_parametrization
+                    )
+                else:
+                    # still leave queued=1 in the db, but resubmit
+                    print("not converged...")
+                    cur_repeat = 1
+                    fpath = cand_dir / "repeat.ga"
+                    if fpath.exists():
+                        cur_repeat = np.loadtxt(fpath, dtype=int)
+                        print("cur_repeat: ", cur_repeat)
+                    if cur_repeat < self.repeat:
+                        if confid not in failed_ids:
+                            # TODO: save relaxation trajectory for MLP?
+                            print('copy data...')
+                            saved_cards = ['POSCAR', 'CONTCAR', 'OUTCAR']
+                            for card in saved_cards:
+                                card_path = cand_dir / card
+                                saved_card_path = cand_dir / (card+'_old')
+                                shutil.copy(card_path, saved_card_path)
+                            shutil.copy(cand_dir / 'CONTCAR', cand_dir / 'POSCAR')
+                            print("resubmit job...")
+                            msg = run_command(cand_dir, self.calc_command, comment="submitting job", timeout=30)
+                            cur_repeat += 1
+                            np.savetxt(fpath, np.array([cur_repeat]), fmt="%d")
+                        else:
+                            print('save failed configuration to the database')
+                            atoms.info['confid'] = confid
+                            # add few information
+                            atoms.info['data'] = {}
+                            atoms.info['key_value_pairs'] = {'extinct': 0, 'failed': 1}
+                            atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
+                            self.dc.add_relaxed_step(
+                                atoms,
+                                find_neighbors=self.find_neighbors,
+                                perform_parametrization=self.perform_parametrization
+                            )
+                    else:
+                        pass
+
+        return
+    
+    def __cleanup__(self):
+        """
+        """
+        # self.check_status()
 
         return
 
