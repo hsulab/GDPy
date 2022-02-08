@@ -99,7 +99,9 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def run(self):
+    def run(
+        self, spath: None
+    ):
         """ main procedure
         """
         # TODO: check database existence and generation number to determine restart
@@ -111,6 +113,24 @@ class GeneticAlgorithemEngine():
             self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
             self.tmp_folder.mkdir()
             print("create a new tmp_folder...")
+            # read seed structures
+            if spath is not None:
+                print("----- try to add seed structures -----")
+                frames = read(spath, ":")
+                # NOTE: check force convergence and only add converged structures
+                # check atom permutation
+                for i, atoms in enumerate(frames):
+                    # TODO: check atom order
+                    atoms.info["description"] = "seed {}".format(i)
+                    atoms.info["data"] = {}
+                    atoms.info["key_value_pairs"] = {}
+                    atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
+                    if True: # force converged
+                        print(f"  add converged seed {i}")
+                        self.da.add_relaxed_candidate(atoms)
+                    else:
+                        # run opt
+                        pass
         else:
             print("restart the database...")
             # balh
@@ -187,13 +207,19 @@ class GeneticAlgorithemEngine():
                 population_size = self.ga_dict['population']['init_size']
                 cur_jobs_running = self.pbs_run.number_of_jobs_running()
                 print('number of relaxed in current generation: ', relaxed_num_strus_gen)
+                print('number of unrelaxed in current generation: ', relaxed_num_strus_gen)
                 print('number of running jobs in current generation: ', cur_jobs_running)
-                while (
-                    self.pbs_run.number_of_jobs_running() + relaxed_num_strus_gen < population_size
-                ):
-                    self.reproduce()
+                if relaxed_num_strus_gen == self.population_size:
+                    # TODO: can be aggressive, reproduce when relaxed structures are available
+                    print("finished current generation and try to reproduce...")
+                    while (
+                        self.pbs_run.number_of_jobs_running() + relaxed_num_strus_gen < population_size
+                    ):
+                        self.reproduce()
+                    else:
+                        print('enough jobs are running for current generation...')
                 else:
-                    print('enough jobs are running for current generation...')
+                    print("not finished relaxing current generation...")
 
             else:
                 # local
@@ -557,10 +583,11 @@ class GeneticAlgorithemEngine():
         self.pbs_run = SlurmQueueRun(
             self.da,
             tmp_folder=self.CALC_DIRNAME,
-            n_simul=20,
+            n_simul=20, # TODO: change this to population size
             incar = self.calc_dict['incar'],
             prefix = self.calc_dict['prefix'] # TODO: move to input json
         )
+        # constraint comes along with self.slab when writing vasp-POSCAR
 
         return
 
@@ -713,7 +740,7 @@ class GeneticAlgorithemEngine():
         print(f"Finished creating initial population with {nfailed} attempts...")
 
         # create the database to store information in
-        d = PrepareDB(
+        da = PrepareDB(
             db_file_name = self.db_name,
             simulation_cell = self.slab,
             stoichiometry = self.atom_numbers_to_optimize
@@ -721,19 +748,21 @@ class GeneticAlgorithemEngine():
 
         print('save population to database')
         for a in starting_population:
-            d.add_unrelaxed_candidate(a)
+            da.add_unrelaxed_candidate(a)
         
         # TODO: change this to the DB interface
         print("save population size {0} into database...".format(population_size))
-        row = d.c.get(1)
+        row = da.c.get(1)
         new_data = row['data'].copy()
         new_data['population_size'] = population_size
-        d.c.update(1, data=new_data)
+        da.c.update(1, data=new_data)
+
+        self.da = DataConnection(self.db_name)
 
         return
     
-    def add_random_structures(self):
-        """ add random structures into database
+    def add_seed_structures(self, spath):
+        """ add structures into database
             can be done during any time in global optimisation
         """
 
@@ -751,6 +780,7 @@ class GeneticAlgorithemEngine():
             population_size = population_size,
             comparator = self.comp
         )
+        self.population_size = population_size
 
         # print out population info
         #frames = self.population.get_current_population()
