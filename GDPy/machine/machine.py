@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from os import register_at_fork
+from importlib.resources import path
 import re
+import subprocess
 import json
 import pathlib
 
@@ -12,17 +13,41 @@ from abc import ABC
 from abc import abstractmethod
 from typing import NoReturn
 
+from GDPy.utils.command import parse_input_file
+
 class AbstractMachine(ABC):
+
+    PREFIX = None
+    SUFFIX = None
+    SHELL = None
+    SUBMIT_COMMAND = None
 
     def write_script(self):
         pass
 
     @abstractmethod
     def parse_params(self, *args, **kwargs):
-        pass
+        return
 
     def register_mode(self, *args):
-        pass
+        return
+
+    def submit(self, script_path):
+        """submit job using specific machine command"""
+        # submit job
+        command = "{0} {1}".format(self.SUBMIT_COMMAND, script_path.name)
+        proc = subprocess.Popen(
+            command, shell=True, cwd=script_path.parent,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            encoding = "utf-8"
+        )
+        errorcode = proc.wait(timeout=10) # 10 seconds
+        if errorcode:
+            raise ValueError("Error in submit job script %s" %script_path)
+
+        output = "".join(proc.stdout.readlines())
+
+        return output
 
 class LocalMachine(AbstractMachine):
 
@@ -43,72 +68,91 @@ class SlurmMachine(AbstractMachine):
     PREFIX = "#SBATCH"
     SUFFIX = ".slurm"
     SHELL = "#!/bin/bash -l"
+    SUBMIT_COMMAND = "sbatch"
 
-    registered_keywords = [
-        'job-name',
-        'partition',
-        'time',
-        'nodes',
-        'ntasks',
-        'cpus-per-task',
-        'gres',
-        'output',
-        'error'
+    # full name starts with --
+    full_keywords = [ 
+        "job-name",
+        "partition",
+        "time",
+        "nodes",
+        "ntasks",
+        "cpus-per-task",
+        "mem-per-cpu",
+        "gres",
+        "output",
+        "error"
     ]
 
-    default_params = {
-        'job-name': 'slurm',
-        'partition': None,
-        'time': None,
-        'nodes': None,
-        'ntasks': None,
-        'cpus-per-task': None,
-        'output': 'slurm.o%j',
-        'error': 'slurm.e%j'
+    default_cpu_parameters = {
+        "job-name": "slurmJob",
+        "partition": None,
+        "time": None,
+        "nodes": None,
+        "ntasks": None,
+        "cpus-per-task": None,
+        "mem-per-cpu": "4G",
+        "output": "slurm.o%j",
+        "error": "slurm.e%j"
     }
 
-    extra_gpu_params = {
-        'gres': None
+    extra_gpu_parameters = {
+        "gres": None,
+        "mem-per-gpu": "32G"
     }
 
     user_commands = None
 
-    def __init__(self, machine_json):
+    def __init__(self, use_gpu=False):
         """"""
-        self.machine_dict = self.default_params.copy()
-
-        machine_json = pathlib.Path(machine_json)
-
-        if machine_json.suffix == 'json':
-            with open(machine_json, 'r') as fopen:
-                self.machine_dict = json.load(fopen)
-        elif machine_json.suffix == self.SUFFIX:
-            self.read(machine_json)
+        # make default machine dict
+        self.machine_dict = self.default_cpu_parameters.copy()
+        if use_gpu:
+            self.machine_dict.update(self.extra_gpu_parameters)
         
         return
 
     def __str__(self):
+        """job script"""
         content = self.SHELL + '\n'
         for key, value in self.machine_dict.items():
             if value:
-                content += '{} --{}={}\n'.format(self.PREFIX, key, value)
+                content += "{} --{}={}\n".format(self.PREFIX, key, value)
             else:
-                raise ValueError('Keyword %s not properly set.' %key)
+                raise ValueError("Keyword *%s* not properly set." %key)
         
         if self.user_commands:
+            content += "\n\n"
             content += self.user_commands
         else:
-            raise ValueError('not initialise properly')
+            raise ValueError("No user commands.")
 
         return content
 
     def parse_params(self):
-        pass
 
-    def read(self, slurm_file):
+        return
+    
+    def update(self, machine_input):
+        """update machine parameters"""
+        machine_input = pathlib.Path(machine_input)
+        machine_dict = parse_input_file(machine_input)
+
+        if machine_dict:
+            # TODO: set kwargs instead of overwrite
+            # self.machine_dict = machine_dict
+            pass
+        elif machine_input.suffix == self.SUFFIX:
+            self.__read(machine_input)
+
+        return
+
+    def __read(self, slurm_file):
         """ read slurm file and update machine params
+            for now, only support keywords start from --
         """
-        with open(slurm_file, 'r') as fopen:
+        # read file
+        with open(slurm_file, "r") as fopen:
             lines = fopen.readlines()
         
         # find keywords
@@ -123,31 +167,30 @@ class SlurmMachine(AbstractMachine):
         # update params with sbatch lines
         for line in sbatch_lines:
             sbatch_data = line.strip().split()[1] # pattern: #SBATCH --option=value 
-            key, value = sbatch_data.strip().split('=')
-            if key.startswith('--'):
-                key = key.strip('--')
+            key, value = sbatch_data.strip().split("=")
+            if key.startswith("--"):
+                key = key.strip("--")
                 self.machine_dict[key] = value
-            elif key.startswith('-'):
-                raise NotImplementedError('Unknown keyword %s' %key)
+            elif key.startswith("-"):
+                raise NotImplementedError("Not support abbrev keyword %s" %key)
             else:
-                raise ValueError('Unknown keyword %s' %key)
+                raise ValueError("Wrong format keyword %s" %key)
+        
+        # TODO: module lines
+        # TODO: environs start with export
+        # TODO: python lines start with conda
         
         # update user commands
-        self.user_commands = ''.join(command_lines)
+        self.user_commands = "".join(command_lines)
 
         return
 
     def write(self, script_path):
         """"""
-        with open(script_path, 'w') as fopen:
+        with open(script_path, "w") as fopen:
             fopen.write(str(self))
 
         return
-
-    def submit_script(self):
-        """ submit jobs and taks job ids
-        """
-        pass
 
     def check_status(self):
         pass
@@ -181,9 +224,8 @@ class PbsMachine(AbstractMachine):
 
         return content
 
-if __name__ == '__main__':
-    vasp_slurm = SlurmMachine('../../templates/inputs/machine.json')
-    vasp_slurm.read('../../templates/jobscripts/vasp.slurm')
+if __name__ == "__main__":
+    # test slurm machine
+    vasp_slurm = SlurmMachine(use_gpu=False)
+    vasp_slurm.update("/users/40247882/scratch2/alumina-revised/GA/run-vasp/vasp.slurm")
     print(vasp_slurm)
-    #vasp_slurm.write_script()
-    pass
