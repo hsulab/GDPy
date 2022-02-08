@@ -154,7 +154,7 @@ def create_copt(atoms):
 
     return content
 
-def create_slurm(directory, partition='k2-medpri', time='24:00:00', ncpus='32'):
+def create_slurm(directory, partition='k2-medpri', time='24:00:00', ncpus=32):
     """create job script"""
     content = "#!/bin/bash -l \n"
     content += "#SBATCH --partition=%s        # queue\n" %partition 
@@ -163,7 +163,7 @@ def create_slurm(directory, partition='k2-medpri', time='24:00:00', ncpus='32'):
     content += "#SBATCH --nodes=1                    # Number of nodes\n"
     content += "#SBATCH --ntasks=%s                  # Number of cores\n" %ncpus
     content += "#SBATCH --cpus-per-task=1            # Number of cores per MPI task \n"
-    content += "#SBATCH --mem=10G                    # Number of cores per MPI task \n"
+    content += "#SBATCH --mem-per-cpu=4G             # Number of cores per MPI task \n"
     content += "#SBATCH --output=slurm.o%j           # Standard output and error log\n"
     content += "#SBATCH --error=slurm.e%j            # Standard output and error log\n"
     content += "\n"
@@ -174,7 +174,7 @@ def create_slurm(directory, partition='k2-medpri', time='24:00:00', ncpus='32'):
     content += "module load mpi/intel-mpi/2016u1/bin\n"
     content += "\n"
     content += 'echo `date "+%Y-%m-%d %H:%M:%S"` `pwd` >> $HOME/submitted\n'
-    content += "mpirun -n 32 /mnt/scratch/chemistry-apps/dkb01416/vasp/installed/intel-2016/5.4.1-TS/vasp_std 2>&1 > vasp.out\n"
+    content += "mpirun -n %s /mnt/scratch2/chemistry-apps/dkb01416/vasp/installed/intel-2016/5.4.1-TS/vasp_std 2>&1 > vasp.out\n" %str(ncpus)
     content += 'echo `date "+%Y-%m-%d %H:%M:%S"` `pwd` >> $HOME/finished\n'
 
     with open(os.path.join(directory,'vasp.slurm'), 'w') as fopen:
@@ -185,14 +185,14 @@ def create_slurm(directory, partition='k2-medpri', time='24:00:00', ncpus='32'):
 def create_by_ase(atoms, incar=None, directory=Path('vasp-test')):
     # ===== environs
     # pseudo 
-    pp_path = "/mnt/scratch/chemistry-apps/dkb01416/vasp/PseudoPotential"
+    pp_path = "/mnt/scratch2/chemistry-apps/dkb01416/vasp/PseudoPotential"
     if 'VASP_PP_PATH' in os.environ.keys():
         os.environ.pop('VASP_PP_PATH')
     os.environ['VASP_PP_PATH'] = pp_path
     
     # vdw 
     vdw_envname = 'ASE_VASP_VDW'
-    vdw_path = "/mnt/scratch/chemistry-apps/dkb01416/vasp/pot"
+    vdw_path = "/mnt/scratch2/chemistry-apps/dkb01416/vasp/pot"
     if vdw_envname in os.environ.keys():
         _ = os.environ.pop(vdw_envname)
     os.environ[vdw_envname] = vdw_path
@@ -216,7 +216,7 @@ def create_by_ase(atoms, incar=None, directory=Path('vasp-test')):
 
     # write job script
     # TODO: replace by SlurmMachine
-    create_slurm(directory, time="12:00:00")
+    create_slurm(directory, partition="k2-medpri", time="12:00:00")
 
     return
 
