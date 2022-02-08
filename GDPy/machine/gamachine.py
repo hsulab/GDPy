@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*
 
 import os
+import re
 import pathlib
 import shutil
 import time
@@ -15,6 +16,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from numpy.core.numeric import outer
 
 from GDPy.ga.make_all_vasp import create_by_ase
+from GDPy.calculator.vasp import read_sort
 
 
 def check_convergence(atoms, fmax=0.05):
@@ -30,25 +32,6 @@ def check_convergence(atoms, fmax=0.05):
 
     return converged
 
-# vasp utils
-def read_sort(directory):
-    """Create the sorting and resorting list from ase-sort.dat.
-    If the ase-sort.dat file does not exist, the sorting is redone.
-    """
-    sortfile = directory / 'ase-sort.dat'
-    if os.path.isfile(sortfile):
-        sort = []
-        resort = []
-        with open(sortfile, 'r') as fd:
-            for line in fd:
-                s, rs = line.split()
-                sort.append(int(s))
-                resort.append(int(rs))
-    else:
-        # warnings.warn(UserWarning, 'no ase-sort.dat')
-        raise ValueError('no ase-sort.dat')
-
-    return sort, resort
 
 class SlurmQueueRun:
 
@@ -141,8 +124,9 @@ class SlurmQueueRun:
             if name.startswith(self.prefix) and status in ['R','Q','PD']:
                 #print(jobid)
                 #print(name)
-                confid = name.strip(self.prefix)
-                #print(confid)
+                indices = re.match(self.prefix+"*", name).span()
+                if indices is not None:
+                    confid = int(name[indices[1]:])
                 confids.append(int(confid))
         #print(len(confids))
 
