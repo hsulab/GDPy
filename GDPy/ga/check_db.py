@@ -28,15 +28,6 @@ exit()
 #    #rowdict['generation'] = 1
 #    da.c.update(rowid, generation=1)
 
-# check queued
-#for idx, row in enumerate(da.c.select('queued=1')):
-#    print(idx, ' ', row['id'])
-#    print(row['key_value_pairs'])
-
-#for idx, row in enumerate(da.c.select('pairing=1')):
-#    print(idx, ' ', row['id'])
-#    #print(row['key_value_pairs'])
-#    print(row['data'])
 #
 #exit()
 

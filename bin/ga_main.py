@@ -3,6 +3,7 @@
 
 import json
 import pathlib
+from typing import overload
 import yaml
 import argparse
 import datetime
@@ -13,6 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     'INPUT', default='ga.json', help='genetic algorithem inputs'
 )
+
 parser.add_argument(
     '-r', '--run', action='store_true',
     help='run GA procedure'
@@ -22,6 +24,12 @@ parser.add_argument(
     help='check status'
 )
 parser.add_argument(
+    "--seed", default=None,
+    help="add seed structures to the database"
+)
+
+# postprocess
+parser.add_argument(
     '--report', action='store_true',
     help='generate report procedure'
 )
@@ -29,6 +37,24 @@ parser.add_argument(
 parser.add_argument(
     "--refine", type=int, default=0,
     help='refine the most promising structures for accurate calculation'
+)
+
+# subcommands in the entire workflow 
+subparsers = parser.add_subparsers(
+    title="available subcommands", 
+    dest="subcommand", 
+    help="sub-command help"
+)
+
+# --- statistics the dataset 
+parser_data = subparsers.add_parser(
+    "data",
+    help="database operations"
+)
+parser_data.add_argument(
+    "-rq", "--remove_queued", default = None, 
+    nargs="*", type=int,
+    help="remove data in queue from database"
 )
 
 args = parser.parse_args()
@@ -52,11 +78,14 @@ print("See params.json for values of all parameters...")
 gae = GeneticAlgorithemEngine(ga_dict)
 print("initialise GA engine at ", datetime.datetime.now())
 
+if args.subcommand == "data":
+    gae.operate_database(args.remove_queued)
+
 if args.check:
     gae.check_status()
 
 if args.run:
-    gae.run()
+    gae.run(args.seed)
 
 if args.report:
     gae.report()

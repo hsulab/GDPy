@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from os import remove
 from random import random
 import pathlib
 from pathlib import Path
 import warnings
+import json
+
 import numpy as np
 
 import ase.data
@@ -25,6 +28,7 @@ from ase.ga.standardmutations import MirrorMutation, RattleMutation, Permutation
 from ase.ga.offspring_creator import OperationSelector
 
 from GDPy.machine.gamachine import SlurmQueueRun
+from GDPy.calculator.vasp import VaspQueue
 
 """
 Workflow
@@ -67,6 +71,13 @@ class GeneticAlgorithemEngine():
 
     MAX_REPROC_TRY = 10
 
+    # default settings
+    calc_dict = {
+        "machine": "slurm", # serial(local), slurm, pbs
+        "potential": "vasp", # vasp, lasp, eann, dp
+        "kwargs": None, # input parameters
+    }
+
     def __init__(self, ga_dict: dict):
         """"""
         self.ga_dict = ga_dict
@@ -87,6 +98,9 @@ class GeneticAlgorithemEngine():
         self.calc_dict = ga_dict["calculation"]
         self.machine = self.calc_dict["machine"]
 
+        # population
+        self.population_size = self.ga_dict["population"]["init_size"]
+
         return
     
     def __parse_system_parameters(self, ga_dict):
@@ -96,6 +110,47 @@ class GeneticAlgorithemEngine():
 
         # mutation operators
         self.mutation_dict = ga_dict["mutation"]
+
+        return
+    
+    def operate_database(self, removed_ids= None):
+        """data"""
+        self.da = DataConnection(self.db_name)
+
+        # check queued
+        print("before: ")
+        for idx, row in enumerate(self.da.c.select("queued=1")):
+            key_value_pairs = row["key_value_pairs"]
+            content = "id: {}  origin: {}  cand: {}".format(
+                "id", key_value_pairs["origin"], key_value_pairs["gaid"]
+            )
+            print(content)
+        
+        if removed_ids is not None:
+            # NOTE: some calculation may be abnormal when creating input files,
+            #       so remove queued and in next run it will be created again
+            for confid in removed_ids:    
+                print("remove ", confid)
+                self.da.remove_from_queue(confid)
+
+        print("after: ")
+        for idx, row in enumerate(self.da.c.select("queued=1")):
+            key_value_pairs = row["key_value_pairs"]
+            content = "id: {}  origin: {}  cand: {}".format(
+                "id", key_value_pairs["origin"], key_value_pairs["gaid"]
+            )
+            print(content)
+
+        # remove queued
+        #for confid in range(11,22):
+        #    print('confid ', confid)
+        #    da.remove_from_queue(confid)
+
+        # check pairing
+        #for idx, row in enumerate(da.c.select('pairing=1')):
+        #    print(idx, ' ', row['id'])
+        #    #print(row['key_value_pairs'])
+        #    print(row['data'])
 
         return
 
@@ -136,16 +191,21 @@ class GeneticAlgorithemEngine():
             # balh
             self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
             self.__restart()
+
+            print("\n\n===== register calculator =====")
+            self.__register_calculator()
+                
+            # TODO: population settings
+            self.form_population()
+
             # check current generation number
             cur_gen = self.da.get_generation_number()
+            print("current generation number: ", cur_gen)
+
             if self.machine == "serial":
-
                 # start minimisation
-                print("\n\n===== register calculator =====")
-                self.__register_calculator()
-
                 if cur_gen == 0:
-                    print("===== Initial Population =====")
+                    print("\n\n===== Initial Population =====")
                     while (self.da.get_number_of_unrelaxed_candidates()):
                         # calculate structures from init population
                         atoms = self.da.get_an_unrelaxed_candidate()
@@ -153,17 +213,15 @@ class GeneticAlgorithemEngine():
                         self.__run_local_optimisation(atoms)
                 
                 # start reproduce
-                self.form_population()
-                population_size = self.ga_dict["population"]["init_size"]
                 max_gen = self.ga_dict["convergence"]["generation"]
                 cur_gen = self.da.get_generation_number()
-                for ig in range(cur_gen,max_gen+1): # TODO-2
+                for ig in range(cur_gen, max_gen+1): # TODO-2
                     #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
                     print("===== Generation {0} =====".format(ig))
                     relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%ig)))
                     print('number of relaxed in current generation: ', relaxed_num_strus_gen)
                     # TODO: check remain population
-                    for j in range(relaxed_num_strus_gen, population_size):
+                    for j in range(relaxed_num_strus_gen, self.population_size):
                         print("  offspring ", j)
                         self.reproduce()
                 
@@ -174,55 +232,50 @@ class GeneticAlgorithemEngine():
                 all_relaxed_candidates = self.da.get_all_relaxed_candidates()
                 write(results / 'all_candidates.xyz', all_relaxed_candidates)
                 print("finished!!!")
+
             elif self.machine == "slurm":
-                # register machine and check jobs in virtual queue
-                self.register_machine()
-                self.pbs_run.check_status()
-                # TODO: if generation one and no relaxed ones, run_init_optimisation
-                # try mutation and pairing
-                self.form_population()
+                # check status
+                self.worker.check_status()
 
-                # TODO: check is the current population is full
-                cur_gen_num = self.da.get_generation_number()
-                print('generation number: ', cur_gen_num)
-
-                if cur_gen_num == 0:
-                    print("===== Initial Population =====")
+                if cur_gen == 0:
+                    print("\n\n===== Initial Population =====")
                     while (self.da.get_number_of_unrelaxed_candidates()):
                         # calculate structures from init population
                         atoms = self.da.get_an_unrelaxed_candidate()
-                        print("start to run structure %s" %atoms.info["confid"])
+                        print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                         # TODO: provide unified interface to mlp and dft
                         #self.__run_local_optimisation(atoms)
-                        self.pbs_run.relax(atoms)
+                        self.worker.relax(atoms)
 
-                max_gen = self.ga_dict['convergence']['generation']
-                if cur_gen_num > max_gen:
-                    print('reach maximum generation...')
+                max_gen = self.ga_dict["convergence"]["generation"]
+                if cur_gen > max_gen:
+                    print("reach maximum generation...")
                     exit()
 
                 #print(len(self.da.get_all_relaxed_candidates_after_generation(cur_gen_num)))
-                unrelaxed_num_strus_gen = len(list(self.da.c.select('unrelaxed=1,generation=%d'%cur_gen_num)))
-                relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%cur_gen_num)))
-                population_size = self.ga_dict['population']['init_size']
-                cur_jobs_running = self.pbs_run.number_of_jobs_running()
-                print('number of relaxed in current generation: ', relaxed_num_strus_gen)
-                print('number of unrelaxed in current generation: ', relaxed_num_strus_gen)
-                print('number of running jobs in current generation: ', cur_jobs_running)
+                unrelaxed_strus_gen = list(self.da.c.select('unrelaxed=1,generation=%d'%cur_gen))
+                unrelaxed_num_strus_gen = len(unrelaxed_strus_gen)
+                relaxed_strus_gen = list(self.da.c.select('relaxed=1,generation=%d'%cur_gen))
+                relaxed_num_strus_gen = len(relaxed_strus_gen)
+                cur_jobs_running = self.worker.number_of_jobs_running()
+                print("number of relaxed in current generation: ", relaxed_num_strus_gen)
+                print(relaxed_strus_gen)
+                print("number of unrelaxed in current generation: ", unrelaxed_num_strus_gen)
+                print(relaxed_strus_gen)
+                print("number of running jobs in current generation: ", cur_jobs_running)
                 if relaxed_num_strus_gen == self.population_size:
                     # TODO: can be aggressive, reproduce when relaxed structures are available
                     print("finished current generation and try to reproduce...")
                     while (
-                        self.pbs_run.number_of_jobs_running() + relaxed_num_strus_gen < population_size
+                        self.worker.number_of_jobs_running() + relaxed_num_strus_gen < self.population_size
                     ):
                         self.reproduce()
                     else:
-                        print('enough jobs are running for current generation...')
+                        print("enough jobs are running for current generation...")
                 else:
                     print("not finished relaxing current generation...")
 
             else:
-                # local
                 pass
 
         return
@@ -484,16 +537,24 @@ class GeneticAlgorithemEngine():
     def __register_calculator(self):
         """ register serial calculator and optimisation worker
         """
-        model = self.calc_dict["potential"]["model"]
-        if model == "lasp":
+        potential = self.calc_dict["potential"]
+        if potential == "lasp":
+            # lasp has different backends (ase, lammps, lasp)
             from GDPy.calculator.lasp import LaspNN
             self.calc = LaspNN(**self.calc_dict["kwargs"])
-        elif model == "eann": # and inteface to lammps
+        elif potential == "eann": # and inteface to lammps
+            # eann has different backends (ase, lammps)
             from GDPy.calculator.lammps import Lammps
             self.calc = Lammps(
                 **self.calc_dict["kwargs"],
                 pair_style = self.calc_dict["potential"]
             )
+        # DFT methods
+        elif potential == "vasp":
+            from GDPy.calculator.vasp import VaspMachine
+            with open(self.calc_dict["kwargs"], "r") as fopen:
+                input_dict = json.load(fopen)
+            self.calc = VaspMachine(**input_dict)
         else:
             raise ValueError("Unknown potential to calculation...")
         
@@ -519,17 +580,30 @@ class GeneticAlgorithemEngine():
                     self.cons_indices += "{}:{} ".format(s, e)
                 print("constraint indices: ", self.cons_indices)
         
-            if interface == "lammps":
+            if interface == "queue":
+                from GDPy.calculator.vasp import VaspQueue
+                self.worker = VaspQueue(
+                    self.da,
+                    tmp_folder = self.CALC_DIRNAME,
+                    vasp_machine = self.calc, # vasp machine
+                    n_simul = self.calc_dict["nparallel"], 
+                    prefix = self.calc_dict["prefix"],
+                    repeat = self.calc_dict["repeat"]
+                )
+            elif interface == "lammps":
                 from GDPy.calculator.lammps import LmpDynamics as dyn
                 # use lammps optimisation
+                self.worker = dyn(
+                    self.calc, directory=self.calc.directory
+                )
             elif interface == "lasp":
                 from GDPy.calculator.lasp import LaspDynamics as dyn
+                self.worker = dyn(
+                    self.calc, directory=self.calc.directory
+                )
             else:
                 raise ValueError("Unknown interface to optimisation...")
 
-            self.worker = dyn(
-                self.calc, directory=self.calc.directory
-            )
 
         return
 
@@ -549,6 +623,7 @@ class GeneticAlgorithemEngine():
         self.calc.directory = self.tmp_folder / ("cand" + str(confid))
         self.worker.set_output_path(self.calc.directory)
 
+        # TODO: may be move repeat to dynamics
         print(f"\nStart minimisation maximum try {repeat} times...")
         for i in range(repeat):
             print("attempt ", i)
@@ -577,19 +652,6 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def register_machine(self):
-        """register PBS/Slurm machine for computationally massive jobs"""
-        # The PBS queing interface is created
-        self.pbs_run = SlurmQueueRun(
-            self.da,
-            tmp_folder=self.CALC_DIRNAME,
-            n_simul=20, # TODO: change this to population size
-            incar = self.calc_dict['incar'],
-            prefix = self.calc_dict['prefix'] # TODO: move to input json
-        )
-        # constraint comes along with self.slab when writing vasp-POSCAR
-
-        return
 
     def __create_random_structure_generator(self) -> None:
         """ create a random structure generator
@@ -717,14 +779,11 @@ class GeneticAlgorithemEngine():
     def __create_initial_population(
             self, 
         ):
-        # unpack info
-        population_size = self.ga_dict['population']['init_size']
-
         # generate the starting population
         print("start to create initial population")
         nfailed = 0
         starting_population = []
-        while len(starting_population) < population_size:
+        while len(starting_population) < self.population_size:
             maxiter = 100
             candidate = self.generator.get_new_candidate(maxiter=maxiter)
             # TODO: add some geometric restriction here
@@ -751,10 +810,10 @@ class GeneticAlgorithemEngine():
             da.add_unrelaxed_candidate(a)
         
         # TODO: change this to the DB interface
-        print("save population size {0} into database...".format(population_size))
+        print("save population size {0} into database...".format(self.population_size))
         row = da.c.get(1)
         new_data = row['data'].copy()
-        new_data['population_size'] = population_size
+        new_data['population_size'] = self.population_size
         da.c.update(1, data=new_data)
 
         self.da = DataConnection(self.db_name)
@@ -773,14 +832,13 @@ class GeneticAlgorithemEngine():
         # set current population
         # usually, it should be the same as the initial size
         # but for variat composition search, a large init size can be useful
-        population_size = self.ga_dict['population']['init_size']
+
         # create the population
         self.population = Population(
             data_connection = self.da,
-            population_size = population_size,
+            population_size = self.population_size,
             comparator = self.comp
         )
-        self.population_size = population_size
 
         # print out population info
         #frames = self.population.get_current_population()
@@ -797,8 +855,6 @@ class GeneticAlgorithemEngine():
         # Submit new candidates until enough are running
         mutation_probability = self.mutation_dict["pmut"]
 
-        #while (not self.pbs_run.enough_jobs_running() and
-        #       len(self.population.get_current_population()) > 2):
         a1, a2 = self.population.get_two_candidates()
         for i in range(self.MAX_REPROC_TRY):
             # try 10 times
@@ -819,7 +875,7 @@ class GeneticAlgorithemEngine():
                     print("start to run structure %s" %a3.info["confid"])
                     self.__run_local_optimisation(a3)
                 elif self.machine == "slurm":
-                    self.pbs_run.relax(a3)
+                    self.worker.relax(a3)
                 else:
                     pass
                 break
