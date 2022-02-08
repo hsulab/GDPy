@@ -6,6 +6,12 @@ Potential Manager
 deals with various machine learning potentials
 """
 
+import json
+from re import M
+
+from numpy.random import triangular
+
+from GDPy.trainer.train_potential import find_systems, generate_random_seed
 import abc
 import pathlib
 from sys import implementation, path
@@ -132,6 +138,75 @@ class DPManager(AbstractPotential):
     def create_thermostat(self):
 
         return
+    
+    def create_ensemble(self):
+        """
+        """
+        # TODO: make these paramters
+        main_dict = []
+        iter_directory = ""
+        find_systems = ""
+        generate_random_seed = ""
+
+        # parse params
+        machine_json = main_dict['machines']['trainer']
+        num_models = main_dict['training']['num_models']
+        train_json = main_dict['training']['json']
+
+        # prepare dataset
+        """
+        xyz_files = []
+        for p in main_database.glob('*.xyz'):
+            xyz_files.append(p)
+    
+        frames = []
+        for xyz_file in xyz_files:
+            frames.extend(read(xyz_file, ':'))
+    
+        print(len(frames))
+        """
+
+        # find systems
+        # data_path = Path('/users/40247882/projects/oxides/gdp-main/merged-dataset/raw_data')
+        data_path = iter_directory / 'raw_data'
+        systems = find_systems(data_path)
+
+        # machine file
+        from ..machine.machine import SlurmMachine
+        slurm_machine = SlurmMachine(machine_json)
+
+        # read json
+        with open(train_json, 'r') as fopen:
+            params_dict = json.load(fopen)
+        # change seed and system dirs
+        ensemble_dir = iter_directory / 'ensemble'
+        ensemble_dir.mkdir()
+        for idx in range(num_models):
+            #print(params_dict)
+            model_dir = ensemble_dir / ('model-'+str(idx))
+            model_dir.mkdir()
+            seed = generate_random_seed()
+            params_dict['model']['descriptor']['seed'] = int(seed)
+            params_dict['model']['fitting_net']['seed'] = int(seed)
+
+            params_dict['training']['systems'] = [str(s) for s in systems]
+
+            with open(model_dir/'dp.json', 'w') as fopen:
+                json.dump(params_dict, fopen, indent=4)
+
+            # write machine 
+            #restart = True
+            restart = False
+            slurm_machine.machine_dict['job-name'] = 'model-'+str(idx)
+            if restart:
+                parent_model = '/users/40247882/projects/oxides/gdp-main/it-0008/ensemble/model-%d/model.ckpt' %idx
+                command = "dp train ./dp.json --init-model %s 2>&1 > dp.out" %parent_model
+                slurm_machine.machine_dict['command'] = command
+            else:
+                pass
+            slurm_machine.write(model_dir/'dptrain.slurm')
+
+        return
 
     def freeze_ensemble(self):
         """ freeze trained potentials
@@ -175,7 +250,9 @@ class EANNManager(AbstractPotential):
     name = "EANN"
     implemented_backends = ["ase", "lammps"]
 
-    def __init__(self, backend: str, models: Union[str, list], type_map: dict):
+    TRAIN_INPUT_NAME = "input_nn.json"
+
+    def __init__(self, backend: str, models: Union[str, list], type_map: dict, **kwargs):
         """ create a eann manager
         """
         self.backend = backend
@@ -188,6 +265,7 @@ class EANNManager(AbstractPotential):
         self.__check_uncertainty_support()
 
         self.type_map = type_map
+        self.type_list = list(type_map.keys())
 
         return
     
@@ -218,11 +296,10 @@ class EANNManager(AbstractPotential):
     def generate_calculator(self, atypes=None):
         """ generate calculator with various backends
         """
-        if self.backend == 'ase':
+        if self.backend == "ase":
             # return ase calculator
-            #from GDPy.calculator.dp import DP
-            #calc = DP(model=self.models, type_dict=self.type_map)
-            pass
+            from eann.interface.ase.calculator import Eann
+            calc = Eann(model=self.models, type_map=self.type_map)
         elif self.backend == "lammps":
             # return deepmd pair related content
             #content = "units           metal\n"
@@ -235,7 +312,50 @@ class EANNManager(AbstractPotential):
 
         return calc
     
+    def register_training(self, train_dict: dict):
+        """"""
+        self.dataset = train_dict["dataset"]
+        self.machine_file = train_dict["machine"]
+        with open(train_dict["input"], "r") as fopen:
+            self.train_input = json.load(fopen)
+        self.model_size = train_dict["model_size"]
+
+        return
+    
     def create_ensemble(self):
+        # preprocess the dataset
+
+        # machine file
+        from ..machine.machine import SlurmMachine
+        slurm_machine = SlurmMachine(self.machine_file)
+
+        # read json
+        cwd = pathlib.Path.cwd()
+        # change seed and system dirs
+        ensemble_dir = cwd / "ensemble"
+        ensemble_dir.mkdir()
+        for idx in range(self.model_size):
+            input_json = self.train_input.copy()
+            #print(params_dict)
+            model_dir = ensemble_dir / ('model-'+str(idx))
+            model_dir.mkdir()
+            # TODO: add input changes here
+            input_json["dataset"] = self.dataset
+
+            # write input
+            para_dir = model_dir / "para"
+            para_dir.mkdir()
+            with open(para_dir/self.TRAIN_INPUT_NAME, "w") as fopen:
+                json.dump(input_json, fopen, indent=4)
+
+            # write machine 
+            #restart = True
+            restart = False
+            slurm_machine.machine_dict['job-name'] = 'model-'+str(idx)
+            # see user_commands
+            # command = "python -u " 
+            # slurm_machine.machine_dict['command'] = command
+            slurm_machine.write(model_dir/'eann-train.slurm')
 
         return
 

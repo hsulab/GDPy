@@ -18,7 +18,7 @@ class PotManager():
         """
         # collect registered managers
         self.registered_potentials = {}
-        managers = importlib.import_module('GDPy.potential.potential')
+        managers = importlib.import_module("GDPy.potential.potential")
         for pot_name in self.potential_names:
             self.registered_potentials[pot_name] = getattr(managers, pot_name+self.SUFFIX)
 
@@ -33,12 +33,14 @@ class PotManager():
 
         return
     
-    def create_potential(self, pot_name, *args, **kwargs):
+    def create_potential(self, pot_name, train_dict=None, *args, **kwargs):
         """
         """
         if pot_name in self.potential_names:
             pot_class = self.registered_potentials[pot_name]
             potential = pot_class(*args, **kwargs)
+            if train_dict is not None:
+                potential.register_training(train_dict)
         else:
             raise NotImplementedError('%s is not registered as a potential.' %(pot_name))
 
@@ -49,9 +51,11 @@ def create_manager(input_json):
     # create potential manager
     with open(input_json, 'r') as fopen:
         pot_dict = json.load(fopen)
+    train_dict = pot_dict.get("training", None)
     mpm = PotManager() # main potential manager
     pm = mpm.create_potential(
-        pot_dict["name"], pot_dict["backend"], 
+        pot_dict["name"], train_dict,
+        pot_dict["backend"], 
         **pot_dict["kwargs"]
     )
     #print(pm.models)
