@@ -156,6 +156,67 @@ def sets2results(set_dirs, calc, chemical_symbols):
 
     return ref_energies, ref_forces, mlp_energies, mlp_forces
 
+def append_predictions(frames, calc = None, other_props = [], calc_uncertainty=False):
+    """ test xyz
+    """
+
+    tot_energies, tot_forces = [], {}
+    tot_props = {}
+
+    for atoms in frames: # free energy per atom
+        # set calculator
+        calc_atoms = atoms.copy()
+        if calc is not None:
+            calc.reset()
+            if calc_uncertainty:
+                calc.calc_uncertainty = True # EANN specific
+            calc_atoms.calc = calc
+            new_forces = calc_atoms.get_forces()
+            new_energy = calc_atoms.get_potential_energy()
+            atoms.info["mlp_energy"] = new_energy
+            atoms.arrays["mlp_forces"] = new_forces.copy()
+        
+    return frames
+
+def merge_forces(frames):
+    """ convert forces of all frames into a dict,
+        which helps further comparison
+    """
+    tot_forces = {}
+    for atoms in frames: # free energy per atom
+        # basic info
+        symbols = atoms.get_chemical_symbols()
+
+        # force
+        forces = atoms.get_forces().copy()
+        for sym, force in zip(symbols, forces.tolist()):
+            if sym in tot_forces.keys():
+                tot_forces[sym].extend(force)
+            else:
+                tot_forces[sym] = force
+
+    return tot_forces
+
+def merge_predicted_forces(frames):
+    """ convert forces of all frames into a dict,
+        which helps further comparison
+    """
+    tot_forces = {}
+    for atoms in frames: # free energy per atom
+        # basic info
+        symbols = atoms.get_chemical_symbols()
+
+        # force
+        forces = atoms.arrays["mlp_forces"].copy()
+        for sym, force in zip(symbols, forces.tolist()):
+            if sym in tot_forces.keys():
+                tot_forces[sym].extend(force)
+            else:
+                tot_forces[sym] = force
+
+    return tot_forces
+
+
 def xyz2results(frames, calc = None, other_props = []):
     """ test xyz
     """
