@@ -211,7 +211,9 @@ class LaspNN(FileIOCalculator):
 
 
 if __name__ == "__main__":
-    atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/xxx.xyz")
+    # atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/xxx.xyz")
+    atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/ga-surface/PGM.xyz")
+
     pot_path = "/mnt/scratch2/users/40247882/catsign/lasp-main/ZnCrO.pot"
     pot = dict(
         O  = pot_path,
@@ -228,17 +230,20 @@ if __name__ == "__main__":
     print("initial energy: ", atoms.get_potential_energy())
     # print(atoms.get_forces())
 
-    constraint = "1:24 49:72"
+    # constraint = "1:24 49:72"
+    constraint = "1:12 51:62"
 
     # use LaspDynamics
     st = time.time()
     worker = LaspDynamics(calc, directory=calc.directory)
-    new_atoms, min_results = worker.minimise(atoms, fmax=0.05, steps=10, constraint=constraint)
+    new_atoms, min_results = worker.minimise(atoms, fmax=0.05, steps=100, constraint=constraint)
     et = time.time()
     #print(new_atoms.get_forces())
     print(new_atoms.get_potential_energy())
     print(min_results)
     print("time: ", et - st)
+
+    write("PGM_opt.xyz", new_atoms)
 
     exit()
 
