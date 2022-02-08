@@ -336,7 +336,7 @@ class ReactionValidator(AbstractValidator):
             final = prepared_images[-1].copy()
             self.calc.reset()
             final.calc = self.calc
-            dyn = dyn_cls(initial)
+            dyn = dyn_cls(final) # fix a bug
             dyn.run(**dyn_params)
             print("FS energy: ", final.get_potential_energy())
 
@@ -503,6 +503,7 @@ class SinglePointValidator(AbstractValidator):
 
                 # run dp calculation
                 frames = read(stru_path, ":")
+                natoms_array = [len(a) for a in frames]
                 volumes = [a.get_volume() for a in frames]
                 dft_energies = [a.get_potential_energy() for a in frames]
 
@@ -513,8 +514,8 @@ class SinglePointValidator(AbstractValidator):
                     mlp_energies.append(a.get_potential_energy())
 
                 # save to data file
-                data = np.array([volumes, dft_energies, mlp_energies]).T
-                np.savetxt(fname, data, fmt="%12.4f", header="Prop DFT MLP")
+                data = np.array([natoms_array, volumes, dft_energies, mlp_energies]).T
+                np.savetxt(fname, data, fmt="%12.4f", header="natoms Prop DFT MLP")
 
                 self.plot_dimer(
                     "Bulk EOS", volumes, 
