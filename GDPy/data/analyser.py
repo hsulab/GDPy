@@ -44,6 +44,17 @@ use DeepEval to check uncertainty
 
 """
 
+def estimate_number_composition():
+    mini = 320
+    base = 32
+
+
+    for coef in range(1,19):
+        #print(mini*coef**0.5)
+        print(np.ceil(mini*coef**0.5/base)*base)
+
+    return
+
 
 def check_convergence(forces):
     """
