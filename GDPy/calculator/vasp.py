@@ -318,7 +318,7 @@ class VaspQueue:
         for line in lines[1:]: # skipe first info line
             data = line.strip().split()
             jobid, name, status = data[0], data[2], data[3]
-            if name.startswith(self.prefix) and status in ['R','Q','PD']:
+            if name.startswith(self.prefix) and status in ['R','Q','PD']: # TODO: move status to machine itself
                 #print(jobid)
                 #print(name)
                 indices = re.match(self.prefix+"*", name).span()
@@ -359,7 +359,11 @@ class VaspQueue:
 
             # check forces
             if isinstance(atoms, Atoms):
-                if check_convergence(atoms, fmax=self.vasp_machine.fmax): # check geometric convergence
+                energy = atoms.get_potential_energy()
+                forces = atoms.get_forces()
+                maxforce = np.max(np.fabs(forces))
+                print("energy: {:.4f}  maxforce: {:.4f}".format(energy, maxforce))
+                if maxforce <= self.vasp_machine.fmax: # check geometric convergence
                     print('save this configuration to the database')
                     atoms.info['confid'] = confid
                     # add few information
