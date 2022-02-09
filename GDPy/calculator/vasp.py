@@ -27,6 +27,27 @@ from GDPy.machine.machine import SlurmMachine
 """ wrap ase-vasp into a few utilities
 """
 
+def collect_vasp():
+    cwd = Path.cwd()
+    for p in cwd.glob("*"):
+        vasprun = p / "vasprun.xml"
+        if vasprun.exists():
+            print("==== {} =====".format(p))
+            frames = read(vasprun, ":")
+            atoms = frames[-1]
+            forces = atoms.get_forces()
+            maxforce = np.max(np.fabs(forces))
+            if maxforce < 0.05:
+                print("energy: ", atoms.get_potential_energy())
+                write(p.name + "_opt.xsd", atoms)
+                write(p.name + "_optraj.xtd", frames)
+                write(p.name + "_optraj.xyz", frames)
+            else:
+                print("not converged: ")
+                write(p.name + "_failed.xtd", frames)
+
+    return
+
 
 # vasp utils
 def read_sort(directory):
