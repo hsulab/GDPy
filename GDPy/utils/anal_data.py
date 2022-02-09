@@ -23,7 +23,7 @@ if __name__ == "__main__":
         help = "main directory that contains systemwise xyz files"
     )
     parser.add_argument(
-        "-n", "--name", 
+        "-n", "--name", default = "ALL",
         help = "system name"
     )
     parser.add_argument(
@@ -69,6 +69,16 @@ if __name__ == "__main__":
         default = 0.0, type = float,
         help = "add energy correction for each structure"
     )
+    parser_compress.add_argument(
+        "-sp", "--selection_params", 
+        default = -1, type=int,
+        help = "paramter json "
+    )
+    parser_compress.add_argument(
+        "-cons", "--constraint", 
+        default = -1, type=int,
+        help = "constraint indices"
+    )
 
     # --- reduce the dataset using iterative training and cur decomposition
     parser_reduce = subparsers.add_parser(
@@ -91,6 +101,10 @@ if __name__ == "__main__":
         "calc", 
         help="calculate structures with machine learning potential"
     )    
+    parser_calc.add_argument(
+        "-m", "--mode", 
+        help = "calculation mode"
+    )
 
     parser_plot = subparsers.add_parser(
         "plot", 
@@ -102,10 +116,16 @@ if __name__ == "__main__":
     # ====== start working =====
     # create data analyser class and read related structures
     do = DataOperator(args.name)
-    do.frames = do.read_frames(
-        pathlib.Path(args.main_dir) / args.name,
-        pattern = args.pattern
-    )
+    if args.name != "ALL":
+        do.frames = do.read_frames(
+            pathlib.Path(args.main_dir) / args.name,
+            pattern = args.pattern
+        )
+    else:
+        do.frames = do.read_all_frames(
+            pathlib.Path(args.main_dir), 
+            pattern = args.pattern
+        )
     do.remove_large_force_structures()
 
     # load potential
@@ -117,15 +137,23 @@ if __name__ == "__main__":
         calc = pm.generate_calculator(atypes)
     else:
         calc = None
+    
+    do.register_calculator(calc)
 
     if args.subcommand == "stat":
         do.check_xyz()
     elif args.subcommand == "compress":
-        #do.compress_frames(args.number, None, args.energy_shift)
-        do.compress_based_on_deviation(calc, args.energy_tolerance, args.energy_shift)
+        if calc is None:
+            print("use descriptor-based dataset compression...")
+            do.compress_frames(args.number, None, args.energy_shift)
+        else:
+            print("use calculator-assisted dataset compression...")
+            do.compress_based_on_deviation(
+                calc, args.number, args.energy_tolerance, args.energy_shift
+            )
     elif args.subcommand == "calc":
         # perform operations
-        mode = "simple"
+        mode = args.mode
         if mode == "reduce":
             # compare trained and untrained structures if related info are known
             used_frames, other_frames = do.split_frames(args.count)
@@ -136,8 +164,7 @@ if __name__ == "__main__":
             #do.test_frames(do.frames, calc, exists_data=True, saved_figure=f"{args.name}-all.png")
             fig_name = Path(args.main_dir).resolve().name + "-" + f"{args.name}-all.png"
             print(fig_name)
-            do.test_frames(do.frames, calc, exists_data=False, saved_figure=fig_name)
+            do.test_frames(fig_name)
             #do.check_xyz()
         elif mode == "uncertainty":
-            do.test_uncertainty_consistent(do.frames, calc, args.name+"m-svar.png")
-            #do.test_uncertainty_evolution(do.frames, calc, "m-svar.xyz")
+            do.test_uncertainty_consistent(do.frames, calc, args.name+"-m-svar.png")

@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from GDPy.utils.ClusterAndCUR import frames2features
 import argparse
 from pathlib import Path
 from collections import Counter
 from itertools import groupby
+import pathlib
+
+from typing import Union
 
 import time
 
@@ -18,10 +22,11 @@ from joblib import Parallel, delayed
 import matplotlib as mpl
 mpl.use('Agg') #silent mode
 from matplotlib import pyplot as plt
+plt.style.use('presentation') # mpl style on kelvin2
 
-from ase import Atoms
 from ase.io import read, write
-from ase.calculators.singlepoint import SinglePointCalculator
+
+from GDPy.utils.data.dpsets import find_systems_set
 
 """
 split total dataset into systemwise one
@@ -33,6 +38,7 @@ from xyz
 
 from dp set
 """
+
 
 def scatter_hist(x, y, ax, ax_histx, ax_histy):
     # no labels
@@ -50,90 +56,6 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy):
     bins = np.arange(-lim, lim + binwidth, binwidth)
     ax_histx.hist(x, bins=bins)
     ax_histy.hist(y, bins=bins, orientation='horizontal')
-
-    return
-
-def check_atoms(atoms, chosen_counts):
-    symbol_counts = Counter(atoms.get_chemical_symbols())
-    # find 
-    if symbol_counts == chosen_counts:
-        return atoms
-    else:
-        return None
-
-def find_systems(xyz_path, njobs=4):
-    chosen_frames = []
-    chosen_counts = {'O': 1, 'Pt': 36} # O on 3x3 Pt(111) surface
-
-    name = ''.join([str(key)+str(value) for key, value in chosen_counts.items()])
-    print(name)
-    out_xyz = Path(name + '.xyz')
-
-    #if out_xyz.exists():
-    #    chosen_frames = read(out_xyz, ':')
-    #else:
-    #    frames = read(xyz_path, ':')
-    frames = read(xyz_path, ':')
-    
-    st = time.time()
-    chosen_frames = Parallel(n_jobs=njobs)(
-        delayed(check_atoms)(atoms, chosen_counts) for atoms in frames
-    )
-    et = time.time()
-    print('time: ', et - st)
-    chosen_frames = [atoms for atoms in chosen_frames if atoms is not None]
-
-    energies = []
-    for atoms in chosen_frames:
-        energies.append(atoms.get_potential_energy())
-
-    write(name+'.xyz', chosen_frames)
-
-def find_systems_set(raw_path, chosen, njobs=4):
-    raw_path = Path(raw_path)
-    for p in raw_path.iterdir():
-        # slower than re, re.findall(r'[0-9]+|[a-z]+',s)
-        # cur_system = [''.join(list(g)) for k, g in groupby(p.name, key=lambda x: x.isdigit())] 
-        if p.name == chosen:
-            cur_system = p
-            break
-    
-    set_dirs = []
-    for p in cur_system.glob('set*'):
-        set_dirs.append(p)
-    set_dirs.sort()
-
-    #inverse_type_map = dict(zip())
-    inverse_type_map = {0: 'O', 1: 'Pt'}
-    atype = np.loadtxt(cur_system / 'type.raw', dtype=int)
-    print(atype)
-    chemical_symbols = [inverse_type_map[a] for a in atype]
-
-    # train data
-    total_frames = []
-    boxes, coords, energies, forces = [], [], [], []
-    for set_dir in set_dirs[:-1]:
-        #boxes.extend( np.load(set_dir / 'box.npy') )
-        #coords.extend( np.load(set_dir / 'coord.npy') )
-        #energies.extend( np.load(set_dir / 'energy.npy') )
-        #forces.extend( np.load(set_dir / 'force.npy') )
-        boxes = np.load(set_dir / 'box.npy')
-        coords = np.load(set_dir / 'coord.npy')
-        energies = np.load(set_dir / 'energy.npy')
-        forces = np.load(set_dir / 'force.npy')
-        nframes = boxes.shape[0]
-        print('nframes', nframes)
-        for i in range(nframes):
-            cell = boxes[i,:].reshape(3,3)
-            positions = coords[i,:].reshape(-1,3)
-            atoms = Atoms(symbols=chemical_symbols, positions=positions, cell=cell)
-            results = {'energy': energies[i], 'forces': forces[i,:].reshape(-1,3)}
-            spc = SinglePointCalculator(atoms, **results)
-            atoms.calc = spc
-            total_frames.append(atoms)
-    write(cur_system.name+'-train.xyz', total_frames)
-    
-    # form atoms
 
     return
 
@@ -158,12 +80,32 @@ def plot_stat():
 
     plt.savefig('miaow.png')
 
+def plot_overview(
+    frames, 
+    ftol: float =0.05
+):
+    """ force tolerance 0.05 for perfectly optimised structures 
+        while 0.10 for nearly optimised ones...
+    """
+    force_list = []
+    optimised_frames = []
+    for atoms in frames:
+        forces = atoms.get_forces()
+        maxforce = np.max(forces)
+        if maxforce < ftol:
+            optimised_frames.append(atoms)
+        force_list.extend(forces.flatten().tolist())
+
+    energies = [atoms.get_potential_energy() for atoms in frames]
+    print(len(energies))
+    opt_energies = [atoms.get_potential_energy() for atoms in optimised_frames]
+    print(len(opt_energies))
+
+    return energies, force_list
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-d', '--dir',
-        default='./', help='vasp calculation directory'
-    )
     parser.add_argument(
         '-f', '--file',
         default='./test.xyz', help='xyz file'
@@ -173,22 +115,86 @@ if __name__ == '__main__':
         help='chosen system, O 1 Pt 36'
     )
     parser.add_argument(
-        '-p', '--pattern',
-        default='vasp_0_*', help='vasp directory name pattern'
-    )
-    parser.add_argument(
         '-nj', '--njobs', type=int,
         default=4, help='upper limit on number of directories'
+    )
+    parser.add_argument(
+        '-ns', '--NotSave', action="store_false",
+        help='save xyz for dpsets'
+    )
+    parser.add_argument(
+        '-na', '--nall', action="store_false",
+        help='not save train and test togather'
     )
 
     args = parser.parse_args()
 
     # format chosen
     if len(args.chosen) % 2 == 0:
-        args.chosen = ''.join(args.chosen)
-        print('Choose system %s' %args.chosen)
+        chosen = ''.join(args.chosen)
+        print('Choose system %s' %chosen)
     else:
         raise ValueError('Wrong System Format')
 
     #find_systems(args.file, args.njobs)
-    find_systems_set(args.file, args.chosen, args.njobs)
+    raw_path = Path(args.file)
+    for p in raw_path.iterdir():
+        if p.name == chosen:
+            cur_system = p
+            break
+    
+    print('find ', cur_system)
+    if args.NotSave:
+        train_xyz = pathlib.Path(cur_system.stem + '-train.xyz')
+        test_xyz = pathlib.Path(cur_system.stem + '-test.xyz')
+        all_xyz = pathlib.Path(cur_system.stem + '-all.xyz')
+        if train_xyz.exists() and test_xyz.exists():
+            print('read existed frames...')
+            train_frames = read(train_xyz, ':')
+            test_frames = read(test_xyz, ':')
+        else:
+            print('read and save frames...')
+            train_frames, test_frames = find_systems_set(cur_system)
+            write(train_xyz, train_frames)
+            write(test_xyz, test_frames)
+            all_frames = []
+            all_frames.extend(train_frames)
+            all_frames.extend(test_frames)
+            if not args.nall:
+                write(all_xyz, all_frames)
+    else:
+        train_frames, test_frames = find_systems_set(cur_system)
+
+    # prepare to plot histogram
+    train_energies, train_forces = plot_overview(train_frames, ftol=0.10)
+    test_energies, test_forces = plot_overview(test_frames, ftol=0.10)
+
+    fig, axarr = plt.subplots(nrows=1, ncols=2, figsize=(16,12))
+    axarr = axarr.flatten()
+    
+    num_bins = 50
+
+    ax = axarr[0]
+    n, bins, patches = ax.hist(
+        train_energies, num_bins, density=False,
+        label = 'Trainset'
+    )
+    n, bins, patches = ax.hist(
+        test_energies, num_bins, density=False,
+        label = 'Testset'
+    )
+    ax.legend()
+
+    ax = axarr[1]
+    n, bins, patches = ax.hist(
+        train_forces, num_bins, density=False,
+        label = 'Trainset'
+    )
+    n, bins, patches = ax.hist(
+        test_forces, num_bins, density=False,
+        label = 'Testset'
+    )
+    ax.legend()
+
+
+    plt.savefig('ana.png')

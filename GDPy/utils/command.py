@@ -10,17 +10,21 @@ from typing import Union
 import json
 import yaml
 
-def run_command(directory, command, comment=''):
+def run_command(directory, command, comment="", timeout=None):
     proc = subprocess.Popen(
         command, shell=True, cwd=directory, 
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         encoding = "utf-8"
     )
-    errorcode = proc.wait() # 10 seconds
+    if timeout is None:
+        errorcode = proc.wait()
+    else:
+        errorcode = proc.wait(timeout=timeout)
+
     msg = "Message: " + "".join(proc.stdout.readlines())
     print(msg)
     if errorcode:
-        raise ValueError('Error in %s at %s.' %(comment, directory))
+        raise ValueError("Error in %s at %s." %(comment, directory))
     
     return msg
 

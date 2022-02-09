@@ -6,11 +6,15 @@ structure file + vasp script + job script
 """
 
 import argparse
+from os import DirEntry
 import warnings
 import shutil
+import subprocess
 from pathlib import Path
 
 from ase.io import read, write
+from ase.io.formats import define_io_format
+from GDPy.utils.command import run_command
 
 def current_slurm(name, stru_path, incar_name, indices=':'):
     """"""
@@ -18,7 +22,7 @@ def current_slurm(name, stru_path, incar_name, indices=':'):
     content += "#SBATCH --partition=k2-medpri        \n"
     content += "#SBATCH --job-name=%s       \n" %name
     content += "#SBATCH --nodes=1           \n"
-    content += "#SBATCH --ntasks=32         \n"
+    content += "#SBATCH --ntasks=64         \n" # TODO: set by input file
     content += "#SBATCH --time=24:00:00     \n"
     content += "#SBATCH --mem-per-cpu=4G    \n"
     content += "#SBATCH --output=slurm.o%j  \n"
@@ -29,7 +33,7 @@ def current_slurm(name, stru_path, incar_name, indices=':'):
     content += "\n"
     content += "export VASP_PP_PATH=\"/mnt/scratch/chemistry-apps/dkb01416/vasp/PseudoPotential\"\n"
     content += "export ASE_VASP_VDW=\"/mnt/scratch/chemistry-apps/dkb01416/vasp/pot\"\n"
-    content += "export VASP_COMMAND=\"mpirun -n 32 /mnt/scratch/chemistry-apps/dkb01416/vasp/installed/intel-2016/5.4.1-TS/vasp_std 2>&1 > vasp.out\"\n"
+    content += "export VASP_COMMAND=\"mpirun -n 64 /mnt/scratch/chemistry-apps/dkb01416/vasp/installed/intel-2016/5.4.1-TS/vasp_std 2>&1 > vasp.out\"\n" # TODO: !!!
     content += "\n"
     content += "echo `date \"+%Y-%m-%d %H:%M:%S\"` `pwd` >> $HOME/submitted\n"
     content += "./compute_by_ase.py -p %s -s %s -i %s\n" %(incar_name, stru_path, indices)
@@ -52,7 +56,8 @@ def create_files(
     vasp_script, # python script to create vasp inputs and get results
     incar_template, # incar params
     stru_file, # structure file
-    nchunk: int = 1 # number of calculation directories
+    nchunk: int = 1, # number of calculation directories
+    to_submit: bool = True
 ):
     """create vasp files"""
     vasp_script = Path(vasp_script)
@@ -79,6 +84,16 @@ def create_files(
         content = current_slurm(wd.name, stru_file.name, incar_template.name, chunk)
         with open(wd / 'vasp.slurm', 'w') as fopen:
             fopen.write(content)
+        if to_submit:
+            command = "sbatch vasp.slurm"
+            directory = wd
+            proc = subprocess.Popen(
+                command, shell=True, cwd=directory, 
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                encoding = 'utf-8'
+            )
+            errorcode = proc.wait(timeout=120) # 10 seconds
+            # run_command(wd, "sbacth vasp.slurm", "submit vasp calculation")
 
     return
 

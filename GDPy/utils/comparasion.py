@@ -3,10 +3,7 @@
 
 from collections import namedtuple
 
-import argparse
-import pickle 
-
-from typing import NoReturn, Tuple, Union, Mapping
+from typing import NoReturn, Tuple, Union, Mapping, List
 
 import numpy
 import numpy as np
@@ -18,8 +15,10 @@ mpl.use('Agg') #silent mode
 from matplotlib import pyplot as plt
 
 
-def rms_dict(x_ref, x_pred):
-    """ Takes two datasets of the same shape and returns a dictionary containing RMS error data"""
+def rms_dict(x_ref: List[float], x_pred: List[float]):
+    """ Takes two datasets of the same shape 
+        and returns a dictionary containing RMS error data
+    """
 
     x_ref = np.array(x_ref)
     x_pred = np.array(x_pred)
@@ -81,9 +80,17 @@ PropInfo = namedtuple(
 def parity_plot_dict(
         emulation: Mapping[str, Union[numpy.array,numpy.ndarray]], 
         reference: Mapping[str, Union[numpy.array,numpy.ndarray]], 
-        ax, prop_info: PropInfo
-) -> NoReturn :
+        ax, prop_dict: dict = None, apex=[1.0], write_info=True
+):
     """ Plots the distribution of energy per atom on the output vs the input"""
+    if prop_dict is None:
+        prop_dict = {}
+        prop_dict['xlabel'] = 'x'
+        prop_dict['ylabel'] = 'y'
+        prop_dict['title'] = 'Parity Plot'
+    
+    rmse_results = {}
+
     rmse_text = ''
     names = emulation.keys()
     pmaxs, pmins = [], []
@@ -95,38 +102,44 @@ def parity_plot_dict(
         # scatter plot of the data
         ax.scatter(xdata, ydata, label=name)
         # find max and min
-        print(np.max(xdata), np.max(ydata))
+        #print(np.max(xdata), np.max(ydata))
         pmaxs.append( np.max([np.max(xdata),np.max(ydata)]) )
         pmins.append( np.min([np.min(xdata),np.min(ydata)]) )
         # add text about RMSE
         _rms = rms_dict(xdata, ydata)
+        rmse_results[name] = _rms
         rmse_text += 'RMSE:\n{:>.3f}+-{:>.3f} {:s}\n'.format(_rms['rmse'], _rms['std'], name)
-    ax.text(
-        0.9, 0.1, rmse_text, transform=ax.transAxes, fontsize=24, fontweight='bold', 
-        horizontalalignment='right', verticalalignment='bottom'
-    )
-    ax.legend()
+    if write_info:
+        ax.text(
+            0.9, 0.1, rmse_text, transform=ax.transAxes, fontsize=24, fontweight='bold', 
+            horizontalalignment='right', verticalalignment='bottom'
+        )
 
     # get the appropriate limits for the plot
     pmax = np.max(pmaxs)
     pmin = np.min(pmins)
-    plim = (pmin - (pmax-pmin)*0.05, pmax + (pmax-pmin)*0.05)
+    plim = np.array((pmin - (pmax-pmin)*0.05, pmax + (pmax-pmin)*0.05))
 
     ax.set_xlim(plim)
     ax.set_ylim(plim)
 
     # add line of slope 1 for refrence
-    ax.plot(plim, plim, c='k')
+    for a in apex:
+        if a == 1:
+            ax.plot(plim, a*plim, c="k")
+        else:
+            ax.plot(plim, a*plim, ls="--", c="k", label = "${}\sigma$".format(a))
 
     # set labels
-    ax.set_xlabel(prop_info.xlabel, fontsize=24)
-    ax.set_ylabel(prop_info.ylabel, fontsize=24)
+    ax.set_xlabel(prop_dict["xlabel"])
+    ax.set_ylabel(prop_dict["ylabel"])
 
     #set title
-    ax.set_title(prop_info.title, fontsize=24, fontweight='bold')
+    ax.set_title(prop_dict["title"])
 
+    ax.legend()
     
-    return
+    return rmse_results
 
 def energy_plot(ener_in, ener_out, ax, title='Plot of energy'):
     """ Plots the distribution of energy per atom on the output vs the input"""
@@ -231,80 +244,4 @@ def extract_energy_and_forces(atom_frames,calc=None,atomic=True):
 
 
 if __name__ == '__main__':
-    # parser
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        '-t', '--train', 
-        default='evaluated.xyz', help='trained structures in xyz format'
-    )
-    parser.add_argument(
-        '-c', '--calc', action='store_true', 
-        help='if using dp'
-    )
-    parser.add_argument(
-        '-g', '--graph', 
-        default='graph.pb', help='deep potential'
-    )
-
-    args = parser.parse_args()
-
-    # calculate using dp 
-    if args.calc:
-        frames = read(args.train, ':')
-
-        from deepmd.calculator import DP 
-        calc = DP(
-            model = args.graph, 
-            #type_dict = {"O": 1, "Zn": 2, "Cr": 0}
-        )
-        data_dict = {'ener': [[],[]], 'force': [[],[]]}
-        for atoms in frames:
-            natoms = len(atoms) 
-            energy = atoms.get_potential_energy() / natoms
-            forces = atoms.get_forces() 
-            data_dict['ener'][0].append(energy)
-            data_dict['force'][0].extend(forces.flatten().tolist())
-            # calculation 
-            calc.reset() 
-            atoms.calc = calc 
-            energy = atoms.get_potential_energy() / natoms
-            forces = atoms.get_forces()
-            data_dict['ener'][1].append(energy)
-            data_dict['force'][1].extend(forces.flatten().tolist())
-            #print(dp_data)
-        #print(tot_dat)
-
-        with open('prop.pkl', 'wb') as fopen:
-            pickle.dump(data_dict, fopen)
-
-        print('finish calculating...')
-    else:
-        with open('prop.pkl', 'rb') as fopen:
-            tot_data = pickle.load(fopen)
-        ener_dat = tot_data['ener']
-        force_dat = tot_data['force']
-        force_dat[0] = {'Cu': force_dat[0]}
-        force_dat[1] = {'Cu': force_dat[1]}
-    
-        # plot
-        fig, axarr = plt.subplots(
-            nrows=1, ncols=2, 
-            gridspec_kw={'hspace': 0.3}, figsize=(12,8)
-        )
-        axarr = axarr.flat[:]
-
-        plt.suptitle('Electronic Free Energy and Hellman-Feynman Forces')
-
-        # plot energy
-        energy_plot(
-            ener_dat[0], ener_dat[1], 
-            axarr[0], 'Energy on training data'
-        )
-        force_plot(
-            force_dat[0], force_dat[1], 
-            axarr[1], 'Cu', 'Force on training data - Cu'
-        )
-
-        plt.savefig('benchmark.png')
-
+    pass
