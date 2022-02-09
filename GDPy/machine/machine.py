@@ -84,12 +84,23 @@ class SlurmMachine(AbstractMachine):
         "error"
     ]
 
+    # compability for different machine
+    # not all keywords are necessary
     default_cpu_parameters = {
         "job-name": "slurmJob",
         "partition": None,
+        "time": None
+    }
+
+    __default_cpu_parameters = {
+        "job-name": "slurmJob",
+        "account": None,
+        "partition": None,
+        "qos": None,
         "time": None,
         "nodes": None,
         "ntasks": None,
+        "tasks-per-node": None,
         "cpus-per-task": None,
         "mem-per-cpu": "4G",
         "output": "slurm.o%j",
@@ -100,6 +111,8 @@ class SlurmMachine(AbstractMachine):
         "gres": None,
         "mem-per-gpu": "32G"
     }
+
+    status = ["R", "Q", "PD", "CG"]
 
     user_commands = None
 
@@ -226,6 +239,10 @@ class PbsMachine(AbstractMachine):
 
 if __name__ == "__main__":
     # test slurm machine
+    #vasp_slurm = SlurmMachine(use_gpu=False)
+    #vasp_slurm.update("/users/40247882/scratch2/alumina-revised/GA/run-vasp/vasp.slurm")
+    #print(vasp_slurm)
+    # test slurm on archer2
     vasp_slurm = SlurmMachine(use_gpu=False)
-    vasp_slurm.update("/users/40247882/scratch2/alumina-revised/GA/run-vasp/vasp.slurm")
+    vasp_slurm.update("/mnt/scratch2/users/40247882/alumina-revised/GA/GA-Test/vasp.slurm")
     print(vasp_slurm)
