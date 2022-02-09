@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from ensurepip import bootstrap
 import time
-from turtle import distance
+import argparse
 
 import numpy as np
-
 
 import matplotlib as mpl
 mpl.use('Agg') #silent mode
@@ -24,6 +22,8 @@ from ase.ga.utilities import (closest_distances_generator, atoms_too_close,
 # calculator
 from ase.calculators.gaussian import Gaussian, GaussianOptimizer, GaussianIRC
 from ase.calculators.emt import EMT
+
+from xtb.ase.calculator import XTB
 
 # optimisation
 from ase.optimize.bfgslinesearch import BFGSLineSearch as QuasiNetwon
@@ -51,12 +51,14 @@ class AccHopping():
     P1 = 0.98 # control the curvature near the boundary
 
     timestep = 1.0 # in fs
+    mdstep = 2500
 
 
     def __init__(
         self, 
         reactants, 
         temperature,
+        mdstep,
         calc, # this is the reference calculator (usually DFT by GAUSSIAN or VASP)
         opt = None, 
         surrogate = None
@@ -64,8 +66,11 @@ class AccHopping():
 
         self.beta = 1 / (temperature*kB)
 
-        self.mdstep = 100
+        self.mdstep = mdstep
         self.temperature = temperature
+
+        print("TEMPERATURE: ", self.temperature)
+        print("MDSTEP_CYCLE: ", self.mdstep)
 
         self.calc = calc
         self.opt = opt
@@ -194,6 +199,12 @@ class AccHopping():
         st = time.time() # start time
 
         atoms = dyn.atoms # not copy
+        natoms = len(atoms)
+        tags = atoms.get_tags() # used to discriminate reactants
+        com = atoms.get_center_of_mass().copy()
+        print("centre of mass at step 0: ", com)
+        dis2com = np.linalg.norm(atoms.positions - com, axis=1)
+        print("distances to com: ", dis2com)
 
         write(self.traj_name, atoms)
 
@@ -204,13 +215,13 @@ class AccHopping():
             # update positions with MD
             print(f"\n\n===== MD step: {i} =====")
             dyn.step(md_forces)
-            
+
             # print MD info
             print("potential energy: ", atoms.get_potential_energy())
             print("temperature: ", atoms.get_temperature())
 
-            # TODO: create graph and only accelerate atom pairs between molecules
-            # also, not consider pairs with too long distance
+            # write(self.traj_name, atoms, append=True)
+            # continue # test brute-force MD
 
             # check bond distances
             new_bond_matrix = self.__calc_bond_list(atoms)
@@ -223,6 +234,9 @@ class AccHopping():
             vboost = 0.
             if boost_method == "JCP2020":
                 # ----- JCP2020 serial global method ----- 
+                # TODO: create graph and only accelerate atom pairs between molecules
+                # also, not consider pairs with too long distance
+
                 # extract from bond list
                 max_index = np.unravel_index(np.argmax(np.fabs(bond_strain), axis=None), bond_strain.shape)
 
@@ -264,12 +278,26 @@ class AccHopping():
                 valid_pairs = []
                 for i in range(bmshape):
                     for j in range(i+1, bmshape):
-                        if bond_strain[i, j] < self.bond_strain_limit:
+                        # check bond strain is smaller than limit, and bond distance is close enough
+                        # , and bonds should be formed by different reactants
+                        if (
+                            np.fabs(bond_strain[i, j]) < self.bond_strain_limit 
+                            and new_bond_matrix[i, j] < 3.0 # BB not on too long bonds
+                            # and (tags[i] != tags[j])
+                        ):
                             valid_pairs.append((i,j))
                             # check max
                             if np.fabs(bond_strain[i, j]) > np.fabs(max_bond_strain):
                                 max_bond_strain = bond_strain[i, j]
                                 max_index = [i, j]
+                nbonds = len(valid_pairs)
+                if nbonds > 0:
+                    print("number of bonds: ", nbonds)
+                    print(valid_pairs)
+                else:
+                    print("no valid bond pairs, skip this step...")
+                    continue
+
                 max_index = tuple(max_index)
                 ref_bond_disatnce = self.cur_distance_matrix[max_index]
                 new_bond_distance = new_bond_matrix[max_index]
@@ -280,10 +308,6 @@ class AccHopping():
                     ref_bond_disatnce, new_bond_distance
                 )
                 print(content)
-
-                nbonds = len(valid_pairs)
-                print("number of bonds: ", nbonds)
-                print(valid_pairs)
 
                 # calculate boost energy
                 vboost_separate = self.vmax / nbonds * (1 - (bond_strain / self.bond_strain_limit)**2)
@@ -323,6 +347,18 @@ class AccHopping():
 
             else:
                 raise ValueError(f"Unknown boost method {boost_method}...")
+            
+            # TODO: add wall potential to avoid molecules moving away
+            # harmonic V=1/2k(x-c)^2 F = -k(x-c)*dx/dr
+            centre_of_spring = 3.6
+            spring_constant = 2000.
+            positions = atoms.positions # current positions
+            for i in range(natoms):
+                dvec = positions[i, :] - com
+                dis = np.linalg.norm(dvec)
+                if dis > centre_of_spring:
+                    wall_force = -spring_constant*np.fabs(dis-centre_of_spring)*dvec/dis
+                    md_forces[i, :] += wall_force
 
             # calculate boost factor
             boost_factor = np.exp(self.beta*vboost)
@@ -491,6 +527,17 @@ if __name__ == "__main__":
     # generate graph
     #generate_graph()
     #exit()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-t", "--temperature", default=673, type=float,
+        help="simulation temperature"
+    )
+    parser.add_argument(
+        "-n", "--mdstep", default=100, type=int,
+        help="number of mdsteps"
+    )
+
+    args = parser.parse_args()
 
     # load reactants
     reactants = []
@@ -512,9 +559,11 @@ if __name__ == "__main__":
         mem = "1GB",
         nprocshared = 4,
         method = "b3lyp",
+        # basis = "6-31G",
         basis = "6-31G"
     )
-    calc = EMT()
+    # calc = EMT()
+    # calc = XTB(method="GFN2-xTB")
 
-    rs = AccHopping(reactants, 600, calc)
+    rs = AccHopping(reactants, args.temperature, args.mdstep, calc)
     rs(10)
