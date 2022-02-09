@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from ase.io import read, write
+from GDPy.utils.command import run_command
 
 """
 2294774514
@@ -27,17 +28,6 @@ keywords
     training
 """
 
-def run_command(directory, command, comment=''):
-    proc = subprocess.Popen(
-        command, shell=True, cwd=directory, 
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        encoding = 'utf-8'
-    )
-    errorcode = proc.wait(timeout=120) # 10 seconds
-    if errorcode:
-        raise ValueError('Error in %s at %s.' %(comment, directory))
-    
-    return ''.join(proc.stdout.readlines())
 
 def generate_random_seed():
     drng = np.random.default_rng() # default random generator
