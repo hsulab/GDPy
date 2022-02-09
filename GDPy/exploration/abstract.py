@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Union, Callable
 from pathlib import Path
 
@@ -18,6 +18,28 @@ class AbstractExplorer(ABC):
     def register_calculator(self, pm):
         """ use potentila manager
         """
+
+        return
+    
+    def __check_dataset(self):
+
+        return
+    
+    def parse_specorder(self, composition: dict):
+        """ determine species order from current structure
+            since many systems with different compositions 
+            may be explored at the same time
+        """
+        type_list = []
+        for sym, num in composition.items():
+            print(sym, num)
+            if num != 0:
+                type_list.append(sym)
+
+        return type_list
+    
+    @abstractmethod   
+    def icreate(self, exp_name, wd):
 
         return
 
