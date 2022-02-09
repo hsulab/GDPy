@@ -39,6 +39,19 @@ def main():
         help='a directory with input json files'
     )
 
+    # automatic training
+    parser_model = subparsers.add_parser(
+        "model", help="model operations"
+    )
+    parser_model.add_argument(
+        "INPUTS",
+        help="a directory with input json files"
+    )
+    parser_model.add_argument(
+        "-m", "--mode",
+        help="[create/freeze] models"
+    )
+
     # explore
     parser_explore = subparsers.add_parser(
         'explore', help='create input files for exploration'
@@ -55,6 +68,10 @@ def main():
         '-s', '--step', required=True,
         help='exploration steps (create/collect/select)'
     )
+    parser_explore.add_argument(
+        "-op", "--opt_params", nargs="*",
+        help="global parameters for exploration"
+    )
 
     # ase calculator interface
     parser_ase = subparsers.add_parser(
@@ -63,6 +80,10 @@ def main():
     parser_ase.add_argument(
         'INPUTS',
         help='input json file with calculation parameters'
+    )
+    parser_ase.add_argument(
+        '-p', '--potential', required=True,
+        help='potential-related input json'
     )
 
     # cur from dprss
@@ -104,8 +125,8 @@ def main():
         help='input json file with calculation parameters'
     )
     parser_validation.add_argument(
-        '-p', '--potential', nargs=2, required=True,
-        help='potential-related parameters'
+        '-p', '--potential', required=True,
+        help='potential-related input json'
     )
 
     # utilities
@@ -143,18 +164,25 @@ def main():
     # tracker = track_workflow(args.status)
 
     # use subcommands
-    if args.subcommand == 'train':
+    if args.subcommand == "train":
         from .trainer.iterative_train import iterative_train
         iterative_train(args.INPUTS)
+    elif args.subcommand == "model":
+        from .potential.manager import create_manager
+        pm = create_manager(args.INPUTS)
+        if args.mode == "freeze":
+            pm.freeze_ensemble()
+        elif args.mode == "create":
+            pm.create_ensemble()
     elif args.subcommand == 'explore':
-        from .sampler.sample_main import run_exploration
-        run_exploration(args.potential, args.exploration, args.step)
+        from .exploration.sample_main import run_exploration
+        run_exploration(args.potential, args.exploration, args.step, args.opt_params)
     elif args.subcommand == 'semi':
         from .trainer.manual_train import manual_train
         manual_train(args.INPUTS, args.iter, args.stage)
     elif args.subcommand == 'ase':
         from .calculator.ase_interface import run_ase_calculator
-        run_ase_calculator(args.INPUTS)
+        run_ase_calculator(args.INPUTS, args.potential)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
         run_validation(args.INPUTS, args.potential)
