@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 
 import json
+from os import system
 import pathlib
 import argparse
 from sys import prefix
+from typing import overload
+from ase.io.formats import F
 
 import numpy as np
 
 from ase.io import read, write
 from ase.constraints import FixAtoms
-from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 
@@ -25,23 +27,18 @@ various oxides
 """
 
 FULL_DATASET_PATH = "/users/40247882/scratch2/PtOx-dataset/"
-# DESC_JSON_PATH = "/users/40247882/scratch2/oxides/input-jsons/soap_param.json"
-DESC_JSON_PATH = "/mnt/scratch2/users/40247882/oxides/eann-main/Compressed/soap_param.json"
+DESC_JSON_PATH = "/users/40247882/scratch2/oxides/input-jsons/soap_param.json"
 
-def read_frames(dataset_path, system_name, pattern):
+def read_frames(system_name, pattern):
     # read xyz dataset
-    dataset_path = pathlib.Path(dataset_path)
+    dataset_path = pathlib.Path(FULL_DATASET_PATH)
     # system_name = "O0Pt32"
     system_path = dataset_path / system_name # 2126, 1920, muts be times of both 32 and 10 = 160
     print(str(system_path))
-
-    sorted_paths = []
-    for p in system_path.glob(pattern):
-        sorted_paths.append(p)
-    sorted_paths.sort()
+    # TODO: should sort dirs to make frames consistent
 
     total_frames = []
-    for p in sorted_paths:
+    for p in system_path.glob(pattern):
         print(p)
         frames = read(p, ":")
         print("number of frames: ", len(frames))
@@ -110,10 +107,6 @@ def create_training():
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "-d", "--main_dir", default=FULL_DATASET_PATH,
-    help = "system name"
-)
-parser.add_argument(
     "-n", "--name", 
     help = "system name"
 )
@@ -123,7 +116,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "-num", "--number", 
-    default = 320, type=int,
+    default = -1, type=int,
     help = "number of selection"
 )
 parser.add_argument(
@@ -132,50 +125,19 @@ parser.add_argument(
     help = "number of selection"
 )
 parser.add_argument(
-    "-es", "--energy_shift", 
-    default = 0.0, type = float,
-    help = "add energy correction for each structure"
-)
-parser.add_argument(
     "--more", action="store_true",
     help = "select more structures from the rest"
 )
 
 args = parser.parse_args()
 
-patword = args.pattern.strip("*.xyz")
-
 cwd = pathlib.Path.cwd()
 print("read frames from system directory")
-frames = read_frames(args.main_dir, args.name, args.pattern)
-
-MAX_AEAVG = -1.4
-remove_unstable = True # if remove structures with large energy and forces
-if remove_unstable:
-    new_frames = []
-    for idx, atoms in enumerate(frames):
-        ae_avg = atoms.get_potential_energy() / len(atoms)
-        if ae_avg < MAX_AEAVG:
-            new_frames.append(atoms)
-        else:
-            print(
-                "Find {} unstable structure with energy {}".format(idx, ae_avg)
-            )
-    frames = new_frames
-
-# if use modulo number
-#number = int((np.floor((len(frames)+10)/args.number)) * args.number)
-#print("modulo number of frames: ", number)
-#if number == 0:
-#    print("no selected")
-#    exit()
-number = args.number
-
-# write(patword+"-tot.xyz", frames)
+frames = read_frames(args.name, args.pattern)
 
 prefix = "r" + str(args.count) + "-"
 if args.count == 0:
-    if number > 0:
+    if args.number > 0:
         converged_frames = []
         converged_indices = []
         # add converged structures
@@ -193,23 +155,14 @@ if args.count == 0:
         print("Number of converged: ", nconverged)
         features = calc_desc(frames)
         selected_frames = select_structures(
-            args.name, features, number-nconverged, prefix=prefix,
+            args.name, features, args.number-nconverged, prefix=prefix,
             manually_selected = converged_indices
         ) # include manually selected structures
         # selected_frames.extend(converged_frames)
         # TODO: sometims the converged one will be selected... so duplicate...
 
-        if args.energy_shift > 0:
-            es = args.energy_shift
-            print(f"add {es} [eV] energy correction to each structure!!!")
-            for atoms in selected_frames:
-                new_energy = atoms.get_potential_energy() + es
-                new_forces = atoms.get_forces(apply_constraint=False).copy()
-                calc = SinglePointCalculator(atoms, energy=new_energy, forces=new_forces)
-                atoms.calc = calc
-
         print("Writing structure file... ")
-        write(cwd / (prefix+patword+'-sel.xyz'), selected_frames)
+        write(cwd / (prefix+args.name+'-sel.xyz'), selected_frames)
         print("")
 else:
     merged_indices = []
@@ -236,13 +189,13 @@ else:
                 rest_frames.append(atoms)
                 rest_features.append(features[idx])
                 index_map.append(idx)
-        if len(rest_frames) < number:
+        if len(rest_frames) < args.number:
             raise ValueError("Not enough structures left...")
         rest_features = np.array(rest_features)
-        selected_frames = select_structures(args.name, rest_features, number, index_map=index_map, prefix=prefix)
+        selected_frames = select_structures(args.name, rest_features, args.number, index_map=index_map, prefix=prefix)
 
         print("Writing structure file... ")
-        write(cwd / (prefix+patword+'-sel.xyz'), selected_frames)
+        write(cwd / (prefix+args.name+'-sel.xyz'), selected_frames)
         print("")
 
 
