@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from os import remove
+import time
 from random import random
 import pathlib
 from pathlib import Path
@@ -64,8 +64,11 @@ class GeneticAlgorithemEngine():
 
     supported_calculators = ["vasp", "lammps", "lasp"]
 
+    # local optimisation directory
     CALC_DIRNAME = "tmp_folder"
+    PREFIX = "cand"
 
+    # reproduction and mutation
     MAX_REPROC_TRY = 10
 
     # default settings
@@ -95,21 +98,28 @@ class GeneticAlgorithemEngine():
 
         self.__parse_system_parameters(ga_dict)
 
-        # check database
+        # --- database ---
         self.db_name = pathlib.Path(ga_dict["database"])
 
-        # settings for minimisation
+        # --- calculation ---
         self.calc_dict = ga_dict["calculation"]
         self.machine = self.calc_dict["machine"]
 
-        # population
+        # --- directory ---
+        prefix = self.calc_dict.get("prefix", "cand")
+        self.PREFIX = prefix
+
+        # --- population ---
         self.population_size = self.ga_dict["population"]["init_size"]
+
+        # --- property ---
+        self.prop_dict = ga_dict["property"]
+        target = self.prop_dict.get("target", "energy")
+        self.prop_dict["target"] = target
+        print("\nTarget of Global Optimisation is ", target)
 
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
-        target = self.conv_dict.get("target", "energy")
-        self.conv_dict["target"] = target
-        print("\nTarget of Global Optimisation is ", target)
 
         return
     
@@ -212,6 +222,8 @@ class GeneticAlgorithemEngine():
             cur_gen = self.da.get_generation_number()
             print("current generation number: ", cur_gen)
             max_gen = self.conv_dict["generation"]
+
+            # output a few info
 
             if self.machine == "serial":
                 # start minimisation
@@ -579,10 +591,7 @@ class GeneticAlgorithemEngine():
         elif potential == "eann": # and inteface to lammps
             # eann has different backends (ase, lammps)
             from GDPy.calculator.lammps import Lammps
-            self.calc = Lammps(
-                **self.calc_dict["kwargs"],
-                pair_style = self.calc_dict["potential"]
-            )
+            self.calc = Lammps(**self.calc_dict["kwargs"])
         # DFT methods
         elif potential == "vasp":
             from GDPy.calculator.vasp import VaspMachine
@@ -622,7 +631,7 @@ class GeneticAlgorithemEngine():
                     vasp_machine = self.calc, # vasp machine
                     n_simul = self.calc_dict["nparallel"], 
                     prefix = self.calc_dict["prefix"],
-                    repeat = self.calc_dict["repeat"]
+                    repeat = self.calc_dict["repeat"] # TODO: add this to minimsation with fmax and steps
                 )
             elif interface == "lammps":
                 from GDPy.calculator.lammps import LmpDynamics as dyn
@@ -642,47 +651,42 @@ class GeneticAlgorithemEngine():
         return
 
     def __run_local_optimisation(self, atoms):
-        """
-        This is for initial population optimisation
+        """ perform local optimisation
         """
         # check database alive
         assert hasattr(self, "da") == True
 
-        repeat = self.calc_dict["repeat"]
+        if self.machine == "slurm":
+            # TODO: move queue methods here
+            self.worker.relax(atoms)
+            return 
 
         # TODO: maybe move this part to evaluate_structure
         confid = atoms.info["confid"]
         self.worker.reset()
         # self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-        self.calc.directory = self.tmp_folder / ("cand" + str(confid)) # TODO: use custom prefix
+        self.calc.directory = self.tmp_folder / (self.PREFIX + str(confid)) # TODO: use custom prefix
         self.worker.set_output_path(self.calc.directory)
 
-        # TODO: may be move repeat to dynamics
-        print(f"\nStart minimisation maximum try {repeat} times...")
-        for i in range(repeat):
-            print("attempt ", i)
-            # atoms.calc = self.worker # TODO:
-            min_atoms, min_results = self.worker.minimise(
-                atoms,
-                **self.calc_dict["minimisation"],
-                constraint = self.cons_indices # for lammps
-            )
-            print(min_results)
-            min_atoms.info['confid'] = confid
-            # add few information
-            min_atoms.info['data'] = {}
-            min_atoms.info['key_value_pairs'] = {'extinct': 0}
-            min_atoms.info['key_value_pairs']['raw_score'] = -min_atoms.get_potential_energy()
-            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
-            if maxforce < self.calc_dict["minimisation"]["fmax"]:
-                self.da.add_relaxed_step(min_atoms)
-                break
-            else:
-                atoms = min_atoms
-        else:
-            # TODO: !!!
-            self.da.add_relaxed_step(min_atoms)
-            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
+        # prepare extra info
+        extra_info = {}
+        extra_info["confid"] = confid
+        extra_info["data"] = {}
+        extra_info["key_value_pairs"] = {"extinct": 0}
+
+        # run minimisation
+        min_atoms = self.worker.minimise(
+            atoms,
+            extra_info = extra_info,
+            **self.calc_dict["minimisation"],
+            constraint = self.cons_indices # for lammps and lasp
+        )
+
+        # evaluate structure
+        self.evaluate_candidate(min_atoms)
+
+        # add relaxed candidate into database
+        self.da.add_relaxed_step(min_atoms)
 
         return
 
@@ -905,18 +909,14 @@ class GeneticAlgorithemEngine():
                 print("generate offspring a3 ", desc + " " + mut_desc + " after ", i+1, " attempts..." )
 
                 # run opt
-                if self.machine == "serial":
-                    print("start to run structure %s" %a3.info["confid"])
-                    self.__run_local_optimisation(a3)
-                elif self.machine == "slurm":
-                    self.worker.relax(a3)
-                else:
-                    pass
+                print("\n\n ----- start to run structure %s -----" %a3.info["confid"])
+                self.__run_local_optimisation(a3)
+
                 break
             else:
                 continue
         else:
-            print('cannot generate offspring a3 after {0} attempts'.format(self.MAX_REPROC_TRY))
+            print("cannot generate offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
 
         return
     
@@ -926,15 +926,14 @@ class GeneticAlgorithemEngine():
             but this is should be more flexible
             enthalpy (pot+pressure), reaction energy
         """
-        assert (
-            atoms["info"]["key_value_pairs"].get("raw_score", None) is None, "candidate already has raw_score before evaluation"
-        )
+        assert atoms.info["key_value_pairs"].get("raw_score", None) is None, "candidate already has raw_score before evaluation"
+        
         # NOTE: larger raw_score, better candidate
 
         # evaluate based on target property
-        target = self.conv_dict["target"]
+        target = self.prop_dict["target"]
         if target == "energy":
-            atoms["info"]["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
+            atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
         elif target == "barrier":
             pass
         else:

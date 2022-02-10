@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import time
+import shutil
+import warnings
 from pathlib import Path
+
 import numpy as np
 
-import copy
 
+from ase import Atoms
 from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
 
@@ -25,6 +29,8 @@ class LaspDynamics(AbstractDynamics):
 
     """ local optimisation
     """
+
+    saved_cards = ["allstr.arc", "allfor.arc"]
 
     def run(self, atoms, **kwargs):
 
@@ -71,12 +77,46 @@ class LaspDynamics(AbstractDynamics):
 
         return new_atoms
 
-    def minimise(self, atoms, **kwargs):
+    def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
+        """ return a new atoms with singlepoint calc
+            input atoms wont be changed
+        """
+        # TODO: add verbose
+        print(f"\nStart minimisation maximum try {repeat} times...")
+        for i in range(repeat):
+            print("attempt ", i)
+            min_atoms = self.run(atoms, **kwargs)
+            min_results = self.__read_min_results(self._directory_path / "lasp.out")
+            print(min_results)
+            # add few information
+            if extra_info is not None:
+                min_atoms.info.update(extra_info)
+            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
+            if maxforce <= kwargs["fmax"]:
+                break
+            else:
+                atoms = min_atoms
+                print("backup old data...")
+                for card in self.saved_cards:
+                    card_path = self._directory_path / card
+                    bak_fmt = ("bak.{:d}."+card)
+                    idx = 0
+                    while True:
+                        bak_card = bak_fmt.format(idx)
+                        if not Path(bak_card).exists():
+                            saved_card_path = self._directory_path / bak_card
+                            shutil.copy(card_path, saved_card_path)
+                            break
+                        else:
+                            idx += 1
+        else:
+            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
 
-        new_atoms = self.run(atoms, **kwargs)
-
+        return min_atoms
+    
+    def __read_min_results(self, fpath):
         # read lasp.out get opt info
-        with open(self._directory_path / "lasp.out", "r") as fopen:
+        with open(fpath, "r") as fopen:
             lines = fopen.readlines()
         opt_indices = []
         for i, line in enumerate(lines):
@@ -84,8 +124,8 @@ class LaspDynamics(AbstractDynamics):
                 opt_indices.append(i)
         final_step_info = lines[opt_indices[-2]+2:opt_indices[-1]-1]
         min_results = "".join(final_step_info)
- 
-        return new_atoms, min_results
+
+        return min_results
 
 
 class LaspNN(FileIOCalculator):

@@ -4,14 +4,18 @@
 
 import os
 import copy
+import shutil
+import warnings
 import subprocess
 import pathlib
+from pathlib import Path
 
 from collections.abc import Iterable
 from typing import List, Mapping, Dict, Optional
 
 import numpy as np
 
+from ase import Atoms
 from ase import units
 from ase.data import atomic_numbers, atomic_masses
 from ase.io import read, write
@@ -32,6 +36,8 @@ class LmpDynamics():
         'fmax': '{}',
         'steps': 'maxcycle={}',
     }
+
+    saved_cards = ["surface.dump"]
 
 
     def __init__(self, calc=None, directory="./"):
@@ -114,13 +120,47 @@ class LmpDynamics():
 
         return new_atoms
     
-    def minimise(self, atoms, **kwargs):
-        """ compatibilty to lammps
-        """
-        min_atoms = self.run(atoms, **kwargs)
 
+    def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
+        """ return a new atoms with singlepoint calc
+            input atoms wont be changed
+        """
+        # TODO: add verbose
+        print(f"\nStart minimisation maximum try {repeat} times...")
+        for i in range(repeat):
+            print("attempt ", i)
+            min_atoms = self.run(atoms, **kwargs)
+            min_results = self.__read_min_results(self._directory_path / "log.lammps")
+            print(min_results)
+            # add few information
+            if extra_info is not None:
+                min_atoms.info.update(extra_info)
+            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
+            if maxforce <= kwargs["fmax"]:
+                break
+            else:
+                atoms = min_atoms
+                print("backup old data...")
+                for card in self.saved_cards:
+                    card_path = self._directory_path / card
+                    bak_fmt = ("bak.{:d}."+card)
+                    idx = 0
+                    while True:
+                        bak_card = bak_fmt.format(idx)
+                        if not Path(bak_card).exists():
+                            saved_card_path = self._directory_path / bak_card
+                            shutil.copy(card_path, saved_card_path)
+                            break
+                        else:
+                            idx += 1
+        else:
+            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
+        
+        return min_atoms
+
+    def __read_min_results(self, fpath):
         # read energy
-        with open(self._directory_path / "log.lammps", "r") as fopen:
+        with open(fpath, "r") as fopen:
             lines = fopen.readlines()
         for idx, line in enumerate(lines):
             if line.startswith("Minimization stats:"):
@@ -130,7 +170,7 @@ class LmpDynamics():
             raise ValueError('error in lammps minimization.')
         stat_content = "".join(lines[stat_idx:stat_idx+9])
 
-        return min_atoms, stat_content
+        return stat_content
 
 
 class Lammps(FileIOCalculator):
@@ -324,8 +364,9 @@ class Lammps(FileIOCalculator):
 
         # outputs
         content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
-        content += "thermo          10\n"
-        content += "dump		1 all custom 10 surface.dump id type x y z fx fy fz\n"
+        content += "thermo          10\n" # TODO: save freq
+        # TODO: How to dump total energy?
+        content += "dump		1 all custom 10 surface.dump id type x y z fx fy fz\n" 
         content += "\n"
         
         # minimisation
@@ -336,8 +377,8 @@ class Lammps(FileIOCalculator):
             self.parameters["steps"], 2.0*self.parameters["steps"]
         )
 
-        in_file = os.path.join(self.directory, 'in.lammps')
-        with open(in_file, 'w') as fopen:
+        in_file = os.path.join(self.directory, "in.lammps")
+        with open(in_file, "w") as fopen:
             fopen.write(content)
 
         return
