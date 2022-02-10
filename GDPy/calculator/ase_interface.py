@@ -5,10 +5,14 @@ import os
 import copy
 import time
 import json
+import shutil
 import pathlib
+from pathlib import Path
+import warnings
 
 import numpy as np
 
+from ase import Atoms
 from ase import units
 from ase.data import atomic_numbers, atomic_masses
 from ase.io import read, write
@@ -28,7 +32,10 @@ from GDPy.md.nosehoover import NoseHoover
 
 class AseDynamics():
 
-    def __init__(self, calc=None, directory="./", logfile="dyn.log", trajfile="dyn.traj"):
+    traj_name = "dyn.traj"
+    saved_cards = [traj_name]
+
+    def __init__(self, calc=None, directory="./", logfile="dyn.log", trajfile=traj_name):
 
         self.calc = calc
         self.calc.reset()
@@ -57,7 +64,8 @@ class AseDynamics():
         return
     
     def run(self, atoms, **kwargs):
-        """"""
+        """ this will change input atoms
+        """
         # calc_old = atoms.calc
         # params_old = copy.deepcopy(self.calc.parameters)
 
@@ -82,14 +90,50 @@ class AseDynamics():
 
         return atoms
     
-    def minimise(self, atoms, **kwargs):
+    def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
+        """ return a new atoms with singlepoint calc
+            input atoms wont be changed
+        """
+        # TODO: add verbose
+        print(f"\nStart minimisation maximum try {repeat} times...")
+        for i in range(repeat):
+            print("attempt ", i)
+            min_atoms = self.run(atoms, **kwargs)
+            min_results = self.__read_min_results(self._logfile_path)
+            print(min_results)
+            # NOTE: add few information
+            # if extra_info is not None:
+            #     min_atoms.info.update(extra_info)
+            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
+            if maxforce <= kwargs["fmax"]:
+                break
+            else:
+                atoms = min_atoms
+                print("backup old data...")
+                for card in self.saved_cards:
+                    card_path = self._directory_path / card
+                    bak_fmt = ("bak.{:d}."+card)
+                    idx = 0
+                    while True:
+                        bak_card = bak_fmt.format(idx)
+                        if not Path(bak_card).exists():
+                            saved_card_path = self._directory_path / bak_card
+                            shutil.copy(card_path, saved_card_path)
+                            break
+                        else:
+                            idx += 1
+        else:
+            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
+
+        return min_atoms
+
+    def __read_min_results(self, fpath):
         """ compatibilty to lammps
         """
-        min_atoms = self.run(atoms, **kwargs)
-        with open(self._logfile_path, "r") as fopen:
+        with open(fpath, "r") as fopen:
             min_results = fopen.read()
 
-        return min_atoms, min_results
+        return min_results
 
 class AseInput():
 
