@@ -94,4 +94,5 @@ if args.refine != 0:
     gae.refine(args.refine)
 
 if __name__ == "__main__":
+    # test evaluation
     pass

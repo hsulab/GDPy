@@ -6,7 +6,7 @@ import time
 import json
 import argparse
 import subprocess 
-from typing import Union
+from typing import Union, List
 
 import shutil
 
@@ -249,8 +249,7 @@ class VaspQueue:
             vasp_machine,
             n_simul, prefix,
             repeat = -1,
-            submit_command="sbatch", stat_command="squeue",
-            find_neighbors=None, perform_parametrization=None
+            submit_command="sbatch", stat_command="squeue"
         ):
         self.dc = data_connection
         self.n_simul = n_simul
@@ -267,8 +266,6 @@ class VaspQueue:
 
         self.tmp_folder = Path(tmp_folder)
 
-        self.find_neighbors = find_neighbors
-        self.perform_parametrization = perform_parametrization
         self.__cleanup__()
 
         return
@@ -339,10 +336,13 @@ class VaspQueue:
 
         return failed_ids
     
-    def check_status(self):
+    def check_status(self) -> List[Atoms]:
         """
         check job status
+        return a list of candidates for database
         """
+        candidates = []
+
         print('\n===== check job status =====')
         running_ids = self.__get_running_job_ids()
         failed_ids = self.__get_failed_job_ids()
@@ -350,10 +350,12 @@ class VaspQueue:
         confs = self.dc.get_all_candidates_in_queue() # conf ids
         print("cand in queue: ", confs)
         for confid in confs:
+            # BUG: calculation may be still runniing. Check if finished before resubmit
             if confid in running_ids:
+                print("\n --- current cand: ", cand_dir, "is running...")
                 continue
             cand_dir = self.tmp_folder / (self.prefix+str(confid))
-            print("current cand: ", cand_dir)
+            print("\n --- current cand: ", cand_dir)
             # TODO: this only works for vasp, should be more general
             atoms = self.vasp_machine.get_results(cand_dir)
 
@@ -364,17 +366,12 @@ class VaspQueue:
                 maxforce = np.max(np.fabs(forces))
                 print("energy: {:.4f}  maxforce: {:.4f}".format(energy, maxforce))
                 if maxforce <= self.vasp_machine.fmax: # check geometric convergence
-                    print('save this configuration to the database')
-                    atoms.info['confid'] = confid
+                    print("is converged")
+                    atoms.info["confid"] = confid
                     # add few information
-                    atoms.info['data'] = {}
-                    atoms.info['key_value_pairs'] = {'extinct': 0}
-                    atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
-                    self.dc.add_relaxed_step(
-                        atoms,
-                        find_neighbors=self.find_neighbors,
-                        perform_parametrization=self.perform_parametrization
-                    )
+                    atoms.info["data"] = {}
+                    atoms.info["key_value_pairs"] = {"extinct": 0}
+                    candidates.append(atoms)
                 else:
                     # still leave queued=1 in the db, but resubmit
                     print("not converged...")
@@ -384,7 +381,7 @@ class VaspQueue:
                         cur_repeat = np.loadtxt(fpath, dtype=int)
                         print("cur_repeat: ", cur_repeat)
                     if cur_repeat < self.repeat and confid not in failed_ids:
-                        # TODO: save relaxation trajectory for MLP?
+                        # NOTE: read bak.x.vasprun.xml of relaxation trajectory for MLP
                         print("backup old data...")
                         saved_cards = ["OUTCAR", "vasprun.xml"]
                         for card in saved_cards:
@@ -406,19 +403,14 @@ class VaspQueue:
                         cur_repeat += 1
                         np.savetxt(fpath, np.array([cur_repeat]), fmt="%d")
                     else:
-                        print('save failed configuration to the database')
-                        atoms.info['confid'] = confid
+                        print("save failed configuration to the database")
+                        atoms.info["confid"] = confid
                         # add few information
-                        atoms.info['data'] = {}
-                        atoms.info['key_value_pairs'] = {'extinct': 0, 'failed': 1}
-                        atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
-                        self.dc.add_relaxed_step(
-                            atoms,
-                            find_neighbors=self.find_neighbors,
-                            perform_parametrization=self.perform_parametrization
-                        )
+                        atoms.info["data"] = {}
+                        atoms.info["key_value_pairs"] = {"extinct": 0, "failed": 1}
+                        candidates.append(atoms)
 
-        return
+        return candidates
     
     def __cleanup__(self):
         """

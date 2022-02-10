@@ -27,9 +27,6 @@ from ase.ga.standard_comparators import InteratomicDistanceComparator
 from ase.ga.standardmutations import MirrorMutation, RattleMutation, PermutationMutation
 from ase.ga.offspring_creator import OperationSelector
 
-from GDPy.machine.gamachine import SlurmQueueRun
-from GDPy.calculator.vasp import VaspQueue
-
 """
 Workflow
     check current calculation
@@ -78,6 +75,13 @@ class GeneticAlgorithemEngine():
         "kwargs": None, # input parameters
     }
 
+    # TODO: Neighbor list and parametrization parameters to screen
+    # candidates before relaxation can be added. Default is not to use.
+
+    find_neighbors = None
+    perform_parametrization = None
+
+
     def __init__(self, ga_dict: dict):
         """"""
         self.ga_dict = ga_dict
@@ -100,6 +104,12 @@ class GeneticAlgorithemEngine():
 
         # population
         self.population_size = self.ga_dict["population"]["init_size"]
+
+        # --- convergence ---
+        self.conv_dict = ga_dict["convergence"]
+        target = self.conv_dict.get("target", "energy")
+        self.conv_dict["target"] = target
+        print("\nTarget of Global Optimisation is ", target)
 
         return
     
@@ -201,6 +211,7 @@ class GeneticAlgorithemEngine():
             # check current generation number
             cur_gen = self.da.get_generation_number()
             print("current generation number: ", cur_gen)
+            max_gen = self.conv_dict["generation"]
 
             if self.machine == "serial":
                 # start minimisation
@@ -213,7 +224,6 @@ class GeneticAlgorithemEngine():
                         self.__run_local_optimisation(atoms)
                 
                 # start reproduce
-                max_gen = self.ga_dict["convergence"]["generation"]
                 cur_gen = self.da.get_generation_number()
                 for ig in range(cur_gen, max_gen+1): # TODO-2
                     #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
@@ -235,8 +245,19 @@ class GeneticAlgorithemEngine():
 
             elif self.machine == "slurm":
                 # check status
-                self.worker.check_status()
+                converged_candidates = self.worker.check_status()
+                for cand in converged_candidates:
+                    # evaluate raw score
+                    self.evaluate_candidate(cand)
+                    print("  add relaxed cand ", cand.info["confid"])
+                    print("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
+                    self.dc.add_relaxed_step(
+                        cand,
+                        find_neighbors=self.find_neighbors,
+                        perform_parametrization=self.perform_parametrization
+                    )
 
+                # check initial population
                 if cur_gen == 0:
                     print("\n\n===== Initial Population =====")
                     while (self.da.get_number_of_unrelaxed_candidates()):
@@ -247,7 +268,6 @@ class GeneticAlgorithemEngine():
                         #self.__run_local_optimisation(atoms)
                         self.worker.relax(atoms)
 
-                max_gen = self.ga_dict["convergence"]["generation"]
                 if cur_gen > max_gen:
                     print("reach maximum generation...")
                     exit()
@@ -634,7 +654,7 @@ class GeneticAlgorithemEngine():
         confid = atoms.info["confid"]
         self.worker.reset()
         # self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-        self.calc.directory = self.tmp_folder / ("cand" + str(confid))
+        self.calc.directory = self.tmp_folder / ("cand" + str(confid)) # TODO: use custom prefix
         self.worker.set_output_path(self.calc.directory)
 
         # TODO: may be move repeat to dynamics
@@ -897,6 +917,28 @@ class GeneticAlgorithemEngine():
                 continue
         else:
             print('cannot generate offspring a3 after {0} attempts'.format(self.MAX_REPROC_TRY))
+
+        return
+    
+    def evaluate_candidate(self, atoms):
+        """ TODO: evaluate candidate based on raw score
+            in most cases, it's potential energy
+            but this is should be more flexible
+            enthalpy (pot+pressure), reaction energy
+        """
+        assert (
+            atoms["info"]["key_value_pairs"].get("raw_score", None) is None, "candidate already has raw_score before evaluation"
+        )
+        # NOTE: larger raw_score, better candidate
+
+        # evaluate based on target property
+        target = self.conv_dict["target"]
+        if target == "energy":
+            atoms["info"]["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
+        elif target == "barrier":
+            pass
+        else:
+            raise RuntimeError(f"Unknown target {target}...")
 
         return
 
