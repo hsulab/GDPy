@@ -219,11 +219,25 @@ class GeneticAlgorithemEngine():
             self.form_population()
 
             # check current generation number
+            print("\n\n===== Generation Info =====")
+
             cur_gen = self.da.get_generation_number()
             print("current generation number: ", cur_gen)
             max_gen = self.conv_dict["generation"]
 
             # output a few info
+            unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %cur_gen))
+            unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
+            num_unrelaxed_gen = len(unrelaxed_confids)
+
+            relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %cur_gen))
+            relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
+            num_relaxed_gen = len(relaxed_confids)
+
+            print("number of relaxed in current generation: ", num_relaxed_gen)
+            print(sorted(relaxed_confids))
+            print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
+            print(sorted(unrelaxed_confids))
 
             if self.machine == "serial":
                 # start minimisation
@@ -239,23 +253,26 @@ class GeneticAlgorithemEngine():
                 cur_gen = self.da.get_generation_number()
                 for ig in range(cur_gen, max_gen+1): # TODO-2
                     #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
-                    print("===== Generation {0} =====".format(ig))
-                    relaxed_num_strus_gen = len(list(self.da.c.select('relaxed=1,generation=%d'%ig)))
-                    print('number of relaxed in current generation: ', relaxed_num_strus_gen)
+                    print("\n\n===== Generation {0} =====".format(ig))
+                    num_relaxed_gen = len(list(self.da.c.select("relaxed=1,generation=%d" %ig)))
+                    print("number of relaxed in current generation: ", num_relaxed_gen)
                     # TODO: check remain population
-                    for j in range(relaxed_num_strus_gen, self.population_size):
-                        print("  offspring ", j)
+                    while num_relaxed_gen < self.population_size:
+                        print(f"\n --- offspring {num_relaxed_gen} ---")
                         self.reproduce()
+                        num_relaxed_gen = len(list(self.da.c.select("relaxed=1,generation=%d" %ig)))
                 
                 # report results
-                results = pathlib.Path.cwd() / 'results'
+                results = pathlib.Path.cwd() / "results"
                 if not results.exists():
                     results.mkdir()
                 all_relaxed_candidates = self.da.get_all_relaxed_candidates()
-                write(results / 'all_candidates.xyz', all_relaxed_candidates)
+                write(results / "all_candidates.xyz", all_relaxed_candidates)
                 print("finished!!!")
 
             elif self.machine == "slurm":
+                print("number of running jobs in current generation: ", self.worker.number_of_jobs_running())
+                print("\n\n===== Generation {0} =====".format(cur_gen))
                 # check status
                 converged_candidates = self.worker.check_status()
                 for cand in converged_candidates:
@@ -284,22 +301,6 @@ class GeneticAlgorithemEngine():
                     print("reach maximum generation...")
                     exit()
 
-                #print(len(self.da.get_all_relaxed_candidates_after_generation(cur_gen_num)))
-
-                unrelaxed_strus_gen = list(self.da.c.select('relaxed=0,generation=%d'%cur_gen))
-                unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
-                num_unrelaxed_gen = len(unrelaxed_confids)
-
-                relaxed_strus_gen = list(self.da.c.select('relaxed=1,generation=%d'%cur_gen))
-                relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
-                num_relaxed_gen = len(relaxed_confids)
-
-                print("number of relaxed in current generation: ", num_relaxed_gen)
-                print(sorted(relaxed_confids))
-                print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
-                print(sorted(unrelaxed_confids))
-                print("number of running jobs in current generation: ", self.worker.number_of_jobs_running())
-
                 # reproduce
                 if (
                     # nunrelaxed_gen == 0
@@ -320,7 +321,6 @@ class GeneticAlgorithemEngine():
                         print("enough jobs are running for current generation...")
                 else:
                     print("not finished relaxing current generation...")
-
             else:
                 pass
 
