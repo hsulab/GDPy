@@ -253,24 +253,38 @@ class GeneticAlgorithemEngine():
                     exit()
 
                 #print(len(self.da.get_all_relaxed_candidates_after_generation(cur_gen_num)))
-                unrelaxed_strus_gen = list(self.da.c.select('unrelaxed=1,generation=%d'%cur_gen))
-                unrelaxed_num_strus_gen = len(unrelaxed_strus_gen)
+
+                unrelaxed_strus_gen = list(self.da.c.select('relaxed=0,generation=%d'%cur_gen))
+                unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
+                num_unrelaxed_gen = len(unrelaxed_confids)
+
                 relaxed_strus_gen = list(self.da.c.select('relaxed=1,generation=%d'%cur_gen))
-                relaxed_num_strus_gen = len(relaxed_strus_gen)
-                cur_jobs_running = self.worker.number_of_jobs_running()
-                print("number of relaxed in current generation: ", relaxed_num_strus_gen)
-                print(relaxed_strus_gen)
-                print("number of unrelaxed in current generation: ", unrelaxed_num_strus_gen)
-                print(relaxed_strus_gen)
-                print("number of running jobs in current generation: ", cur_jobs_running)
-                if relaxed_num_strus_gen == self.population_size:
+                relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
+                num_relaxed_gen = len(relaxed_confids)
+
+                print("number of relaxed in current generation: ", num_relaxed_gen)
+                print(sorted(relaxed_confids))
+                print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
+                print(sorted(unrelaxed_confids))
+                print("number of running jobs in current generation: ", self.worker.number_of_jobs_running())
+
+                # reproduce
+                if (
+                    # nunrelaxed_gen == 0
+                    #nrelaxed_gen == unrelaxed_gen == self.population_size
+                    num_unrelaxed_gen < self.population_size
+                ):
                     # TODO: can be aggressive, reproduce when relaxed structures are available
-                    print("finished current generation and try to reproduce...")
+                    print("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
+                    print("number before reproduction: ", self.worker.number_of_jobs_running() + num_relaxed_gen)
+                    count = 0
                     while (
-                        self.worker.number_of_jobs_running() + relaxed_num_strus_gen < self.population_size
+                        self.worker.number_of_jobs_running() + num_relaxed_gen < self.population_size
                     ):
                         self.reproduce()
+                        count += 1
                     else:
+                        print(f"{count} candidates were reproduced in this run...")
                         print("enough jobs are running for current generation...")
                 else:
                     print("not finished relaxing current generation...")

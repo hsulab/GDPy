@@ -383,34 +383,40 @@ class VaspQueue:
                     if fpath.exists():
                         cur_repeat = np.loadtxt(fpath, dtype=int)
                         print("cur_repeat: ", cur_repeat)
-                    if cur_repeat < self.repeat:
-                        if confid not in failed_ids:
-                            # TODO: save relaxation trajectory for MLP?
-                            print('copy data...')
-                            saved_cards = ['POSCAR', 'CONTCAR', 'OUTCAR']
-                            for card in saved_cards:
-                                card_path = cand_dir / card
-                                saved_card_path = cand_dir / (card+'_old')
-                                shutil.copy(card_path, saved_card_path)
-                            shutil.copy(cand_dir / 'CONTCAR', cand_dir / 'POSCAR')
-                            print("resubmit job...")
-                            msg = run_command(cand_dir, self.calc_command, comment="submitting job", timeout=30)
-                            cur_repeat += 1
-                            np.savetxt(fpath, np.array([cur_repeat]), fmt="%d")
-                        else:
-                            print('save failed configuration to the database')
-                            atoms.info['confid'] = confid
-                            # add few information
-                            atoms.info['data'] = {}
-                            atoms.info['key_value_pairs'] = {'extinct': 0, 'failed': 1}
-                            atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
-                            self.dc.add_relaxed_step(
-                                atoms,
-                                find_neighbors=self.find_neighbors,
-                                perform_parametrization=self.perform_parametrization
-                            )
+                    if cur_repeat < self.repeat and confid not in failed_ids:
+                        # TODO: save relaxation trajectory for MLP?
+                        print("backup old data...")
+                        saved_cards = ["OUTCAR", "vasprun.xml"]
+                        for card in saved_cards:
+                            card_path = cand_dir / card
+                            bak_fmt = ("bak.{:d}."+card)
+                            idx = 0
+                            while True:
+                                bak_card = bak_fmt.format(idx)
+                                if not Path(bak_card).exists():
+                                    saved_card_path = cand_dir / bak_card
+                                    shutil.copy(card_path, saved_card_path)
+                                    break
+                                else:
+                                    idx += 1
+                        # update positions
+                        shutil.copy(cand_dir / "CONTCAR", cand_dir / "POSCAR")
+                        print("resubmit job...")
+                        msg = run_command(cand_dir, self.calc_command, comment="submitting job", timeout=30)
+                        cur_repeat += 1
+                        np.savetxt(fpath, np.array([cur_repeat]), fmt="%d")
                     else:
-                        pass
+                        print('save failed configuration to the database')
+                        atoms.info['confid'] = confid
+                        # add few information
+                        atoms.info['data'] = {}
+                        atoms.info['key_value_pairs'] = {'extinct': 0, 'failed': 1}
+                        atoms.info['key_value_pairs']['raw_score'] = -atoms.get_potential_energy()
+                        self.dc.add_relaxed_step(
+                            atoms,
+                            find_neighbors=self.find_neighbors,
+                            perform_parametrization=self.perform_parametrization
+                        )
 
         return
     
