@@ -175,7 +175,7 @@ def main():
         elif args.mode == "create":
             pm.create_ensemble()
     elif args.subcommand == 'explore':
-        from .exploration.sample_main import run_exploration
+        from .expedition.sample_main import run_exploration
         run_exploration(args.potential, args.exploration, args.step, args.opt_params)
     elif args.subcommand == 'semi':
         from .trainer.manual_train import manual_train

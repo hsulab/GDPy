@@ -696,7 +696,7 @@ def run_exploration(pot_json, exp_json, chosen_step, global_params = None):
     if method == "MD":
         scout = Sampler(pm, exp_dict)
     elif method == "GA":
-        from GDPy.exploration.structure_exploration import RandomExplorer
+        from GDPy.expedition.structure_exploration import RandomExplorer
         scout = RandomExplorer(pm, exp_dict)
     else:
         raise ValueError(f"Unknown method {method}")

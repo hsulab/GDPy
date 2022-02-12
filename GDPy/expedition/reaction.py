@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-from GDPy.exploration.abstract import AbstractExplorer
+from GDPy.expedition.abstract import AbstractExplorer
 
 
 class ReactionExplorer(AbstractExplorer):

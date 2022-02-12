@@ -24,7 +24,7 @@ from collections import Counter
 from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 from GDPy.utils.data import vasp_creator, vasp_collector
 
-from GDPy.exploration.abstract import AbstractExplorer
+from GDPy.expedition.abstract import AbstractExplorer
 from GDPy.machine.machine import SlurmMachine
 
 
