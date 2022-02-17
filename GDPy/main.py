@@ -13,14 +13,19 @@ import numpy as np
 def main():
     # arguments 
     parser = argparse.ArgumentParser(
-        prog='gdp', 
-        description='GDPy: Generating DeepMD Potential with Python'
+        prog="gdp", 
+        description="GDPy: Generating Deep Potential with Python"
     )
     
     # the workflow tracker
     parser.add_argument(
         '-s', '--status', 
         help='pickle file with info on the current workflow'
+    )
+
+    parser.add_argument(
+        "-pot", "--potential", default = None,
+        help = "potential related configuration"
     )
     
     # subcommands in the entire workflow 
@@ -65,13 +70,61 @@ def main():
         help='potential-related input json'
     )
     parser_explore.add_argument(
-        '-s', '--step', required=True,
-        help='exploration steps (create/collect/select)'
+        "-s", "--step", required=True,
+        choices = ["create", "collect", "select", "calc", "harvest"],
+        help="exploration steps (create/collect/select)"
     )
     parser_explore.add_argument(
         "-op", "--opt_params", nargs="*",
         help="global parameters for exploration"
     )
+
+    # ----- data analysis -----
+    parser_data = subparsers.add_parser(
+        "data", help="data analysis subcommand"
+    )
+
+    parser_data.add_argument(
+        "MODE", choices = ["stat", "calc", "compress"],
+        help = "choose data analysis mode"
+    )
+    
+    # general options for reading structures
+    parser_data.add_argument(
+        "-d", "--main_dir", # TODO: main dir for dataset
+        default = "/users/40247882/scratch2/PtOx-dataset",
+        help = "main directory that contains systemwise xyz files"
+    )
+    parser_data.add_argument(
+        "-n", "--name", default = "ALL",
+        help = "system name"
+    )
+    parser_data.add_argument(
+        "-p", "--pattern", default = "*.xyz",
+        help = "xyz search pattern"
+    )
+
+    parser_data.add_argument(
+        "-m", "--mode", default=None,
+        help = "data analysis mode"
+    )
+
+    parser_data.add_argument(
+        "-num", "--number", 
+        default = -1, type=int,
+        help = "number of selection"
+    )
+    parser_data.add_argument(
+        "-etol", "--energy_tolerance", 
+        default = 0.020, type = float,
+        help = "energy tolerance per atom"
+    )
+    parser_data.add_argument(
+        "-es", "--energy_shift", 
+        default = 0.0, type = float,
+        help = "add energy correction for each structure"
+    )
+
 
     # ase calculator interface
     parser_ase = subparsers.add_parser(
@@ -177,6 +230,13 @@ def main():
     elif args.subcommand == 'explore':
         from .expedition.sample_main import run_exploration
         run_exploration(args.potential, args.exploration, args.step, args.opt_params)
+    elif args.subcommand == "data":
+        from GDPy.data.main import data_main
+        data_main(
+            args.potential, args.MODE, args.mode,
+            args.main_dir, args.name, args.pattern,
+            args.number, args.energy_tolerance, args.energy_shift
+        )
     elif args.subcommand == 'semi':
         from .trainer.manual_train import manual_train
         manual_train(args.INPUTS, args.iter, args.stage)

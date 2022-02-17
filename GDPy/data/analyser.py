@@ -11,7 +11,7 @@ import scipy as sp
 
 from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 from GDPy.utils.comparasion import parity_plot_dict
-from GDPy.data.dpsets import append_predictions, merge_predicted_forces, xyz2results
+from GDPy.data.operators import append_predictions, merge_predicted_forces, xyz2results
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
 from ase.io import read, write
