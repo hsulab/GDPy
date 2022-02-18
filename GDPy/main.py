@@ -34,6 +34,32 @@ def main():
         dest='subcommand', 
         help='sub-command help'
     )
+
+    # single calculation creator (VASP for now)
+    parser_vasp = subparsers.add_parser(
+        "vasp", help="utils to create and analyse vasp calculation"
+    )
+    parser_vasp.add_argument(
+        "STRUCTURE",
+        help="structure file in any format (better xsd)"
+    )
+    parser_vasp.add_argument(
+        "-i", "--incar",
+        help="template incar file"
+    )
+    parser_vasp.add_argument(
+        # "-c", "--copt", action='store_true',
+        "-c", "--copt", type=int, nargs=2,
+        help="use constrained optimisation for transition state search"
+    )
+    parser_vasp.add_argument(
+        "-ns", "--nosort", action="store_false",
+        help="sort atoms by elemental numbers and z-positions"
+    )
+    parser_vasp.add_argument(
+        "--sub", action="store_true",
+        help="submit the job after creating input files"
+    )
     
     # automatic training
     parser_train = subparsers.add_parser(
@@ -217,7 +243,10 @@ def main():
     # tracker = track_workflow(args.status)
 
     # use subcommands
-    if args.subcommand == "train":
+    if args.subcommand == "vasp":
+        from GDPy.utils.vasp.main import vasp_main
+        vasp_main(args.STRUCTURE, args.incar, args.nosort, args.sub)
+    elif args.subcommand == "train":
         from .trainer.iterative_train import iterative_train
         iterative_train(args.INPUTS)
     elif args.subcommand == "model":

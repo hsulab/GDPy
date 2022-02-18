@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import os
 import re
@@ -7,10 +8,12 @@ import json
 import argparse
 import subprocess 
 from typing import Union, List
+from collections import Counter
 
 import shutil
 
-from pathlib import Path 
+from pathlib import Path
+from matplotlib.pyplot import isinteractive 
 
 import numpy as np 
 
@@ -109,24 +112,25 @@ class VaspMachine():
 
     def __init__(
         self, 
-        command, 
         incar, 
         pp_path, 
         vdw_path=None, 
         vasp_script=None,
+        isinteractive = False, # if output input info to screen
         **kwargs
     ):
         """"""
-        self.command = command
         self.__incar = incar
 
         self.vasp_script = None
         if vasp_script is not None:
-            self.vasp_script = SlurmMachine(use_gpu=False)
+            self.vasp_script = SlurmMachine(use_gpu=False) # TODO: change to general machine
             self.vasp_script.update(vasp_script)
 
         self.pp_path = pp_path
         self.vdw_path = vdw_path
+
+        self.isinteractive = isinteractive
 
         self.__kpts = kwargs.get("kpts", None)
 
@@ -170,11 +174,12 @@ class VaspMachine():
         self.fmax = np.fabs(vasp_creator.exp_params.get("ediffg", 0.05))
 
         # overwrite some structure specific parameters
-        vasp_creator.set(system=directory.name)
+        vasp_creator.set(system=directory.name) # SYSTEM
 
         # TODO: use not gamma-centred mesh?
         vasp_creator.set(gamma=True)
         if self.__kpts is None:
+            # default equals kspacing = 20
             kpts = np.linalg.norm(atoms.cell, axis=1).tolist()
             kpts = [int(20./k)+1 for k in kpts] 
         else:
@@ -192,10 +197,64 @@ class VaspMachine():
         vasp_creator.initialize(atoms)
         vasp_creator.write_input(atoms, directory)
 
+        # TODO: fort.188
+
         if self.vasp_script is not None:
             # vasp_script = self.vasp_script.copy() # TODO: add copy
             self.vasp_script.machine_dict["job-name"] = directory.name
             self.vasp_script.write(directory / self.script_name)
+        
+        # output info
+        if isinteractive:
+            # --- summary ---
+            content = '\n>>>>> Modified ASE for VASP <<<<<\n'
+            content += '    directory -> %s\n' %directory 
+            print(content)
+
+            # --- poscar ---
+            symbols = atoms.get_chemical_symbols() 
+            all_atoms = Counter(symbols) 
+            cons = atoms.constraints
+            # print(cons)
+            if len(cons) == 1:
+                cons_indices = cons[0].get_indices() 
+                fixed_symbols = [symbols[i] for i in cons_indices]
+                fixed_atoms = Counter(fixed_symbols)
+            else:
+                fixed_atoms = all_atoms.copy()
+                for key in fixed_atoms.keys():
+                    fixed_atoms[key] = 0
+
+            natoms = len(atoms) 
+            nfixed = np.sum(list(fixed_atoms.values()))
+
+            content = "\nPOSCAR -->\n"
+            content += "    \033[4m Element       Numbers      \033[0m\n"
+            for sym in all_atoms.keys():
+                content += "         %2s \033[1;33m%4d\033[0m \033[32m%4d\033[0m(T)\033[31m%4d\033[0m(F)\n"\
+                        %(sym, all_atoms[sym], all_atoms[sym]-fixed_atoms[sym], fixed_atoms[sym])
+            content += "    \033[4m                            \033[0m\n"
+            content += "      %2s \033[1;33m%4d\033[0m \033[32m%4d\033[0m(T)\033[31m%4d\033[0m(F)\n"\
+                        %('Total', natoms, natoms-nfixed, nfixed)
+            print(content) 
+
+            # --- kpoints ---
+            content = "KPOINTS -->\n"
+            content += "     Set k-point -> \033[1;35m{:s}\033[0m\n".format(str(kpts))
+            print(content)
+
+            # --- copt --- 
+
+            # --- potcar ---
+
+        return
+    
+    def submit(self, directory):
+        """"""
+        run_command(
+            directory, "{} {}".format(self.vasp_script.SUBMIT_COMMAND, self.script_name),
+            comment="submit a vasp calculation"
+        )
 
         return
     
