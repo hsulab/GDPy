@@ -49,7 +49,8 @@ class RandomExplorer(AbstractExplorer):
     collect_params = dict(
         converged_force = 0.05,
         energy_difference = 3.0, # energy difference compared to the lowest
-        esvar_tol = 0.001, # energy standard variance tolerance per atom
+        esvar_tol = [0.02, 0.20], # energy standard variance tolerance per atom
+        fsvar_tol = [0.05, 0.25], # force standard variance tolerance per atom
         num_lowest = 200 # minimum number of local minima considered
     )
 
@@ -181,7 +182,7 @@ class RandomExplorer(AbstractExplorer):
                     atoms.calc = self.calc
                     energy = atoms.get_potential_energy()
                     enstdvar = atoms.calc.results["en_stdvar"]
-                    if enstdvar < self.esvar_tol*len(atoms):
+                    if enstdvar < self.esvar_tol[0]*len(atoms) or enstdvar > self.esvar_tol[1]*len(atoms):
                         # print(f"{idx} small svar {enstdvar} no need to learn")
                         continue
                     maxfstdvar = np.max(atoms.calc.results["force_stdvar"])
@@ -265,7 +266,7 @@ class RandomExplorer(AbstractExplorer):
                                 confid, traj_id, energy, enstdvar, maxfstdvar
                             )
                         )
-                    if enstdvar > self.esvar_tol*len(traj_atoms):
+                    if self.esvar_tol[0]*len(traj_atoms) < enstdvar < self.esvar_tol[1]*len(traj_atoms):
                         # print(f"{idx} large svar {enstdvar} need to learn")
                         unlearned_frames.append(traj_atoms)
                 # print("trajectory length: ", len(frames))
@@ -536,10 +537,11 @@ class RandomExplorer(AbstractExplorer):
             out_name = system_path / (d.name + "-" + pot_gen + ".xyz")
             if out_name.exists():
                 nframes_out = len(read(out_name, ":"))
-                if nframes_input == nframes_out:
+                if nframes_input == nframes_out == len(vasp_dirs_sorted):
                     print(d, "already has been harvested...")
                     continue
 
+            # start to collect...
             st = time.time()
             print("using num of jobs: ", njobs)
             cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
