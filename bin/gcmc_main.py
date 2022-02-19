@@ -49,11 +49,16 @@ atoms = read(gc_dict["structure"])
 #res = Reservior(particle='O', temperature=300, pressure=1.0, mu=chemical_potential) # Kelvin, atm, eV
 
 # set region
-region = ReducedRegion(gc_dict["type_list"], atoms.cell, caxis=gc_dict["region"]["caxis"], mindis=gc_dict["region"]["mindis"])
+region = ReducedRegion(
+    gc_dict["type_list"], atoms.cell.complete(), caxis=gc_dict["region"]["caxis"], 
+    covalent_ratio = gc_dict["region"]["covalent_ratio"], max_movedisp = gc_dict["region"]["max_movedisp"]
+)
 
 # start mc
 transition_array = gc_dict["probabilities"] # move and exchange
-gcmc = GCMC(gc_dict["type_list"], gc_dict["reservior"], atoms, region, transition_array)
+gcmc = GCMC(
+    gc_dict["type_list"], gc_dict["reservior"], atoms, region, transition_array
+)
 
 
 if args.run:
