@@ -4,57 +4,52 @@
 from pathlib import Path
 
 from GDPy.data.analyser import DataOperator
+from GDPy.utils.command import parse_input_file
 
 def data_main(
+    data_inputs,
     potential,
     subcommand,
     mode,
-    main_dir, name, pattern,
+    name, pattern,
     number,# number of selection
     etol,  # energy tolerance
     eshift, # energy shift for structure
     count = 0 # TODO: for reduction
 ):
+    # check data inputs
+    input_dict = parse_input_file(data_inputs)
+    main_dir = Path(input_dict["database"])
+
     # ====== start working =====
     # create data analyser class and read related structures
-    do = DataOperator(name)
-    if name != "ALL":
-        do.frames = do.read_frames(
-            Path(main_dir) / name,
-            pattern = pattern
-        )
-    else:
-        do.frames = do.read_all_frames(
-            Path(main_dir), 
-            pattern = pattern
-        )
-    do.remove_large_force_structures()
+    do = DataOperator(main_dir, name, pattern)
 
-    # load potential
-    from GDPy.potential.manager import create_manager
-    if potential is not None:
-        atypes = None
-        pm = create_manager(potential)
-        calc = pm.generate_calculator(atypes)
-        print("MODELS: ", pm.models)
-    else:
-        calc = None
-    
-    do.register_calculator(calc)
+    # sift structures based on atomic energy and max forces
+    sift_criteria = input_dict["sift"]
+    do.sift_structures(
+        energy_tolerance = sift_criteria["atomic_energy"],
+        force_tolerance=sift_criteria["max_force"]
+    )
 
-    if subcommand == "stat":
-        do.check_xyz()
+    do.register_potential(potential)
+
+    # ===== parse systems =====
+    systems = input_dict["systems"]
+
+    if subcommand == "dryrun":
+        pass
+    elif subcommand == "stat":
+        do.show_statistics(systems, input_dict["convergence"]["fmax"])
     elif subcommand == "compress":
         # TODO: parameters
         # number, etol, eshift
-        if calc is None:
+        if do.calc is None:
             print("use descriptor-based dataset compression...")
             do.compress_frames(number, None, eshift)
         else:
             print("use calculator-assisted dataset compression...")
-            do.compress_based_on_deviation(
-                calc, number, etol, eshift
-            )
+            do.compress_based_on_deviation(number, etol, eshift)
     elif subcommand == "calc":
         # perform operations
         # TODO: fix reduce mode

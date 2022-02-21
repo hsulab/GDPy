@@ -111,16 +111,16 @@ def main():
     )
 
     parser_data.add_argument(
-        "MODE", choices = ["stat", "calc", "compress"],
+        "DATA", help = "general data setting file"
+    )
+
+    parser_data.add_argument(
+        "-c", "--choice", default="dryrun",
+        choices = ["dryrun", "stat", "calc", "compress"],
         help = "choose data analysis mode"
     )
     
     # general options for reading structures
-    parser_data.add_argument(
-        "-d", "--main_dir", # TODO: main dir for dataset
-        default = "/users/40247882/scratch2/PtOx-dataset",
-        help = "main directory that contains systemwise xyz files"
-    )
     parser_data.add_argument(
         "-n", "--name", default = "ALL",
         help = "system name"
@@ -203,10 +203,6 @@ def main():
         'INPUTS',
         help='input json file with calculation parameters'
     )
-    parser_validation.add_argument(
-        '-p', '--potential', required=True,
-        help='potential-related input json'
-    )
 
     # utilities
     parser_utility = subparsers.add_parser(
@@ -262,8 +258,9 @@ def main():
     elif args.subcommand == "data":
         from GDPy.data.main import data_main
         data_main(
-            args.potential, args.MODE, args.mode,
-            args.main_dir, args.name, args.pattern,
+            args.DATA,
+            args.potential, args.choice, args.mode,
+            args.name, args.pattern,
             args.number, args.energy_tolerance, args.energy_shift
         )
     elif args.subcommand == 'semi':

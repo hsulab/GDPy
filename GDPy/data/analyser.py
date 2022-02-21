@@ -168,7 +168,10 @@ class DataOperator():
     """
     """
 
-    def __init__(self, name: str):
+    def __init__(
+        self, main_dir, name: str,
+        pattern
+    ):
         """ parse names...
         """
         self.name = name # system name
@@ -189,9 +192,20 @@ class DataOperator():
             self.type_list, self.type_numbers = self.__parse_type_list(
                 chemical_formula)
 
-        self.frames = None  # List of Atoms
-
         self.prefix = Path.cwd()
+
+        # parse structures
+        self.frames = None  # List of Atoms
+        if name != "ALL":
+            self.frames = self.read_single_system(
+                Path(main_dir) / name,
+                pattern = pattern
+            )
+        else:
+            self.frames = self.read_all_systems(
+                Path(main_dir), 
+                file_pattern = pattern
+            )
 
         return
 
@@ -212,88 +226,92 @@ class DataOperator():
 
         return type_list, number_dict
     
-    def register_calculator(self, calc):
+    def register_potential(self, potential):
         """"""
+        # load potential
+        from GDPy.potential.manager import create_manager
+        if potential is not None:
+            atypes = None
+            pm = create_manager(potential)
+            calc = pm.generate_calculator(atypes)
+            print("MODELS: ", pm.models)
+        else:
+            calc = None
+
         self.calc = calc
 
         return
 
-    def read_all_frames(
+    def read_all_systems(
         self, system_path: Union[str, pathlib.Path],
-        pattern: int = "*.xyz"
+        sys_pattern = "*",
+        file_pattern = "*.xyz"
     ) -> List[Atoms]:
         print("----- read frames -----")
         print(str(system_path))
         # TODO: should sort dirs to make frames consistent
 
         total_frames = []
-        dirs = list(system_path.glob("O*"))
+        dirs = list(system_path.glob(sys_pattern)) 
         dirs.sort()
         for p in dirs:
-            print(p)
-            for x in p.glob("*.xyz"):
-                frames = read(x, ":")
-                print("number of frames: ", len(frames))
-                total_frames.extend(frames)
+            self.read_single_system(p, file_pattern)
         print("Total number: ", len(total_frames))
 
         return total_frames
 
-    def read_frames(
+    def read_single_system(
         self, system_path: Union[str, pathlib.Path],
         pattern: int = "*.xyz"
     ) -> List[Atoms]:
         print("----- read frames -----")
-        print(str(system_path))
+        print("system path: ", str(system_path))
         # TODO: should sort dirs to make frames consistent
 
         total_frames = []
-        dirs = list(system_path.glob(pattern))
-        dirs.sort()
-        for p in dirs:
-            print(p)
+        stru_files = list(system_path.glob(pattern)) # structure files, xyz for now
+        stru_files.sort()
+        for p in stru_files:
             frames = read(p, ":")
-            print("number of frames: ", len(frames))
             total_frames.extend(frames)
+            print("structure path: ", p)
+            print("number of frames: ", len(frames))
         print("Total number: ", len(total_frames))
 
         return total_frames
 
-    def remove_large_force_structures(self) -> NoReturn:
-        # remove large-force frames
-        # TODO: move this part to the main reading procedure
-        force_tolerance = 50
-        print("force criteria: ", force_tolerance, " [eV/Å]")
-        new_frames = []
-        for atoms in self.frames:
-            max_force = np.max(np.fabs(atoms.get_forces()))
-            if max_force > force_tolerance:  # TODO
-                # skip large-force structure
-                continue
-            else:
-                new_frames.append(atoms)
-        self.frames = new_frames
-        print("number of frames after removing large-force ones: ", len(self.frames))
-
-        return
-
-    def remove_large_energy_structures(self) -> NoReturn:
-        """ remove structure with large atomic energy
+    def sift_structures(
+        self, 
+        energy_tolerance = None, 
+        force_tolerance = None
+    ) -> NoReturn:
+        """ sift structures based on atomic energy and max forces
         """
-        MAX_AEAVG = -1.4  # TODO: add this to input
-        remove_unstable = True  # if remove structures with large energy and forces
-        if remove_unstable:
+        # remove large-force frames
+        print("----- sift structures -----")
+        if force_tolerance is None and energy_tolerance is None:
+            print("no criteria is applied...")
+        else:
+            if energy_tolerance is None:
+                energy_tolerance = 1e8
+            if force_tolerance is None:
+                force_tolerance = 1e8
+            print("energy criteria: ", energy_tolerance, " [eV]")
+            print("force criteria: ", force_tolerance, " [eV/Å]")
             new_frames = []
             for idx, atoms in enumerate(self.frames):
-                ae_avg = atoms.get_potential_energy() / len(atoms)
-                if ae_avg < MAX_AEAVG:
-                    new_frames.append(atoms)
+                avg_energy = atoms.get_potential_energy() / len(atoms)
+                max_force = np.max(np.fabs(atoms.get_forces()))
+                if max_force > force_tolerance: 
+                    print(f"skip {idx} with large forces {max_force}")
+                    continue
+                elif avg_energy > energy_tolerance:
+                    print(f"skip {idx} with large energy {avg_energy}")
+                    continue
                 else:
-                    print(
-                        "Find {} unstable structure with energy {}".format(
-                            idx, ae_avg)
-                    )
+                    new_frames.append(atoms)
             self.frames = new_frames
+            print("number of frames after sift: ", len(self.frames))
 
         return
 
@@ -406,7 +424,7 @@ class DataOperator():
         return
 
     def compress_based_on_deviation(
-        self, calc,
+        self,
         minisize = 640, # minimum extra number of structures
         energy_tolerance=0.020,
         energy_shift=0.0
@@ -417,6 +435,8 @@ class DataOperator():
             possible criteria 
             energy error 0.020 eV / atom
         """
+        calc = self.calc
+
         batchsize = 32
         # minisize = 320  # minimum extra number of structures
 
@@ -482,9 +502,9 @@ class DataOperator():
         return
 
     def compress_frames(
-        self, number=320,
-        frames=None,
-        energy_shift=0.0
+        self, number = 320,
+        frames = None,
+        energy_shift = 0.0
     ):
         """ Strategy for compressing large dataset
             1. if atomic energy is way large, skip them
@@ -652,17 +672,28 @@ class DataOperator():
 
         return [func(group) for group in np.split(S.data, S.indptr[1:-1])]
 
-    def check_xyz(self):
-        """"""
+    def show_statistics(
+        self, systems: dict,
+        fmax: float = 0.05
+    ):
+        """ parameters
+            fmax: 0.05
+            constraint: ?
+        """
+        # parse constraint indices
+        cons_info = systems[self.name]["constraint"]
+        cons_indices = []
+        for c in cons_info.split():
+            s, e = c.split(":")
+            cons_indices.extend(list(range(int(s)-1, int(e))))
+
         # check converged structures
         converged_frames = []
         for i, atoms in enumerate(self.frames):
-            # TODO: make fixed atom indices as parameter
-            cons = FixAtoms(
-                indices=[a.index for a in atoms if a.position[2] < 2.5])
+            cons = FixAtoms(indices=cons_indices)
             atoms.set_constraint(cons)
-            max_force = np.max(np.fabs(atoms.get_forces()))
-            if (max_force < 0.05):
+            max_force = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            if (max_force < fmax):
                 print("converged structure index: ", i)
                 atoms.info["description"] = "local minimum"
                 converged_frames.append(atoms)
@@ -672,18 +703,42 @@ class DataOperator():
             write("local_minimum.xyz", converged_frames)
 
         # use loaded frames
+        nframes = len(self.frames)
         ref_energies, ref_forces = xyz2results(self.frames, calc=None)
         natoms_array = np.array([len(x) for x in self.frames])
 
-        # TODO: if force in given interval
-        # for k in ref_forces.keys():
-        #    ref_forces[k] = np.ma.masked_outside(ref_forces[k], -10., 10.)
-        #    print(ref_forces[k])
+        if self.calc is not None:
+            # TODO: compare with MLP
+            res_dir = Path.cwd() / self.name
+            if not res_dir.exists():
+                res_dir.mkdir()
+            existed_data = res_dir / (self.name + "-MLP.xyz")
+        
+            # use loaded frames
+            calc_name = self.calc.name.lower()
+            if not existed_data.exists():
+                new_frames = append_predictions(self.frames, calc=self.calc)
+                #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
+                mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
+                mlp_forces = merge_predicted_forces(new_frames, calc_name) 
+                energies = np.array([ref_energies, mlp_energies])
 
+                # save data
+                write(existed_data, new_frames)
+
+                forces = [ref_forces, mlp_forces]
+                energies = np.array([ref_energies, mlp_energies]) / natoms_array
+            else:
+                print("Use saved property data...")
+                raise NotImplementedError("TODO: use pre-calculated data...")
+
+            self.__plot_comparasion(calc_name, energies, forces, res_dir / (self.name + "-cmp.png"))
+
+        # plot
         fig, axarr = plt.subplots(nrows=1, ncols=2, figsize=(16, 12))
         axarr = axarr.flatten()
 
-        plt.suptitle('Dataset Overview')
+        plt.suptitle("Dataset Overview")
 
         plot_hist(axarr[0], np.array(ref_energies).flatten(),
                   "Energy [eV]", "Number of Frames")
@@ -695,7 +750,7 @@ class DataOperator():
             )
         axarr[1].legend()
 
-        plt.savefig('wang.png')
+        plt.savefig(self.name + "-stat.png")
 
         return
 
