@@ -46,7 +46,7 @@ def data_main(
         # number, etol, eshift
         if do.calc is None:
             print("use descriptor-based dataset compression...")
-            do.compress_frames(number, None, eshift)
+            do.compress_frames(number, eshift)
         else:
             print("use calculator-assisted dataset compression...")
             do.compress_based_on_deviation(number, etol, eshift)

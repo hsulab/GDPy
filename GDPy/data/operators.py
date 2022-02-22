@@ -156,9 +156,13 @@ def sets2results(set_dirs, calc, chemical_symbols):
 
     return ref_energies, ref_forces, mlp_energies, mlp_forces
 
-def append_predictions(frames, calc = None, other_props = [], calc_uncertainty=False):
+def append_predictions(
+    frames, calc = None, other_props = [], calc_uncertainty=False
+):
     """ test xyz
     """
+    if calc is not None:
+        calc_name = calc.name.lower()
 
     tot_energies, tot_forces = [], {}
     tot_props = {}
@@ -171,10 +175,10 @@ def append_predictions(frames, calc = None, other_props = [], calc_uncertainty=F
             if calc_uncertainty:
                 calc.calc_uncertainty = True # EANN specific
             calc_atoms.calc = calc
-            new_forces = calc_atoms.get_forces()
+            new_forces = calc_atoms.get_forces(apply_constraint=False)
             new_energy = calc_atoms.get_potential_energy()
-            atoms.info["mlp_energy"] = new_energy
-            atoms.arrays["mlp_forces"] = new_forces.copy()
+            atoms.info[calc_name+"_energy"] = new_energy
+            atoms.arrays[calc_name+"_forces"] = new_forces.copy()
         
     return frames
 
@@ -197,7 +201,7 @@ def merge_forces(frames):
 
     return tot_forces
 
-def merge_predicted_forces(frames):
+def merge_predicted_forces(frames, calc_name):
     """ convert forces of all frames into a dict,
         which helps further comparison
     """
@@ -207,7 +211,7 @@ def merge_predicted_forces(frames):
         symbols = atoms.get_chemical_symbols()
 
         # force
-        forces = atoms.arrays["mlp_forces"].copy()
+        forces = atoms.arrays[calc_name+"_forces"].copy()
         for sym, force in zip(symbols, forces.tolist()):
             if sym in tot_forces.keys():
                 tot_forces[sym].extend(force)
@@ -239,7 +243,7 @@ def xyz2results(frames, calc = None, other_props = []):
         tot_energies.append(energy)
 
         # force
-        forces = atoms.get_forces()
+        forces = atoms.get_forces(apply_constraint=False)
         for sym, force in zip(symbols, forces.tolist()):
             if sym in tot_forces.keys():
                 tot_forces[sym].extend(force)

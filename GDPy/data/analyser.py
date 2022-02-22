@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from genericpath import exists
 from itertools import groupby
 import json
-from pickletools import read_decimalnl_long
+import time
 
 import numpy as np
 import scipy as sp
@@ -503,7 +502,6 @@ class DataOperator():
 
     def compress_frames(
         self, number = 320,
-        frames = None,
         energy_shift = 0.0
     ):
         """ Strategy for compressing large dataset
@@ -708,6 +706,7 @@ class DataOperator():
         natoms_array = np.array([len(x) for x in self.frames])
 
         if self.calc is not None:
+            st = time.time()
             # TODO: compare with MLP
             res_dir = Path.cwd() / self.name
             if not res_dir.exists():
@@ -717,6 +716,7 @@ class DataOperator():
             # use loaded frames
             calc_name = self.calc.name.lower()
             if not existed_data.exists():
+                print("Calculating with MLP...")
                 new_frames = append_predictions(self.frames, calc=self.calc)
                 #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
                 mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
@@ -730,7 +730,20 @@ class DataOperator():
                 energies = np.array([ref_energies, mlp_energies]) / natoms_array
             else:
                 print("Use saved property data...")
-                raise NotImplementedError("TODO: use pre-calculated data...")
+                new_frames = read(existed_data, ":")
+
+                ref_energies, ref_forces = xyz2results(new_frames, calc=None)
+                natoms_array = np.array([len(x) for x in new_frames])
+
+                mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
+                mlp_forces = merge_predicted_forces(new_frames, calc_name) 
+
+                energies = np.array([ref_energies, mlp_energies])
+                energies = np.array([ref_energies, mlp_energies]) / natoms_array
+                forces = [ref_forces, mlp_forces]
+
+            et = time.time()
+            print("calculation time: ", et-st)
 
             self.__plot_comparasion(calc_name, energies, forces, res_dir / (self.name + "-cmp.png"))
 
