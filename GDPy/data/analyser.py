@@ -769,8 +769,9 @@ class DataOperator():
                 content += "{:<24s}  {:<12d}  ".format(sys_name, natoms)
                 content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
                 for x in global_type_list:
-                    x_rmse = force_rmse[x].get("rmse", None)
-                    x_std = force_rmse[x].get("std", None)
+                    force_rmse_x = force_rmse.get(x, {})
+                    x_rmse = force_rmse_x.get("rmse", None)
+                    x_std = force_rmse_x.get("std", None)
                     content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
                 content += "\n"
             
