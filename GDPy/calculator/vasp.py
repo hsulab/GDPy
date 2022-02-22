@@ -244,6 +244,36 @@ class VaspMachine():
             print(content)
 
             # --- copt --- 
+            copt = atoms.info.get("copt", None)
+            if copt: 
+                # If constrained get distance and create fort.188
+                symbols = atoms.get_chemical_symbols() 
+                ca, cb = atoms.info["copt"][0], atoms.info["copt"][1] 
+                pt1, pt2 = atoms.positions[ca], atoms.positions[cb] 
+
+                # Use Ax=b convert to cartisan coordinate
+                distance = np.linalg.norm(pt1 - pt2) # NOTE: should consider MIC
+
+                # Create fort.188
+                ts_content = "1\n3\n6\n4\n0.04\n%-5d%-5d%f\n0\n" % \
+                    (ca+1, cb+1, distance)
+
+                with open(os.path.join(directory, "fort.188"), "w") as fopen:
+                    fopen.write(ts_content)
+    
+                vasp_creator.set(ibrion=1)
+
+                content += "\n"
+                content += "     fort.188 has been created.\n"
+                content += "     " + "-"*20 + "\n"
+                content += "     atom number: {:<5d}{:<5d}\n".format(ca+1, cb+1)
+                content += "     atom name: {} {}\n".format(symbols[ca], symbols[cb])
+                content += "     distance: {:f}\n".format(distance)
+                content += "     " + "-"*20 + "\n"
+
+                # Set IBRION = 1
+                content += "     Note: IBRION has been set to 1.\n"
+                print(content)
 
             # --- potcar ---
 
