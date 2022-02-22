@@ -809,22 +809,27 @@ class DataOperator():
             res_dir.mkdir()
 
         # parse constraint indices
-        cons_info = self.systems[sys_name]["constraint"]
-        cons_indices = []
-        for c in cons_info.split():
-            s, e = c.split(":")
-            cons_indices.extend(list(range(int(s)-1, int(e))))
+        cons_info = self.systems[sys_name].get("constraint", None)
+        cons_indices = None
+        if cons_info is not None:
+            print("apply constraint...")
+            cons_indices = []
+            for c in cons_info.split():
+                s, e = c.split(":")
+                cons_indices.extend(list(range(int(s)-1, int(e))))
 
         # check converged structures
         converged_frames = []
         for i, atoms in enumerate(frames):
-            cons = FixAtoms(indices=cons_indices)
-            atoms.set_constraint(cons)
+            if cons_indices is not None:
+                cons = FixAtoms(indices=cons_indices)
+                atoms.set_constraint(cons)
             max_force = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             if (max_force < fmax):
                 print("converged structure index: ", i)
                 atoms.info["description"] = "local minimum"
                 converged_frames.append(atoms)
+
         if len(converged_frames) > 0:
             converged_energies = [a.get_potential_energy() for a in converged_frames]
             converged_frames.sort(key=lambda a:a.get_potential_energy())
