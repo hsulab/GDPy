@@ -3,10 +3,12 @@
 
 from itertools import groupby
 import json
+from multiprocessing.context import ForkProcess
 import time
 
 import numpy as np
 import scipy as sp
+from torch import is_signed
 
 from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 from GDPy.utils.comparasion import parity_plot_dict
@@ -168,11 +170,18 @@ class DataOperator():
     """
 
     def __init__(
-        self, main_dir, name: str,
-        pattern
+        self, main_dir, systems,
+        name: str,
+        pattern, sift_settings
     ):
         """ parse names...
         """
+        # get global type list
+        self.systems = systems
+        #for sys_name in self.systems.keys()
+
+        self.sift_settings = sift_settings
+
         self.name = name # system name
 
         name_parts = name.split("-")
@@ -196,11 +205,13 @@ class DataOperator():
         # parse structures
         self.frames = None  # List of Atoms
         if name != "ALL":
+            self.is_single = True
             self.frames = self.read_single_system(
                 Path(main_dir) / name,
                 pattern = pattern
             )
         else:
+            self.is_single = False # whether a single dataset is read
             self.frames = self.read_all_systems(
                 Path(main_dir), 
                 file_pattern = pattern
@@ -250,12 +261,18 @@ class DataOperator():
         print(str(system_path))
         # TODO: should sort dirs to make frames consistent
 
-        total_frames = []
-        dirs = list(system_path.glob(sys_pattern)) 
+        nframes = 0
+        total_frames = {}
+        #dirs = list(system_path.glob(sys_pattern)) 
+        dirs = []
+        for sys_name in self.systems.keys():
+            dirs.append(system_path / sys_name)
         dirs.sort()
         for p in dirs:
-            self.read_single_system(p, file_pattern)
-        print("Total number: ", len(total_frames))
+            cur_frames = self.read_single_system(p, file_pattern)
+            total_frames[p.name] = cur_frames
+            nframes += len(cur_frames)
+        print("===== Total number: ", nframes)
 
         return total_frames
 
@@ -267,6 +284,7 @@ class DataOperator():
         print("system path: ", str(system_path))
         # TODO: should sort dirs to make frames consistent
 
+        # TODO: check composition is the same
         total_frames = []
         stru_files = list(system_path.glob(pattern)) # structure files, xyz for now
         stru_files.sort()
@@ -277,10 +295,22 @@ class DataOperator():
             print("number of frames: ", len(frames))
         print("Total number: ", len(total_frames))
 
+        # sift structures based on atomic energy and max forces
+        sift_criteria = self.sift_settings
+        use_sift = sift_criteria.get("enabled", False)
+        
+        if use_sift:
+            total_frames = self.sift_structures(
+                total_frames,
+                energy_tolerance = sift_criteria["atomic_energy"],
+                force_tolerance = sift_criteria["max_force"]
+            )
+
         return total_frames
 
     def sift_structures(
         self, 
+        frames,
         energy_tolerance = None, 
         force_tolerance = None
     ) -> NoReturn:
@@ -298,7 +328,7 @@ class DataOperator():
             print("energy criteria: ", energy_tolerance, " [eV]")
             print("force criteria: ", force_tolerance, " [eV/Å]")
             new_frames = []
-            for idx, atoms in enumerate(self.frames):
+            for idx, atoms in enumerate(frames):
                 avg_energy = atoms.get_potential_energy() / len(atoms)
                 max_force = np.max(np.fabs(atoms.get_forces()))
                 if max_force > force_tolerance: 
@@ -309,10 +339,9 @@ class DataOperator():
                     continue
                 else:
                     new_frames.append(atoms)
-            self.frames = new_frames
-            print("number of frames after sift: ", len(self.frames))
+            print("number of frames after sift: ", len(new_frames))
 
-        return
+        return new_frames
 
     def split_frames(self, count=0):
         merged_indices = []
@@ -669,17 +698,116 @@ class DataOperator():
         S = csr_matrix((values, [digitized, np.arange(N)]), shape=(nbins, N))
 
         return [func(group) for group in np.split(S.data, S.indptr[1:-1])]
-
+    
     def show_statistics(
-        self, systems: dict,
+        self, fmax: float = 0.05
+    ):
+        if self.is_single:
+            _ = self.show_single_statistics(self.name, self.frames, fmax)
+        else:
+            rmse_results = {}
+            all_energies = None
+            all_forces = None
+            global_type_list = []
+            for sys_name, sys_frames in self.frames.items():
+                # update type_list
+                chemical_formula = "".join(
+                    [k+str(v) for k, v in self.systems[sys_name]["composition"].items()]
+                )
+                self.type_list, self.type_numbers = self.__parse_type_list(
+                    chemical_formula
+                )
+                global_type_list.extend(self.type_list)
+
+                energies, forces, en_rmse, force_rmse = self.show_single_statistics(
+                    sys_name, sys_frames, fmax
+                )
+                # add system-wise rmse results
+                rmse_results[sys_name] = (en_rmse, force_rmse)
+                # merge energy and forces
+                if all_energies is None:
+                    all_energies = energies
+                else:
+                    all_energies = np.hstack([all_energies, energies])
+                print("energy shape: ", all_energies.shape)
+                if all_forces is None:
+                    all_forces = forces
+                    for key in forces[0].keys():
+                        print(f"ref {key} force length: ", len(all_forces[0][key]))
+                    for key in forces[1].keys():
+                        print(f"mlp {key} force length: ", len(all_forces[1][key]))
+                else:
+                    # ref
+                    for key in forces[0].keys():
+                        if key in all_forces[0].keys():
+                            all_forces[0][key].extend(forces[0][key])
+                        else:
+                            all_forces[0][key] = forces[0][key]
+                        print(f"ref {key} force length: ", len(all_forces[0][key]))
+                    # mlp
+                    for key in forces[1].keys():
+                        if key in all_forces[1].keys():
+                            all_forces[1][key].extend(forces[1][key])
+                        else:
+                            all_forces[1][key] = forces[1][key]
+                        print(f"mlp {key} force length: ", len(all_forces[1][key]))
+            global_type_list = sorted(list(set(global_type_list)))
+            
+            # analyse all results
+            #energies, forces, en_rmse, force_rmse
+            title = ("#{:<23s}  {:<12s}  {:<12s}  {:<12s}  ").format(
+                "SysName", "natoms", "dE_RMSE", "dE_Std"
+            )
+            for x in global_type_list:
+                title += "{:<12s}  {:<12s}  ".format(x+"_dF_RMSE", x+"_dF_Std")
+            title += "\n"
+
+            # system wise
+            content = ""
+            for sys_name, (en_rmse, force_rmse) in rmse_results.items():
+                natoms = sum(self.systems[sys_name]["composition"].values())
+                content += "{:<24s}  {:<12d}  ".format(sys_name, natoms)
+                content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
+                for x in global_type_list:
+                    x_rmse = force_rmse[x].get("rmse", None)
+                    x_std = force_rmse[x].get("std", None)
+                    content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
+                content += "\n"
+            
+            # all 
+            en_rmse, force_rmse = self.__plot_comparasion(
+                "ALL", all_energies, all_forces, "ALL-cmp.png"
+            )
+            content += "{:<24s}  {:<12d}  ".format("ALL", 0)
+            content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
+            for x in global_type_list:
+                x_rmse = force_rmse[x].get("rmse", None)
+                x_std = force_rmse[x].get("std", None)
+                content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
+            content += "\n"
+
+            with open("all_rmse.dat", "w") as fopen:
+                fopen.write(title+content)
+
+        return
+
+    def show_single_statistics(
+        self, 
+        sys_name,
+        frames,
         fmax: float = 0.05
     ):
         """ parameters
             fmax: 0.05
-            constraint: ?
         """
+        print(f"----- {sys_name} statistics -----")
+        # results
+        res_dir = Path.cwd() / sys_name
+        if not res_dir.exists():
+            res_dir.mkdir()
+
         # parse constraint indices
-        cons_info = systems[self.name]["constraint"]
+        cons_info = self.systems[sys_name]["constraint"]
         cons_indices = []
         for c in cons_info.split():
             s, e = c.split(":")
@@ -687,7 +815,7 @@ class DataOperator():
 
         # check converged structures
         converged_frames = []
-        for i, atoms in enumerate(self.frames):
+        for i, atoms in enumerate(frames):
             cons = FixAtoms(indices=cons_indices)
             atoms.set_constraint(cons)
             max_force = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
@@ -698,26 +826,23 @@ class DataOperator():
         if len(converged_frames) > 0:
             converged_energies = [a.get_potential_energy() for a in converged_frames]
             converged_frames.sort(key=lambda a:a.get_potential_energy())
-            write("local_minimum.xyz", converged_frames)
+            write(res_dir / "local_minimum.xyz", converged_frames)
 
         # use loaded frames
-        nframes = len(self.frames)
-        ref_energies, ref_forces = xyz2results(self.frames, calc=None)
-        natoms_array = np.array([len(x) for x in self.frames])
+        nframes = len(frames)
+        ref_energies, ref_forces = xyz2results(frames, calc=None)
+        natoms_array = np.array([len(x) for x in frames])
 
         if self.calc is not None:
             st = time.time()
             # TODO: compare with MLP
-            res_dir = Path.cwd() / self.name
-            if not res_dir.exists():
-                res_dir.mkdir()
-            existed_data = res_dir / (self.name + "-MLP.xyz")
+            existed_data = res_dir / (sys_name + "-MLP.xyz")
         
             # use loaded frames
             calc_name = self.calc.name.lower()
             if not existed_data.exists():
                 print("Calculating with MLP...")
-                new_frames = append_predictions(self.frames, calc=self.calc)
+                new_frames = append_predictions(frames, calc=self.calc)
                 #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
                 mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
                 mlp_forces = merge_predicted_forces(new_frames, calc_name) 
@@ -726,7 +851,7 @@ class DataOperator():
                 # save data
                 write(existed_data, new_frames)
 
-                forces = [ref_forces, mlp_forces]
+                forces = np.array([ref_forces, mlp_forces])
                 energies = np.array([ref_energies, mlp_energies]) / natoms_array
             else:
                 print("Use saved property data...")
@@ -745,9 +870,9 @@ class DataOperator():
             et = time.time()
             print("calculation time: ", et-st)
 
-            self.__plot_comparasion(calc_name, energies, forces, res_dir / (self.name + "-cmp.png"))
+            en_rmse, force_rmse = self.__plot_comparasion(calc_name, energies, forces, res_dir / (sys_name + "-cmp.png"))
 
-        # plot
+        # plot stat
         fig, axarr = plt.subplots(nrows=1, ncols=2, figsize=(16, 12))
         axarr = axarr.flatten()
 
@@ -763,9 +888,28 @@ class DataOperator():
             )
         axarr[1].legend()
 
-        plt.savefig(self.name + "-stat.png")
+        plt.savefig(res_dir / (sys_name + "-stat.png"))
+        
+        # save rmse dat
+        title = ("#{:<23s}  "+"{:<12s}  "*4).format(
+            "SysName", "natoms", "nframes", "dE_RMSE", "dE_Std"
+        )
+        for x in self.type_list:
+            title += "{:<12s}  {:<12s}  ".format(x+"_dF_RMSE", x+"_dF_Std")
+        title += "\n"
 
-        return
+        content = "{:<24s}  {:<12d}  {:<12d}  ".format(sys_name, natoms_array[0], nframes)
+        content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
+        for x in self.type_list:
+            content += ("{:<12.4f}  "*2).format(force_rmse[x]["rmse"], force_rmse[x]["std"])
+        content += "\n"
+
+        with open(res_dir / "rmse.dat", "w") as fopen:
+            fopen.write(title+content)
+        
+        print(title+content)
+
+        return energies, forces, en_rmse, force_rmse
 
     @staticmethod
     def test_uncertainty_consistent(frames, calc, saved_figure=None):
@@ -965,46 +1109,6 @@ class DataOperator():
 
         return
 
-    def test_frames(self, fig_name=None) -> NoReturn:
-        """test xyz energy and force errors"""
-        calc = self.calc
-        frames = self.frames
-
-        if len(frames) == 0:
-            print("No frames...")
-            return
-
-        nframes = len(frames)
-        natoms_array = np.array([len(x) for x in frames])
-
-        res_dir = Path(self.name)
-        if not res_dir.exists():
-            res_dir.mkdir()
-        existed_data = res_dir / "new_frames.xyz"
-        
-        # use loaded frames
-        calc_name = calc.name
-        if not existed_data.exists():
-            dft_energies, dft_forces = xyz2results(frames, calc=None)
-            new_frames = append_predictions(frames, calc=calc)
-            #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
-            mlp_energies = [a.info["mlp_energy"] for a in new_frames]
-            mlp_forces = merge_predicted_forces(new_frames) # BUG: not forces
-            energies = np.array([dft_energies, mlp_energies])
-
-            # save data
-            write(existed_data, new_frames)
-
-            forces = [dft_forces, mlp_forces]
-            energies = np.array([dft_energies, mlp_energies]) / natoms_array
-        else:
-            print("Use saved property data...")
-            raise NotImplementedError("TODO: use pre-calculated data...")
-
-        self.__plot_comparasion(calc_name, energies, forces, res_dir / fig_name)
-
-        return
-
     @staticmethod
     def __plot_comparasion(calc_name, energies, forces, saved_figure):
         """"""
@@ -1018,25 +1122,28 @@ class DataOperator():
         plt.suptitle(f"Number of frames {nframes}")
 
         ax = axarr[0]
-        rmse_results = parity_plot_dict({'energy': energies[0, :]}, {'energy': energies[1, :]}, ax, {
-                         'xlabel': 'DFT [eV]', 'ylabel': '%s [eV]' % calc_name, 'title': "Energy"})
-        print(rmse_results)
+        en_rmse_results = parity_plot_dict(
+            {"energy": energies[0, :]}, {"energy": energies[1, :]}, 
+            ax, 
+            {
+                "xlabel": "DFT [eV]", "ylabel": "%s [eV]" % calc_name, "title": "Energy"
+            }
+        )
 
         ax = axarr[1]
-        rmse_results = parity_plot_dict(
+        for_rmse_results = parity_plot_dict(
             forces[0], forces[1],
             ax,
             {
-                'xlabel': 'DFT [eV]',
-                'ylabel': '%s [eV]' % calc_name,
-                'title': "Energy"
+                "xlabel": "DFT [eV/AA]",
+                "ylabel": "%s [eV/AA]" % calc_name,
+                "title": "Forces"
             }
         )
-        print(rmse_results)
 
         plt.savefig(saved_figure)
 
-        return
+        return en_rmse_results, for_rmse_results
 
 
 if __name__ == "__main__":
