@@ -4,13 +4,14 @@
 from itertools import groupby
 import json
 from multiprocessing.context import ForkProcess
+from select import select
 import time
 
 import numpy as np
 import scipy as sp
 from torch import is_signed
 
-from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
+from GDPy.selector.abstract import Selector
 from GDPy.utils.comparasion import parity_plot_dict
 from GDPy.data.operators import append_predictions, merge_predicted_forces, xyz2results
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -57,15 +58,6 @@ def estimate_number_composition():
     return
 
 
-def check_convergence(forces):
-    """
-    forces nframes*(3*natoms) array
-    """
-    max_forces = np.max(np.fabs(forces), axis=1)
-
-    return max_forces
-
-
 def transform_forces(symbols, forces):
     """"""
     type_list = ["O", "Pt"]
@@ -98,72 +90,6 @@ def plot_hist(ax, data, xlabel, ylabel, label=None):
     return
 
 
-# TODO: move this to the input file
-DESC_JSON_PATH = "/mnt/scratch2/users/40247882/catsign/eann-main/soap_param.json"
-DESC_JSON_PATH = "/mnt/scratch2/users/40247882/oxides/eann-main/soap_param.json"
-
-
-def calc_desc(frames):
-    # calculate descriptor to select minimum dataset
-    with open(DESC_JSON_PATH, "r") as fopen:
-        desc_dict = json.load(fopen)
-    desc_dict = desc_dict["soap"]
-
-    # TODO: inputs
-    njobs = 4
-
-    cwd = pathlib.Path.cwd()
-    features_path = cwd / "features.npy"
-    # if features_path.exists():
-    #    print("use precalculated features...")
-    #    features = np.load(features_path)
-    #    assert features.shape[0] == len(frames)
-    # else:
-    #    print('start calculating features...')
-    #    features = calc_feature(frames, desc_dict, njobs, features_path)
-    #    print('finished calculating features...')
-    print('start calculating features...')
-    features = calc_feature(frames, desc_dict, njobs, features_path)
-    print('finished calculating features...')
-
-    return features
-
-
-def select_structures(
-    features, num, zeta=-1, strategy="descent", index_map=None,
-    prefix="",  # make prefix to the directory path
-):
-    """ 
-    """
-    # cur decomposition
-    cur_scores, selected = cur_selection(features, num, zeta, strategy)
-
-    # map selected indices
-    if index_map is not None:
-        selected = [index_map[s] for s in selected]
-    # if manually_selected is not None:
-    #    selected.extend(manually_selected)
-
-    # TODO: if output
-    # content = '# idx cur sel\n'
-    # for idx, cur_score in enumerate(cur_scores):
-    #     stat = 'F'
-    #     if idx in selected:
-    #         stat = 'T'
-    #     if index_map is not None:
-    #         idx = index_map[idx]
-    #     content += '{:>12d}  {:>12.8f}  {:>2s}\n'.format(idx, cur_score, stat)
-    # with open((prefix+"cur_scores.txt"), 'w') as writer:
-    #    writer.write(content)
-    #np.save((prefix+"indices.npy"), selected)
-
-    #selected_frames = []
-    # for idx, sidx in enumerate(selected):
-    #    selected_frames.append(frames[int(sidx)])
-
-    return selected
-
-
 class DataOperator():
 
     """
@@ -172,7 +98,11 @@ class DataOperator():
     def __init__(
         self, main_dir, systems,
         name: str,
-        pattern, sift_settings
+        pattern, 
+        geometric_settings,
+        sift_settings,
+        compress_settings,
+        selection_settings
     ):
         """ parse names...
         """
@@ -180,7 +110,15 @@ class DataOperator():
         self.systems = systems
         #for sys_name in self.systems.keys()
 
+        # TODO: in a simpler way...
         self.sift_settings = sift_settings
+
+        # geometric convergence
+        self.fmax = geometric_settings.get("fmax", 0.05)
+
+        # compress settings
+        self.compress_params = compress_settings
+
 
         self.name = name # system name
 
@@ -200,7 +138,15 @@ class DataOperator():
             self.type_list, self.type_numbers = self.__parse_type_list(
                 chemical_formula)
 
-        self.prefix = Path.cwd()
+        # TODO: results dir
+        self.prefix = Path.cwd() / self.name
+
+        # selection settings
+        if selection_settings is not None:
+            self.selector = Selector(
+                selection_settings["soap"], selection_settings["selection"],
+                self.prefix
+            )
 
         # parse structures
         self.frames = None  # List of Atoms
@@ -451,8 +397,72 @@ class DataOperator():
 
         return
 
-    def compress_based_on_deviation(
+    def find_converged(
+        self, sys_name, sys_frames, res_dir
+    ):
+        # parse constraint indices
+        cons_info = self.systems[sys_name].get("constraint", None)
+        cons_indices = None
+        if cons_info is not None:
+            print("apply constraint...")
+            cons_indices = []
+            for c in cons_info.split():
+                s, e = c.split(":")
+                cons_indices.extend(list(range(int(s)-1, int(e))))
+
+        # check converged structures
+        converged_indices = []
+        converged_frames = []
+        for i, atoms in enumerate(sys_frames):
+            if cons_indices is not None:
+                cons = FixAtoms(indices=cons_indices)
+                atoms.set_constraint(cons)
+            max_force = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            if (max_force < self.fmax):
+                print("converged structure index: ", i)
+                atoms.info["description"] = "local minimum"
+                converged_frames.append(atoms)
+                converged_indices.append(i)
+
+        if len(converged_frames) > 0:
+            converged_energies = [a.get_potential_energy() for a in converged_frames]
+            converged_frames.sort(key=lambda a:a.get_potential_energy())
+            write(res_dir / "local_minimum.xyz", converged_frames)
+
+        return converged_frames, converged_indices
+        
+    def compress_systems(
         self,
+        minisize = 640, # minimum extra number of structures
+        energy_tolerance=0.020,
+        energy_shift=0.0
+    ):
+        if self.is_single:
+            self.compress_single_system(minisize, energy_tolerance, energy_shift)
+        else:
+            for sys_name, sys_frames in self.frames.items():
+                print(f"===== Current System {sys_name} =====")
+                # update type_list and sys_name
+                chemical_formula = "".join(
+                    [k+str(v) for k, v in self.systems[sys_name]["composition"].items()]
+                )
+                self.type_list, self.type_numbers = self.__parse_type_list(
+                    chemical_formula
+                )
+                #global_type_list.extend(self.type_list)
+                self.name = sys_name
+
+                self.compress_single_system(
+                    sys_name, sys_frames, 
+                    minisize, energy_tolerance, energy_shift
+                )
+
+        return
+
+    def compress_single_system(
+        self,
+        sys_name,
+        sys_frames,
         minisize = 640, # minimum extra number of structures
         energy_tolerance=0.020,
         energy_shift=0.0
@@ -463,74 +473,93 @@ class DataOperator():
             possible criteria 
             energy error 0.020 eV / atom
         """
-        calc = self.calc
+        # update a few outputs path based on system
+        self.prefix = Path.cwd() / sys_name
+        if self.prefix.exists():
+            raise RuntimeError(f"result dir {self.prefix} exists")
+        else:
+            self.prefix.mkdir()
+        
+        # check if selector exists
+        if not hasattr(self, "selector"):
+            raise RuntimeError("selector is not created...")
+        self.selector.res_dir = self.prefix
 
-        batchsize = 32
-        # minisize = 320  # minimum extra number of structures
+        if self.calc is not None:
+            print("!!!use calculator-assisted dataset compression...!!!")
+            calc = self.calc
 
-        print(f"tolerance {energy_tolerance} shift {energy_shift}")
+            batchsize = self.compress_params["batchsize"]
 
-        frames = self.frames
-        # calc_frames = frames.copy() # WARN: torch-based calc will contaminate results
+            print(f"tolerance {energy_tolerance} shift {energy_shift}")
 
-        dft_energies, dft_forces = xyz2results(frames, calc=None)
-        mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
+            frames = sys_frames
+            # calc_frames = frames.copy() # WARN: torch-based calc will contaminate results
 
-        natoms_array = np.array([len(x) for x in frames])
-        forces = [dft_forces, mlp_forces]
-        energies = np.array([dft_energies, mlp_energies]) / natoms_array
+            dft_energies, dft_forces = xyz2results(frames, calc=None)
+            mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
 
-        self.__plot_comparasion(calc.name, energies, forces, "test.png")
+            natoms_array = np.array([len(x) for x in frames])
+            forces = [dft_forces, mlp_forces]
+            energies = np.array([dft_energies, mlp_energies]) / natoms_array
 
-        # preprocess
-        print("\n\n--- data statistics ---")
-        dft_energies = np.array(dft_energies)
-        mlp_energies = np.array(mlp_energies)
-        natoms_per_structure = np.sum(list(self.type_numbers.values()))
-        natoms_array = np.ones(dft_energies.shape) / natoms_per_structure
+            self.__plot_comparasion(calc.name, energies, forces, self.prefix / "test.png")
 
-        abs_error = np.fabs(dft_energies - mlp_energies) / natoms_per_structure
-        print(abs_error.shape)
-        print("mean: ", np.mean(abs_error))
-        _hist, _bin_edges = np.histogram(abs_error, bins=10)
-        print("histogram: ")
-        print(_hist)
-        print(_bin_edges)
+            # preprocess
+            print("\n\n--- data statistics ---")
+            dft_energies = np.array(dft_energies)
+            mlp_energies = np.array(mlp_energies)
+            natoms_per_structure = np.sum(list(self.type_numbers.values()))
+            natoms_array = np.ones(dft_energies.shape) / natoms_per_structure
 
-        cand_indices = []  # structure index with large error
-        cand_frames = []
-        for i, x in enumerate(abs_error):
-            # TODO: make this a parameter
-            if x > energy_tolerance:
-                cand_indices.append(i)
-                _energy = frames[i].get_potential_energy()
-                _forces = frames[i].get_forces()
-                cand_atoms = frames[i].copy()
-                # print(cand_atoms.calc)
-                singlepoint = SinglePointCalculator(
-                    cand_atoms, energy=_energy,
-                    forces=_forces
-                )
-                cand_atoms.calc = singlepoint
-                # print(cand_atoms.calc)
-                # print(cand_atoms.get_potential_energy())
-                # cand_atoms.calc = None # torch results cannot be direct to joblib
-                cand_frames.append(cand_atoms)
-        ncand = len(cand_indices)
-        print("number of candidates: ", ncand)
-        # exit()
+            abs_error = np.fabs(dft_energies - mlp_energies) / natoms_per_structure
+            print(abs_error.shape)
+            print("mean: ", np.mean(abs_error))
+            _hist, _bin_edges = np.histogram(abs_error, bins=10)
+            print("histogram: ")
+            print(_hist)
+            print(_bin_edges)
 
-        num_cur = int(
-            np.min([minisize, np.floor(ncand / batchsize)*batchsize]))
-        print("number to select: ", num_cur)
+            cand_indices = []  # structure index with large error
+            cand_frames = []
+            for i, x in enumerate(abs_error):
+                if x > energy_tolerance:
+                    cand_indices.append(i)
+                    _energy = frames[i].get_potential_energy()
+                    _forces = frames[i].get_forces()
+                    cand_atoms = frames[i].copy()
+                    # print(cand_atoms.calc)
+                    singlepoint = SinglePointCalculator(
+                        cand_atoms, energy=_energy,
+                        forces=_forces
+                    )
+                    cand_atoms.calc = singlepoint
+                    # print(cand_atoms.calc)
+                    # print(cand_atoms.get_potential_energy())
+                    # cand_atoms.calc = None # torch results cannot be direct to joblib
+                    cand_frames.append(cand_atoms)
+            ncand = len(cand_indices)
+            print("number of candidates: ", ncand)
 
-        # go for cur
-        self.compress_frames(num_cur, cand_frames, energy_shift)
+            num_cur = int(
+                np.min([minisize, np.floor(ncand / batchsize)*batchsize]))
+            print("number to select: ", num_cur)
+
+            # go for cur
+            if num_cur <= 0:
+                print("no selection...")
+                return
+            self.compress_system_based_on_structural_diversity(cand_frames, num_cur, energy_shift)
+        else:
+            print("!!!use descriptor-based dataset compression...!!!")
+            self.compress_system_based_on_structural_diversity(sys_frames, minisize, energy_shift)
 
         return
 
-    def compress_frames(
-        self, number = 320,
+    def compress_system_based_on_structural_diversity(
+        self, 
+        frames,
+        number = 320,
         energy_shift = 0.0
     ):
         """ Strategy for compressing large dataset
@@ -540,28 +569,12 @@ class DataOperator():
                 # geometric, phase volume, energy-wise
             )
         """
+
         print("\n\n")
-        if frames is None:
-            print("Use pre-loaded dataset...")
-            frames = self.frames.copy()
-        else:
-            print("Use user-input dataset...")
-        print("!!! number of frames in compressing: ", len(frames))
-        # for atoms in frames:
-        #    print(atoms)
+        print("!!! number of frames to compress: ", len(frames))
 
         # find converged structures
-        converged_indices = []
-        for idx, atoms in enumerate(frames):
-            # TODO: add constraint to neglect forces of frozen atoms
-            cons = FixAtoms(
-                indices=[a.index for a in atoms if a.position[2] < 2.0])
-            atoms.set_constraint(cons)
-            max_force = np.max(np.fabs(atoms.get_forces()))
-            if max_force < 0.05:  # TODO:
-                converged_indices.append(idx)
-
-        # select frames
+        _, converged_indices = self.find_converged(self.name, frames, self.prefix)
         nconverged = len(converged_indices)
         print("Number of converged: ", nconverged)
 
@@ -571,7 +584,7 @@ class DataOperator():
         # convert to atomic energies
         energies = energies / np.sum(list(self.type_numbers.values()))
 
-        en_width = 0.5  # energy width
+        en_width = self.compress_params["en_width"]  # energy width
         en_min = np.floor(np.min(energies))
         en_max = np.ceil(np.max(energies))
         bin_edges = np.arange(en_min, en_max+en_width, en_width)
@@ -585,8 +598,8 @@ class DataOperator():
         )
 
         # add boltzmann coefficient
-        beta = 3.0  # eV
-        shifts = [0., 1., 2.]  # TODO:
+        beta = self.compress_params["beta"]  # eV
+        shifts = self.compress_params["shifts"]
         boltz_prob = np.zeros(len(bin_edges)-1)
         for es in shifts:
             boltz_prob += np.exp(-beta*(bin_edges[:-1]-(en_min+es)))
@@ -652,17 +665,18 @@ class DataOperator():
             #for i in bin_idx:
             #    bin_frames.append(frames[i])
             bin_frames = [frames[i] for i in bin_idx]
-            features = calc_desc(bin_frames)
+            features = self.selector.calc_desc(bin_frames)
             if len(bin_frames) == 1:
-                # TODO:
                 features = features[:, np.newaxis]
                 continue
-            selected_indices = select_structures(
-                features, bin_num, prefix=self.prefix
+            selected_indices = self.selector.select_structures(
+                features, bin_num
             )
             # TODO: sometims the converged one will be selected... so duplicate...
             all_indices.extend(selected_indices)
         all_indices.extend(converged_indices)
+        print("number selected: ", len(all_indices))
+        print("number no-duplicated: ", len(set(all_indices)))
 
         selected_frames = []
         for i in all_indices:
@@ -705,6 +719,7 @@ class DataOperator():
         if self.is_single:
             _ = self.show_single_statistics(self.name, self.frames, fmax)
         else:
+            nframes_dict = {}
             rmse_results = {}
             all_energies = None
             all_forces = None
@@ -729,6 +744,7 @@ class DataOperator():
                     all_energies = energies
                 else:
                     all_energies = np.hstack([all_energies, energies])
+                nframes_dict[sys_name] = energies.shape[1]
                 print("energy shape: ", all_energies.shape)
                 if all_forces is None:
                     all_forces = forces
@@ -755,8 +771,8 @@ class DataOperator():
             
             # analyse all results
             #energies, forces, en_rmse, force_rmse
-            title = ("#{:<23s}  {:<12s}  {:<12s}  {:<12s}  ").format(
-                "SysName", "natoms", "dE_RMSE", "dE_Std"
+            title = ("#{:<23s}  {:<12s}  {:<12s}  {:<12s}  {:<12s}  ").format(
+                "SysName", "natoms", "nframes", "dE_RMSE", "dE_Std"
             )
             for x in global_type_list:
                 title += "{:<12s}  {:<12s}  ".format(x+"_dF_RMSE", x+"_dF_Std")
@@ -766,7 +782,7 @@ class DataOperator():
             content = ""
             for sys_name, (en_rmse, force_rmse) in rmse_results.items():
                 natoms = sum(self.systems[sys_name]["composition"].values())
-                content += "{:<24s}  {:<12d}  ".format(sys_name, natoms)
+                content += "{:<24s}  {:<12d}  {:<12d}  ".format(sys_name, natoms, nframes_dict[sys_name])
                 content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
                 for x in global_type_list:
                     force_rmse_x = force_rmse.get(x, {})
@@ -779,7 +795,7 @@ class DataOperator():
             en_rmse, force_rmse = self.__plot_comparasion(
                 "ALL", all_energies, all_forces, "ALL-cmp.png"
             )
-            content += "{:<24s}  {:<12d}  ".format("ALL", 0)
+            content += "{:<24s}  {:<12d}  {:<12d}  ".format("ALL", 0, sum(nframes_dict.values()))
             content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
             for x in global_type_list:
                 force_rmse_x = force_rmse.get(x, {})

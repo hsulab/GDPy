@@ -28,7 +28,11 @@ def data_main(
     # create data analyser class and read related structures
     do = DataOperator(
         main_dir, systems, 
-        name, pattern, input_dict["sift"]
+        name, pattern, 
+        input_dict["convergence"],
+        input_dict["sift"],
+        input_dict["compress"],
+        input_dict.get("selection", None)
     )
 
     do.register_potential(potential)
@@ -38,14 +42,7 @@ def data_main(
     elif subcommand == "stat":
         do.show_statistics(input_dict["convergence"]["fmax"])
     elif subcommand == "compress":
-        # TODO: parameters
-        # number, etol, eshift
-        if do.calc is None:
-            print("use descriptor-based dataset compression...")
-            do.compress_frames(number, eshift)
-        else:
-            print("use calculator-assisted dataset compression...")
-            do.compress_based_on_deviation(number, etol, eshift)
+        do.compress_systems(number, etol, eshift)
     elif subcommand == "calc":
         # perform operations
         # TODO: fix reduce mode
