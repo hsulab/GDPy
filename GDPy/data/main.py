@@ -31,7 +31,7 @@ def data_main(
         name, pattern, 
         input_dict["convergence"],
         input_dict["sift"],
-        input_dict["compress"],
+        input_dict.get("compress", None),
         input_dict.get("selection", None)
     )
 
@@ -40,7 +40,7 @@ def data_main(
     if subcommand == "dryrun":
         pass
     elif subcommand == "stat":
-        do.show_statistics(input_dict["convergence"]["fmax"])
+        do.show_statistics()
     elif subcommand == "compress":
         do.compress_systems(number, etol, eshift)
     elif subcommand == "calc":
