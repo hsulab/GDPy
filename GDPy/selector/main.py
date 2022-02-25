@@ -1,17 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import sys
+from select import select
+from ase.io import read, write
 
-import argparse
+from GDPy.utils.command import parse_input_file
+from GDPy.selector.abstract import DeviationSelector
 
-from dprss import dprss_logger 
-from dprss.worktracker import track_workflow
-from dprss.structure_generation import write_rss_frames
-from dprss.structure_selection import select_structures
+def selection_main(stru_fpath, input_fpath, potential):
+    """"""
+    input_dict = parse_input_file(input_fpath)
+    selection_params = input_dict.get("selection", None)
+    if selection_params is None:
+        raise RuntimeError("no selection parameters was found...")
+    
+    # TODO: apply a number of selections
+    selection = DeviationSelector(
+        selection_params["DeviSel"],
+        potential
+    )
 
-def main():
+    frames = read(stru_fpath, ":")
+
+    natoms_array = [len(a) for a in frames]
+    ( 
+        energies, maxforces, 
+        energy_deviations, force_deviations
+    ) = selection.calculate(frames)
+
+    selected = selection.select(energy_deviations, force_deviations)
+
+    selected_frames = [frames[i] for i in selected]
+    write("selected.xyz", selected_frames)
+
+    # TODO: write rersults, maybe move to selection objects
+    title = ("{:<12s}  "*6+"\n").format(
+        "#IDX", "Energy", "AEDevi", "TEDEVI", "Fmax", "FDevi"
+    )
+    content = ""
+    for i in selected:
+        content += ("{:<12d}  "+"{:<12.4f}  "*5+"\n").format(
+            i, energies[i], 
+            energy_deviations[i], energy_deviations[i]*natoms_array[i],
+            maxforces[i], force_deviations[i]
+        )
+    with open("devi.dat", "w") as fopen:
+        fopen.write(title+content)
+
+    return
+
+
+def previous_main():
     # arguments 
     parser = argparse.ArgumentParser(
         prog='dprss', 

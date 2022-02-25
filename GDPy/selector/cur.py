@@ -5,7 +5,9 @@ import numpy as np
 from scipy.sparse.linalg import LinearOperator, svds
 
 
-def descriptor_svd(at_descs, num, do_vectors='vh'):
+def descriptor_svd(at_descs, num, do_vectors="vh"):
+    """ sparse SVD
+    """
     def mv(v):
         return np.dot(at_descs, v)
     def rmv(v):
@@ -30,21 +32,19 @@ def cur_selection(features, num, zeta=2, strategy="descent"):
     else:
         m = at_descs
 
-    #print("Number of frames ", nframes)
-    #print("The descriptor vector shape ", at_descs.shape)
-    #print("The similarity matrix shape ", m.shape)
-    #print("Number of selected ", num)
-
     (u, s, vt) = descriptor_svd(m, min(max(1,int(num/2)),min(m.shape)-1))
     c_scores = np.sum(vt**2, axis=0) / vt.shape[0]
 
-    if strategy == 'stochastic':
+    if strategy == "stochastic":
         selected = sorted(
             np.random.choice(range(nframes), size=num, replace=False, p=c_scores)
         )
-    elif strategy == 'descent':
+    elif strategy == "descent":
         selected = sorted(np.argsort(c_scores)[-num:])
     else:
         raise ValueError('Unsupport CUR selection strategy.')
 
     return c_scores, selected
+
+if __name__ == "__main__":
+    pass

@@ -25,16 +25,6 @@ def show_build_progress(ncells, cur_idx):
 
     return 
 
-def parse_indices(indices=None):
-    """parse indices for reading xyz by ase, get start for counting"""
-    if indices is not None:
-        start, end = indices.split(':')
-    else:
-        start = 0
-        end = ''
-
-    return (start,end)
-
 
 if __name__ == '__main__':
     pass
