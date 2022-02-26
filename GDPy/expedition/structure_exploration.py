@@ -175,6 +175,8 @@ class RandomExplorer(AbstractExplorer):
                 # GA has no forces for fixed atoms
                 forces = atoms.get_forces()
                 max_force = np.max(np.fabs(forces))
+                # NOTE: save calc results
+                previous_results = atoms.calc.results.copy()
                 #print("max_force: ", max_force)
                 if max_force < self.converged_force:
                     # TODO: check uncertainty, use DeviSel
@@ -192,10 +194,10 @@ class RandomExplorer(AbstractExplorer):
                         [idx, confid, energy, enstdvar, maxfstdvar]
                     )
                     nconverged += 1
-                    # save calc results
-                    # results = atoms.calc.results.copy()
-                    # new_calc = SinglePointCalculator(atoms, **results)
-                    # atoms.calc = new_calc
+                    # NOTE: restore results 
+                    new_calc = SinglePointCalculator(atoms, **previous_results)
+                    atoms.calc = new_calc
+
                     converged_energies.append(energy)
                     converged_frames.append(atoms)
                     # print("converged")
@@ -238,7 +240,7 @@ class RandomExplorer(AbstractExplorer):
             # TODO: save converged frames
             write(selection_path / "all-converged.xyz", selected_frames)
 
-            # collect trajectories
+            # ===== collect trajectories =====
             traj_devi_path = selection_path / "traj_devi.out"
             with open(traj_devi_path, "w") as fopen:
                 fopen.write("# GAID TRAJID Energy StandardVariance f_stdvar\n")
@@ -260,7 +262,7 @@ class RandomExplorer(AbstractExplorer):
                     traj_atoms.calc = self.calc
                     energy = traj_atoms.get_potential_energy()
                     enstdvar = traj_atoms.calc.results["en_stdvar"]
-                    maxfstdvar = np.max(atoms.calc.results["force_stdvar"])
+                    maxfstdvar = np.max(traj_atoms.calc.results["force_stdvar"]) # fix bug
                     with open(traj_devi_path, "a") as fopen:
                         fopen.write(
                             "{:<8d} {:<8d}  {:>8.4f}  {:>8.4f}  {:>8.4f}\n".format(
@@ -280,6 +282,7 @@ class RandomExplorer(AbstractExplorer):
     
     def boltzmann_histogram_selection(self, props, frames, num_minima, kT=-1.0):
         """"""
+        # TODO: add kT to params
         # calculate minima properties 
     
         # compute desired probabilities for flattened histogram
