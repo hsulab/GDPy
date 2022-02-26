@@ -391,7 +391,7 @@ class RandomExplorer(AbstractExplorer):
                 print("number adjust to ", num)
                 # cur decomposition 
                 features = selector.calc_desc(frames)
-                cur_scores, selected = selector.select_structures(features, num)
+                selected = selector.select_structures(features, num)
 
                 selected_frames = []
                 print("Writing structure file... ")
