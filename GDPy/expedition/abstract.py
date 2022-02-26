@@ -7,6 +7,11 @@ from pathlib import Path
 
 class AbstractExplorer(ABC):
 
+    # general settings for IO
+    general_parameters = dict(
+        ignore_exists = False
+    )
+
     def __init__(self, main_dict: str):
         """"""
         # self.main_dict = main_dict

@@ -20,7 +20,6 @@ from ase.data import atomic_numbers, atomic_masses
 
 from GDPy.calculator.ase_interface import AseInput
 from GDPy.calculator.inputs import LammpsInput
-from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
 
 from GDPy.machine.machine import SlurmMachine
 
@@ -42,6 +41,9 @@ class Sampler():
     Units
         fs, eV, eV/AA
     """
+
+    method = "MD" # nve, nvt, npt
+    backend = "lammps" # run MD in lammps, maybe ASE
 
     # TODO: !!!!
     # check whether submit jobs

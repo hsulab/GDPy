@@ -21,7 +21,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from collections import Counter
 
-from GDPy.selector.structure_selection import calc_feature, cur_selection, select_structures
+from GDPy.selector.abstract import Selector
 from GDPy.utils.data import vasp_creator, vasp_collector
 
 from GDPy.expedition.abstract import AbstractExplorer
@@ -175,8 +175,9 @@ class RandomExplorer(AbstractExplorer):
                 # GA has no forces for fixed atoms
                 forces = atoms.get_forces()
                 max_force = np.max(np.fabs(forces))
+                #print("max_force: ", max_force)
                 if max_force < self.converged_force:
-                    # TODO: check uncertainty
+                    # TODO: check uncertainty, use DeviSel
                     self.calc.reset()
                     self.calc.calc_uncertainty = True
                     atoms.calc = self.calc
@@ -359,11 +360,14 @@ class RandomExplorer(AbstractExplorer):
         """"""
         soap_parameters = exp_dict['selection']['soap']
         njobs = exp_dict['selection']['njobs']
-        zeta, strategy = exp_dict['selection']['selection']['zeta'], exp_dict['selection']['selection']['strategy']
+        #zeta, strategy = exp_dict['selection']['selection']['zeta'], exp_dict['selection']['selection']['strategy']
+        selection_dict = exp_dict["selection"]["selection"]
 
         # assert soap_parameters["species"] == self.type_list
-
         sorted_path = cur_prefix / "selection"
+
+        selector = Selector(soap_parameters, selection_dict, sorted_path, njobs)
+
         print("===== selecting system %s =====" %cur_prefix)
         if sorted_path.exists():
             all_xyz = sorted_path / "all-traj.xyz"
@@ -385,25 +389,9 @@ class RandomExplorer(AbstractExplorer):
                 if (num+nconverged) < 320:
                     num = 320 - nconverged
                 print("number adjust to ", num)
-                features_path = sorted_path / 'features.npy'
-                print(features_path.exists())
-                if features_path.exists():
-                    features = np.load(features_path)
-                    assert features.shape[0] == len(frames)
-                else:
-                    print('start calculating features...')
-                    features = calc_feature(frames, soap_parameters, njobs, features_path)
-                    print('finished calculating features...')
                 # cur decomposition 
-                cur_scores, selected = cur_selection(features, num, zeta, strategy)
-                content = '# idx cur sel\n'
-                for idx, cur_score in enumerate(cur_scores):
-                    stat = 'F'
-                    if idx in selected:
-                        stat = 'T'
-                    content += '{:>12d}  {:>12.8f}  {:>2s}\n'.format(idx, cur_score, stat) 
-                with open(sorted_path / 'cur_scores.txt', 'w') as writer:
-                    writer.write(content)
+                features = selector.calc_desc(frames)
+                cur_scores, selected = selector.select_structures(features, num)
 
                 selected_frames = []
                 print("Writing structure file... ")

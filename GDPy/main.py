@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+from select import select
 import sys
 
 import argparse
@@ -85,15 +86,11 @@ def main():
 
     # explore
     parser_explore = subparsers.add_parser(
-        'explore', help='create input files for exploration'
+        "explore", help='create input files for exploration'
     )
     parser_explore.add_argument(
-        '-e', '--exploration', required=True,
-        help='input json files with exploration parameters'
-    )
-    parser_explore.add_argument(
-        '-p', '--potential', required=True,
-        help='potential-related input json'
+        "EXPEDITION", 
+        help="expedition configuration file (json/yaml)"
     )
     parser_explore.add_argument(
         "-s", "--step", required=True,
@@ -165,34 +162,25 @@ def main():
         help='potential-related input json'
     )
 
-    # cur from dprss
-    parser_cur = subparsers.add_parser(
-        'cur',
-        help='calculate features and selected configuration by CUR decomposition'
+    # selection
+    parser_select = subparsers.add_parser(
+        "select",
+        help="apply various selection operations"
     )
-    parser_cur.add_argument(
-        '-i', '--input', required=True,
-        help='(random/trajectory) filename (in xyz format)'
+    parser_select.add_argument(
+        "CONFIG", help="selection configuration file"
     )
-    parser_cur.add_argument(
-        '-d', '--descriptor', required=True,
-        help='descriptor hyperparameter in json file (only support SOAP now)'
+    parser_select.add_argument(
+        "-f", "--structure_file", required=True,
+        help="structure filepath (in xyz format)"
     )
-    parser_cur.add_argument(
+    parser_select.add_argument(
         '-n', '--number', default=100, type=int,
         help='number of structures selected'
     )
-    parser_cur.add_argument(
+    parser_select.add_argument(
         '-nj', '--njobs', default=16, type=int,
         help='number of threads for computing features'
-    )
-    parser_cur.add_argument(
-        '-o', '--output', default='selected_structures.xyz',
-        help='filename (in xyz format)'
-    )
-    parser_cur.add_argument(
-        '-fe', '--feature', action="store_true",
-        help='feature existence'
     )
 
     # validation
@@ -253,8 +241,8 @@ def main():
         elif args.mode == "create":
             pm.create_ensemble()
     elif args.subcommand == 'explore':
-        from .expedition.sample_main import run_exploration
-        run_exploration(args.potential, args.exploration, args.step, args.opt_params)
+        from GDPy.expedition.sample_main import run_exploration
+        run_exploration(args.potential, args.EXPEDITION, args.step, args.opt_params)
     elif args.subcommand == "data":
         from GDPy.data.main import data_main
         data_main(
@@ -272,9 +260,9 @@ def main():
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
         run_validation(args.INPUTS, args.potential)
-    elif args.subcommand == 'cur':
-        from .selector.structure_selection import select_structures
-        select_structures(args.input, args.descriptor, args.number, args.njobs, args.feature, args.output)
+    elif args.subcommand == "select":
+        from GDPy.selector.main import selection_main
+        selection_main(args.structure_file, args.CONFIG, args.potential)
     else:
         pass
 

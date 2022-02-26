@@ -167,16 +167,21 @@ class Selector():
     """
     njobs = 4
 
+    verbose = False
+
     def __init__(
         self, 
         desc_dict,
         selec_dict,
-        res_dir
+        res_dir,
+        njobs = 4
     ):
         self.desc_dict = desc_dict
         self.selec_dict = selec_dict
 
         self.res_dir = Path(res_dir)
+
+        self.njobs = njobs
 
         return
 
@@ -184,6 +189,7 @@ class Selector():
         # calculate descriptor to select minimum dataset
 
         features_path = self.res_dir / "features.npy"
+        # TODO: read cached features
         # if features_path.exists():
         #    print("use precalculated features...")
         #    features = np.load(features_path)
@@ -238,16 +244,17 @@ class Selector():
         #    selected.extend(manually_selected)
 
         # TODO: if output
-        # content = '# idx cur sel\n'
-        # for idx, cur_score in enumerate(cur_scores):
-        #     stat = 'F'
-        #     if idx in selected:
-        #         stat = 'T'
-        #     if index_map is not None:
-        #         idx = index_map[idx]
-        #     content += '{:>12d}  {:>12.8f}  {:>2s}\n'.format(idx, cur_score, stat)
-        # with open((prefix+"cur_scores.txt"), 'w') as writer:
-        #    writer.write(content)
+        if self.verbose:
+            content = '# idx cur sel\n'
+            for idx, cur_score in enumerate(cur_scores):
+                stat = "F"
+                if idx in selected:
+                    stat = "T"
+                if index_map is not None:
+                    idx = index_map[idx]
+                content += "{:>12d}  {:>12.8f}  {:>2s}\n".format(idx, cur_score, stat)
+            with open((self.res_dir / "cur_scores.txt"), "w") as writer:
+               writer.write(content)
         #np.save((prefix+"indices.npy"), selected)
 
         #selected_frames = []
