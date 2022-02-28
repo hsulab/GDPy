@@ -28,6 +28,8 @@ from ase.ga.standardmutations import MirrorMutation, RattleMutation, Permutation
 from ase.ga.offspring_creator import OperationSelector
 
 """
+TODO: search variational composition
+
 Workflow
     check current calculation
         |
@@ -142,7 +144,7 @@ class GeneticAlgorithemEngine():
         for idx, row in enumerate(self.da.c.select("queued=1")):
             key_value_pairs = row["key_value_pairs"]
             content = "id: {}  origin: {}  cand: {}".format(
-                "id", key_value_pairs["origin"], key_value_pairs["gaid"]
+                row["id"], key_value_pairs["origin"], key_value_pairs["gaid"]
             )
             print(content)
         
@@ -157,7 +159,7 @@ class GeneticAlgorithemEngine():
         for idx, row in enumerate(self.da.c.select("queued=1")):
             key_value_pairs = row["key_value_pairs"]
             content = "id: {}  origin: {}  cand: {}".format(
-                "id", key_value_pairs["origin"], key_value_pairs["gaid"]
+                row["id"], key_value_pairs["origin"], key_value_pairs["gaid"]
             )
             print(content)
 
@@ -181,13 +183,13 @@ class GeneticAlgorithemEngine():
         """
         # TODO: check database existence and generation number to determine restart
         if not self.db_name.exists():
-            print("create a new database...")
+            print("----- create a new database -----")
             self.__create_random_structure_generator()
             self.__create_initial_population()
             # make calculation dir
+            print("----- create a new tmp_folder -----")
             self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
             self.tmp_folder.mkdir()
-            print("create a new tmp_folder...")
             # read seed structures
             if spath is not None:
                 print("----- try to add seed structures -----")
@@ -289,13 +291,12 @@ class GeneticAlgorithemEngine():
                 # check initial population
                 if cur_gen == 0:
                     print("\n\n===== Initial Population =====")
-                    while (self.da.get_number_of_unrelaxed_candidates()):
+                    while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
                         # calculate structures from init population
                         atoms = self.da.get_an_unrelaxed_candidate()
                         print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
-                        # TODO: provide unified interface to mlp and dft
-                        #self.__run_local_optimisation(atoms)
-                        self.worker.relax(atoms)
+                        # NOTE: provide unified interface to mlp and dft
+                        self.__run_local_optimisation(atoms)
 
                 if cur_gen > max_gen:
                     print("reach maximum generation...")
@@ -843,7 +844,7 @@ class GeneticAlgorithemEngine():
             stoichiometry = self.atom_numbers_to_optimize
         )
 
-        print('save population to database')
+        print("save population to database")
         for a in starting_population:
             da.add_unrelaxed_candidate(a)
         
@@ -896,9 +897,11 @@ class GeneticAlgorithemEngine():
         a1, a2 = self.population.get_two_candidates()
         for i in range(self.MAX_REPROC_TRY):
             # try 10 times
-            a3, desc = self.pairing.get_new_individual([a1, a2])
+            a3, desc = self.pairing.get_new_individual([a1, a2]) # NOTE: this also adds key_value_pairs to a.info
             if a3 is not None:
-                self.da.add_unrelaxed_candidate(a3, description=desc) # if mutation happens, it will not be relaxed
+                self.da.add_unrelaxed_candidate(
+                    a3, description=desc # here, desc is used to add "pairing": 1 to database
+                ) # if mutation happens, it will not be relaxed
 
                 mut_desc = ""
                 if random() < mutation_probability:
@@ -924,7 +927,7 @@ class GeneticAlgorithemEngine():
         """ TODO: evaluate candidate based on raw score
             in most cases, it's potential energy
             but this is should be more flexible
-            enthalpy (pot+pressure), reaction energy
+            e.g. enthalpy (pot+pressure), reaction energy
         """
         assert atoms.info["key_value_pairs"].get("raw_score", None) is None, "candidate already has raw_score before evaluation"
         
