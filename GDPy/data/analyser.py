@@ -8,7 +8,7 @@ import numpy as np
 import scipy as sp
 
 from GDPy.selector.abstract import Selector
-from GDPy.utils.comparasion import parity_plot_dict
+from GDPy.utils.comparasion import parity_plot_dict, rms_dict
 from GDPy.data.operators import append_predictions, merge_predicted_forces, xyz2results
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
@@ -323,6 +323,17 @@ class DataOperator():
             #    Path(main_dir), 
             #    file_pattern = pattern
             #)
+            self.global_type_list = []
+            for sys_name in self.system_names:
+                # update type_list
+                chemical_formula = "".join(
+                    [k+str(v) for k, v in self.systems[sys_name]["composition"].items()]
+                )
+                self.type_list, self.type_numbers = self.__parse_type_list(
+                    chemical_formula
+                )
+                self.global_type_list.extend(self.type_list)
+            self.global_type_list = sorted(list(set(self.global_type_list)))
 
         return
 
@@ -601,7 +612,6 @@ class DataOperator():
         # check if selector exists
         if not hasattr(self, "selector"):
             raise RuntimeError("selector is not created...")
-        self.selector.res_dir = self.prefix
 
         if not self.is_single:
             # save data
@@ -612,15 +622,6 @@ class DataOperator():
                 fopen.write(title)
 
         for sys_name in self.system_names:
-            # update a few outputs path based on system
-            self.prefix = Path.cwd() / sys_name
-            if self.prefix.exists():
-                print(f"result dir {self.prefix} exists, skip compression...")
-                continue
-            else:
-                self.prefix.mkdir()
-                # read frames
-                sys_frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
             # run operation
             print(f"===== Current System {sys_name} =====")
             # update type_list and sys_name
@@ -634,15 +635,14 @@ class DataOperator():
             #global_type_list.extend(self.type_list)
             self.name = sys_name
 
-            ncandidates, nselected = self.compress_single_system(
-                sys_name, sys_frames, 
-                minisize, energy_tolerance, energy_shift
+            nframes, ncandidates, nselected = self.compress_single_system(
+                sys_name, minisize, energy_tolerance, energy_shift
             )
 
             if not self.is_single:
                 # save data
                 content = ("{:<24s}  "+"{:<12d}  "*4+"\n").format(
-                    sys_name, natoms, len(sys_frames), ncandidates, nselected
+                    sys_name, natoms, nframes, ncandidates, nselected
                 )
                 with open(Path.cwd() / "all-compress.dat", "a") as fopen:
                     fopen.write(content)
@@ -652,7 +652,6 @@ class DataOperator():
     def compress_single_system(
         self,
         sys_name,
-        sys_frames,
         minisize = 640, # minimum extra number of structures
         energy_tolerance=0.020,
         energy_shift=0.0
@@ -663,7 +662,19 @@ class DataOperator():
             possible criteria 
             energy error 0.020 eV / atom
         """
+        # update a few outputs path based on system
+        self.prefix = Path.cwd() / sys_name
+        if self.prefix.exists():
+            pass
+        else:
+            self.prefix.mkdir()
+        self.selector.res_dir = self.prefix
 
+        mlp_file = self.prefix / (self.name + "-MLP.xyz")
+        out_xyz = self.prefix / ("miaow-sel.xyz")
+        if out_xyz.exists():
+            print(f"result dir {self.prefix} exists, may skip calculation...")
+            return 0, 0, 0
 
         if self.calc is not None:
             print("!!!use calculator-assisted dataset compression...!!!")
@@ -673,26 +684,35 @@ class DataOperator():
 
             print(f"tolerance {energy_tolerance} shift {energy_shift}")
 
-            frames = sys_frames
-            # calc_frames = frames.copy() # WARN: torch-based calc will contaminate results
+            if not mlp_file.exists():
+                print("calculate mlp results...")
+                # read frames
+                frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
 
-            dft_energies, dft_forces = xyz2results(frames, calc=None)
-            mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
+                # calc_frames = frames.copy() # WARN: torch-based calc will contaminate results
 
-            natoms_array = np.array([len(x) for x in frames])
-            forces = [dft_forces, mlp_forces]
-            energies = np.array([dft_energies, mlp_energies]) / natoms_array
+                ref_energies, dft_forces = xyz2results(frames, calc=None)
+                mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
 
-            self.__plot_comparasion(calc.name, energies, forces, self.prefix / "test.png")
+                # preprocess
+                print("\n\n--- data statistics ---")
+                ref_energies = np.array(dft_energies)
+                mlp_energies = np.array(mlp_energies)
+            else:
+                frames = read(mlp_file, ":") # TODO: change this into another function
+                calc_name = calc.name.lower()
 
-            # preprocess
-            print("\n\n--- data statistics ---")
-            dft_energies = np.array(dft_energies)
-            mlp_energies = np.array(mlp_energies)
+                ref_energies, ref_forces = xyz2results(frames, calc=None)
+
+                mlp_energies = np.array([a.info[calc_name+"_energy"] for a in frames])
+                # mlp_forces = merge_predicted_forces(frames, calc_name) # save time for now
+            nframes = len(frames)
+            
+            # TODO: check force errors
             natoms_per_structure = np.sum(list(self.type_numbers.values()))
-            natoms_array = np.ones(dft_energies.shape) / natoms_per_structure
 
-            abs_error = np.fabs(dft_energies - mlp_energies) / natoms_per_structure
+            abs_error = np.fabs(ref_energies - mlp_energies) / natoms_per_structure
+            print("error shape:")
             print(abs_error.shape)
             print("mean: ", np.mean(abs_error))
             _hist, _bin_edges = np.histogram(abs_error, bins=10)
@@ -734,7 +754,10 @@ class DataOperator():
                 nselected = self.compress_system_based_on_structural_diversity(cand_frames, num_cur, energy_shift)
         else:
             print("!!!use descriptor-based dataset compression...!!!")
-            ncandidates = len(sys_frames)
+            # read frames
+            sys_frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
+            nframes = len(sys_frames)
+            ncandidates = nframes
             nselected = self.compress_system_based_on_structural_diversity(sys_frames, minisize, energy_shift)
 
         # save data
@@ -744,12 +767,12 @@ class DataOperator():
         )
         content = ("{:<24s}  "+"{:<12d}  "*4+"\n").format(
             self.name, sum(self.type_numbers.values()), 
-            len(sys_frames), ncandidates, nselected
+            nframes, ncandidates, nselected
         )
         with open(self.prefix / "compress.dat", "w") as fopen:
             fopen.write(title+content)
 
-        return ncandidates, nselected
+        return nframes, ncandidates, nselected
 
     def compress_system_based_on_structural_diversity(
         self, 
@@ -871,13 +894,14 @@ class DataOperator():
                 features = self.selector.calc_desc(bin_frames)
                 if len(bin_frames) == 1:
                     features = features[:, np.newaxis]
-                    continue
-                selected_indices = self.selector.select_structures(
-                    features, bin_num
-                )
+                    selected_indices = [0]
+                else:
+                    selected_indices = self.selector.select_structures(
+                        features, bin_num
+                    )
                 # NOTE: map selected into global indices
                 selected_indices = [bin_idx[s] for s in selected_indices]
-                # TODO: sometims the converged one will be selected... so duplicate...
+                    # TODO: sometims the converged one will be selected... so duplicate...
                 all_indices.extend(selected_indices)
             all_indices.extend(converged_indices)
         else:
@@ -911,8 +935,6 @@ class DataOperator():
         write(self.prefix / ("miaow-sel.xyz"), selected_frames)
         print("")
 
-
-
         return len(all_indices)
 
     @staticmethod
@@ -929,42 +951,84 @@ class DataOperator():
         return [func(group) for group in np.split(S.data, S.indptr[1:-1])]
     
     def show_statistics(self):
+        """
+        """
+        if not self.is_single:
+            # analyse all results
+            #energies, forces, en_rmse, force_rmse
+            title = ("#{:<23s}  {:<12s}  {:<12s}  {:<12s}  {:<12s}  ").format(
+                "SysName", "natoms", "nframes", "dE_RMSE", "dE_Std"
+            )
+            for x in self.global_type_list:
+                title += "{:<12s}  {:<12s}  ".format(x+"_dF_RMSE", x+"_dF_Std")
+            title += "\n"
+            with open("all_rmse.dat", "w") as fopen:
+                fopen.write(title)
+
         nframes_dict = {}
         rmse_results = {}
         all_energies = None
         all_forces = None
-        global_type_list = []
         for sys_name in self.system_names:
-            # update a few outputs path based on system
-            self.prefix = Path.cwd() / sys_name
-            if self.prefix.exists():
-                print(f"result dir {self.prefix} exists, skip compression...")
-                continue
-            else:
-                self.prefix.mkdir()
-                # read frames
-                sys_frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
-            # update type_list
+            # update chemical info to this system
             chemical_formula = "".join(
                 [k+str(v) for k, v in self.systems[sys_name]["composition"].items()]
             )
             self.type_list, self.type_numbers = self.__parse_type_list(
                 chemical_formula
             )
-            global_type_list.extend(self.type_list)
+            # update a few outputs path based on system
+            self.prefix = Path.cwd() / sys_name
+            if self.prefix.exists():
+                print(f"result dir {self.prefix} exists, skip compression...")
+                # check MLP data
+                print("Use saved property data...")
+                existed_data = self.prefix / (sys_name + "-MLP.xyz")
+                # TODO: check
+                if existed_data.exists():
+                    new_frames = read(existed_data, ":")
+                    calc_name = self.calc.name.lower()
 
-            energies, forces, en_rmse, force_rmse = self.show_single_statistics(
-                sys_name, sys_frames
-            )
+                    ref_energies, ref_forces = xyz2results(new_frames, calc=None)
+                    natoms_array = np.array([len(x) for x in new_frames])
+
+                    mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
+                    mlp_forces = merge_predicted_forces(new_frames, calc_name) 
+
+                    energies = np.array([ref_energies, mlp_energies])
+                    energies = np.array([ref_energies, mlp_energies]) / natoms_array
+                    forces = [ref_forces, mlp_forces]
+                    
+                    en_rmse = {}
+                    en_rmse["energy"] = rms_dict(energies[0], energies[1])
+                    force_rmse = {}
+                    for key in forces[0].keys():
+                        force_rmse[key] = rms_dict(
+                            forces[0][key], forces[1][key]
+                        )
+                else:
+                    # read frames
+                    sys_frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
+                    energies, forces, en_rmse, force_rmse = self.show_single_statistics(
+                        sys_name, sys_frames
+                    )
+            else:
+                self.prefix.mkdir()
+                # read frames
+                sys_frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
+                energies, forces, en_rmse, force_rmse = self.show_single_statistics(
+                    sys_name, sys_frames
+                )
+
             if not self.is_single:
                 # add system-wise rmse results
+                nframes_dict[sys_name] = energies.shape[1]
                 rmse_results[sys_name] = (en_rmse, force_rmse)
                 # merge energy and forces
                 if all_energies is None:
                     all_energies = energies
                 else:
                     all_energies = np.hstack([all_energies, energies])
-                nframes_dict[sys_name] = energies.shape[1]
                 print("energy shape: ", all_energies.shape)
                 if all_forces is None:
                     all_forces = forces
@@ -988,46 +1052,35 @@ class DataOperator():
                             all_forces[1][key] = forces[1][key]
                         print(f"mlp {key} force length: ", len(all_forces[1][key]))
 
-        if not self.is_single and all_energies is not None:
-            global_type_list = sorted(list(set(global_type_list)))
-
-            # analyse all results
-            #energies, forces, en_rmse, force_rmse
-            title = ("#{:<23s}  {:<12s}  {:<12s}  {:<12s}  {:<12s}  ").format(
-                "SysName", "natoms", "nframes", "dE_RMSE", "dE_Std"
-            )
-            for x in global_type_list:
-                title += "{:<12s}  {:<12s}  ".format(x+"_dF_RMSE", x+"_dF_Std")
-            title += "\n"
-
-            # system wise
-            content = ""
-            for sys_name, (en_rmse, force_rmse) in rmse_results.items():
                 natoms = sum(self.systems[sys_name]["composition"].values())
-                content += "{:<24s}  {:<12d}  {:<12d}  ".format(sys_name, natoms, nframes_dict[sys_name])
+                content = "{:<24s}  {:<12d}  {:<12d}  ".format(sys_name, natoms, nframes_dict[sys_name])
                 content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
-                for x in global_type_list:
+                for x in self.global_type_list:
                     force_rmse_x = force_rmse.get(x, {})
                     x_rmse = force_rmse_x.get("rmse", np.NaN)
                     x_std = force_rmse_x.get("std", np.NaN)
                     content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
                 content += "\n"
 
+                with open("all_rmse.dat", "a") as fopen:
+                    fopen.write(content)
+
+        if not self.is_single and all_energies is not None:
             # all 
             en_rmse, force_rmse = self.__plot_comparasion(
                 "ALL", all_energies, all_forces, "ALL-cmp.png"
             )
-            content += "{:<24s}  {:<12d}  {:<12d}  ".format("ALL", 0, sum(nframes_dict.values()))
+            content = "{:<24s}  {:<12d}  {:<12d}  ".format("ALL", 0, sum(nframes_dict.values()))
             content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
-            for x in global_type_list:
+            for x in self.global_type_list:
                 force_rmse_x = force_rmse.get(x, {})
                 x_rmse = force_rmse_x.get("rmse", np.NaN)
                 x_std = force_rmse_x.get("std", np.NaN)
                 content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
             content += "\n"
 
-            with open("all_rmse.dat", "w") as fopen:
-                fopen.write(title+content)
+            with open("all_rmse.dat", "a") as fopen:
+                fopen.write(content)
 
         return
 
@@ -1041,9 +1094,7 @@ class DataOperator():
         """
         print(f"----- {sys_name} statistics -----")
         # results
-        res_dir = Path.cwd() / sys_name
-        if not res_dir.exists():
-            res_dir.mkdir()
+        res_dir = self.preifx
 
         # parse constraint indices
         cons_info = self.systems[sys_name].get("constraint", None)
@@ -1084,32 +1135,18 @@ class DataOperator():
         
             # use loaded frames
             calc_name = self.calc.name.lower()
-            if not existed_data.exists():
-                print("Calculating with MLP...")
-                new_frames = append_predictions(frames, calc=self.calc)
-                #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
-                mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
-                mlp_forces = merge_predicted_forces(new_frames, calc_name) 
-                energies = np.array([ref_energies, mlp_energies])
+            print("Calculating with MLP...")
+            new_frames = append_predictions(frames, calc=self.calc)
+            #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
+            mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
+            mlp_forces = merge_predicted_forces(new_frames, calc_name) 
+            energies = np.array([ref_energies, mlp_energies])
 
-                # save data
-                write(existed_data, new_frames)
+            # save data
+            write(existed_data, new_frames)
 
-                forces = np.array([ref_forces, mlp_forces])
-                energies = np.array([ref_energies, mlp_energies]) / natoms_array
-            else:
-                print("Use saved property data...")
-                new_frames = read(existed_data, ":")
-
-                ref_energies, ref_forces = xyz2results(new_frames, calc=None)
-                natoms_array = np.array([len(x) for x in new_frames])
-
-                mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
-                mlp_forces = merge_predicted_forces(new_frames, calc_name) 
-
-                energies = np.array([ref_energies, mlp_energies])
-                energies = np.array([ref_energies, mlp_energies]) / natoms_array
-                forces = [ref_forces, mlp_forces]
+            forces = np.array([ref_forces, mlp_forces])
+            energies = np.array([ref_energies, mlp_energies]) / natoms_array
 
             et = time.time()
             print("calculation time: ", et-st)
