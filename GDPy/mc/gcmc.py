@@ -18,7 +18,8 @@ from ase.neighborlist import natural_cutoffs, NeighborList
 from ase.optimize import BFGS
 from ase.constraints import FixAtoms
 
-from ase.ga.utilities import closest_distances_generator # generate bond distance list
+from ase.ga.utilities import closest_distances_generator
+from sklearn.utils import check_matplotlib_support # generate bond distance list
 
 
 """
@@ -248,38 +249,17 @@ class GCMC():
         self, 
         type_list: list, 
         reservior: dict, 
-        atoms: Atoms, 
-        reduced_region: ReducedRegion,
-        transition_array: np.array = np.array([0.0,0.0])
+        transition_array: np.array = np.array([0.0,0.0]),
+        random_seed = None # TODO
     ):
         """
         """
         # elements
         self.type_list = type_list
-        self.type_map = {}
-        for i, e in enumerate(self.type_list):
-            self.type_map[e] = i
-
-        # simulation system
-        self.atoms = atoms # current atoms
-        self.substrate_natoms = len(atoms)
-
-        self.region = reduced_region
-        
-        # constraint
-        cons_indices = [atom.index for atom in atoms if atom.position[2] < self.region.cmin]
-        cons = FixAtoms(
-            indices = cons_indices
-        )
-        atoms.set_constraint(cons)
-        self.constraint = cons
-        self.cons_indices = " ".join([str(i+1) for i in cons_indices])
 
         # probs
         self.trans_probs = transition_array # transition probabilities: motion, insertion, deletion
         self.accum_probs = np.cumsum(transition_array) / np.sum(transition_array)
-
-        self.mc_atoms = atoms.copy() # atoms after MC move
 
         # set random generator
         self.set_rng()
@@ -310,14 +290,6 @@ class GCMC():
                 expart, self.temperature
             )
 
-        # reduced region 
-        self.acc_volume = self.region.calc_acc_volume(self.atoms)
-
-        # few iterative properties
-        self.exatom_indices = {}
-        for expart in self.exparts:
-            self.exatom_indices[expart] = []
-
         return
     
     @staticmethod
@@ -335,6 +307,7 @@ class GCMC():
 
         return beta, cubic_wavelength
     
+
     def set_rng(self):
         # TODO: provide custom random seed
         drng = np.random.default_rng()
@@ -395,8 +368,77 @@ class GCMC():
 
         return
 
+    def __construct_initial_system(
+        self, structure_path, 
+        region_settings
+    ):
+        """ 
+        """
+        # simulation system
+        self.atoms = read(structure_path) # current atoms
+        self.substrate_natoms = len(self.atoms)
+
+        # set reduced region
+        self.region = ReducedRegion(
+            self.type_list, self.atoms.get_cell(complete=True), 
+            **region_settings
+        )
+
+        self.acc_volume = self.region.calc_acc_volume(self.atoms)
+        
+        # constraint
+        cons_indices = [atom.index for atom in self.atoms if atom.position[2] < self.region.cmin]
+        cons = FixAtoms(
+            indices = cons_indices
+        )
+        self.atoms.set_constraint(cons)
+        self.constraint = cons
+        self.cons_indices = " ".join([str(i+1) for i in cons_indices])
+
+        # few iterative properties
+        self.exatom_indices = {}
+        for expart in self.exparts:
+            self.exatom_indices[expart] = []
+
+        # check restart
+        if Path(self.MCTRAJ).exists():
+            print("restart from last structure...")
+            last_traj = read(self.MCTRAJ, ":")
+            start_index = len(last_traj) - 1
+            last_atoms = last_traj[-1]
+            # NOTE: the atom order matters
+            # update exatom_indices
+            chemical_symbols = last_atoms.get_chemical_symbols()
+            last_natoms = len(last_atoms)
+            for i in range(self.substrate_natoms, last_natoms):
+                chem_sym = chemical_symbols[i]
+                self.exatom_indices[chem_sym].append(i)
+            # set atoms and its constraint
+            self.atoms = last_atoms
+            self.atoms.set_constraint(cons)
+            # backup traj file
+            card_path = Path.cwd() / Path(self.MCTRAJ).name
+            bak_fmt = ("bak.{:d}."+Path(self.MCTRAJ).name)
+            idx = 0
+            while True:
+                bak_card = bak_fmt.format(idx)
+                if not Path(bak_card).exists():
+                    saved_card_path = Path.cwd() / bak_card
+                    shutil.copy(card_path, saved_card_path)
+                    break
+                else:
+                    idx += 1
+        else:
+            print("start from new substrate...")
+            start_index = 0
+
+        return start_index
+
     def run(
-        self, nattempts,
+        self, 
+        substrate_path,
+        region_settings,
+        nattempts,
         params: dict
     ):
         """"""
@@ -409,6 +451,8 @@ class GCMC():
             content += 'Cubic Thermal de Broglie Wavelength %f\n' %self.cubic_wavelength[expart]
             content += 'Chemical Potential of is %.4f [eV]\n' %self.chem_pot[expart]
         print(content)
+
+        start_index = self.__construct_initial_system(substrate_path, region_settings)
 
         # region info 
         content = "----- Region Info -----\n"
@@ -424,24 +468,25 @@ class GCMC():
         self.verbose = params["output"]["verbose"]
 
         # opt init structure
-        self.step_index = "-init"
+        self.step_index = start_index
         self.energy_stored, self.atoms = self.optimise(self.atoms)
-        print(self.atoms.cell)
-        print('energy_stored ', self.energy_stored)
+        print("Cell Info: ", self.atoms.cell)
+        print("energy_stored ", self.energy_stored)
 
         # add optimised initial structure
         print('\n\nrenew trajectory file')
         write(self.MCTRAJ, self.atoms, append=False)
 
         # start monte carlo
-        self.step_index = 0
-        for idx in range(nattempts):
+        self.step_index = start_index + 1
+        for idx in range(start_index+1, nattempts):
             self.step_index = idx
             print('\n\n===== MC Move %04d =====\n' %idx)
             # run standard MC move
             self.step()
 
             # TODO: save state
+            self.atoms.info["step"] = idx
             write(self.MCTRAJ, self.atoms, append=True)
 
             # check uncertainty

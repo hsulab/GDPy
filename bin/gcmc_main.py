@@ -43,26 +43,18 @@ with open("params.json", "w") as fopen:
     json.dump(gc_dict, fopen, indent=4)
 print("See params.json for values of all parameters...")
 
-# set initial structure - bare metal surface
-atoms = read(gc_dict["structure"])
-
-#res = Reservior(particle='O', temperature=300, pressure=1.0, mu=chemical_potential) # Kelvin, atm, eV
-
-# set region
-region = ReducedRegion(
-    gc_dict["type_list"], atoms.cell.complete(), caxis=gc_dict["region"]["caxis"], 
-    covalent_ratio = gc_dict["region"]["covalent_ratio"], max_movedisp = gc_dict["region"]["max_movedisp"]
-)
-
 # start mc
 transition_array = gc_dict["probabilities"] # move and exchange
 gcmc = GCMC(
-    gc_dict["type_list"], gc_dict["reservior"], atoms, region, transition_array
+    gc_dict["type_list"], gc_dict["reservior"], transition_array
 )
 
 
 if args.run:
-    gcmc.run(gc_dict["nattempts"], gc_dict["calculation"])
+    gcmc.run(
+        gc_dict["structure"], gc_dict["region"],
+        gc_dict["nattempts"], gc_dict["calculation"]
+    )
 
 
 if __name__ == "__main__":
