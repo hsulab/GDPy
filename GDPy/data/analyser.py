@@ -696,7 +696,7 @@ class DataOperator():
 
                 # preprocess
                 print("\n\n--- data statistics ---")
-                ref_energies = np.array(dft_energies)
+                ref_energies = np.array(ref_energies)
                 mlp_energies = np.array(mlp_energies)
             else:
                 frames = read(mlp_file, ":") # TODO: change this into another function
@@ -1094,7 +1094,7 @@ class DataOperator():
         """
         print(f"----- {sys_name} statistics -----")
         # results
-        res_dir = self.preifx
+        res_dir = self.prefix
 
         # parse constraint indices
         cons_info = self.systems[sys_name].get("constraint", None)
