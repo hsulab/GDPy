@@ -51,7 +51,9 @@ class RandomExplorer(AbstractExplorer):
         energy_difference = 3.0, # energy difference compared to the lowest
         esvar_tol = [0.02, 0.20], # energy standard variance tolerance per atom
         fsvar_tol = [0.05, 0.25], # force standard variance tolerance per atom
-        num_lowest = 200 # minimum number of local minima considered
+        num_lowest = 200, # minimum number of local minima considered
+        cand_indices = ":", # candidate indices to read
+        boltzmann = 3.0 # for minima selection
     )
 
 
@@ -129,6 +131,8 @@ class RandomExplorer(AbstractExplorer):
         self.converged_force = collect_params.get("converged_force", self.collect_params["converged_force"])
         self.esvar_tol = collect_params.get("esvar_tol", self.collect_params["esvar_tol"])
         self.num_lowest = collect_params.get("num_lowest", self.collect_params["num_lowest"])
+        self.cand_indices = collect_params.get("cand_indices", self.collect_params["cand_indices"])
+        self.boltzmann = collect_params.get("boltzmann", self.collect_params["boltzmann"])
 
         for slabel in exp_systems:
             # get compositions 
@@ -156,8 +160,15 @@ class RandomExplorer(AbstractExplorer):
             
             # start collection and first selection
             candidates = read(
-                system_path / "results" / "all_candidates.xyz", ":"
+                system_path / "results" / "all_candidates.xyz", self.cand_indices
             )
+            print(f"read {len(candidates)} candidates...")
+            # parse start and end
+            start, end = self.cand_indices.split(":")
+            if start != "":
+                start = int(start)
+            else:
+                start = 0
             min_energy = candidates[0].get_potential_energy() # NOTE: energies shall be sorted
             print("Lowest Energy: ", min_energy)
 
@@ -191,7 +202,7 @@ class RandomExplorer(AbstractExplorer):
                     maxfstdvar = np.max(atoms.calc.results["force_stdvar"])
                     # print("Var_En: ", enstdvar)
                     devi_info.append(
-                        [idx, confid, energy, enstdvar, maxfstdvar]
+                        [idx+start, confid, energy, enstdvar, maxfstdvar]
                     )
                     nconverged += 1
                     # NOTE: restore results 
@@ -234,10 +245,17 @@ class RandomExplorer(AbstractExplorer):
             if num_sel < 1:
                 print("no suspects, skip this system...")
                 continue
-            selected_frames, selected_props = self.boltzmann_histogram_selection(
-                converged_energies, converged_frames, num_sel, 3.0
-            ) # converged_frames will be deleted during selection
-            # TODO: save converged frames
+                
+            if self.boltzmann > 0.:
+                # TODO: change this to a selector
+                print("use boltzmann minima selection...")
+                selected_frames, selected_props = self.boltzmann_histogram_selection(
+                    converged_energies, converged_frames, num_sel, self.boltzmann
+                ) # converged_frames will be deleted during selection
+            else:
+                print("use descent minima selection...")
+                selected_frames = converged_frames[:num_sel]
+
             write(selection_path / "all-converged.xyz", selected_frames)
 
             # ===== collect trajectories =====
