@@ -115,5 +115,8 @@ class AdsSite(object):
             for index in index_to_check_noH:
                 dists = atoms.get_distances(index, ads_atoms_check, mic=True)
                 dist = min(dist, dists.min())
+            # TODO: check is_occupied
+            if dist < 1.5:
+                atoms = dist
         
         return atoms 

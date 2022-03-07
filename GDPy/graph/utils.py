@@ -43,6 +43,14 @@ def show_nodes(graph):
     
     return
 
+def show_components():
+    #print("----- connected components -----")
+    #for c in nx.connected_components(graph):
+    #    print(c)
+    pass
+
+    return
+
 def plot_graph(graph, fig_name="graph.png"):
     # plot graph
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))

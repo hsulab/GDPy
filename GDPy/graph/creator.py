@@ -76,7 +76,7 @@ class NeighGraphCreator():
 
     # ase nl params
     covalent_ratio = 1.0
-    skin = 0.3
+    skin = 0.0 # TODO: the neighbours will be in cutoff + skin
     self_interaction = False
     bothways = True
 
@@ -117,7 +117,12 @@ class NeighGraphCreator():
                     yield (x, y, z)
     
     def build_neighlist(self, atoms, bothways=True):
-        #print("----- Build NeighborList -----")
+        content = "----- Build NeighborList -----\n"
+        content += ("mult: {} skin: {} bothways: {}\n").format(
+            self.covalent_ratio, self.skin, bothways
+        )
+        print(content)
+
         nl = NeighborList(
             natural_cutoffs(atoms, mult=self.covalent_ratio), 
             skin = self.skin, sorted=False,
@@ -227,20 +232,24 @@ class StruGraphCreator(NeighGraphCreator):
 
     substrate_adsorbate_distance = 2.5
 
+    atoms = None
+    nl = None
+    graph = None
+    ads_indices = None
+
+    surface_mask = None
+
+    clean = None
+
     def __init__(self, **kwargs):
         # NOTE: half neigh is enough for creating structure graph
         super().__init__(**kwargs)
 
-        self.atoms = None
-        self.nl = None
-        self.graph = None
-        self.ads_indices = None
-
         return
 
-    def add_atoms_node(self, a1, o1, **kwargs):
+    def add_atoms_node(self, graph, a1, o1, **kwargs):
         """"""
-        self.graph.add_node(
+        graph.add_node(
             node_symbol(self.atoms[a1], o1), index=a1, central_ads=False, **kwargs
         )
 
@@ -248,6 +257,7 @@ class StruGraphCreator(NeighGraphCreator):
 
     def add_atoms_edge(
         self, 
+        graph,
         a1, a2, o1, o2, 
         adsorbate_atoms, 
         **kwargs
@@ -264,7 +274,7 @@ class StruGraphCreator(NeighGraphCreator):
 
         dist = 2 - (1 if a1 in adsorbate_atoms else 0) - (1 if a2 in adsorbate_atoms else 0)
 
-        self.graph.add_edge(
+        graph.add_edge(
             # node index
             node_symbol(self.atoms[a1], o1),
             node_symbol(self.atoms[a2], o2),
@@ -288,18 +298,43 @@ class StruGraphCreator(NeighGraphCreator):
         print(atoms)
 
         return
-
+    
     def generate_graph(self, atoms):
+        if self.graph is not None:
+            #raise RuntimeError(f"StruGraphCreator already has a graph...")
+            print(f"overwrite stored graph...")
+        
+        # TODO: fix this, too complicated
+        input_atoms = atoms.copy()
+        full = self.generate_structure_graph(atoms)
+        input_ads_indices = self.ads_indices.copy()
+
+        if self.clean is not None:
+            print("use clean substrate plus adsorbates...")
+            clean_graph = self.generate_structure_graph(read(self.clean))
+            ads_edges = [(u, v, d) for u, v, d in full.edges.data() if d["dist"] < 2]    ### Read all the edges, that are between adsorbate and surface (dist<2 condition)
+            ads_nodes = [(n, d) for n, d in full.nodes.data() if d["index"] in input_ads_indices]    ### take all the nodes that have an adsorbate atoms
+            #for (n, d) in ads_nodes:
+            #    print(n, d)
+            full = nx.Graph(clean_graph)
+            full.add_nodes_from(ads_nodes)
+            full.add_edges_from(ads_edges)
+        #show_nodes(full)
+        
+        self.atoms = input_atoms
+        self.ads_indices = input_ads_indices
+        self.graph = full
+
+        return
+
+    def generate_structure_graph(self, atoms):
         """ generate molecular graph for reaction detection
             this is part of process_atoms
         """
-        if self.graph is not None:
-            raise RuntimeError(f"StruGraphCreator already has a graph...")
-        else:
-            self.graph = nx.Graph()
+        graph = nx.Graph() # NOTE: create a new graph when this method is called
 
-        self.atom = atoms
-        self.nl = self.build_neighlist(atoms, bothways=False)
+        self.atoms = atoms
+        self.nl = self.build_neighlist(self.atoms, bothways=False)
         self.nl.update(self.atoms)
 
         self.ads_indices = [a.index for a in self.atoms if a.symbol in self.adsorbate_elements]
@@ -312,28 +347,11 @@ class StruGraphCreator(NeighGraphCreator):
         natoms = len(self.atoms)
         for i in range(natoms):
             for x, y, z in self.grid_iterator(grid):
-                self.add_atoms_node(i, (x, y, z))   
+                self.add_atoms_node(graph, i, (x, y, z))   
     
         # Add all edges to graph
-        #for centre_idx, atom in enumerate(atoms):
-        #    for x, y, z in self.grid_iterator(grid):
-        #        nei_indices, offsets = nl.get_neighbors(centre_idx)
-        #        for nei_idx, offset in zip(nei_indices, offsets):
-        #            # check if neighbour is out of preset grid box due to large cutoff
-        #            ox, oy, oz = offset
-        #            if not (-grid[0] <= ox + x <= grid[0]):
-        #                continue
-        #            if not (-grid[1] <= oy + y <= grid[1]):
-        #                continue
-        #            if not (-grid[2] <= oz + z <= grid[2]):
-        #                continue
-        #            # This line ensures that only surface adsorbate bonds are accounted for that are less than 2.5 Å
-        #            #if distances[index][neighbor] > 2.5 and (bool(index in adsorbate_atoms) ^ bool(neighbor in adsorbate_atoms)):
-        #            #    continue
-        #            self.add_atoms_edge(graph, atoms, centre_idx, nei_idx, (x, y, z), (x + ox, y + oy, z + oz), adsorbate_atoms)
         for centre_idx in range(natoms):
             for x, y, z in self.grid_iterator(grid):
-                # x, y, z = [0, 0, 0]
                 nei_indices, offsets = self.nl.get_neighbors(centre_idx)
                 for nei_idx, offset in zip(nei_indices, offsets):
                     ox, oy, oz = offset
@@ -347,47 +365,40 @@ class StruGraphCreator(NeighGraphCreator):
                     dis = atoms.get_distances(centre_idx, nei_idx, mic=True)
                     if dis > self.substrate_adsorbate_distance and (bool(centre_idx in self.ads_indices) ^ bool(nei_idx in self.ads_indices)):
                         continue
-                    self.add_atoms_edge(centre_idx, nei_idx, (x, y, z), (x + ox, y + oy, z + oz), self.ads_indices)
+                    self.add_atoms_edge(graph, centre_idx, nei_idx, (x, y, z), (x + ox, y + oy, z + oz), self.ads_indices)
         
-        return self.graph
+        return graph
 
 
-    def extract(self, full):
-        """
+    def extract_chem_envs(self):
+        """ part of process_atoms
         """
         if self.graph is None:
             pass
-        else:
             raise RuntimeError(f"{self.__name__} does not have a graph...")
+        else:
+            pass
 
         #print(graph.edges[('C:0[0,0,0]', 'H:1[0,0,0]')])
 
-        #print("----- connected components -----")
-        #for c in nx.connected_components(graph):
-        #    print(c)
-    
-        #if clean_graph:
-        #    ads_edges = [(u, v, d) for u, v, d in full.edges.data() if d["dist"] < 2]    ### Read all the edges, that are between adsorbate and surface (dist<2 condition)
-        #    ads_nodes = [(n, d) for n, d in full.nodes.data() if d["index"] in adsorbate_atoms]    ### take all the nodes that have an adsorbate atoms
-        #    full = nx.Graph(clean_graph)
-        #    full.add_nodes_from(ads_nodes)
-        #    full.add_edges_from(ads_edges)
+
+        full = self.graph
     
         # All adsorbates into single graph, no surface
         ads_nodes = None
-        ads_nodes = [node_symbol(atoms[index], (0, 0, 0)) for index in self.ads_indices]
+        ads_nodes = [node_symbol(self.atoms[index], (0, 0, 0)) for index in self.ads_indices]
         ads_graphs = nx.subgraph(full, ads_nodes)
 
         # Cut apart graph
         #ads_graphs = nx.connected_component_subgraphs(ads_graphs) # removed in v2.4
         # this creates a list of separate adsorbate graphs
         ads_graphs = [ads_graphs.subgraph(c) for c in nx.connected_components(ads_graphs)]
-        print("number of adsorbate graphs: ", len(ads_graphs))
+        #print("number of adsorbate graphs: ", len(ads_graphs))
 
         chem_envs = []
         for idx, ads in enumerate(ads_graphs):
-            print(f"----- adsorbate {idx} -----")
-            print("ads nodes: ", ads.nodes())
+            #print(f"----- adsorbate {idx} -----")
+            #print("ads nodes: ", ads.nodes())
             initial = list(ads.nodes())[0] # the first node in the adsorbate
             full_ads = nx.ego_graph(full, initial, radius=0, distance="ads_only") # all nodes in this adsorbate, equal ads?
             #print("full ads: ", full_ads.nodes())
@@ -402,29 +413,18 @@ class StruGraphCreator(NeighGraphCreator):
             # update attr of this and neighbour adsorbates
             for node in full_ads.nodes():
                 new_ads.add_node(node, ads=True)
+            #print("new ads: ", new_ads.nodes())
             
-            # check new adsorbate graph
-            #print("new ads: ")
-            #for (u, d) in new_ads.nodes.data():
-            #    print(u, d)
-            
-            self.plot_graph(new_ads, fig_name=f"ads-{idx}.png")
+            #self.plot_graph(new_ads, fig_name=f"ads-{idx}.png")
 
             chem_envs.append(new_ads)
 
         chem_envs = self.unique_adsorbates(chem_envs)  
-        print("number of adsorbate graphs: ", len(chem_envs))
 
         # sort chem_env by number of edges
         chem_envs.sort(key=lambda x: len(x.edges()))
 
-        return chem_envs
-
-    def extract_chem_env(self, clean_graph):
-        """ part of process_atoms
-        """
-
-        return
+        return chem_envs.copy()
 
     def unique_adsorbates(self, chem_envs):
         """Removes duplicate adsorbates which occur when periodic
@@ -438,10 +438,6 @@ class StruGraphCreator(NeighGraphCreator):
         Returns:
             list[networkx.Graph]: The unique adsorbate graphs
         """
-        # why cant define as class function
-        bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
-        ads_match = nx.algorithms.isomorphism.categorical_node_match(["index", "ads"], [-1, False]) 
-
         # Keep track of known unique adsorbate graphs
         unique = []
         for env in chem_envs:
@@ -475,26 +471,30 @@ class SiteGraphCreator(StruGraphCreator):
     shift2 = -0.5
     shift3 = 0.0 # -0.7
 
+    # bind an atoms object
+    atoms = None
+    nl = None
+    graph = None
+    ads_indices = None
+    surface_mask = None
+
+    clean = None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        # bind an atoms object
-        self.atoms = None
-        self.nl = None
-        self.graph = None
-        self.ads_indices = None
 
         return
     
     def convert_atoms(self, atoms, check_unique=False):
         """"""
         if isinstance(self.atoms, Atoms):
-            raise RuntimeError("SiteGraphCreator already has an atoms object.")
-        else:
-            self.atoms = atoms
+            #raise RuntimeError("SiteGraphCreator already has an atoms object.")
+            print("SiteGraphCreator already has an atoms object.")
+
+        self.atoms = atoms
 
         # create graph
-        _ = self.generate_graph(self.atoms)
+        _ = self.generate_graph(self.atoms) # create self.graph
 
         # NOTE: update nl since we want use nl with bothways instead of false
         self.nl = self.build_neighlist(self.atoms, bothways=True)
@@ -518,10 +518,10 @@ class SiteGraphCreator(StruGraphCreator):
 
         # write("xxx.xyz", atoms)
 
-        #all_sites = []
         for coord in self.coordination_numbers:
             print("coordination number: ", coord)
             found_count = 0
+            print("graph: ", self.graph)
             found_sites = self.generate_site_type(surface_mask, normals, coordination=coord)
 
             # generate site graph
@@ -529,13 +529,10 @@ class SiteGraphCreator(StruGraphCreator):
                 s.graph = self.process_site(s.cycle, self.site_radius)
 
             # output sites
-            print("\n\nfound sites: ", len(found_sites))
-            for s in found_sites:
-                print(s)
+            #print("\n\nfound sites: ", len(found_sites))
+            #for s in found_sites:
+            #    print(s)
 
-            #for site in found_sites:
-            #    all_sites.append(site)
-        
             if check_unique:
                 site_envs = [None] * len(found_sites)
                 for i, site in enumerate(found_sites):
@@ -554,9 +551,9 @@ class SiteGraphCreator(StruGraphCreator):
             else:
                 unique_sites = [[s] for s in found_sites]
 
-            print("\n\nunique sites: ", len(unique_sites))
-            for s in unique_sites:
-                print(s)
+            #print("\n\nunique sites: ", len(unique_sites))
+            #for s in unique_sites:
+            #    print(s)
 
         return unique_sites
 
@@ -586,10 +583,11 @@ class SiteGraphCreator(StruGraphCreator):
         #print(valid)
         sites = []
         for cycle in valid:
-            print("\n\n --- new algo ---")
-            print("\n\n --- cycle --- ", cycle)
+            #print("\n\n --- new algo ---")
+            #print("\n\n --- cycle --- ", cycle)
             site_node_names = []
             for u, d in self.graph.nodes.data():
+                #print(u, d)
                 if d["index"] in cycle:
                     site_node_names.append(u)
             site_graph = nx.subgraph(self.graph, site_node_names)
@@ -621,8 +619,8 @@ class SiteGraphCreator(StruGraphCreator):
                     names.append(centre_node)
                     site_node_names.append(names)
             for names in site_node_names:
-                print("xxx")
-                print(names)
+                #print("xxx")
+                #print(names)
                 # calc centre
                 site_positions = np.zeros((coordination,3))
                 for ci, n in enumerate(names):
@@ -686,7 +684,6 @@ class SiteGraphCreator(StruGraphCreator):
 
         return sites
     
-
     def process_site(
         self, 
         site, # cycle
@@ -760,7 +757,15 @@ class SiteGraphCreator(StruGraphCreator):
             if np.linalg.norm(normal) > surface_normal:
                 normals[index,:] = normalize(normal) if normalize_final else normal
 
-        surface_mask = [index for index in range(len(atoms)) if np.linalg.norm(normals[index]) > 1e-5]
+        # NOTE: assign z direction for surface
+        #surface_mask = [index for index in range(len(atoms)) if np.linalg.norm(normals[index]) > 1e-5]
+        surface_mask = [index for index in range(len(atoms)) if np.linalg.norm(normals[index]) > 1e-5 and normals[index][2] > 0.]
+        if self.surface_mask is not None:
+            print("use input surface mask...")
+            surface_mask = self.surface_mask
+            for i in range(len(atoms)):
+                if i not in surface_mask:
+                    normals[i] = np.zeros(3)
 
         return normals, surface_mask
 
