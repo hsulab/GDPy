@@ -72,6 +72,7 @@ class GeneticAlgorithemEngine():
 
     # reproduction and mutation
     MAX_REPROC_TRY = 10
+    MAX_RANDOM_TRY = 100
 
     # default settings
     calc_dict = {
@@ -113,6 +114,11 @@ class GeneticAlgorithemEngine():
 
         # --- population ---
         self.population_size = self.ga_dict["population"]["init_size"]
+        self.pop_init_seed = self.ga_dict["population"].get("init_seed", None)
+        self.pop_tot_size = self.ga_dict["population"].get("tot_size", self.population_size)
+        self.pop_ran_size = self.ga_dict["population"].get("ran_size", 0)
+        assert self.population_size == self.pop_tot_size, "tot_size should equal pop_size"
+        assert self.pop_ran_size < self.population_size, "ran_size should be smaller than pop_size"
 
         # --- property ---
         self.prop_dict = ga_dict["property"]
@@ -176,9 +182,7 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def run(
-        self, spath: None
-    ):
+    def run(self):
         """ main procedure
         """
         # TODO: check database existence and generation number to determine restart
@@ -190,140 +194,142 @@ class GeneticAlgorithemEngine():
             print("----- create a new tmp_folder -----")
             self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
             self.tmp_folder.mkdir()
-            # read seed structures
-            if spath is not None:
-                print("----- try to add seed structures -----")
-                frames = read(spath, ":")
-                # NOTE: check force convergence and only add converged structures
-                # check atom permutation
-                for i, atoms in enumerate(frames):
-                    # TODO: check atom order
-                    atoms.info["description"] = "seed {}".format(i)
-                    atoms.info["data"] = {}
-                    atoms.info["key_value_pairs"] = {}
-                    atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
-                    if True: # force converged
-                        print(f"  add converged seed {i}")
-                        self.da.add_relaxed_candidate(atoms)
-                    else:
-                        # run opt
-                        pass
+
+            self.__initialise()
         else:
             print("restart the database...")
             # balh
             self.tmp_folder = pathlib.Path.cwd() / self.CALC_DIRNAME
+            self.__create_random_structure_generator()
             self.__restart()
 
-            print("\n\n===== register calculator =====")
-            self.__register_calculator()
-                
-            # TODO: population settings
-            self.form_population()
+        # mutation and comparassion operators
+        print("\n\n===== register operators =====")
+        self.__register_operators()
 
-            # check current generation number
-            print("\n\n===== Generation Info =====")
+        print("\n\n===== register calculator =====")
+        self.__register_calculator()
+            
+        # TODO: population settings
+        self.form_population()
 
+        # check current generation number
+        print("\n\n===== Generation Info =====")
+
+        cur_gen = self.da.get_generation_number()
+        print("current generation number: ", cur_gen)
+        max_gen = self.conv_dict["generation"]
+
+        # output a few info
+        unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %cur_gen))
+        unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
+        num_unrelaxed_gen = len(unrelaxed_confids)
+
+        relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %cur_gen))
+        relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
+        num_relaxed_gen = len(relaxed_confids)
+
+        print("number of relaxed in current generation: ", num_relaxed_gen)
+        print(sorted(relaxed_confids))
+        print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
+        print(sorted(unrelaxed_confids))
+
+        # ===== create initial population =====
+
+        # start generation and calculation
+        if self.machine == "serial":
+            # start minimisation
+            if cur_gen == 0:
+                print("\n\n===== Initial Population Calculation =====")
+                while (self.da.get_number_of_unrelaxed_candidates()):
+                    # calculate structures from init population
+                    atoms = self.da.get_an_unrelaxed_candidate()
+                    print("\n\n ----- start to run structure confid %s -----" %atoms.info["confid"])
+                    self.__run_local_optimisation(atoms)
+            
+            # start reproduce
             cur_gen = self.da.get_generation_number()
-            print("current generation number: ", cur_gen)
-            max_gen = self.conv_dict["generation"]
-
-            # output a few info
-            unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %cur_gen))
-            unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
-            num_unrelaxed_gen = len(unrelaxed_confids)
-
-            relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %cur_gen))
-            relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
-            num_relaxed_gen = len(relaxed_confids)
-
-            print("number of relaxed in current generation: ", num_relaxed_gen)
-            print(sorted(relaxed_confids))
-            print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
-            print(sorted(unrelaxed_confids))
-
-            if self.machine == "serial":
-                # start minimisation
-                if cur_gen == 0:
-                    print("\n\n===== Initial Population =====")
-                    while (self.da.get_number_of_unrelaxed_candidates()):
-                        # calculate structures from init population
-                        atoms = self.da.get_an_unrelaxed_candidate()
-                        print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
-                        self.__run_local_optimisation(atoms)
-                
-                # start reproduce
-                cur_gen = self.da.get_generation_number()
-                for ig in range(cur_gen, max_gen+1): # TODO-2
-                    #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
-                    print("\n\n===== Generation {0} =====".format(ig))
+            for ig in range(cur_gen, max_gen+1): # TODO-2
+                #assert cur_gen == ig, "generation number not consistent!!! {0}!={1}".format(ig, cur_gen)
+                print("\n\n===== Generation {0} =====".format(ig))
+                num_relaxed_gen = len(list(self.da.c.select("relaxed=1,generation=%d" %ig)))
+                print("number of relaxed in current generation: ", num_relaxed_gen)
+                # TODO: check remain population
+                # reproduce structures
+                while num_relaxed_gen < self.population_size - self.pop_ran_size:
+                    print(f"\n --- offspring {num_relaxed_gen} ---")
+                    self.reproduce()
                     num_relaxed_gen = len(list(self.da.c.select("relaxed=1,generation=%d" %ig)))
-                    print("number of relaxed in current generation: ", num_relaxed_gen)
-                    # TODO: check remain population
-                    while num_relaxed_gen < self.population_size:
-                        print(f"\n --- offspring {num_relaxed_gen} ---")
-                        self.reproduce()
-                        num_relaxed_gen = len(list(self.da.c.select("relaxed=1,generation=%d" %ig)))
-                
-                # report results
-                results = pathlib.Path.cwd() / "results"
-                if not results.exists():
-                    results.mkdir()
-                all_relaxed_candidates = self.da.get_all_relaxed_candidates()
-                write(results / "all_candidates.xyz", all_relaxed_candidates)
-                print("finished!!!")
+                # random structure
+                if self.pop_ran_size > 0:
+                    print("generate random structures for this generation...")
+                    nfailed, ran_candidates = self.__generate_random_structures(self.pop_ran_size)
+                    print(f"finished creating random population with {nfailed} failed attempts...")
+                    for i, candidate in enumerate(ran_candidates):
+                        print(f"\n --- random {i} ---")
+                        candidate.info["data"] = {}
+                        candidate.info["key_value_pairs"] = {}
+                        self.da.add_unrelaxed_candidate(candidate, description="random: RandomCandidate") # TODO: may change dataase object
+                        print("\n\n ----- start to run structure confid %s -----" %candidate.info["confid"])
+                        self.__run_local_optimisation(candidate)
+            
+            # report results
+            self.report()
+            print("finished properly!!!")
 
-            elif self.machine == "slurm":
-                print("number of running jobs in current generation: ", self.worker.number_of_jobs_running())
-                print("\n\n===== Generation {0} =====".format(cur_gen))
-                # check status
-                converged_candidates = self.worker.check_status()
-                for cand in converged_candidates:
-                    # evaluate raw score
-                    self.evaluate_candidate(cand)
-                    print("  add relaxed cand ", cand.info["confid"])
-                    print("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
-                    self.dc.add_relaxed_step(
-                        cand,
-                        find_neighbors=self.find_neighbors,
-                        perform_parametrization=self.perform_parametrization
-                    )
+        elif self.machine == "slurm":
+            print("number of running jobs in current generation: ", self.worker.number_of_jobs_running())
+            print("\n\n===== Generation {0} =====".format(cur_gen))
+            # check status
+            converged_candidates = self.worker.check_status()
+            for cand in converged_candidates:
+                # evaluate raw score
+                self.evaluate_candidate(cand)
+                print("  add relaxed cand ", cand.info["confid"])
+                print("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
+                self.dc.add_relaxed_step(
+                    cand,
+                    find_neighbors=self.find_neighbors,
+                    perform_parametrization=self.perform_parametrization
+                )
 
-                # check initial population
-                if cur_gen == 0:
-                    print("\n\n===== Initial Population =====")
-                    while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
-                        # calculate structures from init population
-                        atoms = self.da.get_an_unrelaxed_candidate()
-                        print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
-                        # NOTE: provide unified interface to mlp and dft
-                        self.__run_local_optimisation(atoms)
+            # check initial population
+            if cur_gen == 0:
+                print("\n\n===== Initial Population Calculation =====")
+                while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
+                    # calculate structures from init population
+                    atoms = self.da.get_an_unrelaxed_candidate()
+                    print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
+                    # NOTE: provide unified interface to mlp and dft
+                    self.__run_local_optimisation(atoms)
 
-                if cur_gen > max_gen:
-                    print("reach maximum generation...")
-                    exit()
+            if cur_gen > max_gen:
+                print("reach maximum generation...")
+                self.report()
+                exit()
 
-                # reproduce
-                if (
-                    # nunrelaxed_gen == 0
-                    #nrelaxed_gen == unrelaxed_gen == self.population_size
-                    num_unrelaxed_gen < self.population_size
+            # reproduce
+            if (
+                # nunrelaxed_gen == 0
+                #nrelaxed_gen == unrelaxed_gen == self.population_size
+                num_unrelaxed_gen < self.population_size
+            ):
+                # TODO: can be aggressive, reproduce when relaxed structures are available
+                print("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
+                print("number before reproduction: ", self.worker.number_of_jobs_running() + num_relaxed_gen)
+                count = 0
+                while (
+                    self.worker.number_of_jobs_running() + num_relaxed_gen < self.population_size
                 ):
-                    # TODO: can be aggressive, reproduce when relaxed structures are available
-                    print("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
-                    print("number before reproduction: ", self.worker.number_of_jobs_running() + num_relaxed_gen)
-                    count = 0
-                    while (
-                        self.worker.number_of_jobs_running() + num_relaxed_gen < self.population_size
-                    ):
-                        self.reproduce()
-                        count += 1
-                    else:
-                        print(f"{count} candidates were reproduced in this run...")
-                        print("enough jobs are running for current generation...")
+                    self.reproduce()
+                    count += 1
                 else:
-                    print("not finished relaxing current generation...")
+                    print(f"{count} candidates were reproduced in this run...")
+                    print("enough jobs are running for current generation...")
             else:
-                pass
+                print("not finished relaxing current generation...")
+        else:
+            pass
 
         return
     
@@ -368,7 +374,10 @@ class GeneticAlgorithemEngine():
 
         return
     
-    def _initialise(self):
+    def __initialise(self):
+        # get basic system information
+        self.atom_numbers_to_optimize = self.da.get_atom_numbers_to_optimize()
+        self.n_to_optimize = len(self.atom_numbers_to_optimize)
 
         return
 
@@ -383,15 +392,15 @@ class GeneticAlgorithemEngine():
         self.slab = self.da.get_slab()
 
         # set bond list minimum
+        init_dict = self.ga_dict["system"]
+        covalent_ratio = init_dict.get("covalent_ratio", 0.8)
+
         all_atom_types = get_all_atom_types(self.slab, self.atom_numbers_to_optimize)
         self.blmin = closest_distances_generator(
             all_atom_types,
-            ratio_of_covalent_radii=0.7
+            ratio_of_covalent_radii=covalent_ratio
         )
         self.__print_blmin()
-
-        # mutation operators
-        self.__register_operators()
 
         return
     
@@ -690,7 +699,14 @@ class GeneticAlgorithemEngine():
         self.da.add_relaxed_step(min_atoms)
 
         return
+    
+    def __parse_system(self):
+        """ parse system
+        """
+        init_dict = self.ga_dict["system"]
+        covalent_ratio = init_dict.get("covalent_ratio", 0.8)
 
+        return
 
     def __create_random_structure_generator(self) -> None:
         """ create a random structure generator
@@ -814,17 +830,13 @@ class GeneticAlgorithemEngine():
         ) # structure generator
 
         return 
-
-    def __create_initial_population(
-            self, 
-        ):
-        # generate the starting population
-        print("start to create initial population")
+        
+    def __generate_random_structures(self, ran_size):
+        """"""
         nfailed = 0
         starting_population = []
-        while len(starting_population) < self.population_size:
-            maxiter = 100
-            candidate = self.generator.get_new_candidate(maxiter=maxiter)
+        while len(starting_population) < ran_size:
+            candidate = self.generator.get_new_candidate(maxiter=self.MAX_RANDOM_TRY)
             # TODO: add some geometric restriction here
             if candidate is None:
                 # print(f"This creation failed after {maxiter} attempts...")
@@ -835,14 +847,49 @@ class GeneticAlgorithemEngine():
                     candidate.positions += self.cell_centre - com
                 starting_population.append(candidate)
             #print("now we have ", len(starting_population))
-        print(f"Finished creating initial population with {nfailed} attempts...")
 
+        return nfailed, starting_population
+
+    def __create_initial_population(
+            self, 
+        ):
         # create the database to store information in
+        # TODO: move this part to where before generator is created
         da = PrepareDB(
             db_file_name = self.db_name,
             simulation_cell = self.slab,
             stoichiometry = self.atom_numbers_to_optimize
         )
+
+        print("\n\n===== Initial Population Creation =====")
+        # read seed structures
+        if self.pop_init_seed is not None:
+            print("----- try to add seed structures -----")
+            seed_frames = read(self.pop_init_seed, ":")
+            seed_size = len(seed_frames)
+            assert (seed_size > 0 and seed_size <= self.population_size), "number of seeds is invalid"
+            # NOTE: check force convergence and only add converged structures
+            # check atom permutation
+            for i, atoms in enumerate(seed_frames):
+                # TODO: check atom order
+                atoms.info["data"] = {}
+                atoms.info["key_value_pairs"] = {}
+                atoms.info["key_value_pairs"]["origin"] = "seed {}".format(i)
+                atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
+                # TODO: check geometric convergence
+                if True: # force converged
+                    print(f"  add converged seed {i}")
+                    da.add_relaxed_candidate(atoms)
+                else:
+                    # run opt
+                    pass
+
+        # generate the starting population
+        print("start to create initial population")
+        nfailed, starting_population = self.__generate_random_structures(
+            self.population_size - seed_size
+        )
+        print(f"finished creating initial population with {nfailed} failed attempts...")
 
         print("save population to database")
         for a in starting_population:
@@ -912,7 +959,7 @@ class GeneticAlgorithemEngine():
                 print("generate offspring a3 ", desc + " " + mut_desc + " after ", i+1, " attempts..." )
 
                 # run opt
-                print("\n\n ----- start to run structure %s -----" %a3.info["confid"])
+                print("\n\n ----- start to run structure confid %s -----" %a3.info["confid"])
                 self.__run_local_optimisation(a3)
 
                 break

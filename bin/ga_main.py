@@ -23,10 +23,6 @@ parser.add_argument(
     '-c', '--check', action='store_true',
     help='check status'
 )
-parser.add_argument(
-    "--seed", default=None,
-    help="add seed structures to the database"
-)
 
 # postprocess
 parser.add_argument(
@@ -85,7 +81,7 @@ if args.check:
     gae.check_status()
 
 if args.run:
-    gae.run(args.seed)
+    gae.run()
 
 if args.report:
     gae.report()
