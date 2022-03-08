@@ -685,17 +685,19 @@ class DataOperator():
             print(f"tolerance {energy_tolerance} shift {energy_shift}")
 
             if not mlp_file.exists():
-                print("calculate mlp results...")
+                print("\n\n--- calculate mlp results ---")
                 # read frames
                 frames = self.read_single_system(self.main_dir / sys_name, self.pattern)
 
-                # calc_frames = frames.copy() # WARN: torch-based calc will contaminate results
-
                 ref_energies, dft_forces = xyz2results(frames, calc=None)
-                mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
+
+                #print(frames[0].get_potential_energy())
+
+                calc_frames = [a.copy() for a in frames] # NOTE: shallow copy of frames will contaminate results
+                #print(frames[0].get_potential_energy())
+                mlp_energies, mlp_forces = xyz2results(calc_frames, calc=calc)
 
                 # preprocess
-                print("\n\n--- data statistics ---")
                 ref_energies = np.array(ref_energies)
                 mlp_energies = np.array(mlp_energies)
             else:
@@ -711,7 +713,9 @@ class DataOperator():
             # TODO: check force errors
             natoms_per_structure = np.sum(list(self.type_numbers.values()))
 
+            print("\n\n--- data statistics ---")
             abs_error = np.fabs(ref_energies - mlp_energies) / natoms_per_structure
+            print(abs_error)
             print("error shape:")
             print(abs_error.shape)
             print("mean: ", np.mean(abs_error))
@@ -725,6 +729,7 @@ class DataOperator():
             for i, x in enumerate(abs_error):
                 if x > energy_tolerance:
                     cand_indices.append(i)
+                    # NOTE: copy atoms wont copy calc
                     _energy = frames[i].get_potential_energy()
                     _forces = frames[i].get_forces()
                     cand_atoms = frames[i].copy()
@@ -790,6 +795,10 @@ class DataOperator():
 
         print("\n\n")
         print("!!! number of frames to compress: ", len(frames))
+
+        #print(frames[0].info)
+        #write("fuccc.xyz", frames)
+        #print(frames[0].get_potential_energy())
 
         # find converged structures TODO: move this outside
         converged_frames, converged_indices = self.find_converged(self.name, frames, self.prefix)
