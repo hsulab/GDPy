@@ -113,7 +113,9 @@ def read_xsd2(fd):
 
 def vasp_main(
     pstru, # path, a single file or a directory with many files
+    choice,
     incar_template,
+    cinidices,
     is_sort,
     is_submit
 ):
@@ -121,14 +123,6 @@ def vasp_main(
     # parse structures
     pstru = Path(pstru)
 
-    stru_files = []
-    if pstru.is_file():
-        stru_files.append(pstru)
-    elif pstru.is_dir():
-        for p in pstru.glob("*.xsd"): # TODO: change this
-            stru_files.append(p)
-        stru_files.sort()
-    
     # vasp machine
     gdpconfig = Path.home() / ".gdp"
     if gdpconfig.exists() and gdpconfig.is_dir():
@@ -141,42 +135,75 @@ def vasp_main(
     input_dict["incar"] = incar_template
     input_dict["isinteractive"] = True
 
-    vasp_machine = VaspMachine(**input_dict)
-        
-    # create calculation files
-    cwd = Path.cwd()
-    for struct_path in stru_files:
-        if cwd != Path.cwd(): 
-            directory = cwd.resolve() / struct_path.stem
-        else:
-            directory = Path.cwd().resolve() / struct_path.stem
-        
-        if directory.exists(): 
-            raise ValueError(f"{directory} exists.")
 
-        atoms = read_xsd2(struct_path)
-        #atoms.set_constraint(FixAtoms(indices=range(len(atoms))))
+    if choice == "create":
+        stru_files = []
+        if pstru.is_file():
+            stru_files.append(pstru)
+        elif pstru.is_dir():
+            for p in pstru.glob("*.xsd"): # TODO: change this
+                stru_files.append(p)
+            stru_files.sort()
 
-        # sort atoms by symbols and z-positions especially for supercells 
-        if is_sort: 
-            numbers = atoms.numbers 
-            xposes = atoms.positions[:, 0].tolist()
-            yposes = atoms.positions[:, 1].tolist()
-            zposes = atoms.positions[:, 2].tolist()
-            sorted_indices = np.lexsort((xposes,yposes,zposes,numbers))
-            atoms = atoms[sorted_indices]
-            
-            map_indices = dict(zip(sorted_indices, range(len(atoms))))
-            copt = atoms.info.get("copt", None)
-            if copt: 
-                new_copt = [map_indices[key] for key in atoms.info["copt"]]
-                atoms.info["copt"] = new_copt 
+        vasp_machine = VaspMachine(**input_dict)
+    
+        # create calculation files
+        cwd = Path.cwd()
+        for struct_path in stru_files:
+            if cwd != Path.cwd(): 
+                directory = cwd.resolve() / struct_path.stem
+            else:
+                directory = Path.cwd().resolve() / struct_path.stem
+
+            if directory.exists(): 
+                raise ValueError(f"{directory} exists.")
+
+            atoms = read_xsd2(struct_path)
+            #atoms.set_constraint(FixAtoms(indices=range(len(atoms))))
+
+            # sort atoms by symbols and z-positions especially for supercells 
+            if is_sort: 
+                numbers = atoms.numbers 
+                xposes = atoms.positions[:, 0].tolist()
+                yposes = atoms.positions[:, 1].tolist()
+                zposes = atoms.positions[:, 2].tolist()
+                sorted_indices = np.lexsort((xposes,yposes,zposes,numbers))
+                atoms = atoms[sorted_indices]
+
+                map_indices = dict(zip(sorted_indices, range(len(atoms))))
+                copt = atoms.info.get("copt", None)
+                if copt: 
+                    new_copt = [map_indices[key] for key in atoms.info["copt"]]
+                    atoms.info["copt"] = new_copt 
+
+            vasp_machine.create(atoms, directory)
+
+    elif choice == "freq":
+        assert pstru.is_dir(), "input path is not a directory"
+        vasprun = pstru / "vasprun.xml"
+        if not vasprun.exists():
+            raise RuntimeError("vasp calculation may not exist...")
         
-        vasp_machine.create(atoms, directory)
+        input_dict["incar"] = pstru / "INCAR"
 
-        # submit job automatically 
-        if is_submit: 
-            vasp_machine.submit(directory)
+        vasp_machine = VaspMachine(**input_dict)
+
+        frames = read(vasprun, ":")
+        atoms = frames[-1]
+
+        assert len(cinidices) > 0, "at least one atom should be free for freq..."
+
+        indices = [i for i in range(len(atoms)) if i not in cinidices]
+        cons = FixAtoms(indices=indices)
+        atoms.set_constraint(cons)
+
+        directory = Path.cwd().resolve() / (pstru.name + "-freq")
+        vasp_machine.create(atoms, directory, task="freq")
+
+
+    # submit job automatically 
+    if is_submit: 
+        vasp_machine.submit(directory)
 
     return
 

@@ -45,13 +45,18 @@ def main():
         help="structure file in any format (better xsd)"
     )
     parser_vasp.add_argument(
+        "-c", "--choices", default="create",
+        choices=["create", "freq"],
+        help = "choice"
+    )
+    parser_vasp.add_argument(
         "-i", "--incar",
         help="template incar file"
     )
     parser_vasp.add_argument(
         # "-c", "--copt", action='store_true',
-        "-c", "--copt", type=int, nargs=2,
-        help="use constrained optimisation for transition state search"
+        "-ai", "--aindices", type=int, nargs="*",
+        help="atom indices for constrain or freq, python convention"
     )
     parser_vasp.add_argument(
         "-ns", "--nosort", action="store_false",
@@ -183,6 +188,28 @@ def main():
         help='number of threads for computing features'
     )
 
+    # graph utils
+    parser_graph = subparsers.add_parser(
+        "graph",
+        help="graph utils"
+    )
+    parser_graph.add_argument(
+        "CONFIG", help="graph configuration file"
+    )
+    parser_graph.add_argument(
+        "-f", "--structure_file", required=True,
+        help="structure filepath (in xyz format)"
+    )
+    parser_graph.add_argument(
+        "-i", "--indices", default=":",
+        help="structure indices"
+    )
+    parser_graph.add_argument(
+        "-m", "--mode", required=True,
+        choices = ["diff", "add"],
+        help="structure filepath (in xyz format)"
+    )
+
     # validation
     parser_validation = subparsers.add_parser(
         'valid', help='validate properties with trained model'
@@ -229,7 +256,7 @@ def main():
     # use subcommands
     if args.subcommand == "vasp":
         from GDPy.utils.vasp.main import vasp_main
-        vasp_main(args.STRUCTURE, args.incar, args.nosort, args.sub)
+        vasp_main(args.STRUCTURE, args.choices, args.incar, args.aindices, args.nosort, args.sub)
     elif args.subcommand == "train":
         from .trainer.iterative_train import iterative_train
         iterative_train(args.INPUTS)
@@ -263,6 +290,9 @@ def main():
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
         selection_main(args.structure_file, args.CONFIG, args.potential)
+    elif args.subcommand == "graph":
+        from GDPy.graph.graph_main import graph_main
+        graph_main(args.CONFIG, args.structure_file, args.indices, args.mode)
     else:
         pass
 

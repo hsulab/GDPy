@@ -160,7 +160,8 @@ class VaspMachine():
     def create(
         self, 
         atoms, 
-        directory=Path("vasp-test")
+        directory=Path("vasp-test"),
+        task = "opt"
     ):
         # ===== set basic params
         vasp_creator = GenerateVaspInput()
@@ -175,6 +176,17 @@ class VaspMachine():
 
         # overwrite some structure specific parameters
         vasp_creator.set(system=directory.name) # SYSTEM
+
+        # different tasks
+        if task == "opt":
+            pass
+        elif task == "copt":
+            pass
+        elif task == "freq":
+            vasp_creator.set(nsw=1)
+            vasp_creator.set(ibrion=5)
+            vasp_creator.set(nfree=2)
+            vasp_creator.set(potim=0.015)
 
         # TODO: use not gamma-centred mesh?
         vasp_creator.set(gamma=True)
@@ -196,8 +208,6 @@ class VaspMachine():
 
         vasp_creator.initialize(atoms)
         vasp_creator.write_input(atoms, directory)
-
-        # TODO: fort.188
 
         if self.vasp_script is not None:
             # vasp_script = self.vasp_script.copy() # TODO: add copy
@@ -244,6 +254,7 @@ class VaspMachine():
             print(content)
 
             # --- copt --- 
+            # TODO: move this to task part
             copt = atoms.info.get("copt", None)
             if copt: 
                 # If constrained get distance and create fort.188
