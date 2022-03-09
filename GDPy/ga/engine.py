@@ -883,6 +883,8 @@ class GeneticAlgorithemEngine():
                 else:
                     # run opt
                     pass
+        else:
+            seed_size = 0
 
         # generate the starting population
         print("start to create initial population")
