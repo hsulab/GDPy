@@ -221,7 +221,7 @@ def vasp_main(
         print("force convergence: ", fmax)
 
         if maxforces[-1] <= fmax:
-            write(pstru.name + "_opt.arc", traj_frames[-1], format="dmol-arc")
+            write(pstru.name + "_opt.xsd", traj_frames[-1])
             print("write converged structure...")
 
     else:
