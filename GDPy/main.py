@@ -46,7 +46,7 @@ def main():
     )
     parser_vasp.add_argument(
         "-c", "--choices", default="create",
-        choices=["create", "freq"],
+        choices=["create", "freq", "data"],
         help = "choice"
     )
     parser_vasp.add_argument(

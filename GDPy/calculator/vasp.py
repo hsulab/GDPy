@@ -156,6 +156,21 @@ class VaspMachine():
         os.environ[vdw_envname] = self.vdw_path
 
         return
+    
+    def init_creator(self):
+        """ NOTE: this can be used to access 
+        """
+        # ===== set basic params
+        vasp_creator = GenerateVaspInput()
+        if self.__incar is not None:
+            vasp_creator.set_xc_params("PBE") # NOTE: since incar may not set GGA
+            vasp_creator.read_incar(self.__incar)
+        else:
+            vasp_creator.set(**self.default_parameters)
+        
+        self.creator = vasp_creator
+
+        return
 
     def create(
         self, 
@@ -228,6 +243,7 @@ class VaspMachine():
             # print(cons)
             if len(cons) == 1:
                 cons_indices = cons[0].get_indices() 
+                print("cons_indices: ", cons_indices)
                 fixed_symbols = [symbols[i] for i in cons_indices]
                 fixed_atoms = Counter(fixed_symbols)
             else:

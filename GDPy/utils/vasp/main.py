@@ -121,7 +121,7 @@ def vasp_main(
 ):
     """"""
     # parse structures
-    pstru = Path(pstru)
+    pstru = Path(pstru).resolve()
 
     # vasp machine
     gdpconfig = Path.home() / ".gdp"
@@ -185,7 +185,6 @@ def vasp_main(
             raise RuntimeError("vasp calculation may not exist...")
         
         input_dict["incar"] = pstru / "INCAR"
-
         vasp_machine = VaspMachine(**input_dict)
 
         frames = read(vasprun, ":")
@@ -199,6 +198,34 @@ def vasp_main(
 
         directory = Path.cwd().resolve() / (pstru.name + "-freq")
         vasp_machine.create(atoms, directory, task="freq")
+    elif choice == "data":
+        assert pstru.is_dir(), "input path is not a directory"
+
+        input_dict["incar"] = pstru / "INCAR"
+        vasp_machine = VaspMachine(**input_dict)
+        vasp_machine.init_creator()
+
+        fmax = np.fabs(vasp_machine.creator.exp_params.get("ediffg", 0.05))
+
+        # read info
+        # TODO: check electronic convergence
+        vasprun = pstru / "vasprun.xml"
+        traj_frames = read(vasprun, ":")
+        energies = [a.get_potential_energy() for a in traj_frames]
+        maxforces = [np.max(np.fabs(a.get_forces())) for a in traj_frames]
+
+        print("--- vasp info ---")
+        print("nframes: ", len(traj_frames))
+        print("last energy: ", energies[-1])
+        print("last maxforce: ", maxforces[-1])
+        print("force convergence: ", fmax)
+
+        if maxforces[-1] <= fmax:
+            write(pstru.name + "_opt.arc", traj_frames[-1], format="dmol-arc")
+            print("write converged structure...")
+
+    else:
+        pass
 
 
     # submit job automatically 
