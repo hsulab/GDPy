@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -156,14 +157,12 @@ def create_structure_graphs(input_dict, idx, atoms):
 
     return chem_envs
 
-def add_adsorbate(input_dict, idx, atoms):
+def add_adsorbate(input_dict, idx, atoms, ads):
     #print(f"====== create sites {i} =====")
     site_creator = SiteGraphCreator(**input_dict)
-    sites = site_creator.convert_atoms(atoms, check_unique=True)
+    sites = site_creator.convert_atoms(atoms, check_unique=True) # TODO: custom?
 
     noccupied = 0
-
-    ads = Atoms("O", positions=[[0, 0, 0]]) # TODO: make this an input structure
 
     created_frames = []
     for ig, sg in enumerate(sites):
@@ -191,15 +190,25 @@ def add_adsorbate(input_dict, idx, atoms):
     
     return created_frames
 
-def graph_main(graph_input_file, stru_path, indices, choice):
+def extract_unique_structures(chem_groups):
+    """ parallel
+    """
+
+    return
+
+def graph_main(n_jobs, graph_input_file, stru_path, indices, choice):
     """ sift unique adsorbate structures
         frames must have same chemical formula
     """
+    print(f"*** number of processors {n_jobs} ***")
+
     input_dict = parse_input_file(graph_input_file)
     print(input_dict)
 
     frames = read(stru_path, indices)
-    print(f"===== number of frames {len(frames)}=====")
+    nframes = len(frames)
+
+    print(f"===== number of frames {nframes}=====")
 
     if choice == "diff": # analyse chemical environment and output unique structures
         stru_creator = StruGraphCreator(
@@ -210,38 +219,86 @@ def graph_main(graph_input_file, stru_path, indices, choice):
         st = time.time()
 
         chem_groups = []
-        #for i, atoms in enumerate(frames):
-        #    print(f"check frame {i}")
-        #    _ = stru_creator.generate_graph(atoms)
-        #    chem_envs = stru_creator.extract_chem_envs()
-        #    chem_groups.append(chem_envs)
-        #    print("number of adsorbate graphs: ", len(chem_envs))
 
-        chem_groups = Parallel(n_jobs=16)(delayed(create_structure_graphs)(input_dict, idx,a) for idx, a in enumerate(frames))
+        chem_groups = Parallel(n_jobs=n_jobs)(delayed(create_structure_graphs)(input_dict, idx,a) for idx, a in enumerate(frames))
 
         et = time.time()
-        print("calc chem envs: ", et - st)
+        print("*time* calc chem envs: ", et - st)
     
-        # compare chem envs
+        # compare chem envs - serial
         unique_envs, unique_groups = unique_chem_envs(
             chem_groups, list(enumerate(frames))
         )
         print("number of unique groups: ", len(unique_groups))
 
         et = time.time()
-        print("cmp chem envs: ", et - st)
+        print("*time* cmp chem envs: ", et - st)
 
-        for iu, ug in enumerate(unique_groups):
-            unique_frames = []
-            for x in ug:
-                x[1].info["confid"] = x[0]
-                unique_frames.append(x[1])
-            unique_frames = sorted(unique_frames, key=lambda a: a.get_potential_energy(), reverse=False)
-            write(f"unique-g{iu}.xyz", unique_frames)
-            #print("{} {} {}".format(ug[0][0], ug[0][1], len(ug)-1))
-            print("{} {}".format(ug[0][0], len(ug)-1))
-            for duplicate in ug[1:]:
-                print(duplicate[0])
+        # --- compare chem envs - parallel
+        pair_indices = []
+        for i in range(nframes):
+            for j in range(i+1,nframes):
+                pair_indices.append((i,j))
+        print("number of comparasions: ", len(pair_indices))
+        cmp_results = Parallel(n_jobs=n_jobs)(delayed(compare_chem_envs)(chem_groups[i], chem_groups[j]) for i, j in pair_indices)
+
+        # merge results
+        last_idx = nframes - 1
+        found_last = False
+        end_idx = np.cumsum(np.arange(nframes-1,0,-1))
+        start_idx = [0] + list(end_idx)[:-1]
+        unique_groups = []
+        for i, (s, e) in enumerate(zip(start_idx, end_idx)):
+            for x in unique_groups:
+                if i in x:
+                    break
+            else:
+                cur_res = cmp_results[s:e]
+                cur_pairs = pair_indices[s:e]
+                ug = [i]
+                ug += [cur_pairs[j][1] for j, x in enumerate(cur_res) if x]
+                if len(ug) == 0:
+                    ug = [i]
+                if last_idx in ug:
+                    found_last = True
+                unique_groups.append(ug)
+                print(ug)
+        # check last
+        if not found_last:
+            ug.append([last_idx])
+        # reformat
+        unique_groups = [[[m, frames[m]]for m in x] for x in unique_groups]
+
+        et = time.time()
+        print("*time* cmp chem envs: ", et - st)
+
+        unique_data = []
+        for i, x in enumerate(unique_groups):
+            data = ["ug"+str(i)]
+            data.extend([a[0] for a in x])
+            unique_data.append(data)
+        content = "# unique, indices\n"
+        content += f"# ncandidates {nframes}\n"
+        for d in unique_data:
+            content += ("{:<8s}  "+"{:<8d}  "*(len(d)-1)+"\n").format(*d)
+
+        with open(Path.cwd() / "unique-g.txt", "w") as fopen:
+            fopen.write(content)
+
+        #all_unique = []
+        #for iu, ug in enumerate(unique_groups):
+        #    unique_frames = []
+        #    for x in ug:
+        #        x[1].info["confid"] = x[0]
+        #        unique_frames.append(x[1])
+        #    unique_frames = sorted(unique_frames, key=lambda a: a.get_potential_energy(), reverse=False)
+        #    write(f"unique-g{iu}.xyz", unique_frames)
+        #    all_unique.append(unique_frames[0])
+        #    #print("{} {} {}".format(ug[0][0], ug[0][1], len(ug)-1))
+        #    print("{} {}".format(ug[0][0], len(ug)-1))
+        #    for duplicate in ug[1:]:
+        #        print(duplicate[0])
+        #write("all-unique.xyz", all_unique)
 
     elif choice == "add":
         site_creator = SiteGraphCreator(
@@ -255,7 +312,9 @@ def graph_main(graph_input_file, stru_path, indices, choice):
         # joblib version
         st = time.time()
 
-        ads_frames = Parallel(n_jobs=8)(delayed(add_adsorbate)(input_dict, idx,a) for idx, a in enumerate(frames))
+        ads = Atoms("O", positions=[[0, 0, 0]]) # TODO: make this an input structure
+
+        ads_frames = Parallel(n_jobs=n_jobs)(delayed(add_adsorbate)(input_dict, idx, a, ads) for idx, a in enumerate(frames))
         #print(ads_frames)
 
         created_frames = []
