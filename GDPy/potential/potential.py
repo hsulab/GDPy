@@ -25,6 +25,12 @@ class AbstractPotential(abc.ABC):
     Create various potential instances
     """
 
+    name = "potential"
+    backends = dict(
+        single = [], # single pointe energy
+        dynamics = [] # dynamics (opt, ts, md)
+    )
+
     def __init__(self):
         """
         """
@@ -250,6 +256,16 @@ class EANNManager(AbstractPotential):
     name = "EANN"
     implemented_backends = ["ase", "lammps"]
 
+    backends = dict(
+        single = ["ase", "lammps"], # single pointe energy
+        dynamics = ["ase", "lammps"] # dynamics (opt, ts, md)
+    )
+
+    valid_combinations = [
+        ["ase", "ase"], # calculator, dynamics
+        ["lammps", "lammps"]
+    ]
+
     TRAIN_INPUT_NAME = "input_nn.json"
 
     def __init__(self, backend: str, models: Union[str, list], type_map: dict, **kwargs):
@@ -295,6 +311,7 @@ class EANNManager(AbstractPotential):
     
     def generate_calculator(self, atypes=None):
         """ generate calculator with various backends
+            for single-point calculation
         """
         if self.backend == "ase":
             # return ase calculator
@@ -311,6 +328,60 @@ class EANNManager(AbstractPotential):
             calc = content
 
         return calc
+    
+    def create_worker(
+        self, 
+        backend: dict, 
+        calc_params: dict,
+        dyn_params: dict,
+        **kwargs
+    ):
+        """ create a worker for dynamics
+        """
+        calculator = backend.get("calculator", None)
+        dynamics = backend.get("dynamics", None)
+
+        if [calculator, dynamics] not in self.valid_combinations:
+            raise RuntimeError()
+
+        # create calculator
+        if calculator == "ase":
+            from eann.interface.ase.calculator import Eann
+            atype_map = {}
+            for i, a in enumerate(calc_params["type_list"]):
+                atype_map[a] = i
+            calc = Eann(
+                directory = calc_params["directory"],
+                type_map = atype_map,
+                model = calc_params["file"]
+            )
+        elif calculator == "lammps":
+            # eann has different backends (ase, lammps)
+            from GDPy.calculator.lammps import Lammps
+            calc = Lammps(**calc_params)
+        else:
+            pass
+        
+        # create dynamics
+        method = dyn_params.pop("method")
+        dynrun_params = dyn_params.copy()
+        if dynamics == "ase":
+            if method == "opt":
+                from GDPy.calculator.ase_interface import AseDynamics
+                worker = AseDynamics(calc, directory=calc.directory)
+                # use ase no need to recaclc constraint since atoms has one
+                # cons_indices = None # this is used in minimise
+            else:
+                raise NotImplementedError("no eann other ase opt")
+        elif dynamics == "lammps":
+            if method == "opt":
+                from GDPy.calculator.lammps import LmpDynamics as dyn
+                # use lammps optimisation
+                worker = dyn(calc, directory=calc.directory)
+            else:
+                raise NotImplementedError("no other eann lammps dynamics")
+
+        return worker, dynrun_params
     
     def register_training(self, train_dict: dict):
         """"""
@@ -394,6 +465,12 @@ class EANNManager(AbstractPotential):
         print(output)
         return 
 
+
+class LaspManager():
+
+    def __init__(self):
+
+        return
 
 if __name__ == '__main__':
     pass
