@@ -2,6 +2,7 @@
 
 """
 
+from distutils.log import error
 import os
 import copy
 import shutil
@@ -12,6 +13,7 @@ from pathlib import Path
 
 from collections.abc import Iterable
 from typing import List, Mapping, Dict, Optional
+from matplotlib.pyplot import subplot2grid
 
 import numpy as np
 
@@ -59,6 +61,7 @@ class LmpDynamics():
     def set_output_path(self, directory):
         """"""
         self._directory_path = pathlib.Path(directory)
+        self.calc.directory = pathlib.Path(directory)
 
         return
     
@@ -81,7 +84,7 @@ class LmpDynamics():
 
         kwargs[self.keyword] = args
     
-    def run(self, atoms, **kwargs):
+    def run(self, atoms, read_exists=False, **kwargs):
         """"""
         calc_old = atoms.calc
         params_old = copy.deepcopy(self.calc.parameters)
@@ -99,7 +102,11 @@ class LmpDynamics():
 
         # run dynamics
         try:
-            _  = atoms.get_forces()
+            if not read_exists:
+                _  = atoms.get_forces()
+            else:
+                self.calc.check_specorder(atoms)
+                self.calc.read_results()
         except OSError:
             converged = False
         else:
@@ -226,14 +233,14 @@ class Lammps(FileIOCalculator):
     def calculate(self, atoms=None, properties=['energy'],
             system_changes=all_changes):
         # check specorder
-        self.__check_specorder(atoms)
+        self.check_specorder(atoms)
 
         # init for creating the directory
         FileIOCalculator.calculate(self, atoms, properties, system_changes)
 
         return
     
-    def __check_specorder(self, atoms):
+    def check_specorder(self, atoms):
         """check specorder for read and write structure of lammps"""
         # elements
         specorder = list(set(atoms.get_chemical_symbols()))
@@ -291,17 +298,29 @@ class Lammps(FileIOCalculator):
         # run lammps
         proc = subprocess.Popen(
             command, shell=True, cwd=self.directory,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            encoding = 'utf-8'
+            encoding = "utf-8"
         )
         errorcode = proc.wait()
+        #proc = subprocess.run(
+        #    command.split(), shell=True, 
+        #    cwd = self.directory,
+        #    # stdin=subprocess.DEVNULL,
+        #    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        #)
+        #errorcode = proc.returncode
+        #print("errorcode: ", errorcode)
         if errorcode: # NOTE: errorcode=1 may be due to lost atoms
             path = os.path.abspath(self.directory)
             msg = ('Failed with command "{}" failed in '
                    '{} with error code {}\n'.format(command, path, errorcode))
-            msg += "".join(proc.stdout.readlines())
+            msg += "\nstdout: ".join(proc.stdout.readlines())
+            msg += "\nstderr: ".join(proc.stderr.readlines())
+            print(msg)
 
-            raise CalculationFailed(msg)
+            # raise CalculationFailed(msg)
+            exit()
 
         return 
     
