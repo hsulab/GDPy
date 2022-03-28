@@ -230,6 +230,7 @@ class StruGraphCreator(NeighGraphCreator):
 
     # split system atoms into framework and adsorbate
     adsorbate_elements = []
+    adsorbate_indices = None
 
     substrate_adsorbate_distance = 2.5
 
@@ -338,7 +339,10 @@ class StruGraphCreator(NeighGraphCreator):
         self.nl = self.build_neighlist(self.atoms, bothways=False)
         self.nl.update(self.atoms)
 
-        self.ads_indices = [a.index for a in self.atoms if a.symbol in self.adsorbate_elements]
+        if self.adsorbate_indices is not None:
+            self.ads_indices = self.adsorbate_indices.copy()
+        else:
+            self.ads_indices = [a.index for a in self.atoms if a.symbol in self.adsorbate_elements]
         print("adsorbates: ", self.ads_indices)
 
         # init few params
@@ -373,15 +377,13 @@ class StruGraphCreator(NeighGraphCreator):
 
     def extract_chem_envs(self):
         """ part of process_atoms
+            return chemical environments of adsorbates
         """
         if self.graph is None:
             pass
             raise RuntimeError(f"{self.__name__} does not have a graph...")
         else:
             pass
-
-        #print(graph.edges[('C:0[0,0,0]', 'H:1[0,0,0]')])
-
 
         full = self.graph
     
@@ -523,7 +525,7 @@ class SiteGraphCreator(StruGraphCreator):
         # TODO: move to init?
         if isinstance(self.coordination_numbers, list):
             cn_values = self.coordination_numbers.copy()
-            cn_atom_indices = [surface_mask.copy()]*len(cn_values)
+            cn_atom_indices = [surface_mask.copy() for x in range(len(cn_values))]
         elif isinstance(self.coordination_numbers, dict):
             cn_values, cn_atom_indices = [], []
             for a, b in self.coordination_numbers.items():
@@ -575,7 +577,7 @@ class SiteGraphCreator(StruGraphCreator):
         
         # unique again
         if len(cn_values) > 1:
-            found_sites = all_sites
+            found_sites = [s[0] for s in all_sites]
             if check_unique:
                 site_envs = [None] * len(found_sites)
                 for i, site in enumerate(found_sites):
@@ -624,10 +626,11 @@ class SiteGraphCreator(StruGraphCreator):
         #print(valid)
         sites = []
         for cycle in valid:
-            #if cycle[0] != 48:
+            #if cycle !=  [32, 33, 27]:
             #    continue
-            #print("\n\n --- new algo ---")
-            print("\n\n --- cycle --- ", cycle)
+            #print("\n\n --- cycle --- ", cycle)
+            
+            # ***** found local site structure *****
             site_node_names = []
             for u, d in self.graph.nodes.data():
                 #print(u, d)
@@ -645,23 +648,35 @@ class SiteGraphCreator(StruGraphCreator):
                 site_graph, centre_node, 
                 radius=2, center=True,
                 distance="dist"
-            )
-            conn_nodes = []
-            for u, d in local_graph.degree:
-                if d == coordination-1:
-                    conn_nodes.append(u)
-            #print("conn_nodes: ", conn_nodes)
-            new_site_graph = nx.subgraph(self.graph, conn_nodes)
-            #plot_graph(new_site_graph, "sg-%s.png" %("-".join(str(c) for c in cycle)))
-            new_site_graphs = [new_site_graph.subgraph(c) for c in nx.connected_components(new_site_graph)]
-            if len(new_site_graphs) == 1:
-                site_node_names = [list(new_site_graphs[0]).copy()]
+            ) # go over framework
+            #plot_graph(local_graph, "local.png")
+
+            site_node_names = []
+            if coordination == 3:
+                #print("node names: ", local_graph.nodes())
+                all_cliques = nx.enumerate_all_cliques(local_graph)
+                site_node_names = [x for x in all_cliques if len(x)==3]
+            # TODO: add CN4 site that is a square
             else:
-                site_node_names = []
-                for g in new_site_graphs:
-                    names = list(g).copy()
-                    names.append(centre_node)
-                    site_node_names.append(names)
+                conn_nodes = []
+                for u, d in local_graph.degree:
+                    if d == coordination-1:
+                        conn_nodes.append(u)
+                new_site_graph = nx.subgraph(self.graph, conn_nodes)
+                #plot_graph(new_site_graph, "sg-%s.png" %("-".join(str(c) for c in cycle)))
+                new_site_graphs = [new_site_graph.subgraph(c) for c in nx.connected_components(new_site_graph)]
+
+                # *** check if node number is valid
+                if len(new_site_graphs) == 1:
+                    if len(new_site_graphs[0]) == coordination:
+                        site_node_names = [list(new_site_graphs[0]).copy()]
+                else:
+                    for g in new_site_graphs:
+                        if len(g) == coordination:
+                            names = list(g).copy()
+                            names.append(centre_node)
+                            site_node_names.append(names)
+
             for names in site_node_names:
                 #print("xxx")
                 #print(names)
@@ -670,9 +685,9 @@ class SiteGraphCreator(StruGraphCreator):
                 for ci, n in enumerate(names):
                     chem_sym, a_idx, offset = unpack_node_name(n)
                     site_positions[ci] = self.atoms.positions[a_idx] + np.dot(offset, self.atoms.get_cell())
-                    print(cycle[ci], site_positions[ci], offset)
+                    #print(cycle[ci], site_positions[ci], offset)
                 average = np.average(site_positions, axis=0)
-                print("site pos: ", site_positions)
+                #print("site pos: ", site_positions)
 
                 # generate site position
                 """
@@ -718,9 +733,9 @@ class SiteGraphCreator(StruGraphCreator):
                     normal += normals[index] * (1/neighbors)
                 normal = normalize(normal)
 
-                print("end cycle: ", cycle)
-                print("final normal: ", normal)
-                print("site pos: ", average)
+                #print("end cycle: ", cycle)
+                #print("final normal: ", normal)
+                #print("site pos: ", average)
                 
                 # --- create site objetc ---
                 site_ads = AdsSite(
@@ -827,15 +842,15 @@ class SiteGraphCreator(StruGraphCreator):
             normal = plane_normal(np.array(atom_array)) # TODO?
         else: # for bridge site
             neighbor_atoms = []
-            print(self.nl.get_neighbors(site_atoms[0])[0])
-            print(self.nl.get_neighbors(site_atoms[1])[0])
+            #print(self.nl.get_neighbors(site_atoms[0])[0])
+            #print(self.nl.get_neighbors(site_atoms[1])[0])
             for i in self.nl.get_neighbors(site_atoms[0])[0]:
                 #NOTE: This if condition is to ensure that if the atoms are the same row, 
                 # then the plane is formed btwn an atom in another row
                 # print(i,atoms[i].position[2] - atoms[site_atoms[0]].position[2])
                 if (i not in site_atoms) and i in self.nl.get_neighbors(site_atoms[1])[0] and i in surface_mask and i not in neighbor_atoms:
                     neighbor_atoms.append(i)
-            print("neighs: ", neighbor_atoms)
+            #print("neighs: ", neighbor_atoms)
 
             normal = [0, 0, 0]
             if len(neighbor_atoms) > 0:
@@ -850,8 +865,8 @@ class SiteGraphCreator(StruGraphCreator):
                             a_offset = self.nl.get_neighbors(initial)[1][np.where(a==self.nl.get_neighbors(initial)[0])]
                             #print(a,np.dot(a_offset, atoms.get_cell())+atoms[a].position)
                             atom_array.append(atoms[a].position+np.dot(a_offset, atoms.get_cell())[0])
-                    print(atom_array)
-                    print(get_angle_cycle(*atom_array))
+                    #print(atom_array)
+                    #print(get_angle_cycle(*atom_array))
                     # NOTE: angle settings
                     if 0.85 < get_angle_cycle(atom_array[0],atom_array[1],atom_array[2]) < 1.2: # 48.73 to 68.79 degree
                         normal += plane_normal(np.array(atom_array))
@@ -861,6 +876,7 @@ class SiteGraphCreator(StruGraphCreator):
             # check normal
             if np.sum(np.fabs(normal)) < 1e-8:
                 initial = site_atoms[0]
+                atom_array = []
                 atom_array.append(atoms[initial].position)
                 for a in site_atoms:
                     if a != initial:
@@ -871,10 +887,10 @@ class SiteGraphCreator(StruGraphCreator):
                 nvec = vec / np.linalg.norm(vec)
                 normal = nvec + np.array([0.,0.,2**0.5])
 
-            print("func normal: ", normal)
+            #print("func normal: ", normal)
         normal = normalize(normal)
 
-        print("func normal: ", normal)
+        #print("func normal: ", normal)
 
         return normal
 

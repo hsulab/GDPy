@@ -15,7 +15,7 @@ from GDPy.utils.command import parse_input_file
 
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
 from GDPy.graph.creator import unique_chem_envs, compare_chem_envs
-from GDPy.graph.utils import plot_graph
+from GDPy.graph.utils import plot_graph, unpack_node_name
 
 
 def add_two():
@@ -157,10 +157,10 @@ def create_structure_graphs(input_dict, idx, atoms):
 
     return chem_envs
 
-def add_adsorbate(input_dict, idx, atoms, ads):
+def add_adsorbate(input_dict, idx, atoms, ads, check_unique=False):
     #print(f"====== create sites {i} =====")
     site_creator = SiteGraphCreator(**input_dict)
-    sites = site_creator.convert_atoms(atoms, check_unique=True) # TODO: custom?
+    sites = site_creator.convert_atoms(atoms, check_unique=check_unique) # TODO: custom?
 
     noccupied = 0
 
@@ -188,6 +188,32 @@ def add_adsorbate(input_dict, idx, atoms, ads):
     content += "\n\n"
     print(content)
     
+    return created_frames
+
+def del_adsorbate(graph_params, atoms, ads_chem_sym):
+    """"""
+    stru_creator = StruGraphCreator(
+        **graph_params
+    )
+
+    created_frames = []
+
+    _ = stru_creator.generate_graph(atoms)
+    chem_envs = stru_creator.extract_chem_envs()
+    print("delete adsorbate number of chem envs: ", len(chem_envs))
+    for g in chem_envs:
+        for (u, d) in g.nodes.data():
+            if d["central_ads"]:
+                chem_sym, idx, offset = unpack_node_name(u)
+                if chem_sym == ads_chem_sym:
+                    new_atoms = atoms.copy()
+                    del new_atoms[idx]
+                    created_frames.append(new_atoms)
+                    break
+        else:
+            # no valid adsorbate for this structure
+            pass
+
     return created_frames
 
 def extract_unique_structures(chem_groups):

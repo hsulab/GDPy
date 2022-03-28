@@ -18,16 +18,18 @@ from GDPy.potential.manager import PotManager
 from GDPy.utils.command import parse_input_file
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
 from GDPy.graph.creator import unique_chem_envs, compare_chem_envs
-from GDPy.graph.graph_main import create_structure_graphs, add_adsorbate
+from GDPy.graph.graph_main import create_structure_graphs, add_adsorbate, del_adsorbate
+from GDPy.graph.utils import unpack_node_name
 
 from ase.ga.standard_comparators import EnergyComparator
 from ase.ga.standard_comparators import InteratomicDistanceComparator, get_sorted_dist_list
 
 class AdsorbateEvolution():
 
-    def __init__(self, input_dict, njobs):
+    def __init__(self, input_dict, njobs, calc):
         """"""
         self.njobs = njobs
+        self.calc = calc
 
         self.graph_params = input_dict["system"]["graph"]
 
@@ -35,6 +37,11 @@ class AdsorbateEvolution():
 
         # read substrate 
         self.substrates = read(input_dict["system"]["substrate"], ":")
+
+        # mutation
+        mutations = input_dict["mutation"] # add, delete, exchange
+        assert len(mutations) == 1, "only one mutation can be added to this evolution..."
+        self.mut_op = list(mutations.keys())[0]
 
         # create adsorbate
         composition = input_dict["system"]["composition"]
@@ -46,6 +53,8 @@ class AdsorbateEvolution():
 
         # selection
         self.energy_cutoff = input_dict["selection"]["energy_cutoff"]
+
+        self.check_site_unique = input_dict["system"].get("check_site_uniqe", True)
 
         return
     
@@ -65,6 +74,7 @@ class AdsorbateEvolution():
             if cur_nads != start:
                 raise RuntimeError("substrates should have same number of adsorbates..")
         start += 1
+        ntop = start
 
         # first generation
         new_substrates = [a.copy() for a in self.substrates]
@@ -77,7 +87,7 @@ class AdsorbateEvolution():
         # use monte carlo to select substrates
         nsubstrates = len(new_substrates)
         print("number of substrates: ", nsubstrates)
-        if nsubstrates > 50: # TODO: preset value
+        if nsubstrates > 100: # TODO: preset value
             new_substrates = sorted(new_substrates, key=lambda a: a.info["energy"], reverse=False) # BUG???
             putative_minimum = new_substrates[0].info["energy"]
             upper_energy = putative_minimum + self.energy_cutoff 
@@ -88,6 +98,7 @@ class AdsorbateEvolution():
             else:
                 upper_idx = nsubstrates
             new_substrates = new_substrates[:upper_idx]
+
         nsubstrates = len(new_substrates)
         print("number of substrates after selection: ", nsubstrates)
 
@@ -101,7 +112,13 @@ class AdsorbateEvolution():
         if not ug_path.exists():
             # --- test single run
             print("--- adsorbate creation ---")
-            created_frames = self.add_adsorbate(new_substrates)
+            if self.mut_op == "add":
+                created_frames = self.add_adsorbate(new_substrates)
+            elif self.mut_op == "delete":
+                created_frames = self.del_adsorbate(new_substrates)
+            elif self.mut_op == "exchange":
+                pass
+
             print(f"number of adsorbate structures: {len(created_frames)}")
             # add confid
             for i, a in enumerate(created_frames):
@@ -142,7 +159,7 @@ class AdsorbateEvolution():
 
         # --- energy
         # calc every candidate if the number is smaller than a preset value
-        if nugcands > 50:
+        if self.calc:
             # use worker to min structures
             tmp_folder = Path.cwd() / "tmp_folder"
             if not tmp_folder.exists():
@@ -157,25 +174,71 @@ class AdsorbateEvolution():
             for i, atoms in enumerate(unique_candidates):
                 confid = atoms.info["confid"]
                 print("structure ", confid)
+                # TODO: skip structures
+                dump_path = tmp_folder / ("cand"+str(confid)) / "surface.dump"
                 new_atoms = atoms.copy()
                 worker.reset()
                 worker.set_output_path(tmp_folder / ("cand"+str(confid)))
+                if not dump_path.exists():
+                    new_atoms = worker.minimise(new_atoms, **run_params)
 
-                new_atoms = worker.minimise(new_atoms, **run_params)
+                    # NOTE: move this to dynamics calculator?
+                    #energy = new_atoms.get_potential_energy()
+                    #forces = new_atoms.get_forces().copy()
+                    #calc = SinglePointCalculator(
+                    #    new_atoms, energy=energy, forces=forces
+                    #)
+                    #new_atoms.calc = calc
+                else:
+                    print("read existing...")
+                    new_atoms = worker.run(new_atoms, read_exists=True, **run_params)
 
-                # NOTE: move this to dynamics calculator?
-                #energy = new_atoms.get_potential_energy()
-                #forces = new_atoms.get_forces().copy()
-                #calc = SinglePointCalculator(
-                #    new_atoms, energy=energy, forces=forces
-                #)
-                #new_atoms.calc = calc
                 write(res_dir / "calc_candidates.xyz", new_atoms, append=True)
                 new_frames.append(new_atoms)
 
             new_frames = sorted(new_frames, key=lambda a: a.get_potential_energy(), reverse=False)
 
             write(res_dir / "calc_candidates.xyz", new_frames)
+
+            # compare by energies
+            all_unique = []
+            unique_groups = []
+            for i, en in enumerate(new_frames):
+                for j, (u_indices, u_frames, u_ens) in enumerate(unique_groups):
+                    new_en = new_frames[i].get_potential_energy()
+                    en_diff = np.fabs(new_en - np.mean(u_ens))
+                    en_flag = (en_diff <= 2e-4) # TODO
+                    if en_flag:
+                        dis_diff = self.__compare_distances(new_frames[i], u_frames[0], ntop=ntop)
+                        dis_flag = (dis_diff <= 0.01) # TODO
+                        if dis_flag:
+                            u_indices.append(i)
+                            u_frames.append(new_frames[i])
+                            u_ens.append(new_en)
+                            break
+                else:
+                    new_en = new_frames[i].get_potential_energy()
+                    unique_groups.append(
+                        ([i], [new_frames[i]], [new_en])
+                    )
+            #print(unique_groups)
+            #print("!!!nuique: ", len(unique_groups))
+            all_unique.extend(unique_groups)
+
+            # write true unique frames
+            unique_data = []
+            unique_frames = []
+            for i, (u_indices, u_frames, u_ens) in enumerate(all_unique):
+                print(i, "energy: {} indices: {}".format(u_ens, u_indices))
+                unique_frames.append(u_frames[0])
+                content = ("uged{:s}  "+"{:<8.4f}  ").format(str(i), u_ens[0])+("{:<6d}  "*len(u_indices)).format(*u_indices)
+                unique_data.append(content)
+                #write(f"./ged-uniques/u-ged-{i}.xyz", u_frames)
+            unique_frames = sorted(unique_frames, key=lambda a: a.get_potential_energy(), reverse=False)
+            write(res_dir / "uged-calc_candidates.xyz", unique_frames)
+            with open(res_dir / "unique-ged.txt", "w") as fopen:
+                fopen.write("\n".join(unique_data))
+
 
         return
     
@@ -184,7 +247,9 @@ class AdsorbateEvolution():
         # joblib version
         st = time.time()
 
-        ads_frames = Parallel(n_jobs=self.njobs)(delayed(add_adsorbate)(self.graph_params, idx, a, self.adsorbate) for idx, a in enumerate(frames))
+        ads_frames = Parallel(n_jobs=self.njobs)(
+            delayed(add_adsorbate)(self.graph_params, idx, a, self.adsorbate, self.check_site_unique) for idx, a in enumerate(frames)
+        )
         #print(ads_frames)
 
         created_frames = []
@@ -193,6 +258,25 @@ class AdsorbateEvolution():
 
         et = time.time()
         print("add_adsorbate time: ", et - st)
+
+        return created_frames
+    
+    def del_adsorbate(self, frames):
+        """ delete valid adsorbates and
+            check graph differences
+        """
+        # joblib version
+        st = time.time()
+
+        ads_frames = Parallel(n_jobs=self.njobs)(delayed(del_adsorbate)(self.graph_params, a, self.ads_chem_sym) for idx, a in enumerate(frames))
+        #print(ads_frames)
+
+        created_frames = []
+        for af in ads_frames:
+            created_frames.extend(af)
+
+        et = time.time()
+        print("del_adsorbate time: ", et - st)
 
         return created_frames
     
@@ -240,10 +324,6 @@ class AdsorbateEvolution():
 
         return unique_groups
     
-    def compare_distances(self, frames, ntop):
-
-        return
-    
     def __compare_distances(self, a1, a2, ntop):
         """ compare distances
         """
@@ -256,7 +336,7 @@ class AdsorbateEvolution():
                 np.max(np.fabs(pc1[key] - pc2[key]))
             )
 
-        return (np.max(diffs) < 0.02)
+        return np.max(diffs)
 
     # --- compare structures ---
     def cmp_structures(self, frames):
@@ -373,12 +453,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "-nj", "--njobs", default=8, type=int
     )
+    parser.add_argument(
+        "--calc", action="store_true",
+        help = "calculate candidates"
+    )
     args = parser.parse_args()
 
     #input_file = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/input.yaml"
     input_file = args.INPUT
 
     input_dict = parse_input_file(input_file)
-    ae = AdsorbateEvolution(input_dict, args.njobs)
+    ae = AdsorbateEvolution(input_dict, args.njobs, args.calc)
     ae.run()
     pass
