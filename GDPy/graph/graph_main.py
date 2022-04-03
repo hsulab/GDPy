@@ -3,10 +3,13 @@
 
 import time
 from pathlib import Path
+import pickle
 
 import numpy as np
 
 from joblib import Parallel, delayed
+
+import networkx as nx
 
 from ase import Atoms
 from ase.io import read, write
@@ -14,8 +17,56 @@ from ase.io import read, write
 from GDPy.utils.command import parse_input_file
 
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
-from GDPy.graph.creator import unique_chem_envs, compare_chem_envs
+from GDPy.graph.utils import (
+    unique_chem_envs, compare_chem_envs, para_unique_chem_envs, new_para_unique_chem_envs,
+    newnew_para_unique_chem_envs, block_para_unique_chem_envs, pool_para_unique_chem_envs,
+    new_pool_para_unique_chem_envs
+)
+from GDPy.graph.para import paragroup_unique_chem_envs
 from GDPy.graph.utils import plot_graph, unpack_node_name
+
+def para_cmp_graphs():
+    # --- compare chem envs - parallel
+    """
+    pair_indices = []
+    for i in range(nframes):
+        for j in range(i+1,nframes):
+            pair_indices.append((i,j))
+    print("number of comparasions: ", len(pair_indices))
+    cmp_results = Parallel(n_jobs=n_jobs)(delayed(compare_chem_envs)(chem_groups[i], chem_groups[j]) for i, j in pair_indices)
+
+    # merge results
+    last_idx = nframes - 1
+    found_last = False
+    end_idx = np.cumsum(np.arange(nframes-1,0,-1))
+    start_idx = [0] + list(end_idx)[:-1]
+    unique_groups = []
+    for i, (s, e) in enumerate(zip(start_idx, end_idx)):
+        for x in unique_groups:
+            if i in x:
+                break
+        else:
+            cur_res = cmp_results[s:e]
+            cur_pairs = pair_indices[s:e]
+            ug = [i]
+            ug += [cur_pairs[j][1] for j, x in enumerate(cur_res) if x]
+            if len(ug) == 0:
+                ug = [i]
+            if last_idx in ug:
+                found_last = True
+            unique_groups.append(ug)
+            print(ug)
+    # check last
+    if not found_last:
+        ug.append([last_idx])
+    # reformat
+    unique_groups = [[[m, frames[m]]for m in x] for x in unique_groups]
+
+    et = time.time()
+    print("*time* cmp chem envs: ", et - st)
+    """
+
+    return
 
 
 def add_two():
@@ -244,59 +295,38 @@ def graph_main(n_jobs, graph_input_file, stru_path, indices, choice):
         # calculate chem envs
         st = time.time()
 
-        chem_groups = []
-
-        chem_groups = Parallel(n_jobs=n_jobs)(delayed(create_structure_graphs)(input_dict, idx,a) for idx, a in enumerate(frames))
+        p = Path("chemenvs.pkl")
+        if not p.exists():
+            chem_groups = Parallel(n_jobs=n_jobs)(delayed(create_structure_graphs)(input_dict, idx,a) for idx, a in enumerate(frames))
+            with open("chemenvs.pkl", "wb") as fopen:
+                pickle.dump(chem_groups, fopen)
+        else:
+            with open("chemenvs.pkl", "rb") as fopen:
+                chem_groups = pickle.load(fopen)
 
         et = time.time()
         print("*time* calc chem envs: ", et - st)
     
         # compare chem envs - serial
-        unique_envs, unique_groups = unique_chem_envs(
-            chem_groups, list(enumerate(frames))
-        )
+        #unique_envs, unique_groups = unique_chem_envs(chem_groups, list(enumerate(frames)))
+        #unique_envs, unique_groups = para_unique_chem_envs(
+        #    chem_groups, list(enumerate(frames)), n_jobs=n_jobs
+        #)
+        #unique_envs, unique_groups 
+        unique_envs, unique_groups = paragroup_unique_chem_envs(chem_groups, list(enumerate(frames)), n_jobs=n_jobs)
+        #unique_envs, unique_groups = newnew_para_unique_chem_envs(chem_groups, list(enumerate(frames)), n_jobs=n_jobs)
+        #unique_envs, unique_groups = block_para_unique_chem_envs(chem_groups, list(enumerate(frames)), n_jobs=n_jobs)
+        #unique_envs, unique_groups = pool_para_unique_chem_envs(chem_groups, list(enumerate(frames)), n_jobs=n_jobs)
+        #unique_envs, unique_groups = new_pool_para_unique_chem_envs(chem_groups, list(enumerate(frames)), n_jobs=n_jobs)
+
+        et = time.time()
+        print("*time* cmp chem envs: ", et - st)
+
+        #new_inputs = [[chem_groups, list(enumerate(frames))]]*8
+        #xxx = Parallel(n_jobs=n_jobs)(delayed(unique_chem_envs)(a1, b1) for a1, b1 in new_inputs)
+        #print("*time* cmp chem envs: ", et - st)
+
         print("number of unique groups: ", len(unique_groups))
-
-        et = time.time()
-        print("*time* cmp chem envs: ", et - st)
-
-        # --- compare chem envs - parallel
-        pair_indices = []
-        for i in range(nframes):
-            for j in range(i+1,nframes):
-                pair_indices.append((i,j))
-        print("number of comparasions: ", len(pair_indices))
-        cmp_results = Parallel(n_jobs=n_jobs)(delayed(compare_chem_envs)(chem_groups[i], chem_groups[j]) for i, j in pair_indices)
-
-        # merge results
-        last_idx = nframes - 1
-        found_last = False
-        end_idx = np.cumsum(np.arange(nframes-1,0,-1))
-        start_idx = [0] + list(end_idx)[:-1]
-        unique_groups = []
-        for i, (s, e) in enumerate(zip(start_idx, end_idx)):
-            for x in unique_groups:
-                if i in x:
-                    break
-            else:
-                cur_res = cmp_results[s:e]
-                cur_pairs = pair_indices[s:e]
-                ug = [i]
-                ug += [cur_pairs[j][1] for j, x in enumerate(cur_res) if x]
-                if len(ug) == 0:
-                    ug = [i]
-                if last_idx in ug:
-                    found_last = True
-                unique_groups.append(ug)
-                print(ug)
-        # check last
-        if not found_last:
-            ug.append([last_idx])
-        # reformat
-        unique_groups = [[[m, frames[m]]for m in x] for x in unique_groups]
-
-        et = time.time()
-        print("*time* cmp chem envs: ", et - st)
 
         unique_data = []
         for i, x in enumerate(unique_groups):
@@ -311,20 +341,21 @@ def graph_main(n_jobs, graph_input_file, stru_path, indices, choice):
         with open(Path.cwd() / "unique-g.txt", "w") as fopen:
             fopen.write(content)
 
-        #all_unique = []
-        #for iu, ug in enumerate(unique_groups):
-        #    unique_frames = []
-        #    for x in ug:
-        #        x[1].info["confid"] = x[0]
-        #        unique_frames.append(x[1])
-        #    unique_frames = sorted(unique_frames, key=lambda a: a.get_potential_energy(), reverse=False)
-        #    write(f"unique-g{iu}.xyz", unique_frames)
-        #    all_unique.append(unique_frames[0])
-        #    #print("{} {} {}".format(ug[0][0], ug[0][1], len(ug)-1))
-        #    print("{} {}".format(ug[0][0], len(ug)-1))
-        #    for duplicate in ug[1:]:
-        #        print(duplicate[0])
-        #write("all-unique.xyz", all_unique)
+        all_unique = []
+        print("\n# uniqueid nduplicates")
+        for iu, ug in enumerate(unique_groups):
+            unique_frames = []
+            for x in ug:
+                x[1].info["confid"] = x[0]
+                unique_frames.append(x[1])
+            unique_frames = sorted(unique_frames, key=lambda a: a.get_potential_energy(), reverse=False)
+            #write(f"unique-g{iu}.xyz", unique_frames)
+            all_unique.append(unique_frames[0])
+            #print("{} {} {}".format(ug[0][0], ug[0][1], len(ug)-1))
+            #print("{} {}".format(ug[0][0], len(ug)-1))
+            #for duplicate in ug[1:]:
+            #    print(duplicate[0])
+        write(Path.cwd() / "ug-candidates.xyz", all_unique)
 
     elif choice == "add":
         site_creator = SiteGraphCreator(

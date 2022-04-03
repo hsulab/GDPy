@@ -17,7 +17,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from GDPy.potential.manager import PotManager
 from GDPy.utils.command import parse_input_file
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
-from GDPy.graph.creator import unique_chem_envs, compare_chem_envs
+from GDPy.graph.utils import unique_chem_envs, compare_chem_envs
 from GDPy.graph.graph_main import create_structure_graphs, add_adsorbate, del_adsorbate
 from GDPy.graph.utils import unpack_node_name
 

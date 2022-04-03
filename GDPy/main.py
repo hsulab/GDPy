@@ -28,6 +28,11 @@ def main():
         "-pot", "--potential", default = None,
         help = "potential related configuration"
     )
+
+    parser.add_argument(
+        "-nj", "--n_jobs", default = 1, type=int,
+        help = "number of processors"
+    )
     
     # subcommands in the entire workflow 
     subparsers = parser.add_subparsers(
@@ -292,7 +297,7 @@ def main():
         selection_main(args.structure_file, args.CONFIG, args.potential)
     elif args.subcommand == "graph":
         from GDPy.graph.graph_main import graph_main
-        graph_main(args.CONFIG, args.structure_file, args.indices, args.mode)
+        graph_main(args.n_jobs, args.CONFIG, args.structure_file, args.indices, args.mode)
     else:
         pass
 
