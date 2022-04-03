@@ -161,6 +161,8 @@ def paragroup_unique_chem_envs(chem_envs_groups, metadata=None, n_jobs=1):
     # that is for too small atomic task
     #nsplits = 64
     nsplits = n_jobs*(nframes // 16 // n_jobs)
+    if nsplits == 0:
+        nsplits += 1
     print("nsplits: ", nsplits)
     
     with Parallel(

@@ -18,8 +18,9 @@ from GDPy.potential.manager import PotManager
 from GDPy.utils.command import parse_input_file
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
 from GDPy.graph.utils import unique_chem_envs, compare_chem_envs
-from GDPy.graph.graph_main import create_structure_graphs, add_adsorbate, del_adsorbate
+from GDPy.graph.graph_main import create_structure_graphs, add_adsorbate, del_adsorbate, exchange_adsorbate
 from GDPy.graph.utils import unpack_node_name
+from GDPy.graph.para import paragroup_unique_chem_envs
 
 from ase.ga.standard_comparators import EnergyComparator
 from ase.ga.standard_comparators import InteratomicDistanceComparator, get_sorted_dist_list
@@ -42,6 +43,7 @@ class AdsorbateEvolution():
         mutations = input_dict["mutation"] # add, delete, exchange
         assert len(mutations) == 1, "only one mutation can be added to this evolution..."
         self.mut_op = list(mutations.keys())[0]
+        self.mut_content = mutations[self.mut_op]
 
         # create adsorbate
         composition = input_dict["system"]["composition"]
@@ -109,6 +111,10 @@ class AdsorbateEvolution():
             pass
         ug_path = res_dir / "ug-candidates.xyz"
 
+        check_distance = True
+        if self.mut_op == "exchange":
+            check_distance = False
+
         if not ug_path.exists():
             # --- test single run
             print("--- adsorbate creation ---")
@@ -117,7 +123,12 @@ class AdsorbateEvolution():
             elif self.mut_op == "delete":
                 created_frames = self.del_adsorbate(new_substrates)
             elif self.mut_op == "exchange":
-                pass
+                print("---run exchange---")
+                ads_species, target_species = self.mut_content.split("->")
+                ads_species = ads_species.strip()
+                assert ads_species == self.ads_chem_sym, "adsorbate species is not consistent"
+                target_species = target_species.strip()
+                created_frames = self.exchange_adsorbate(new_substrates, target_species)
 
             print(f"number of adsorbate structures: {len(created_frames)}")
             # add confid
@@ -208,10 +219,17 @@ class AdsorbateEvolution():
                     new_en = new_frames[i].get_potential_energy()
                     en_diff = np.fabs(new_en - np.mean(u_ens))
                     en_flag = (en_diff <= 2e-4) # TODO
-                    if en_flag:
-                        dis_diff = self.__compare_distances(new_frames[i], u_frames[0], ntop=ntop)
-                        dis_flag = (dis_diff <= 0.01) # TODO
-                        if dis_flag:
+                    if check_distance:
+                        if en_flag:
+                            dis_diff = self.__compare_distances(new_frames[i], u_frames[0], ntop=ntop)
+                            dis_flag = (dis_diff <= 0.01) # TODO
+                            if dis_flag:
+                                u_indices.append(i)
+                                u_frames.append(new_frames[i])
+                                u_ens.append(new_en)
+                                break
+                    else:
+                        if en_flag:
                             u_indices.append(i)
                             u_frames.append(new_frames[i])
                             u_ens.append(new_en)
@@ -280,18 +298,30 @@ class AdsorbateEvolution():
 
         return created_frames
     
+    def exchange_adsorbate(self, frames, target_species):
+        """ change an adsorbate to another species
+        """
+        # joblib version
+        st = time.time()
+
+        ads_frames = Parallel(n_jobs=self.njobs)(
+            delayed(exchange_adsorbate)(self.graph_params, a, self.ads_chem_sym, target_species) for idx, a in enumerate(frames)
+        )
+        #print(ads_frames)
+
+        created_frames = []
+        for af in ads_frames:
+            created_frames.extend(af)
+
+        et = time.time()
+        print("exg_adsorbate time: ", et - st)
+
+        return created_frames
+    
     def compare_graphs(self, frames):
         """"""
         # calculate chem envs
         st = time.time()
-
-        chem_groups = []
-        #for i, atoms in enumerate(frames):
-        #    print(f"check frame {i}")
-        #    _ = stru_creator.generate_graph(atoms)
-        #    chem_envs = stru_creator.extract_chem_envs()
-        #    chem_groups.append(chem_envs)
-        #    print("number of adsorbate graphs: ", len(chem_envs))
 
         chem_groups = Parallel(n_jobs=self.njobs)(delayed(create_structure_graphs)(self.graph_params, idx, a) for idx, a in enumerate(frames))
 
@@ -299,28 +329,15 @@ class AdsorbateEvolution():
         print("calc chem envs: ", et - st)
     
         # compare chem envs
-        unique_envs, unique_groups = unique_chem_envs(
-            chem_groups, list(enumerate(frames))
-        )
+        #unique_envs, unique_groups = unique_chem_envs(
+        #    chem_groups, list(enumerate(frames))
+        #)
+        unique_envs, unique_groups = paragroup_unique_chem_envs(chem_groups, list(enumerate(frames)), n_jobs=self.njobs)
+
         print("number of unique groups: ", len(unique_groups))
 
         et = time.time()
         print("cmp chem envs: ", et - st)
-
-        #all_unique = []
-        #for iu, ug in enumerate(unique_groups):
-        #    unique_frames = []
-        #    for x in ug:
-        #        x[1].info["confid"] = x[0]
-        #        unique_frames.append(x[1])
-        #    unique_frames = sorted(unique_frames, key=lambda a: a.get_potential_energy(), reverse=False)
-        #    write(f"unique-g{iu}.xyz", unique_frames)
-        #    all_unique.append(unique_frames[0])
-        #    #print("{} {} {}".format(ug[0][0], ug[0][1], len(ug)-1))
-        #    print("{} {}".format(ug[0][0], len(ug)-1))
-        #    for duplicate in ug[1:]:
-        #        print(duplicate[0])
-        #write("all-unique.xyz", all_unique)
 
         return unique_groups
     

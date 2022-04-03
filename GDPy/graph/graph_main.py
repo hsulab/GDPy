@@ -267,6 +267,33 @@ def del_adsorbate(graph_params, atoms, ads_chem_sym):
 
     return created_frames
 
+def exchange_adsorbate(graph_params, atoms, ads_chem_sym, target_species):
+    """"""
+    stru_creator = StruGraphCreator(
+        **graph_params
+    )
+
+    created_frames = []
+
+    _ = stru_creator.generate_graph(atoms)
+    chem_envs = stru_creator.extract_chem_envs()
+    print("exchange adsorbate number of chem envs: ", len(chem_envs))
+    for g in chem_envs:
+        for (u, d) in g.nodes.data():
+            if d["central_ads"]:
+                chem_sym, idx, offset = unpack_node_name(u)
+                if chem_sym == ads_chem_sym:
+                    #print(ads_chem_sym)
+                    new_atoms = atoms.copy()
+                    new_atoms[idx].symbol = target_species
+                    created_frames.append(new_atoms)
+                    break
+        else:
+            # no valid adsorbate for this structure
+            pass
+
+    return created_frames
+
 def extract_unique_structures(chem_groups):
     """ parallel
     """

@@ -25,6 +25,7 @@ from GDPy.graph.sites import AdsSite
 from GDPy.graph.utils import node_symbol, bond_symbol, unpack_node_name
 from GDPy.graph.utils import bond_match, ads_match
 from GDPy.graph.utils import show_nodes, show_edges, plot_graph
+from GDPy.graph.utils import compare_chem_envs, unique_chem_envs
 
 """ detection of oxygen vacancy
 """
