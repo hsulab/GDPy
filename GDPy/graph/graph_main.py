@@ -142,7 +142,7 @@ def check_unique():
 
     chem_groups = []
     for i, atoms in enumerate(frames):
-        print(f"check frame {i}")
+        print(f"-x-x-x- check frame {i} -x-x-x-")
         _ = stru_creator.generate_graph(atoms)
         chem_envs = stru_creator.extract_chem_envs()
         chem_groups.append(chem_envs)
@@ -195,18 +195,22 @@ def add_adsorbate_single(site_creator, frames):
 
     return
 
-def create_structure_graphs(input_dict, idx, atoms):
+def create_structure_graphs(input_dict, idx, atoms, selected_indices=None):
     """"""
     stru_creator = StruGraphCreator(
         **input_dict
     )
     _ = stru_creator.generate_graph(atoms)
-    chem_envs = stru_creator.extract_chem_envs()
+    if selected_indices is None:
+        chem_envs = stru_creator.extract_chem_envs()
+    else:
+        chem_envs = stru_creator.extract_selected_chem_envs(selected_indices=selected_indices)
 
     print(f"check frame {idx}")
     print("number of adsorbate graphs: ", len(chem_envs))
 
     return chem_envs
+
 
 def add_adsorbate(input_dict, idx, atoms, ads, check_unique=False):
     #print(f"====== create sites {i} =====")
@@ -267,8 +271,10 @@ def del_adsorbate(graph_params, atoms, ads_chem_sym):
 
     return created_frames
 
-def exchange_adsorbate(graph_params, atoms, ads_chem_sym, target_species):
+def exchange_adsorbate(graph_params, atoms, ads_chem_sym, target_species, selected_indices=None):
     """"""
+    print("exchange indices ", selected_indices)
+
     stru_creator = StruGraphCreator(
         **graph_params
     )
@@ -276,7 +282,10 @@ def exchange_adsorbate(graph_params, atoms, ads_chem_sym, target_species):
     created_frames = []
 
     _ = stru_creator.generate_graph(atoms)
-    chem_envs = stru_creator.extract_chem_envs()
+    if selected_indices is None:
+        chem_envs = stru_creator.extract_chem_envs()
+    else:
+        chem_envs = stru_creator.extract_selected_chem_envs(selected_indices=selected_indices)
     print("exchange adsorbate number of chem envs: ", len(chem_envs))
     for g in chem_envs:
         for (u, d) in g.nodes.data():

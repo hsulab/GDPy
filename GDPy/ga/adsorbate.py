@@ -41,11 +41,20 @@ class AdsorbateEvolution():
 
         # mutation
         mutations = input_dict["mutation"] # add, delete, exchange
-        assert len(mutations) == 1, "only one mutation can be added to this evolution..."
-        self.mut_op = list(mutations.keys())[0]
+        #assert len(mutations) == 1, "only one mutation can be added to this evolution..."
+
+        self.mut_op = None
+        for x in list(mutations.keys()):
+            if x in ["add", "delete", "exchange"]:
+                self.mut_op = x
+                break
+        else:
+            print(f"mutation {self.mut_op} is not supported...")
         self.mut_content = mutations[self.mut_op]
+        self.mut_params = mutations["params"]
 
         # create adsorbate
+        # TODO: move this to add mutation
         composition = input_dict["system"]["composition"]
         assert len(composition) == 1, "only one element is support"
 
@@ -124,11 +133,15 @@ class AdsorbateEvolution():
                 created_frames = self.del_adsorbate(new_substrates)
             elif self.mut_op == "exchange":
                 print("---run exchange---")
+                selected_indices = self.mut_params["selected_indices"]
+                print("for atom indices ", selected_indices)
                 ads_species, target_species = self.mut_content.split("->")
                 ads_species = ads_species.strip()
                 assert ads_species == self.ads_chem_sym, "adsorbate species is not consistent"
                 target_species = target_species.strip()
-                created_frames = self.exchange_adsorbate(new_substrates, target_species)
+                created_frames = self.exchange_adsorbate(
+                    new_substrates, target_species, selected_indices=selected_indices
+                )
 
             print(f"number of adsorbate structures: {len(created_frames)}")
             # add confid
@@ -140,7 +153,16 @@ class AdsorbateEvolution():
 
             # compare structures
             # --- graph
-            unique_groups = self.compare_graphs(created_frames)
+            selected_indices = [None]*len(created_frames)
+            if self.mut_op == "exchange":
+                # find target species
+                for fidx, a in enumerate(created_frames):
+                    s = []
+                    for i, x in enumerate(a.get_chemical_symbols()):
+                        if x == target_species:
+                            s.append(i)
+                    selected_indices[fidx] = s
+            unique_groups = self.compare_graphs(created_frames, selected_indices=selected_indices)
             print(f"number of unique groups: {len(unique_groups)}")
             unique_data = []
             for i, x in enumerate(unique_groups):
@@ -298,14 +320,14 @@ class AdsorbateEvolution():
 
         return created_frames
     
-    def exchange_adsorbate(self, frames, target_species):
+    def exchange_adsorbate(self, frames, target_species, selected_indices=None):
         """ change an adsorbate to another species
         """
         # joblib version
         st = time.time()
 
         ads_frames = Parallel(n_jobs=self.njobs)(
-            delayed(exchange_adsorbate)(self.graph_params, a, self.ads_chem_sym, target_species) for idx, a in enumerate(frames)
+            delayed(exchange_adsorbate)(self.graph_params, a, self.ads_chem_sym, target_species, selected_indices) for a in frames
         )
         #print(ads_frames)
 
@@ -318,12 +340,17 @@ class AdsorbateEvolution():
 
         return created_frames
     
-    def compare_graphs(self, frames):
+    def compare_graphs(self, frames, graph_params=None, selected_indices=None):
         """"""
         # calculate chem envs
         st = time.time()
 
-        chem_groups = Parallel(n_jobs=self.njobs)(delayed(create_structure_graphs)(self.graph_params, idx, a) for idx, a in enumerate(frames))
+        if graph_params is None:
+            graph_params = self.graph_params
+
+        chem_groups = Parallel(n_jobs=self.njobs)(
+            delayed(create_structure_graphs)(graph_params, idx, a, s) for idx, (a, s) in enumerate(zip(frames,selected_indices))
+        )
 
         et = time.time()
         print("calc chem envs: ", et - st)

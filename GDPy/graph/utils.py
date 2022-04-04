@@ -107,7 +107,7 @@ def unique_chem_envs(chem_envs_groups, metadata=None, verbose=False):
     unique = []
 
     for index, env in enumerate(chem_envs_groups):
-        st = time.time()
+        #st = time.time()
         for index2, (unique_indices, unique_env) in enumerate(unique):
             if verbose:
                 print("Checking for uniqueness {:05d}/{:05d} {:05d}/{:05d}".format(index+1, len(chem_envs_groups), index2, len(unique)), end='\r')
@@ -118,8 +118,8 @@ def unique_chem_envs(chem_envs_groups, metadata=None, verbose=False):
             if verbose:
                 print("")
             unique.append(([index], env))
-        et = time.time()
-        print("used time ", et-st, " for ", index, " for ", len(unique))
+        #et = time.time()
+        #print("used time ", et-st, " for ", index, " for ", len(unique))
     
     # Zip trick to split into two lists to return
     # unique_envs, unique_groups

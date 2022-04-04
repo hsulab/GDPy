@@ -148,6 +148,9 @@ class StruGraphCreator(NeighGraphCreator):
 
     substrate_adsorbate_distance = 2.5
 
+    ads_surf_dist = 1
+    surf_surf_dist = 2
+
     atoms = None
     nl = None
     graph = None
@@ -188,7 +191,7 @@ class StruGraphCreator(NeighGraphCreator):
                 2 otherwise
         """
 
-        dist = 2 - (1 if a1 in adsorbate_atoms else 0) - (1 if a2 in adsorbate_atoms else 0)
+        dist = self.surf_surf_dist - (self.ads_surf_dist if a1 in adsorbate_atoms else 0) - (self.ads_surf_dist if a2 in adsorbate_atoms else 0)
 
         graph.add_edge(
             # node index
@@ -228,7 +231,7 @@ class StruGraphCreator(NeighGraphCreator):
         if self.clean is not None: # BUG!!! need an alignment operation
             print("use clean substrate plus adsorbates...")
             clean_graph = self.generate_structure_graph(read(self.clean))
-            ads_edges = [(u, v, d) for u, v, d in full.edges.data() if d["dist"] < 2]    ### Read all the edges, that are between adsorbate and surface (dist<2 condition)
+            ads_edges = [(u, v, d) for u, v, d in full.edges.data() if d["dist"] < self.surf_surf_dist]    ### Read all the edges, that are between adsorbate and surface (dist<2 condition)
             ads_nodes = [(n, d) for n, d in full.nodes.data() if d["index"] in input_ads_indices]    ### take all the nodes that have an adsorbate atoms
             #for (n, d) in ads_nodes:
             #    print(n, d)
@@ -280,6 +283,7 @@ class StruGraphCreator(NeighGraphCreator):
                         continue
                     if not (-grid[2] <= oz + z <= grid[2]):
                         continue
+                    # TODO: use tag to manually set dist between atoms in one adsorbate
                     # This line ensures that only surface adsorbate bonds are accounted for that are less than 2.5 Å
                     dis = atoms.get_distances(centre_idx, nei_idx, mic=True)
                     if dis > self.substrate_adsorbate_distance and (bool(centre_idx in self.ads_indices) ^ bool(nei_idx in self.ads_indices)):
@@ -287,6 +291,62 @@ class StruGraphCreator(NeighGraphCreator):
                     self.add_atoms_edge(graph, centre_idx, nei_idx, (x, y, z), (x + ox, y + oy, z + oz), self.ads_indices)
         
         return graph
+    
+    def extract_selected_chem_envs(self, selected_indices, check_unique=True):
+        """"""
+        if self.graph is None:
+            pass
+            raise RuntimeError(f"{self.__name__} does not have a graph...")
+        else:
+            pass
+
+        full = self.graph
+
+        # All adsorbates into single graph, no surface
+        selected_nodes = None
+        selected_nodes = [node_symbol(self.atoms[index], (0, 0, 0)) for index in selected_indices]
+        selected_graphs = nx.subgraph(full, selected_nodes)
+
+        # Cut apart graph
+        selected_graphs = [selected_graphs.subgraph(c) for c in nx.connected_components(selected_graphs)]
+        
+        # extract graphs
+        chem_envs = []
+        for idx, ads in enumerate(selected_graphs):
+            # NOTE: ads is the selected 
+            initial = list(ads.nodes())[0] # the first node in the adsorbate
+            full_ads = nx.ego_graph(full, initial, radius=0, distance="ads_only") # all nodes in this adsorbate, equal ads?
+            #print("full ads: ", full_ads.nodes())
+
+            new_ads = nx.ego_graph(
+                full, initial, 
+                radius=(self.graph_radius*self.surf_surf_dist)+self.ads_surf_dist, 
+                distance="dist"
+            ) # consider neighbour atoms
+            new_ads = nx.Graph(nx.subgraph(full, list(new_ads.nodes()))) # return a new copy of graph
+
+            # update attribute of this adsorbate
+            for node in ads.nodes():
+                new_ads.add_node(node, central_ads=True)
+
+            # update attr of this and neighbour adsorbates
+            for node in full_ads.nodes():
+                new_ads.add_node(node, ads=True)
+            #print("new ads: ", new_ads.nodes())
+            
+            #self.plot_graph(new_ads, fig_name=f"ads-{idx}.png")
+
+            chem_envs.append(new_ads)
+
+        if check_unique:
+            #print("nuniques before sift: ", len(chem_envs))
+            chem_envs = self.unique_adsorbates(chem_envs)  
+            #print("nuniques after sift: ", len(chem_envs))
+
+        # sort chem_env by number of edges
+        chem_envs.sort(key=lambda x: len(x.edges()))
+
+        return chem_envs.copy()
 
 
     def extract_chem_envs(self):
