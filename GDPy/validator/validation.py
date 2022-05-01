@@ -27,6 +27,9 @@ from ase.neb import NEB
 from abc import ABC
 from abc import abstractmethod
 
+from GDPy.potential.manager import PotManager
+from GDPy.utils.command import parse_input_file
+
 """
 Various properties to be validated
 
@@ -48,15 +51,15 @@ Adsorption, Reaction, ...
 
 class AbstractValidator(ABC):
 
-    def __init__(self, validation: Union[str, pathlib.Path], *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """"""
-        with open(validation, 'r') as fopen:
-            valid_dict = json.load(fopen)
-        self.valid_dict = valid_dict
+        #with open(validation, 'r') as fopen:
+        #    valid_dict = json.load(fopen)
+        #self.valid_dict = valid_dict
 
-        self.tasks = valid_dict.get("tasks", None)
+        #self.tasks = valid_dict.get("tasks", None)
         
-        self.__parse_outputs(valid_dict)
+        #self.__parse_outputs(valid_dict)
         # self.calc = self.__parse_calculator(valid_dict)
         
         return
@@ -98,15 +101,19 @@ class AbstractValidator(ABC):
 
 class MinimaValidator(AbstractValidator):
 
-    def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
+    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
         """ run minimisation on various configurations and
             compare relative energy
             how to postprocess
         """
-        super().__init__(validation)
+        self.task_outpath = Path(task_outpath)
+        self.task_params = task_params
         self.pm = pot_manager
 
-        self.calc = self.__parse_calculator(self.valid_dict)
+        #self.calc = self.__parse_calculator(self.valid_dict)
+        self.worker, self.dynrun_params = pot_manager.create_worker(
+            dyn_params = task_params["dynamics"]
+        )
 
         return
     
@@ -219,11 +226,49 @@ class MinimaValidator(AbstractValidator):
     def run(self):
         self.my_references = []
         self.outputs = []
-        for (task_name, task_data) in self.tasks.items():
-            print('start task ', task_name)
-            basics_output = self._run_group(task_data['basics'], task_data['dynamics'])
-            composites_output = self._run_group(task_data['composites'], task_data['dynamics'])
-            self.outputs.append({'basics': basics_output, 'composites': composites_output})
+        #for (task_name, task_data) in self.tasks.items():
+        #    print('start task ', task_name)
+        #    basics_output = self._run_group(task_data['basics'], task_data['dynamics'])
+        #    composites_output = self._run_group(task_data['composites'], task_data['dynamics'])
+        #    self.outputs.append({'basics': basics_output, 'composites': composites_output})
+
+        print("=== initialisation ===")
+        stru_paths = self.task_params["structures"]
+        frames = []
+        for p in stru_paths:
+            cur_frames = read(p, ":")
+            print(f"nframes {len(cur_frames)} in {p}")
+            frames.extend(cur_frames)
+        print("total nframes: ", len(frames))
+
+        ref_energies = [a.get_potential_energy() for a in frames]
+        names = [a.info.get("name", a.get_chemical_formula()) for a in frames]
+
+        print("=== minimisation ===")
+        calc_frames = []
+        for name, atoms in zip(names, frames):
+            self.worker.set_output_path(self.task_outpath / name)
+            # NOTE: ase dynamics wont create new atoms
+            new_atoms = self.worker.minimise(atoms.copy(), verbose=False, **self.dynrun_params) 
+            calc_frames.append(new_atoms)
+        new_energies = [a.get_potential_energy() for a in calc_frames]
+
+        #print(names)
+        #print(ref_energies)
+        #print(new_energies)
+
+        # analysis
+        print("=== analysis ===")
+        for i, name in enumerate(names):
+            # energetic data
+            a, b = ref_energies[i], new_energies[i]
+            print("{:24s}\n    energy [eV]  {:>12.4f}  {:>12.4f}  {:>12.4f}".format(name, a, b, b-a))
+            # geometric data
+            #geo_devi = np.fabs(frames[i].positions - calc_frames[i].positions)
+            #print(geo_devi)
+            geo_devi = np.mean(np.fabs(frames[i].positions - calc_frames[i].positions))
+            fmax = np.max(np.fabs(calc_frames[i].get_forces(apply_constraint=True)))
+            print("    fmax  {:<8.4f} eV/AA  GMAE {:<8.4f} AA  ".format(fmax, geo_devi))
 
         return
     
@@ -578,23 +623,36 @@ def run_validation(
     """ This is a factory to deal with various validations...
     """
     # parse potential
-    from GDPy.potential.manager import create_manager
-    pm = create_manager(pot_json)
-    print(pm.models)
+    pot_dict = parse_input_file(pot_json)
 
-    with open(input_json, "r") as fopen:
-        valid_dict = json.load(fopen)
+    mpm = PotManager() # main potential manager
+    pm = mpm.create_potential(pot_name = pot_dict["name"])
+    
+    pm.register_calculator(pot_dict["calculators"]["calc1"]) # TODO:
 
-    # test surface related energies
-    method = valid_dict.get("method", "minima")
-    if method == "minima":
-        rv = MinimaValidator(input_json, pm)
-    elif method == "reaction":
-        rv = ReactionValidator(input_json, pm)
-    elif method == "bulk":
-        rv = SinglePointValidator(input_json, pm)
-    rv.run()
-    rv.analyse()
+    # run over validations
+    valid_dict = parse_input_file(input_json)
+
+    output_path = valid_dict.get("output", "./valid-out")
+    output_path = Path(output_path)
+
+    tasks = valid_dict.get("tasks", {})
+    if len(tasks) == 0:
+        raise RuntimeError(f"No tasks was found in {input_json}")
+    
+    for task_name, task_params in tasks.items():
+        print(f"=== Run Validation Task {task_name} ===")
+        task_outpath = output_path / task_name
+        method = task_params.get("method", "minima")
+        # test surface related energies
+        if method == "minima":
+            rv = MinimaValidator(task_outpath, task_params, pm)
+        elif method == "reaction":
+            rv = ReactionValidator(input_json, pm)
+        elif method == "bulk":
+            rv = SinglePointValidator(input_json, pm)
+        rv.run()
+        #rv.analyse()
 
     return
 
