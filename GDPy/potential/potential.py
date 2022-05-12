@@ -7,15 +7,13 @@ deals with various machine learning potentials
 """
 
 import json
-from re import M
 
 from numpy.random import triangular
 
 from GDPy.trainer.train_potential import find_systems, generate_random_seed
 import abc
 import pathlib
-from sys import implementation, path
-from typing import Union
+from typing import Union, List
 
 from GDPy.utils.command import run_command
 
@@ -40,11 +38,53 @@ class AbstractPotential(abc.ABC):
         return
     
     @abc.abstractmethod
-    def generate_calculator(self):
-        """ generate ase wrapped calculator
+    def register_calculator(self, *agrs, **kwargs):
+        """ register calculator
         """
 
-        return 
+        return
+
+    def create_worker(
+        self, 
+        dyn_params: dict = {},
+        **kwargs
+    ):
+        """ create a worker for dynamics
+        """
+        if not hasattr(self, "calc_params"):
+            raise AttributeError("Cant create worker before a calculator has been registered.")
+            
+        calculator = self.calc_params["backend"]
+
+        self.dyn_params = dyn_params
+        dynamics = dyn_params["backend"]
+
+        if [calculator, dynamics] not in self.valid_combinations:
+            raise RuntimeError(f"Invalid dynamics backend based on {calculator} calculator")
+        
+        # create dynamics
+        calc = self.calc
+
+        # check method
+        #if method is None:
+        #    method = dyn_params.pop("method", None)
+        #if method is None:
+        #    raise RuntimeError("Cannot find method parameter.")
+
+        dynrun_params = dyn_params.copy()
+        if dynamics == "ase":
+            from GDPy.calculator.ase_interface import AseDynamics
+            worker = AseDynamics(calc, dyn_runparams=dynrun_params, directory=calc.directory)
+            # use ase no need to recaclc constraint since atoms has one
+            # cons_indices = None # this is used in minimise
+        elif dynamics == "lammps":
+            from GDPy.calculator.lammps import LmpDynamics as dyn
+            # use lammps optimisation
+            worker = dyn(calc, directory=calc.directory)
+            #else:
+            #    raise NotImplementedError("no other eann lammps dynamics")
+
+        return worker
 
 class RXManager(AbstractPotential):
 
@@ -268,20 +308,24 @@ class EANNManager(AbstractPotential):
 
     TRAIN_INPUT_NAME = "input_nn.json"
 
-    def __init__(self, backend: str, models: Union[str, list], type_map: dict, **kwargs):
-        """ create a eann manager
-        """
-        self.backend = backend
-        if self.backend not in self.implemented_backends:
-            raise NotImplementedError('Backend %s is not implemented.' %self.backend)
+    #def __init__(self, backend: str, models: Union[str, list], type_map: dict, **kwargs):
+    #    """ create a eann manager
+    #    """
+    #    self.backend = backend
+    #    if self.backend not in self.implemented_backends:
+    #        raise NotImplementedError('Backend %s is not implemented.' %self.backend)
 
-        # check models
-        self.models = models
-        self.__parse_models()
-        self.__check_uncertainty_support()
+    #    # check models
+    #    self.models = models
+    #    self.__parse_models()
+    #    self.__check_uncertainty_support()
 
-        self.type_map = type_map
-        self.type_list = list(type_map.keys())
+    #    self.type_map = type_map
+    #    self.type_list = list(type_map.keys())
+
+    #    return
+    
+    def __init__(self):
 
         return
     
@@ -309,79 +353,73 @@ class EANNManager(AbstractPotential):
 
         return
     
-    def generate_calculator(self, atypes=None):
-        """ generate calculator with various backends
-            for single-point calculation
-        """
-        if self.backend == "ase":
+    def register_calculator(self, calc_params):
+        """"""
+        self.calc_params = calc_params
+
+        backend = calc_params["backend"]
+        if backend not in self.implemented_backends:
+            raise RuntimeError()
+
+        command = calc_params["command"]
+        directory = calc_params["directory"]
+        models = calc_params["file"]
+        atypes = calc_params["type_list"]
+
+        type_map = {}
+        for i, a in enumerate(atypes):
+            type_map[a] = i
+
+        if backend == "ase":
             # return ase calculator
             from eann.interface.ase.calculator import Eann
-            calc = Eann(model=self.models, type_map=self.type_map)
-        elif self.backend == "lammps":
+            calc = Eann(
+                model=models, type_map=type_map,
+                command = command, directory=directory
+            )
+        elif backend == "lammps":
             # return deepmd pair related content
             #content = "units           metal\n"
             #content += "atom_style      atomic\n"
             content = "neighbor        0.0 bin\n"
             content += "pair_style      eann %s \n" \
-                %(' '.join([m for m in self.models]))
+                %(' '.join([m for m in models]))
+            content += "pair_coeff * * double %s" %(" ".join(atypes))
+            calc = content
+
+            # eann has different backends (ase, lammps)
+            from GDPy.calculator.lammps import Lammps
+            calc = Lammps(**calc_params)
+        
+        self.calc = calc
+
+        return
+    
+    def generate_calculator(
+        self, backend: str, models: list, atypes: List[str] = None
+    ):
+        """ generate calculator with various backends
+            for single-point calculation
+        """
+        type_map = {}
+        for i, a in atypes:
+            type_map[a] = i
+
+        if backend == "ase":
+            # return ase calculator
+            from eann.interface.ase.calculator import Eann
+            calc = Eann(model=models, type_map=type_map)
+        elif backend == "lammps":
+            # return deepmd pair related content
+            #content = "units           metal\n"
+            #content += "atom_style      atomic\n"
+            content = "neighbor        0.0 bin\n"
+            content += "pair_style      eann %s \n" \
+                %(' '.join([m for m in models]))
             content += "pair_coeff * * double %s" %(" ".join(atypes))
             calc = content
 
         return calc
-    
-    def create_worker(
-        self, 
-        backend: dict, 
-        calc_params: dict,
-        dyn_params: dict,
-        **kwargs
-    ):
-        """ create a worker for dynamics
-        """
-        calculator = backend.get("calculator", None)
-        dynamics = backend.get("dynamics", None)
-
-        if [calculator, dynamics] not in self.valid_combinations:
-            raise RuntimeError()
-
-        # create calculator
-        if calculator == "ase":
-            from eann.interface.ase.calculator import Eann
-            atype_map = {}
-            for i, a in enumerate(calc_params["type_list"]):
-                atype_map[a] = i
-            calc = Eann(
-                directory = calc_params["directory"],
-                type_map = atype_map,
-                model = calc_params["file"]
-            )
-        elif calculator == "lammps":
-            # eann has different backends (ase, lammps)
-            from GDPy.calculator.lammps import Lammps
-            calc = Lammps(**calc_params)
-        else:
-            pass
-        
-        # create dynamics
-        method = dyn_params.pop("method")
-        dynrun_params = dyn_params.copy()
-        if dynamics == "ase":
-            if method == "opt":
-                from GDPy.calculator.ase_interface import AseDynamics
-                worker = AseDynamics(calc, directory=calc.directory)
-                # use ase no need to recaclc constraint since atoms has one
-                # cons_indices = None # this is used in minimise
-            else:
-                raise NotImplementedError("no eann other ase opt")
-        elif dynamics == "lammps":
-            if method == "opt":
-                from GDPy.calculator.lammps import LmpDynamics as dyn
-                # use lammps optimisation
-                worker = dyn(calc, directory=calc.directory)
-            else:
-                raise NotImplementedError("no other eann lammps dynamics")
-
-        return worker, dynrun_params
     
     def register_training(self, train_dict: dict):
         """"""
@@ -471,6 +509,48 @@ class LaspManager():
     def __init__(self):
 
         return
+
+class NequIPManager(AbstractPotential):
+
+    implemented_backends = ["ase"]
+    valid_combinations = [
+        ["ase", "ase"], # calculator, dynamics
+        ["lammps", "lammps"]
+    ]
+    
+    def __init__(self):
+        pass
+
+    def register_calculator(self, calc_params):
+        """"""
+        self.calc_params = calc_params
+
+        backend = calc_params["backend"]
+        if backend not in self.implemented_backends:
+            raise RuntimeError()
+
+        command = calc_params["command"]
+        directory = calc_params["directory"]
+        models = calc_params["file"]
+        atypes = calc_params["type_list"]
+
+        type_map = {}
+        for i, a in enumerate(atypes):
+            type_map[a] = i
+
+        if backend == "ase":
+            # return ase calculator
+            from nequip.ase import NequIPCalculator
+            calc = NequIPCalculator.from_deployed_model(
+                model_path=models
+            )
+        elif backend == "lammps":
+            pass
+        
+        self.calc = calc
+
+        return
+
 
 if __name__ == '__main__':
     pass

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import json
 import pathlib
 from pathlib import Path
 from typing import NoReturn, List, Union
@@ -53,14 +52,6 @@ class AbstractValidator(ABC):
 
     def __init__(self, *args, **kwargs):
         """"""
-        #with open(validation, 'r') as fopen:
-        #    valid_dict = json.load(fopen)
-        #self.valid_dict = valid_dict
-
-        #self.tasks = valid_dict.get("tasks", None)
-        
-        #self.__parse_outputs(valid_dict)
-        # self.calc = self.__parse_calculator(valid_dict)
         
         return
     
@@ -72,27 +63,6 @@ class AbstractValidator(ABC):
             self.output_path.mkdir(parents=True)
 
         return
-    
-    def __parse_calculator(self, input_dict: dict) -> calculator:
-        """ parse and construct ase calculator
-        """
-        calc_dict = input_dict.get('calculator', None)
-        if calc_dict is not None:
-            calc_name = calc_dict.pop('name', None)
-            if calc_name == "DP":
-                pass
-            elif calc_name == "EANN":
-                # TODO: remove this and make eann in the path
-                #import sys
-                #sys.path.append('/users/40247882/repository/EANN')
-                from eann.interface.ase.calculator import Eann
-                calc = Eann(**calc_dict)
-            else:
-                raise ValueError('There is no calculator {}'.format(calc_name))
-        else:
-            raise KeyError('No calculator keyword...')
-
-        return calc
 
     @abstractmethod
     def run(self, *args, **kwargs):
@@ -117,10 +87,6 @@ class MinimaValidator(AbstractValidator):
 
         return
     
-    def __parse_calculator(self, input_dict: dict) -> calculator:
-
-        return self.pm.generate_calculator()
-
     def __run_dynamics(
         self, atoms, dyn_cls, dyn_opts: dict
     ):
@@ -249,7 +215,7 @@ class MinimaValidator(AbstractValidator):
         for name, atoms in zip(names, frames):
             self.worker.set_output_path(self.task_outpath / name)
             # NOTE: ase dynamics wont create new atoms
-            new_atoms = self.worker.minimise(atoms.copy(), verbose=False, **self.dynrun_params) 
+            new_atoms = self.worker.minimise(atoms.copy(), verbose=True, **self.dynrun_params) 
             calc_frames.append(new_atoms)
         new_energies = [a.get_potential_energy() for a in calc_frames]
 
@@ -310,150 +276,111 @@ class MinimaValidator(AbstractValidator):
 
 class ReactionValidator(AbstractValidator):
 
-    def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
+    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
         """ reaction formula
             how to postprocess
         """
-        super().__init__(validation)
+        self.task_outpath = Path(task_outpath)
+        self.task_params = task_params
         self.pm = pot_manager
 
-        self.calc = self.__parse_calculator(self.valid_dict)
+        self.calc = pot_manager.calc
+
+        # create workers
+        self.workers = {}
+        for dyn_method, dyn_dict in task_params["dynamics"].items():
+            param_dict = dyn_dict.copy()
+            param_dict.update(dict(method=dyn_method))
+            cur_worker = pot_manager.create_worker(
+                dyn_params = param_dict
+            )
+            self.workers.update({dyn_method: cur_worker})
 
         return
     
-    def __parse_calculator(self, input_dict: dict) -> calculator:
-
-        return self.pm.generate_calculator()
-
-    def __run_dynamics(
-        self, atoms, dyn_cls, dyn_opts: dict
-    ):
+    def _irun(self, p):
         """"""
-        init_positions = atoms.get_positions().copy()
+        frames = read(p, ":")
+        print(frames)
+        nframes = len(frames)
+        names = [a.info.get("name", None) for a in frames]
 
+        # check is and fs
+        en_is, en_fs = frames[0].get_potential_energy(), frames[-1].get_potential_energy()
+        print(en_is, en_fs)
+
+        opt_worker = self.workers["opt"]
+        opt_worker.set_output_path(self.task_outpath / "IS")
+        initial = opt_worker.minimise(frames[0].copy(),verbose=False) 
+        opt_worker.set_output_path(self.task_outpath / "FS")
+        final = opt_worker.minimise(frames[-1].copy(), verbose=False) 
+
+        en_is, en_fs = initial.get_potential_energy(), final.get_potential_energy()
+        print(en_is, en_fs)
+
+        # check ts
+        print("check ts")
+        for i, n in enumerate(names):
+            # NOTE: have multiple TSs along one pathway?
+            if n == "TS":
+                transition = frames[i]
+                en_ts = transition.get_potential_energy()
+                print(en_ts)
+                ts_worker = self.workers["ts"]
+                ts_worker.set_output_path(self.task_outpath / "TS")
+                new_transition = ts_worker.minimise(transition.copy(), verbose=False) 
+                en_ts = new_transition.get_potential_energy()
+                print(en_ts)
+
+        # neb pathway
+        neb_params = self.task_params["neb"]
+        nimages = self.task_params["neb"]["nimages"]
+        print("nimages: ", nimages)
+        images = [initial]
+        images += [initial.copy() for i in range(nimages-2)]
+        images.append(final)
+
+        # set calculator
         self.calc.reset()
-        atoms.calc = self.calc
-        dyn = dyn_cls(atoms)
-        dyn.run(**dyn_opts)
+        for atoms in images:
+            atoms.calc = self.calc
 
-        opt_positions = atoms.get_positions().copy()
-        rmse = np.sqrt(np.var(opt_positions - init_positions))
+        print("start NEB calculation...")
+        neb = NEB(
+            images, 
+            allow_shared_calculator=True,
+            climb = neb_params.get("climb", False),
+            k = neb_params.get("k", 0.1)
+            # dynamic_relaxation = False
+        )
+        neb.interpolate() # interpolate configurations
+            
+        traj_path = str((self.task_outpath / "neb.traj").absolute())
+        qn = BFGS(neb, logfile="-", trajectory=traj_path)
 
-        return atoms, rmse
+        steps = self.task_params["neb"]["steps"]
+        fmax = self.task_params["neb"]["fmax"]
+        qn.run(steps=steps, fmax=fmax)
 
-    def __parse_dynamics(self, dyn_dict: dict):
-        """"""
-        cur_dict = dyn_dict.copy()
-        dyn_name = cur_dict.pop('name')
+        # recheck energy
+        opt_images = read(traj_path, "-%s:" %nimages)
+        energies, en_stdvars = [], []
+        for a in opt_images:
+            self.calc.reset()
+            a.calc = self.calc
+            energies.append(a.get_potential_energy())
+        energies = np.array(energies)
+        energies = energies - energies[0]
+        print(energies)
 
-        return getattr(ase.optimize, dyn_name), cur_dict
+        return
     
     def run(self):
-        """run NEB calculation"""
-        #prepared_images = read("./start_images.xyz", ":")
-        for task in self.tasks:
-            print("===== Run Task {} =====".format(task))
-            # parse inputs
-            task_dict = self.valid_dict["tasks"][task]
-            output_path = task_dict.get("output", None)
-            if output_path is None:
-                output_path = self.output_path
-            else:
-                output_path = Path(output_path)
-            if not output_path.exists():
-                output_path.mkdir()
-
-            stru_path = task_dict["structure"]
-            prepared_images = read(stru_path, ":")
-
-            # parse minimisation method
-            dyn_cls, dyn_params = self.__parse_dynamics(task_dict["dynamics"])
-
-            # minimise IS and FS
-            print("start IS...")
-            initial = prepared_images[0].copy()
-            self.calc.reset()
-            initial.calc = self.calc
-            dyn = dyn_cls(initial)
-            dyn.run(**dyn_params)
-            print("IS energy: ", initial.get_potential_energy())
-
-            final = prepared_images[-1].copy()
-            self.calc.reset()
-            final.calc = self.calc
-            dyn = dyn_cls(final) # fix a bug
-            dyn.run(**dyn_params)
-            print("FS energy: ", final.get_potential_energy())
-
-            # prepare NEB
-            nimages = task_dict["neb"]["nimages"]
-            images = [initial]
-            if len(prepared_images) == nimages:
-                print("NEB calculation uses preminised structures...")
-                images.extend(prepared_images[1:-1])
-            else:
-                print("NEB calculation uses two structures...")
-                images += [initial.copy() for i in range(nimages-2)]
-            images.append(final)
-
-            # set calculator
-            self.calc.reset()
-            for atoms in images:
-                atoms.calc = self.calc
-
-            # start 
-            print("start NEB calculation...")
-            neb = NEB(
-                images, 
-                allow_shared_calculator=True,
-                #k=0.1
-                # dynamic_relaxation = False
-            )
-            if len(prepared_images) == 2:
-                neb.interpolate() # interpolate configurations
-
-            traj_path = str((output_path / "neb.traj").absolute())
-            #traj_path =  "./neb.traj"
-            qn = dyn_cls(neb, trajectory=traj_path)
-            qn.run(**dyn_params)
-
-            # recheck energy
-            opt_images = read(traj_path, "-%s:" %nimages)
-            energies, en_stdvars = [], []
-            for a in opt_images:
-                self.calc.reset()
-                a.calc = self.calc
-                # EANN uncertainty
-                a.calc.calc_uncertainty = True
-                __dummy = a.get_forces()
-                energies.append(a.get_potential_energy())
-                en_stdvars.append(a.calc.results["en_stdvar"])
-            energies = np.array(energies)
-            energies = energies - energies[0]
-            print(energies)
-
-            # save mep
-            write(output_path / "neb_opt.xyz", opt_images)
-
-            from ase.geometry import find_mic
-
-            differences = np.zeros(len(opt_images))
-            init_pos = opt_images[0].get_positions()
-            for i in range(1,nimages):
-                a = opt_images[i]
-                vector = a.get_positions() - init_pos
-                vmin, vlen = find_mic(vector, a.get_cell())
-                differences[i] = np.linalg.norm(vlen)
-
-            # save results to file
-            neb_data = output_path / "neb.dat"
-            content = ""
-            for i in range(nimages):
-                content += "{:4d}  {:10.6f}  {:10.6f}  {:10.6f}\n".format(
-                    i, differences[i], energies[i], en_stdvars[i]
-                )
-            with open(neb_data, "w") as fopen:
-                fopen.write(content)
+        """
+        """
+        # --- NEB calculation ---
+        for p in self.task_params["pathways"]:
+            self._irun(p)
 
         return
     
@@ -643,12 +570,14 @@ def run_validation(
     for task_name, task_params in tasks.items():
         print(f"=== Run Validation Task {task_name} ===")
         task_outpath = output_path / task_name
+        if not task_outpath.exists():
+            task_outpath.mkdir(parents=True)
         method = task_params.get("method", "minima")
         # test surface related energies
         if method == "minima":
             rv = MinimaValidator(task_outpath, task_params, pm)
         elif method == "reaction":
-            rv = ReactionValidator(input_json, pm)
+            rv = ReactionValidator(task_outpath, task_params, pm)
         elif method == "bulk":
             rv = SinglePointValidator(input_json, pm)
         rv.run()

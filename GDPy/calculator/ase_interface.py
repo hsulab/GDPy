@@ -20,7 +20,6 @@ from ase.build import make_supercell
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.constraints import FixAtoms
 
-from ase.optimize import BFGS
 
 from ase.calculators.emt import EMT
 
@@ -35,8 +34,16 @@ class AseDynamics():
     traj_name = "dyn.traj"
     saved_cards = [traj_name]
 
-    def __init__(self, calc=None, directory="./", logfile="dyn.log", trajfile=traj_name):
+    dyn_runparams = {
+        "method": "opt",
+        "steps": 200,
+        "fmax": 0.05
+    }
 
+    def __init__(
+        self, calc=None, dyn_runparams: dict={}, directory="./", logfile="dyn.log", trajfile=traj_name
+    ):
+        """"""
         self.calc = calc
         self.calc.reset()
 
@@ -44,7 +51,17 @@ class AseDynamics():
         self.trajfile = trajfile
         self.set_output_path(directory)
 
-        self.dynamics = BFGS
+        # parsr params
+        self.method = dyn_runparams.pop("method", "opt")
+        if self.method == "opt":
+            from ase.optimize import BFGS
+            self.dynamics = BFGS
+        elif self.method == "ts":
+            from sella import Sella, Constraints
+            self.dynamics = Sella
+        else:
+            raise NotImplementedError("no eann other ase opt")
+        self.dyn_runparams = dyn_runparams
 
         return
     
@@ -52,6 +69,10 @@ class AseDynamics():
         """ remove calculated quantities
         """
         self.calc.reset()
+
+        return
+    
+    def update_params(self, **kwargs):
 
         return
     
@@ -69,18 +90,30 @@ class AseDynamics():
         # calc_old = atoms.calc
         # params_old = copy.deepcopy(self.calc.parameters)
 
+        # TODO: if have cons in kwargs overwrite current cons stored in atoms
+
         # set special keywords
         atoms.calc = self.calc
 
         if not self._directory_path.exists():
             self._directory_path.mkdir(parents=True)
 
-        # run dynamics
-        dyn = self.dynamics(
-            atoms, logfile=self._logfile_path,
-            trajectory=str(self._trajfile_path)
-        )
-        dyn.run(kwargs["fmax"], kwargs["steps"])
+
+        if self.method == "opt":
+            dyn = self.dynamics(
+                atoms, logfile=self._logfile_path,
+                trajectory=str(self._trajfile_path)
+            )
+            dyn.run(kwargs["fmax"], kwargs["steps"])
+        elif self.method == "ts":
+            dyn = self.dynamics(
+                atoms,
+                order = 1,
+                internal = False,
+                logfile=self._logfile_path,
+                trajectory=str(self._trajfile_path)
+            )
+            dyn.run(kwargs["fmax"], kwargs["steps"])
 
         # back up atoms
         # self.calc.parameters = params_old
@@ -90,22 +123,29 @@ class AseDynamics():
 
         return atoms
     
-    def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
+    def minimise(self, atoms, repeat=1, extra_info=None, verbose=True, **kwargs) -> Atoms:
         """ return a new atoms with singlepoint calc
             input atoms wont be changed
         """
+        # run dynamics
+        cur_params = self.dyn_runparams.copy()
+        for k, v in kwargs:
+            if k in cur_params:
+                cur_params[k] = v
+        fmax = cur_params["fmax"]
+
         # TODO: add verbose
-        print(f"\nStart minimisation maximum try {repeat} times...")
+        content = f"\n=== Start minimisation maximum try {repeat} times ===\n"
         for i in range(repeat):
-            print("attempt ", i)
-            min_atoms = self.run(atoms, **kwargs)
+            content += f"--- attempt {i} ---\n"
+            min_atoms = self.run(atoms, **cur_params)
             min_results = self.__read_min_results(self._logfile_path)
-            print(min_results)
+            content += min_results
             # NOTE: add few information
             # if extra_info is not None:
             #     min_atoms.info.update(extra_info)
             maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
-            if maxforce <= kwargs["fmax"]:
+            if maxforce <= fmax:
                 break
             else:
                 atoms = min_atoms
@@ -124,6 +164,9 @@ class AseDynamics():
                             idx += 1
         else:
             warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
+        
+        if verbose:
+            print(content)
 
         return min_atoms
 
