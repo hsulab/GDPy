@@ -5,13 +5,15 @@ import json
 import importlib
 import typing
 
+from GDPy.utils.command import parse_input_file
+
 # from GDPy.potential.potential import AbstractPotential
 TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 
 class PotManager():
 
     SUFFIX = "Manager"
-    potential_names = ["DP", "EANN", "Lasp"]
+    potential_names = ["DP", "EANN", "Lasp", "NequIP"]
 
     def __init__(self):
         """
@@ -119,8 +121,9 @@ class PotManager():
 def create_manager(input_json):
     """create a potential manager"""
     # create potential manager
-    with open(input_json, 'r') as fopen:
-        pot_dict = json.load(fopen)
+    #with open(input_json, 'r') as fopen:
+    #    pot_dict = json.load(fopen)
+    pot_dict = parse_input_file(input_json)
     train_dict = pot_dict.get("training", None)
     mpm = PotManager() # main potential manager
     pm = mpm.create_potential(
@@ -132,6 +135,43 @@ def create_manager(input_json):
 
     return pm
 
+def create_manager_new(input_dict):
+    """"""
+    atype_map = {}
+    for i, a in enumerate(input_dict["calc_params"]["type_list"]):
+        atype_map[a] = i
+
+    # create potential
+    mpm = PotManager() # main potential manager
+    eann_pot = mpm.create_potential(
+        pot_name = input_dict["name"],
+        # TODO: remove this kwargs
+        backend = "ase",
+        models = input_dict["calc_params"]["pair_style"]["model"],
+        type_map = atype_map
+    )
+
+    worker, run_params = eann_pot.create_worker(
+        backend = input_dict["backend"],
+        calc_params = input_dict["calc_params"],
+        dyn_params = input_dict["dyn_params"]
+    )
+    print(run_params)
+
+    return worker, run_params
+
+def create_pot_manager(input_file=None, calc_name="calc1"):
+    """"""
+    if input_file is not None:
+        pot_dict = parse_input_file(input_file)
+
+        mpm = PotManager() # main potential manager
+        pm = mpm.create_potential(pot_name = pot_dict["name"])
+        pm.register_calculator(pot_dict["calculators"][calc_name])
+    else:
+        pm = None
+    
+    return pm
 
 if __name__ == "__main__":
     # test old manager

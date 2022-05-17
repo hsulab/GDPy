@@ -20,8 +20,9 @@ from ase.build import make_supercell
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.constraints import FixAtoms
 
-
 from ase.calculators.emt import EMT
+
+from GDPy.calculator.dynamics import AbstractDynamics
 
 from GDPy.md.md_utils import force_temperature
 
@@ -29,7 +30,7 @@ from GDPy.md.md_utils import force_temperature
 
 from GDPy.md.nosehoover import NoseHoover
 
-class AseDynamics():
+class AseDynamics(AbstractDynamics):
 
     traj_name = "dyn.traj"
     saved_cards = [traj_name]
@@ -78,7 +79,11 @@ class AseDynamics():
     
     def set_output_path(self, directory):
         """"""
+        # main dynamics dir
         self._directory_path = pathlib.Path(directory)
+        self.calc.directory = self._directory_path
+
+        # extra files
         self._logfile_path = self._directory_path / self.logfile
         self._trajfile_path = self._directory_path / self.trajfile
 

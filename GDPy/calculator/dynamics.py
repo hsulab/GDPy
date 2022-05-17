@@ -26,7 +26,15 @@ class AbstractDynamics(abc.ABC):
 
     def set_output_path(self, directory):
         """"""
+        # main dynamics dir
         self._directory_path = pathlib.Path(directory)
+        # TODO: for repeat, r0, r1, r2
+        #self.calc.directory = self._directory_path / self.calc.name
+        self.calc.directory = self._directory_path
+
+        # extra files
+        #self._logfile_path = self._directory_path / self.logfile
+        #self._trajfile_path = self._directory_path / self.trajfile
 
         return
     

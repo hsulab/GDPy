@@ -29,7 +29,9 @@ from ase.calculators.calculator import (
 )
 from ase.calculators.singlepoint import SinglePointCalculator
 
-class LmpDynamics():
+from GDPy.calculator.dynamics import AbstractDynamics
+
+class LmpDynamics(AbstractDynamics):
 
     delete = []
     keyword: Optional[str] = None

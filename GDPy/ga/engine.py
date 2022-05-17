@@ -593,70 +593,26 @@ class GeneticAlgorithemEngine():
     def __register_calculator(self):
         """ register serial calculator and optimisation worker
         """
-        potential = self.calc_dict["potential"]
-        if potential == "lasp":
-            # lasp has different backends (ase, lammps, lasp)
-            from GDPy.calculator.lasp import LaspNN
-            self.calc = LaspNN(**self.calc_dict["kwargs"])
-        elif potential == "eann": # and inteface to lammps
-            # eann has different backends (ase, lammps)
-            from GDPy.calculator.lammps import Lammps
-            self.calc = Lammps(**self.calc_dict["kwargs"])
-        # DFT methods
-        elif potential == "vasp":
-            from GDPy.calculator.vasp import VaspMachine
-            with open(self.calc_dict["kwargs"], "r") as fopen:
-                input_dict = json.load(fopen)
-            self.calc = VaspMachine(**input_dict)
-        else:
-            raise ValueError("Unknown potential to calculation...")
+        # NOTE: vasp not test
+        from GDPy.potential.manager import create_pot_manager
+        pm = create_pot_manager(self.calc_dict["potential"])
+        self.dyn_params = self.calc_dict["dynamics"]
+        self.worker = pm.create_worker(self.dyn_params)
         
-        interface = self.calc_dict["interface"]
-        if interface == "ase":
-            from GDPy.calculator.ase_interface import AseDynamics
-            self.worker = AseDynamics(self.calc, directory=self.calc.directory)
-            # use ase no need to recaclc constraint since atoms has one
-            self.cons_indices = None
-        else: 
-            # find z-axis constraint
-            self.cons_indices = None
-            if self.system_type == "surface":
-                constraint = self.ga_dict["system"]["substrate"]["constraint"]
-                if constraint is not None:
-                    index_group = constraint.split()
-                    indices = []
-                    for s in index_group:
-                        r = [int(x) for x in s.split(":")]
-                        indices.append([r[0]+1, r[1]]) # starts from 1
-                self.cons_indices = ""
-                for s, e in indices:
-                    self.cons_indices += "{}:{} ".format(s, e)
-                print("constraint indices: ", self.cons_indices)
-        
-            if interface == "queue":
-                from GDPy.calculator.vasp import VaspQueue
-                self.worker = VaspQueue(
-                    self.da,
-                    tmp_folder = self.CALC_DIRNAME,
-                    vasp_machine = self.calc, # vasp machine
-                    n_simul = self.calc_dict["nparallel"], 
-                    prefix = self.calc_dict["prefix"],
-                    repeat = self.calc_dict["repeat"] # TODO: add this to minimsation with fmax and steps
-                )
-            elif interface == "lammps":
-                from GDPy.calculator.lammps import LmpDynamics as dyn
-                # use lammps optimisation
-                self.worker = dyn(
-                    self.calc, directory=self.calc.directory
-                )
-            elif interface == "lasp":
-                from GDPy.calculator.lasp import LaspDynamics as dyn
-                self.worker = dyn(
-                    self.calc, directory=self.calc.directory
-                )
-            else:
-                raise ValueError("Unknown interface to optimisation...")
-
+        # NOTE: constraint, py convention
+        self.cons_indices = None
+        if self.system_type == "surface":
+            constraint = self.ga_dict["system"]["substrate"]["constraint"]
+            if constraint is not None:
+                index_group = constraint.split()
+                indices = []
+                for s in index_group:
+                    r = [int(x) for x in s.split(":")]
+                    indices.append([r[0]+1, r[1]]) # starts from 1
+            self.cons_indices = ""
+            for s, e in indices:
+                self.cons_indices += "{}:{} ".format(s, e)
+            print("constraint indices: ", self.cons_indices)
 
         return
 
@@ -674,9 +630,8 @@ class GeneticAlgorithemEngine():
         # TODO: maybe move this part to evaluate_structure
         confid = atoms.info["confid"]
         self.worker.reset()
-        # self.worker.directory = self.tmp_folder / ("cand" + str(confid))
-        self.calc.directory = self.tmp_folder / (self.PREFIX + str(confid)) # TODO: use custom prefix
-        self.worker.set_output_path(self.calc.directory)
+        cur_dir = self.tmp_folder / (self.PREFIX + str(confid)) # TODO: use custom prefix
+        self.worker.set_output_path(cur_dir)
 
         # prepare extra info
         extra_info = {}
@@ -688,7 +643,7 @@ class GeneticAlgorithemEngine():
         min_atoms = self.worker.minimise(
             atoms,
             extra_info = extra_info,
-            **self.calc_dict["minimisation"],
+            **self.dyn_params,
             constraint = self.cons_indices # for lammps and lasp
         )
 

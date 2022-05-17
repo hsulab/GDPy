@@ -32,6 +32,8 @@ class LaspDynamics(AbstractDynamics):
 
     saved_cards = ["allstr.arc", "allfor.arc"]
 
+    method = "opt"
+
     def run(self, atoms, **kwargs):
 
         calc_old = atoms.calc
@@ -146,7 +148,7 @@ class LaspNN(FileIOCalculator):
         "SSW.output": "T",
         "SSW.printevery": "T",
         # calculator-related
-        "constraint": None, # str, lammps-like notatio
+        "constraint": None, # str, lammps-like notation
     }
 
     def __init__(self, *args, label="LASP", **kwargs):

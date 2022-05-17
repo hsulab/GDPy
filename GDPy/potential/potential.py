@@ -24,10 +24,12 @@ class AbstractPotential(abc.ABC):
     """
 
     name = "potential"
+    implemented_backends = []
     backends = dict(
         single = [], # single pointe energy
         dynamics = [] # dynamics (opt, ts, md)
     )
+    valid_combinations = []
 
     def __init__(self):
         """
@@ -38,9 +40,14 @@ class AbstractPotential(abc.ABC):
         return
     
     @abc.abstractmethod
-    def register_calculator(self, *agrs, **kwargs):
+    def register_calculator(self, calc_params, *agrs, **kwargs):
         """ register calculator
         """
+        self.calc_backend = calc_params.pop("backend", None)
+        if self.calc_backend not in self.implemented_backends:
+            raise RuntimeError(f"Unknown backend for potential {self.name}")
+
+        self.calc_params = calc_params
 
         return
 
@@ -50,17 +57,18 @@ class AbstractPotential(abc.ABC):
         **kwargs
     ):
         """ create a worker for dynamics
+            default the dynamics backend will be the same as calc
+            however, ase-based dynamics can be used for all calculators
         """
-        if not hasattr(self, "calc_params"):
-            raise AttributeError("Cant create worker before a calculator has been registered.")
+        if not hasattr(self, "calc") or self.calc is None:
+            raise AttributeError("Cant create worker before a calculator has been properly registered.")
             
-        calculator = self.calc_params["backend"]
-
+        # parse backends
         self.dyn_params = dyn_params
-        dynamics = dyn_params["backend"]
+        dynamics = dyn_params.get("backend", self.calc_backend)
 
-        if [calculator, dynamics] not in self.valid_combinations:
-            raise RuntimeError(f"Invalid dynamics backend based on {calculator} calculator")
+        if [self.calc_backend, dynamics] not in self.valid_combinations:
+            raise RuntimeError(f"Invalid dynamics backend based on {self.calc_backend} calculator")
         
         # create dynamics
         calc = self.calc
@@ -83,6 +91,9 @@ class AbstractPotential(abc.ABC):
             worker = dyn(calc, directory=calc.directory)
             #else:
             #    raise NotImplementedError("no other eann lammps dynamics")
+        elif dynamics == "lasp":
+            from GDPy.calculator.lasp import LaspDynamics as dyn
+            worker = dyn(calc, directory=calc.directory)
 
         return worker
 
@@ -355,41 +366,39 @@ class EANNManager(AbstractPotential):
     
     def register_calculator(self, calc_params):
         """"""
-        self.calc_params = calc_params
-
-        backend = calc_params["backend"]
-        if backend not in self.implemented_backends:
-            raise RuntimeError()
+        super().register_calculator(calc_params)
 
         command = calc_params["command"]
         directory = calc_params["directory"]
-        models = calc_params["file"]
         atypes = calc_params["type_list"]
+
+        models = calc_params.get("file", None)
+        pair_style = calc_params.get("pair_style", None)
 
         type_map = {}
         for i, a in enumerate(atypes):
             type_map[a] = i
 
-        if backend == "ase":
+        if self.calc_backend == "ase":
             # return ase calculator
             from eann.interface.ase.calculator import Eann
             calc = Eann(
                 model=models, type_map=type_map,
                 command = command, directory=directory
             )
-        elif backend == "lammps":
+        elif self.calc_backend == "lammps":
             # return deepmd pair related content
             #content = "units           metal\n"
             #content += "atom_style      atomic\n"
-            content = "neighbor        0.0 bin\n"
-            content += "pair_style      eann %s \n" \
-                %(' '.join([m for m in models]))
-            content += "pair_coeff * * double %s" %(" ".join(atypes))
-            calc = content
+            #content = "neighbor        0.0 bin\n"
+            #content += "pair_style      eann %s \n" \
+            #    %(' '.join([m for m in models]))
+            #content += "pair_coeff * * double %s" %(" ".join(atypes))
+            #calc = content
 
             # eann has different backends (ase, lammps)
             from GDPy.calculator.lammps import Lammps
-            calc = Lammps(**calc_params)
+            calc = Lammps(command=command, directory=directory, pair_style=pair_style)
         
         self.calc = calc
 
@@ -504,11 +513,37 @@ class EANNManager(AbstractPotential):
         return 
 
 
-class LaspManager():
+class LaspManager(AbstractPotential):
+
+    name = "lasp"
+    implemented_backends = ["lasp"]
+    valid_combinations = [
+        ["lasp", "lasp"], # calculator, dynamics
+        ["lasp", "ase"]
+    ]
 
     def __init__(self):
 
         return
+
+    def register_calculator(self, calc_params):
+        """ params
+            command
+            directory
+            pot
+        """
+        super().register_calculator(calc_params)
+
+        self.calc = None
+        if self.calc_backend == "lasp":
+            from GDPy.calculator.lasp import LaspNN
+            self.calc = LaspNN(**self.calc_params)
+        elif self.calc_backend == "lammps":
+            # TODO: add lammps calculator
+            pass
+
+        return
+    
 
 class NequIPManager(AbstractPotential):
 
