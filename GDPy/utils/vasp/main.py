@@ -16,6 +16,10 @@ from pathlib import Path
 from GDPy.calculator.vasp import VaspMachine
 from GDPy.utils.command import run_command
 
+from joblib import Parallel, delayed
+
+from GDPy import config
+
 def read_xsd2(fd):
     """ read xsd file by Material Studio
     """
@@ -110,10 +114,56 @@ def read_xsd2(fd):
         atoms.set_scaled_positions(coords)
         return atoms
 
+def read_results(pstru, input_dict, indices=None, custom_incar=None):
+    """"""
+    # get vasp calc params to add extra_info for atoms
+    if custom_incar is None:
+        input_dict["incar"] = pstru / "INCAR"
+    else:
+        input_dict["incar"] = Path(custom_incar)
+    vasp_machine = VaspMachine(**input_dict)
+    vasp_machine.init_creator()
+
+    fmax = vasp_machine.fmax
+
+    # read info
+    # TODO: check electronic convergence
+    vasprun = pstru / "vasprun.xml"
+    if indices is None:
+        traj_frames = read(vasprun, ":")
+        energies = [a.get_potential_energy() for a in traj_frames]
+        maxforces = [np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in traj_frames] # TODO: applt cons?
+
+        print(f"--- vasp info @ {pstru.name} ---")
+        print("nframes: ", len(traj_frames))
+        print("last energy: ", energies[-1])
+        print("last maxforce: ", maxforces[-1])
+        print("force convergence: ", fmax)
+
+        last_atoms = traj_frames[-1]
+        last_atoms.info["source"] = pstru.name
+        last_atoms.info["maxforce"] = maxforces[-1]
+        if maxforces[-1] <= fmax:
+            write(pstru / (pstru.name + "_opt.xsd"), last_atoms)
+            print("write converged structure...")
+    else:
+        print(f"--- vasp info @ {pstru.name} ---")
+        last_atoms = read(vasprun, indices)
+        print("nframes: ", len(last_atoms))
+        nconverged = 0
+        for a in last_atoms:
+            maxforce = np.max(np.fabs(a.get_forces(apply_constraint=True)))
+            if maxforce < fmax:
+                a.info["converged"] = True
+                nconverged += 1
+        print("nconverged: ", nconverged)
+
+    return last_atoms
 
 def vasp_main(
     pstru, # path, a single file or a directory with many files
     choice,
+    indices,
     incar_template,
     cinidices,
     is_sort,
@@ -201,28 +251,45 @@ def vasp_main(
     elif choice == "data":
         assert pstru.is_dir(), "input path is not a directory"
 
-        input_dict["incar"] = pstru / "INCAR"
-        vasp_machine = VaspMachine(**input_dict)
-        vasp_machine.init_creator()
-
-        fmax = np.fabs(vasp_machine.creator.exp_params.get("ediffg", 0.05))
-
-        # read info
-        # TODO: check electronic convergence
+        # recursively find all vasp dirs
+        vasp_dirs = []
         vasprun = pstru / "vasprun.xml"
-        traj_frames = read(vasprun, ":")
-        energies = [a.get_potential_energy() for a in traj_frames]
-        maxforces = [np.max(np.fabs(a.get_forces())) for a in traj_frames]
+        if vasprun.exists():
+            vasp_dirs.append(pstru)
+        else:
+            for p in pstru.iterdir():
+                if p.is_dir():
+                    if (p/"vasprun.xml").exists():
+                        vasp_dirs.append(p)
+            vasp_dirs.sort()
+        print("find vasp dirs: ", len(vasp_dirs))
 
-        print("--- vasp info ---")
-        print("nframes: ", len(traj_frames))
-        print("last energy: ", energies[-1])
-        print("last maxforce: ", maxforces[-1])
-        print("force convergence: ", fmax)
-
-        if maxforces[-1] <= fmax:
-            write(pstru.name + "_opt.xsd", traj_frames[-1])
-            print("write converged structure...")
+        frames = []
+        NJOBS = config.NJOBS
+        print("njobs...", NJOBS)
+        if NJOBS > 1:
+            ret = Parallel(n_jobs=NJOBS)(delayed(read_results)(p, input_dict, indices=indices, custom_incar=incar_template) for p in vasp_dirs)
+            for frames in ret:
+                if isinstance(frames, list):
+                    frames.extend(frames)
+                elif isinstance(frames, Atoms):
+                    frames.append(frames)
+                else:
+                    raise RuntimeError("Unexpected object from vasp read results...")
+        else:
+            frames = []
+            for p in vasp_dirs:
+                atoms = read_results(p, input_dict, indices=indices, custom_incar=incar_template)
+                if isinstance(atoms, Atoms):
+                    frames.append(atoms)
+                else:
+                    frames.extend(atoms)
+        if indices is None:
+            frames = sorted(frames, key=lambda a:a.get_potential_energy(), reverse=False)
+        
+        if len(frames) > 1:
+            write(Path.cwd().name+"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"])
+            print("nframes: ", len(frames))
 
     else:
         pass

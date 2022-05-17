@@ -10,6 +10,9 @@ from pathlib import Path
 
 import numpy as np
 
+# global settings
+from GDPy import config
+
 
 def main():
     # arguments 
@@ -20,13 +23,13 @@ def main():
     
     # the workflow tracker
     parser.add_argument(
-        '-s', '--status', 
-        help='pickle file with info on the current workflow'
+        "-pot", "--potential", nargs=1, default = [None],
+        help = "potential related configuration"
     )
 
     parser.add_argument(
-        "-pot", "--potential", default = None,
-        help = "potential related configuration"
+        '-s', '--status', 
+        help='pickle file with info on the current workflow'
     )
 
     parser.add_argument(
@@ -70,6 +73,10 @@ def main():
     parser_vasp.add_argument(
         "--sub", action="store_true",
         help="submit the job after creating input files"
+    )
+    parser_vasp.add_argument(
+        "--indices", default=None,
+        help="indices to read for each vasp directory"
     )
     
     # automatic training
@@ -129,6 +136,10 @@ def main():
     
     # general options for reading structures
     parser_data.add_argument(
+        "-s", "--system", default = None,
+        help = "system info file"
+    )
+    parser_data.add_argument(
         "-n", "--name", default = "ALL",
         help = "system name"
     )
@@ -181,16 +192,17 @@ def main():
         "CONFIG", help="selection configuration file"
     )
     parser_select.add_argument(
-        "-f", "--structure_file", required=True,
+        "-f", "--structure_file", required=True, 
+        nargs="*", action="extend",
         help="structure filepath (in xyz format)"
+    )
+    parser_select.add_argument(
+        "-m", "--mode", required=True, nargs="*",
+        help="selection mode"
     )
     parser_select.add_argument(
         '-n', '--number', default=100, type=int,
         help='number of structures selected'
-    )
-    parser_select.add_argument(
-        '-nj', '--njobs', default=16, type=int,
-        help='number of threads for computing features'
     )
 
     # graph utils
@@ -252,16 +264,26 @@ def main():
     
     # === execute 
     args = parser.parse_args()
+    
+    # update njobs
+    config.NJOBS = args.n_jobs
+    if config.NJOBS != 1:
+        print(f"Run parallel jobs {config.NJOBS}")
 
     # always check the current workflow before continuing to subcommands 
     # also, the global logger will be initialised 
     # TODO: track the workflow 
     # tracker = track_workflow(args.status)
+    from GDPy.potential.manager import create_pot_manager
+    pot_manager = None
+    if args.potential:
+        pot_config = args.potential[0] # configuration file of potential
+        pot_manager = create_pot_manager(pot_config)
 
     # use subcommands
     if args.subcommand == "vasp":
         from GDPy.utils.vasp.main import vasp_main
-        vasp_main(args.STRUCTURE, args.choices, args.incar, args.aindices, args.nosort, args.sub)
+        vasp_main(args.STRUCTURE, args.choices, args.indices, args.incar, args.aindices, args.nosort, args.sub)
     elif args.subcommand == "train":
         from .trainer.iterative_train import iterative_train
         iterative_train(args.INPUTS)
@@ -274,12 +296,13 @@ def main():
             pm.create_ensemble()
     elif args.subcommand == 'explore':
         from GDPy.expedition.sample_main import run_exploration
-        run_exploration(args.potential, args.EXPEDITION, args.step, args.opt_params)
+        run_exploration(pot_config, args.EXPEDITION, args.step, args.opt_params)
     elif args.subcommand == "data":
         from GDPy.data.main import data_main
         data_main(
             args.DATA,
-            args.potential, args.choice, args.mode,
+            pot_manager, args.choice, args.mode,
+            args.system,
             args.name, args.pattern,
             args.number, args.energy_tolerance, args.energy_shift
         )
@@ -288,13 +311,13 @@ def main():
         manual_train(args.INPUTS, args.iter, args.stage)
     elif args.subcommand == 'ase':
         from .calculator.ase_interface import run_ase_calculator
-        run_ase_calculator(args.INPUTS, args.potential)
+        run_ase_calculator(args.INPUTS, pot_config)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
-        run_validation(args.INPUTS, args.potential)
+        run_validation(args.INPUTS, pot_config)
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
-        selection_main(args.structure_file, args.CONFIG, args.potential)
+        selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)
     elif args.subcommand == "graph":
         from GDPy.graph.graph_main import graph_main
         graph_main(args.n_jobs, args.CONFIG, args.structure_file, args.indices, args.mode)
