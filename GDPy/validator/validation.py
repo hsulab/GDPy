@@ -81,7 +81,7 @@ class MinimaValidator(AbstractValidator):
         self.pm = pot_manager
 
         #self.calc = self.__parse_calculator(self.valid_dict)
-        self.worker, self.dynrun_params = pot_manager.create_worker(
+        self.worker = pot_manager.create_worker(
             dyn_params = task_params["dynamics"]
         )
 
@@ -207,15 +207,25 @@ class MinimaValidator(AbstractValidator):
             frames.extend(cur_frames)
         print("total nframes: ", len(frames))
 
+        for a in frames:
+            print(a.info)
         ref_energies = [a.get_potential_energy() for a in frames]
-        names = [a.info.get("name", a.get_chemical_formula()) for a in frames]
+        #ref_energies = [a.info["energy"] for a in frames]
+        names = []
+        for a in frames:
+            name = a.info.get("name", None)
+            if name is None:
+                name = a.info.get("description", None)
+            if name is None:
+                name = a.get_chemical_formula()
+            names.append(name)
 
         print("=== minimisation ===")
         calc_frames = []
         for name, atoms in zip(names, frames):
             self.worker.set_output_path(self.task_outpath / name)
             # NOTE: ase dynamics wont create new atoms
-            new_atoms = self.worker.minimise(atoms.copy(), verbose=True, **self.dynrun_params) 
+            new_atoms = self.worker.minimise(atoms.copy(), verbose=True) 
             calc_frames.append(new_atoms)
         new_energies = [a.get_potential_energy() for a in calc_frames]
 
@@ -298,10 +308,15 @@ class ReactionValidator(AbstractValidator):
 
         return
     
-    def _irun(self, p):
+    def _irun(self, p, ipath):
         """"""
+        # create cur out
+        if not ipath.exists():
+            ipath.mkdir()
+
+        # read dft values
         frames = read(p, ":")
-        print(frames)
+        #print(frames)
         nframes = len(frames)
         names = [a.info.get("name", None) for a in frames]
 
@@ -310,9 +325,9 @@ class ReactionValidator(AbstractValidator):
         print(en_is, en_fs)
 
         opt_worker = self.workers["opt"]
-        opt_worker.set_output_path(self.task_outpath / "IS")
+        opt_worker.set_output_path(ipath / "IS")
         initial = opt_worker.minimise(frames[0].copy(),verbose=False) 
-        opt_worker.set_output_path(self.task_outpath / "FS")
+        opt_worker.set_output_path(ipath / "FS")
         final = opt_worker.minimise(frames[-1].copy(), verbose=False) 
 
         en_is, en_fs = initial.get_potential_energy(), final.get_potential_energy()
@@ -327,7 +342,7 @@ class ReactionValidator(AbstractValidator):
                 en_ts = transition.get_potential_energy()
                 print(en_ts)
                 ts_worker = self.workers["ts"]
-                ts_worker.set_output_path(self.task_outpath / "TS")
+                ts_worker.set_output_path(ipath / "TS")
                 new_transition = ts_worker.minimise(transition.copy(), verbose=False) 
                 en_ts = new_transition.get_potential_energy()
                 print(en_ts)
@@ -353,9 +368,9 @@ class ReactionValidator(AbstractValidator):
             k = neb_params.get("k", 0.1)
             # dynamic_relaxation = False
         )
-        neb.interpolate() # interpolate configurations
+        neb.interpolate(apply_constraint=True) # interpolate configurations
             
-        traj_path = str((self.task_outpath / "neb.traj").absolute())
+        traj_path = str((ipath / "neb.traj").absolute())
         qn = BFGS(neb, logfile="-", trajectory=traj_path)
 
         steps = self.task_params["neb"]["steps"]
@@ -379,8 +394,9 @@ class ReactionValidator(AbstractValidator):
         """
         """
         # --- NEB calculation ---
-        for p in self.task_params["pathways"]:
-            self._irun(p)
+        for i, p in enumerate(self.task_params["pathways"]):
+            print(f"===== pathway {i} =====")
+            self._irun(p, self.task_outpath / ("p"+str(i)))
 
         return
     
@@ -545,17 +561,12 @@ class SinglePointValidator(AbstractValidator):
 
 def run_validation(
     input_json: Union[str, pathlib.Path],
-    pot_json: Union[str, pathlib.Path]
+    pot_manager
 ):
     """ This is a factory to deal with various validations...
     """
     # parse potential
-    pot_dict = parse_input_file(pot_json)
-
-    mpm = PotManager() # main potential manager
-    pm = mpm.create_potential(pot_name = pot_dict["name"])
-    
-    pm.register_calculator(pot_dict["calculators"]["calc1"]) # TODO:
+    pm = pot_manager
 
     # run over validations
     valid_dict = parse_input_file(input_json)
