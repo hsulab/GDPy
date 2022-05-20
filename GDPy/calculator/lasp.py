@@ -24,6 +24,79 @@ output files by lasp NVE-MD
     md.arc  md.restart  vel.arc
 """
 
+def read_laspset(train_structures):
+    """ read lasp TrainStr.txt and TrainFor.txt
+    """
+    train_structures = Path(train_structures)
+    frames = []
+
+    all_energies, all_forces, all_stresses = [], [], []
+
+    # - TrainStr.txt
+    # TODO: use yield
+    with open(train_structures, "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if line.strip().startswith("Start one structure"):
+                # - energy
+                line = fopen.readline()
+                energy = float(line.strip().split()[-2])
+                all_energies.append(energy)
+                # - natoms
+                line = fopen.readline()
+                natoms = int(line.strip().split()[-1])
+                # skip 5 lines, symbol info and training weights
+                skipped_lines = [fopen.readline() for i in range(5)]
+                # - cell
+                cell = np.array([fopen.readline().strip().split()[1:] for i in range(3)], dtype=float)
+                # - symbols, positions, and charges
+                anumbers, positions, charges = [], [], []
+                for i in range(natoms):
+                    data = fopen.readline().strip().split()[1:]
+                    anumbers.append(int(data[0]))
+                    positions.append([float(x) for x in data[1:4]])
+                    charges.append(float(data[-1]))
+                atoms = Atoms(numbers=anumbers, positions=positions, cell=cell, pbc=True)
+                assert fopen.readline().strip().startswith("End one structure")
+                frames.append(atoms)
+                #break
+            if not line:
+                break
+    
+    # - TrainFor.txt
+    train_forces = train_structures.parent / "TrainFor.txt"
+    with open(train_forces, "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if line.strip().startswith("Start one structure"):
+                # - stress, voigt order
+                stress = np.array(fopen.readline().strip().split()[1:], dtype=float)
+                # - symbols, forces
+                anumbers, forces = [], []
+                line = fopen.readline()
+                while True:
+                    if line.strip().startswith("force"):
+                        data = line.strip().split()[1:]
+                        anumbers.append(int(data[0]))
+                        forces.append([float(x) for x in data[1:4]])
+                    else:
+                        all_forces.append(forces)
+                        assert line.strip().startswith("End one structure")
+                        break
+                    line = fopen.readline()
+                #break
+            if not line:
+                break
+    
+    for i, atoms in enumerate(frames):
+        calc = SinglePointCalculator(
+            atoms, energy=all_energies[i], forces=all_forces[i]
+        )
+        atoms.calc = calc
+    write(train_structures.parent / "dataset.xyz", frames)
+
+    return frames
+
 
 class LaspDynamics(AbstractDynamics):
 
@@ -253,6 +326,11 @@ class LaspNN(FileIOCalculator):
 
 
 if __name__ == "__main__":
+    # ===== test lasp format =====
+    read_laspset("/mnt/scratch2/users/40247882/pbe-oxides/LASPset/TrainStr.txt")
+    exit()
+
+    # ===== test lasp calculator =====
     # atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/xxx.xyz")
     atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/ga-surface/PGM.xyz")
 
