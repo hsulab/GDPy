@@ -2,7 +2,6 @@
 
 """
 
-from distutils.log import error
 import os
 import copy
 import shutil
@@ -13,7 +12,6 @@ from pathlib import Path
 
 from collections.abc import Iterable
 from typing import List, Mapping, Dict, Optional
-from matplotlib.pyplot import subplot2grid
 
 import numpy as np
 
@@ -28,8 +26,10 @@ from ase.calculators.calculator import (
     Calculator, all_changes, PropertyNotImplementedError, FileIOCalculator
 )
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.calculators.lammps import unitconvert
 
 from GDPy.calculator.dynamics import AbstractDynamics
+from GDPy.utils.command import find_backups
 
 class LmpDynamics(AbstractDynamics):
 
@@ -128,7 +128,6 @@ class LmpDynamics(AbstractDynamics):
         #     atoms.calc = calc_old
 
         return new_atoms
-    
 
     def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
         """ return a new atoms with singlepoint calc
@@ -165,6 +164,22 @@ class LmpDynamics(AbstractDynamics):
         else:
             warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
         
+        # gather trajectories
+        backups = find_backups(self._directory_path, self.saved_cards[0])
+        frames = read(
+            backups[0], ":", "lammps-dump-text", 
+            specorder=self.calc.specorder, units=self.calc.units
+        )
+        for bak in backups[1:]:
+            frames.extend(
+                read(
+                    bak, ":", "lammps-dump-text", 
+                    specorder=self.calc.specorder, units=self.calc.units
+                )[1:]
+            )
+        
+        write(self._directory_path/"merged_traj.xyz", frames)
+        
         return min_atoms
 
     def __read_min_results(self, fpath):
@@ -198,11 +213,23 @@ class Lammps(FileIOCalculator):
 
     command = "lmp 2>&1 > lmp.out"
 
-    default_parameters = {
-        "steps": 0,
-        "fmax": 0.05, # eV, for min
-        "constraint": None # index of atoms, start from 0
-    }
+    default_parameters = dict(
+        # ase params
+        steps = 0,
+        fmax = 0.05, # eV, for min
+        constraint = None, # index of atoms, start from 0
+        # lmp params
+        units = "metal",
+        atom_style = "atomic",
+        processors = "* * 1",
+        boundary = "p p p",
+        pair_style = None,
+        pair_coeff = None,
+        mass = "* 1.0",
+        dump_period = 1,
+        # - minimisation
+        min_style = "fire",
+    )
 
     specorder = None
 
@@ -210,7 +237,7 @@ class Lammps(FileIOCalculator):
         self, 
         command = None, 
         label = name, 
-        pair_style: Mapping = None, # pair_style specific parameters
+        #pair_style: Mapping = None, # pair_style specific parameters
         **kwargs
     ):
         """"""
@@ -218,19 +245,30 @@ class Lammps(FileIOCalculator):
 
         self.command = command
         
-        self.pair_style = pair_style
-        style = pair_style["model"]
-        if style == "reax/c":
-            self.units = "real"
-            self.atom_style = "charge"
-        elif style == "deepmd":
-            self.units = "metal"
-            self.atom_style = "atomic"
-        elif style == "eann":
-            self.units = "metal"
-            self.atom_style = "atomic"
+        # TODO: this should be shortcuts for built-in potentials
+        #self.pair_style = pair_style
+        #style = pair_style["model"]
+        #if style == "reax/c":
+        #    self.units = "real"
+        #    self.atom_style = "charge"
+        #elif style == "deepmd":
+        #    self.units = "metal"
+        #    self.atom_style = "atomic"
+        #elif style == "eann":
+        #    self.units = "metal"
+        #    self.atom_style = "atomic"
+
+        # - check potential
+        assert self.pair_style is not None, "pair_style is not set."
 
         return
+    
+    def __getattr__(self, key):
+        """ Corresponding getattribute-function 
+        """
+        if key != "parameters" and key in self.parameters:
+            return self.parameters[key]
+        return object.__getattribute__(self, key)
     
     def calculate(self, atoms=None, properties=['energy'],
             system_changes=all_changes):
@@ -293,39 +331,6 @@ class Lammps(FileIOCalculator):
 
         return
     
-    def execute(self):
-        # check command
-        command = self.command
-
-        # run lammps
-        proc = subprocess.Popen(
-            command, shell=True, cwd=self.directory,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            encoding = "utf-8"
-        )
-        errorcode = proc.wait()
-        #proc = subprocess.run(
-        #    command.split(), shell=True, 
-        #    cwd = self.directory,
-        #    # stdin=subprocess.DEVNULL,
-        #    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        #)
-        #errorcode = proc.returncode
-        #print("errorcode: ", errorcode)
-        if errorcode: # NOTE: errorcode=1 may be due to lost atoms
-            path = os.path.abspath(self.directory)
-            msg = ('Failed with command "{}" failed in '
-                   '{} with error code {}\n'.format(command, path, errorcode))
-            msg += "\nstdout: ".join(proc.stdout.readlines())
-            msg += "\nstderr: ".join(proc.stderr.readlines())
-            print(msg)
-
-            # raise CalculationFailed(msg)
-            exit()
-
-        return 
-    
     def __write_lmp_input(self):
         """"""
         mass_line = ''.join(
@@ -337,7 +342,8 @@ class Lammps(FileIOCalculator):
         content += "atom_style      %s\n" %self.atom_style
 
         # mpi settings
-        content += "processors * * 1\n" # if 2D simulation
+        if self.processors is not None:
+            content += "processors {}\n".format(self.processors) # if 2D simulation
         
         # simulation box
         content += "boundary        p p p\n"
@@ -351,29 +357,49 @@ class Lammps(FileIOCalculator):
         content += "\n"
 
         # pair
-        pair_style = self.pair_style
-        if pair_style["model"] == "reax/c":
-            # reaxff uses real unit, force kcal/mol/A
-            content += "pair_style	reax/c NULL\n"
-            content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(self.specorder))
+        #if pair_style["model"] == "reax/c":
+        #    # reaxff uses real unit, force kcal/mol/A
+        #    content += "pair_style	reax/c NULL\n"
+        #    content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(self.specorder))
+        #    content += "neighbor        0.0 bin\n"
+        #    content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+        #    content += "\n"
+        #elif pair_style["model"] == "eann":
+        #    out_freq = pair_style.get("out_freq", 10)
+        #    if out_freq == 10:
+        #        style_args = "{}".format(pair_style["file"])
+        #    else:
+        #        style_args = "{} out_freq {}".format(pair_style["file"], out_freq)
+        #    content += "pair_style	eann %s\n" %style_args
+        #    content += "pair_coeff	* * double %s\n" %(" ".join(self.specorder))
+        #    content += "neighbor        0.0 bin\n"
+        #    content += "\n"
+        #elif pair_style["model"] == "deepmd":
+        #    content += "pair_style	deepmd %s\n" %pair_style["file"]
+        #    content += "pair_coeff	\n" 
+        #    content += "neighbor        0.0 bin\n"
+        #    content += "\n"
+        content += "pair_style  {}\n".format(self.pair_style)
+        #if self.pair_coeff is not None:
+        #    content += "pair_coeff  {}\n".format(self.pair_coeff)
+        
+        # MLIP specific settings
+        # TODO: neigh settings?
+        potential = self.pair_style.strip().split()[0]
+        if potential == "reax/c":
+            assert self.atom_style == "charge", "reax/c should have charge atom_style"
             content += "neighbor        0.0 bin\n"
-            content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-            content += "\n"
-        elif pair_style["model"] == "eann":
-            out_freq = pair_style.get("out_freq", 10)
-            if out_freq == 10:
-                style_args = "{}".format(pair_style["file"])
+            content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+        elif potential == "eann":
+            if self.pair_coeff is None:
+                pair_coeff = "double * *"
             else:
-                style_args = "{} out_freq {}".format(pair_style["file"], out_freq)
-            content += "pair_style	eann %s\n" %style_args
-            content += "pair_coeff	* * double %s\n" %(" ".join(self.specorder))
+                pair_coeff = self.pair_coeff
+            content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.specorder))
             content += "neighbor        0.0 bin\n"
-            content += "\n"
-        elif pair_style["model"] == "deepmd":
-            content += "pair_style	deepmd %s\n" %pair_style["file"]
-            content += "pair_coeff	\n" 
+        elif potential == "deepmd":
             content += "neighbor        0.0 bin\n"
-            content += "\n"
+        content += "\n"
 
         # constraint
         constraint = self.parameters["constraint"]
@@ -385,17 +411,17 @@ class Lammps(FileIOCalculator):
 
         # outputs
         content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
-        content += "thermo          10\n" # TODO: save freq
+        content += "thermo          {}\n".format(self.dump_period) # TODO: save freq
         # TODO: How to dump total energy?
-        content += "dump		1 all custom 10 surface.dump id type x y z fx fy fz\n" 
+        content += "dump		1 all custom {} surface.dump id type x y z fx fy fz\n".format(self.dump_period)
         content += "\n"
         
         # minimisation
         content += "min_style       fire\n"
         content += "min_modify      integrator verlet tmax 4 # see more on lammps doc about min_modify\n"
         content += "minimize        0.0 %f %d %d # energy tol, force tol, step, force step\n" %(
-            self.parameters["fmax"] / self.CONVERTOR[self.units], 
-            self.parameters["steps"], 2.0*self.parameters["steps"]
+            unitconvert.convert(self.fmax, "force", "ASE", self.units),
+            self.steps, 2.0*self.steps
         )
 
         in_file = os.path.join(self.directory, "in.lammps")
@@ -405,7 +431,9 @@ class Lammps(FileIOCalculator):
         return
  
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    # test new lammps
+
     # test
     calc = Lammps(
         command = "lmp_cat -in ./in.lammps 2>&1 > lmp.out",
@@ -415,6 +443,10 @@ if __name__ == '__main__':
             "model": "eann"
         }
     )
+    print(calc.steps)
+    calc.steps = 100
+    print(calc.steps)
+    exit()
 
     atoms = read("/mnt/scratch2/users/40247882/catsign/eann-main/m01r/ga-surface/cand2.xyz")
     atoms.calc = calc

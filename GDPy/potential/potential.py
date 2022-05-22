@@ -7,13 +7,13 @@ deals with various machine learning potentials
 """
 
 import json
-
-from numpy.random import triangular
-
-from GDPy.trainer.train_potential import find_systems, generate_random_seed
 import abc
 import pathlib
+from pathlib import Path
 from typing import Union, List
+
+
+from GDPy.trainer.train_potential import find_systems, generate_random_seed
 
 from GDPy.utils.command import run_command
 
@@ -368,12 +368,12 @@ class EANNManager(AbstractPotential):
         """"""
         super().register_calculator(calc_params)
 
-        command = calc_params["command"]
-        directory = calc_params["directory"]
-        atypes = calc_params["type_list"]
+        command = calc_params.pop("command", None)
+        directory = calc_params.pop("directory", Path.cwd())
+        atypes = calc_params.pop("type_list", [])
 
-        models = calc_params.get("file", None)
-        pair_style = calc_params.get("pair_style", None)
+        models = calc_params.pop("file", None)
+        #pair_style = calc_params.get("pair_style", None)
 
         type_map = {}
         for i, a in enumerate(atypes):
@@ -398,7 +398,7 @@ class EANNManager(AbstractPotential):
 
             # eann has different backends (ase, lammps)
             from GDPy.calculator.lammps import Lammps
-            calc = Lammps(command=command, directory=directory, pair_style=pair_style)
+            calc = Lammps(command=command, directory=directory, **calc_params)
         
         self.calc = calc
 
