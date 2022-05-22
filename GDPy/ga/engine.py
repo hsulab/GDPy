@@ -5,12 +5,13 @@ import time
 from random import random
 import pathlib
 from pathlib import Path
+import importlib
 import warnings
-import json
 
 import numpy as np
 
 import ase.data
+import ase.formula
 
 from ase import Atoms
 from ase.io import read, write
@@ -23,7 +24,6 @@ from ase.constraints import FixAtoms
 from ase.ga.population import Population
 
 from ase.ga.cutandsplicepairing import CutAndSplicePairing
-from ase.ga.standard_comparators import InteratomicDistanceComparator
 from ase.ga.standardmutations import MirrorMutation, RattleMutation, PermutationMutation
 from ase.ga.offspring_creator import OperationSelector
 
@@ -87,6 +87,7 @@ class GeneticAlgorithemEngine():
     find_neighbors = None
     perform_parametrization = None
 
+    use_tags = True # perform atomic or molecular based search
 
     def __init__(self, ga_dict: dict):
         """"""
@@ -540,53 +541,122 @@ class GeneticAlgorithemEngine():
 
         return
     
+    def __get_operator(self, operators, settings, default_op):
+        """ comparator, crossover, mutation
+        """
+        #print("operators: ", operators)
+        #comp_settings = op_dict.get(section, None)
+        if settings is not None:
+            # - get operator
+            op_name = settings.get("name", None)
+            assert op_name is not None, f"No op name is provided."
+            kwargs = settings.get("kwargs", None)
+        else:
+            op_name = default_op
+            kwargs = None
+
+        #print(f"use {op_name}")
+        op_obj = getattr(operators, op_name)
+        default_params = getattr(operators, op_obj.__name__+"_params")
+
+        return op_obj, default_params, kwargs
+    
     def __register_operators(self):
         """ register various operators
             comparator, pairing, mutation
         """
-        # set operators
-        self.comp = InteratomicDistanceComparator(
-            n_top = self.n_to_optimize,
-            pair_cor_cum_diff = 0.015,
-            pair_cor_max = 0.7,
-            dE = 0.02,
-            mic = False
+        op_dict = self.ga_dict.get("operators", None)
+        if op_dict is None:
+            op_dict = {
+                "comparator": {"name": "InteratomicDistanceComparator"},
+                "crossover": {"name": "CutAndSplicePairing"}
+            }
+        operators = importlib.import_module("GDPy.ga.operators")
+
+        # --- comparator
+        comparator, params, kwargs = self.__get_operator(
+            operators, op_dict.get("comparator", None), 
+            "InteratomicDistanceComparator"
         )
-        self.pairing = CutAndSplicePairing(
-            self.slab, self.n_to_optimize, self.blmin
+        # - update params based on this system
+        if "n_top" in params.keys():
+            params["n_top"] = self.n_to_optimize
+        if isinstance(kwargs, dict):
+            params.update(**kwargs)
+        self.comparing = comparator(**params)
+
+        print("--- comparator ---")
+        print(f"Use comparator {comparator.__name__}.")
+
+        # --- crossover
+        #print("operators: ", operators)
+        crossover, params, kwargs = self.__get_operator(
+            operators, op_dict.get("crossover", None), 
+            "CutAndSplicePairing"
         )
+        if "slab" in params.keys():
+            params["slab"] = self.slab
+        if "n_top" in params.keys():
+            params["n_top"] = self.n_to_optimize
+        if "blmin" in params.keys():
+            params["blmin"] = self.blmin
+        if "use_tags" in params.keys():
+            params["use_tags"] = self.use_tags
+        if isinstance(kwargs, dict):
+            params.update(**kwargs)
+        self.pairing = crossover(**params)
 
-        op_classes = {
-            "Rattle": RattleMutation,
-            "Mirror": MirrorMutation,
-            "Permutation": PermutationMutation
-        }
+        print("--- crossover ---")
+        print(f"Use crossover {crossover.__name__}.")
 
-        # TODO: expose to custom input file
-        op_names = self.mutation_dict.get("ops", ["Rattle", "Mirror", "Permutation"])
-        rel_probs = self.mutation_dict.get("probs", [1.]*len(op_names)) # relative 
-        assert len(op_names) == len(rel_probs), "number of mutation operators and probs is not consistent..."
-        if len(self.type_list) == 1 and "Permutation" in op_names:
-            raise RuntimeError("Single element system cannot use PermutationMutation...")
-        
-        # output
-        content = "\n\n===== register mutations =====\n"
-        for op_name, rel_prob in zip(op_names, rel_probs):
-            content += "  {}  {}\n".format(op_name, rel_prob)
-        print(content)
+        # --- mutations
+        mutations, probs = [], []
+        mutation_list = op_dict.get("mutation", None)
+        #print(mutation_list)
+        if isinstance(mutation_list, list):
+            for mut_settings in mutation_list:
+                mut, params, kwargs = self.__get_operator(
+                    operators, mut_settings, "RattleMutation"
+                )
+                if "n_top" in params.keys():
+                    params["n_top"] = self.n_to_optimize
+                if "blmin" in params.keys():
+                    params["blmin"] = self.blmin
+                if "use_tags" in params.keys():
+                    params["use_tags"] = self.use_tags
+                # NOTE: check this mutation whether valid for this system
+                if kwargs is None:
+                    prob = 1.0
+                else:
+                    prob = kwargs.pop("prob", 1.0)
+                probs.append(prob)
+                if isinstance(kwargs, dict):
+                    params.update(**kwargs)
+                mutations.append(mut(**params))
+        else:
+            # NOTE: default only has one RattleMutation
+            mut, params, kwargs = self.__get_operator(
+                operators, None, "RattleMutation"
+            )
+            if "n_top" in params.keys():
+                params["n_top"] = self.n_to_optimize
+            if "blmin" in params.keys():
+                params["blmin"] = self.blmin
+            if "use_tags" in params.keys():
+                params["use_tags"] = self.use_tags
+            if kwargs is None:
+                prob = 1.0
+            else:
+                prob = kwargs.pop("prob", 1.0)
+            probs.append(prob)
+            if isinstance(kwargs, dict):
+                params.update(**kwargs)
+            mutations.append(mut(**params))
 
-        # register
-        operators = []
-        for op_name in op_names:
-            if op_name == "Rattle":
-                op = RattleMutation(self.blmin, self.n_to_optimize)
-            elif op_name == "Mirror":
-                op = MirrorMutation(self.blmin, self.n_to_optimize)
-            elif op_name == "Permutation":
-                op = PermutationMutation(self.n_to_optimize)
-            operators.append(op)
-
-        self.mutations = OperationSelector(rel_probs, operators)
+        print("--- mutations ---")
+        for mut in mutations:
+            print(f"Use mutation {mut.descriptor}.")
+        self.mutations = OperationSelector(probs, mutations, rng=np.random)
 
         return
     
@@ -626,6 +696,8 @@ class GeneticAlgorithemEngine():
             # TODO: move queue methods here
             self.worker.relax(atoms)
             return 
+        cur_tags = atoms.get_tags().copy()
+        print("tags before:", atoms.get_tags())
 
         # TODO: maybe move this part to evaluate_structure
         confid = atoms.info["confid"]
@@ -640,12 +712,15 @@ class GeneticAlgorithemEngine():
         extra_info["key_value_pairs"] = {"extinct": 0}
 
         # run minimisation
+        # NOTE: dynamics should maintain tags info
         min_atoms = self.worker.minimise(
             atoms,
             extra_info = extra_info,
             **self.dyn_params,
             constraint = self.cons_indices # for lammps and lasp
         )
+        print("tags after:", min_atoms.get_tags())
+        min_atoms.set_tags(cur_tags)
 
         # evaluate structure
         self.evaluate_candidate(min_atoms)
@@ -654,21 +729,12 @@ class GeneticAlgorithemEngine():
         self.da.add_relaxed_step(min_atoms)
 
         return
-    
-    def __parse_system(self):
-        """ parse system
-        """
-        init_dict = self.ga_dict["system"]
-        covalent_ratio = init_dict.get("covalent_ratio", 0.8)
-
-        return
 
     def __create_random_structure_generator(self) -> None:
         """ create a random structure generator
         """
         # unpack info
         init_dict = self.ga_dict["system"]
-        composition = init_dict['composition']
 
         if self.system_type == "bulk":
             # TODO: specific routine for bulks
@@ -751,12 +817,27 @@ class GeneticAlgorithemEngine():
         print(content)
         print(self.slab)
 
-        # Define the composition of the atoms to optimize
+        # --- Define the composition of the atoms to optimize ---
+        composition = init_dict['composition']
+        blocks = [(k,v) for k,v in composition.items()] # for start generator
+        for k, v in blocks:
+            if k not in ase.data.chemical_symbols:
+                print(f"Found chemical formula {k}")
+                self.use_tags = True
+                break
+        else:
+            print("Perform atomic search...")
+
         atom_numbers = []
-        for elem, num in composition.items():
-            atom_numbers.extend([ase.data.atomic_numbers[elem]]*num)
+        for species, num in composition.items():
+            numbers = []
+            for s, n in ase.formula.Formula(species).count().items():
+                numbers.extend([ase.data.atomic_numbers[s]]*n)
+            atom_numbers.extend(numbers*num)
         self.atom_numbers_to_optimize = atom_numbers
         unique_atom_types = get_all_atom_types(self.slab, atom_numbers)
+        print(self.atom_numbers_to_optimize)
+        print(blocks)
 
         # define the closest distance two atoms of a given species can be to each other
         covalent_ratio = init_dict.get("covalent_ratio", 0.8)
@@ -773,7 +854,7 @@ class GeneticAlgorithemEngine():
         # create the starting population
         self.generator = StartGenerator(
             self.slab, 
-            self.atom_numbers_to_optimize, # blocks
+            blocks, # blocks
             blmin,
             number_of_variable_cell_vectors=0,
             box_to_place_in=box_to_place_in,
@@ -880,7 +961,7 @@ class GeneticAlgorithemEngine():
         self.population = Population(
             data_connection = self.da,
             population_size = self.population_size,
-            comparator = self.comp
+            comparator = self.comparing
         )
 
         # print out population info
