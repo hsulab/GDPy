@@ -88,6 +88,16 @@ class GeneticAlgorithemEngine():
     perform_parametrization = None
 
     use_tags = True # perform atomic or molecular based search
+    test_dist_to_slab = True
+    test_too_far = True
+
+    # - cell settings
+    #number_of_variable_cell_vectors=0,
+    #box_to_place_in=box_to_place_in,
+    #box_volume=None,
+    #splits=None,
+    #cellbounds=None,
+
 
     def __init__(self, ga_dict: dict):
         """"""
@@ -100,7 +110,7 @@ class GeneticAlgorithemEngine():
         else:
             raise KeyError("Must declare system type for exploration [bulk, cluster, surface].")
 
-        self.__parse_system_parameters(ga_dict)
+        self.type_list = list(ga_dict["system"]["composition"].keys())
 
         # --- database ---
         self.db_name = pathlib.Path(ga_dict["database"])
@@ -121,6 +131,8 @@ class GeneticAlgorithemEngine():
         assert self.population_size == self.pop_tot_size, "tot_size should equal pop_size"
         assert self.pop_ran_size < self.population_size, "ran_size should be smaller than pop_size"
 
+        self.pmut = self.ga_dict["population"].get("pmut", 0.5)
+
         # --- property ---
         self.prop_dict = ga_dict["property"]
         target = self.prop_dict.get("target", "energy")
@@ -129,16 +141,6 @@ class GeneticAlgorithemEngine():
 
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
-
-        return
-    
-    def __parse_system_parameters(self, ga_dict):
-        """ parse system-specific parameters
-        """
-        self.type_list = list(ga_dict["system"]["composition"].keys())
-
-        # mutation operators
-        self.mutation_dict = ga_dict["mutation"]
 
         return
     
@@ -654,6 +656,7 @@ class GeneticAlgorithemEngine():
             mutations.append(mut(**params))
 
         print("--- mutations ---")
+        print("mutation probability: ", self.pmut)
         for mut in mutations:
             print(f"Use mutation {mut.descriptor}.")
         self.mutations = OperationSelector(probs, mutations, rng=np.random)
@@ -702,7 +705,7 @@ class GeneticAlgorithemEngine():
         # TODO: maybe move this part to evaluate_structure
         confid = atoms.info["confid"]
         self.worker.reset()
-        cur_dir = self.tmp_folder / (self.PREFIX + str(confid)) # TODO: use custom prefix
+        cur_dir = self.tmp_folder / (self.PREFIX + str(confid))
         self.worker.set_output_path(cur_dir)
 
         # prepare extra info
@@ -740,22 +743,32 @@ class GeneticAlgorithemEngine():
             # TODO: specific routine for bulks
             pass
         elif self.system_type == "cluster":
-            cell = np.array(init_dict["lattice"])
+            cell = init_dict.get("lattice", None)
+            if cell is None:
+                cell = np.ones(3)*20.
+            else:
+                cell = np.array(cell)
+
             self.slab = Atoms(cell = cell, pbc=True)
             self.cell_centre = np.sum(0.5*cell, axis=1)
             
             # set box to explore
-            box_cell = np.array(init_dict["space"])
-            p0 = np.zeros(3)
-            #p0 = np.sum(0.5*cell, axis=1) # centre of the cell
-            v1 = box_cell[0, :] 
-            v2 = box_cell[1, :] 
-            v3 = box_cell[2, :]
+            # NOTE: shape (4,3), origin+3directions
+            box_cell = init_dict.get("space", None)
+            if box_cell is None:
+                box_cell = np.zeros((4,3))
+                box_cell[1:,:] = 0.5*cell
+            else:
+                box_cell = np.array(init_dict["space"])
+            p0 = box_cell[0, :] 
+            v1 = box_cell[1, :] 
+            v2 = box_cell[2, :] 
+            v3 = box_cell[3, :]
 
             # parameters
             box_to_place_in = [p0, [v1, v2, v3]]
-            test_dist_to_slab = False
-            test_too_far = False
+            self.test_dist_to_slab = False
+            self.test_too_far = False
 
         elif self.system_type == "surface":
             # read substrate
@@ -815,10 +828,10 @@ class GeneticAlgorithemEngine():
         content += "xxxxxx " + vec3_format.format(*list(v2))
         content += "xxxxxx " + vec3_format.format(*list(v3))
         print(content)
-        print(self.slab)
+        #print(self.slab)
 
         # --- Define the composition of the atoms to optimize ---
-        composition = init_dict['composition']
+        composition = init_dict["composition"]
         blocks = [(k,v) for k,v in composition.items()] # for start generator
         for k, v in blocks:
             if k not in ase.data.chemical_symbols:
@@ -861,8 +874,9 @@ class GeneticAlgorithemEngine():
             box_volume=None,
             splits=None,
             cellbounds=None,
-            test_dist_to_slab = test_dist_to_slab,
-            test_too_far = test_too_far
+            test_dist_to_slab = self.test_dist_to_slab,
+            test_too_far = self.test_too_far,
+            rng = np.random
         ) # structure generator
 
         return 
@@ -977,8 +991,6 @@ class GeneticAlgorithemEngine():
     def reproduce(self):
         """generate an offspring"""
         # Submit new candidates until enough are running
-        mutation_probability = self.mutation_dict["pmut"]
-
         a1, a2 = self.population.get_two_candidates()
         for i in range(self.MAX_REPROC_TRY):
             # try 10 times
@@ -987,10 +999,13 @@ class GeneticAlgorithemEngine():
                 self.da.add_unrelaxed_candidate(
                     a3, description=desc # here, desc is used to add "pairing": 1 to database
                 ) # if mutation happens, it will not be relaxed
+                #print("a3: ", a3.info)
 
                 mut_desc = ""
-                if random() < mutation_probability:
+                if random() < self.pmut:
                     a3_mut, mut_desc = self.mutations.get_new_individual([a3])
+                    #print("a3_mut: ", a3_mut.info)
+                    #print("mut_desc: ", mut_desc)
                     if a3_mut is not None:
                         self.da.add_unrelaxed_step(a3_mut, mut_desc)
                         a3 = a3_mut

@@ -62,6 +62,7 @@ from ase.ga.particle_mutations import (
 )
 from ase.ga.soft_mutation import SoftMutation
 
+# --- standard
 RattleMutation_params = dict(
     blmin=None, n_top=None, rattle_strength=0.8,
     rattle_prop=0.4, test_dist_to_slab=True, use_tags=False,
@@ -77,4 +78,17 @@ PermutationMutation_params = dict(
 MirrorMutation_params = dict(
     blmin=None, n_top=None, reflect=False, 
     rng=np.random, verbose=False
+)
+
+# --- particles
+# NOTE: some mutations may cause the missing of atoms.info such as confid
+RandomMutation_params = dict(
+    length=2, # maxstep to move in AA
+    num_muts=1, # number of repetitive mutations
+    rng=np.random
+)
+
+RandomPermutation_params = dict(
+    elements=None, num_muts=1,
+    rng=np.random
 )
