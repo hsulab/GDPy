@@ -8,12 +8,17 @@ from GDPy.graph.utils import show_nodes, show_edges
 
 class AdsSite(object):
 
+    MIN_INTERADSORBATE_DISTANCE = 1.5
+
     def __init__(
         self, atoms, 
         cycle, # indices of site atoms
         #offsets,
         #known,
-        position, normal, graph=None
+        position, 
+        normal, 
+        graph=None,
+        **kwargs
     ):
         """"""
         self.atoms = atoms
@@ -77,34 +82,35 @@ class AdsSite(object):
         return
 
     def adsorb(
-        self, adsorbate, 
+        self, 
+        adsorbate, # single atom or a molecule
         other_ads_indices, # indices of other adsorbate
-        height=2, check_H_bond=False
+        distance_to_site=1.5, check_H_bond=False
     ):
         """"""
-        # prepare and add adsorbate
+        # --- prepare and add adsorbate
         atoms = self.atoms.copy()
         ads_copy = adsorbate.copy()
         ads_copy.rotate([0, 0, 1], self.normal, center=[0,0,0])
         #print(self.position,self.position+ (self.normal*height), self.normal)
-        ads_copy.translate(self.position + (self.normal*height))
+        ads_copy.translate(self.position + (self.normal*distance_to_site))
 
         atoms.extend(ads_copy)
 
-        # check indices of adsorbed species
+        # --- check indices of adsorbed species
         index_to_check = range(len(atoms)-len(ads_copy), len(atoms))
-        index_to_check_noH = []
+        index_to_check_noH = [] # indices of to-put adsorbate
         for ads_t in index_to_check:
             if atoms[ads_t].symbol != 'H':
                 index_to_check_noH.append(ads_t)
 
-        ads_atoms_check = []
+        ads_atoms_check = [] # indices of other adsorbates
         for ads_t in other_ads_indices:
             if atoms[ads_t].symbol != 'H':
                 ads_atoms_check.append(ads_t)
         #print(index_to_check, index_to_check_noH)
 
-        # check distances between adsorbates
+        # --- check distances between adsorbates
         all_ads_indices = other_ads_indices.copy()
         for ad in range(len(atoms)-len(ads_copy), len(atoms)):
             all_ads_indices.append(ad)
@@ -116,7 +122,7 @@ class AdsSite(object):
                 dists = atoms.get_distances(index, ads_atoms_check, mic=True)
                 dist = min(dist, dists.min())
             # TODO: check is_occupied
-            if dist < 1.5:
+            if dist < self.MIN_INTERADSORBATE_DISTANCE:
                 atoms = dist
         
         return atoms 

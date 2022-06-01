@@ -218,10 +218,11 @@ class StruGraphCreator(NeighGraphCreator):
 
         return
     
-    def generate_graph(self, atoms):
+    def generate_graph(self, atoms, verbose=False):
         if self.graph is not None:
             #raise RuntimeError(f"StruGraphCreator already has a graph...")
-            print(f"overwrite stored graph...")
+            if verbose:
+                print(f"overwrite stored graph...")
         
         # TODO: fix this, too complicated
         input_atoms = atoms.copy()
@@ -260,7 +261,7 @@ class StruGraphCreator(NeighGraphCreator):
             self.ads_indices = self.adsorbate_indices.copy()
         else:
             self.ads_indices = [a.index for a in self.atoms if a.symbol in self.adsorbate_elements]
-        print("adsorbates: ", self.ads_indices)
+        #print("adsorbates: ", self.ads_indices)
 
         # init few params
         grid = self.pbc_grid
@@ -284,7 +285,7 @@ class StruGraphCreator(NeighGraphCreator):
                     if not (-grid[2] <= oz + z <= grid[2]):
                         continue
                     # TODO: use tag to manually set dist between atoms in one adsorbate
-                    # This line ensures that only surface adsorbate bonds are accounted for that are less than 2.5 Å
+                    # This line ensures that only surface-adsorbate bonds are accounted for that are less than 2.5 Å
                     dis = atoms.get_distances(centre_idx, nei_idx, mic=True)
                     if dis > self.substrate_adsorbate_distance and (bool(centre_idx in self.ads_indices) ^ bool(nei_idx in self.ads_indices)):
                         continue
@@ -293,7 +294,8 @@ class StruGraphCreator(NeighGraphCreator):
         return graph
     
     def extract_selected_chem_envs(self, selected_indices, check_unique=True):
-        """"""
+        """ extract local chemical environment of selected adsorbate species
+        """
         if self.graph is None:
             pass
             raise RuntimeError(f"{self.__name__} does not have a graph...")
@@ -385,7 +387,7 @@ class StruGraphCreator(NeighGraphCreator):
 
             # update attribute of this adsorbate
             for node in ads.nodes():
-                new_ads.add_node(node, central_ads=True)
+                new_ads.add_node(node, central_ads=True) # means the atom is in [0,0,0]
 
             # update attr of this and neighbour adsorbates
             for node in full_ads.nodes():
@@ -477,7 +479,8 @@ class SiteGraphCreator(StruGraphCreator):
         self.nl = self.build_neighlist(self.atoms, bothways=True)
         self.nl.update(self.atoms)
 
-        ### make sure to manually set the normals for 2-D materials, all atoms should have a normal pointing up, as all atoms are surface atoms
+        # make sure to manually set the normals for 2-D materials, 
+        # all atoms should have a normal pointing up, as all atoms are surface atoms
         normals, surface_mask = self.generate_normals(
             surface_normal=self.surface_normal, ads_indices=self.ads_indices, normalize_final=True
         )
@@ -681,7 +684,7 @@ class SiteGraphCreator(StruGraphCreator):
                 average = np.average(known, axis=0)
                 """
 
-                if coordination ==2:
+                if coordination == 2:
                     average[2] = average[2] + self.shift2
                 if coordination == 3:
                     average[2] = average[2] + self.shift3 

@@ -33,6 +33,24 @@ def unpack_node_name(node_symbol):
 def bond_symbol(atoms, a1, a2):
     return "{}{}".format(*sorted((atoms[a1].symbol, atoms[a2].symbol)))
 
+def grid_iterator(grid):
+    """Yield all of the coordinates in a 3D grid as tuples
+
+    Args:
+        grid (tuple[int] or int): The grid dimension(s) to
+                                  iterate over (x or (x, y, z))
+
+    Yields:
+        tuple: (x, y, z) coordinates
+    """
+    if isinstance(grid, int): # Expand to 3D grid
+        grid = (grid, grid, grid)
+
+    for x in range(-grid[0], grid[0]+1):
+        for y in range(-grid[1], grid[1]+1):
+            for z in range(-grid[2], grid[2]+1):
+                yield (x, y, z)
+
 def show_edges(graph):
     print("----- See Edges -----")
     for (u, v, d) in graph.edges.data():

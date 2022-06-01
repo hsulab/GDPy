@@ -212,8 +212,11 @@ def create_structure_graphs(input_dict, idx, atoms, selected_indices=None):
     return chem_envs
 
 
-def add_adsorbate(input_dict, idx, atoms, ads, check_unique=False):
+def add_adsorbate(input_dict, idx, atoms, ads, distance_to_site=1.5, check_unique=False):
+    """
+    """
     #print(f"====== create sites {i} =====")
+    print("check_unique in sites: ", check_unique)
     site_creator = SiteGraphCreator(**input_dict)
     sites = site_creator.convert_atoms(atoms, check_unique=check_unique) # TODO: custom?
 
@@ -223,10 +226,10 @@ def add_adsorbate(input_dict, idx, atoms, ads, check_unique=False):
     for ig, sg in enumerate(sites):
         # NOTE: only choose unique site
         #print("number of uniques: ", len(sg))
-        for s in sg[:1]: 
-            # print(s)
-
-            new_atoms = s.adsorb(ads, site_creator.ads_indices, height=1.3)
+        if check_unique:
+            sg = [sg[0]]
+        for s in sg: 
+            new_atoms = s.adsorb(ads, site_creator.ads_indices, distance_to_site=distance_to_site)
             if not isinstance(new_atoms, Atoms):
                 noccupied += 1
                 #print(s, "!!! site may be already occupied!!!", new_atoms)
