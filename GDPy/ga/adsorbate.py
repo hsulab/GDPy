@@ -9,7 +9,9 @@ import numpy as np
 
 from joblib import Parallel, delayed
 
+import ase
 from ase import Atoms
+from ase import build
 from ase.io import read, write
 from ase.constraints import FixAtoms
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -25,6 +27,17 @@ from GDPy.graph.para import paragroup_unique_chem_envs
 from ase.ga.standard_comparators import EnergyComparator
 from ase.ga.standard_comparators import InteratomicDistanceComparator, get_sorted_dist_list
 
+class AdsorbateGraphGenerator():
+
+    """ generate initial configurations with 
+        different adsorbates
+    """
+
+    def __init__(self):
+
+        return
+
+
 class AdsorbateEvolution():
 
     def __init__(self, input_dict, njobs, calc):
@@ -34,67 +47,50 @@ class AdsorbateEvolution():
 
         self.graph_params = input_dict["system"]["graph"]
 
-        self.pot_params = input_dict["potential"]
+        # - parse calculation
+        self.__register_worker(input_dict["calculation"])
 
-        # read substrate 
-        self.substrates = read(input_dict["system"]["substrate"], ":")
-
-        # mutation
-        mutations = input_dict["mutation"] # add, delete, exchange
-        #assert len(mutations) == 1, "only one mutation can be added to this evolution..."
-
-        self.mut_op = None
-        for x in list(mutations.keys()):
-            if x in ["add", "delete", "exchange"]:
-                self.mut_op = x
-                break
-        else:
-            print(f"mutation {self.mut_op} is not supported...")
-        self.mut_content = mutations[self.mut_op]
-        self.mut_params = mutations["params"]
+        # - parse substrate 
+        #self.substrates = read(input_dict["system"]["substrate"], ":")
+        self.substrates = read(input_dict["system"]["substrate"]["file"], ":")
+        if isinstance(self.substrates, Atoms): # NOTE: if one structure
+            self.substrates = [self.substrates]
+        print("number of substrates: ", len(self.substrates))
 
         # create adsorbate
-        # TODO: move this to add mutation
-        composition = input_dict["system"]["composition"]
-        assert len(composition) == 1, "only one element is support"
-
-        self.ads_chem_sym = list(composition.keys())[0]
-        self.adsorbate = Atoms(self.ads_chem_sym, positions=[[0., 0., 0.]])
-        self.ads_number = composition[self.ads_chem_sym]
+        self.__parse_composition(input_dict["system"]["composition"])
 
         # selection
         self.energy_cutoff = input_dict["selection"]["energy_cutoff"]
 
         self.check_site_unique = input_dict["system"].get("check_site_uniqe", True)
+        
+        return
+    
+    def __parse_composition(self, compos_dict: dict):
+        """ parse composition that operates on the systems
+        """
+        # TODO: move this to add mutation
+        #composition = input_dict["system"]["composition"]
+        #assert len(composition) == 1, "only one element is support"
+        #self.ads_chem_sym = list(composition.keys())[0]
+        #self.adsorbate = Atoms(self.ads_chem_sym, positions=[[0., 0., 0.]])
+        #self.ads_number = composition[self.ads_chem_sym]
+
+        self.compositions = compos_dict
+        print("number of compositions: ", len(self.compositions))
+        assert len(self.compositions) == 1, "only support one adsorbate for now."
 
         return
     
-    def run(self):
+    def selection(self):
         """"""
-        # check start
-        start, end = self.ads_number
-        if isinstance(self.substrates, Atoms):
-            self.substrates = [self.substrates]
-        chemical_symbols = self.substrates[0].get_chemical_symbols()
-        chem_dict = Counter(chemical_symbols)
-        start = chem_dict[self.ads_chem_sym]
-        for i in range(1, len(self.substrates)):
-            chemical_symbols = self.substrates[i].get_chemical_symbols()
-            chem_dict = Counter(chemical_symbols)
-            cur_nads = chem_dict[self.ads_chem_sym]
-            if cur_nads != start:
-                raise RuntimeError("substrates should have same number of adsorbates..")
-        start += 1
-        ntop = start
-
-        # first generation
         new_substrates = [a.copy() for a in self.substrates]
         #for nads in range(start, end):
         #    print(f"===== generation for {nads} adsorbates =====")
         #    created_frames = self.add_adsorbate(new_substrates)
         #    
 
-        print(f"===== generation for {start} adsorbates =====")
         # use monte carlo to select substrates
         nsubstrates = len(new_substrates)
         print("number of substrates: ", nsubstrates)
@@ -113,6 +109,32 @@ class AdsorbateEvolution():
         nsubstrates = len(new_substrates)
         print("number of substrates after selection: ", nsubstrates)
 
+        return new_substrates
+    
+    def run(self):
+        """"""
+        # --- check start
+        start = 0
+        #start, end = self.ads_number
+        #chemical_symbols = self.substrates[0].get_chemical_symbols()
+        #chem_dict = Counter(chemical_symbols)
+        #start = chem_dict[self.ads_chem_sym]
+        #for i in range(1, len(self.substrates)):
+        #    chemical_symbols = self.substrates[i].get_chemical_symbols()
+        #    chem_dict = Counter(chemical_symbols)
+        #    cur_nads = chem_dict[self.ads_chem_sym]
+        #    if cur_nads != start:
+        #        raise RuntimeError("substrates should have same number of adsorbates..")
+        #start += 1
+        #ntop = start
+
+        # first generation
+        new_substrates = [a.copy() for a in self.substrates]
+
+        print(f"===== generation for {start} adsorbates =====")
+        # use monte carlo to select substrates
+        new_substrates = self.selection()
+
         res_dir = Path.cwd() / "results"
         if not res_dir.exists():
             res_dir.mkdir()
@@ -120,18 +142,27 @@ class AdsorbateEvolution():
             pass
         ug_path = res_dir / "ug-candidates.xyz"
 
-        check_distance = True
-        if self.mut_op == "exchange":
+        # --- unpack some params
+        for key, value in self.compositions.items():
+            species = key # atom or molecule
+            action = value["action"]
+            distance_to_site = value.get("distance_to_site", 1.5)
+            break
+        else:
+            pass
+
+        check_distance = False
+        if action == "exchange":
             check_distance = False
 
         if not ug_path.exists():
             # --- test single run
             print("--- adsorbate creation ---")
-            if self.mut_op == "add":
-                created_frames = self.add_adsorbate(new_substrates)
-            elif self.mut_op == "delete":
+            if action == "add":
+                created_frames = self.add_adsorbate(new_substrates, species, distance_to_site)
+            elif action == "delete":
                 created_frames = self.del_adsorbate(new_substrates)
-            elif self.mut_op == "exchange":
+            elif action == "exchange":
                 print("---run exchange---")
                 selected_indices = self.mut_params["selected_indices"]
                 print("for atom indices ", selected_indices)
@@ -154,7 +185,7 @@ class AdsorbateEvolution():
             # compare structures
             # --- graph
             selected_indices = [None]*len(created_frames)
-            if self.mut_op == "exchange":
+            if action == "exchange":
                 # find target species
                 for fidx, a in enumerate(created_frames):
                     s = []
@@ -162,6 +193,7 @@ class AdsorbateEvolution():
                         if x == target_species:
                             s.append(i)
                     selected_indices[fidx] = s
+
             unique_groups = self.compare_graphs(created_frames, selected_indices=selected_indices)
             print(f"number of unique groups: {len(unique_groups)}")
             unique_data = []
@@ -197,10 +229,10 @@ class AdsorbateEvolution():
             tmp_folder = Path.cwd() / "tmp_folder"
             if not tmp_folder.exists():
                 tmp_folder.mkdir()
-            worker, run_params = self.__register_worker()
             #cons = FixAtoms(indices = list(range(16)))
+            calc_xyzpath = res_dir / "calc_candidates.xyz"
 
-            with open(res_dir / "calc_candidates.xyz", "w") as fopen:
+            with open(calc_xyzpath, "w") as fopen:
                 fopen.write("")
 
             new_frames = []
@@ -210,10 +242,10 @@ class AdsorbateEvolution():
                 # TODO: skip structures
                 dump_path = tmp_folder / ("cand"+str(confid)) / "surface.dump"
                 new_atoms = atoms.copy()
-                worker.reset()
-                worker.set_output_path(tmp_folder / ("cand"+str(confid)))
+                self.worker.reset()
+                self.worker.set_output_path(tmp_folder / ("cand"+str(confid)))
                 if not dump_path.exists():
-                    new_atoms = worker.minimise(new_atoms, **run_params)
+                    new_atoms = self.worker.minimise(new_atoms, **self.dyn_params)
 
                     # NOTE: move this to dynamics calculator?
                     #energy = new_atoms.get_potential_energy()
@@ -224,9 +256,9 @@ class AdsorbateEvolution():
                     #new_atoms.calc = calc
                 else:
                     print("read existing...")
-                    new_atoms = worker.run(new_atoms, read_exists=True, **run_params)
+                    new_atoms = self.worker.run(new_atoms, read_exists=True, **self.dyn_params)
 
-                write(res_dir / "calc_candidates.xyz", new_atoms, append=True)
+                write(calc_xyzpath, new_atoms, append=True)
                 new_frames.append(new_atoms)
 
             new_frames = sorted(new_frames, key=lambda a: a.get_potential_energy(), reverse=False)
@@ -234,6 +266,7 @@ class AdsorbateEvolution():
             write(res_dir / "calc_candidates.xyz", new_frames)
 
             # compare by energies
+            # TODO: change this into comparator
             all_unique = []
             unique_groups = []
             for i, en in enumerate(new_frames):
@@ -279,16 +312,27 @@ class AdsorbateEvolution():
             with open(res_dir / "unique-ged.txt", "w") as fopen:
                 fopen.write("\n".join(unique_data))
 
-
         return
     
-    def add_adsorbate(self, frames):
+    def add_adsorbate(self, frames, species: str, distance_to_site: float = 1.5):
         """"""
+        print("start adsorbate addition")
+        # - build adsorbate
+        adsorbate = None
+        if species in ase.data.chemical_symbols:
+            adsorbate = Atoms(species, positions=[[0.,0.,0.]])
+        elif species in ase.collections.g2.names:
+            adsorbate = build.molecule(species)
+        else:
+            raise ValueError(f"Cant create species {species}")
+
         # joblib version
         st = time.time()
 
         ads_frames = Parallel(n_jobs=self.njobs)(
-            delayed(add_adsorbate)(self.graph_params, idx, a, self.adsorbate, self.check_site_unique) for idx, a in enumerate(frames)
+            delayed(add_adsorbate)(
+                self.graph_params, idx, a, adsorbate, distance_to_site, check_unique=self.check_site_unique
+            ) for idx, a in enumerate(frames)
         )
         #print(ads_frames)
 
@@ -426,36 +470,16 @@ class AdsorbateEvolution():
 
         return
     
-    def __register_worker(self):
-        #input_dict = parse_input_file("../../potential-ase.yaml")
-        #input_dict = parse_input_file("../../potential-lammps.yaml")
-        #print(input_dict)
-
-        input_dict = self.pot_params
-
-        atype_map = {}
-        for i, a in enumerate(input_dict["calc_params"]["type_list"]):
-            atype_map[a] = i
-
-        # create potential
-        mpm = PotManager() # main potential manager
-        eann_pot = mpm.create_potential(
-            pot_name = input_dict["name"],
-            # TODO: remove this kwargs
-            backend = "ase",
-            models = input_dict["calc_params"]["pair_style"]["model"],
-            type_map = atype_map
-        )
-
-        worker, run_params = eann_pot.create_worker(
-            backend = input_dict["backend"],
-            calc_params = input_dict["calc_params"],
-            dyn_params = input_dict["dyn_params"]
-        )
-        print(run_params)
-
-        return worker, run_params
-
+    def __register_worker(self, calc_dict: dict):
+        """ register serial calculator and optimisation worker
+        """
+        # NOTE: vasp not test
+        from GDPy.potential.manager import create_pot_manager
+        pm = create_pot_manager(calc_dict["potential"])
+        self.dyn_params = calc_dict["dynamics"]
+        self.worker = pm.create_worker(self.dyn_params)
+        
+        return
 
     # --- run calculation ---
     def run_calc():
