@@ -9,6 +9,7 @@ import warnings
 import subprocess
 import pathlib
 from pathlib import Path
+import dataclasses
 
 from collections.abc import Iterable
 from typing import List, Mapping, Dict, Optional
@@ -29,9 +30,13 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.lammps import unitconvert
 
 from GDPy.calculator.dynamics import AbstractDynamics
-from GDPy.utils.command import find_backups
+from GDPy.utils.command import find_backups, convert_indices
 
 class LmpDynamics(AbstractDynamics):
+
+    """ use lammps to perform dynamics
+        minimisation and/or molecular dynamics
+    """
 
     delete = []
     keyword: Optional[str] = None
@@ -43,13 +48,16 @@ class LmpDynamics(AbstractDynamics):
 
     saved_cards = ["surface.dump"]
 
-
-    def __init__(self, calc=None, directory="./"):
-
+    def __init__(self, calc=None, dynrun_params={}, directory="./"):
+        """"""
         self.calc = calc
         self.calc.reset()
 
         self.set_output_path(directory)
+
+        # - parse method
+        #self.method = dynrun_params.get("method", "min")
+        self.dynrun_params = dynrun_params
 
         return
     
@@ -71,8 +79,11 @@ class LmpDynamics(AbstractDynamics):
         """removes list of keywords (delete) from kwargs"""
         for d in self.delete:
             kwargs.pop(d, None)
+        
+        return
 
     def set_keywords(self, kwargs):
+        """"""
         args = kwargs.pop(self.keyword, [])
         if isinstance(args, str):
             args = [args]
@@ -85,19 +96,31 @@ class LmpDynamics(AbstractDynamics):
                 args.append(template.format(val))
 
         kwargs[self.keyword] = args
+
+        return
     
     def run(self, atoms, read_exists=False, **kwargs):
         """"""
+        # - backup old params
         calc_old = atoms.calc
         params_old = copy.deepcopy(self.calc.parameters)
 
-        # set special keywords
+        # - set special keywords
         # self.delete_keywords(kwargs)
         # self.delete_keywords(self.calc.parameters)
         # self.set_keywords(kwargs)
 
-        self.calc.set(**kwargs)
+        # - convert units if necessary
+        #print(self.dynrun_params)
+        new_params = self.dynrun_params.copy()
+        #print("new_params: ", new_params)
+        new_params.update(**kwargs)
+        #print("new_params: ", new_params)
+
+        self.calc.set(**new_params)
         atoms.calc = self.calc
+
+        #print(self.calc.parameters)
 
         # if not self._directory_path.exists():
         #     self._directory_path.mkdir(parents=True)
@@ -122,10 +145,12 @@ class LmpDynamics(AbstractDynamics):
         )[-1]
         sp_calc = SinglePointCalculator(new_atoms, **copy.deepcopy(self.calc.results))
         new_atoms.calc = sp_calc
-        # self.calc.parameters = params_old
-        # self.calc.reset()
-        # if calc_old is not None:
-        #     atoms.calc = calc_old
+
+        # - reset params
+        self.calc.parameters = params_old
+        self.calc.reset()
+        if calc_old is not None:
+            atoms.calc = calc_old
 
         return new_atoms
 
@@ -213,12 +238,14 @@ class Lammps(FileIOCalculator):
 
     command = "lmp 2>&1 > lmp.out"
 
+    # NOTE: here all params are in ase unit
     default_parameters = dict(
         # ase params
         steps = 0,
         fmax = 0.05, # eV, for min
         constraint = None, # index of atoms, start from 0
-        # lmp params
+        method = "min",
+        # --- lmp params ---
         units = "metal",
         atom_style = "atomic",
         processors = "* * 1",
@@ -227,6 +254,13 @@ class Lammps(FileIOCalculator):
         pair_coeff = None,
         mass = "* 1.0",
         dump_period = 1,
+        # - md
+        md_style = "nvt",
+        timestep = 1.0, # fs
+        temp = 300,
+        pres = 1.0,
+        Tdamp = 100, # fs
+        Pdamp = 100,
         # - minimisation
         min_style = "fire",
     )
@@ -402,31 +436,74 @@ class Lammps(FileIOCalculator):
         content += "\n"
 
         # constraint
-        constraint = self.parameters["constraint"]
+        constraint = self.parameters["constraint"] # lammps convention
         if constraint is not None:
             # content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
             content += "group frozen id %s\n" %constraint
-            content += "fix 1 frozen setforce 0.0 0.0 0.0\n"
+            content += "fix cons frozen setforce 0.0 0.0 0.0\n"
+            frozen_indices = convert_indices(constraint)
+            mobile_indices = [x for x in range(1,len(self.atoms)+1) if x not in frozen_indices]
+            mobile_text = convert_indices(mobile_indices)
+            content += "group mobile id %s\n" %mobile_text
+            content += "\n"
+        else:
+            mobile_indices = [x+1 for x in range(len(self.atoms))]
+            mobile_text = convert_indices(mobile_indices)
+            content += "group mobile id %s\n" %mobile_text
             content += "\n"
 
         # outputs
-        content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
-        content += "thermo          {}\n".format(self.dump_period) # TODO: save freq
+        # TODO: use more flexible notations
+        if self.method == "min":
+            content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
+        elif self.method == "md":
+            content += "compute mobileTemp mobile temp\n"
+            content += "thermo_style    custom step c_mobileTemp pe ke etotal press vol lx ly lz xy xz yz\n"
+        else:
+            pass
+        content += "thermo          {}\n".format(self.dump_period) 
+
         # TODO: How to dump total energy?
         content += "dump		1 all custom {} surface.dump id type x y z fx fy fz\n".format(self.dump_period)
         content += "\n"
         
-        # minimisation
-        content += "min_style       fire\n"
-        content += "min_modify      integrator verlet tmax 4 # see more on lammps doc about min_modify\n"
-        content += "minimize        0.0 %f %d %d # energy tol, force tol, step, force step\n" %(
-            unitconvert.convert(self.fmax, "force", "ASE", self.units),
-            self.steps, 2.0*self.steps
-        )
+        # --- run type
+        if self.method == "min":
+            # - minimisation
+            content += "min_style       fire\n"
+            content += "min_modify      integrator verlet tmax 4 # see more on lammps doc about min_modify\n"
+            content += "minimize        0.0 %f %d %d # energy tol, force tol, step, force step\n" %(
+                unitconvert.convert(self.fmax, "force", "ASE", self.units),
+                self.steps, 2.0*self.steps
+            )
+        elif self.method == "md":
+            content += "velocity        mobile create {} {}\n".format(self.temp, np.random.randint(0,10000))
+        
+            if self.md_style == "nvt":
+                Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
+                content += "fix             thermostat all nvt temp {} {} {}\n".format(
+                    self.temp, self.temp, Tdamp_
+                )
+            elif self.md_style == "npt":
+                pres_ = unitconvert.convert(self.pres, "pressure", "ASE", self.units)
+                Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
+                Pdamp_ = unitconvert.convert(self.Pdamp, "time", "real", self.units)
+                content += "fix             thermostat all npt temp {} {} {} aniso {} {} {}\n".format(
+                    self.temp, self.temp, Tdamp_, pres_, pres_, Pdamp_
+                )
+            elif self.md_style == "nve":
+                content += "fix             thermostat all nve \n"
+
+            timestep_ = unitconvert.convert(self.timestep, "time", "real", self.units)
+            content += "\n"
+            content += f"timestep        {timestep_}\n"
+            content += f"run             {self.steps}\n"
 
         in_file = os.path.join(self.directory, "in.lammps")
         with open(in_file, "w") as fopen:
             fopen.write(content)
+        
+        exit()
 
         return
  
@@ -438,14 +515,17 @@ if __name__ == "__main__":
     calc = Lammps(
         command = "lmp_cat -in ./in.lammps 2>&1 > lmp.out",
         directory =  "./LmpMin-worker",
-        pair_style = {
-            "file": "/mnt/scratch2/users/40247882/catsign/eann-main/m01r/ensemble/model-0/eann_best_lmp_DOUBLE.pt",
-            "model": "eann"
-        }
+        pair_style = "eann /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ensemble/model-2/eann_latest_lmp_DOUBLE.pt"
     )
-    print(calc.steps)
-    calc.steps = 100
-    print(calc.steps)
+
+    atoms = read("/mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ga/rs/uged-calc_candidates.xyz", "0")
+
+    # test dataclass
+    from GDPy.expedition.sample_main import MDParams
+    dynrun_params = dataclasses.asdict(MDParams())
+    worker = LmpDynamics(calc, dynrun_params=dynrun_params, directory="./LmpWorker")
+    worker.run(atoms, steps=1, constraint="1:16")
+
     exit()
 
     atoms = read("/mnt/scratch2/users/40247882/catsign/eann-main/m01r/ga-surface/cand2.xyz")
