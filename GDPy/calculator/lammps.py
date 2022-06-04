@@ -32,6 +32,12 @@ from ase.calculators.lammps import unitconvert
 from GDPy.calculator.dynamics import AbstractDynamics
 from GDPy.utils.command import find_backups, convert_indices
 
+dataclasses.dataclass(frozen=True)
+class AseLammpsSettings:
+
+    pass
+
+
 class LmpDynamics(AbstractDynamics):
 
     """ use lammps to perform dynamics
@@ -102,7 +108,8 @@ class LmpDynamics(AbstractDynamics):
     def run(self, atoms, read_exists=False, **kwargs):
         """"""
         # - backup old params
-        calc_old = atoms.calc
+        # TODO: change to context message?
+        calc_old = atoms.calc 
         params_old = copy.deepcopy(self.calc.parameters)
 
         # - set special keywords
@@ -120,12 +127,7 @@ class LmpDynamics(AbstractDynamics):
         self.calc.set(**new_params)
         atoms.calc = self.calc
 
-        #print(self.calc.parameters)
-
-        # if not self._directory_path.exists():
-        #     self._directory_path.mkdir(parents=True)
-
-        # run dynamics
+        # - run dynamics
         try:
             if not read_exists:
                 _  = atoms.get_forces()
@@ -346,22 +348,34 @@ class Lammps(FileIOCalculator):
 
         # Be careful with UNITS
         # read energy
-        with open(os.path.join(self.directory, 'log.lammps'), 'r') as fopen:
+        with open(os.path.join(self.directory, "log.lammps"), "r") as fopen:
             lines = fopen.readlines()
-        for idx, line in enumerate(lines):
-            if line.startswith('Minimization stats:'):
-                stat_idx = idx
-                break
-        else:
-            raise ValueError('error in lammps minimization.')
-        self.results["energy"] = float(lines[stat_idx+3].split()[-1]) * self.CONVERTOR[self.units]
+        if self.method == "min":
+            for idx, line in enumerate(lines):
+                if line.startswith("Minimization stats:"):
+                    stat_idx = idx
+                    break
+            else:
+                raise ValueError("error in lammps minimization.")
+            energy = float(lines[stat_idx+3].split()[-1])
+        elif self.method == "md":
+            # TODO: should be consistent with thermo outputs
+            for idx, line in enumerate(lines):
+                if line.startswith("Loop time"):
+                    stat_idx = idx
+                    break
+            else:
+                raise ValueError("error in lammps minimization.")
+            energy = float(lines[stat_idx-1].split()[2])
+
+        self.results["energy"] = unitconvert.convert(energy, "energy", self.units, "ASE")
 
         # read forces from dump file
         dump_atoms = read(
-            os.path.join(self.directory, 'surface.dump'), ':', 'lammps-dump-text', 
+            os.path.join(self.directory, "surface.dump"), ":", "lammps-dump-text", 
             specorder=self.specorder, units=self.units
         )[-1]
-        self.results['forces'] = dump_atoms.get_forces() * self.CONVERTOR[self.units]
+        self.results["forces"] = unitconvert.convert(dump_atoms.get_forces(), "force", self.units, "ASE")
 
         return
     
@@ -413,7 +427,6 @@ class Lammps(FileIOCalculator):
         #    content += "pair_coeff	\n" 
         #    content += "neighbor        0.0 bin\n"
         #    content += "\n"
-        content += "pair_style  {}\n".format(self.pair_style)
         #if self.pair_coeff is not None:
         #    content += "pair_coeff  {}\n".format(self.pair_coeff)
         
@@ -422,9 +435,23 @@ class Lammps(FileIOCalculator):
         potential = self.pair_style.strip().split()[0]
         if potential == "reax/c":
             assert self.atom_style == "charge", "reax/c should have charge atom_style"
+            content += "pair_style  {}\n".format(self.pair_style)
             content += "neighbor        0.0 bin\n"
             content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
         elif potential == "eann":
+            pot_data = self.pair_style.strip().split()[1:]
+            endp = len(pot_data)
+            for ip, p in enumerate(pot_data):
+                if p == "out_freq":
+                    endp = ip
+                    break
+            pot_data = pot_data[:endp]
+            if len(pot_data) > 1:
+                pair_style = "eann {} out_freq {}".format(" ".join(pot_data), self.dump_period)
+            else:
+                pair_style = "eann {}".format(" ".join(pot_data))
+            content += "pair_style  {}\n".format(pair_style)
+            # NOTE: make out_freq consistent with dump_period
             if self.pair_coeff is None:
                 pair_coeff = "double * *"
             else:
@@ -432,6 +459,7 @@ class Lammps(FileIOCalculator):
             content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.specorder))
             content += "neighbor        0.0 bin\n"
         elif potential == "deepmd":
+            content += "pair_style  {}\n".format(self.pair_style)
             content += "neighbor        0.0 bin\n"
         content += "\n"
 
@@ -502,8 +530,6 @@ class Lammps(FileIOCalculator):
         in_file = os.path.join(self.directory, "in.lammps")
         with open(in_file, "w") as fopen:
             fopen.write(content)
-        
-        exit()
 
         return
  

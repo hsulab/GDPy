@@ -88,13 +88,13 @@ class AbstractPotential(abc.ABC):
         elif dynamics == "lammps":
             from GDPy.calculator.lammps import LmpDynamics as dyn
             # use lammps optimisation
-            worker = dyn(calc, directory=calc.directory)
+            worker = dyn(calc, dynrun_params=dynrun_params, directory=calc.directory)
             #else:
             #    raise NotImplementedError("no other eann lammps dynamics")
         elif dynamics == "lasp":
             from GDPy.calculator.lasp import LaspDynamics as dyn
             worker = dyn(calc, directory=calc.directory)
-
+        
         return worker
 
 class RXManager(AbstractPotential):

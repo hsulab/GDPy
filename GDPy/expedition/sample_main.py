@@ -6,17 +6,22 @@ import time
 import shutil
 import json
 import sys
-from typing import Counter, Union
+import itertools
+from typing import Counter, Union, List
 import warnings
 import pathlib
 from joblib import Parallel, delayed
 import numpy as np
 import numpy.ma as ma
 
+import dataclasses
+from dataclasses import dataclass, field
+
 from ase import Atoms
 from ase.io import read, write
 from ase.io.lammpsrun import read_lammps_dump_text
 from ase.data import atomic_numbers, atomic_masses
+from ase.constraints import constrained_indices, FixAtoms
 
 from GDPy.calculator.ase_interface import AseInput
 from GDPy.calculator.inputs import LammpsInput
@@ -24,9 +29,66 @@ from GDPy.calculator.inputs import LammpsInput
 from GDPy.machine.machine import SlurmMachine
 
 from GDPy.utils.data import vasp_creator, vasp_collector
+from GDPy.utils.command import parse_input_file, convert_indices
+
+from GDPy.expedition.abstract import AbstractExplorer
 
 
-class Sampler():
+@dataclasses.dataclass
+class MDParams:        
+
+    #unit = "ase"
+    method: str = "md"
+    md_style: str = "nvt" # nve, nvt, npt
+    steps: int = 0 
+    dump_period: int = 1 
+    timestep: float = 2 # fs
+    temp: float = 300 # Kelvin
+    pres: float = -1 # bar
+
+    # fix nvt/npt/nph
+    Tdamp: float = 100 # fs
+    Pdamp: float = 500 # fs
+
+    def __post_init__(self):
+        """ unit convertor
+        """
+
+        return
+
+def create_dataclass_from_dict(dcls: dataclasses.dataclass, params: dict) -> List[dataclasses.dataclass]:
+    """ create a series of dcls instances
+    """
+    # NOTE: onlt support one param by list
+    # - find longest params
+    plengths = []
+    for k, v in params.items():
+        if isinstance(v, list):
+            n = len(v)
+        else: # int, float, string
+            n = 1
+        plengths.append((k,n))
+    plengths = sorted(plengths, key=lambda x:x[1])
+    # NOTE: check only has one list params
+    assert sum([p[1] > 1 for p in plengths]) <= 1, "only accept one param as list."
+
+    # - convert to dataclass
+    dcls_list = []
+    maxname, maxlength = plengths[-1]
+    for i in range(maxlength):
+        cur_params = {}
+        for k, n in plengths:
+            if n > 1:
+                v = params[k][i]
+            else:
+                v = params[k]
+            cur_params[k] = v
+        dcls_list.append(dcls(**cur_params))
+
+    return dcls_list
+
+
+class MDBasedExpedition(AbstractExplorer):
 
     """
     Exploration Strategies
@@ -40,6 +102,9 @@ class Sampler():
     
     Units
         fs, eV, eV/AA
+    
+    Workflow
+        create(run)-collect-select-calculate-harvest
     """
 
     method = "MD" # nve, nvt, npt
@@ -78,31 +143,20 @@ class Sampler():
         ignore_exists = False
     )
 
-
     def __init__(self, pm, main_dict: dict):
         """"""
         self.pot_manager = pm
-        self.type_map = main_dict['type_map']
-        self.type_list = list(self.type_map.keys())
+        self._register_type_map(main_dict)
+        #assert self.pot_manager.type_map == self.type_map, 'type map should be consistent'
+
         self.explorations = main_dict['explorations']
         self.init_systems = main_dict['systems']
 
-        assert self.pot_manager.type_map == self.type_map, 'type map should be consistent'
+        self._parse_general_params(main_dict)
 
         # for job prefix
         self.job_prefix = ""
 
-        # parse a few general parameters
-        general_params = main_dict.get("general", self.general_params)
-        self.ignore_exists = general_params.get("ignore_exists", self.general_params["ignore_exists"])
-        print("IGNORE_EXISTS ", self.ignore_exists)
-
-        # database path
-        main_database = main_dict.get("dataset", None) #"/users/40247882/scratch2/PtOx-dataset"
-        if main_database is None:
-            raise ValueError("dataset should not be None")
-        else:
-            self.main_database = pathlib.Path(main_database)
 
         return
     
@@ -122,134 +176,94 @@ class Sampler():
 
         return temperatures, pressures, sample_variables
     
-    def run(self, operator, working_directory): 
-        """create for all explorations"""
-        working_directory = pathlib.Path(working_directory)
-        self.job_prefix = working_directory.resolve().name # use resolve to get abspath
-        print("job prefix: ", self.job_prefix)
-        for exp_name in self.explorations.keys():
-            exp_directory = working_directory / exp_name
-            # note: check dir existence in sub function
-            operator(exp_name, working_directory)
+    def _parse_dyn_params(self, exp_dict: dict):
+        """ create a list of workers based on dyn params
+        """
+        dyn_params = exp_dict["dynamics"]
+        #print(dyn_params)
 
-        return 
+        backend = dyn_params.pop("backend", None)
+
+        #for m in itertools.zip_longest():
+        #    return
+        p = MDParams(**dyn_params)
+        dcls_list = create_dataclass_from_dict(MDParams, dyn_params)
+
+        workers = []
+        for p in dcls_list:
+            p_ = dataclasses.asdict(p)
+            p_.update(backend=backend)
+            worker = self.pot_manager.create_worker(p_)
+            workers.append(worker)
+
+        return workers
 
     def icreate(self, exp_name, working_directory):
         """create for each exploration"""
+        # - a few info
         exp_dict = self.explorations[exp_name]
         job_script = exp_dict.get('jobscript', None)
         included_systems = exp_dict.get('systems', None)
-        if included_systems is not None:
-            # check potential parameters
-            #potential = exp_dict.pop("potential", None) 
-            #if potential not in self.supported_potentials:
-            #    raise ValueError("Potential %s is not supported..." %potential)
 
-            # MD exploration params
-            exp_params = exp_dict['params']
-            thermostat = exp_params.pop('thermostat', None)
-            temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
+        # - check info
+        if included_systems is not None:
+            # NOTE: create a list of workers
+            workers = self._parse_dyn_params(exp_dict)
+
             # loop over systems
             for slabel in included_systems:
-                system_dict = self.init_systems[slabel] # system name
-                structure = system_dict['structure']
+                # - result path
+                name_path = working_directory / exp_name / slabel
+                if not name_path.exists():
+                    name_path.mkdir(parents=True)
+                else:
+                    # TODO: check ignore_exists
+                    pass
+                # NOTE: since multiple explorations are applied to one system, 
+                # a metedata file shall be created to log the parameters
+                # TODO: a better format
+                with open(name_path / "metadata.txt", "w") as fopen:
+                    fopen.write(str([w.dynrun_params for w in workers]))
+                
+                # - parse structure and composition
+                system_dict = self.init_systems.get(slabel, None) # system name
+                if system_dict is None:
+                    raise ValueError(f"Find unexpected system {system_dict}.")
                 scomp = system_dict['composition'] # system composition
                 atypes = []
                 for atype, number in scomp.items():
                     if number > 0:
                         atypes.append(atype)
+                sys_cons_text = system_dict.get('constraint', None)
 
-                cons = system_dict.get('constraint', None)
-                name_path = working_directory / exp_name / (slabel+'-'+thermostat)
-                # create directories
-                # check single data or a list of structures
-                runovers = [] # [(structure,working_dir),...,()]
-                if structure.endswith('.data'):
-                    runovers.append((structure,name_path))
-                else:
-                    data_path = pathlib.Path(system_dict['structure'])
-                    for f in data_path.glob(slabel+'*'+'.data'):
-                        cur_path = name_path / f.stem
-                        runovers.append((f, cur_path))
-                # create all 
-                calc_input = self.create_input(self.pot_manager, atypes, sample_variables) # use inputs with preset md params
-                for (stru_path, work_path) in runovers:
+                # - read structures
+                # the expedition can start with different initial configurations
+                stru_path = system_dict["structure"]
+                frames = read(stru_path, ":")
+
+                # - run over systems
+                for iframe, atoms in enumerate(frames):
+                    name = atoms.info.get("name", "f"+str(iframe))
+                    # TODO: check if atoms have constraint
+                    cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
+                    if cons_indices.size > 0:
+                        # convert to lammps convention
+                        cons_indices += 1
+                        cons_text = convert_indices(cons_indices.tolist())
+                    else:
+                        cons_text = sys_cons_text
+                    print("cons_text: ", cons_text)
+
+                    work_path = name_path / name
                     print(work_path)
-                    self.create_exploration(
-                        work_path, job_script, calc_input, stru_path, cons, temperatures, pressures
-                    )
 
-        return
-    
-    def create_input(
-        self, pot_manager, 
-        atypes: list,
-        md_params: dict
-    ):
-        """ create calculation input object
-        """
-        # create calculation input object
-        calc = pot_manager.generate_calculator(atypes)
-        if pot_manager.backend == "ase":
-            calc_input = AseInput(atypes, calc, md_params)
-        elif pot_manager.backend == "lammps":
-            calc_input = LammpsInput(atypes, calc, md_params)
-
-        return calc_input
-    
-    def create_exploration(self, name_path, job_script, calc_input, structure, cons, temperatures, pressures):
-        """"""
-        try:
-            name_path.mkdir(parents=True)
-            print('create this %s' %name_path)
-            # create job script
-            if job_script is not None:
-                job_script = pathlib.Path(job_script)
-                ## shutil.copy(job_script, name_path / job_script.name)
-                #with open(name_path / job_script.name, 'w') as fopen:
-                #    fopen.write(create_test_slurm(name_path.name))
-                slurm = SlurmMachine(job_script)
-                slurm.machine_dict["job-name"] = self.job_prefix + "-" + name_path.name
-                slurm.write(name_path / job_script.name)
-
-        except FileExistsError:
-            print('skip this %s' %name_path)
-            return
-        
-        # bind structure
-        calc_input.bind_structure(structure, cons)
-        
-        # create input directories with various thermostats
-        if calc_input.thermostat == 'nvt':
-            for temp in temperatures:
-                temp_dir = name_path / str(temp)
-                try:
-                    temp_dir.mkdir(parents=True)
-                except FileExistsError:
-                    print('skip this %s' %temp_dir)
-                    continue
-                calc_input.temp = temp
-                calc_input.write(temp_dir)
-        elif calc_input.thermostat == 'npt':
-            for temp in temperatures:
-                for pres in pressures:
-                    temp_dir = name_path / (str(temp)+'_'+str(pres))
-                    try:
-                        temp_dir.mkdir(parents=True)
-                    except FileExistsError:
-                        print('skip this %s' %temp_dir)
-                        continue
-                    calc_input.temp = temp
-                    calc_input.pres = pres
-                    calc_input.write(temp_dir)
-        else:
-            raise NotImplementedError('no other thermostats')
-        
-        # TODO: submit job
-        # if not dry-run
-        output = slurm.submit(name_path / job_script.name)
-        print("try to submit: ", name_path / job_script.name)
-        print(output)
+                    # - run simulation
+                    for iw, worker in enumerate(workers):
+                        worker.set_output_path(work_path/("w"+str(iw)))
+                        # TODO: run directly or attach a machine
+                        new_atoms = worker.run(atoms, constraint=cons_text)
+                        print(new_atoms)
+                        print(new_atoms.get_potential_energy())
 
         return
     
@@ -267,9 +281,14 @@ class Sampler():
         if included_systems is not None:
             md_prefix = working_directory / exp_name
             print("checking system %s ..."  %md_prefix)
+
+            # TODO: create a list of workers
             exp_params = exp_dict['params']
             thermostat = exp_params.pop('thermostat', None)
             temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
+
+            # NOTE: since multiple explorations are applied to one system, 
+            # a metedata file shall be created to log the parameters
 
             # loop over systems
             for slabel in included_systems:
@@ -685,21 +704,18 @@ class Sampler():
         return
     
 
-def run_exploration(pot_json, exp_json, chosen_step, global_params = None):
-    from GDPy.potential.manager import create_manager
-    pm = create_manager(pot_json)
-    print(pm.models)
-
+def run_exploration(pot_manager, exp_json, chosen_step, global_params = None):
     # create exploration
-    with open(exp_json, 'r') as fopen:
-        exp_dict = json.load(fopen)
-    
+    #with open(exp_json, 'r') as fopen:
+    #    exp_dict = json.load(fopen)
+    exp_dict = parse_input_file(exp_json)
+
     method = exp_dict.get("method", "MD")
     if method == "MD":
-        scout = Sampler(pm, exp_dict)
+        scout = MDBasedExpedition(pot_manager, exp_dict)
     elif method == "GA":
         from GDPy.expedition.structure_exploration import RandomExplorer
-        scout = RandomExplorer(pm, exp_dict)
+        scout = RandomExplorer(pot_manager, exp_dict)
     else:
         raise ValueError(f"Unknown method {method}")
 
