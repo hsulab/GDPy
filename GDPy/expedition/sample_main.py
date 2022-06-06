@@ -32,7 +32,7 @@ from GDPy.utils.data import vasp_creator, vasp_collector
 from GDPy.utils.command import parse_input_file, convert_indices
 
 from GDPy.expedition.abstract import AbstractExplorer
-from GDPy.selector.abstract import DeviationSelector
+from GDPy.selector.abstract import create_selector
 
 
 @dataclasses.dataclass
@@ -249,21 +249,10 @@ class MDBasedExpedition(AbstractExplorer):
         exp_dict = self.explorations[exp_name]
         # - create a selector
         # TODO: use function from selector
-        selector = None
         selection_params = exp_dict.get("selection", None)
-        if selection_params is not None:
-            print(selection_params)
-            for s in selection_params:
-                if s["method"] == "deviation":
-                    selector = DeviationSelector(s["criteria"])
+        selectors = create_selector(selection_params)
 
-        # deviation
-        if self.default_params["collect"]["deviation"] is None:
-            devi = exp_dict.get('deviation', None)
-        else:
-            devi = self.default_params["collect"]["deviation"]
-            print("deviation: ", devi)
-
+        # - run over systems
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
             # NOTE: create a list of workers
@@ -320,14 +309,8 @@ class MDBasedExpedition(AbstractExplorer):
                         sys_frames.extend(traj_frames)
             
                 # - systemwise selection
-                if selector is not None:
-                    print("ncandidates: ", len(sys_frames))
-                    energy_deviations = [a.info["max_devi_e"] for a in sys_frames]
-                    force_deviations = [a.info["max_devi_f"] for a in sys_frames]
-                    selected_indices = selector.select(energy_deviations, force_deviations)
-                    selected_frames = [sys_frames[i] for i in selected_indices]
-                    print("nselected: ", len(selected_frames))
-
+                if selectors is not None:
+                    # -- create dir
                     sorted_path = name_path / "sorted"
                     if sorted_path.exists():
                         if self.ignore_exists:
@@ -339,158 +322,18 @@ class MDBasedExpedition(AbstractExplorer):
                             continue
                     else:
                         sorted_path.mkdir()
+                    # -- perform selections
+                    cur_frames = sys_frames
+                    for isele, selector in enumerate(selectors):
+                        # TODO: add info to selected frames
+                        print(f"--- Selection {isele} Method {selector.name}---")
+                        print("ncandidates: ", len(cur_frames))
+                        cur_frames = selector.select(cur_frames)
+                        print("nselected: ", len(cur_frames))
                     
-                    write(sorted_path/"selected.xyz", selected_frames)
+                        write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
 
         return
-    
-    def extract_deviation(self, cur_dir, frames, devi=None):
-        # read deviation
-        if devi is not None:
-            low_devi, high_devi = devi
-            devi_out = cur_dir / 'model_devi.out'
-            # TODO: DP and EANN has different formats
-            # max_fdevi = np.loadtxt(devi_out)[1:,4] # DP
-            max_fdevi = np.loadtxt(devi_out)[1:,5] # EANN
-
-            err =  '%d != %d' %(len(frames), max_fdevi.shape[0])
-            assert len(frames) == max_fdevi.shape[0], err # not necessary
-
-            max_fdevi = max_fdevi.flatten().tolist() # make it a list
-            unlearned_generator = filter(
-                lambda x: True if low_devi < x[1] < high_devi else False,
-                zip(frames,max_fdevi)
-            )
-            unlearned_frames = [x[0] for x in list(unlearned_generator)]
-
-            nlearned = len(list(filter(lambda x: True if x < low_devi else False, max_fdevi)))
-            nfailed = len(list(filter(lambda x: True if x > high_devi else False, max_fdevi)))
-            print(
-                'learned: %d candidate: %d failed: %d\n' 
-                %(nlearned,len(unlearned_frames),nfailed)
-            )
-            # print(unlearned_frames)
-            frames = unlearned_frames
-        else:
-            pass
-
-        return frames
-    
-    def iselect(self, exp_name, working_directory):
-        """select data from single calculation"""
-        exp_dict = self.explorations[exp_name]
-
-        #pattern = "surf-9O*"
-        pattern = "O*"
-
-        included_systems = exp_dict.get('systems', None)
-        if included_systems is not None:
-            md_prefix = working_directory / exp_name
-            print("checking system %s ..."  %md_prefix)
-            exp_params = exp_dict['params']
-            thermostat = exp_params.pop('thermostat', None)
-            #temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
-
-            selected_numbers = exp_dict["selection"]["num"]
-            if isinstance(selected_numbers, list):
-                assert len(selected_numbers) == len(included_systems), "each system must have a number"
-            else:
-                selected_numbers = selected_numbers * len(included_systems)
-
-            # loop over systems
-            for slabel, num in zip(included_systems, selected_numbers):
-                if num <= 0:
-                    print("selected number is zero...")
-                    continue
-                if re.match(pattern, slabel):
-                    # TODO: better use OrderedDict
-                    system_dict = self.init_systems[slabel] # system name
-                    if thermostat == "nvt":
-                        sys_prefix = md_prefix / (slabel+'-'+thermostat)
-                        if (sys_prefix / (slabel + '-tot-sel.xyz')).exists():
-                            if self.ignore_exists:
-                                warnings.warn('selected xyz removed in %s' %sys_prefix, UserWarning)
-                                shutil.remove(sys_prefix / (slabel + '-tot-sel.xyz'))
-                            else:
-                                warnings.warn('sorted_path exists in %s' %sys_prefix, UserWarning)
-                                continue
-                        else:
-                            pass
-
-                        if False: # run over configurations
-                            sorted_dirs = []
-                            for p in sys_prefix.glob(pattern):
-                                sorted_dirs.append(p)
-                            sorted_dirs.sort()
-
-                            total_selected_frames = []
-                            for p in sorted_dirs:
-                                print(p)
-                                selected_frames = self.perform_cur(p, slabel, exp_dict)
-                                total_selected_frames.extend(selected_frames)
-                            write(sys_prefix / (slabel + '-tot-sel.xyz'), total_selected_frames)
-
-                        else:
-                            selected_frames = self.perform_cur(sys_prefix, slabel, exp_dict, num)
-                            if selected_frames is None:
-                                print("No candidates in {0}".format(sys_prefix))
-                            else:
-                                write(sys_prefix / (slabel + '-tot-sel.xyz'), selected_frames)
-                    else:
-                        # TODO: npt
-                        pass
-                else:
-                    warnings.warn('%s is not valid for the pattern %s.' %(slabel, pattern), UserWarning)
-
-        return
-    
-    def perform_cur(self, cur_prefix, slabel, exp_dict, num):
-        """"""
-        soap_parameters = exp_dict['selection']['soap']
-        njobs = exp_dict['selection']['njobs']
-        zeta, strategy = exp_dict['selection']['selection']['zeta'], exp_dict['selection']['selection']['strategy']
-
-        sorted_path = cur_prefix / 'sorted'
-        print("===== selecting system %s =====" %cur_prefix)
-        if sorted_path.exists():
-            all_xyz = sorted_path / str(slabel+'_ALL.xyz')
-            if all_xyz.exists():
-                print('wang')
-                # read structures and calculate features 
-                frames = read(all_xyz, ':')
-                features_path = sorted_path / 'features.npy'
-                print(features_path.exists())
-                if features_path.exists():
-                    features = np.load(features_path)
-                    assert features.shape[0] == len(frames)
-                else:
-                    print('start calculating features...')
-                    features = calc_feature(frames, soap_parameters, njobs, features_path)
-                    print('finished calculating features...')
-                # cur decomposition 
-                cur_scores, selected = cur_selection(features, num, zeta, strategy)
-                content = '# idx cur sel\n'
-                for idx, cur_score in enumerate(cur_scores):
-                    stat = 'F'
-                    if idx in selected:
-                        stat = 'T'
-                    content += '{:>12d}  {:>12.8f}  {:>2s}\n'.format(idx, cur_score, stat) 
-                with open(sorted_path / 'cur_scores.txt', 'w') as writer:
-                    writer.write(content)
-
-                selected_frames = []
-                print("Writing structure file... ")
-                for idx, sidx in enumerate(selected):
-                    selected_frames.append(frames[int(sidx)])
-                write(sorted_path / (slabel+'-sel.xyz'), selected_frames)
-                print('')
-            else:
-                # no candidates
-                selected_frames = None
-        else:
-            raise ValueError('miaow')
-        
-        return selected_frames
     
     def icalc(self, exp_name, working_directory):
         """calculate configurations with reference method"""

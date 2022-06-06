@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from select import select
+from typing import Union, List
+
 import numpy as np
 
 from pathlib import Path
 
-from dscribe.descriptors import SOAP
+from ase import Atoms
 
+from dscribe.descriptors import SOAP
 from GDPy.selector.cur import cur_selection
+
+from GDPy import config
+
+""" Various Selection Protocols
+"""
 
 class DeviationSelector():
 
+    # TODO: should be arbitrary property deviation
+    # not only energy and force
+
+    name = "deviation"
     selection_criteria = "deviation"
 
     deviation_criteria = dict(
@@ -23,13 +34,20 @@ class DeviationSelector():
 
     def __init__(
         self,
+        properties: dict,
         criteria: dict,
-        potential # file
+        potential = None # file
     ):
         self.deviation_criteria = criteria
         self.__parse_criteria()
 
         self.__register_potential(potential)
+
+        # - parse properties
+        # TODO: select on properties not only on fixed name (energy, forces)
+        # if not set properly, will try to call calculator
+        self.energy_tag = properties["atomic_energy"]
+        self.force_tag = properties["force"]
 
         return
     
@@ -72,6 +90,7 @@ class DeviationSelector():
     
     def calculate(self, frames):
         """"""
+        # TODO: move this part to potential manager?
         if self.calc is None:
             raise RuntimeError("calculator is not set properly...")
         
@@ -80,7 +99,7 @@ class DeviationSelector():
         
         for atoms in frames:
             self.calc.reset()
-            self.calc.calc_uncertainty = True
+            self.calc.calc_uncertainty = True # TODO: this is not a universal interface
             atoms.calc = self.calc
             # obtain results
             energy = atoms.get_potential_energy()
@@ -95,7 +114,20 @@ class DeviationSelector():
 
         return (energies, maxforces, energy_deviations, force_deviations)
     
-    def select(self, energy_deviations, force_deviations = None):
+    def select(self, frames, index_map=None) -> List[Atoms]:
+        """"""
+        energy_deviations = [a.info[self.energy_tag] for a in frames]
+        force_deviations = [a.info[self.force_tag] for a in frames]
+        selected_indices = self._select_indices(energy_deviations, force_deviations)
+
+        # map selected indices
+        if index_map is not None:
+            selected_indices = [index_map[s] for s in selected_indices]
+        selected_frames = [frames[i] for i in selected_indices]
+
+        return selected_frames
+    
+    def _select_indices(self, energy_deviations, force_deviations = None) -> List[int]:
         """
         """
         if force_deviations is not None:
@@ -109,7 +141,6 @@ class DeviationSelector():
         
         # NOTE: deterministic selection
         selected = []
-        criteria = []
         for idx, (en_devi, force_devi) in enumerate(zip(energy_deviations, force_deviations)):
             if self.use_ae:
                 if emin < en_devi < emax:
@@ -122,7 +153,7 @@ class DeviationSelector():
 
         return selected
     
-    def __register_potential(self, potential):
+    def __register_potential(self, potential=None):
         """"""
         # load potential
         from GDPy.potential.manager import create_manager
@@ -142,8 +173,9 @@ class DeviationSelector():
 
         return
 
-class Selector():
+class DescriptorBasedSelector():
 
+    name = "descriptor"
     selection_criteria = "geometry"
 
     """
@@ -165,27 +197,30 @@ class Selector():
         }
     }
     """
-    njobs = 4
+
+    njobs = 1
 
     verbose = False
 
     def __init__(
         self, 
-        desc_dict,
-        selec_dict,
-        res_dir,
-        njobs = 4
+        descriptor,
+        criteria,
+        directory = Path.cwd()
     ):
-        self.desc_dict = desc_dict
-        self.selec_dict = selec_dict
+        self.desc_dict = descriptor
+        self.selec_dict = criteria
 
-        self.res_dir = Path(res_dir)
+        self.res_dir = Path(directory)
 
-        self.njobs = njobs
+        self.njobs = config.NJOBS
+
+        print("selector uses njobs ", self.njobs)
 
         return
 
     def calc_desc(self, frames):
+        """"""
         # calculate descriptor to select minimum dataset
 
         features_path = self.res_dir / "features.npy"
@@ -200,48 +235,47 @@ class Selector():
         #    print('finished calculating features...')
 
         print("start calculating features...")
-        features = self.calc_feature(frames, self.desc_dict, self.njobs, features_path)
+        desc_params = self.desc_dict.copy()
+        desc_name = desc_params.pop("name", None)
+
+        features = None
+        if desc_name == "soap":
+            soap = SOAP(**desc_params)
+            print("descriptor dimension: ", soap.get_number_of_features())
+            features = soap.create(frames, n_jobs=self.njobs)
+        else:
+            raise RuntimeError(f"Unknown descriptor {desc_name}.")
         print("finished calculating features...")
+
+        # save calculated features 
+        if self.verbose:
+            np.save(features_path, features)
+            print('number of soap instances', len(features))
 
         return features
 
-    def calc_feature(self, frames, soap_parameters, njobs=1, saved_npy="features.npy"):
-        """ Calculate feature vector for each configuration 
-        """
-        soap = SOAP(
-            **soap_parameters
-        )
+    def select(self, frames, index_map=None) -> List[Atoms]:
+        """"""
+        features = self.calc_desc(frames)
 
-        print(soap.get_number_of_features())
+        selected_indices = self._select_indices(features)
+        # map selected indices
+        if index_map is not None:
+            selected_indices = [index_map[s] for s in selected_indices]
+        # if manually_selected is not None:
+        #    selected.extend(manually_selected)
+        selected_frames = [frames[i] for i in selected_indices]
 
-        # TODO: must use outer average? more flexible features 
-        soap_instances = soap.create(frames, n_jobs=njobs)
-        #for cur_soap, atoms in zip(soap_instances, frames):
-        #    atoms.info['feature_vector'] = cur_soap
+        return selected_frames
 
-        # save calculated features 
-        np.save(saved_npy, soap_instances)
-
-        print('number of soap instances', len(soap_instances))
-
-        return soap_instances
-
-
-    def select_structures(
-        self, features, num, index_map=None
-    ):
+    def _select_indices(self, features):
         """ 
         """
         # cur decomposition
         cur_scores, selected = cur_selection(
-            features, num, self.selec_dict["zeta"], self.selec_dict["strategy"]
+            features, self.selec_dict["number"],
+             self.selec_dict["zeta"], self.selec_dict["strategy"]
         )
-
-        # map selected indices
-        if index_map is not None:
-            selected = [index_map[s] for s in selected]
-        # if manually_selected is not None:
-        #    selected.extend(manually_selected)
 
         # TODO: if output
         if self.verbose:
@@ -262,6 +296,21 @@ class Selector():
         #    selected_frames.append(frames[int(sidx)])
 
         return selected
+
+
+def create_selector(input_list: list):
+    selectors = []
+    for s in input_list:
+        params = s.copy()
+        method = params.pop("method", None)
+        if method == "deviation":
+            selectors.append(DeviationSelector(**params))
+        elif method == "descriptor":
+            selectors.append(DescriptorBasedSelector(**params))
+        else:
+            raise RuntimeError(f"Cant find selector with method {method}.")
+
+    return selectors
 
 
 if __name__ == "__main__":
