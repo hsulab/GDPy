@@ -32,6 +32,7 @@ from GDPy.utils.data import vasp_creator, vasp_collector
 from GDPy.utils.command import parse_input_file, convert_indices
 
 from GDPy.expedition.abstract import AbstractExplorer
+from GDPy.selector.abstract import DeviationSelector
 
 
 @dataclasses.dataclass
@@ -120,18 +121,6 @@ class MDBasedExpedition(AbstractExplorer):
     supported_potentials = ["reax", "deepmd", "eann"]
     supported_procedures = ["create", "collect", "select", "calculate"]
 
-    # set default variables
-    # be care with the unit
-    default_variables = dict(
-        nsteps = 0, 
-        thermo_freq = 0, 
-        dtime = 0.002, # ps
-        temp = 300, # Kelvin
-        pres = -1, # bar
-        tau_t = 0.1, # ps
-        tau_p = 0.5 # ps
-    )
-
     default_params = {
         "collect": {
             "deviation": None
@@ -159,22 +148,6 @@ class MDBasedExpedition(AbstractExplorer):
 
 
         return
-    
-    @staticmethod
-    def map_md_variables(default_variables, exp_dict: dict, unit='default'):
-        
-        # update variables
-        temperatures = exp_dict.pop('temperatures', None)
-        pressures = exp_dict.pop('pressures', None)
-
-        sample_variables = default_variables.copy()
-        sample_variables['nsteps'] = exp_dict['nsteps']
-        sample_variables['dtime'] = exp_dict['timestep']
-        sample_variables['thermo_freq'] = exp_dict.get('freq', 10)
-        sample_variables['tau_t'] = exp_dict.get('tau_t', 0.1)
-        sample_variables['tau_p'] = exp_dict.get('tau_p', 0.5)
-
-        return temperatures, pressures, sample_variables
     
     def _parse_dyn_params(self, exp_dict: dict):
         """ create a list of workers based on dyn params
@@ -221,9 +194,13 @@ class MDBasedExpedition(AbstractExplorer):
                     pass
                 # NOTE: since multiple explorations are applied to one system, 
                 # a metedata file shall be created to log the parameters
-                # TODO: a better format
+                pkeys = workers[0].dynrun_params.keys()
+                content = "#" + " ".join(pkeys) + "\n"
+                for w in workers:
+                    c = [w.dynrun_params[k] for k in pkeys]
+                    content += " ".join([str(x) for x in c]) + "\n"
                 with open(name_path / "metadata.txt", "w") as fopen:
-                    fopen.write(str([w.dynrun_params for w in workers]))
+                    fopen.write(content)
                 
                 # - parse structure and composition
                 system_dict = self.init_systems.get(slabel, None) # system name
@@ -270,6 +247,16 @@ class MDBasedExpedition(AbstractExplorer):
     def icollect(self, exp_name, working_directory, skipped_systems=[]):
         """collect data from single calculation"""
         exp_dict = self.explorations[exp_name]
+        # - create a selector
+        # TODO: use function from selector
+        selector = None
+        selection_params = exp_dict.get("selection", None)
+        if selection_params is not None:
+            print(selection_params)
+            for s in selection_params:
+                if s["method"] == "deviation":
+                    selector = DeviationSelector(s["criteria"])
+
         # deviation
         if self.default_params["collect"]["deviation"] is None:
             devi = exp_dict.get('deviation', None)
@@ -279,125 +266,81 @@ class MDBasedExpedition(AbstractExplorer):
 
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
-            md_prefix = working_directory / exp_name
-            print("checking system %s ..."  %md_prefix)
+            # NOTE: create a list of workers
+            workers = self._parse_dyn_params(exp_dict)
 
-            # TODO: create a list of workers
-            exp_params = exp_dict['params']
-            thermostat = exp_params.pop('thermostat', None)
-            temperatures, pressures, sample_variables = self.map_md_variables(self.default_variables, exp_params) # be careful with units
-
-            # NOTE: since multiple explorations are applied to one system, 
-            # a metedata file shall be created to log the parameters
-
-            # loop over systems
+            # - loop over systems
             for slabel in included_systems:
+                sys_frames = [] # NOTE: all frames
                 # TODO: make this into system
                 if slabel in skipped_systems:
                     continue
-                # TODO: better use OrderedDict
+                # - result path
+                name_path = working_directory / exp_name / slabel
+
+                # - read structures
+                # the expedition can start with different initial configurations
                 system_dict = self.init_systems[slabel] # system name
+                stru_path = system_dict["structure"]
+                frames = read(stru_path, ":")
+
+                # - parse structure and composition
+                system_dict = self.init_systems.get(slabel, None) # system name
+                if system_dict is None:
+                    raise ValueError(f"Find unexpected system {system_dict}.")
                 scomp = system_dict['composition'] # system composition
-                elem_map = self.type_map.copy()
-                for ele, num in scomp.items():
-                    if num == 0:
-                        elem_map.pop(ele, None)
-                elements = list(elem_map.keys())
-                # check thermostats
-                if thermostat == 'nvt':
-                    sys_prefix = md_prefix / (slabel+'-'+thermostat)
-                    
-                    if system_dict.get('structures', None):
-                        # run over many structures
-                        data_path = pathlib.Path(system_dict['structures'][0])
-                        nconfigs = len(list(data_path.glob(slabel+'*'+'.data'))) # number of starting configurations
-                        for i in range(nconfigs):
-                            cur_prefix = sys_prefix / (slabel + '-' + str(i))
-                            # make sort dir
-                            sorted_path = cur_prefix / 'sorted'
-                            print("===== collecting system %s =====" %cur_prefix)
-                            if sorted_path.exists():
-                                if self.ignore_exists:
-                                    warnings.warn('sorted_path removed in %s' %cur_prefix, UserWarning)
-                                    shutil.rmtree(sorted_path)
-                                    sorted_path.mkdir()
-                                else:
-                                    warnings.warn('sorted_path exists in %s' %cur_prefix, UserWarning)
-                                    print("collection output exists, then skip...")
-                                    continue
-                            else:
-                                sorted_path.mkdir()
-                            # extract frames
-                            all_frames = []
-                            for temp in temperatures:
-                                # read dump
-                                temp = str(temp)
-                                dump_xyz = cur_prefix/temp/'traj.dump'
-                                if dump_xyz.exists():
-                                    frames = read(dump_xyz, ':', 'lammps-dump-text', specorder=elements)[1:]
-                                else:
-                                    dump_xyz = cur_prefix/temp/'traj.xyz'
-                                    if dump_xyz.exists():
-                                        frames = read(dump_xyz, ':')[1:]
-                                    else:
-                                        warnings.warn('no trajectory file in %s' %dump_xyz, UserWarning)
-                                        continue
-                                print('nframes at temp %sK: %d' %(temp,len(frames)))
+                atypes = []
+                for atype, number in scomp.items():
+                    if number > 0:
+                        atypes.append(atype)
+                sys_cons_text = system_dict.get('constraint', None)
 
-                                frames = self.extract_deviation(cur_prefix/temp, frames, devi)
-
-                                # sometimes all frames have small deviations
-                                if frames:
-                                    out_xyz = str(sorted_path/temp)
-                                    write(out_xyz+'.xyz', frames)
-                                    all_frames.extend(frames)
-
-                            print('TOTAL NUMBER OF FRAMES %d in %s' %(len(all_frames),cur_prefix))
-                            write(sorted_path/str(slabel+'_ALL.xyz'), all_frames)
+                # - run over systems
+                for iframe, atoms in enumerate(frames):
+                    name = atoms.info.get("name", "f"+str(iframe))
+                    # TODO: check if atoms have constraint
+                    cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
+                    if cons_indices.size > 0:
+                        # convert to lammps convention
+                        cons_indices += 1
+                        cons_text = convert_indices(cons_indices.tolist())
                     else:
-                        # make sort dir
-                        sorted_path = sys_prefix / "sorted"
-                        print("===== collecting system %s =====" %sys_prefix)
-                        if sorted_path.exists():
-                            if self.ignore_exists:
-                                warnings.warn('sorted_path removed in %s' %sys_prefix, UserWarning)
-                                shutil.rmtree(sorted_path)
-                                sorted_path.mkdir()
-                            else:
-                                warnings.warn('sorted_path exists in %s' %sys_prefix, UserWarning)
-                                continue
-                        else:
+                        cons_text = sys_cons_text
+                    print("cons_text: ", cons_text)
+
+                    work_path = name_path / name
+                    print(work_path)
+
+                    # - run simulation
+                    for iw, worker in enumerate(workers):
+                        worker.set_output_path(work_path/("w"+str(iw)))
+                        # TODO: run directly or attach a machine
+                        traj_frames = worker._read_trajectory(atoms)
+                        #write("xxx.xyz", traj_frames)
+                        sys_frames.extend(traj_frames)
+            
+                # - systemwise selection
+                if selector is not None:
+                    print("ncandidates: ", len(sys_frames))
+                    energy_deviations = [a.info["max_devi_e"] for a in sys_frames]
+                    force_deviations = [a.info["max_devi_f"] for a in sys_frames]
+                    selected_indices = selector.select(energy_deviations, force_deviations)
+                    selected_frames = [sys_frames[i] for i in selected_indices]
+                    print("nselected: ", len(selected_frames))
+
+                    sorted_path = name_path / "sorted"
+                    if sorted_path.exists():
+                        if self.ignore_exists:
+                            warnings.warn("sorted_path removed in %s" %name_path, UserWarning)
+                            shutil.rmtree(sorted_path)
                             sorted_path.mkdir()
-                        # extract frames
-                        all_frames = []
-                        for temp in temperatures:
-                            # read dump
-                            temp = str(temp)
-                            dump_xyz = sys_prefix/temp/'traj.dump'
-                            if dump_xyz.exists():
-                                frames = read(dump_xyz, ':', 'lammps-dump-text', specorder=elements)[1:]
-                            else:
-                                dump_xyz = sys_prefix/temp/'traj.xyz'
-                                if dump_xyz.exists():
-                                    frames = read(dump_xyz, ':')[1:]
-                                else:
-                                    warnings.warn('no trajectory file in %s' %dump_xyz, UserWarning)
-                                    continue
-                            print('nframes at temp %sK: %d' %(temp,len(frames)))
-
-                            frames = self.extract_deviation(sys_prefix/temp, frames, devi)
-
-                            # sometimes all frames have small deviations
-                            if frames:
-                                out_xyz = str(sorted_path/temp)
-                                write(out_xyz+'.xyz', frames)
-                                all_frames.extend(frames)
-
-                        print('TOTAL NUMBER OF FRAMES %d in %s' %(len(all_frames),sys_prefix))
-                        if len(all_frames) > 0:
-                            write(sorted_path/str(slabel+'_ALL.xyz'), all_frames)
-                else:
-                    raise NotImplementedError('no other thermostats')
+                        else:
+                            warnings.warn("sorted_path exists in %s" %name_path, UserWarning)
+                            continue
+                    else:
+                        sorted_path.mkdir()
+                    
+                    write(sorted_path/"selected.xyz", selected_frames)
 
         return
     

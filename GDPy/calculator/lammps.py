@@ -35,8 +35,12 @@ from GDPy.utils.command import find_backups, convert_indices
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
 
-    pass
+    trajectory_filename = "surface.dump"
+    log_filename = "log.lammps"
+    deviation_filename = "model_devi.out"
 
+
+ASELMPCONFIG = AseLammpsSettings()
 
 class LmpDynamics(AbstractDynamics):
 
@@ -222,6 +226,67 @@ class LmpDynamics(AbstractDynamics):
         stat_content = "".join(lines[stat_idx:stat_idx+9])
 
         return stat_content
+    
+    def _read_trajectory(self, atoms):
+        """"""
+        # NOTE: always use dynamics calc
+        # - parse spec order
+        self.calc.check_specorder(atoms)
+        
+        # - read trajectory that contains positions and forces
+        # NOTE: forces would be zero if setforce 0 is set
+        traj_frames = read(
+            self._directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
+            specorder=self.calc.specorder, units=self.calc.units
+        )
+        # - read energies
+        # TODO: should be consistent with thermo outputs
+        # better move to calculator class
+        with open(self._directory_path / ASELMPCONFIG.log_filename, "r") as fopen:
+            lines = fopen.readlines()
+        start_idx, end_idx = None, None
+        for idx, line in enumerate(lines):
+            if line.startswith("Step"):
+                start_idx = idx
+            if line.startswith("Loop time"):
+                end_idx = idx
+            if start_idx is not None and end_idx is not None:
+                break
+        else:
+            raise ValueError("error in lammps output.")
+        # -- parse index of PotEng
+        # TODO: save timestep info?
+        eng_idx = None
+        step_line = lines[start_idx]
+        for idx, name in enumerate(step_line.strip().split()):
+            if name == "PotEng":
+                eng_idx = idx
+                break
+        else:
+            raise ValueError("cant find PotEng in lammps output.")
+        # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
+        pot_energies = [float(lines[i].strip().split()[eng_idx]) for i in range(start_idx+1, end_idx)][:len(traj_frames)]
+        assert len(pot_energies) == len(traj_frames), "number of pot energies and frames is inconsistent."
+
+        for pot_eng, atoms in zip(pot_energies, traj_frames):
+            forces = atoms.get_forces()
+            sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
+            atoms.calc = sp_calc
+        
+        # - check model_devi.out
+        devi_path = self._directory_path / ASELMPCONFIG.deviation_filename
+        if devi_path.exists():
+            with open(devi_path, "r") as fopen:
+                lines = fopen.readlines()
+            dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
+            dkeys = [x.strip() for x in dkeys][1:]
+            data = np.loadtxt(devi_path, dtype=float).transpose()[1:,:len(traj_frames)]
+
+            for i, atoms in enumerate(traj_frames):
+                for j, k in enumerate(dkeys):
+                    atoms.info[k] = data[j,i]
+
+        return traj_frames
 
 
 class Lammps(FileIOCalculator):
@@ -337,7 +402,7 @@ class Lammps(FileIOCalculator):
         )
 
         # write input
-        self.__write_lmp_input()
+        self._write_input()
 
         return
     
@@ -379,7 +444,7 @@ class Lammps(FileIOCalculator):
 
         return
     
-    def __write_lmp_input(self):
+    def _write_input(self):
         """"""
         mass_line = ''.join(
             'mass %d %f\n' %(idx+1,atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(self.specorder)
