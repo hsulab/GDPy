@@ -105,7 +105,7 @@ class MDBasedExpedition(AbstractExplorer):
         fs, eV, eV/AA
     
     Workflow
-        create(run)-collect-select-calculate-harvest
+        create+/run-collect+/select-calculate+/harvest
     """
 
     method = "MD" # nve, nvt, npt
@@ -335,77 +335,74 @@ class MDBasedExpedition(AbstractExplorer):
 
         return
     
-    def icalc(self, exp_name, working_directory):
+    def icalc(self, exp_name, working_directory, skipped_systems=[]):
         """calculate configurations with reference method"""
         exp_dict = self.explorations[exp_name]
 
         # some parameters
         calc_dict = exp_dict["calculation"]
+        machine_dict = calc_dict["machine"]
         nstructures = calc_dict.get("nstructures", 100000) # number of structures in each calculation dirs
-        incar_template = calc_dict.get("incar")
 
+        # - create fp main dir
         prefix = working_directory / (exp_name + "-fp")
         if prefix.exists():
             warnings.warn("fp directory exists...", UserWarning)
         else:
             prefix.mkdir(parents=True)
 
-        # start 
+        # - run over systems
         included_systems = exp_dict.get('systems', None)
         if included_systems is not None:
-            # MD exploration params
-            exp_params = exp_dict['params']
-            thermostat = exp_params.pop("thermostat", None)
-
-            selected_numbers = exp_dict["selection"]["num"]
-            if isinstance(selected_numbers, list):
-                assert len(selected_numbers) == len(included_systems), "each system must have a number"
-            else:
-                selected_numbers = selected_numbers * len(included_systems)
-
-            for slabel, num in zip(included_systems, selected_numbers):
-                if num <= 0:
-                    print("selected number is zero...")
+            # - loop over systems
+            # TODO: asyncio
+            for slabel in included_systems:
+                sys_frames = [] # NOTE: all frames
+                # TODO: make this into system
+                if slabel in skipped_systems:
                     continue
-                system_dict = self.init_systems[slabel] # system name
-                structure = system_dict["structure"]
-                scomp = system_dict["composition"] # system composition
-                atypes = []
-                for atype, number in scomp.items():
-                    if number > 0:
-                        atypes.append(atype)
+                # - result path
+                name_path = working_directory / exp_name / slabel
 
-                name_path = working_directory / exp_name / (slabel+'-'+thermostat) # system directory
-                # create directories
-                # check single data or a list of structures
-                runovers = [] # [(structure,working_dir),...,()]
-                if structure.endswith('.data'):
-                    runovers.append((structure,name_path))
-                else:
-                    data_path = pathlib.Path(system_dict['structure'])
-                    for f in data_path.glob(slabel+'*'+'.data'):
-                        cur_path = name_path / f.stem
-                        runovers.append((f, cur_path))
-                # create all calculation dirs
-                for (stru_path, name_path) in runovers:
-                    sorted_path = name_path / "sorted" # directory with collected xyz configurations
-                    collected_path = sorted_path / (slabel + "-sel.xyz")
-                    if collected_path.exists():
-                        print("use selected frames...")
-                    else:
-                        print("use all candidates...")
-                        collected_path = sorted_path / (slabel + "_ALL.xyz")
-                    if collected_path.exists():
-                        #frames = read(collected_path, ":")
-                        #print("There are %d configurations in %s." %(len(frames), collected_path))
-                        vasp_creator.create_files(
-                            pathlib.Path(prefix),
-                            "/users/40247882/repository/GDPy/GDPy/utils/data/vasp_calculator.py",
-                            incar_template,
-                            collected_path
+                # - read collected/selected frames
+                sorted_path = name_path / "sorted"
+                if sorted_path.exists():
+                    # - find all selected files
+                    # TODO: if no selected were applied?
+                    xyzfiles = list(sorted_path.glob("*.xyz"))
+                    xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
+                    # - create input file
+                    sorted_fp_path = prefix / slabel
+                    if not sorted_fp_path.exists():
+                        sorted_fp_path.mkdir()
+                        # -- update params with systemwise info
+                        calc_params = calc_dict.copy()
+                        for k in calc_params.keys():
+                            if calc_params[k] == "system":
+                                calc_params[k] = self.init_systems[slabel][k]
+                        with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
+                            json.dump(calc_params, fopen, indent=4)
+                        # -- create job script
+                        machine_params = machine_dict.copy()
+                        machine_params["job-name"] = slabel+"-fp"
+
+                        # TODO: mpirun or mpiexec
+                        command = calc_params["command"]
+                        if command.strip().startswith("mpirun"):
+                            ntasks = command.split()[2]
+                        else:
+                            ntasks = 1
+                        machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
+
+                        machine = SlurmMachine(**machine_params)
+                        machine.user_commands = "python ~/repository/GDPy/GDPy/calculator/vasp.py {} -p {}".format(
+                            str(xyzfiles[-1].resolve()), (sorted_fp_path/"vasp_params.json").resolve()
                         )
+                        machine.write(sorted_fp_path/"vasp.slurm")
                     else:
-                        warnings.warn("There is no %s." %collected_path, UserWarning)
+                        print(f"{sorted_fp_path} already exists.")
+                else:
+                    print(f"No candidates to calculate in {str(name_path)}")
 
         return
     

@@ -114,25 +114,36 @@ class SlurmMachine(AbstractMachine):
 
     status = ["R", "Q", "PD", "CG"]
 
+    environs = None
     user_commands = None
 
-    def __init__(self, use_gpu=False):
+    def __init__(self, use_gpu=False, **kwargs):
         """"""
         # make default machine dict
         self.machine_dict = self.default_cpu_parameters.copy()
         if use_gpu:
             self.machine_dict.update(self.extra_gpu_parameters)
         
+        # - update params
+        self.environs = kwargs.pop("environs", None)
+        self.user_commands = kwargs.pop("user_commands", None)
+        self.machine_dict.update(**kwargs)
+        
         return
 
     def __str__(self):
         """job script"""
+        # - slurm params
         content = self.SHELL + '\n'
         for key, value in self.machine_dict.items():
             if value:
                 content += "{} --{}={}\n".format(self.PREFIX, key, value)
             else:
                 raise ValueError("Keyword *%s* not properly set." %key)
+        
+        if self.environs:
+            content += "\n\n"
+            content += self.environs
         
         if self.user_commands:
             content += "\n\n"
