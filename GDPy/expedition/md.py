@@ -19,12 +19,7 @@ from dataclasses import dataclass, field
 
 from ase import Atoms
 from ase.io import read, write
-from ase.io.lammpsrun import read_lammps_dump_text
-from ase.data import atomic_numbers, atomic_masses
 from ase.constraints import constrained_indices, FixAtoms
-
-from GDPy.calculator.ase_interface import AseInput
-from GDPy.calculator.inputs import LammpsInput
 
 from GDPy.machine.machine import SlurmMachine
 
@@ -408,6 +403,7 @@ class MDBasedExpedition(AbstractExplorer):
     
     def iharvest(self, exp_name, working_directory: Union[str, pathlib.Path]):
         """harvest all vasp results"""
+        # TODO: replace this by a object
         # run over directories and check
         main_dir = pathlib.Path(working_directory) / (exp_name + "-fp")
         vasp_main_dirs = []
@@ -486,42 +482,6 @@ class MDBasedExpedition(AbstractExplorer):
 
         return
     
-
-def run_exploration(pot_manager, exp_json, chosen_step, global_params = None):
-    # create exploration
-    #with open(exp_json, 'r') as fopen:
-    #    exp_dict = json.load(fopen)
-    exp_dict = parse_input_file(exp_json)
-
-    method = exp_dict.get("method", "MD")
-    if method == "MD":
-        scout = MDBasedExpedition(pot_manager, exp_dict)
-    elif method == "GA":
-        from GDPy.expedition.structure_exploration import RandomExplorer
-        scout = RandomExplorer(pot_manager, exp_dict)
-    else:
-        raise ValueError(f"Unknown method {method}")
-
-
-    # adjust global params
-    print("optional params ", global_params)
-    if global_params is not None:
-        assert len(global_params)%2 == 0, "optional params must be key-pair"
-        for first in range(0, len(global_params), 2):
-            print(global_params[first], " -> ", global_params[first+1])
-            scout.default_params[chosen_step][global_params[first]] = eval(global_params[first+1])
-
-    # compute
-    op_name = "i" + chosen_step
-    assert isinstance(op_name, str), "op_nam must be a string"
-    op = getattr(scout, op_name, None)
-    if op is not None:
-        scout.run(op, "./")
-    else:
-        raise ValueError("Wrong chosen step %s..." %op_name)
-
-    return
-
 
 if __name__ == '__main__':
     import json

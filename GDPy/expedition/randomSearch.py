@@ -10,6 +10,7 @@ import json
 import yaml
 import warnings
 
+from dataclasses import dataclass
 from typing import Union, Callable
 
 import numpy as np
@@ -21,11 +22,29 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from collections import Counter
 
-from GDPy.selector.abstract import Selector
+from GDPy.selector.abstract import DescriptorBasedSelector
 from GDPy.utils.data import vasp_creator, vasp_collector
 
 from GDPy.expedition.abstract import AbstractExplorer
 from GDPy.machine.machine import SlurmMachine
+
+@dataclass
+class CollectionParams:
+
+    # collect parameters
+    converged_force = 0.05
+    # energy difference compared to the lowest
+    energy_difference = 3.0 
+    # energy standard variance tolerance per atom
+    esvar_tol = [0.02, 0.20] 
+    # force standard variance tolerance per atom
+    fsvar_tol = [0.05, 0.25] 
+    # minimum number of local minima considered
+    num_lowest = 200 
+    # candidate indices to read
+    cand_indices = ":" 
+    # for minima selection
+    boltzmann = 3.0 
 
 
 class RandomExplorer(AbstractExplorer):

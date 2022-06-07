@@ -294,9 +294,9 @@ def main():
             pm.freeze_ensemble()
         elif args.mode == "create":
             pm.create_ensemble()
-    elif args.subcommand == 'explore':
-        from GDPy.expedition.sample_main import run_exploration
-        run_exploration(pot_config, args.EXPEDITION, args.step, args.opt_params)
+    elif args.subcommand == "explore":
+        from GDPy.expedition import run_exploration
+        run_exploration(pot_manager, args.EXPEDITION, args.step, args.opt_params)
     elif args.subcommand == "data":
         from GDPy.data.main import data_main
         data_main(
@@ -314,7 +314,7 @@ def main():
         run_ase_calculator(args.INPUTS, pot_config)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
-        run_validation(args.INPUTS, pot_config)
+        run_validation(args.INPUTS, pot_manager)
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
         selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)
