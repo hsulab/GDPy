@@ -1,0 +1,21 @@
+name: EANN # lowercase
+calculators: # actual code for simulation
+  calc1: # code for get single-point properties (energy and forces)
+    backend: lammps
+    command: "mpirun -n 4 lmp_cat -in in.lammps 2>&1 > lmp.out"
+    directory: "LmpMin-worker"
+    type_list:
+      - C
+      - O
+      - Pt
+    # lammps params
+    pair_style: "eann /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ensemble/model-2/eann_latest_lmp_DOUBLE.pt /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ensemble/model-3/eann_lmp_DOUBLE.pt"
+    dump_period: 8
+dynamics:
+  dyn1:
+    backend: lammps
+    method: nvt # md
+    temperature: [300, 600, 900, 1500, 2400]
+    timestep: 2 # fs
+    steps: 5000
+    dump_period: 10
