@@ -336,7 +336,7 @@ class GCMC():
         
         backend = calc_params.pop("backend", None)
         if backend == "ase":
-            from GDPy.calculator.ase_interface import AseDynamics
+            from GDPy.calculator.asedyn import AseDynamics
             self.worker = AseDynamics(self.calc, directory=self.calc.directory)
         elif backend == "lammps":
             from GDPy.calculator.lammps import LmpDynamics

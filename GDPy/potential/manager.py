@@ -72,7 +72,7 @@ class PotManager():
         
         interface = self.calc_dict["interface"]
         if interface == "ase":
-            from GDPy.calculator.ase_interface import AseDynamics
+            from GDPy.calculator.asedyn import AseDynamics
             self.worker = AseDynamics(self.calc, directory=self.calc.directory)
             # use ase no need to recaclc constraint since atoms has one
             self.cons_indices = None

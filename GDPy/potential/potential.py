@@ -81,7 +81,7 @@ class AbstractPotential(abc.ABC):
 
         dynrun_params = dyn_params.copy()
         if dynamics == "ase":
-            from GDPy.calculator.ase_interface import AseDynamics
+            from GDPy.calculator.asedyn import AseDynamics
             worker = AseDynamics(calc, dyn_runparams=dynrun_params, directory=calc.directory)
             # use ase no need to recaclc constraint since atoms has one
             # cons_indices = None # this is used in minimise

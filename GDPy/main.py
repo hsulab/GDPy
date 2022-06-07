@@ -310,7 +310,7 @@ def main():
         from .trainer.manual_train import manual_train
         manual_train(args.INPUTS, args.iter, args.stage)
     elif args.subcommand == 'ase':
-        from .calculator.ase_interface import run_ase_calculator
+        from .calculator.asedyn import run_ase_calculator
         run_ase_calculator(args.INPUTS, pot_config)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
