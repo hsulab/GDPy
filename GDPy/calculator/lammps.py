@@ -26,6 +26,7 @@ from ase.calculators.calculator import (
     CalculationFailed,
     Calculator, all_changes, PropertyNotImplementedError, FileIOCalculator
 )
+from ase.constraints import constrained_indices, FixAtoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.lammps import unitconvert
 
@@ -35,6 +36,7 @@ from GDPy.utils.command import find_backups, convert_indices
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
 
+    inputstructure_filename = "stru.data"
     trajectory_filename = "surface.dump"
     log_filename = "log.lammps"
     deviation_filename = "model_devi.out"
@@ -109,7 +111,22 @@ class LmpDynamics(AbstractDynamics):
 
         return
     
-    def run(self, atoms, read_exists=False, **kwargs):
+    def _parse_constraint(self, atoms: Atoms, sys_cons_text) -> str:
+        """"""
+        # TODO: check if atoms have constraint
+        cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
+        if cons_indices.size > 0:
+            # convert to lammps convention
+            cons_indices += 1
+            cons_text = convert_indices(cons_indices.tolist())
+        else:
+            # TODO: if use region indicator
+            cons_text = sys_cons_text
+        #print("cons_text: ", cons_text)
+
+        return cons_text
+    
+    def run(self, atoms, read_exists: bool=False, extra_info: dict=None, **kwargs):
         """"""
         # - backup old params
         # TODO: change to context message?
@@ -144,13 +161,16 @@ class LmpDynamics(AbstractDynamics):
             converged = True
 
         # NOTE: always use dynamics calc
-        # read optimised atoms
+        # TODO: replace this with _read_trajectory
         new_atoms = read(
-            self._directory_path / "surface.dump", ':', "lammps-dump-text", 
+            self._directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
             specorder=self.calc.specorder, units=self.calc.units
         )[-1]
         sp_calc = SinglePointCalculator(new_atoms, **copy.deepcopy(self.calc.results))
         new_atoms.calc = sp_calc
+
+        if extra_info is not None:
+            new_atoms.info.update(**extra_info)
 
         # - reset params
         self.calc.parameters = params_old
@@ -227,7 +247,7 @@ class LmpDynamics(AbstractDynamics):
 
         return stat_content
     
-    def _read_trajectory(self, atoms):
+    def _read_trajectory(self, atoms, label_steps: bool=False):
         """"""
         # NOTE: always use dynamics calc
         # - parse spec order
@@ -240,7 +260,6 @@ class LmpDynamics(AbstractDynamics):
             specorder=self.calc.specorder, units=self.calc.units
         )
         # - read energies
-        # TODO: should be consistent with thermo outputs
         # better move to calculator class
         with open(self._directory_path / ASELMPCONFIG.log_filename, "r") as fopen:
             lines = fopen.readlines()
@@ -256,16 +275,18 @@ class LmpDynamics(AbstractDynamics):
             raise ValueError("error in lammps output.")
         # -- parse index of PotEng
         # TODO: save timestep info?
-        eng_idx = None
-        step_line = lines[start_idx]
-        for idx, name in enumerate(step_line.strip().split()):
-            if name == "PotEng":
-                eng_idx = idx
-                break
-        else:
+        thermo_keywords = lines[start_idx].strip().split()
+        if "PotEng" not in thermo_keywords:
             raise ValueError("cant find PotEng in lammps output.")
+        thermo_data = lines[start_idx+1:end_idx]
+        thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
+        #print(thermo_data)
+        thermo_dict = {}
+        for i, k in enumerate(thermo_keywords):
+            thermo_dict[k] = thermo_data[i]
+
         # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        pot_energies = [float(lines[i].strip().split()[eng_idx]) for i in range(start_idx+1, end_idx)][:len(traj_frames)]
+        pot_energies = thermo_dict["PotEng"][:len(traj_frames)]
         assert len(pot_energies) == len(traj_frames), "number of pot energies and frames is inconsistent."
 
         for pot_eng, atoms in zip(pot_energies, traj_frames):
@@ -285,6 +306,12 @@ class LmpDynamics(AbstractDynamics):
             for i, atoms in enumerate(traj_frames):
                 for j, k in enumerate(dkeys):
                     atoms.info[k] = data[j,i]
+        
+        # - label steps
+        if label_steps:
+            for i, atoms in enumerate(traj_frames):
+                atoms.info["source"] = self._directory_path.name
+                atoms.info["step"] = int(thermo_dict["Step"][i])
 
         return traj_frames
 
@@ -294,8 +321,6 @@ class Lammps(FileIOCalculator):
     name = "Lammps"
     supported_pairstyles = ["deepmd", "eann", "reax/c"]
     implemented_properties = ["energy", "forces", "stress"]
-
-    STRUCTURE_FILE = "stru.data"
 
     # only for energy and forces, eV and eV/AA
     CONVERTOR = {
@@ -330,6 +355,7 @@ class Lammps(FileIOCalculator):
         Pdamp = 100,
         # - minimisation
         min_style = "fire",
+        min_modify = None
     )
 
     specorder = None
@@ -395,7 +421,7 @@ class Lammps(FileIOCalculator):
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
         # write structure
-        stru_data = os.path.join(self.directory, self.STRUCTURE_FILE)
+        stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
         write_lammps_data(
             stru_data, atoms, specorder=self.specorder, force_skew=True, 
             units=self.units, atom_style=self.atom_style
@@ -432,6 +458,8 @@ class Lammps(FileIOCalculator):
             else:
                 raise ValueError("error in lammps minimization.")
             energy = float(lines[stat_idx-1].split()[2])
+        else:
+            pass
 
         self.results["energy"] = unitconvert.convert(energy, "energy", self.units, "ASE")
 
@@ -462,7 +490,7 @@ class Lammps(FileIOCalculator):
         content += "boundary        p p p\n"
         content += "\n"
         content += "box             tilt large\n"
-        content += "read_data	    %s\n" %self.STRUCTURE_FILE
+        content += "read_data	    %s\n" %ASELMPCONFIG.inputstructure_filename
         content += "change_box      all triclinic\n"
 
         # particle masses
@@ -563,7 +591,7 @@ class Lammps(FileIOCalculator):
         # --- run type
         if self.method == "min":
             # - minimisation
-            content += "min_style       fire\n"
+            content += "min_style       {}\n".format(self.min_style)
             content += "min_modify      integrator verlet tmax 4 # see more on lammps doc about min_modify\n"
             content += "minimize        0.0 %f %d %d # energy tol, force tol, step, force step\n" %(
                 unitconvert.convert(self.fmax, "force", "ASE", self.units),

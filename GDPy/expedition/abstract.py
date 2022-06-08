@@ -7,8 +7,8 @@ from pathlib import Path
 
 class AbstractExplorer(ABC):
 
-    # general settings for IO
-    general_parameters = dict(
+    # general parameters
+    general_params = dict(
         ignore_exists = False
     )
 

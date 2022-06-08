@@ -105,7 +105,7 @@ def unique_chem_envs(chem_envs_groups, metadata=None, verbose=False):
                                           with their duplicates
         list[list[object]]: A matching list of metadata
     """
-    print("*** org algo for chem_env cmp***")
+    # print("*** org algo for chem_env cmp***")
     # Error checking, this should never really happen
     #print("chem_envs: ", chem_envs_groups)
     if len(chem_envs_groups) == 0:

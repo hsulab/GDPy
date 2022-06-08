@@ -140,11 +140,18 @@ def merge_results(extra_info, chem_envs_groups, metadata):
     return unique_indices, unique_envs, unique_groups
 
 
-def paragroup_unique_chem_envs(chem_envs_groups, metadata=None, n_jobs=1):
+def paragroup_unique_chem_envs(chem_envs_groups, metadata=None, directory=Path.cwd(), n_jobs=1):
     """"""
+    # - switch to plain version if only one job is used
+    if n_jobs == 1:
+        unique_envs, unique_groups = unique_chem_envs(chem_envs_groups, metadata)
+        return unique_envs, unique_groups
+
+    # - run parallel version, not always correct but can reduce most duplicates
     nframes = len(chem_envs_groups)
 
-    saved_info = Path("extra_info.pkl")
+    directory = Path(directory)
+    saved_info = directory / "extra_info.pkl"
     if saved_info.exists():
         with open(saved_info, "rb") as fopen:
             extra_info = pickle.load(fopen)
