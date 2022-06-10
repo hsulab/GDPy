@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
+from itertools import groupby
+from operator import itemgetter
 
-from typing import Union
+from typing import Union, List
 
 import json
 import yaml
+
+import numpy as np
 
 def find_backups(dpath, fname, prefix="bak"):
     """ find a series of files in a dir
@@ -42,19 +46,54 @@ def run_command(directory, command, comment="", timeout=None):
     
     return msg
 
-def parse_indices(indices=None):
+def convert_indices(indices: Union[str,List[int]], index_convention="lmp"):
     """ parse indices for reading xyz by ase, get start for counting
         constrained indices followed by lammps convention
         "2:4 3:8"
         convert [1,2,3,6,7,8] to "1:3 6:8"
+        lammps convention starts from 1 and includes end
+        ---
+        input can be either py or lmp
+        output for indices is in py since it can be used to access atoms
+        output for text is in lmp since it can be used in lammps or sth
     """
-    if indices is not None:
-        start, end = indices.split(':')
+    ret = []
+    if isinstance(indices, str):
+        # string to List[int]
+        for x in indices.strip().split():
+            cur_range = list(map(int, x.split(":")))
+            if len(cur_range) == 1:
+                start, end = cur_range[0], cur_range[0]
+            else:
+                start, end = cur_range
+            if index_convention == "lmp":
+                ret.extend([i-1 for i in list(range(start,end+1))])
+            elif index_convention == "py":
+                ret.extend(list(range(start,end)))
+            else:
+                pass
+    elif isinstance(indices, list):
+        # List[int] to string
+        indices = sorted(indices)
+        if index_convention == "lmp":
+            pass
+        elif index_convention == "py":
+            indices = [i+1 for i in indices]
+        ret = []
+        #ranges = []
+        for k, g in groupby(enumerate(indices),lambda x:x[0]-x[1]):
+            group = (map(itemgetter(1),g))
+            group = list(map(int,group))
+            #ranges.append((group[0],group[-1]))
+            if group[0] == group[-1]:
+                ret.append(str(group[0]))
+            else:
+                ret.append("{}:{}".format(group[0],group[-1]))
+        ret = " ".join(ret)
     else:
-        start = 0
-        end = ''
+        pass
 
-    return (start,end)
+    return ret
 
 
 def parse_input_file(
@@ -95,6 +134,12 @@ def parse_input_file(
     return input_dict
 
 if __name__ == "__main__":
+    # - test convert indices
+    indices = [1,2,3,6,7,8]
+    indices = "1:3 4:5"
+    ret = convert_indices(indices)
+    print(ret)
+    exit()
     # test backups
     backups = find_backups("/users/40247882/scratch2/pbe-oxides/eann-main/m07/ga/PtCOx/cand2", "surface.dump")
     print(backups)
