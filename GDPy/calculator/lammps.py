@@ -44,6 +44,37 @@ class AseLammpsSettings:
 
 ASELMPCONFIG = AseLammpsSettings()
 
+def parse_thermo_data(logfile_path) -> dict:
+    """"""
+    # - read thermo data
+    # better move to calculator class
+    with open(logfile_path, "r") as fopen:
+        lines = fopen.readlines()
+    start_idx, end_idx = None, None
+    for idx, line in enumerate(lines):
+        if line.startswith("Step"):
+            start_idx = idx
+        # TODO: if not finish?
+        if line.startswith("Loop time"):
+            end_idx = idx
+        if start_idx is not None and end_idx is not None:
+            break
+    else:
+        raise ValueError("error in lammps output.")
+    # -- parse index of PotEng
+    # TODO: save timestep info?
+    thermo_keywords = lines[start_idx].strip().split()
+    if "PotEng" not in thermo_keywords:
+        raise ValueError("cant find PotEng in lammps output.")
+    thermo_data = lines[start_idx+1:end_idx]
+    thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
+    #print(thermo_data)
+    thermo_dict = {}
+    for i, k in enumerate(thermo_keywords):
+        thermo_dict[k] = thermo_data[i]
+
+    return thermo_dict
+
 class LmpDynamics(AbstractDynamics):
 
     """ use lammps to perform dynamics
@@ -259,34 +290,11 @@ class LmpDynamics(AbstractDynamics):
             self._directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
             specorder=self.calc.specorder, units=self.calc.units
         )
-        # - read energies
-        # better move to calculator class
-        with open(self._directory_path / ASELMPCONFIG.log_filename, "r") as fopen:
-            lines = fopen.readlines()
-        start_idx, end_idx = None, None
-        for idx, line in enumerate(lines):
-            if line.startswith("Step"):
-                start_idx = idx
-            if line.startswith("Loop time"):
-                end_idx = idx
-            if start_idx is not None and end_idx is not None:
-                break
-        else:
-            raise ValueError("error in lammps output.")
-        # -- parse index of PotEng
-        # TODO: save timestep info?
-        thermo_keywords = lines[start_idx].strip().split()
-        if "PotEng" not in thermo_keywords:
-            raise ValueError("cant find PotEng in lammps output.")
-        thermo_data = lines[start_idx+1:end_idx]
-        thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
-        #print(thermo_data)
-        thermo_dict = {}
-        for i, k in enumerate(thermo_keywords):
-            thermo_dict[k] = thermo_data[i]
+        # - read thermo data
+        thermo_dict = parse_thermo_data(self._directory_path / ASELMPCONFIG.log_filename)
 
         # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        pot_energies = thermo_dict["PotEng"][:len(traj_frames)]
+        pot_energies = [unitconvert.convert(p, "energy", self.calc.units, "ASE") for p in thermo_dict["PotEng"][:len(traj_frames)]]
         assert len(pot_energies) == len(traj_frames), "number of pot energies and frames is inconsistent."
 
         for pot_eng, atoms in zip(pot_energies, traj_frames):
@@ -437,40 +445,86 @@ class Lammps(FileIOCalculator):
         # obtain results
         self.results = {}
 
-        # Be careful with UNITS
+        # - Be careful with UNITS
+        # read forces from dump file
+        traj_frames = read(
+            os.path.join(self.directory, "surface.dump"), ":", "lammps-dump-text", 
+            specorder=self.specorder, units=self.units
+        )
+        nframes = len(traj_frames)
+
+        dump_atoms = traj_frames[-1]
+        self.results["forces"] = unitconvert.convert(dump_atoms.get_forces(), "force", self.units, "ASE")
+
         # read energy
-        with open(os.path.join(self.directory, "log.lammps"), "r") as fopen:
-            lines = fopen.readlines()
-        if self.method == "min":
-            for idx, line in enumerate(lines):
-                if line.startswith("Minimization stats:"):
-                    stat_idx = idx
-                    break
-            else:
-                raise ValueError("error in lammps minimization.")
-            energy = float(lines[stat_idx+3].split()[-1])
-        elif self.method == "md":
-            # TODO: should be consistent with thermo outputs
-            for idx, line in enumerate(lines):
-                if line.startswith("Loop time"):
-                    stat_idx = idx
-                    break
-            else:
-                raise ValueError("error in lammps minimization.")
-            energy = float(lines[stat_idx-1].split()[2])
-        else:
-            pass
+        thermo_dict = parse_thermo_data(os.path.join(self.directory, "log.lammps"))
+        energy = thermo_dict["PotEng"][nframes-1]
 
         self.results["energy"] = unitconvert.convert(energy, "energy", self.units, "ASE")
 
-        # read forces from dump file
-        dump_atoms = read(
-            os.path.join(self.directory, "surface.dump"), ":", "lammps-dump-text", 
-            specorder=self.specorder, units=self.units
-        )[-1]
-        self.results["forces"] = unitconvert.convert(dump_atoms.get_forces(), "force", self.units, "ASE")
-
         return
+    
+    def _parse_constraint_info(self) -> List[int]:
+        """ constraint info can be any forms below, 
+            and transformed into indices that start from 1
+            "2:5 8" means 2,3,4,5,8 (default uses lmp convention)
+            "py 0:5 9" means 1,2,3,4,5,10
+            "lmp 1:4 8" means 1,2,3,4,8
+            "lowest 10" means 10 atoms with smallest z-positions
+            "zpos 4.5" means all atoms with zpositions smaller than 4.5
+        """
+        atoms, cons_text = self.atoms, self.constraint
+        aindices = list(range(len(atoms)))
+        #print("constraint: ", cons_text)
+
+        mobile_text = convert_indices(aindices, index_convention="py")
+        frozen_text = None
+
+        # TODO: check if atoms have constraint
+        cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
+        if cons_indices.size > 0:
+            # convert to lammps convention
+            frozen_text = convert_indices(cons_indices.tolist(), index_convention="py")
+            mobile_indices = [i for i in aindices if i not in cons_indices]
+            mobile_text = convert_indices(mobile_indices.tolist(), index_convention="py")
+        else:
+            # TODO: if use region indicator
+            if cons_text is None:
+                return mobile_text, frozen_text
+
+            cons_data = cons_text.split()
+            if cons_data[0] not in ["py", "lmp", "lowest", "zpos"]:
+                cons_type, cons_info = "lmp", cons_data
+            else:
+                cons_type, cons_info = cons_data[0], cons_data[1:]
+            #print("cons_info: ", cons_type, cons_info)
+            # - 
+            if cons_type == "py":
+                frozen_indices = convert_indices(cons_info, index_convention="py")
+                frozen_text = convert_indices(frozen_indices)
+                mobile_indices = [i for i in aindices if i not in cons_indices]
+                mobile_text = convert_indices(mobile_indices, index_convention="py")
+            elif cons_type == "lmp":
+                frozen_indices = convert_indices(cons_info, index_convention="lmp")
+                frozen_text = convert_indices(frozen_indices, index_convention="py")
+                mobile_indices = [i for i in aindices if i not in frozen_indices]
+                mobile_text = convert_indices(mobile_indices, index_convention="py")
+            elif cons_type == "lowest":
+                frozen_indices = sorted(aindices, key=lambda x:atoms.positions[x][2])[:int(cons_info[0])]
+                frozen_text = convert_indices(frozen_indices, index_convention="py")
+                mobile_indices = [i for i in aindices if i not in frozen_indices]
+                mobile_text = convert_indices(mobile_indices, index_convention="py")
+            elif cons_type == "zpos":
+                frozen_indices = [i for i in aindices if atoms.positions[i][2] <= float(cons_info[0])]
+                frozen_text = convert_indices(frozen_indices, index_convention="py")
+                mobile_indices = [i for i in aindices if i not in frozen_indices]
+                mobile_text = convert_indices(mobile_indices, index_convention="py")
+            else:
+                pass
+
+        #print("cons_text: ", cons_text)
+
+        return mobile_text, frozen_text
     
     def _write_input(self):
         """"""
@@ -557,21 +611,13 @@ class Lammps(FileIOCalculator):
         content += "\n"
 
         # constraint
-        constraint = self.parameters["constraint"] # lammps convention
-        if constraint is not None:
+        mobile_text, frozen_text = self._parse_constraint_info()
+        content += "group mobile id %s\n" %mobile_text
+        content += "\n"
+        if frozen_text is not None:
             # content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
-            content += "group frozen id %s\n" %constraint
+            content += "group frozen id %s\n" %frozen_text
             content += "fix cons frozen setforce 0.0 0.0 0.0\n"
-            frozen_indices = convert_indices(constraint)
-            mobile_indices = [x for x in range(1,len(self.atoms)+1) if x not in frozen_indices]
-            mobile_text = convert_indices(mobile_indices)
-            content += "group mobile id %s\n" %mobile_text
-            content += "\n"
-        else:
-            mobile_indices = [x+1 for x in range(len(self.atoms))]
-            mobile_text = convert_indices(mobile_indices)
-            content += "group mobile id %s\n" %mobile_text
-            content += "\n"
 
         # outputs
         # TODO: use more flexible notations
@@ -586,6 +632,7 @@ class Lammps(FileIOCalculator):
 
         # TODO: How to dump total energy?
         content += "dump		1 all custom {} surface.dump id type x y z fx fy fz\n".format(self.dump_period)
+        #content += "dump_modify 1 first yes\n"
         content += "\n"
         
         # --- run type
