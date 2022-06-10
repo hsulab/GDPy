@@ -1,51 +1,78 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from select import select
+from pathlib import Path
+
 from ase.io import read, write
 
 from GDPy.utils.command import parse_input_file
-from GDPy.selector.abstract import DeviationSelector
+from GDPy.selector.abstract import DeviationSelector, Selector
 
-def selection_main(stru_fpath, input_fpath, potential):
+def selection_main(protocols, stru_fpath, input_fpath, potential, n_jobs=1):
     """"""
     input_dict = parse_input_file(input_fpath)
     selection_params = input_dict.get("selection", None)
     if selection_params is None:
         raise RuntimeError("no selection parameters was found...")
-    
-    # TODO: apply a number of selections
-    selection = DeviationSelector(
-        selection_params["DeviSel"],
-        potential
-    )
 
-    frames = read(stru_fpath, ":")
+    print("Use selection protocols: ", protocols)
+
+    print("read data: ", stru_fpath)
+    frames = []
+    for p in stru_fpath:
+        cur_frames = read(p, ":")
+        for i, a in enumerate(cur_frames):
+            a.info["source"] = p
+            a.info["index"] = i
+        print(f"  nframes {len(cur_frames)} in {p}")
+        frames.extend(cur_frames)
+    print("total nframes: ", len(frames))
 
     natoms_array = [len(a) for a in frames]
-    ( 
-        energies, maxforces, 
-        energy_deviations, force_deviations
-    ) = selection.calculate(frames)
+    
+    # TODO: apply a number of selections
+    for protocol in protocols:
+        all_params = selection_params[protocol]
+        if protocol == "GeoSel":
+            params = parse_input_file(all_params["params"])
+            selection = Selector(
+                params["soap"], params["selection"],
+                Path.cwd(), njobs=n_jobs
+            )
+            features = selection.calc_desc(frames)
+            selected = selection.select_structures(features, all_params["number"])
+            write(protocol+"_selected.xyz", [frames[s] for s in selected])
+        elif protocol == "DeviSel":
+            selection = DeviationSelector(
+                selection_params["DeviSel"],
+                potential
+            )
 
-    selected = selection.select(energy_deviations, force_deviations)
+            ( 
+                energies, maxforces, 
+                energy_deviations, force_deviations
+            ) = selection.calculate(frames)
 
-    selected_frames = [frames[i] for i in selected]
-    write("selected.xyz", selected_frames)
+            selected = selection.select(energy_deviations, force_deviations)
 
-    # TODO: write rersults, maybe move to selection objects
-    title = ("{:<12s}  "*6+"\n").format(
-        "#IDX", "Energy", "AEDevi", "TEDEVI", "Fmax", "FDevi"
-    )
-    content = ""
-    for i in selected:
-        content += ("{:<12d}  "+"{:<12.4f}  "*5+"\n").format(
-            i, energies[i], 
-            energy_deviations[i], energy_deviations[i]*natoms_array[i],
-            maxforces[i], force_deviations[i]
-        )
-    with open("devi.dat", "w") as fopen:
-        fopen.write(title+content)
+            selected_frames = [frames[i] for i in selected]
+            write("selected.xyz", selected_frames)
+
+            # TODO: write rersults, maybe move to selection objects
+            title = ("{:<12s}  "*6+"\n").format(
+                "#IDX", "Energy", "AEDevi", "TEDEVI", "Fmax", "FDevi"
+            )
+            content = ""
+            for i in selected:
+                content += ("{:<12d}  "+"{:<12.4f}  "*5+"\n").format(
+                    i, energies[i], 
+                    energy_deviations[i], energy_deviations[i]*natoms_array[i],
+                    maxforces[i], force_deviations[i]
+                )
+            with open("devi.dat", "w") as fopen:
+                fopen.write(title+content)
+        else:
+            raise RuntimeError(f"no selection protocol {protocol}...")
 
     return
 
