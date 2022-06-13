@@ -345,10 +345,14 @@ class AdsorbateEvolution(AbstractExplorer):
                 cur_frames = frames
                 for act_name in self.action_order:
                     action = actions.get(act_name, None)
+                    act_outpath = res_dir / f"graph-act-{act_name}.xyz"
                     if action is None:
                         continue
                     if isinstance(action, StructureGenerator):
-                        cur_frames = action.run(cur_frames)
+                        if not act_outpath.exists():
+                            cur_frames = action.run(cur_frames)
+                        else:
+                            cur_frames = read(act_outpath, ":")
                     elif isinstance(action, AbstractDynamics):
                         tmp_folder = res_dir / "tmp_folder"
                         if not tmp_folder.exists():
@@ -357,12 +361,13 @@ class AdsorbateEvolution(AbstractExplorer):
                         for i, atoms in enumerate(cur_frames): 
                             confid = atoms.info["confid"]
                             action.set_output_path(tmp_folder/("cand"+str(confid)))
+                            # TODO: check existed results before running
                             new_atoms = action.run(atoms, extra_info=dict(confid=i), constraint=sys_cons_text)
                             new_frames.append(new_atoms)
                         cur_frames = new_frames
                     else:
                         pass
-                    write(res_dir / f"graph-act-{act_name}.xyz", cur_frames)
+                    write(act_outpath, cur_frames)
 
         return
 

@@ -181,24 +181,20 @@ class LmpDynamics(AbstractDynamics):
 
         # - run dynamics
         try:
-            if not read_exists:
-                _  = atoms.get_forces()
+            is_finished = atoms.calc._is_finished()
+            if is_finished:
+                print(f"found finished {self._directory_path.name}.")
+                pass
             else:
-                self.calc.check_specorder(atoms)
-                self.calc.read_results()
+                _  = atoms.get_forces()
         except OSError:
             converged = False
         else:
             converged = True
 
         # NOTE: always use dynamics calc
-        # TODO: replace this with _read_trajectory
-        new_atoms = read(
-            self._directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
-            specorder=self.calc.specorder, units=self.calc.units
-        )[-1]
-        sp_calc = SinglePointCalculator(new_atoms, **copy.deepcopy(self.calc.results))
-        new_atoms.calc = sp_calc
+        # TODO: should change positions and other properties for input atoms?
+        new_atoms = self._read_trajectory(atoms)[-1]
 
         if extra_info is not None:
             new_atoms.info.update(**extra_info)
@@ -278,7 +274,7 @@ class LmpDynamics(AbstractDynamics):
 
         return stat_content
     
-    def _read_trajectory(self, atoms, label_steps: bool=False):
+    def _read_trajectory(self, atoms, label_steps: bool=False) -> List[Atoms]:
         """"""
         # NOTE: always use dynamics calc
         # - parse spec order
@@ -299,10 +295,12 @@ class LmpDynamics(AbstractDynamics):
 
         for pot_eng, atoms in zip(pot_energies, traj_frames):
             forces = atoms.get_forces()
+            forces = unitconvert.convert(forces, "force", self.calc.units, "ASE")
             sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
             atoms.calc = sp_calc
         
         # - check model_devi.out
+        # TODO: convert units?
         devi_path = self._directory_path / ASELMPCONFIG.deviation_filename
         if devi_path.exists():
             with open(devi_path, "r") as fopen:
@@ -440,6 +438,28 @@ class Lammps(FileIOCalculator):
 
         return
     
+    def _is_finished(self):
+        """ check whether the simulation is finished
+        """
+        is_finished = False
+        log_filepath = Path(os.path.join(self.directory, ASELMPCONFIG.log_filename))
+
+        if log_filepath.exists():
+            END_FLAG = "Total wall time:"
+            with open(log_filepath, "r") as fopen:
+                lines = fopen.readlines()
+        
+            for line in lines:
+                if line.strip().startswith(END_FLAG):
+                    is_finished = True
+                    break
+            else:
+                is_finished = False
+        else:
+            is_finished = False
+
+        return is_finished
+    
     def read_results(self):
         """"""
         # obtain results
@@ -448,16 +468,17 @@ class Lammps(FileIOCalculator):
         # - Be careful with UNITS
         # read forces from dump file
         traj_frames = read(
-            os.path.join(self.directory, "surface.dump"), ":", "lammps-dump-text", 
+            os.path.join(self.directory, ASELMPCONFIG.trajectory_filename), ":", "lammps-dump-text", 
             specorder=self.specorder, units=self.units
         )
         nframes = len(traj_frames)
 
+        # - only create last frame to atoms
         dump_atoms = traj_frames[-1]
         self.results["forces"] = unitconvert.convert(dump_atoms.get_forces(), "force", self.units, "ASE")
 
         # read energy
-        thermo_dict = parse_thermo_data(os.path.join(self.directory, "log.lammps"))
+        thermo_dict = parse_thermo_data(os.path.join(self.directory, ASELMPCONFIG.log_filename))
         energy = thermo_dict["PotEng"][nframes-1]
 
         self.results["energy"] = unitconvert.convert(energy, "energy", self.units, "ASE")
