@@ -13,18 +13,17 @@ from collections import Counter
 import shutil
 
 from pathlib import Path
-from matplotlib.pyplot import isinteractive 
 
 import numpy as np 
 
 from ase import Atoms 
 from ase.io import read, write
+from ase.constraints import FixAtoms
 
 from ase.calculators.vasp.create_input import GenerateVaspInput
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.utils.atomUtils import check_convergence
-from GDPy.utils.command import run_command
+from GDPy.utils.command import run_command, parse_input_file
 from GDPy.machine.machine import SlurmMachine
 
 """ wrap ase-vasp into a few utilities
@@ -132,7 +131,9 @@ class VaspMachine():
 
         self.isinteractive = isinteractive
 
+        # kpoints mesh
         self.__kpts = kwargs.get("kpts", None)
+        self.__constraint = kwargs.get("constraint", None)
 
         self.__set_environs()
 
@@ -169,6 +170,9 @@ class VaspMachine():
             vasp_creator.set(**self.default_parameters)
         
         self.creator = vasp_creator
+
+        # geometric convergence
+        self.fmax = np.fabs(vasp_creator.exp_params.get("ediffg", 0.05))
 
         return
 
@@ -215,6 +219,16 @@ class VaspMachine():
             kpts = self.__kpts
         vasp_creator.set(kpts=kpts)
 
+        # set constraint
+        if self.__constraint is not None:
+            # use lammps convertion
+            cons_indices = []
+            for s in self.__constraint.strip().split():
+                start, end = s.split(":")
+                cons_indices.extend(list(range(int(start)-1,int(end))))
+            cons = FixAtoms(indices=cons_indices)
+            atoms.set_constraint(cons)
+
         # write inputs
         if not directory.exists():
             directory.mkdir()
@@ -230,7 +244,7 @@ class VaspMachine():
             self.vasp_script.write(directory / self.script_name)
         
         # output info
-        if isinteractive:
+        if self.isinteractive:
             # --- summary ---
             content = '\n>>>>> Modified ASE for VASP <<<<<\n'
             content += '    directory -> %s\n' %directory 
@@ -339,6 +353,7 @@ class VaspMachine():
                 atoms,
                 energy=atoms_sorted.get_potential_energy(),
                 forces=atoms_sorted.get_forces(apply_constraint=False)[resort]
+                # TODO: magmoms?
             )
             calc.name = "vasp"
             atoms.calc = calc
@@ -535,7 +550,7 @@ class VaspQueue:
 
         return
 
-def run_calculation(stru_file, indices, vasp_machine, kpts):
+def run_calculation(work_path, stru_file, indices, vasp_machine, command):
     """"""
     # read structures
     frames = read(stru_file, indices)
@@ -546,38 +561,55 @@ def run_calculation(stru_file, indices, vasp_machine, kpts):
         start = int(start)
     print("{} structures in {} from {}\n".format(len(frames), stru_file, start))
 
+    # init paths
+    out_xyz = work_path / "calculated_0.xyz"
+
+    with open(out_xyz, "w") as fopen:
+        fopen.write("")
+
     # run calc
     print("\n===== Calculation Stage =====\n")
     for idx, atoms in enumerate(frames):
         step = idx+start
         print("\n\nStructure Number %d\n" %step)
-        dpath = Path(f"./vasp_0_{step}")
-        vasp_machine.create_by_ase(atoms, kpts, dpath)
-        # run command
-        st = time.time()
-        proc = subprocess.Popen(
-            vasp_machine.command, shell=True, cwd=dpath, 
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            encoding = "utf-8"
-        )
-        errorcode = proc.wait()
-        msg = "Message: " + "".join(proc.stdout.readlines())
-        print(msg)
-        if errorcode:
-            raise ValueError("Error at %s." %(dpath))
-        et = time.time()
-        print("calc time: ", et-st)
+        dpath = work_path / f"./vasp_0_{step}"
 
-        # read optimised
-        vasprun = dpath / "vasprun.xml"
-        frames = read(vasprun, ":")
-        print("number of frames: ", len(frames))
-        new_atoms = frames[-1]
-        new_atoms.info["step"] = step
-        print("final energy: ", new_atoms.get_potential_energy())
+        if not dpath.exists():
+            vasp_machine.create(atoms, dpath)
+
+            # ===== run command =====
+            st = time.time()
+            proc = subprocess.Popen(
+                command, shell=True, cwd=dpath, 
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                encoding = "utf-8"
+            )
+            errorcode = proc.wait()
+            msg = "Message: " + "".join(proc.stdout.readlines())
+            print(msg)
+            if errorcode:
+                raise ValueError("Error at %s." %(dpath))
+            et = time.time()
+            print("calc time: ", et-st)
+
+            # read optimised
+            new_atoms = vasp_machine.get_results(dpath)
+            new_atoms.info["step"] = step
+            print("final energy: ", new_atoms.get_potential_energy())
+        else:
+            new_atoms = vasp_machine.get_results(dpath)
+            # check forces
+            maxforce = np.max(np.fabs(new_atoms.get_forces(apply_constraint=True)))
+            #print(new_atoms.get_forces())
+            #print("maxforce: ", maxforce)
+            #print("fmax: ", vasp_machine.fmax)
+            if not (maxforce < np.fabs(vasp_machine.fmax)): # fmax is ediffg so is negative
+                # TODO: recalc structure
+                #raise RuntimeError(f"{dpath} structure is not finished...")
+                print(f"{dpath} structure is not finished...")
 
         # save structure
-        write("calculated_0.xyz", new_atoms, append=True)
+        write(out_xyz, new_atoms, append=True)
 
     return
 
@@ -597,15 +629,44 @@ if __name__ == "__main__":
         "-i", "--indices", default=":", 
         help="frame selection e.g. 0:100 that calculates structure 1 to 100"
     )
+    parser.add_argument(
+        "-d", "--dirs", nargs="*", default=[],
+        help="dirs"
+    )
+    parser.add_argument(
+        "-n", "--name", default="miaow-sel.xyz", 
+        help="xyz file"
+    )
 
     args = parser.parse_args()
 
     # parse vasp parameters
-    with open(args.parameters, "r") as fopen:
-        input_dict = json.load(fopen)
+    # parse vasp parameters
+    input_dict = parse_input_file(args.parameters)
+    input_dict["isinteractive"] = True
     print(input_dict)
 
+    # create a vasp machine
     vasp_machine = VaspMachine(**input_dict)
 
-    # run calculation 
-    run_calculation(args.STRUCTURES, args.indices, vasp_machine, input_dict.get("kpts", None))
+    stru_path = Path(args.STRUCTURES)
+    if stru_path.is_file():
+        # run calculation 
+        run_calculation(Path.cwd(), args.STRUCTURES, args.indices, vasp_machine, input_dict["command"])
+    else:
+        # all structures share same indices and vasp_machine
+        structure_files = []
+        for sp in stru_path.iterdir():
+            if sp.is_dir() and (not args.dirs or sp.name in args.dirs):
+                #p = list(sp.glob("*.xyz"))
+                #assert len(p) == 1, "every dir can only have one xyz file."
+                xyz_path = sp / args.name
+                if xyz_path.exists():
+                    structure_files.append(xyz_path)
+        structure_files.sort()
+        print(structure_files)
+
+        print("run structures...")
+        for p in structure_files:
+            print(p)
+            run_calculation(p.parent, p, args.indices, vasp_machine, input_dict["command"])

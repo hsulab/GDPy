@@ -378,6 +378,10 @@ class AdsorbateEvolution(AbstractExplorer):
         exp_dict = self.explorations[exp_name]
         included_systems = exp_dict.get("systems", None)
 
+        collection_params = exp_dict["collection"]
+        traj_period = collection_params.get("traj_period", 1)
+        print(f"traj_period: {traj_period}")
+
         if included_systems is not None:
             for slabel in included_systems:
                 # - prepare output directory
@@ -404,19 +408,36 @@ class AdsorbateEvolution(AbstractExplorer):
                 # - act, retrieve trajectory frames
                 # TODO: more general interface not limited to dynamics
                 traj_frames_path = res_dir / "traj_frames.xyz"
+                traj_indices_path = res_dir / "traj_indices.npy"
                 if not traj_frames_path.exists():
+                    traj_indices = [] # use traj indices to mark selected traj frames
                     all_traj_frames = []
                     tmp_folder = res_dir / "tmp_folder"
                     action = actions["dynamics"]
                     optimised_frames = read(res_dir/"graph-act-dynamics.xyz", ":")
+                    # TODO: change this to joblib
                     for atoms in optimised_frames:
                         confid = atoms.info["confid"]
                         action.set_output_path(tmp_folder/("cand"+str(confid)))
                         traj_frames = action._read_trajectory(atoms, label_steps=True)
+                        # --- generate indices
+                        cur_nframes = len(all_traj_frames)
+                        cur_indices = list(range(0,len(traj_frames)-1,traj_period)) + [len(traj_frames)-1]
+                        cur_indices = [c+cur_nframes for c in cur_indices]
+                        traj_indices.extend(cur_indices)
+                        # --- add frames
                         all_traj_frames.extend(traj_frames)
+                    np.save(traj_indices_path, traj_indices)
                     write(traj_frames_path, all_traj_frames)
                 else:
                     all_traj_frames = read(traj_frames_path, ":")
+                print("ntrajframes: ", len(all_traj_frames))
+                
+                if traj_indices_path.exists():
+                    traj_indices = np.load(traj_indices_path)
+                    all_traj_frames = [all_traj_frames[i] for i in traj_indices]
+                    #print(traj_indices)
+                print("ntrajframes: ", len(all_traj_frames), f" by {traj_period} traj_period")
 
                 # - select
                 name_path = res_dir
@@ -442,6 +463,7 @@ class AdsorbateEvolution(AbstractExplorer):
                     # TODO: select based on minima (Trajectory-based Boltzmann)
                     print(f"--- Selection Method {selector.name}---")
                     #print("ncandidates: ", len(cur_frames))
+                    # NOTE: there is an index map between traj_indices and selected_indices
                     cur_frames = selector.select(cur_frames)
                     #print("nselected: ", len(cur_frames))
                     #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)

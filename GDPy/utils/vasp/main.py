@@ -14,7 +14,7 @@ from ase.constraints import FixAtoms
 from pathlib import Path
 
 from GDPy.calculator.vasp import VaspMachine
-from GDPy.utils.command import run_command
+from GDPy.utils.command import run_command, parse_input_file
 
 from joblib import Parallel, delayed
 
@@ -164,7 +164,7 @@ def vasp_main(
     pstru, # path, a single file or a directory with many files
     choice,
     indices,
-    incar_template,
+    input_file,
     cinidices,
     is_sort,
     is_submit
@@ -173,7 +173,7 @@ def vasp_main(
     # parse structures
     pstru = Path(pstru).resolve()
 
-    # vasp machine
+    # - find default vasp machine
     gdpconfig = Path.home() / ".gdp"
     if gdpconfig.exists() and gdpconfig.is_dir():
         # find vasp config
@@ -182,11 +182,23 @@ def vasp_main(
             input_dict = json.load(fopen)
     else:
         input_dict = {}
-    input_dict["incar"] = incar_template
-    input_dict["isinteractive"] = True
+    
+    # - read input
+    print("inputs: ", input_dict)
+    if input_file is not None:
+        input_file = Path(input_file)
+        if "INCAR" in input_file.name:
+            input_dict["incar"] = str(input_file)
+        else:
+            # assume it is a config file
+            new_dict = parse_input_file(input_file)
+            input_dict.update(new_dict)
+    print("inputs: ", input_dict)
 
-
+    # - run specific choice
     if choice == "create":
+        input_dict["isinteractive"] = True
+
         stru_files = []
         if pstru.is_file():
             stru_files.append(pstru)
@@ -290,7 +302,11 @@ def vasp_main(
         if len(frames) > 1:
             write(Path.cwd().name+"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"])
             print("nframes: ", len(frames))
-
+    elif choice == "work":
+        from GDPy.calculator.worker import VaspWorker
+        single_task_command = input_dict.get("command", None)
+        worker = VaspWorker(input_dict, single_task_command)
+        worker.run(pstru, index_text=indices)
     else:
         pass
 

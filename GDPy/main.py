@@ -49,17 +49,20 @@ def main():
         "vasp", help="utils to create and analyse vasp calculation"
     )
     parser_vasp.add_argument(
+        "CHOICE", choices=["create", "freq", "data", "work"],
+        help = "choices performed with vasp"
+    )
+    parser_vasp.add_argument(
         "STRUCTURE",
         help="structure file in any format (better xsd)"
     )
     parser_vasp.add_argument(
-        "-c", "--choices", default="create",
-        choices=["create", "freq", "data"],
-        help = "choice"
+        "-in", "--input", default=None,
+        help="template incar file or a json/yaml configuration file"
     )
     parser_vasp.add_argument(
-        "-i", "--incar",
-        help="template incar file"
+        "-fi", "--indices", default=None,
+        help="frame indices to read for each vasp directory"
     )
     parser_vasp.add_argument(
         # "-c", "--copt", action='store_true',
@@ -73,10 +76,6 @@ def main():
     parser_vasp.add_argument(
         "--sub", action="store_true",
         help="submit the job after creating input files"
-    )
-    parser_vasp.add_argument(
-        "--indices", default=None,
-        help="indices to read for each vasp directory"
     )
     
     # automatic training
@@ -283,7 +282,7 @@ def main():
     # use subcommands
     if args.subcommand == "vasp":
         from GDPy.utils.vasp.main import vasp_main
-        vasp_main(args.STRUCTURE, args.choices, args.indices, args.incar, args.aindices, args.nosort, args.sub)
+        vasp_main(args.STRUCTURE, args.CHOICE, args.indices, args.input, args.aindices, args.nosort, args.sub)
     elif args.subcommand == "train":
         from .trainer.iterative_train import iterative_train
         iterative_train(args.INPUTS)
