@@ -2,8 +2,20 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC, abstractmethod
-from typing import Union, Callable
+from typing import Union, Callable, Counter, Union, List
 from pathlib import Path
+
+import time
+import json
+import warnings
+
+from joblib import Parallel, delayed
+
+from ase import Atoms
+from ase.io import read, write
+
+from GDPy.machine.machine import SlurmMachine
+from GDPy.utils.data import vasp_creator, vasp_collector
 
 class AbstractExplorer(ABC):
 
@@ -102,6 +114,172 @@ class AbstractExplorer(ABC):
             exp_directory = working_directory / exp_name
             # note: check dir existence in sub function
             operator(exp_name, working_directory)
+
+        return
+
+    def icalc(self, exp_name, working_directory, skipped_systems=[]):
+        """calculate configurations with reference method"""
+        exp_dict = self.explorations[exp_name]
+
+        # some parameters
+        calc_dict = exp_dict["calculation"]
+        machine_dict = calc_dict["machine"]
+
+        # - create fp main dir
+        prefix = working_directory / (exp_name + "-fp")
+        if prefix.exists():
+            warnings.warn("fp directory exists...", UserWarning)
+        else:
+            prefix.mkdir(parents=True)
+
+        # - run over systems
+        included_systems = exp_dict.get("systems", None)
+        if included_systems is not None:
+            # - loop over systems
+            # TODO: asyncio
+            for slabel in included_systems:
+                sys_frames = [] # NOTE: all frames
+                # TODO: make this into system
+                if slabel in skipped_systems:
+                    continue
+                # - result path
+                name_path = working_directory / exp_name / slabel
+
+                # - read collected/selected frames
+                sorted_path = name_path / "sorted"
+                if sorted_path.exists():
+                    # - find all selected files
+                    # or find final selected that is produced by a composed selector
+                    # TODO: if no selected were applied?
+                    xyzfiles = list(sorted_path.glob("*.xyz"))
+                    final_selected_path = None
+                    for x in xyzfiles:
+                        if "final" in x.name:
+                            final_selected_path = x
+                            break
+                    else:
+                        if len(xyzfiles) == 1:
+                            final_selected_path = xyzfiles[0]
+                        else:
+                            xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
+                            final_selected_path = xyzfiles[-1]
+                    print(f"found selected structure file {str(final_selected_path)}")
+                    # - create input file
+                    sorted_fp_path = prefix / slabel
+                    if not sorted_fp_path.exists():
+                        sorted_fp_path.mkdir()
+                        # -- update params with systemwise info
+                        calc_params = calc_dict.copy()
+                        for k in calc_params.keys():
+                            if calc_params[k] == "system":
+                                calc_params[k] = self.init_systems[slabel][k]
+                        # -- create params file
+                        with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
+                            json.dump(calc_params, fopen, indent=4)
+                        # -- create job script
+                        machine_params = machine_dict.copy()
+                        machine_params["job-name"] = slabel+"-fp"
+
+                        # TODO: mpirun or mpiexec, move this part to machine object
+                        command = calc_params["command"]
+                        if command.strip().startswith("mpirun"):
+                            ntasks = command.split()[2]
+                        else:
+                            ntasks = 1
+                        machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
+
+                        machine = SlurmMachine(**machine_params)
+                        machine.user_commands = "python ~/repository/GDPy/GDPy/calculator/vasp.py {} -p {}".format(
+                            str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+                        )
+                        machine.write(sorted_fp_path/"vasp.slurm")
+                        # -- submit?
+                    else:
+                        # TODO: move harvest function here?
+                        print(f"{sorted_fp_path} already exists.")
+                else:
+                    print(f"No candidates to calculate in {str(name_path)}")
+
+        return
+    
+    def iharvest(self, exp_name, working_directory: Union[str, Path]):
+        """harvest all vasp results"""
+        # TODO: replace this by a object
+        # run over directories and check
+        main_dir = Path(working_directory) / (exp_name + "-fp")
+        vasp_main_dirs = []
+        for p in main_dir.iterdir():
+            calc_file = p / "calculated_0.xyz"
+            if p.is_dir() and calc_file.exists():
+                vasp_main_dirs.append(p)
+        print(vasp_main_dirs)
+
+        # TODO: optional parameters
+        pot_gen = Path.cwd().name
+        pattern = "vasp_0_*"
+        njobs = 4
+        vaspfile, indices = "vasprun.xml", "-1:"
+
+        for d in vasp_main_dirs:
+            print("\n===== =====")
+            vasp_dirs = []
+            for p in d.parent.glob(d.name+'*'):
+                if p.is_dir():
+                    vasp_dirs.extend(vasp_collector.find_vasp_dirs(p, pattern))
+            print('total vasp dirs: %d' %(len(vasp_dirs)))
+
+            print("sorted by last integer number...")
+            vasp_dirs_sorted = sorted(
+                vasp_dirs, key=lambda k: int(k.name.split('_')[-1])
+            ) # sort by name
+
+            # check number of frames equal output?
+            input_xyz = []
+            for p in d.iterdir():
+                if p.name.endswith("-sel.xyz"):
+                    input_xyz.append(p)
+                if p.name.endswith("_ALL.xyz"):
+                    input_xyz.append(p)
+            if len(input_xyz) == 1:
+                input_xyz = input_xyz[0]
+            else:
+                raise ValueError(d, " has both sel and ALL xyz file...")
+            nframes_input = len(read(input_xyz, ":"))
+
+            atoms = read(input_xyz, "0")
+            c = Counter(atoms.get_chemical_symbols())
+            sys_name_list = []
+            for s in self.type_list:
+                sys_name_list.append(s)
+                num = c.get(s, 0)
+                sys_name_list.append(str(num))
+            sys_name = "".join(sys_name_list)
+            out_name = self.main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
+            if out_name.exists():
+                nframes_out = len(read(out_name, ":"))
+                if nframes_input == nframes_out:
+                    print(d, "already has been harvested...")
+                    continue
+
+            # start harvest
+            st = time.time()
+            print("using num of jobs: ", njobs)
+            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
+            if isinstance(cur_frames, Atoms):
+                cur_frames = [cur_frames]
+            frames = []
+            for f in cur_frames:
+                frames.extend(f) # merge all frames
+
+            et = time.time()
+            print("cost time: ", et-st)
+
+            # move structures to data path
+            if len(frames) > 0:
+                print("Number of frames: ", len(frames))
+                write(out_name, frames)
+            else:
+                print("No frames...")
 
         return
 

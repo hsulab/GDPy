@@ -402,16 +402,21 @@ class AdsorbateEvolution(AbstractExplorer):
                 frames = read(stru_path, ":")
                 
                 # - act, retrieve trajectory frames
-                all_traj_frames = []
-                tmp_folder = res_dir / "tmp_folder"
-                action = actions["dynamics"]
-                optimised_frames = read(res_dir/"graph-act-dynamics.xyz", ":")
-                for atoms in optimised_frames:
-                    confid = atoms.info["confid"]
-                    action.set_output_path(tmp_folder/("cand"+str(confid)))
-                    traj_frames = action._read_trajectory(atoms, label_steps=True)
-                    all_traj_frames.extend(traj_frames)
-                write(res_dir / "traj_frames.xyz", all_traj_frames)
+                # TODO: more general interface not limited to dynamics
+                traj_frames_path = res_dir / "traj_frames.xyz"
+                if not traj_frames_path.exists():
+                    all_traj_frames = []
+                    tmp_folder = res_dir / "tmp_folder"
+                    action = actions["dynamics"]
+                    optimised_frames = read(res_dir/"graph-act-dynamics.xyz", ":")
+                    for atoms in optimised_frames:
+                        confid = atoms.info["confid"]
+                        action.set_output_path(tmp_folder/("cand"+str(confid)))
+                        traj_frames = action._read_trajectory(atoms, label_steps=True)
+                        all_traj_frames.extend(traj_frames)
+                    write(traj_frames_path, all_traj_frames)
+                else:
+                    all_traj_frames = read(traj_frames_path, ":")
 
                 # - select
                 name_path = res_dir
