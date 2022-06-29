@@ -507,7 +507,7 @@ class Lammps(FileIOCalculator):
             # convert to lammps convention
             frozen_text = convert_indices(cons_indices.tolist(), index_convention="py")
             mobile_indices = [i for i in aindices if i not in cons_indices]
-            mobile_text = convert_indices(mobile_indices.tolist(), index_convention="py")
+            mobile_text = convert_indices(mobile_indices, index_convention="py")
         else:
             # TODO: if use region indicator
             if cons_text is None:
@@ -517,13 +517,13 @@ class Lammps(FileIOCalculator):
             if cons_data[0] not in ["py", "lmp", "lowest", "zpos"]:
                 cons_type, cons_info = "lmp", cons_data
             else:
-                cons_type, cons_info = cons_data[0], cons_data[1:]
+                cons_type, cons_info = cons_data[0], " ".join(cons_data[1:])
             #print("cons_info: ", cons_type, cons_info)
             # - 
             if cons_type == "py":
                 frozen_indices = convert_indices(cons_info, index_convention="py")
-                frozen_text = convert_indices(frozen_indices)
-                mobile_indices = [i for i in aindices if i not in cons_indices]
+                frozen_text = convert_indices(frozen_indices, index_convention="py")
+                mobile_indices = [i for i in aindices if i not in frozen_indices]
                 mobile_text = convert_indices(mobile_indices, index_convention="py")
             elif cons_type == "lmp":
                 frozen_indices = convert_indices(cons_info, index_convention="lmp")

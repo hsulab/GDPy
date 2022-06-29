@@ -676,15 +676,16 @@ class GeneticAlgorithemEngine():
         self.cons_indices = None
         if self.system_type == "surface":
             constraint = self.ga_dict["system"]["substrate"]["constraint"]
-            if constraint is not None:
-                index_group = constraint.split()
-                indices = []
-                for s in index_group:
-                    r = [int(x) for x in s.split(":")]
-                    indices.append([r[0]+1, r[1]]) # starts from 1
-            self.cons_indices = ""
-            for s, e in indices:
-                self.cons_indices += "{}:{} ".format(s, e)
+            #if constraint is not None:
+            #    index_group = constraint.split()
+            #    indices = []
+            #    for s in index_group:
+            #        r = [int(x) for x in s.split(":")]
+            #        indices.append([r[0]+1, r[1]]) # starts from 1
+            #self.cons_indices = ""
+            #for s, e in indices:
+            #    self.cons_indices += "{}:{} ".format(s, e)
+            self.cons_indices = constraint
             print("constraint indices: ", self.cons_indices)
 
         return
@@ -779,14 +780,15 @@ class GeneticAlgorithemEngine():
 
             # create the surface
             self.slab = read(substrate_file)
-            if constraint is not None:
-                index_group = constraint.split()
-                indices = []
-                for s in index_group:
-                    r = [int(x) for x in s.split(":")]
-                    indices.extend(list(range(r[0], r[1])))
-                print(indices)
-                self.slab.set_constraint(FixAtoms(indices=indices))
+            # TODO: parse constraint directly to dynamics or just add constraint to atoms?
+            #if constraint is not None:
+            #    index_group = constraint.split()
+            #    indices = []
+            #    for s in index_group:
+            #        r = [int(x) for x in s.split(":")]
+            #        indices.extend(list(range(r[0], r[1])))
+            #    print(indices)
+            #    self.slab.set_constraint(FixAtoms(indices=indices))
 
             # define the volume in which the adsorbed cluster is optimized
             # the volume is defined by a corner position (p0)
