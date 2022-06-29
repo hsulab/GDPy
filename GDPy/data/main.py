@@ -8,34 +8,46 @@ from GDPy.utils.command import parse_input_file
 
 def data_main(
     data_inputs,
-    potential,
+    pot_manager,
     subcommand,
     mode,
+    system_file,
     name, pattern,
     number,# number of selection
     etol,  # energy tolerance
     eshift, # energy shift for structure
     count = 0 # TODO: for reduction
 ):
+    # ===== parse systems =====
     # check data inputs
     input_dict = parse_input_file(data_inputs)
-    main_dir = Path(input_dict["database"])
 
-    # ===== parse systems =====
-    systems = input_dict["systems"]
+    if system_file is None:
+        main_dir = Path(input_dict["database"])
+        systems = input_dict["systems"]
+        global_type_list = input_dict["type_list"]
+    else:
+        sys_dict = parse_input_file(system_file)
+        main_dir = Path(sys_dict.pop("database", None))
+        global_type_list = sys_dict.pop("type_list", None)
+        systems = sys_dict.copy()
 
     # ====== start working =====
+    # parse potential
+    calc = None
+    if pot_manager:
+        calc = pot_manager.calc
+
     # create data analyser class and read related structures
     do = DataOperator(
-        main_dir, systems, 
+        main_dir, systems, global_type_list,
         name, pattern, 
+        calc,
         input_dict["convergence"],
         input_dict["sift"],
         input_dict.get("compress", None),
         input_dict.get("selection", None)
     )
-
-    do.register_potential(potential)
 
     if subcommand == "dryrun":
         pass
