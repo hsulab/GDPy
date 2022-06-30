@@ -23,10 +23,37 @@ from GDPy import config
 
 class AbstractSelector(abc.ABC):
 
+    default_parameters = dict(
+        selection_ratio = 0.2,
+        selection_number = 320
+    )
+
     @abc.abstractmethod
     def select(self, *args, **kargs):
 
         return
+
+    def _parse_selection_number(self, nframes):
+        """"""
+        ratio = self.default_parameters["selection_ratio"]
+        number = self.default_parameters["selection_number"]
+
+        number_info = self.selec_dict.get("number", [None,ratio])
+        if isinstance(number_info, int):
+            number_info = [number_info, ratio]
+        elif isinstance(number_info, float):
+            number_info = [number, number_info]
+        else:
+            assert len(number_info) == 2, "Cant parse number for selection..."
+        
+        num_fixed, num_percent = number_info
+        if num_fixed is not None:
+            if num_fixed > nframes:
+                num_fixed = int(nframes*num_percent)
+        else:
+            num_fixed = int(nframes*num_percent)
+
+        return num_fixed
 
 class ComposedSelector(AbstractSelector):
     
@@ -41,6 +68,8 @@ class ComposedSelector(AbstractSelector):
         self.selectors = selectors
         self.directory = directory
 
+        self._check_convergence()
+
         # - set namd and directory
         self.name = "-".join([s.name for s in self.selectors])
         for s in self.selectors:
@@ -48,31 +77,71 @@ class ComposedSelector(AbstractSelector):
 
         return
     
-    def select(self, frames):
+    def _check_convergence(self):
+        """ check if there is a convergence selector
+            if so, selections will be performed on converged ones and 
+            others separately
+        """
+        conv_i = None, None
+        selectors_ = self.selectors
+        for i, s in enumerate(selectors_):
+            if s.name == "convergence":
+                conv_i = i
+                break
+        
+        if conv_i is not None:
+            self.conv_selection = selectors_.pop(conv_i)
+            self.selectors = selectors_
+        else:
+            self.conv_selection = None
+
+        return
+    
+    def select(self, frames, index_map=None, ret_indces: bool=False):
         """"""
-        metadata = [] # selected indices
-
-        converged_indices = []
-        final_indices = []
-
+        # - initial index stuff
         nframes = len(frames)
-        cur_frames = frames
         cur_index_map = list(range(nframes))
-        for isele, selector in enumerate(self.selectors):
-            # TODO: add info to selected frames
-            print(f"--- Selection {isele} Method {selector.name}---")
+
+        # NOTE: find converged ones and others
+        # convergence selector is standalone
+        frame_index_groups = {}
+        if self.conv_selection is not None:
+            selector = self.conv_selection
+            converged_indices = selector.select(frames, ret_indices=True)
+            traj_indices = [m for m in cur_index_map if m not in converged_indices] # means not converged
+            frame_index_groups = dict(
+                converged = converged_indices,
+                traj = traj_indices
+            )
+            # -- converged
+            converged_frames = [frames[x] for x in converged_indices]
+            print("nconverged: ", len(converged_frames))
+            write(self.directory/f"{selector.name}-frames.xyz", converged_frames)
+        else:
+            frame_index_groups = dict(
+                traj = cur_index_map
+            )
+
+        # - run selectors
+        merged_final_indices = []
+
+        for sys_name, global_indices in frame_index_groups.items():
+            # - init 
+            metadata = [] # selected indices
+            final_indices = []
+
+            # - prepare index map
+            cur_frames = [frames[i] for i in global_indices]
+            cur_index_map = global_indices.copy()
+
+            print(f"----- Start System {sys_name} -----")
             print("ncandidates: ", len(cur_frames))
-            if selector.name == "convergence":
-                cur_indices = selector.select(cur_frames, ret_indices=True)
-                mapped_indices = sorted([cur_index_map[x] for x in cur_indices])
-                new_indices = [m for m in mapped_indices if m not in converged_indices]
-                converged_indices += new_indices
-                metadata.append(converged_indices)
-                # -- converged
-                converged_frames = [frames[x] for x in converged_indices]
-                print("nconverged: ", len(converged_frames))
-                write(self.directory/f"{selector.name}-selected-{isele}.xyz", converged_frames)
-            else:
+            for isele, selector in enumerate(self.selectors):
+                # TODO: add info to selected frames
+                # TODO: use cached files
+                print(f"--- Selection {isele} Method {selector.name}---")
+                print("ncandidates: ", len(cur_frames))
                 cur_indices = selector.select(cur_frames, ret_indices=True)
                 mapped_indices = sorted([cur_index_map[x] for x in cur_indices])
                 metadata.append(mapped_indices)
@@ -81,27 +150,34 @@ class ComposedSelector(AbstractSelector):
                 print("nselected: ", len(cur_frames))
                 # - create index_map for next use
                 cur_index_map = mapped_indices.copy()
-                    
+
                 # TODO: should print-out intermediate results?
-                write(self.directory/f"{selector.name}-selected-{isele}.xyz", cur_frames)
-        
-        # - plus converged frames if any
-        if converged_indices:
-            new_indices = [c for c in converged_indices]
-            final_indices += new_indices
-        selected_frames = [frames[i] for i in final_indices]
-        write(self.directory/f"{selector.name}-selected-final.xyz", selected_frames)
+                write(self.directory/f"{sys_name}-{selector.name}-selected-{isele}.xyz", cur_frames)
+            
+            merged_final_indices += final_indices
 
-        # - ouput data
-        maxlength = np.max([len(m) for m in metadata])
-        data = -np.ones((maxlength,len(metadata)))
-        for i, m in enumerate(metadata):
-            data[:len(m),i] = m
-        header = "".join(["{:<24s}".format(s.name) for s in self.selectors])
-        
-        np.savetxt(self.directory/(self.name+"_metadata.txt"), data, fmt="%24d", header=header)
+            # TODO: map selected indices
+            # is is ok?
+            if index_map is not None:
+                final_indices = [index_map[s] for s in final_indices]
 
-        return selected_frames
+            # - ouput data
+            # TODO: write selector parameters to metadata file
+            maxlength = np.max([len(m) for m in metadata])
+            data = -np.ones((maxlength,len(metadata)))
+            for i, m in enumerate(metadata):
+                data[:len(m),i] = m
+            header = "".join(["{:<24s}".format(s.name) for s in self.selectors])
+        
+            np.savetxt(self.directory/(f"{sys_name}-{self.name}_metadata.txt"), data, fmt="%24d", header=header)
+
+        if ret_indces:
+            return merged_final_indices
+        else:
+            selected_frames = [frames[i] for i in merged_final_indices]
+            write(self.directory/f"merged-{selector.name}-selected-final.xyz", selected_frames)
+
+            return selected_frames
 
 class ConvergenceSelector(AbstractSelector):
 
@@ -345,24 +421,7 @@ class DescriptorBasedSelector(AbstractSelector):
 
         return
     
-    def _parse_selection_number(self, nframes):
-        """"""
-        number_info = self.selec_dict.get("number", [None,0.2])
-        if isinstance(number_info, int):
-            number_info = [number_info, 0.2]
-        elif isinstance(number_info, float):
-            number_info = [320, number_info]
-        else:
-            assert len(number_info) == 2, "Cant parse number for selection..."
-        
-        num_fixed, num_percent = number_info
-        if num_fixed is not None:
-            if num_fixed > nframes:
-                num_fixed = int(nframes*num_percent)
-        else:
-            num_fixed = int(nframes*num_percent)
 
-        return num_fixed
 
     def calc_desc(self, frames):
         """"""
@@ -470,6 +529,7 @@ def create_selector(input_list: list, directory=Path.cwd()):
         selector = ComposedSelector(selectors, directory=directory)
     else:
         selector = selectors[0]
+        selector.directory = directory
 
     return selector
 
