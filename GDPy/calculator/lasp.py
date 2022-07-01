@@ -13,10 +13,11 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.calculator.dynamics import AbstractDynamics
+from GDPy.builder.constraints import parse_constraint_info
 
-from ase.calculators.singlepoint import SinglePointCalculator
 
 """
 output files by lasp NVE-MD
@@ -250,8 +251,11 @@ class LaspNN(FileIOCalculator):
         # check symbols and corresponding potential file
         atomic_types = set(self.atoms.get_chemical_symbols()) # TODO: sort by 
 
-        # input
+        # - potential choice
+        # NOTE: only for LaspNN now
         content  = "potential {}\n".format(self.parameters["potential"])
+        assert self.parameters["potential"] == "NN", "Lasp calculator only support NN now."
+
         content += "%block netinfo\n"
         for atype in atomic_types:
             # write path
@@ -263,15 +267,23 @@ class LaspNN(FileIOCalculator):
                 pot_link.symlink_to(pot_path)
         content += "%endblock netinfo\n"
 
+        # - atom constraint
         constraint = self.parameters["constraint"]
-        if constraint is not None:
+        mobile_text, frozen_text = parse_constraint_info(atoms, constraint)
+
+        if frozen_text is not None:
             content += "%block fixatom\n"
-            cons_block = constraint.strip().split()
-            for block in cons_block:
-                s, e = block.split(":")
+            frozen_block = frozen_text.strip().split()
+            for block in frozen_block:
+                info = block.split(":")
+                if len(info) == 2:
+                    s, e = info
+                else:
+                    s, e = info[0], info[0]
                 content += "  {} {} xyz\n".format(s, e)
             content += "%endblock fixatom\n"
 
+        # - simulation task
         explore_type = self.parameters["explore_type"]
         content += "\nexplore_type {}\n".format(explore_type)
         if explore_type == "ssw":

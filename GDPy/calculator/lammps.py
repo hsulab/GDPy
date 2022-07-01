@@ -12,7 +12,7 @@ from pathlib import Path
 import dataclasses
 
 from collections.abc import Iterable
-from typing import List, Mapping, Dict, Optional
+from typing import List, Mapping, Dict, Optional, NoReturn
 
 import numpy as np
 
@@ -26,12 +26,13 @@ from ase.calculators.calculator import (
     CalculationFailed,
     Calculator, all_changes, PropertyNotImplementedError, FileIOCalculator
 )
-from ase.constraints import constrained_indices, FixAtoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.lammps import unitconvert
 
 from GDPy.calculator.dynamics import AbstractDynamics
-from GDPy.utils.command import find_backups, convert_indices
+from GDPy.utils.command import find_backups
+
+from GDPy.builder.constraints import parse_constraint_info
 
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
@@ -141,21 +142,6 @@ class LmpDynamics(AbstractDynamics):
         kwargs[self.keyword] = args
 
         return
-    
-    def _parse_constraint(self, atoms: Atoms, sys_cons_text) -> str:
-        """"""
-        # TODO: check if atoms have constraint
-        cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
-        if cons_indices.size > 0:
-            # convert to lammps convention
-            cons_indices += 1
-            cons_text = convert_indices(cons_indices.tolist())
-        else:
-            # TODO: if use region indicator
-            cons_text = sys_cons_text
-        #print("cons_text: ", cons_text)
-
-        return cons_text
     
     def run(self, atoms, read_exists: bool=False, extra_info: dict=None, **kwargs):
         """"""
@@ -434,7 +420,7 @@ class Lammps(FileIOCalculator):
         )
 
         # write input
-        self._write_input()
+        self._write_input(atoms)
 
         return
     
@@ -485,69 +471,7 @@ class Lammps(FileIOCalculator):
 
         return
     
-    def _parse_constraint_info(self) -> List[int]:
-        """ constraint info can be any forms below, 
-            and transformed into indices that start from 1
-            "2:5 8" means 2,3,4,5,8 (default uses lmp convention)
-            "py 0:5 9" means 1,2,3,4,5,10
-            "lmp 1:4 8" means 1,2,3,4,8
-            "lowest 10" means 10 atoms with smallest z-positions
-            "zpos 4.5" means all atoms with zpositions smaller than 4.5
-        """
-        atoms, cons_text = self.atoms, self.constraint
-        aindices = list(range(len(atoms)))
-        #print("constraint: ", cons_text)
-
-        mobile_text = convert_indices(aindices, index_convention="py")
-        frozen_text = None
-
-        # TODO: check if atoms have constraint
-        cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
-        if cons_indices.size > 0:
-            # convert to lammps convention
-            frozen_text = convert_indices(cons_indices.tolist(), index_convention="py")
-            mobile_indices = [i for i in aindices if i not in cons_indices]
-            mobile_text = convert_indices(mobile_indices, index_convention="py")
-        else:
-            # TODO: if use region indicator
-            if cons_text is None:
-                return mobile_text, frozen_text
-
-            cons_data = cons_text.split()
-            if cons_data[0] not in ["py", "lmp", "lowest", "zpos"]:
-                cons_type, cons_info = "lmp", cons_data
-            else:
-                cons_type, cons_info = cons_data[0], " ".join(cons_data[1:])
-            #print("cons_info: ", cons_type, cons_info)
-            # - 
-            if cons_type == "py":
-                frozen_indices = convert_indices(cons_info, index_convention="py")
-                frozen_text = convert_indices(frozen_indices, index_convention="py")
-                mobile_indices = [i for i in aindices if i not in frozen_indices]
-                mobile_text = convert_indices(mobile_indices, index_convention="py")
-            elif cons_type == "lmp":
-                frozen_indices = convert_indices(cons_info, index_convention="lmp")
-                frozen_text = convert_indices(frozen_indices, index_convention="py")
-                mobile_indices = [i for i in aindices if i not in frozen_indices]
-                mobile_text = convert_indices(mobile_indices, index_convention="py")
-            elif cons_type == "lowest":
-                frozen_indices = sorted(aindices, key=lambda x:atoms.positions[x][2])[:int(cons_info[0])]
-                frozen_text = convert_indices(frozen_indices, index_convention="py")
-                mobile_indices = [i for i in aindices if i not in frozen_indices]
-                mobile_text = convert_indices(mobile_indices, index_convention="py")
-            elif cons_type == "zpos":
-                frozen_indices = [i for i in aindices if atoms.positions[i][2] <= float(cons_info[0])]
-                frozen_text = convert_indices(frozen_indices, index_convention="py")
-                mobile_indices = [i for i in aindices if i not in frozen_indices]
-                mobile_text = convert_indices(mobile_indices, index_convention="py")
-            else:
-                pass
-
-        #print("cons_text: ", cons_text)
-
-        return mobile_text, frozen_text
-    
-    def _write_input(self):
+    def _write_input(self, atoms) -> NoReturn:
         """"""
         mass_line = ''.join(
             'mass %d %f\n' %(idx+1,atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(self.specorder)
@@ -632,7 +556,7 @@ class Lammps(FileIOCalculator):
         content += "\n"
 
         # constraint
-        mobile_text, frozen_text = self._parse_constraint_info()
+        mobile_text, frozen_text = parse_constraint_info(atoms, self.constraint)
         content += "group mobile id %s\n" %mobile_text
         content += "\n"
         if frozen_text is not None:
