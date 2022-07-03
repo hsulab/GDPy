@@ -135,6 +135,8 @@ class ComposedSelector(AbstractSelector):
             cur_frames = [frames[i] for i in global_indices]
             cur_index_map = global_indices.copy()
 
+            metadata.append(cur_index_map)
+
             print(f"----- Start System {sys_name} -----")
             print("ncandidates: ", len(cur_frames))
             for isele, selector in enumerate(self.selectors):
@@ -167,7 +169,7 @@ class ComposedSelector(AbstractSelector):
             data = -np.ones((maxlength,len(metadata)))
             for i, m in enumerate(metadata):
                 data[:len(m),i] = m
-            header = "".join(["{:<24s}".format(s.name) for s in self.selectors])
+            header = "".join(["init "+"{:<24s}".format(s.name) for s in self.selectors])
         
             np.savetxt(self.directory/(f"{sys_name}-{self.name}_metadata.txt"), data, fmt="%24d", header=header)
 
