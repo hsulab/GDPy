@@ -14,8 +14,10 @@ from joblib import Parallel, delayed
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy import config
 from GDPy.machine.machine import SlurmMachine
 from GDPy.utils.data import vasp_creator, vasp_collector
+
 
 class AbstractExplorer(ABC):
 
@@ -27,12 +29,21 @@ class AbstractExplorer(ABC):
     type_map = {}
     type_list = []
 
-    def __init__(self, main_dict: str):
+    def __init__(self, pm, main_dict):
         """"""
-        # self.main_dict = main_dict
-        self.systems = main_dict["systems"]
+        self.pot_manager = pm
+        self._register_type_map(main_dict) # obtain type_list or type_map
+
         self.explorations = main_dict["explorations"]
-        
+        self.init_systems = main_dict["systems"]
+
+        self._parse_general_params(main_dict)
+
+        # for job prefix
+        self.job_prefix = ""
+
+        self.njobs = config.NJOBS
+
         return
     
     def _register_type_map(self, input_dict: dict):
@@ -182,14 +193,16 @@ class AbstractExplorer(ABC):
 
                         # TODO: mpirun or mpiexec, move this part to machine object
                         command = calc_params["command"]
-                        if command.strip().startswith("mpirun"):
+                        if command.strip().startswith("mpirun") or command.strip().startswith("mpiexec"):
                             ntasks = command.split()[2]
                         else:
                             ntasks = 1
+                        # TODO: number of nodes?
                         machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
 
                         machine = SlurmMachine(**machine_params)
-                        machine.user_commands = "python ~/repository/GDPy/GDPy/calculator/vasp.py {} -p {}".format(
+                        #"gdp vasp work ../C3O3Pt36.xyz -in ../vasp_params.json"
+                        machine.user_commands = "gdp vasp work {} -in {}".format(
                             str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
                         )
                         machine.write(sorted_fp_path/"vasp.slurm")
