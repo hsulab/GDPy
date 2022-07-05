@@ -105,6 +105,8 @@ def parse_input_file(
     
     if isinstance(input_fpath, str):
         input_file = Path(input_fpath)
+    elif isinstance(input_fpath, Path):
+        input_file = input_fpath
     else:
         return None
 
