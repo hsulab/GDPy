@@ -556,7 +556,7 @@ class GCMC():
         st = time.time()
 
         # - choose species
-        expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
+        expart = str(self.rng.choice(self.exparts)) # each element hase same prob to chooose
         print("selected particle: ", expart)
         rn_mcmove = self.rng.uniform()
         print("prob action", rn_mcmove)
@@ -781,7 +781,8 @@ class GCMC():
             self.atoms = opt_atoms
             self.energy_stored = energy_after
             # reformat exchangeable atoms
-            self.tag_list = [t for t in self.tag_list if t != tag_idx_pick]
+            new_expart_list = [t for t in self.tag_list[expart] if t != tag_idx_pick] 
+            self.tag_list[expart] = new_expart_list
         else:
             pass
 
