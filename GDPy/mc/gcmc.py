@@ -84,6 +84,7 @@ class ReducedRegion():
         caxis: list, # min and max in z-axis
         covalent_ratio = [0.8, 2.0],
         max_movedisp = 2.0,
+        use_rotation = False,
         rng = None
     ):
         """"""
@@ -100,6 +101,8 @@ class ReducedRegion():
 
         # move operation
         self.max_movedisp = max_movedisp
+
+        self.use_rotation = use_rotation
 
         # box
         self.cell = cell.copy()
@@ -173,7 +176,7 @@ class ReducedRegion():
 
         #org_pos = new_atoms[idx_pick].position.copy() # original position
         # TODO: deal with pbc, especially for move step
-        org_com = np.mean(species.positions.copy())
+        org_com = np.mean(species.positions.copy(), axis=0)
         org_positions = species.positions.copy()
 
         chemical_symbols = new_atoms.get_chemical_symbols()
@@ -196,22 +199,23 @@ class ReducedRegion():
                     rsq = np.linalg.norm(rvec)
                 ran_pos = org_com + rvec*self.max_movedisp
             # update position of idx_pick
-            #species.translate(ran_pos - org_com)
-            new_vec = ran_pos - org_com
-            new_atoms.positions[species_indices] += new_vec
-            # Apply a random rotation to multi-atom blocks
+            #new_atoms.positions[species_indices] += new_vec
             species_ = species.copy()
-            species_.positions += new_vec
-            if len(species_indices) > 1:
+            # --- Apply a random rotation to multi-atom blocks
+            if self.use_rotation and len(species_indices) > 1:
                 phi, theta, psi = 360 * self.rng.uniform(0,1,3)
                 species_.euler_rotate(
                     phi=phi, theta=0.5 * theta, psi=psi,
-                    center=np.mean(species_.positions)
+                    center=org_com
                 )
+            # -- Apply translation
+            new_vec = ran_pos - org_com
+            species_.translate(new_vec)
             new_atoms.positions[species_indices] = species_.positions.copy()
             # use neighbour list
             if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, species_indices):
                 print(f"succeed to random after {i+1} attempts...")
+                print("original position: ", org_com)
                 print("random position: ", ran_pos)
                 break
             new_atoms.positions[species_indices] = org_positions
@@ -418,9 +422,10 @@ class GCMC():
         self.substrate_natoms = len(self.atoms)
 
         # set reduced region
+        use_rotation = region_settings.pop("use_rotation", True)
         self.region = ReducedRegion(
             self.type_list, self.atoms.get_cell(complete=True), 
-            **region_settings, rng=self.rng
+            **region_settings, use_rotation=use_rotation, rng=self.rng
         )
 
         self.acc_volume = self.region.calc_acc_volume(self.atoms)
@@ -509,6 +514,7 @@ class GCMC():
             content += ("{:<8.4f}  "*3+"\n").format(*list(self.region.cell[i, :]))
         content += "covalent ratio: {}  {}\n".format(self.region.covalent_min, self.region.covalent_max)
         content += "maximum movedisp: {}\n".format(self.region.max_movedisp)
+        content += "use rotation: {}\n".format(self.region.use_rotation)
         print(content)
         
         # set calculator
