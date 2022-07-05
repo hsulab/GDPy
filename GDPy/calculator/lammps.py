@@ -143,7 +143,7 @@ class LmpDynamics(AbstractDynamics):
 
         return
     
-    def run(self, atoms, read_exists: bool=False, extra_info: dict=None, **kwargs):
+    def run(self, atoms, read_exists: bool=True, extra_info: dict=None, **kwargs):
         """"""
         # - backup old params
         # TODO: change to context message?
@@ -167,10 +167,14 @@ class LmpDynamics(AbstractDynamics):
 
         # - run dynamics
         try:
-            is_finished = atoms.calc._is_finished()
-            if is_finished:
-                print(f"found finished {self._directory_path.name}.")
-                pass
+            # NOTE: some calculation can overwrite existed data
+            if read_exists:
+                is_finished = atoms.calc._is_finished()
+                if is_finished:
+                    print(f"found finished {self._directory_path.name}.")
+                else:
+                    # TODO: restart calculation!!!
+                    _  = atoms.get_forces()
             else:
                 _  = atoms.get_forces()
         except OSError:
@@ -193,7 +197,7 @@ class LmpDynamics(AbstractDynamics):
 
         return new_atoms
 
-    def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
+    def minimise(self, atoms, read_exists: bool = True, repeat=1, extra_info=None, **kwargs) -> Atoms:
         """ return a new atoms with singlepoint calc
             input atoms wont be changed
         """
@@ -201,7 +205,7 @@ class LmpDynamics(AbstractDynamics):
         print(f"\nStart minimisation maximum try {repeat} times...")
         for i in range(repeat):
             print("attempt ", i)
-            min_atoms = self.run(atoms, **kwargs)
+            min_atoms = self.run(atoms, read_exists=read_exists, **kwargs)
             min_results = self.__read_min_results(self._directory_path / "log.lammps")
             print(min_results)
             # add few information

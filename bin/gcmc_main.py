@@ -43,11 +43,15 @@ with open("params.json", "w") as fopen:
     json.dump(gc_dict, fopen, indent=4)
 print("See params.json for values of all parameters...")
 
+random_seed = gc_dict.get("random_seed", None)
+
 # start mc
 transition_array = gc_dict["probabilities"] # move and exchange
 gcmc = GCMC(
-    gc_dict["type_list"], gc_dict["reservior"], transition_array
+    gc_dict["type_list"], gc_dict["reservior"], 
+    gc_dict.get("restart", True), transition_array, random_seed
 )
+
 
 
 if args.run:

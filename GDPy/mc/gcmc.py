@@ -19,7 +19,8 @@ from ase.optimize import BFGS
 from ase.constraints import FixAtoms
 
 from ase.ga.utilities import closest_distances_generator
-from sklearn.utils import check_matplotlib_support # generate bond distance list
+
+from GDPy.builder.species import build_species
 
 
 """
@@ -82,7 +83,8 @@ class ReducedRegion():
         cell, # (3x3) lattice
         caxis: list, # min and max in z-axis
         covalent_ratio = [0.8, 2.0],
-        max_movedisp = 2.0
+        max_movedisp = 2.0,
+        rng = None
     ):
         """"""
         # cutoff radii
@@ -112,8 +114,11 @@ class ReducedRegion():
         )
 
         # random generator
-        drng = np.random.default_rng()
-        self.rng = drng
+        if rng is None:
+            drng = np.random.default_rng()
+            self.rng = drng
+        else:
+            self.rng = rng
 
         return
 
@@ -138,7 +143,7 @@ class ReducedRegion():
     def check_overlap(mindis, ran_pos, positions):
         """"""
         st = time.time()
-        # TODO: change this to the faste neigbour list construction
+        # TODO: change this to the faster neigbour list construction
         # maybe use scipy
         overlapped = False
         for pos in positions:
@@ -155,16 +160,21 @@ class ReducedRegion():
     def random_position_neighbour(
         self, 
         new_atoms: Atoms, 
-        expart,
-        idx_pick,
+        species_indices,
         operation # move or insert
     ):
         """"""
         print("\n---- Generate Random Position -----\n")
         st = time.time()
 
+        # - find tag atoms
         # record original position of idx_pick
-        org_pos = new_atoms[idx_pick].position.copy() # original position
+        species = new_atoms[species_indices]
+
+        #org_pos = new_atoms[idx_pick].position.copy() # original position
+        # TODO: deal with pbc, especially for move step
+        org_com = np.mean(species.positions.copy())
+        org_positions = species.positions.copy()
 
         chemical_symbols = new_atoms.get_chemical_symbols()
         nl = NeighborList(
@@ -184,14 +194,27 @@ class ReducedRegion():
                 while (rsq > 1.0):
                     rvec = 2*self.rng.uniform(size=3) - 1.0
                     rsq = np.linalg.norm(rvec)
-                ran_pos = org_pos + rvec*self.max_movedisp
+                ran_pos = org_com + rvec*self.max_movedisp
             # update position of idx_pick
-            new_atoms[idx_pick].position = ran_pos.copy()
+            #species.translate(ran_pos - org_com)
+            new_vec = ran_pos - org_com
+            new_atoms.positions[species_indices] += new_vec
+            # Apply a random rotation to multi-atom blocks
+            species_ = species.copy()
+            species_.positions += new_vec
+            if len(species_indices) > 1:
+                phi, theta, psi = 360 * self.rng.uniform(0,1,3)
+                species_.euler_rotate(
+                    phi=phi, theta=0.5 * theta, psi=psi,
+                    center=np.mean(species_.positions)
+                )
+            new_atoms.positions[species_indices] = species_.positions.copy()
             # use neighbour list
-            if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, expart, idx_pick):
+            if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, species_indices):
                 print(f"succeed to random after {i+1} attempts...")
                 print("random position: ", ran_pos)
                 break
+            new_atoms.positions[species_indices] = org_positions
         else:
             new_atoms = None
 
@@ -202,29 +225,33 @@ class ReducedRegion():
     
     def check_overlap_neighbour(
         self, nl, new_atoms, chemical_symbols, 
-        expart, idx_pick = -1
+        species_indices
     ):
         """ use neighbour list to check newly added atom is neither too close or too
             far from other atoms
         """
+        overlapped = False
         nl.update(new_atoms)
-        indices, offsets = nl.get_neighbors(idx_pick)
-        if len(indices) > 0:
-            print("nneighs: ", len(indices))
-            overlapped = False
-            # should close to other atoms
-            for ni, offset in zip(indices, offsets):
-                dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, self.cell)))
-                pairs = [chemical_symbols[ni], expart]
-                pairs = tuple([data.atomic_numbers[p] for p in pairs])
-                print("distance: ", ni, dis, self.blmin[pairs])
-                if dis < self.blmin[pairs]:
-                    overlapped = True
-                    break
-        else:
-            # TODO: is no neighbours valid?
-            print("no neighbours, being isolated...")
-            overlapped = True
+        for idx_pick in species_indices:
+            print("- check index ", idx_pick)
+            indices, offsets = nl.get_neighbors(idx_pick)
+            if len(indices) > 0:
+                print("nneighs: ", len(indices))
+                # should close to other atoms
+                for ni, offset in zip(indices, offsets):
+                    dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, self.cell)))
+                    pairs = [chemical_symbols[ni], chemical_symbols[idx_pick]]
+                    pairs = tuple([data.atomic_numbers[p] for p in pairs])
+                    print("distance: ", ni, dis, self.blmin[pairs])
+                    if dis < self.blmin[pairs]:
+                        overlapped = True
+                        break
+            else:
+                # TODO: is no neighbours valid?
+                print("no neighbours, being isolated...")
+                overlapped = True
+                # TODO: try rotate?
+                break
 
         return overlapped
     
@@ -249,11 +276,14 @@ class GCMC():
         self, 
         type_list: list, 
         reservior: dict, 
+        restart: bool = False,
         transition_array: np.array = np.array([0.0,0.0]),
-        random_seed = None # TODO
+        random_seed = None
     ):
         """
         """
+        self.restart = restart
+
         # elements
         self.type_list = type_list
 
@@ -261,32 +291,34 @@ class GCMC():
         self.trans_probs = transition_array # transition probabilities: motion, insertion, deletion
         self.accum_probs = np.cumsum(transition_array) / np.sum(transition_array)
 
-        # set random generator
-        self.set_rng()
+        # set random generator TODO: move to run?
+        self.set_rng(random_seed)
+        print("RANDOM SEED: ", random_seed)
 
+        # - parse reservoir
         # TODO: reservoir
-        res_format = reservior.get("format", "otf") # on-the-fly calculation
-        if res_format == "direct":
-            self.temperature, self.pressure = reservior["temperature"], -1000. # NOTE: pressure is None
-            self.chem_pot = reservior["particle"]
-            self.exparts = list(self.chem_pot.keys())
-        else:
-            # for single particle reservoir
-            self.exparts = [reservior["particle"]] # exchangeable particle
-            self.temperature, self.pressure = reservior["temperature"], reservior["pressure"]
+        self.temperature, self.pressure = reservior["temperature"], reservior.get("pressure", -1000.) # NOTE: pressure is None
 
-            # - chemical potenttial
-            self.chem_pot = {}
-            self.chem_pot[self.exparts[0]] = estimate_chemical_potential(
-                temperature=self.temperature, pressure=self.pressure,
-                **reservior["energy_params"]
-            )
+        self.exparts, self.chem_pot = [], {} # particle names, particle mus
+
+        particle_info = reservior["species"]
+        for name, data in particle_info.items():
+            self.exparts.append(name)
+            if isinstance(data, dict):
+                self.chem_pot[name] = estimate_chemical_potential(
+                    temperature=self.temperature, pressure=self.pressure,
+                    **data
+                )
+            else:
+                # directly offer chemical potential
+                self.chem_pot[name] = float(data)
 
         # statistical mechanics
+        self.species_mass = {}
         self.beta = {}
         self.cubic_wavelength = {}
         for expart in self.exparts:
-            self.beta[expart], self.cubic_wavelength[expart] = self.compute_thermo_wavelength(
+            self.species_mass[expart], self.beta[expart], self.cubic_wavelength[expart] = self.compute_thermo_wavelength(
                 expart, self.temperature
             )
 
@@ -300,18 +332,22 @@ class GCMC():
 
         # - cubic thermo de broglie 
         hplanck = units._hplanck # J/Hz = kg*m2*s-1
-        _mass = data.atomic_masses[data.atomic_numbers[expart]] # g/mol
-        _mass = _mass * units._amu
+        #_mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
+        _species = build_species(expart)
+        _species_mass = np.sum(_species.get_masses())
+        #print("species mass: ", _mass)
+        _mass = _species_mass * units._amu
         kbT_J = kBT_eV * units._e # J = kg*m2*s-2
         cubic_wavelength = (hplanck/np.sqrt(2*np.pi*_mass*kbT_J)*1e10)**3 # thermal de broglie wavelength
 
-        return beta, cubic_wavelength
-    
+        return _species_mass, beta, cubic_wavelength
 
-    def set_rng(self):
-        # TODO: provide custom random seed
-        drng = np.random.default_rng()
-        self.rng = drng
+    def set_rng(self, seed=None):
+        # - assign random seeds
+        if seed is None:
+            self.rng = np.random.default_rng()
+        elif isinstance(seed, int):
+            self.rng = np.random.default_rng(seed)
 
         return
 
@@ -320,7 +356,7 @@ class GCMC():
         self.minimisation = calc_params.pop("minimisation", None)
 
         print("\n===== Calculator INFO =====\n")
-        model = calc_params["model_params"]["model"]
+        model = calc_params["model"]
         if model == "lasp":
             from GDPy.calculator.lasp import LaspNN
             self.calc = LaspNN(**self.calc_dict["kwargs"])
@@ -352,12 +388,15 @@ class GCMC():
         calc_params["directory"] = Path(calc_params["directory"])
 
         # find uncertainty support
-        model_files = calc_params["model_params"]["file"]
-        if isinstance(model_files, str):
-            num_models = 0
-        else:
-            num_models = len(model_files)
-            calc_params["model_params"]["file"] = " ".join(model_files)
+        # TODO: check uncertainty
+        #model_files = calc_params["model_params"]["file"]
+        #if isinstance(model_files, str):
+        #    num_models = 0
+        #else:
+        #    num_models = len(model_files)
+        #    calc_params["model_params"]["file"] = " ".join(model_files)
+        num_models = 0
+
         self.suspects = None
         if num_models > 1:
             self.suspects = Path(self.SUSPECT_DIR)
@@ -381,7 +420,7 @@ class GCMC():
         # set reduced region
         self.region = ReducedRegion(
             self.type_list, self.atoms.get_cell(complete=True), 
-            **region_settings
+            **region_settings, rng=self.rng
         )
 
         self.acc_volume = self.region.calc_acc_volume(self.atoms)
@@ -392,44 +431,52 @@ class GCMC():
             indices = cons_indices
         )
         self.atoms.set_constraint(cons)
-        self.constraint = cons
-        self.cons_indices = " ".join([str(i+1) for i in cons_indices])
 
         # few iterative properties
-        self.exatom_indices = {}
-        for expart in self.exparts:
-            self.exatom_indices[expart] = []
+        # TODO: use tag for molecule species
 
+        # - set tags for init sys
+        self.atoms.set_tags(0)
+
+        # NOTE: use tag_list to manipulate both atoms and molecules
+        self.tag_list = {}
+        for expart in self.exparts:
+            self.tag_list[expart] = []
+            
         # check restart
-        if Path(self.MCTRAJ).exists():
-            print("restart from last structure...")
-            last_traj = read(self.MCTRAJ, ":")
-            start_index = len(last_traj) - 1
-            last_atoms = last_traj[-1]
-            # NOTE: the atom order matters
-            # update exatom_indices
-            chemical_symbols = last_atoms.get_chemical_symbols()
-            last_natoms = len(last_atoms)
-            for i in range(self.substrate_natoms, last_natoms):
-                chem_sym = chemical_symbols[i]
-                self.exatom_indices[chem_sym].append(i)
-            # set atoms and its constraint
-            self.atoms = last_atoms
-            self.atoms.set_constraint(cons)
-            # backup traj file
-            card_path = Path.cwd() / Path(self.MCTRAJ).name
-            bak_fmt = ("bak.{:d}."+Path(self.MCTRAJ).name)
-            idx = 0
-            while True:
-                bak_card = bak_fmt.format(idx)
-                if not Path(bak_card).exists():
-                    saved_card_path = Path.cwd() / bak_card
-                    shutil.copy(card_path, saved_card_path)
-                    break
-                else:
-                    idx += 1
+        if self.restart:
+            if Path(self.MCTRAJ).exists():
+                print("restart from last structure...")
+                last_traj = read(self.MCTRAJ, ":")
+                start_index = len(last_traj) - 1
+                last_atoms = last_traj[-1]
+                # NOTE: the atom order matters
+                # update exatom_indices
+                chemical_symbols = last_atoms.get_chemical_symbols()
+                last_natoms = len(last_atoms)
+                # TODO: update tag_list
+                for i in range(self.substrate_natoms, last_natoms):
+                    chem_sym = chemical_symbols[i]
+                    self.exatom_indices[chem_sym].append(i)
+                # set atoms and its constraint
+                self.atoms = last_atoms
+                self.atoms.set_constraint(cons)
+                # backup traj file
+                card_path = Path.cwd() / Path(self.MCTRAJ).name
+                bak_fmt = ("bak.{:d}."+Path(self.MCTRAJ).name)
+                idx = 0
+                while True:
+                    bak_card = bak_fmt.format(idx)
+                    if not Path(bak_card).exists():
+                        saved_card_path = Path.cwd() / bak_card
+                        shutil.copy(card_path, saved_card_path)
+                        break
+                    else:
+                        idx += 1
+            else:
+                print("start from new substrate...")
+                start_index = 0
         else:
-            print("start from new substrate...")
             start_index = 0
 
         return start_index
@@ -447,9 +494,10 @@ class GCMC():
         content += 'Temperature %.4f [K] Pressure %.4f [atm]\n' %(self.temperature, self.pressure)
         for expart in self.exparts:
             content += "--- %s ---\n" %expart
-            content += 'Beta %.4f [eV-1]\n' %(self.beta[expart])
-            content += 'Cubic Thermal de Broglie Wavelength %f\n' %self.cubic_wavelength[expart]
-            content += 'Chemical Potential of is %.4f [eV]\n' %self.chem_pot[expart]
+            content += f"Mass {self.species_mass[expart]}\n"
+            content += "Beta %.4f [eV-1]\n" %(self.beta[expart])
+            content += "Cubic Thermal de Broglie Wavelength %f\n" %self.cubic_wavelength[expart]
+            content += "Chemical Potential of is %.4f [eV]\n" %self.chem_pot[expart]
         print(content)
 
         start_index = self.__construct_initial_system(substrate_path, region_settings)
@@ -501,13 +549,14 @@ class GCMC():
         """
         st = time.time()
 
+        # - choose species
         expart = self.rng.choice(self.exparts) # each element hase same prob to chooose
         print("selected particle: ", expart)
         rn_mcmove = self.rng.uniform()
         print("prob action", rn_mcmove)
 
         # step for selected type of particles
-        nexatoms = len(self.exatom_indices[expart])
+        nexatoms = len(self.tag_list[expart])
         if nexatoms > 0:
             if rn_mcmove < self.accum_probs[0]:
                 # atomic motion
@@ -536,11 +585,11 @@ class GCMC():
     
     def pick_random_atom(self, expart):
         """"""
-        nexpart = len(self.exatom_indices[expart])
+        nexpart = len(self.tag_list[expart])
         if nexpart == 0:
             idx_pick = None
         else:
-            idx_pick = self.rng.choice(self.exatom_indices[expart])
+            idx_pick = self.rng.choice(self.tag_list[expart])
         #print(idx_pick, type(idx_pick))
 
         return idx_pick
@@ -548,9 +597,9 @@ class GCMC():
     def update_exlist(self):
         """update the list of exchangeable particles"""
         print("number of particles: ")
-        for expart, indices in self.exatom_indices.items():
+        for expart, indices in self.tag_list.items():
             print("{:<4s}  {:<8d}".format(expart, len(indices)))
-            print(indices)
+            print("species tag: ", indices)
 
         return
     
@@ -558,17 +607,21 @@ class GCMC():
         """"""
         # pick an atom
         self.update_exlist()
-        idx_pick = self.pick_random_atom(expart)
-        if idx_pick is not None:
-            print('select atom with index of %d' %idx_pick)
+        tag_idx_pick = self.pick_random_atom(expart)
+        if tag_idx_pick is not None:
+            print("select species with tag %d" %tag_idx_pick)
         else:
-            print('no exchangeable atoms...')
+            print("no exchangeable atoms...")
             return 
         
         # try move
         cur_atoms = self.atoms.copy()
+
+        tags = cur_atoms.get_tags()
+        species_indices = [i for i, t in enumerate(tags) if t==tag_idx_pick]
+
         cur_atoms = self.region.random_position_neighbour(
-            cur_atoms, expart, idx_pick, operation="move"
+            cur_atoms, species_indices, operation="move"
         )
 
         if cur_atoms is None:
@@ -576,10 +629,12 @@ class GCMC():
             return
 
         # move info
-        print(
-            "origin position: ", self.atoms[idx_pick].position, 
-            "-> random position: ", cur_atoms[idx_pick].position
-        )
+        print("origin position: ") 
+        for si in species_indices:
+            print(self.atoms[si].position)
+        print("-> random position: ") 
+        for si in species_indices:
+            print(cur_atoms[si].position)
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
@@ -592,7 +647,7 @@ class GCMC():
         acc_ratio = np.min([1.0, coef * np.exp(-beta*(energy_change))])
 
         content = "\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n" %(
-            self.acc_volume, len(self.exatom_indices[expart]), cubic_wavelength, coef
+            self.acc_volume, len(self.tag_list[expart]), cubic_wavelength, coef
         )
         content += "Energy Change %.4f [eV]\n" %energy_change
         content += "Accept Ratio %.4f\n" %acc_ratio
@@ -603,12 +658,12 @@ class GCMC():
             self.atoms = opt_atoms
             self.energy_stored = energy_after
         else:
-            print('fail to move')
+            print("fail to move")
             pass
         
-        print('Translation Probability %.4f' %rn_motion)
+        print("Translation Probability %.4f" %rn_motion)
 
-        print('energy_stored is %12.4f' %self.energy_stored)
+        print("energy_stored is %12.4f" %self.energy_stored)
         
         return
     
@@ -616,29 +671,38 @@ class GCMC():
         """atomic insertion"""
         self.update_exlist()
 
-        # extand one atom
+        # - extend one species
         cur_atoms = self.atoms.copy()
         print("current natoms: ", len(cur_atoms))
-        extra_atom = Atom(expart, position=[0., 0., 0.])
-        cur_atoms.extend(extra_atom)
-        #print("natoms: ", len(cur_atoms))
-        idx_pick = len(cur_atoms) - 1
-        print("try to insert atom with index ", idx_pick)
+        # --- build species and assign tag
+        new_species = build_species(expart)
+        new_tag = (self.exparts.index(expart)+1)*1000 + len(self.tag_list[expart])
+        new_species.set_tags(new_tag)
+        cur_atoms.extend(new_species)
+
+        print("natoms: ", len(cur_atoms))
+        tag_idx_pick = new_tag
+        print("try to insert species with tag ", tag_idx_pick)
+
+        tags = cur_atoms.get_tags()
+        species_indices = [i for i, t in enumerate(tags) if t==tag_idx_pick]
 
         cur_atoms = self.region.random_position_neighbour(
-            cur_atoms, expart, idx_pick, operation="insert"
+            cur_atoms, species_indices, operation="insert"
         )
         if cur_atoms is None:
             print("failed to insert after {self.region.MAX_RANDOM_ATTEMPS} attempts...")
             return
         
         # insert info
-        print("inserted position: ", cur_atoms[idx_pick].position)
+        print("inserted position: ")
+        for si in species_indices:
+            print(cur_atoms[si].symbol, cur_atoms[si].position)
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
-        nexatoms = len(self.exatom_indices[expart])
+        nexatoms = len(self.tag_list[expart])
         beta = self.beta[expart]
         chem_pot = self.chem_pot[expart]
         cubic_wavelength = self.cubic_wavelength[expart]
@@ -660,7 +724,7 @@ class GCMC():
             self.atoms = opt_atoms
             self.energy_stored = energy_after
             # update exchangeable atoms
-            self.exatom_indices[expart].append(len(self.atoms)-1)
+            self.tag_list[expart].append(new_tag)
         else:
             print('fail to insert...')
         print('Insertion Probability %.4f' %rn_insertion)
@@ -673,21 +737,24 @@ class GCMC():
         """"""
         # pick an atom
         self.update_exlist()
-        idx_pick = self.pick_random_atom(expart)
-        if idx_pick is not None:
-            print("select atom with index of %d" %idx_pick)
+        tag_idx_pick = self.pick_random_atom(expart)
+        if tag_idx_pick is not None:
+            print("select species with tag %d" %tag_idx_pick)
         else:
             print("no atom can be deleted...")
             return
 
         # try deletion
         cur_atoms = self.atoms.copy()
-        del cur_atoms[idx_pick]
+        
+        tags = cur_atoms.get_tags()
+        species_indices = [i for i, t in enumerate(tags) if t==tag_idx_pick]
+        del cur_atoms[species_indices]
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
-        nexatoms = len(self.exatom_indices[expart])
+        nexatoms = len(self.tag_list[expart])
         beta = self.beta[expart]
         cubic_wavelength = self.cubic_wavelength[expart]
         chem_pot = self.chem_pot[expart]
@@ -708,13 +775,7 @@ class GCMC():
             self.atoms = opt_atoms
             self.energy_stored = energy_after
             # reformat exchangeable atoms
-            # self.exatom_indices[expart].append(len(self.atoms)-1)
-            self.exatoms_indices = {}
-            for expart in self.exparts:
-                self.exatom_indices[expart] = []
-            chemical_symbols = self.atoms.get_chemical_symbols()
-            for i in range(self.substrate_natoms, len(self.atoms)):
-                self.exatom_indices[chemical_symbols[i]].append(i)
+            self.tag_list = [t for t in self.tag_list if t != tag_idx_pick]
         else:
             pass
 
@@ -741,12 +802,15 @@ class GCMC():
         st = time.time()
 
         # run minimisation
+        tags = atoms.get_tags()
+        print("n_cur_atoms: ", len(atoms))
         atoms = self.worker.minimise(
             atoms,
+            read_exists=False,
             extra_info = None,
-            **self.minimisation,
-            constraint = self.cons_indices # for lammps and lasp dynamics
+            **self.minimisation
         )
+        atoms.set_tags(tags)
 
         self.calc.directory = old_calc_dir
 

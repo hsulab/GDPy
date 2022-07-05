@@ -3,7 +3,6 @@
 
 import time
 from pathlib import Path
-from collections import Counter
 from typing import List
 
 from joblib import Parallel, delayed
