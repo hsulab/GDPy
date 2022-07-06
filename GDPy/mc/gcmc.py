@@ -645,6 +645,12 @@ class GCMC():
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
+        # - check opt pos
+        print("-> optimised position: ") 
+        for si in species_indices:
+            print(opt_atoms[si].symbol, opt_atoms[si].position)
+
+        # - acceptance ratio
         beta = self.beta[expart]
         cubic_wavelength = self.cubic_wavelength[expart]
 
@@ -708,6 +714,12 @@ class GCMC():
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
+        # - check opt pos
+        print("-> optimised position: ") 
+        for si in species_indices:
+            print(opt_atoms[si].symbol, opt_atoms[si].position)
+
+        # - acceptance ratio
         nexatoms = len(self.tag_list[expart])
         beta = self.beta[expart]
         chem_pot = self.chem_pot[expart]
@@ -760,6 +772,7 @@ class GCMC():
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
+        # - acceptance ratio
         nexatoms = len(self.tag_list[expart])
         beta = self.beta[expart]
         cubic_wavelength = self.cubic_wavelength[expart]
