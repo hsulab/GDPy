@@ -688,8 +688,14 @@ class GCMC():
         print("current natoms: ", len(cur_atoms))
         # --- build species and assign tag
         new_species = build_species(expart)
-        new_tag = (self.exparts.index(expart)+1)*1000 + len(self.tag_list[expart])
+
+        expart_tag = (self.exparts.index(expart)+1)*1000
+        tag_max = 0
+        if len(self.tag_list[expart]) > 0:
+            tag_max = np.max(self.tag_list[expart]) - expart_tag
+        new_tag = int(expart_tag + tag_max + 1)
         new_species.set_tags(new_tag)
+
         cur_atoms.extend(new_species)
 
         print("natoms: ", len(cur_atoms))
