@@ -5,7 +5,9 @@
 Artificial force induced reaction (AFIR)
 """
 
+from ast import For
 import time
+from tkinter import Frame
 
 import numpy as np
 
@@ -19,12 +21,19 @@ import numpy as np
 from jax import numpy as jnp
 from jax import grad, jit
 
+from ase import Atoms
+from ase.formula import Formula
+from ase.io import read, write
 from ase.data import covalent_radii
 from ase.neighborlist import neighbor_list, natural_cutoffs, NeighborList
 from ase.optimize import BFGS
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.constraints import FixAtoms
 
 from GDPy.graph.utils import unpack_node_name
+from GDPy.graph.creator import StruGraphCreator
+from GDPy.builder.constraints import parse_constraint_info
+
 
 @dataclass(repr=False, eq=False)
 class Adsorbate:
@@ -37,7 +46,7 @@ class Adsorbate:
     positions: List[List] = field(default_factory=list)
 
     name: str = field(default="adsorbate", init=False)
-    cop: List[float] = field(default_factory=list, init=False)
+    cop: List[float] = field(default_factory=list, init=False) # centre of position
 
     def __eq__(self, other):
         """"""
@@ -96,7 +105,7 @@ def grid_iterator(grid):
             for z in range(-grid[2], grid[2]+1):
                 yield (x, y, z)
 
-def partition_fragments(creator, atoms) -> List[Adsorbate]:
+def partition_fragments(creator, atoms, target_species=None) -> List[Adsorbate]:
     """ generate fragments from a single component
         use graph to find adsorbates and group them into fragments
     """
@@ -125,7 +134,13 @@ def partition_fragments(creator, atoms) -> List[Adsorbate]:
         ads = Adsorbate(
             symbols=ads_symbols, indices=ads_indices, shifts=ads_shifts, positions=ads_positions
         )
-        fragments.append(ads)
+        # - TODO check if valid species
+        if target_species is None:
+            fragments.append(ads)
+        else:
+            # check species
+            # if ads.symbols == species.symbols ???
+            pass
         #print(i, ads)
 
     #print("nadsorbates: ", len(chem_envs))
@@ -389,143 +404,287 @@ class AFIR(BFGS):
 
 class AFIRSearch():
 
-    def __init__(self, gmax=2.5, gintv=0.1, seed=None, graph_creator=None):
+    """ TODO: transform this into a dynamics object?
+        reaction event search 
+            in: one single structure 
+            out: a bunch of opt trajs + a pseudo pathway
+    """
+
+    default_parameters = dict(
+        dynamics = dict(
+            fmax = 0.1, steps = 100
+        )
+    )
+
+    nfragments_to_reaction = 2
+
+    run_NEB = False
+
+    def __init__(
+        self, 
+        directory=Path.cwd()/"results",
+        target_pairs = None,
+        gmax=2.5, # eV, maximum gamma
+        ginit=None, # eV, inital gamma
+        gintv=0.1, # percentage
+        dyn_params=None,
+        graph_params=None,
+        seed=None, 
+    ):
         """
         """
+        # - parse target pairs
+        if target_pairs is not None:
+            assert len(target_pairs) == self.nfragments_to_reaction, "incorrect number of input target pairs"
+            target_pairs_ = []
+            for s in target_pairs:
+                target_pairs_.append(Formula(s))
+        else:
+            target_pairs_ = None
+        self.target_pairs = target_pairs_ # target fragment pairs
+
         self.gmax = gmax # eV
+        self.ginit = ginit # eV
         self.gintv = gintv # percent
         
-        self.dyn_params = dict(
-            fmax = 0.1, steps=100
-        )
+        self.dyn_params = dyn_params
+        assert self.dyn_params is not None, "AFIR should have dynamics."
 
-        self.graph_creator = graph_creator
+        if graph_params is not None:
+            self.graph_creator = StruGraphCreator(**graph_params)
+        else:
+            self.graph_creator = None
 
         # - check outputs
-        self.result_path = Path.cwd() / "results"
-        if self.result_path.exists():
-            print("results exists, may cause inconsistent results...")
-        else:
-            self.result_path.mkdir()
+        self.directory = directory
 
         # - assign random seeds
         if seed is None:
+            # TODO: need a random number to be logged
             self.rng = np.random.default_rng()
         elif isinstance(seed, int):
             self.rng = np.random.default_rng(seed)
 
         return
 
-    def run(self, atoms, calc, target_indices=None):
+    def run(self, atoms, calc):
+        """ run all fragment pairs in one single structure
+            output summary is in main.out
         """
+        # --- prepare fragments
+        fragments = partition_fragments(self.graph_creator, atoms)
+        fragment_combinations = list(combinations(fragments, self.nfragments_to_reaction))
+
+        # --- find valid fragment pairs 
+        fragment_pairs = []
+        if self.target_pairs is not None:
+            for p in fragment_combinations:
+                # - TODO: move this to adsorbate class???
+                s0, s1 = Formula("".join(p[0].symbols.tolist())), Formula("".join(p[1].symbols.tolist()))
+                #print("target: ", self.target_pairs)
+                #print(s0, s1)
+                if (
+                    (s0 == self.target_pairs[0] and s1 == self.target_pairs[1]) or
+                    (s1 == self.target_pairs[0] and s0 == self.target_pairs[1])
+                ):
+                    fragment_pairs.append(p)
+            fragment_combinations = fragment_pairs
+        # TODO: further select fragments based on distance???
+
+        #print("fragments: ", fragments)
+        print("fragments: ", [f.name for f in fragments])
+        print("reaction pairs:", [p[0].name+"-"+p[1].name for p in fragment_combinations])
+
+        #print("combinations: ", fragment_combinations)
+        #exit()
+
+        # TEST: generate fragments from target atoms
+        #test_names = ["C(36)O(38)", "O(40)"]
+        #fragment_combinations = [[
+        #    x for x in fragments if x.name in test_names
+        #]]
+
+        # - check output directory before running
+        main_out = self.directory / "main.out"
+        if main_out.exists() and self.directory.exists():
+            print("results exists, may cause inconsistent results...")
+        else:
+            self.directory.mkdir()
+
+        with open(main_out, "w") as fopen:
+            fopen.write("# count frag\n")
+
+        # - run over fragments
+        for ifrag, frag in enumerate(fragment_combinations):
+            # - info for cur combination
+            frag_names = [x.name for x in frag]
+            print(f"run frag {frag_names[0]} - {frag_names[1]}")
+            with open(main_out, "a") as fopen:
+                fopen.write("{:>8d}  {}\n".format(ifrag, frag_names))
+
+            fres_path = self.directory / ("f"+str(ifrag))
+            fres_path.mkdir(exist_ok=True) # fragment results path
+            # - run actual AFIR search
+            path_frames = self.irun(atoms, fres_path, calc, frag)
+
+        return
+
+    def irun(self, init_atoms, fres_path, calc, frag) -> List[Atoms]:
+        """ run single fragment combination
+            output summary is in data.out
         """
         # --- some params
         gmax = self.gmax
         gintv = self.gintv
 
-        # --- prepare fragments
-        fragments = partition_fragments(self.graph_creator, atoms)
-        fragment_combinations = list(combinations(fragments, 2))
+        with open(fres_path / "data.out", "w") as fopen:
+            fopen.write("# count time gamma energy bfmax fmax reaction\n")
 
-        print("fragments: ", fragments)
-        #print("combinations: ", fragment_combinations)
-        #exit()
+        # - results
+        found_reaction = False
+        gcount = 0 # count for each gamma
+        path_frames = [] # AFIR pathway
 
-        # TEST: generate fragments from target atoms
-        test_names = ["C(36)O(38)", "O(40)"]
-        fragment_combinations = [[
-            x for x in fragments if x.name in test_names
-        ]]
-
-        with open(self.result_path / "main.out", "w") as fopen:
-            fopen.write("# count frag\n")
-
-        # run over fragments
-        for ifrag, frag in enumerate(fragment_combinations):
-            # - info for cur combination
-            frag_names = [x.name for x in frag]
-            print(f"run frag {frag_names[0]} - {frag_names[1]}")
-            with open(self.result_path / "main.out", "a") as fopen:
-                fopen.write("{:>8d}  {}\n".format(ifrag, frag_names))
-
-            fres_path = self.result_path / ("f"+str(ifrag))
-            fres_path.mkdir(exist_ok=True) # fragment results path
-            with open(fres_path / "data.out", "w") as fopen:
-                fopen.write("# count time gamma energy reaction\n")
-            gcount = 0 # count for each gamma
-            path_frames = [] # AFIR pathway
-            # - random
+        # - random
+        if self.ginit is None:
             cur_gcoef = self.rng.random() # should be a random number
             gamma = gmax*cur_gcoef
-            print("Initial Gamma: ", gamma)
-            while gamma <= gmax:
-                gamma = gmax*cur_gcoef
-                print("----- gamma {:<8.4f} -----".format(gamma))
-                st = time.time()
+        else:
+            gamma = self.ginit
+        print("Initial Gamma: ", gamma)
 
-                # - prepare dirs
-                cur_gdir = fres_path / ("g"+str(gcount))
-                cur_gdir.mkdir(exist_ok=True)
-                cur_traj = str(cur_gdir/"afir.traj")
-                #cur_logfile = cur_gdir / "afir.log"
-                cur_logfile = "-"
+        while gamma <= gmax:
+            print("----- gamma {:<8.4f} -----".format(gamma))
+            st = time.time()
 
-                # - run opt
-                cur_atoms = atoms.copy()
-                calc.reset()
-                cur_atoms.calc = calc
-                dyn = AFIR(
-                    cur_atoms, gamma=gamma, fragments=frag, graph_creator=self.graph_creator, 
-                    trajectory=cur_traj, logfile=cur_logfile
-                )
-                dyn.run(**self.dyn_params)
+            # - prepare dirs
+            cur_gdir = fres_path / ("g"+str(gcount))
+            cur_gdir.mkdir(exist_ok=True)
+            cur_traj = str(cur_gdir/"afir.traj")
+            cur_logfile = cur_gdir / "afir.log"
+            #cur_logfile = "-"
 
-                # - store results
-                results = dict(
-                    energy=float(cur_atoms.get_potential_energy()), 
-                    free_energy=float(cur_atoms.get_potential_energy()),
-                    forces=cur_atoms.get_forces().copy()
-                )
-                new_calc = SinglePointCalculator(cur_atoms, **results)
-                cur_atoms.calc = new_calc
-                print("energy: ", cur_atoms.get_potential_energy())
-                print("fmax: ", np.max(np.fabs(cur_atoms.get_forces(apply_constraint=True))))
-                path_frames.append(cur_atoms)
+            # - run opt
+            cur_atoms = init_atoms.copy()
+            calc.reset()
+            cur_atoms.calc = calc
 
-                traj_frames = read(cur_traj, ":")
-                write(cur_gdir/"traj.xyz", traj_frames)
+            # TODO: some calculators need reset directory
+            calc.directory = str(cur_gdir / "calculation")
+            dyn = AFIR(
+                cur_atoms, gamma=gamma, fragments=frag, graph_creator=self.graph_creator, 
+                trajectory=cur_traj, logfile=cur_logfile
+            )
+            dyn.run(**self.dyn_params)
 
-                et = time.time()
+            # - store results
+            results = dict(
+                energy=float(cur_atoms.get_potential_energy()), 
+                free_energy=float(cur_atoms.get_potential_energy()),
+                forces=cur_atoms.get_forces().copy()
+            )
+            new_calc = SinglePointCalculator(cur_atoms, **results)
+            cur_atoms.calc = new_calc
+            print("energy: ", cur_atoms.get_potential_energy())
+            print("fmax: ", np.max(np.fabs(cur_atoms.get_forces(apply_constraint=True))))
+            path_frames.append(cur_atoms)
 
-                content = "{:>4d}  {:>8.4f}  {:>8.4f}  {:>12.4f}  ".format(gcount, et-st, gamma, cur_atoms.get_potential_energy())
-                if dyn.reacted is not None:
-                    content += f":  {[x.name for x in dyn.reacted]} -> {[x.name for x in dyn.products]}"
-                content += "\n"
+            traj_frames = read(cur_traj, ":")
+            write(cur_gdir/"traj.xyz", traj_frames)
 
-                with open(fres_path / "data.out", "a") as fopen:
-                    fopen.write(content)
+            et = time.time()
 
-                # - update
-                cur_gcoef += gintv
-                gcount += 1
+            bfmax = (dyn.biased_forces ** 2).sum(axis=1).max()
+            fmax = (cur_atoms.get_forces() ** 2).sum(axis=1).max()
 
-                # TODO: check if reaction happens
-                #if dyn.has_reaction:
-                #    print("found new products...")
-                #    break
+            content = "{:>4d}  {:>8.4f}  {:>8.4f}  {:>12.4f}  {:>8.4f}  {:>8.4f}".format(
+                gcount, et-st, gamma, cur_atoms.get_potential_energy(), bfmax, fmax
+            )
+            if dyn.reacted is not None:
+                content += f":  {[x.name for x in dyn.reacted]} -> {[x.name for x in dyn.products]}"
+            content += "\n"
+
+            with open(fres_path / "data.out", "a") as fopen:
+                fopen.write(content)
+
+            # - update
+            gamma += gmax*gintv
+            gcount += 1
+
+            # TODO: check if reaction happens
+            #if dyn.has_reaction:
+            #    print("found new products...")
+            #    break
+
+            if dyn.reacted is not None:
+                print("reaction happens...")
+                # NOTE: add constraint?
+                # ensure at least three optimisations for each fragment pair
+                if gcount <= 2:
+                    # NOTE: too large init gamma, then search back
+                    print("too large gamma, search back...")
+                    gamma /= 2.
+                else:
+                    found_reaction = True
+                    break
+        
+        # - optimised last frame if found reaction
+        #   since FS should be determined
+        if found_reaction:
+            print("----- final state -----")
+            # - prepare dirs
+            cur_gdir = fres_path / ("g"+str(gcount))
+            cur_gdir.mkdir(exist_ok=True)
+            cur_traj = str(cur_gdir/"bfgs.traj")
+            cur_logfile = cur_gdir / "bfgs.log"
+
+            cur_atoms = path_frames[-1].copy()
+            calc.reset()
+            cur_atoms.calc = calc
             
-            # TODO: find highest point approximates TS
-            # save trajectories...
+            # - run calculation
+            calc.directory = str(cur_gdir / "calculation")
+            dyn = BFGS(cur_atoms, logfile=cur_logfile, trajectory=cur_traj)
+            dyn.run(**self.dyn_params)
 
-            write(fres_path/"pseudo_path.xyz", path_frames)
+            # - store results
+            results = dict(
+                energy=float(cur_atoms.get_potential_energy()), 
+                free_energy=float(cur_atoms.get_potential_energy()),
+                forces=cur_atoms.get_forces().copy()
+            )
+            new_calc = SinglePointCalculator(cur_atoms, **results)
+            cur_atoms.calc = new_calc
+            print("energy: ", cur_atoms.get_potential_energy())
+            print("fmax: ", np.max(np.fabs(cur_atoms.get_forces(apply_constraint=True))))
+            path_frames.append(cur_atoms)
 
-        return
+            traj_frames = read(cur_traj, ":")
+            write(cur_gdir/"traj.xyz", traj_frames)
 
-    def irun(self):
-        """ run single fragment combination
-        """
+            et = time.time()
 
-        return
+            content = "{:>4d}  {:>8.4f}  {:>8.4f}  {:>12.4f}  ".format(gcount, et-st, gamma, cur_atoms.get_potential_energy())
+            content += ":  final state\n"
+
+            with open(fres_path / "data.out", "a") as fopen:
+                fopen.write(content)
+        
+        # - save trajectories...
+        # TODO: sort frames by gamma value
+        write(fres_path/"pseudo_path.xyz", path_frames)
+
+        # - if run NEB calculation to get a better pathway
+        if self.run_NEB:
+            pass
+
+        # TODO: find highest point approximates TS
+        ## save trajectories...
+        #write(fres_path/"pseudo_path.xyz", path_frames)
+
+        #exit()
+
+        return path_frames
 
 if __name__ == "__main__":
     from itertools import combinations
@@ -573,10 +732,10 @@ if __name__ == "__main__":
         #coordination_numbers = [3],
         #site_radius = 3
     )
-    from GDPy.graph.creator import StruGraphCreator
-    creator = StruGraphCreator(**graph_params)
 
-    rs = AFIRSearch(gmax=2.5, gintv=0.2, seed=1112, graph_creator=creator)
+    dyn_params = dict(fmax = 0.1, steps=100)
+
+    rs = AFIRSearch(gmax=2.5, gintv=0.2, dyn_params=dyn_params, graph_params=graph_params, seed=1112)
     rs.run(atoms, pm.calc)
 
     pass
