@@ -57,7 +57,7 @@ def convert_indices(indices: Union[str,List[int]], index_convention="lmp"):
 
     return ret
 
-def parse_constraint_info(atoms, constraint, check_ase_constraints=True) -> List[int]:
+def parse_constraint_info(atoms, cons_text, check_ase_constraints=True, ret_text=True) -> List[int]:
     """ constraint info can be any forms below, 
         and transformed into indices that start from 1
         "2:5 8" means 2,3,4,5,8 (default uses lmp convention)
@@ -68,55 +68,51 @@ def parse_constraint_info(atoms, constraint, check_ase_constraints=True) -> List
 
         return lammps format atom index group
     """
-    atoms, cons_text = atoms, constraint
+    # - set some init values
     aindices = list(range(len(atoms)))
+    mobile_indices = aindices.copy()
+    frozen_indices = []
     #print("constraint: ", cons_text)
 
-    mobile_text = convert_indices(aindices, index_convention="py")
-    frozen_text = None
-
     # TODO: check if atoms have constraint
+    # NOTE: only need to determine which atoms are frozen then others are mobile
     cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
     if check_ase_constraints and cons_indices.size > 0:
         # convert to lammps convention
-        frozen_text = convert_indices(cons_indices.tolist(), index_convention="py")
-        mobile_indices = [i for i in aindices if i not in cons_indices]
-        mobile_text = convert_indices(mobile_indices, index_convention="py")
+        frozen_indices = cons_indices.copy().tolist()
     else:
         # TODO: if use region indicator
         if cons_text is None:
-            return mobile_text, frozen_text
-
-        cons_data = cons_text.split()
-        if cons_data[0] not in ["py", "lmp", "lowest", "zpos"]:
-            cons_type, cons_info = "lmp", cons_data
-        else:
-            cons_type, cons_info = cons_data[0], " ".join(cons_data[1:])
-        #print("cons_info: ", cons_type, cons_info)
-        # - 
-        if cons_type == "py":
-            frozen_indices = convert_indices(cons_info, index_convention="py")
-            frozen_text = convert_indices(frozen_indices, index_convention="py")
-            mobile_indices = [i for i in aindices if i not in frozen_indices]
-            mobile_text = convert_indices(mobile_indices, index_convention="py")
-        elif cons_type == "lmp":
-            frozen_indices = convert_indices(cons_info, index_convention="lmp")
-            frozen_text = convert_indices(frozen_indices, index_convention="py")
-            mobile_indices = [i for i in aindices if i not in frozen_indices]
-            mobile_text = convert_indices(mobile_indices, index_convention="py")
-        elif cons_type == "lowest":
-            frozen_indices = sorted(aindices, key=lambda x:atoms.positions[x][2])[:int(cons_info[0])]
-            frozen_text = convert_indices(frozen_indices, index_convention="py")
-            mobile_indices = [i for i in aindices if i not in frozen_indices]
-            mobile_text = convert_indices(mobile_indices, index_convention="py")
-        elif cons_type == "zpos":
-            frozen_indices = [i for i in aindices if atoms.positions[i][2] <= float(cons_info[0])]
-            frozen_text = convert_indices(frozen_indices, index_convention="py")
-            mobile_indices = [i for i in aindices if i not in frozen_indices]
-            mobile_text = convert_indices(mobile_indices, index_convention="py")
-        else:
             pass
+        else:
+            # - parse constraint text type
+            cons_data = cons_text.split()
+            if cons_data[0] not in ["py", "lmp", "lowest", "zpos"]:
+                cons_type, cons_info = "lmp", cons_data
+            else:
+                cons_type, cons_info = cons_data[0], " ".join(cons_data[1:])
+            #print("cons_info: ", cons_type, cons_info)
 
-    #print("cons_text: ", cons_text)
+            # NOTE: text may have different notations
+            #       but indices should all be in python convention
+            if cons_type == "py":
+                frozen_indices = convert_indices(cons_info, index_convention="py")
+            elif cons_type == "lmp":
+                frozen_indices = convert_indices(cons_info, index_convention="lmp")
+            elif cons_type == "lowest":
+                frozen_indices = sorted(aindices, key=lambda x:atoms.positions[x][2])[:int(cons_info)]
+            elif cons_type == "zpos":
+                frozen_indices = [i for i in aindices if atoms.positions[i][2] <= float(cons_info)]
+            else:
+                pass
+    mobile_indices = [i for i in aindices if i not in frozen_indices]
+    #print(mobile_indices)
+    #print(frozen_indices)
 
-    return mobile_text, frozen_text
+    if ret_text:
+        frozen_text = convert_indices(frozen_indices, index_convention="py")
+        mobile_text = convert_indices(mobile_indices, index_convention="py")
+
+        return mobile_text, frozen_text
+    else:
+        return mobile_indices, frozen_indices
