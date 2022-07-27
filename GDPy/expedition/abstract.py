@@ -19,6 +19,18 @@ from GDPy.machine.machine import SlurmMachine
 from GDPy.utils.data import vasp_creator, vasp_collector
 
 
+""" abstract class for expedition methods
+    each one has following procedures:
+        creation
+            system-name-based-dir
+        collection+selection
+            sorted-dir
+        calculation (includes harvest)
+            fp-dir
+    a calculator/worker needs defined to drive the exploration
+"""
+
+
 class AbstractExplorer(ABC):
 
     # general parameters
@@ -26,6 +38,20 @@ class AbstractExplorer(ABC):
         ignore_exists = False
     )
 
+    creation_params = dict(
+
+    )
+
+    collection_params = dict(
+        resdir_name = "sorted",
+        selection_tags = ["final"]
+    )
+
+    calculation_params = dict(
+
+    )
+
+    # system-specific info
     type_map = {}
     type_list = []
 
@@ -49,6 +75,7 @@ class AbstractExplorer(ABC):
     def _register_type_map(self, input_dict: dict):
         """ create a type map to identify different elements
             should be the same in attached calculator
+            the explored system should have some of (not all) these elements
         """
         type_map_ = input_dict.get("type_map", None)
         if type_map_ is not None:
@@ -64,7 +91,7 @@ class AbstractExplorer(ABC):
                     type_map_[s] = i
                 self.type_map = type_map_
             else:
-                raise RuntimeError("Cant find neither type_map or type_list.")
+                raise RuntimeError("Cant find neither type_map nor type_list.")
 
         return
     
@@ -107,17 +134,13 @@ class AbstractExplorer(ABC):
 
         return type_list
     
-    @abstractmethod   
-    def icreate(self, exp_name, wd):
-
-        return
-
     def run(
         self, 
         operator: Callable[[str, Union[str, Path]], None], 
         working_directory: Union[str, Path]
     ): 
         """create for all explorations"""
+        # TODO: automatically check if the current step is finished
         working_directory = Path(working_directory)
         self.job_prefix = working_directory.resolve().name # use resolve to get abspath
         print("job prefix: ", self.job_prefix)
@@ -125,6 +148,11 @@ class AbstractExplorer(ABC):
             exp_directory = working_directory / exp_name
             # note: check dir existence in sub function
             operator(exp_name, working_directory)
+
+        return
+
+    @abstractmethod   
+    def icreate(self, exp_name, wd):
 
         return
 
@@ -157,61 +185,70 @@ class AbstractExplorer(ABC):
                 name_path = working_directory / exp_name / slabel
 
                 # - read collected/selected frames
-                sorted_path = name_path / "sorted"
+                sorted_path = name_path / self.collection_params["resdir_name"]
                 if sorted_path.exists():
-                    # - find all selected files
-                    # or find final selected that is produced by a composed selector
-                    # TODO: if no selected were applied?
-                    xyzfiles = list(sorted_path.glob("*.xyz"))
-                    final_selected_path = None
-                    for x in xyzfiles:
-                        if "final" in x.name:
-                            final_selected_path = x
-                            break
-                    else:
+                    for tag_name in self.collection_params["selection_tags"]:
+                        # - find all selected files
+                        # or find final selected that is produced by a composed selector
+                        # TODO: if no selected were applied?
+                        xyzfiles = list(sorted_path.glob(f"{tag_name}*-selection*.xyz"))
                         if len(xyzfiles) == 1:
                             final_selected_path = xyzfiles[0]
                         else:
+                            # assert files have selection order
                             xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
                             final_selected_path = xyzfiles[-1]
-                    print(f"found selected structure file {str(final_selected_path)}")
-                    # - create input file
-                    sorted_fp_path = prefix / slabel
-                    if not sorted_fp_path.exists():
-                        sorted_fp_path.mkdir()
-                        # -- update params with systemwise info
-                        calc_params = calc_dict.copy()
-                        for k in calc_params.keys():
-                            if calc_params[k] == "system":
-                                calc_params[k] = self.init_systems[slabel][k]
-                        # -- create params file
-                        with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
-                            json.dump(calc_params, fopen, indent=4)
-                        # -- create job script
-                        machine_params = machine_dict.copy()
-                        machine_params["job-name"] = slabel+"-fp"
-
-                        # TODO: mpirun or mpiexec, move this part to machine object
-                        command = calc_params["command"]
-                        if command.strip().startswith("mpirun") or command.strip().startswith("mpiexec"):
-                            ntasks = command.split()[2]
-                        else:
-                            ntasks = 1
-                        # TODO: number of nodes?
-                        machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
-
-                        machine = SlurmMachine(**machine_params)
-                        #"gdp vasp work ../C3O3Pt36.xyz -in ../vasp_params.json"
-                        machine.user_commands = "gdp vasp work {} -in {}".format(
-                            str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+                        print(f"found selected structure file {str(final_selected_path)}")
+                        # - create input files
+                        fp_path = prefix / slabel / tag_name
+                        self._prepare_calc_dir(
+                            slabel, fp_path, calc_dict, machine_dict, 
+                            final_selected_path
                         )
-                        machine.write(sorted_fp_path/"vasp.slurm")
-                        # -- submit?
-                    else:
-                        # TODO: move harvest function here?
-                        print(f"{sorted_fp_path} already exists.")
                 else:
                     print(f"No candidates to calculate in {str(name_path)}")
+
+        return
+    
+    def _prepare_calc_dir(
+        self, slabel, sorted_fp_path, calc_dict, machine_dict,
+        final_selected_path
+    ):
+        """"""
+        # - create input file TODO: move this to vasp part
+        if not sorted_fp_path.exists():
+            sorted_fp_path.mkdir(parents=True)
+            # -- update params with systemwise info
+            calc_params = calc_dict.copy()
+            for k in calc_params.keys():
+                if calc_params[k] == "system":
+                    calc_params[k] = self.init_systems[slabel][k]
+            # -- create params file
+            with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
+                json.dump(calc_params, fopen, indent=4)
+            # -- create job script
+            machine_params = machine_dict.copy()
+            machine_params["job-name"] = slabel+"-fp"
+
+            # TODO: mpirun or mpiexec, move this part to machine object
+            command = calc_params["command"]
+            if command.strip().startswith("mpirun") or command.strip().startswith("mpiexec"):
+                ntasks = command.split()[2]
+            else:
+                ntasks = 1
+            # TODO: number of nodes?
+            machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
+
+            machine = SlurmMachine(**machine_params)
+            #"gdp vasp work ../C3O3Pt36.xyz -in ../vasp_params.json"
+            machine.user_commands = "gdp vasp work {} -in {}".format(
+                str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+            )
+            machine.write(sorted_fp_path/"vasp.slurm")
+            # -- submit?
+        else:
+            # TODO: move harvest function here?
+            print(f"{sorted_fp_path} already exists.")
 
         return
     
