@@ -18,6 +18,9 @@ def run_exploration(pot_manager, exp_json, chosen_step, global_params = None):
     elif method == "adsorbate":
         from .adsorbate import AdsorbateEvolution
         scout = AdsorbateEvolution(pot_manager, exp_dict)
+    elif method == "reaction":
+        from .reaction import ReactionExplorer
+        scout = ReactionExplorer(pot_manager, exp_dict)
     else:
         raise ValueError(f"Unknown method {method}")
 
