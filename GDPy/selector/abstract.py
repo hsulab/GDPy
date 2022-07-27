@@ -28,6 +28,8 @@ class AbstractSelector(abc.ABC):
         selection_number = 320
     )
 
+    prefix = "structure"
+
     @abc.abstractmethod
     def select(self, *args, **kargs):
 
@@ -117,7 +119,8 @@ class ComposedSelector(AbstractSelector):
             # -- converged
             converged_frames = [frames[x] for x in converged_indices]
             print("nconverged: ", len(converged_frames))
-            write(self.directory/f"{selector.name}-frames.xyz", converged_frames)
+            if converged_frames:
+                write(self.directory/f"{selector.name}-frames.xyz", converged_frames)
         else:
             frame_index_groups = dict(
                 traj = cur_index_map
@@ -422,8 +425,6 @@ class DescriptorBasedSelector(AbstractSelector):
         print("selector uses njobs ", self.njobs)
 
         return
-    
-
 
     def calc_desc(self, frames):
         """"""
@@ -474,8 +475,16 @@ class DescriptorBasedSelector(AbstractSelector):
         # if manually_selected is not None:
         #    selected.extend(manually_selected)
 
+        print(f"nframes {len(frames)} -> nselected {len(selected_indices)}")
+
+        if True: # TODO: check if output data
+            np.save(self.directory/("-".join([self.prefix,self.name,"indices"])+".npy"), selected_indices)
+
         if not ret_indices:
             selected_frames = [frames[i] for i in selected_indices]
+            if True: # TODO: check if output data
+                write(self.directory/("-".join([self.prefix,self.name,"selection"])+".xyz"), selected_frames)
+
             return selected_frames
         else:
             return selected_indices
