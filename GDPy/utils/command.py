@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import time
 import subprocess
 from pathlib import Path
 from itertools import groupby
@@ -12,6 +13,29 @@ import json
 import yaml
 
 import numpy as np
+
+class CustomTimer():
+
+    def __init__(self, name="code"):
+        """"""
+        self.name = name
+
+        return
+
+    def __enter__(self):
+        """"""
+        self.st = time.time() # start time
+
+        return self
+    
+    def __exit__(self, *args):
+        """"""
+        self.et = time.time() # end time
+
+        # TODO: custom output
+        print("*** " + self.name + " time: " + "{:>8.4f}".format(self.et-self.st) + " ***")
+
+        return
 
 def find_backups(dpath, fname, prefix="bak"):
     """ find a series of files in a dir
