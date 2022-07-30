@@ -50,9 +50,20 @@ Adsorption, Reaction, ...
 
 class AbstractValidator(ABC):
 
-    def __init__(self, *args, **kwargs):
-        """"""
-        
+    #def __init__(self, *args, **kwargs):
+    #    """"""
+    #    
+    #    return
+
+    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
+        """
+        """
+        self.task_outpath = Path(task_outpath)
+        self.task_params = task_params
+        self.pm = pot_manager
+
+        self.calc = pot_manager.calc
+
         return
     
     def __parse_outputs(self, input_dict: dict) -> NoReturn:
@@ -207,8 +218,8 @@ class MinimaValidator(AbstractValidator):
             frames.extend(cur_frames)
         print("total nframes: ", len(frames))
 
-        for a in frames:
-            print(a.info)
+        #for a in frames:
+        #    print(a.info)
         ref_energies = [a.get_potential_energy() for a in frames]
         #ref_energies = [a.info["energy"] for a in frames]
         names = []
@@ -351,9 +362,13 @@ class ReactionValidator(AbstractValidator):
         neb_params = self.task_params["neb"]
         nimages = self.task_params["neb"]["nimages"]
         print("nimages: ", nimages)
-        images = [initial]
-        images += [initial.copy() for i in range(nimages-2)]
-        images.append(final)
+        if nframes == 2:
+            images = [initial]
+            images += [initial.copy() for i in range(nimages-2)]
+            images.append(final)
+        else:
+            print("nimages -> nframes: ", nframes)
+            images = frames.copy()
 
         # set calculator
         self.calc.reset()
@@ -384,9 +399,29 @@ class ReactionValidator(AbstractValidator):
             self.calc.reset()
             a.calc = self.calc
             energies.append(a.get_potential_energy())
+            en_stdvars.append(a.info.get("en_stdvar", 0.0))
         energies = np.array(energies)
         energies = energies - energies[0]
         print(energies)
+
+        # - calc reaction coordinate and energies
+        from ase.geometry import find_mic
+        differences = np.zeros(len(opt_images))
+        init_pos = opt_images[0].get_positions()
+        for i in range(1,nimages):
+            a = opt_images[i]
+            vector = a.get_positions() - init_pos
+            vmin, vlen = find_mic(vector, a.get_cell())
+            differences[i] = np.linalg.norm(vlen)
+        # save results to file
+        neb_data_path = ipath / "neb.dat"
+        content = ""
+        for i in range(nimages):
+            content += "{:4d}  {:10.6f}  {:10.6f}  {:10.6f}\n".format(
+                i, differences[i], energies[i], en_stdvars[i]
+            )
+        with open(neb_data_path, "w") as fopen:
+            fopen.write(content)
 
         return
     
@@ -449,30 +484,16 @@ class SinglePointValidator(AbstractValidator):
     calculate energies on each structures and save them to file
     """
 
-    def __init__(self, validation: Union[str, pathlib.Path], pot_manager=None):
-        """ run bulk validation
+    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
         """
-        super().__init__(validation)
+        """
+        self.task_outpath = Path(task_outpath)
+        self.task_params = task_params
         self.pm = pot_manager
 
-        self.calc = self.__parse_calculator(self.valid_dict)
-
-        self.task = self.valid_dict.get("task", None) # TODO: move this to the main function
-        #self.output_path = Path(self.valid_dict.get("output", "validation"))
-        #if self.output_path.exists():
-        #    raise FileExistsError("The output path for current validation exists.")
-        #else:
-        #    self.output_path.mkdir()
+        self.calc = pot_manager.calc
         
-        self.structure_paths = self.valid_dict.get("structures", None)
-
-        return
-    
-    def __parse_calculator(self, input_dict: dict) -> calculator:
-
-        return self.pm.generate_calculator()
-    
-    def __calc_results(self, frames: List[Atoms]):
+        self.structure_paths = self.task_params.get("structures", None)
 
         return
 
@@ -481,38 +502,39 @@ class SinglePointValidator(AbstractValidator):
         lattice constant
         equation of state
         """
-        if self.task == "bulk":
-            for stru_path in self.structure_paths:
-                # set output file name
-                stru_path = Path(stru_path)
-                stru_name = stru_path.stem
-                fname = self.output_path / (stru_name + "-valid.dat")
-                pname = self.output_path / (stru_name + "-valid.png")
+        for stru_path in self.structure_paths:
+            # set output file name
+            stru_path = Path(stru_path)
+            stru_name = stru_path.stem
+            fname = self.task_outpath / (stru_name + "-valid.dat")
+            pname = self.task_outpath / (stru_name + "-valid.png")
 
-                # run dp calculation
-                frames = read(stru_path, ":")
-                natoms_array = [len(a) for a in frames]
-                volumes = [a.get_volume() for a in frames]
-                dft_energies = [a.get_potential_energy() for a in frames]
+            print(stru_path)
 
-                mlp_energies = []
-                self.calc.reset()
-                for a in frames:
-                    a.calc = self.calc
-                    mlp_energies.append(a.get_potential_energy())
+            # run dp calculation
+            frames = read(stru_path, ":")
+            natoms_array = [len(a) for a in frames]
+            volumes = [a.get_volume() for a in frames]
+            dft_energies = [a.get_potential_energy() for a in frames]
 
-                # save to data file
-                data = np.array([natoms_array, volumes, dft_energies, mlp_energies]).T
-                np.savetxt(fname, data, fmt="%12.4f", header="natoms Prop DFT MLP")
+            mlp_energies = []
+            self.calc.reset()
+            for a in frames:
+                a.calc = self.calc
+                mlp_energies.append(a.get_potential_energy())
 
-                self.plot_dimer(
-                    "Bulk EOS", volumes, 
-                    {
-                        "DFT": dft_energies, 
-                        "MLP": mlp_energies
-                    },
-                    pname
-                )
+            # save to data file
+            data = np.array([natoms_array, volumes, dft_energies, mlp_energies]).T
+            np.savetxt(fname, data, fmt="%12.4f", header="natoms Prop DFT MLP")
+
+            self.plot_dimer(
+                "Bulk EOS", volumes, 
+                {
+                    "DFT": dft_energies, 
+                    "MLP": mlp_energies
+                },
+                pname
+            )
 
         return
 
@@ -590,7 +612,7 @@ def run_validation(
         elif method == "reaction":
             rv = ReactionValidator(task_outpath, task_params, pm)
         elif method == "bulk":
-            rv = SinglePointValidator(input_json, pm)
+            rv = SinglePointValidator(task_outpath, task_params, pm)
         rv.run()
         #rv.analyse()
 
