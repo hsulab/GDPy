@@ -37,6 +37,19 @@ class CustomTimer():
 
         return
 
+def check_path(target_dir: Union[str, Path]) -> bool:
+    """ check path existence, if so skip the following
+        TODO: add output option
+        make this into a context?
+    """
+    target_dir = Path(target_dir)
+    if not target_dir.exists():
+        target_dir.mkdir(parents=True)
+    else:
+        print(f"  {target_dir.name} exists, so next...")
+
+    return
+
 def find_backups(dpath, fname, prefix="bak"):
     """ find a series of files in a dir
         such as fname, bak.0.fname, bak.1.fname
@@ -127,24 +140,32 @@ def parse_input_file(
     """"""
     input_dict = None
     
-    if isinstance(input_fpath, str):
-        input_file = Path(input_fpath)
-    elif isinstance(input_fpath, Path):
-        input_file = input_fpath
+    # - parse input type
+    if isinstance(input_fpath, dict):
+        input_dict = input_fpath
+        json_path = Path.cwd()
     else:
-        return None
+        if isinstance(input_fpath, str):
+            input_file = Path(input_fpath)
+            json_path = input_file.parent
+        elif isinstance(input_fpath, Path):
+            input_file = input_fpath
+            json_path = input_file.parent
+        else:
+            return None
 
-    if input_file.suffix == ".json":
-        with open(input_file, "r") as fopen:
-            input_dict = json.load(fopen)
-    elif input_file.suffix == ".yaml":
-        with open(input_file, "r") as fopen:
-            input_dict = yaml.safe_load(fopen)
-    else:
-        pass
-        # raise ValueError("input file format should be json or yaml...")
+        # --- read dict from files
+        if input_file.suffix == ".json":
+            with open(input_file, "r") as fopen:
+                input_dict = json.load(fopen)
+        elif input_file.suffix == ".yaml":
+            with open(input_file, "r") as fopen:
+                input_dict = yaml.safe_load(fopen)
+        else:
+            pass
+            # raise ValueError("input file format should be json or yaml...")
     
-    # TODO: recursive read internal json or yaml files
+    # NOTE: recursive read internal json or yaml files
     if input_dict is not None:
         for key, value in input_dict.items():
             key_dict = parse_input_file(value, write_json=False)
@@ -152,10 +173,9 @@ def parse_input_file(
                 input_dict[key] = key_dict
 
     if input_dict and write_json:
-        with open(input_file.parent/"params.json", "w") as fopen:
+        with open(json_path/"params.json", "w") as fopen:
             json.dump(input_dict, fopen, indent=4)
         print("See params.json for values of all parameters...")
-    
 
     return input_dict
 
