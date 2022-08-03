@@ -13,7 +13,7 @@ TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 class PotManager():
 
     SUFFIX = "Manager"
-    potential_names = ["DP", "EANN", "Lasp", "NequIP"]
+    potential_names = ["Vasp", "DP", "EANN", "Lasp", "NequIP"]
 
     def __init__(self):
         """
@@ -48,7 +48,7 @@ class PotManager():
 
         return potential
     
-    def create_workder(self):
+    def create_worker(self):
         """
         # TODO: create a worker for single-point or dynamics calculations
         """
@@ -165,9 +165,12 @@ def create_pot_manager(input_file=None, calc_name="calc1"):
     if input_file is not None:
         pot_dict = parse_input_file(input_file)
 
+        # - find calculators
+
         mpm = PotManager() # main potential manager
         pm = mpm.create_potential(pot_name = pot_dict["name"])
         pm.register_calculator(pot_dict["calculators"][calc_name])
+        pm.version = calc_name
     else:
         pm = None
     
