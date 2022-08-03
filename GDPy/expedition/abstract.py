@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Union, Callable, Counter, Union, List
 from pathlib import Path
 
+import uuid
 import time
 import json
 import warnings
@@ -16,10 +17,13 @@ from ase.io import read, write
 
 from GDPy import config
 from GDPy.machine.machine import SlurmMachine
-from GDPy.utils.data import vasp_creator, vasp_collector
+from GDPy.utils.command import CustomTimer
+
+from GDPy.potential.manager import create_pot_manager
 
 
 """ abstract class for expedition methods
+    - offline exploration
     each one has following procedures:
         creation
             system-name-based-dir
@@ -28,10 +32,14 @@ from GDPy.utils.data import vasp_creator, vasp_collector
         calculation (includes harvest)
             fp-dir
     a calculator/worker needs defined to drive the exploration
+    - on-the-fly exploration
+        accelerated series
 """
 
 
 class AbstractExplorer(ABC):
+
+    name = "expedition"
 
     # general parameters
     general_params = dict(
@@ -39,7 +47,7 @@ class AbstractExplorer(ABC):
     )
 
     creation_params = dict(
-
+        calc_dir_name = "tmp_folder"
     )
 
     collection_params = dict(
@@ -69,6 +77,16 @@ class AbstractExplorer(ABC):
         self.job_prefix = ""
 
         self.njobs = config.NJOBS
+
+        # - parse params
+        # --- create
+        # --- collect/select
+        # --- label/acquire
+        pot_dict = main_dict.get("calculation", None)
+        if pot_dict is not None:
+            self.ref_manager = create_pot_manager(pot_dict)
+        else:
+            self.ref_manager = None
 
         return
     
@@ -103,9 +121,9 @@ class AbstractExplorer(ABC):
         print("IGNORE_EXISTS ", self.ignore_exists)
 
         # database path
-        main_database = input_dict.get("dataset", None) #"/users/40247882/scratch2/PtOx-dataset"
+        main_database = input_dict.get("dataset", None)
         if main_database is None:
-            raise ValueError("dataset should not be None")
+            raise RuntimeError("dataset should not be None...")
         else:
             self.main_database = Path(main_database)
 
@@ -160,9 +178,16 @@ class AbstractExplorer(ABC):
         """calculate configurations with reference method"""
         exp_dict = self.explorations[exp_name]
 
+        # - create a calculation machine (vasp, ...)
+        if self.ref_manager is None:
+            raise RuntimeError("Ref Manager does not exist...")
+        else:
+            #calc_machine = self.ref_manager.create_machine(
+            #    calc_dict
+            #)
+            calc_machine = self.ref_manager.create_machine()
+
         # some parameters
-        calc_dict = exp_dict["calculation"]
-        machine_dict = calc_dict["machine"]
 
         # - create fp main dir
         prefix = working_directory / (exp_name + "-fp")
@@ -177,6 +202,7 @@ class AbstractExplorer(ABC):
             # - loop over systems
             # TODO: asyncio
             for slabel in included_systems:
+                print("--- ")
                 sys_frames = [] # NOTE: all frames
                 # TODO: make this into system
                 if slabel in skipped_systems:
@@ -202,7 +228,8 @@ class AbstractExplorer(ABC):
                         # - create input files
                         fp_path = prefix / slabel / tag_name
                         self._prepare_calc_dir(
-                            slabel, fp_path, calc_dict, machine_dict, 
+                            calc_machine,
+                            slabel, fp_path, 
                             final_selected_path
                         )
                 else:
@@ -211,128 +238,60 @@ class AbstractExplorer(ABC):
         return
     
     def _prepare_calc_dir(
-        self, slabel, sorted_fp_path, calc_dict, machine_dict,
-        final_selected_path
+        self, calc_machine, slabel, sorted_fp_path, final_selected_path
     ):
-        """"""
+        """ prepare calculation dir
+            currently, only vasp is supported
+        """
         # - create input file TODO: move this to vasp part
         if not sorted_fp_path.exists():
             sorted_fp_path.mkdir(parents=True)
-            # -- update params with systemwise info
-            calc_params = calc_dict.copy()
-            for k in calc_params.keys():
-                if calc_params[k] == "system":
-                    calc_params[k] = self.init_systems[slabel][k]
-            # -- create params file
-            with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
-                json.dump(calc_params, fopen, indent=4)
-            # -- create job script
-            machine_params = machine_dict.copy()
-            machine_params["job-name"] = slabel+"-fp"
-
-            # TODO: mpirun or mpiexec, move this part to machine object
-            command = calc_params["command"]
-            if command.strip().startswith("mpirun") or command.strip().startswith("mpiexec"):
-                ntasks = command.split()[2]
-            else:
-                ntasks = 1
-            # TODO: number of nodes?
-            machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
-
-            machine = SlurmMachine(**machine_params)
-            #"gdp vasp work ../C3O3Pt36.xyz -in ../vasp_params.json"
-            machine.user_commands = "gdp vasp work {} -in {}".format(
-                str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
-            )
-            machine.write(sorted_fp_path/"vasp.slurm")
-            # -- submit?
+            # TODO: create
+            # - update system-wise parameters
         else:
             # TODO: move harvest function here?
             print(f"{sorted_fp_path} already exists.")
 
-        return
-    
-    def iharvest(self, exp_name, working_directory: Union[str, Path]):
-        """harvest all vasp results"""
-        # TODO: replace this by a object
-        # run over directories and check
-        main_dir = Path(working_directory) / (exp_name + "-fp")
-        vasp_main_dirs = []
-        for p in main_dir.iterdir():
-            calc_file = p / "calculated_0.xyz"
-            if p.is_dir() and calc_file.exists():
-                vasp_main_dirs.append(p)
-        print(vasp_main_dirs)
+            # - check target calculation structures
+            frames_in = read(final_selected_path, ":")
+            nframes_in = len(frames_in)
 
-        # TODO: optional parameters
-        pot_gen = Path.cwd().name
-        pattern = "vasp_0_*"
-        njobs = 4
-        vaspfile, indices = "vasprun.xml", "-1:"
+            # - store in database
+            # TODO: provide an unified interfac to all type of databases 
+            # TODO: offer default xyzfile prefix
+            composition = self.init_systems[slabel]["composition"]
+            sorted_composition = sorted(composition.items(), key=lambda x:x[0])
+            comp_name = "".join([ k+str(v) for k,v in sorted_composition])
+            database_path = self.main_database / (self.init_systems[slabel]["prefix"]+"-"+comp_name)
 
-        for d in vasp_main_dirs:
-            print("\n===== =====")
-            vasp_dirs = []
-            for p in d.parent.glob(d.name+'*'):
-                if p.is_dir():
-                    vasp_dirs.extend(vasp_collector.find_vasp_dirs(p, pattern))
-            print('total vasp dirs: %d' %(len(vasp_dirs)))
+            if not database_path.exists():
+                database_path.mkdir(parents=True)
 
-            print("sorted by last integer number...")
-            vasp_dirs_sorted = sorted(
-                vasp_dirs, key=lambda k: int(k.name.split('_')[-1])
-            ) # sort by name
+            xyzfile_name = Path("-".join([slabel, self.name, sorted_fp_path.name, self.pot_manager.version]) + ".xyz")
 
-            # check number of frames equal output?
-            input_xyz = []
-            for p in d.iterdir():
-                if p.name.endswith("-sel.xyz"):
-                    input_xyz.append(p)
-                if p.name.endswith("_ALL.xyz"):
-                    input_xyz.append(p)
-            if len(input_xyz) == 1:
-                input_xyz = input_xyz[0]
-            else:
-                raise ValueError(d, " has both sel and ALL xyz file...")
-            nframes_input = len(read(input_xyz, ":"))
+            if xyzfile_name.exists():
+                frames_exists = read(xyzfile_name, ":")
+                nframes_exists = len(frames_exists)
+                if nframes_exists == nframes_in:
+                    print("  calculated structures are stored...")
+                    return
 
-            atoms = read(input_xyz, "0")
-            c = Counter(atoms.get_chemical_symbols())
-            sys_name_list = []
-            for s in self.type_list:
-                sys_name_list.append(s)
-                num = c.get(s, 0)
-                sys_name_list.append(str(num))
-            sys_name = "".join(sys_name_list)
-            out_name = self.main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
-            if out_name.exists():
-                nframes_out = len(read(out_name, ":"))
-                if nframes_input == nframes_out:
-                    print(d, "already has been harvested...")
-                    continue
+            # - read results
+            with CustomTimer(name="harvest"):
+                frames = calc_machine._read_results(sorted_fp_path)
+                nframes = len(frames)
+                print("nframes calculated: ", nframes)
+            
+            # - tag every data
+            for atoms in frames:
+                atoms.info["uuid"] = str(uuid.uuid1())
 
-            # start harvest
-            st = time.time()
-            print("using num of jobs: ", njobs)
-            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
-            if isinstance(cur_frames, Atoms):
-                cur_frames = [cur_frames]
-            frames = []
-            for f in cur_frames:
-                frames.extend(f) # merge all frames
+            if nframes != nframes_in:
+                warnings.warn("calculation may not finish...", RuntimeWarning)
 
-            et = time.time()
-            print("cost time: ", et-st)
-
-            # move structures to data path
-            if len(frames) > 0:
-                print("Number of frames: ", len(frames))
-                write(out_name, frames)
-            else:
-                print("No frames...")
+            write(database_path / xyzfile_name, frames)
 
         return
-
 
 if __name__ == "__main__":
     pass
