@@ -589,7 +589,7 @@ class AFIRSearch():
             print("fmax: ", np.max(np.fabs(cur_atoms.get_forces(apply_constraint=True))))
             path_frames.append(cur_atoms)
 
-            traj_frames = read(cur_traj, ":")
+            traj_frames = read(cur_traj, ":") # TODO: traj energies and forces?
             write(cur_gdir/"traj.xyz", traj_frames)
 
             et = time.time()
@@ -623,6 +623,7 @@ class AFIRSearch():
                 if gcount <= 2:
                     # NOTE: too large init gamma, then search back
                     print("too large gamma, search back...")
+                    # TODO: decrease gamma incremental
                     gamma /= 2.
                 else:
                     found_reaction = True
