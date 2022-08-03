@@ -23,7 +23,7 @@ def main():
     
     # the workflow tracker
     parser.add_argument(
-        "-pot", "--potential", nargs=1, default = [None],
+        "-pot", "--potential", nargs=2, default = [None, "calc1"],
         help = "potential related configuration"
     )
 
@@ -277,7 +277,8 @@ def main():
     pot_manager = None
     if args.potential:
         pot_config = args.potential[0] # configuration file of potential
-        pot_manager = create_pot_manager(pot_config)
+        pot_version = args.potential[1]
+        pot_manager = create_pot_manager(pot_config, pot_version)
 
     # use subcommands
     if args.subcommand == "vasp":
