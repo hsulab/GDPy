@@ -14,10 +14,147 @@ from typing import Union, List
 
 import numpy as np
 
-from ase.io import read, write
+from joblib import Parallel, delayed
 
+from ase.io import read, write
+from ase.calculators.vasp import Vasp
+
+from GDPy import config
 from GDPy.utils.command import parse_input_file, convert_indices
 from GDPy.calculator.vasp import VaspMachine
+
+class VaspMachine2():
+
+    frames_name = "calculated_0.xyz"
+    vasp_dir_pattern = "vasp_*"
+
+    def __init__(self, calc):
+        """"""
+        calc_ = Vasp()
+        if isinstance(calc, Vasp):
+            calc_ = calc
+        else:
+            # TODO: check calc type
+            calc_.read_json(calc)
+            #print("load vasp json: ", calc_.asdict())
+        self.calc = calc_
+        print(self.calc.asdict())
+
+        return
+    
+    def _prepare_calculation(self):
+        """ deal with many calculations in one folder
+        """
+        # -- update params with systemwise info
+        # TODO: dump vasp ase-calculator to json
+        calc_params = calc_dict.copy()
+        for k in calc_params.keys():
+            if calc_params[k] == "system":
+                calc_params[k] = self.init_systems[slabel][k]
+        # -- create params file
+        with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
+            json.dump(calc_params, fopen, indent=4)
+        # -- create job script
+        machine_params = machine_dict.copy()
+        machine_params["job-name"] = slabel+"-fp"
+
+        # TODO: mpirun or mpiexec, move this part to machine object
+        command = calc_params["command"]
+        if command.strip().startswith("mpirun") or command.strip().startswith("mpiexec"):
+            ntasks = command.split()[2]
+        else:
+            ntasks = 1
+        # TODO: number of nodes?
+        machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
+
+        machine = SlurmMachine(**machine_params)
+        #"gdp vasp work ../C3O3Pt36.xyz -in ../vasp_params.json"
+        machine.user_commands = "gdp vasp work {} -in {}".format(
+            str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+        )
+        machine.write(sorted_fp_path/"vasp.slurm")
+        # -- submit?
+
+        return
+    
+    def _read_results(self, main_dir):
+        """"""
+        # TODO: replace this with an object
+        main_dir = Path(main_dir)
+        print("main_dir: ", main_dir)
+        # - parse subdirs
+        #vasp_main_dirs = []
+        #for p in main_dir.iterdir():
+        #    calc_file = p / self.frames_name
+        #    if p.is_dir() and calc_file.exists():
+        #        vasp_main_dirs.append(p)
+        #print(vasp_main_dirs) 
+        # - parse vasp dirs
+        vasp_dirs = [] # NOTE: converged vasp dirs
+        for p in main_dir.glob(self.vasp_dir_pattern):
+            if p.is_dir():
+                self.calc.directory = str(p)
+                if self.calc.read_convergence():
+                    vasp_dirs.append(p)
+        
+        #print(vasp_dirs)
+        
+        # - read trajectories
+        traj_bundles = Parallel(n_jobs=config.NJOBS)(
+            delayed(self._read_single_results)(p, indices=None) for p in vasp_dirs
+        ) # TODO: indices
+
+        traj_frames = []
+        for frames in traj_bundles:
+            traj_frames.extend(frames)
+
+        return traj_frames
+    
+    def _read_single_results(self, vasp_dir, indices=None, verbose=False):
+        """ read results from single vasp dir
+        """
+        # get vasp calc params to add extra_info for atoms
+        #fmax = self.fmax # NOTE: EDIFFG negative for forces?
+
+        # read info
+        # TODO: check electronic convergence
+        #vasprun = pstru / "vasprun.xml"
+        #if vasprun.exists() and vasprun.stat().st_size > 0:
+        #    pass
+        vasprun = vasp_dir / "vasprun.xml"
+
+        # - read structures
+        if indices is None:
+            traj_frames = read(vasprun, ":")
+            energies = [a.get_potential_energy() for a in traj_frames]
+            maxforces = [np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in traj_frames] # TODO: applt cons?
+
+            #print(f"--- vasp info @ {pstru.name} ---")
+            #print("nframes: ", len(traj_frames))
+            #print("last energy: ", energies[-1])
+            #print("last maxforce: ", maxforces[-1])
+            #print("force convergence: ", fmax)
+
+            last_atoms = traj_frames[-1]
+            last_atoms.info["source"] = vasp_dir.name
+            last_atoms.info["maxforce"] = maxforces[-1]
+            #if maxforces[-1] <= fmax:
+            #    write(pstru / (pstru.name + "_opt.xsd"), last_atoms)
+            #    print("write converged structure...")
+            last_atoms = [last_atoms]
+        else:
+            #print(f"--- vasp info @ {pstru.name} ---")
+            last_atoms = read(vasprun, indices)
+            #print("nframes: ", len(last_atoms))
+            #nconverged = 0
+            #for a in last_atoms:
+            #    maxforce = np.max(np.fabs(a.get_forces(apply_constraint=True)))
+            #    if maxforce < fmax:
+            #        a.info["converged"] = True
+            #        nconverged += 1
+            #print("nconverged: ", nconverged)
+
+        return last_atoms
 
 
 class VaspWorker():

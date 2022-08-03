@@ -25,6 +25,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.utils.command import run_command, parse_input_file
 from GDPy.machine.machine import SlurmMachine
+from GDPy.calculator.utils import create_single_point_calculator
 
 """ wrap ase-vasp into a few utilities
 """
@@ -114,9 +115,9 @@ class VaspMachine():
         incar, 
         pp_path, 
         vdw_path=None, 
-        vasp_script=None,
+        vasp_script=None, # job script
         isinteractive = False, # if output input info to screen
-        **kwargs
+        **kwargs # parse kpts, constraints
     ):
         """"""
         self.__incar = incar
@@ -146,19 +147,19 @@ class VaspMachine():
     def __set_environs(self):
         # ===== environs TODO: from inputs 
         # pseudo 
-        if 'VASP_PP_PATH' in os.environ.keys():
-            os.environ.pop('VASP_PP_PATH')
-        os.environ['VASP_PP_PATH'] = self.pp_path
+        if "VASP_PP_PATH" in os.environ.keys():
+            os.environ.pop("VASP_PP_PATH")
+        os.environ["VASP_PP_PATH"] = self.pp_path
 
         # vdw 
-        vdw_envname = 'ASE_VASP_VDW'
+        vdw_envname = "ASE_VASP_VDW"
         if vdw_envname in os.environ.keys():
             _ = os.environ.pop(vdw_envname)
         os.environ[vdw_envname] = self.vdw_path
 
         return
     
-    def init_creator(self):
+    def _init_creator(self):
         """ NOTE: this can be used to access 
         """
         # ===== set basic params
@@ -169,12 +170,10 @@ class VaspMachine():
         else:
             vasp_creator.set(**self.default_parameters)
         
-        self.creator = vasp_creator
-
         # geometric convergence
         self.fmax = np.fabs(vasp_creator.exp_params.get("ediffg", 0.05))
 
-        return
+        return vasp_creator
 
     def create(
         self, 
@@ -182,13 +181,10 @@ class VaspMachine():
         directory=Path("vasp-test"),
         task = "opt"
     ):
-        # ===== set basic params
-        vasp_creator = GenerateVaspInput()
-        if self.__incar is not None:
-            vasp_creator.set_xc_params("PBE") # NOTE: since incar may not set GGA
-            vasp_creator.read_incar(self.__incar)
-        else:
-            vasp_creator.set(**self.default_parameters)
+        """ create a single calculation directory
+        """
+        # - creator
+        vasp_creator = self._init_creator()
 
         # geometric convergence
         self.fmax = np.fabs(vasp_creator.exp_params.get("ediffg", 0.05))
@@ -348,15 +344,7 @@ class VaspMachine():
             atoms_sorted = frames[-1] # TODO: for now, only last one of interest
             # resort
             sort, resort = read_sort(vasp_dir)
-            atoms = atoms_sorted.copy()[resort]
-            calc = SinglePointCalculator(
-                atoms,
-                energy=atoms_sorted.get_potential_energy(),
-                forces=atoms_sorted.get_forces(apply_constraint=False)[resort]
-                # TODO: magmoms?
-            )
-            calc.name = "vasp"
-            atoms.calc = calc
+            atoms = create_single_point_calculator(atoms_sorted, resort, "vasp")
 
             # add extra info
             if extra_info is not None:
@@ -365,6 +353,49 @@ class VaspMachine():
             print("the job isnot running...")
 
         return atoms
+
+    def read_results(self, pstru, indices=None, custom_incar=None, verbose=False):
+        """"""
+        # get vasp calc params to add extra_info for atoms
+        fmax = self.fmax # NOTE: EDIFFG negative for forces?
+
+        # read info
+        # TODO: check electronic convergence
+        vasprun = pstru / "vasprun.xml"
+        if vasprun.exists() and vasprun.stat().st_size > 0:
+            pass
+
+        # - read structures
+        if indices is None:
+            traj_frames = read(vasprun, ":")
+            energies = [a.get_potential_energy() for a in traj_frames]
+            maxforces = [np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in traj_frames] # TODO: applt cons?
+
+            print(f"--- vasp info @ {pstru.name} ---")
+            print("nframes: ", len(traj_frames))
+            print("last energy: ", energies[-1])
+            print("last maxforce: ", maxforces[-1])
+            print("force convergence: ", fmax)
+
+            last_atoms = traj_frames[-1]
+            last_atoms.info["source"] = pstru.name
+            last_atoms.info["maxforce"] = maxforces[-1]
+            if maxforces[-1] <= fmax:
+                write(pstru / (pstru.name + "_opt.xsd"), last_atoms)
+                print("write converged structure...")
+        else:
+            print(f"--- vasp info @ {pstru.name} ---")
+            last_atoms = read(vasprun, indices)
+            print("nframes: ", len(last_atoms))
+            nconverged = 0
+            for a in last_atoms:
+                maxforce = np.max(np.fabs(a.get_forces(apply_constraint=True)))
+                if maxforce < fmax:
+                    a.info["converged"] = True
+                    nconverged += 1
+            print("nconverged: ", nconverged)
+
+        return last_atoms
     
     def __icalculate(self):
         # TODO: move vasp calculation to this one
