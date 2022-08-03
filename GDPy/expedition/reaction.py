@@ -23,6 +23,12 @@ class ReactionExplorer(AbstractExplorer):
     """ currently, use AFIR to search reaction pairs
     """
 
+    name = "rxn" # exploration name
+
+    creation_params = dict(
+        calc_dir_name = "tmp_folder"
+    )
+
     collection_params = dict(
         resdir_name = "sorted",
         selection_tags = ["TS", "FS", "optraj"]
@@ -52,7 +58,8 @@ class ReactionExplorer(AbstractExplorer):
                 if not res_dir.exists():
                     res_dir.mkdir(parents=True)
                 else:
-                    pass
+                    print(f"  {res_dir.name} exists, so next...")
+                    continue
 
                 # - read substrate
                 system_dict = self.init_systems.get(slabel, None) # system name
@@ -68,6 +75,14 @@ class ReactionExplorer(AbstractExplorer):
                 print("number of frames: ", len(frames))
                 
                 # - action
+                # NOTE: create a separate calculation folder
+                calc_dir_path = res_dir / self.creation_params["calc_dir_name"]
+                if not calc_dir_path.exists():
+                    calc_dir_path.mkdir(parents=True)
+                else:
+                    print(f"  {calc_dir_path.name} exists, so next...")
+                    continue
+
                 for icand, atoms in enumerate(frames):
                     # --- TODO: check constraints on atoms
                     #           actually this should be in a dynamics object
@@ -76,7 +91,7 @@ class ReactionExplorer(AbstractExplorer):
                         atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
                     print(f"--- candidate {icand} ---")
-                    afir_search.directory = res_dir / (f"cand{icand}")
+                    afir_search.directory = calc_dir_path / (f"cand{icand}")
                     afir_search.run(atoms, calc)
                     #break
 
@@ -102,15 +117,20 @@ class ReactionExplorer(AbstractExplorer):
                 # - prepare output directory
                 res_dir = working_directory / exp_name / slabel
                 if not res_dir.exists():
-                    res_dir.mkdir(parents=True)
+                    # res_dir.mkdir(parents=True)
+                    print(f"  {res_dir.name} does not exist, so next...")
+                    continue
                 else:
                     pass
+
+                calc_dir_path = res_dir / self.creation_params["calc_dir_name"]
 
                 sorted_dir = working_directory / exp_name / slabel / "sorted"
                 if not sorted_dir.exists():
                     sorted_dir.mkdir(parents=True)
                 else:
-                    pass
+                    print(f"  {sorted_dir.name} does not exist, so next...")
+                    continue
 
                 # - find opt-trajs and pseudo_pathway
                 #   cand0/f0/g0 and pseudo_pathway.xyz
@@ -127,7 +147,7 @@ class ReactionExplorer(AbstractExplorer):
                         approx_FSs = read(sorted_dir/"approx_FSs.xyz", ":")
                         optraj_frames = read(sorted_dir/"optraj_frames.xyz", ":")
                     else:
-                        cand_dirs = res_dir.glob("cand*") # TODO: user-defined dir prefix
+                        cand_dirs = calc_dir_path.glob("cand*") # TODO: user-defined dir prefix
                         cand_dirs = sorted(cand_dirs, key=lambda x: int(x.name.strip("cand")))
                         #print(cand_dirs)
                         # TODO: joblib?
