@@ -11,6 +11,13 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from GDPy.utils.comparasion import parity_plot, parity_plot_dict, PropInfo
 
+
+import matplotlib as mpl
+mpl.use("Agg")  # silent mode
+from matplotlib import pyplot as plt
+plt.style.use("presentation")
+
+
 def use_dpeval():
     import matplotlib as mpl
     mpl.use('Agg') #silent mode
@@ -224,6 +231,7 @@ def merge_predicted_forces(frames, calc_name):
 def xyz2results(frames, calc = None, other_props = []):
     """ test xyz
     """
+    #new_frames = frames.copy()
 
     tot_energies, tot_forces = [], {}
     tot_props = {}
@@ -316,3 +324,57 @@ def find_systems_set(cur_system: Union[str, pathlib.Path]):
 
 
     return train_frames, test_frames
+
+
+def calc_and_compare_results(frames, calc):
+    """"""
+    ref_energies, ref_forces = xyz2results(frames, calc=None)
+    natoms_array = np.array([len(x) for x in frames])
+
+    calc_name = calc.name.lower()
+    #print("Calculating with MLP...")
+    new_frames = append_predictions(frames, calc=calc)
+    #mlp_energies, mlp_forces = xyz2results(frames, calc=calc)
+    mlp_energies = [a.info[calc_name+"_energy"] for a in new_frames]
+    mlp_forces = merge_predicted_forces(new_frames, calc_name) 
+
+    forces = np.array([ref_forces, mlp_forces])
+    energies = np.array([ref_energies, mlp_energies]) / natoms_array
+
+    return energies, forces
+
+
+def plot_comparasion(calc_name, energies, forces, saved_figure):
+    """"""
+    fig, axarr = plt.subplots(
+        nrows=1, ncols=2,
+        gridspec_kw={'hspace': 0.3}, figsize=(16, 12)
+    )
+    axarr = axarr.flatten()
+
+    _, nframes = energies.shape
+    plt.suptitle(f"Number of frames {nframes}")
+
+    ax = axarr[0]
+    en_rmse_results = parity_plot_dict(
+        {"energy": energies[0, :]}, {"energy": energies[1, :]}, 
+        ax, 
+        {
+            "xlabel": "DFT [eV]", "ylabel": "%s [eV]" % calc_name, "title": "Energy"
+        }
+    )
+
+    ax = axarr[1]
+    for_rmse_results = parity_plot_dict(
+        forces[0], forces[1],
+        ax,
+        {
+            "xlabel": "DFT [eV/AA]",
+            "ylabel": "%s [eV/AA]" % calc_name,
+            "title": "Forces"
+        }
+    )
+
+    plt.savefig(saved_figure)
+
+    return en_rmse_results, for_rmse_results
