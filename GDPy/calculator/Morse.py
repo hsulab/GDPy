@@ -4,7 +4,6 @@
 from math import dist
 import numpy as np
 import torch
-from torch import optim
 
 class Morse(torch.nn.Module):
 
