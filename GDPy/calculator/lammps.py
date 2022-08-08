@@ -173,7 +173,8 @@ class LmpDynamics(AbstractDynamics):
             if read_exists:
                 is_finished, wall_time = atoms.calc._is_finished()
                 if is_finished:
-                    print(f"found finished {self._directory_path.name}.")
+                    print(f"found finished dynamics {self._directory_path.name}.")
+                    atoms.calc.read_results()
                 else:
                     # TODO: restart calculation!!!
                     _  = atoms.get_forces()
