@@ -82,28 +82,25 @@ class AbstractDynamics(abc.ABC):
 
 
 def read_trajectories(
-    action, res_dpath, traj_period,
-    traj_frames_name, traj_indices_name,
-    opt_dname, opt_frames_name
+    action, tmp_folder, traj_period,
+    traj_frames_path, traj_indices_path,
+    opt_frames_path
 ):
     """ read trajectories from several directories
         each dir is named by candx
     """
     # - act, retrieve trajectory frames
     # TODO: more general interface not limited to dynamics
-    traj_frames_path = res_dpath / traj_frames_name
-    traj_indices_path = res_dpath / traj_indices_name
     if not traj_frames_path.exists():
         traj_indices = [] # use traj indices to mark selected traj frames
         all_traj_frames = []
-        tmp_folder = res_dpath / opt_dname
-        optimised_frames = read(res_dpath/opt_frames_name, ":")
+        optimised_frames = read(opt_frames_path, ":")
         # TODO: change this to joblib
         for atoms in optimised_frames:
             # --- read confid and parse corresponding trajectory
             confid = atoms.info["confid"]
             action.set_output_path(tmp_folder/("cand"+str(confid)))
-            traj_frames = action._read_trajectory(label_steps=True)
+            traj_frames = action._read_trajectory(atoms, label_steps=True)
             # --- generate indices
             # NOTE: last one should be always included since it may be converged structure
             cur_nframes = len(all_traj_frames)

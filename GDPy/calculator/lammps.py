@@ -45,6 +45,14 @@ class AseLammpsSettings:
 
 ASELMPCONFIG = AseLammpsSettings()
 
+def parse_type_list(atoms):
+    """parse type list for read and write structure of lammps"""
+    # elements
+    type_list = list(set(atoms.get_chemical_symbols()))
+    type_list.sort() # by alphabet
+
+    return type_list
+
 def parse_thermo_data(logfile_path) -> dict:
     """"""
     # - read thermo data
@@ -174,7 +182,7 @@ class LmpDynamics(AbstractDynamics):
                 is_finished, wall_time = atoms.calc._is_finished()
                 if is_finished:
                     print(f"found finished dynamics {self._directory_path.name}.")
-                    atoms.calc.check_specorder(atoms)
+                    atoms.calc.type_list = parse_type_list(atoms)
                     atoms.calc.read_results()
                 else:
                     # TODO: restart calculation!!!
@@ -244,13 +252,13 @@ class LmpDynamics(AbstractDynamics):
             backups = find_backups(self._directory_path, self.saved_cards[0])
             frames = read(
                 backups[0], ":", "lammps-dump-text", 
-                specorder=self.calc.specorder, units=self.calc.units
+                specorder=self.calc.type_list, units=self.calc.units
             )
             for bak in backups[1:]:
                 frames.extend(
                     read(
                         bak, ":", "lammps-dump-text", 
-                        specorder=self.calc.specorder, units=self.calc.units
+                        specorder=self.calc.type_list, units=self.calc.units
                     )[1:]
                 )
         
@@ -272,7 +280,9 @@ class LmpDynamics(AbstractDynamics):
 
         return stat_content
     
-    def _read_trajectory(self, label_steps=True):
+    def _read_trajectory(self, atoms, label_steps=True):
+        """"""
+        self.calc.type_list = parse_type_list(atoms)
 
         return self.calc._read_trajectory(label_steps)
 
@@ -319,7 +329,8 @@ class Lammps(FileIOCalculator):
         min_modify = None
     )
 
-    specorder = None
+    type_list = None
+
     cached_traj_frames = None
     cached_loop_time = None
 
@@ -363,20 +374,10 @@ class Lammps(FileIOCalculator):
     def calculate(self, atoms=None, properties=['energy'],
             system_changes=all_changes):
         # check specorder
-        self.check_specorder(atoms)
+        self.type_list = parse_type_list(atoms)
 
         # init for creating the directory
         FileIOCalculator.calculate(self, atoms, properties, system_changes)
-
-        return
-    
-    def check_specorder(self, atoms):
-        """check specorder for read and write structure of lammps"""
-        # elements
-        specorder = list(set(atoms.get_chemical_symbols()))
-        specorder.sort() # by alphabet
-
-        self.specorder = specorder
 
         return
     
@@ -386,7 +387,7 @@ class Lammps(FileIOCalculator):
         # write structure
         stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
         write_lammps_data(
-            stru_data, atoms, specorder=self.specorder, force_skew=True, 
+            stru_data, atoms, specorder=self.type_list, force_skew=True, 
             units=self.units, atom_style=self.atom_style
         )
 
@@ -428,7 +429,7 @@ class Lammps(FileIOCalculator):
         self.cached_traj_frames = self._read_trajectory()
         #traj_frames = read(
         #    os.path.join(self.directory, ASELMPCONFIG.trajectory_filename), ":", "lammps-dump-text", 
-        #    specorder=self.specorder, units=self.units
+        #    specorder=self.type_list, units=self.units
         #)
         #nframes = len(traj_frames)
 
@@ -455,7 +456,7 @@ class Lammps(FileIOCalculator):
         # NOTE: forces would be zero if setforce 0 is set
         traj_frames = read(
             _directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
-            specorder=self.specorder, units=self.units
+            specorder=self.type_list, units=self.units
         )
         # - read thermo data
         thermo_dict, loop_time = parse_thermo_data(_directory_path / ASELMPCONFIG.log_filename)
@@ -496,7 +497,7 @@ class Lammps(FileIOCalculator):
     def _write_input(self, atoms) -> NoReturn:
         """"""
         mass_line = ''.join(
-            'mass %d %f\n' %(idx+1,atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(self.specorder)
+            'mass %d %f\n' %(idx+1,atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(self.type_list)
         )
         # write in.lammps
         content = ""
@@ -522,7 +523,7 @@ class Lammps(FileIOCalculator):
         #if pair_style["model"] == "reax/c":
         #    # reaxff uses real unit, force kcal/mol/A
         #    content += "pair_style	reax/c NULL\n"
-        #    content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(self.specorder))
+        #    content += "pair_coeff	* * /users/40247882/projects/oxides/gdp-main/reaxff/ffield.reax.PtO %s\n" %(' '.join(self.type_list))
         #    content += "neighbor        0.0 bin\n"
         #    content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
         #    content += "\n"
@@ -533,7 +534,7 @@ class Lammps(FileIOCalculator):
         #    else:
         #        style_args = "{} out_freq {}".format(pair_style["file"], out_freq)
         #    content += "pair_style	eann %s\n" %style_args
-        #    content += "pair_coeff	* * double %s\n" %(" ".join(self.specorder))
+        #    content += "pair_coeff	* * double %s\n" %(" ".join(self.type_list))
         #    content += "neighbor        0.0 bin\n"
         #    content += "\n"
         #elif pair_style["model"] == "deepmd":
@@ -570,7 +571,7 @@ class Lammps(FileIOCalculator):
                 pair_coeff = "double * *"
             else:
                 pair_coeff = self.pair_coeff
-            content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.specorder))
+            content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
             content += "neighbor        0.0 bin\n"
         elif potential == "deepmd":
             content += "pair_style  {}\n".format(self.pair_style)
