@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC, abstractmethod
-from typing import Union, Callable, Counter, Union, List
+from typing import Union, Callable, Counter, Union, List, NoReturn
 from pathlib import Path
 
+import os
+import shutil
 import uuid
 import time
 import json
@@ -20,6 +22,7 @@ from GDPy.machine.machine import SlurmMachine
 from GDPy.utils.command import CustomTimer
 
 from GDPy.potential.manager import create_pot_manager
+from GDPy.selector.abstract import create_selector
 
 
 """ abstract class for expedition methods
@@ -39,7 +42,10 @@ from GDPy.potential.manager import create_pot_manager
 
 class AbstractExplorer(ABC):
 
+    # name of expedition
     name = "expedition"
+
+    parameters = dict()
 
     # general parameters
     general_params = dict(
@@ -57,6 +63,10 @@ class AbstractExplorer(ABC):
 
     calculation_params = dict(
 
+    )
+
+    label_params = dict(
+        check_parity = True
     )
 
     # system-specific info
@@ -130,12 +140,8 @@ class AbstractExplorer(ABC):
         return
     
     def register_calculator(self, pm):
-        """ use potentila manager
+        """ use potential manager
         """
-
-        return
-    
-    def __check_dataset(self):
 
         return
     
@@ -169,14 +175,152 @@ class AbstractExplorer(ABC):
 
         return
 
-    @abstractmethod   
-    def icreate(self, exp_name, wd):
+    def icreate(self, exp_name: str, working_directory: Union[str,Path]) -> NoReturn:
+        """ create expedition tasks and gather results
+        """
+        # - a few info
+        exp_dict = self.explorations[exp_name]
+        included_systems = exp_dict.get("systems", None)
+
+        actions, selector = self._prior_create(exp_dict)
+
+        if included_systems is not None:
+            for slabel in included_systems:
+                print(f"----- Explore System {slabel} -----")
+
+                # - prepare output directory
+                res_dpath = working_directory / exp_name / slabel
+                if not res_dpath.exists():
+                    res_dpath.mkdir(parents=True)
+                #else:
+                #    print(f"  {res_dpath.name} exists, so next...")
+                #    continue
+
+                # - read substrate
+                frames, cons_text = self._read_structure(slabel)
+
+                # - run exploration
+                # NOTE: check status?
+                # TODO: make this a while loop
+                status = self._check_create_status(res_dpath)
+                print("current status: ", status)
+                if status == "create":
+                    with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    self._single_create(res_dpath, frames, cons_text, actions)
+                    with open(res_dpath/"CREATE_FINISHED", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    os.remove(res_dpath/"CREATE_RUNNING")
+                elif status == "collect":
+                    with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    self._single_collect(res_dpath, frames, cons_text, actions, selector)
+                    with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    os.remove(res_dpath/"COLLECT_RUNNING")
+                elif status == "finished":
+                    pass
+                else:
+                    raise RuntimeError("Unknown status for exploration...")
+        else:
+            # NOTE: no systems to explore
+            pass
+
+        self._post_create()
 
         return
+    
+    def _prior_create(self, input_params: dict, *args, **kwargs):
+        """ some codes before creating exploratiosn of systems
+            parse actions for this exploration from dict params
+        """
+        # - update a few parameters from input
+        traj_period_ = input_params["collect"].get("traj_period", 1)
+        self.creation_params["traj_period"] = traj_period_
+
+        # TODO: move select to this part?
+
+        # - select
+        select_params = input_params.get("select", None)
+        if select_params is not None:
+            selector = create_selector(select_params, directory=Path.cwd())
+        else:
+            selector = None
+
+        return selector
+    
+    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+        """ some codes run explorations
+        """
+
+        return
+
+    def _single_collect(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+        """ some codes run explorations
+        """
+
+        return
+
+    def _single_select(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+        """ some codes run explorations
+        """
+
+        return
+    
+    def _check_create_status(self, res_dpath, *args, **kwargs):
+        """ check whether create is finished
+            and should perform collect or select
+        """
+        # TODO: store in a metadata file?
+        status = "create"
+        if (res_dpath/"CREATE_FINISHED").exists():
+            status = "collect"
+        if (res_dpath/"COLLECT_FINISHED").exists():
+            status = "finished"
+
+        return status
+    
+    def _post_create(self, *args, **kwargs):
+        """ some codes after creating exploratiosn of systems
+            collect data
+        """
+
+        return
+    
+    def _read_structure(self, slabel):
+        """ read initial structures of a single system
+        """
+        # - read structure
+        system_dict = self.init_systems.get(slabel, None) # system name
+        if system_dict is None:
+            raise RuntimeError(f"Find unexpected system {system_dict}.")
+
+        # - read structures
+        # the expedition can start with different initial configurations
+        stru_path = system_dict.get("structure", None)
+        if stru_path is None:
+            frames = []
+            if self.name != "gs": # global search
+                # global search expedition doesnt need initial structures
+                raise RuntimeError(f"{self.name} needs initial structures of {slabel}")
+        else:
+            indices = system_dict.get("index", ":")
+            frames = read(stru_path, indices)
+        
+        print("number of initial structures: ", len(frames)) # TODO: use logging
+
+        sys_cons_text = system_dict.get("constraint", None) # some action may need constraint info
+
+        return frames, sys_cons_text
 
     def icalc(self, exp_name, working_directory, skipped_systems=[]):
         """calculate configurations with reference method"""
         exp_dict = self.explorations[exp_name]
+
+        # - some parameters
+        self.label_params.update(
+            exp_dict.get("label", {})
+        )
 
         # - create a calculation machine (vasp, ...)
         if self.ref_manager is None:
@@ -186,8 +330,6 @@ class AbstractExplorer(ABC):
             #    calc_dict
             #)
             calc_machine = self.ref_manager.create_machine()
-
-        # some parameters
 
         # - create fp main dir
         prefix = working_directory / (exp_name + "-fp")
@@ -267,29 +409,44 @@ class AbstractExplorer(ABC):
             if not database_path.exists():
                 database_path.mkdir(parents=True)
 
-            xyzfile_name = Path("-".join([slabel, self.name, sorted_fp_path.name, self.pot_manager.version]) + ".xyz")
+            xyzfile_path = database_path / ("-".join([slabel, self.name, sorted_fp_path.name, self.pot_manager.version]) + ".xyz")
+            print(xyzfile_path)
+            #exit()
 
-            if xyzfile_name.exists():
-                frames_exists = read(xyzfile_name, ":")
+            if xyzfile_path.exists():
+                frames_exists = read(xyzfile_path, ":")
                 nframes_exists = len(frames_exists)
                 if nframes_exists == nframes_in:
-                    print("  calculated structures are stored...")
-                    return
-
-            # - read results
-            with CustomTimer(name="harvest"):
-                frames = calc_machine._read_results(sorted_fp_path)
-                nframes = len(frames)
-                print("nframes calculated: ", nframes)
+                    print("  calculated structures have been stored...")
+                    #return
+                else:
+                    print("  calculated structures may not finish...")
+                frames = frames_exists
+            else:
+                # - read results
+                with CustomTimer(name="harvest"):
+                    frames = calc_machine._read_results(sorted_fp_path)
+                    nframes = len(frames)
+                    print("nframes calculated: ", nframes)
             
-            # - tag every data
-            for atoms in frames:
-                atoms.info["uuid"] = str(uuid.uuid1())
+                # - tag every data
+                for atoms in frames:
+                    atoms.info["uuid"] = str(uuid.uuid1())
 
-            if nframes != nframes_in:
-                warnings.warn("calculation may not finish...", RuntimeWarning)
+                if nframes != nframes_in:
+                    warnings.warn("calculation may not finish...", RuntimeWarning)
 
-            write(database_path / xyzfile_name, frames)
+                write(database_path / xyzfile_path, frames)
+
+            # - check parity
+            from GDPy.data.operators import calc_and_compare_results, plot_comparasion
+
+            # use loaded frames
+            with CustomTimer(name="comparasion"):
+                figpath = sorted_fp_path / "cmp.png"
+                calc_name = self.pot_manager.calc.name.lower()
+                energies, forces = calc_and_compare_results(frames, self.pot_manager.calc)
+                plot_comparasion(calc_name, energies, forces, figpath)
 
         return
 
