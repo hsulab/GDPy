@@ -11,18 +11,10 @@ import warnings
 
 import numpy as np
 
-import ase
 from ase import Atoms
-from ase import build
 from ase.io import read, write
-from ase.constraints import FixAtoms
-from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.potential.manager import PotManager
 from GDPy.utils.command import parse_input_file
-
-from ase.ga.standard_comparators import EnergyComparator
-from ase.ga.standard_comparators import InteratomicDistanceComparator, get_sorted_dist_list
 
 from .abstract import AbstractExplorer
 from GDPy import config
@@ -31,28 +23,26 @@ from GDPy.selector.abstract import create_selector
 
 from GDPy.builder.adsorbate import StructureGenerator, AdsorbateGraphGenerator
 
+from GDPy.utils.command import CustomTimer
+
 
 class AdsorbateEvolution(AbstractExplorer):
 
-    action_order = ["adsorption", "dynamics"]
+    name = "ads"
 
-    def __init__(self, pm, main_dict):
-        """"""
-        self.pot_manager = pm
-        self._register_type_map(main_dict) # obtain type_list or type_map
+    creation_params = dict(
+        # - create
+        action_order = ["adsorption", "dynamics"],
+        gen_fname = "gen-ads.xyz", # generated ads structures filename
+        opt_fname = "opt-ads.xyz",
+        opt_dname = "tmp_folder", # dir name for optimisations
+        struc_prefix = "cand",
+        # - collect
+        traj_period = 1
+    )
 
-        self.explorations = main_dict["explorations"]
-        self.init_systems = main_dict["systems"]
+    parameters = dict()
 
-        self._parse_general_params(main_dict)
-
-        # for job prefix
-        self.job_prefix = ""
-
-        self.njobs = config.NJOBS
-
-        return
-    
     def _parse_specific_params(self, input_dict: dict):
         """"""
         self.graph_params = input_dict["system"]["graph"]
@@ -88,181 +78,131 @@ class AdsorbateEvolution(AbstractExplorer):
 
         return
     
-    def _parse_action(self, action_param_list: list, directory) -> dict:
-        """"""
+    def _prior_create(self, input_params):
+        """ some codes before creating exploratiosn of systems
+            parse actions for this exploration from dict params
+        """
+        selector = super()._prior_create(input_params)
+
         action_dict = {}
-        for act in action_param_list:
-            assert len(act) == 1, "Each action should only have one param dict."
-            act_name, act_params = list(act.items())[0]
+        for act_name, act_params in input_params["create"].items():
             #print(act_Iname, act_params)
             if act_name == "adsorption":
-                action = AdsorbateGraphGenerator(act_params["composition"], act_params["graph"], directory)
+                action = AdsorbateGraphGenerator(act_params["composition"], act_params["graph"], Path.cwd())
             elif act_name == "dynamics":
                 action = self.pot_manager.create_worker(act_params)
             else:
                 pass
             action_dict[act_name] = action
 
-        return action_dict
+        return action_dict, selector
 
-    def icreate(self, exp_name, working_directory):
-        """ perform a list of actions on input system
+    def _single_create(self, res_dpath, frames, cons_text, actions):
         """
-        # - a few info
-        exp_dict = self.explorations[exp_name]
-        included_systems = exp_dict.get("systems", None)
-
-        if included_systems is not None:
-            for slabel in included_systems:
-                # - prepare output directory
-                res_dir = working_directory / exp_name / slabel
-                if not res_dir.exists():
-                    res_dir.mkdir(parents=True)
-                else:
-                    pass
-
-                # - parse actions
-                actions = self._parse_action(exp_dict["action"], res_dir)
-                    
-                # - read substrate
-                system_dict = self.init_systems.get(slabel, None) # system name
-                if system_dict is None:
-                    raise ValueError(f"Find unexpected system {system_dict}.")
-                sys_cons_text = system_dict.get("constraint", None)
-
-                # - read structures
-                # the expedition can start with different initial configurations
-                stru_path = system_dict["structure"]
-                frames = read(stru_path, ":")
-                
-                # - act
-                cur_frames = frames
-                for act_name in self.action_order:
-                    action = actions.get(act_name, None)
-                    act_outpath = res_dir / f"graph-act-{act_name}.xyz"
-                    if action is None:
-                        continue
-                    if isinstance(action, StructureGenerator):
-                        if not act_outpath.exists():
-                            cur_frames = action.run(cur_frames)
-                        else:
-                            cur_frames = read(act_outpath, ":")
-                    elif isinstance(action, AbstractDynamics):
-                        tmp_folder = res_dir / "tmp_folder"
-                        if not tmp_folder.exists():
-                            tmp_folder.mkdir()
-                        new_frames = []
-                        for i, atoms in enumerate(cur_frames): 
-                            confid = atoms.info["confid"]
-                            action.set_output_path(tmp_folder/("cand"+str(confid)))
-                            # TODO: check existed results before running
-                            new_atoms = action.run(atoms, extra_info=dict(confid=i), constraint=sys_cons_text)
-                            new_frames.append(new_atoms)
-                        cur_frames = new_frames
-                    else:
-                        pass
-                    write(act_outpath, cur_frames)
-
-        return
-
-    def icollect(self, exp_name, working_directory):
-        """ perform a list of actions on input system
         """
-        # - a few info
-        exp_dict = self.explorations[exp_name]
-        included_systems = exp_dict.get("systems", None)
-
-        collection_params = exp_dict["collection"]
-        traj_period = collection_params.get("traj_period", 1)
-        print(f"traj_period: {traj_period}")
-
-        if included_systems is not None:
-            for slabel in included_systems:
-                # - prepare output directory
-                res_dir = working_directory / exp_name / slabel
-                if not res_dir.exists():
-                    res_dir.mkdir(parents=True)
+        # - create collect dir
+        create_dpath = res_dpath / "create"
+        if create_dpath.exists():
+            if self.ignore_exists:
+                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
+                shutil.rmtree(create_dpath)
+                create_dpath.mkdir()
+            else:
+                return
+        else:
+            create_dpath.mkdir()
+        
+        # - run exploration
+        cur_frames = frames
+        for act_name in self.creation_params["action_order"]:
+            action = actions.get(act_name, None)
+            if action is None:
+                continue
+            if isinstance(action, StructureGenerator):
+                action.directory = create_dpath # NOTE: set new path
+                act_outpath = create_dpath / self.creation_params["gen_fname"]
+                if not act_outpath.exists():
+                    cur_frames = action.run(cur_frames)
                 else:
-                    pass
+                    cur_frames = read(act_outpath, ":")
+            elif isinstance(action, AbstractDynamics):
+                act_outpath = create_dpath / self.creation_params["opt_fname"]
+                tmp_folder = create_dpath / self.creation_params["opt_dname"]
+                if not tmp_folder.exists():
+                    tmp_folder.mkdir()
+                new_frames = []
+                for i, atoms in enumerate(cur_frames): 
+                    confid = atoms.info["confid"]
+                    #print(confid)
+                    action.set_output_path(tmp_folder/(self.creation_params["struc_prefix"]+str(confid)))
+                    # TODO: check existed results before running, lammps works
+                    new_atoms = action.run(atoms, extra_info=dict(confid=confid), constraint=cons_text)
+                    #print(new_atoms.info["confid"])
+                    new_frames.append(new_atoms)
+                cur_frames = new_frames
+            else:
+                pass
+            write(act_outpath, cur_frames) # NOTE: update output frames
 
-                # - parse actions
-                actions = self._parse_action(exp_dict["action"], directory=res_dir)
-                    
-                # - read substrate
-                system_dict = self.init_systems.get(slabel, None) # system name
-                if system_dict is None:
-                    raise ValueError(f"Find unexpected system {system_dict}.")
-                sys_cons_text = system_dict.get("constraint", None)
+        return cur_frames
+    
+    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+        """"""
+        traj_period = self.creation_params["traj_period"]
 
-                # - read structures
-                # the expedition can start with different initial configurations
-                stru_path = system_dict["structure"]
-                frames = read(stru_path, ":") # NOTE: dummy
-                
-                # - act, retrieve trajectory frames
-                # TODO: more general interface not limited to dynamics
-                traj_frames_path = res_dir / "traj_frames.xyz"
-                traj_indices_path = res_dir / "traj_indices.npy"
-                if not traj_frames_path.exists():
-                    traj_indices = [] # use traj indices to mark selected traj frames
-                    all_traj_frames = []
-                    tmp_folder = res_dir / "tmp_folder"
-                    action = actions["dynamics"]
-                    optimised_frames = read(res_dir/"graph-act-dynamics.xyz", ":")
-                    # TODO: change this to joblib
-                    for atoms in optimised_frames:
-                        # --- read confid and parse corresponding trajectory
-                        confid = atoms.info["confid"]
-                        action.set_output_path(tmp_folder/("cand"+str(confid)))
-                        traj_frames = action._read_trajectory(atoms, label_steps=True)
-                        # --- generate indices
-                        cur_nframes = len(all_traj_frames)
-                        cur_indices = list(range(0,len(traj_frames)-1,traj_period)) + [len(traj_frames)-1]
-                        cur_indices = [c+cur_nframes for c in cur_indices]
-                        traj_indices.extend(cur_indices)
-                        # --- add frames
-                        all_traj_frames.extend(traj_frames)
-                    np.save(traj_indices_path, traj_indices)
-                    write(traj_frames_path, all_traj_frames)
+        # - create collect dir
+        collect_path = res_dpath / "collect"
+        if collect_path.exists():
+            if self.ignore_exists:
+                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
+                shutil.rmtree(collect_path)
+                collect_path.mkdir()
+            else:
+                pass
+        else:
+            collect_path.mkdir()
+        
+        create_dpath = res_dpath / "create"
+
+        # - act, retrieve trajectory frames
+        with CustomTimer("collect"):
+            from GDPy.calculator.dynamics import read_trajectories
+            action = actions["dynamics"]
+            all_traj_frames = read_trajectories(
+                action, create_dpath / self.creation_params["opt_dname"], traj_period, 
+                collect_path/"traj_frames.xyz", collect_path/"traj_indices.npy",
+                create_dpath/self.creation_params["opt_fname"]
+            )
+
+        # - select
+        sorted_path = res_dpath / "sorted"
+
+        if selector:
+            # -- create dir
+            if sorted_path.exists():
+                if self.ignore_exists:
+                    warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
+                    shutil.rmtree(sorted_path)
+                    sorted_path.mkdir()
                 else:
-                    all_traj_frames = read(traj_frames_path, ":")
-                print("ntrajframes: ", len(all_traj_frames))
-                
-                if traj_indices_path.exists():
-                    traj_indices = np.load(traj_indices_path)
-                    all_traj_frames = [all_traj_frames[i] for i in traj_indices]
-                    #print(traj_indices)
-                print("ntrajframes: ", len(all_traj_frames), f" by {traj_period} traj_period")
-
-                # - select
-                name_path = res_dir
-                sorted_path = name_path / "sorted"
-                selection_params = exp_dict.get("selection", None)
-                selector = create_selector(selection_params, directory=sorted_path)
-
-                if selector:
-                    # -- create dir
-                    if sorted_path.exists():
-                        if self.ignore_exists:
-                            warnings.warn("sorted_path removed in %s" %name_path, UserWarning)
-                            shutil.rmtree(sorted_path)
-                            sorted_path.mkdir()
-                        else:
-                            warnings.warn("sorted_path exists in %s" %name_path, UserWarning)
-                            continue
-                    else:
-                        sorted_path.mkdir()
-                    # -- perform selections
-                    cur_frames = all_traj_frames
-                    # TODO: add info to selected frames
-                    # TODO: select based on minima (Trajectory-based Boltzmann)
-                    print(f"--- Selection Method {selector.name}---")
-                    #print("ncandidates: ", len(cur_frames))
-                    # NOTE: there is an index map between traj_indices and selected_indices
-                    cur_frames = selector.select(cur_frames)
-                    #print("nselected: ", len(cur_frames))
-                    #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
-
+                    warnings.warn("sorted_path exists in %s" %res_dpath, UserWarning)
+                    return
+            else:
+                sorted_path.mkdir()
+            # -- perform selections
+            cur_frames = all_traj_frames
+            # TODO: add info to selected frames
+            # TODO: select based on minima (Trajectory-based Boltzmann)
+            print(f"--- Selection Method {selector.name}---")
+            selector.directory = sorted_path
+            #print("ncandidates: ", len(cur_frames))
+            # NOTE: there is an index map between traj_indices and selected_indices
+            cur_frames = selector.select(cur_frames)
+            #print("nselected: ", len(cur_frames))
+            #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
+        else:
+            print("No selector available...")
+        
         return
 
 
