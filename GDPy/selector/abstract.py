@@ -68,14 +68,12 @@ class ComposedSelector(AbstractSelector):
     def __init__(self, selectors, directory=Path.cwd()):
         """"""
         self.selectors = selectors
-        self.directory = directory
+        self._directory = directory
 
         self._check_convergence()
 
         # - set namd and directory
         self.name = "-".join([s.name for s in self.selectors])
-        for s in self.selectors:
-            s.directory = directory
 
         return
     
@@ -96,6 +94,20 @@ class ComposedSelector(AbstractSelector):
             self.selectors = selectors_
         else:
             self.conv_selection = None
+
+        return
+    
+    @property
+    def directory(self):
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory_: Union[str,Path]):
+        """"""
+        self._directory = directory_
+
+        for s in self.selectors:
+            s.directory = self._directory
 
         return
     
@@ -477,13 +489,13 @@ class DescriptorBasedSelector(AbstractSelector):
 
         print(f"nframes {len(frames)} -> nselected {len(selected_indices)}")
 
-        if True: # TODO: check if output data
-            np.save(self.directory/("-".join([self.prefix,self.name,"indices"])+".npy"), selected_indices)
-
         if not ret_indices:
             selected_frames = [frames[i] for i in selected_indices]
             if True: # TODO: check if output data
                 write(self.directory/("-".join([self.prefix,self.name,"selection"])+".xyz"), selected_frames)
+
+            if True: # TODO: check if output data
+                np.save(self.directory/("-".join([self.prefix,self.name,"indices"])+".npy"), selected_indices)
 
             return selected_frames
         else:
