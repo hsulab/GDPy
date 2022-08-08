@@ -174,6 +174,7 @@ class LmpDynamics(AbstractDynamics):
                 is_finished, wall_time = atoms.calc._is_finished()
                 if is_finished:
                     print(f"found finished dynamics {self._directory_path.name}.")
+                    atoms.calc.check_specorder(atoms)
                     atoms.calc.read_results()
                 else:
                     # TODO: restart calculation!!!
@@ -271,7 +272,9 @@ class LmpDynamics(AbstractDynamics):
 
         return stat_content
     
+    def _read_trajectory(self, label_steps=True):
 
+        return self.calc._read_trajectory(label_steps)
 
 
 class Lammps(FileIOCalculator):
@@ -447,9 +450,6 @@ class Lammps(FileIOCalculator):
     def _read_trajectory(self, label_steps: bool=False) -> List[Atoms]:
         """"""
         # NOTE: always use dynamics calc
-        # - parse spec order
-        #self.check_specorder(atoms)
-        
         # - read trajectory that contains positions and forces
         _directory_path = Path(self.directory)
         # NOTE: forces would be zero if setforce 0 is set
