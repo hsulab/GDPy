@@ -81,6 +81,8 @@ class AbstractExplorer(ABC):
         self.explorations = main_dict["explorations"]
         self.init_systems = main_dict["systems"]
 
+        self.machine_dict = main_dict.get("machines", {})
+
         self._parse_general_params(main_dict)
 
         # for job prefix
@@ -139,8 +141,8 @@ class AbstractExplorer(ABC):
 
         return
     
-    def register_calculator(self, pm):
-        """ use potential manager
+    def register_machine(self, pm):
+        """ create machine
         """
 
         return
@@ -202,26 +204,28 @@ class AbstractExplorer(ABC):
                 # - run exploration
                 # NOTE: check status?
                 # TODO: make this a while loop
-                status = self._check_create_status(res_dpath)
-                print("current status: ", status)
-                if status == "create":
-                    with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
-                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                    self._single_create(res_dpath, frames, cons_text, actions)
-                    with open(res_dpath/"CREATE_FINISHED", "a") as fopen:
-                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                    os.remove(res_dpath/"CREATE_RUNNING")
-                elif status == "collect":
-                    with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
-                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                    self._single_collect(res_dpath, frames, cons_text, actions, selector)
-                    with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
-                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                    os.remove(res_dpath/"COLLECT_RUNNING")
-                elif status == "finished":
-                    pass
-                else:
-                    raise RuntimeError("Unknown status for exploration...")
+                status = ""
+                while status != "finished":
+                    status = self._check_create_status(res_dpath)
+                    print(f"===== current status: {status}  =====")
+                    if status == "create":
+                        with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
+                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                        self._single_create(res_dpath, frames, cons_text, actions)
+                        with open(res_dpath/"CREATE_FINISHED", "a") as fopen:
+                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                        os.remove(res_dpath/"CREATE_RUNNING")
+                    elif status == "collect":
+                        with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
+                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                        self._single_collect(res_dpath, frames, cons_text, actions, selector)
+                        with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
+                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                        os.remove(res_dpath/"COLLECT_RUNNING")
+                    elif status == "finished":
+                        pass
+                    else:
+                        raise RuntimeError("Unknown status for exploration...")
         else:
             # NOTE: no systems to explore
             pass
@@ -230,6 +234,7 @@ class AbstractExplorer(ABC):
 
         return
     
+    @abstractmethod
     def _prior_create(self, input_params: dict, *args, **kwargs):
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
@@ -248,16 +253,39 @@ class AbstractExplorer(ABC):
             selector = None
 
         return selector
-    
+
+    @abstractmethod 
     def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
         """ some codes run explorations
         """
+        # - create collect dir
+        create_dpath = res_dpath / "create"
+        if create_dpath.exists():
+            if self.ignore_exists:
+                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
+                shutil.rmtree(create_dpath)
+                create_dpath.mkdir()
+            else:
+                pass
+        else:
+            create_dpath.mkdir()
 
         return
 
     def _single_collect(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
         """ some codes run explorations
         """
+        # - create collect dir
+        collect_path = res_dpath / "collect"
+        if collect_path.exists():
+            if self.ignore_exists:
+                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
+                shutil.rmtree(collect_path)
+                collect_path.mkdir()
+            else:
+                pass
+        else:
+            collect_path.mkdir()
 
         return
 
@@ -329,7 +357,11 @@ class AbstractExplorer(ABC):
             #calc_machine = self.ref_manager.create_machine(
             #    calc_dict
             #)
-            calc_machine = self.ref_manager.create_machine()
+            # TODO: too complex here!!!
+            calc_machine = self.ref_manager.create_machine(
+                self.ref_manager.calc, 
+                self.machine_dict.get(exp_dict["label"].get("mach_name", "mach1"), None)
+            )
 
         # - create fp main dir
         prefix = working_directory / (exp_name + "-fp")
@@ -360,6 +392,7 @@ class AbstractExplorer(ABC):
                         # or find final selected that is produced by a composed selector
                         # TODO: if no selected were applied?
                         xyzfiles = list(sorted_path.glob(f"{tag_name}*-selection*.xyz"))
+                        #print(tag_name, xyzfiles)
                         if len(xyzfiles) == 1:
                             final_selected_path = xyzfiles[0]
                         else:
@@ -367,6 +400,7 @@ class AbstractExplorer(ABC):
                             xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
                             final_selected_path = xyzfiles[-1]
                         print(f"found selected structure file {str(final_selected_path)}")
+                        print("nframes: ", len(read(final_selected_path, ":")))
                         # - create input files
                         fp_path = prefix / slabel / tag_name
                         self._prepare_calc_dir(
@@ -388,8 +422,20 @@ class AbstractExplorer(ABC):
         # - create input file TODO: move this to vasp part
         if not sorted_fp_path.exists():
             sorted_fp_path.mkdir(parents=True)
-            # TODO: create
             # - update system-wise parameters
+            extra_params = dict(
+                system = slabel,
+                # NOTE: kpts not for all calculators?
+                kpts = self.init_systems[slabel].get("kpts", [1,1,1])
+            )
+
+            # - machine params
+            user_commands = "gdp vasp work {} -in {}".format(
+                str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+            )
+
+            # - create input files
+            calc_machine._prepare_calculation(sorted_fp_path, extra_params, user_commands)
         else:
             # TODO: move harvest function here?
             print(f"{sorted_fp_path} already exists.")
