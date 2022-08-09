@@ -21,12 +21,14 @@ class AbstractDriver(abc.ABC):
 
     _directory = pathlib.Path.cwd()
 
-    def __init__(self, calc, directory, *args, **kwargs):
+    def __init__(self, calc, params, directory, *args, **kwargs):
 
         self.calc = calc
         self.calc.reset()
 
         self.directory = pathlib.Path(directory)
+
+        self._parse_params(params)
 
         return
     
@@ -40,6 +42,11 @@ class AbstractDriver(abc.ABC):
         """"""
         self._directory = pathlib.Path(directory_)
         self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
+
+        return
+    
+    def _parse_params(self, params):
+        """"""
 
         return
     
