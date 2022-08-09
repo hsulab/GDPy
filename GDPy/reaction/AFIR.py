@@ -14,7 +14,7 @@ import numpy as np
 from pathlib import Path
 import itertools
 from itertools import product, combinations
-from typing import NamedTuple, List
+from typing import NamedTuple, List, NoReturn
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -467,36 +467,45 @@ class AFIRSearch():
 
         return
 
-    def run(self, atoms, calc):
+    def run(self, atoms, calc, check_exists=True) -> NoReturn:
         """ run all fragment pairs in one single structure
             output summary is in main.out
         """
+        # --- check if exists
+        if (self.directory/"main.out").exists():
+            # TODO: return IS-TS-FS ???
+            print(f"{self.directory.name} may have finished...")
+            return
+
         # --- prepare fragments
         fragments = partition_fragments(self.graph_creator, atoms)
         fragment_combinations = list(combinations(fragments, self.nfragments_to_reaction))
 
-        # --- find valid fragment pairs 
-        fragment_pairs = []
-        if self.target_pairs is not None:
-            for p in fragment_combinations:
-                # - TODO: move this to adsorbate class???
-                s0, s1 = Formula("".join(p[0].symbols.tolist())), Formula("".join(p[1].symbols.tolist()))
-                #print("target: ", self.target_pairs)
-                #print(s0, s1)
-                if (
-                    (s0 == self.target_pairs[0] and s1 == self.target_pairs[1]) or
-                    (s1 == self.target_pairs[0] and s0 == self.target_pairs[1])
-                ):
-                    fragment_pairs.append(p)
-            fragment_combinations = fragment_pairs
-        # TODO: further select fragments based on distance???
+        if len(fragments) >= 2:
+            # --- find valid fragment pairs 
+            fragment_pairs = []
+            if self.target_pairs is not None:
+                for p in fragment_combinations:
+                    # - TODO: move this to adsorbate class???
+                    s0, s1 = Formula("".join(p[0].symbols.tolist())), Formula("".join(p[1].symbols.tolist()))
+                    #print("target: ", self.target_pairs)
+                    #print(s0, s1)
+                    if (
+                        (s0 == self.target_pairs[0] and s1 == self.target_pairs[1]) or
+                        (s1 == self.target_pairs[0] and s0 == self.target_pairs[1])
+                    ):
+                        fragment_pairs.append(p)
+                fragment_combinations = fragment_pairs
 
-        #print("fragments: ", fragments)
-        print("fragments: ", [f.name for f in fragments])
-        print("reaction pairs:", [p[0].name+"-"+p[1].name for p in fragment_combinations])
+            # TODO: further select fragments based on distance???
+            #       this is important for large unit cells
 
-        #print("combinations: ", fragment_combinations)
-        #exit()
+            #print("fragments: ", fragments)
+            print("fragments: ", [f.name for f in fragments])
+            print("reaction pairs:", [p[0].name+"-"+p[1].name for p in fragment_combinations])
+        else:
+            print("No valid reaction pairs...")
+            return
 
         # TEST: generate fragments from target atoms
         #test_names = ["C(36)O(38)", "O(40)"]
@@ -625,6 +634,7 @@ class AFIRSearch():
                     print("too large gamma, search back...")
                     # TODO: decrease gamma incremental
                     gamma /= 2.
+                    gintv /= 2.
                 else:
                     found_reaction = True
                     break
