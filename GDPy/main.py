@@ -169,17 +169,17 @@ def main():
     )
 
 
-    # ase calculator interface
+    # --- driver interface
     parser_ase = subparsers.add_parser(
-        'ase', help='use ase calculator interface in command line'
+        "driver", help="run a driver"
     )
     parser_ase.add_argument(
-        'INPUTS',
-        help='input json file with calculation parameters'
+        "params",
+        help="json/yaml file that stores parameters for a driver"
     )
     parser_ase.add_argument(
-        '-p', '--potential', required=True,
-        help='potential-related input json'
+        "-s", "--structure",
+        help="a structure file that stores one or more structures"
     )
 
     # selection
@@ -309,12 +309,12 @@ def main():
     elif args.subcommand == 'semi':
         from .trainer.manual_train import manual_train
         manual_train(args.INPUTS, args.iter, args.stage)
-    elif args.subcommand == 'ase':
-        from .calculator.asedyn import run_ase_calculator
-        run_ase_calculator(args.INPUTS, pot_config)
+    elif args.subcommand == "driver":
+        from GDPy.computation.driver import run_driver
+        run_driver(pot_manager, args.params, args.structure)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
-        run_validation(args.INPUTS, pot_manager)
+        run_validation(args.INPUTS, pot_manager, args.structure)
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
         selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)

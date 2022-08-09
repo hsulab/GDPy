@@ -13,32 +13,33 @@ import numpy as np
 from ase.io import read, write
 
 
-class AbstractDynamics(abc.ABC):
+class AbstractDriver(abc.ABC):
 
     delete = []
     keyword: Optional[str] = None
     special_keywords = {}
+
+    _directory = pathlib.Path.cwd()
 
     def __init__(self, calc, directory, *args, **kwargs):
 
         self.calc = calc
         self.calc.reset()
 
-        self._directory_path = pathlib.Path(directory)
+        self.directory = pathlib.Path(directory)
 
         return
+    
+    @property
+    def directory(self):
 
-    def set_output_path(self, directory):
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory_):
         """"""
-        # main dynamics dir
-        self._directory_path = pathlib.Path(directory)
-        # TODO: for repeat, r0, r1, r2
-        #self.calc.directory = self._directory_path / self.calc.name
-        self.calc.directory = self._directory_path
-
-        # extra files
-        #self._logfile_path = self._directory_path / self.logfile
-        #self._trajfile_path = self._directory_path / self.trajfile
+        self._directory = pathlib.Path(directory_)
+        self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
 
         return
     
@@ -122,6 +123,34 @@ def read_trajectories(
     print("ntrajframes: ", len(all_traj_frames), f" by {traj_period} traj_period")
 
     return all_traj_frames
+
+
+def run_driver(potter, params, structure):
+    """
+    """
+    import shutil
+    # - parse inputs
+    print("potter: ", potter.name)
+    from ase.io import read, write
+    from GDPy.utils.command import parse_input_file
+    params = parse_input_file(params)
+    driver = potter.create_driver(params)
+
+    frames = read(structure, ":")
+    print("nframes: ", len(frames))
+
+    res_dpath = pathlib.Path.cwd() / "results"
+    if res_dpath.exists():
+        shutil.rmtree(res_dpath)
+        print("remove previous results...")
+    res_dpath.mkdir()
+
+    # - run dynamics
+    for i, atoms in enumerate(frames):
+        driver.directory = res_dpath / ("cand"+str(i))
+        driver.run(atoms)
+
+    return
 
 
 if __name__ == "__main__":
