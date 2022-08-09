@@ -15,7 +15,7 @@ from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.calculator.dynamics import AbstractDynamics
+from GDPy.computation.driver import AbstractDriver
 from GDPy.builder.constraints import parse_constraint_info
 
 
@@ -99,38 +99,78 @@ def read_laspset(train_structures):
     return frames
 
 
-class LaspDynamics(AbstractDynamics):
+class LaspDriver(AbstractDriver):
 
     """ local optimisation
     """
 
     saved_cards = ["allstr.arc", "allfor.arc"]
 
-    method = "opt"
+    default_init_params = {
+        "opt": {
+            "explore_type": "ssw",
+            "SSW.SSWsteps": 1
+        }
+
+    }
+
+    default_run_params = {
+        "opt": {
+            "SSW.ftol": 0.05,
+            "SSW.MaxOptstep": 200
+        }
+    }
+
+    param_mapping = {
+        "fmax": "SSW.ftol",
+        "steps": "SSW.MaxOptstep"
+    }
+
+    def _parse_params(self, params):
+        """"""
+        task_ = params.pop("task", "opt")
+
+        init_params_ = params.pop("init", {})
+        init_params_.update(self.default_init_params[task_])
+
+        run_params_ = params.pop("run", {})
+        run_params_.update(self.default_run_params[task_])
+        
+        self.task = task_
+        self.init_params = init_params_
+        self.run_params = run_params_
+
+        return 
 
     def run(self, atoms, **kwargs):
-
+        """
+        """
+        # - backup calc params
         calc_old = atoms.calc
         params_old = copy.deepcopy(self.calc.parameters)
 
         # set special keywords
         self.delete_keywords(kwargs)
         self.delete_keywords(self.calc.parameters)
+        
+        # - run params
+        kwargs_ = {}
+        for key, value in kwargs.items():
+            new_key = self.param_mapping.get(key, None)
+            if new_key is not None:
+                key = new_key
+            kwargs_[key] = value
 
-        kwargs["explore_type"] = "ssw" # must be this
-        kwargs["SSW.SSWsteps"] = 1 # local optimisation
+        run_params = self.run_params.copy()
+        run_params.update(**kwargs_)
 
-        kwargs["SSW.ftol"] = kwargs.pop("fmax", 0.05)
-        kwargs["SSW.MaxOptstep"] = kwargs.pop("steps", 300)
+        # - init params
+        run_params.update(**self.init_params)
 
-        self.calc.set(**kwargs)
+        self.calc.set(**run_params)
         atoms.calc = self.calc
 
-        # change dir this may be done in calc
-        # if not self._directory_path.exists():
-        #     self._directory_path.mkdir(parents=True)
-
-        # run dynamics
+        # - run dynamics
         try:
             _  = atoms.get_forces()
         except OSError:
@@ -140,16 +180,16 @@ class LaspDynamics(AbstractDynamics):
         
         # read new atoms positions
         new_atoms = read(
-            self._directory_path / "allstr.arc", "-1", format="dmol-arc"
+            self.directory / "allstr.arc", "-1", format="dmol-arc"
         )
         sp_calc = SinglePointCalculator(new_atoms, **copy.deepcopy(self.calc.results))
         new_atoms.calc = sp_calc
 
-        # restore to old calculator
-        # self.calc.parameters = params_old
-        # self.calc.reset() # TODO: should use this?
-        # if calc_old is not None:
-        #     atoms.calc = calc_old
+        # - restore to old calculator
+        self.calc.reset() 
+        self.calc.parameters = params_old
+        if calc_old is not None:
+            atoms.calc = calc_old
 
         return new_atoms
 
@@ -162,7 +202,7 @@ class LaspDynamics(AbstractDynamics):
         for i in range(repeat):
             print("attempt ", i)
             min_atoms = self.run(atoms, **kwargs)
-            min_results = self.__read_min_results(self._directory_path / "lasp.out")
+            min_results = self.__read_min_results(self.directory / "lasp.out")
             print(min_results)
             # add few information
             if extra_info is not None:
@@ -174,13 +214,13 @@ class LaspDynamics(AbstractDynamics):
                 atoms = min_atoms
                 print("backup old data...")
                 for card in self.saved_cards:
-                    card_path = self._directory_path / card
+                    card_path = self.directory / card
                     bak_fmt = ("bak.{:d}."+card)
                     idx = 0
                     while True:
                         bak_card = bak_fmt.format(idx)
                         if not Path(bak_card).exists():
-                            saved_card_path = self._directory_path / bak_card
+                            saved_card_path = self.directory / bak_card
                             shutil.copy(card_path, saved_card_path)
                             break
                         else:
@@ -380,7 +420,7 @@ if __name__ == "__main__":
     exit()
 
     # use ASE internal dynamics
-    from GDPy.calculator.ase_interface import AseDynamics
+    from GDPy.computation.ase_interface import AseDynamics
     st = time.time()
     worker = AseDynamics(calc, directory=calc.directory)
     #worker.run(atoms, fmax=0.05, steps=10)
