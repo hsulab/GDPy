@@ -125,8 +125,8 @@ class SlurmMachine(AbstractMachine):
             self.machine_dict.update(self.extra_gpu_parameters)
         
         # - update params
-        self.environs = kwargs.pop("environs", None)
-        self.user_commands = kwargs.pop("user_commands", None)
+        self.environs = kwargs.pop("environs", "")
+        self.user_commands = kwargs.pop("user_commands", "")
         self.machine_dict.update(**kwargs)
         
         return
@@ -148,8 +148,6 @@ class SlurmMachine(AbstractMachine):
         if self.user_commands:
             content += "\n\n"
             content += self.user_commands
-        else:
-            raise ValueError("No user commands.")
 
         return content
 
@@ -157,17 +155,16 @@ class SlurmMachine(AbstractMachine):
 
         return
     
-    def update(self, machine_input):
+    def update(self, input_params):
         """update machine parameters"""
-        machine_input = pathlib.Path(machine_input)
-        machine_dict = parse_input_file(machine_input)
+        machine_dict = parse_input_file(input_params) # dict, json, yaml
 
-        if machine_dict:
+        if isinstance(machine_dict, dict):
             # TODO: set kwargs instead of overwrite
             # self.machine_dict = machine_dict
-            pass
-        elif machine_input.suffix == self.SUFFIX:
-            self.__read(machine_input)
+            self.machine_dict.update(**machine_dict)
+        elif input_params.suffix == self.SUFFIX:
+            self.__read(input_params)
 
         return
 
