@@ -19,6 +19,8 @@ from GDPy.graph.graph_main import create_structure_graphs, add_adsorbate, del_ad
 from GDPy.graph.utils import unpack_node_name
 from GDPy.graph.para import paragroup_unique_chem_envs
 
+from GDPy.utils.command import CustomTimer
+
 
 class StructureGenerator():
 
@@ -193,29 +195,24 @@ class AdsorbateGraphGenerator(StructureGenerator):
         """"""
         # TODO: change this into a selector
         # calculate chem envs
-        st = time.time()
 
-        if graph_params is None:
-            graph_params = self.graph_params
+        with CustomTimer(name="comparasion"):
+            if graph_params is None:
+                graph_params = self.graph_params
 
-        chem_groups = Parallel(n_jobs=self.njobs)(
-            delayed(create_structure_graphs)(graph_params, idx, a, s) for idx, (a, s) in enumerate(zip(frames,selected_indices))
-        )
+            chem_groups = Parallel(n_jobs=self.njobs)(
+                delayed(create_structure_graphs)(graph_params, idx, a, s) for idx, (a, s) in enumerate(zip(frames,selected_indices))
+            )
 
-        et = time.time()
-        print("calc chem envs: ", et - st)
-    
-        # compare chem envs
-        #unique_envs, unique_groups = unique_chem_envs(
-        #    chem_groups, list(enumerate(frames))
-        #)
-        unique_envs, unique_groups = paragroup_unique_chem_envs(
-            chem_groups, list(enumerate(frames)), directory=self.directory, n_jobs=self.njobs
-        )
+            with CustomTimer(name="unique"):
+                # compare chem envs
+                #unique_envs, unique_groups = unique_chem_envs(
+                #    chem_groups, list(enumerate(frames))
+                #)
+                unique_envs, unique_groups = paragroup_unique_chem_envs(
+                    chem_groups, list(enumerate(frames)), directory=self.directory, n_jobs=self.njobs
+                )
 
-        print("number of unique groups: ", len(unique_groups))
-
-        et = time.time()
-        print("cmp chem envs: ", et - st)
+                print("number of unique groups: ", len(unique_groups))
 
         return unique_groups
