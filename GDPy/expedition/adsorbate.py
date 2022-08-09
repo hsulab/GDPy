@@ -41,6 +41,11 @@ class AdsorbateEvolution(AbstractExplorer):
         traj_period = 1
     )
 
+    collection_params = dict(
+        resdir_name = "sorted",
+        selection_tags = ["converged", "traj"]
+    )
+
     parameters = dict()
 
     def _parse_specific_params(self, input_dict: dict):
