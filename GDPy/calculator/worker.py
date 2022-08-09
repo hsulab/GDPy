@@ -209,9 +209,10 @@ class VaspWorker():
             print("\n\nStructure Number %d\n" %step)
             dpath = working_directory / f"vasp_0_{step}"
 
+            self.calc.reset()
+            self.calc.directory = dpath
+
             if not dpath.exists():
-                self.calc.reset()
-                self.calc.directory = dpath
                 atoms.calc = self.calc
 
                 with CustomTimer(name="vasp-calculation"):
