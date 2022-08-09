@@ -6,8 +6,11 @@
     or on cluster
 """
 
+import os
 import time
 import subprocess
+
+import json
 
 from pathlib import Path
 from typing import Union, List
@@ -16,17 +19,35 @@ import numpy as np
 
 from joblib import Parallel, delayed
 
+from ase import Atoms
 from ase.io import read, write
 from ase.calculators.vasp import Vasp
 
 from GDPy import config
-from GDPy.utils.command import parse_input_file, convert_indices
+from GDPy.utils.command import parse_input_file, convert_indices, CustomTimer
 from GDPy.calculator.vasp import VaspMachine
 
-class VaspMachine2():
+from GDPy.machine.machine import AbstractMachine
+
+
+class VaspWorker():
+
+    """ perform vasp calculations in a directory like
+        main
+        - vasp0
+        - vasp1
+        - vasp...
+    """
 
     frames_name = "calculated_0.xyz"
     vasp_dir_pattern = "vasp_*"
+
+    # - attributes
+    _machine = None
+    _environs = dict(
+        VASP_PP_PATH = None,
+        ASE_VASP_VDW = None
+    )
 
     def __init__(self, calc):
         """"""
@@ -38,42 +59,183 @@ class VaspMachine2():
             calc_.read_json(calc)
             #print("load vasp json: ", calc_.asdict())
         self.calc = calc_
-        print(self.calc.asdict())
 
         return
     
-    def _prepare_calculation(self):
+    @property
+    def machine(self):
+        """"""
+
+        return self._machine
+    
+    @machine.setter
+    def machine(self, machine_):
+        """"""
+        if isinstance(machine_, AbstractMachine):   
+            self._machine = machine_
+        else:
+            raise RuntimeError("Invalid object for worker.machine ...")
+
+        return 
+    
+    @property
+    def environs(self):
+
+        return self._environs
+    
+    @environs.setter
+    def environs(self, environs_):
+        """"""
+        self._environs = environs_
+
+        return
+    
+    def set_environs(self):
+        """"""
+        os.environ["VASP_PP_PATH"] = self.environs["VASP_PP_PATH"]
+        os.environ["ASE_VASP_VDW"] = self.environs["ASE_VASP_VDW"]
+
+        return
+    
+    def _prepare_calculation(self, dpath, extra_params, user_commands):
         """ deal with many calculations in one folder
         """
-        # -- update params with systemwise info
-        # TODO: dump vasp ase-calculator to json
-        calc_params = calc_dict.copy()
-        for k in calc_params.keys():
-            if calc_params[k] == "system":
-                calc_params[k] = self.init_systems[slabel][k]
-        # -- create params file
-        with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
+        # - update system-wise parameters
+        self.calc.set(**extra_params)
+
+        calc_params = self.calc.asdict().copy()
+        # BUG: ase 3.22.1 no special params in param_state
+        calc_params["inputs"]["lreal"] = self.calc.special_params["lreal"] 
+        calc_params.update(command = self.calc.command)
+        calc_params.update(environs = self.environs)
+        with open(dpath / "vasp_params.json", "w") as fopen:
             json.dump(calc_params, fopen, indent=4)
+
         # -- create job script
-        machine_params = machine_dict.copy()
-        machine_params["job-name"] = slabel+"-fp"
+        machine_params = {}
+        machine_params["job-name"] = dpath.parent.name+"-"+dpath.name+"-fp"
 
         # TODO: mpirun or mpiexec, move this part to machine object
-        command = calc_params["command"]
+        #       _parse_resources?
+        command = self.calc.command
         if command.strip().startswith("mpirun") or command.strip().startswith("mpiexec"):
             ntasks = command.split()[2]
         else:
             ntasks = 1
-        # TODO: number of nodes?
-        machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
 
-        machine = SlurmMachine(**machine_params)
-        #"gdp vasp work ../C3O3Pt36.xyz -in ../vasp_params.json"
-        machine.user_commands = "gdp vasp work {} -in {}".format(
-            str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+        # TODO: number of nodes?
+        machine_params.update(
+            **{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"}
         )
-        machine.write(sorted_fp_path/"vasp.slurm")
-        # -- submit?
+
+        self.machine.update(machine_params)
+
+        self.machine.user_commands = user_commands
+
+        self.machine.write(dpath/"vasp.slurm")
+
+        return
+    
+    def _parse_structures(self, structure_source: Union[str,Path]):
+        """ read frames from a list of files
+        """
+        structure_files = []
+        structure_source = Path(structure_source)
+        if structure_source.is_file():
+            # run calculation 
+            #run_calculation(Path.cwd(), args.STRUCTURES, args.indices, vasp_machine, input_dict["command"])
+            structure_files.append(structure_source)
+        else:
+            # all structures share same indices and vasp_machine
+            #for sp in structure_source.iterdir():
+            #    if sp.is_dir() and (not args.dirs or sp.name in args.dirs):
+            #        #p = list(sp.glob("*.xyz"))
+            #        #assert len(p) == 1, "every dir can only have one xyz file."
+            #        xyz_path = sp / args.name
+            #        if xyz_path.exists():
+            #            structure_files.append(xyz_path)
+            #structure_files.sort()
+            pass
+
+        return structure_files
+    
+    def run(self, structure_source, index_text=None, *args, **kwargs):
+        """"""
+        self.set_environs()
+        
+        indices = convert_indices(index_text, index_convention="py")
+
+        structure_files = self._parse_structures(structure_source)
+        for stru_file in structure_files:
+            # each single file should have different output directory
+            self._irun(stru_file, indices)
+
+        return
+    
+    def _irun(self, stru_file, indices: List[int]=None, *args, **kwargs):
+        """"""
+        # read structures
+        #frames = read(stru_file, indices)
+        #start, end = indices.split(":")
+        #if start == "":
+        #    start = 0
+        #else:
+        #    start = int(start)
+        #print("{} structures in {} from {}\n".format(len(frames), stru_file, start))
+        #print(stru_file)
+        frames = read(stru_file, ":")
+        nframes = len(frames)
+        #print(frames)
+        #print(indices)
+
+        working_directory = Path.cwd()
+
+        if indices:
+            frames = [frames[i] for i in indices]
+        else:
+            indices = range(nframes)
+
+        # init paths
+        out_xyz = working_directory / "calculated_0.xyz"
+
+        with open(out_xyz, "w") as fopen:
+            fopen.write("")
+
+        # - run calc
+        print("\n===== Calculation Stage =====\n")
+
+        for idx, atoms in zip(indices, frames):
+            step = idx
+            print("\n\nStructure Number %d\n" %step)
+            dpath = working_directory / f"vasp_0_{step}"
+
+            if not dpath.exists():
+                self.calc.reset()
+                self.calc.directory = dpath
+                atoms.calc = self.calc
+
+                with CustomTimer(name="vasp-calculation"):
+                    _ = atoms.get_forces()
+                
+            if self.calc.read_convergence():
+                new_atoms = self._read_single_results(dpath)[-1]
+                new_atoms.info["step"] = step
+                print("final energy: ", new_atoms.get_potential_energy())
+
+                # check forces
+                #maxforce = np.max(np.fabs(new_atoms.get_forces(apply_constraint=True)))
+                #print(new_atoms.get_forces())
+                #print("maxforce: ", maxforce)
+                #print("fmax: ", vasp_machine.fmax)
+                #if not (maxforce < np.fabs(self.vasp_machine.fmax)): # fmax is ediffg so is negative
+                #    # TODO: recalc structure
+                #    #raise RuntimeError(f"{dpath} structure is not finished...")
+                #    print(f"{dpath} structure is not finished...")
+
+                # save structure
+                write(out_xyz, new_atoms, append=True)
+            else:
+                print(f"{dpath.name} did not converge.")
 
         return
     
@@ -96,17 +258,16 @@ class VaspMachine2():
                 self.calc.directory = str(p)
                 if self.calc.read_convergence():
                     vasp_dirs.append(p)
-        
-        #print(vasp_dirs)
-        
-        # - read trajectories
-        traj_bundles = Parallel(n_jobs=config.NJOBS)(
-            delayed(self._read_single_results)(p, indices=None) for p in vasp_dirs
-        ) # TODO: indices
 
+        # - read trajectories
         traj_frames = []
-        for frames in traj_bundles:
-            traj_frames.extend(frames)
+        if len(vasp_dirs) > 0:
+            traj_bundles = Parallel(n_jobs=config.NJOBS)(
+                delayed(self._read_single_results)(p, indices=None) for p in vasp_dirs
+            ) # TODO: indices
+
+            for frames in traj_bundles:
+                traj_frames.extend(frames)
 
         return traj_frames
     
@@ -155,134 +316,6 @@ class VaspMachine2():
             #print("nconverged: ", nconverged)
 
         return last_atoms
-
-
-class VaspWorker():
-
-    """ run many dynamics tasks from different initial configurations
-    """
-
-    def __init__(self, vasp_params: dict, single_task_command: str, directory=Path.cwd(), *args, **kwargs):
-        """ vasp_params :: vasp calculation related parameters
-        """
-        self.directory = directory
-        self.single_task_command = single_task_command
-
-        # parse vasp parameters
-
-        # create a vasp machine
-        self.vasp_machine = VaspMachine(**vasp_params)
-
-        return
-    
-    def _parse_structures(self, structure_source: Union[str,Path]):
-        """"""
-        structure_files = []
-        structure_source = Path(structure_source)
-        if structure_source.is_file():
-            # run calculation 
-            #run_calculation(Path.cwd(), args.STRUCTURES, args.indices, vasp_machine, input_dict["command"])
-            structure_files.append(structure_source)
-        else:
-            # all structures share same indices and vasp_machine
-            #for sp in structure_source.iterdir():
-            #    if sp.is_dir() and (not args.dirs or sp.name in args.dirs):
-            #        #p = list(sp.glob("*.xyz"))
-            #        #assert len(p) == 1, "every dir can only have one xyz file."
-            #        xyz_path = sp / args.name
-            #        if xyz_path.exists():
-            #            structure_files.append(xyz_path)
-            #structure_files.sort()
-            pass
-
-        return structure_files
-    
-    def run(self, structure_source, index_text=None, *args, **kwargs):
-        """"""
-        indices = convert_indices(index_text, index_convention="py")
-
-        structure_files = self._parse_structures(structure_source)
-        for stru_file in structure_files:
-            # each single file should have different output directory
-            self._irun(stru_file, indices)
-
-        return
-    
-    def _irun(self, stru_file, indices: List[int]=None, *args, **kwargs):
-        """"""
-        # read structures
-        #frames = read(stru_file, indices)
-        #start, end = indices.split(":")
-        #if start == "":
-        #    start = 0
-        #else:
-        #    start = int(start)
-        #print("{} structures in {} from {}\n".format(len(frames), stru_file, start))
-        #print(stru_file)
-        frames = read(stru_file, ":")
-        nframes = len(frames)
-        #print(frames)
-        #print(indices)
-
-        if indices:
-            frames = [frames[i] for i in indices]
-        else:
-            indices = range(nframes)
-
-        # init paths
-        out_xyz = self.directory / "calculated_0.xyz"
-
-        with open(out_xyz, "w") as fopen:
-            fopen.write("")
-
-        # run calc
-        print("\n===== Calculation Stage =====\n")
-        #print(indices)
-        #print(frames)
-        print(self.single_task_command)
-        for idx, atoms in zip(indices, frames):
-            step = idx
-            print("\n\nStructure Number %d\n" %step)
-            dpath = self.directory / f"vasp_0_{step}"
-
-            if not dpath.exists():
-                self.vasp_machine.create(atoms, dpath)
-
-                # ===== run command =====
-                st = time.time()
-                proc = subprocess.Popen(
-                    self.single_task_command, shell=True, cwd=dpath, 
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    encoding = "utf-8"
-                )
-                errorcode = proc.wait()
-                msg = "Message: " + "".join(proc.stdout.readlines())
-                print(msg)
-                if errorcode:
-                    raise ValueError("Error at %s." %(dpath))
-                et = time.time()
-                print("calc time: ", et-st)
-
-                # read optimised
-                new_atoms = self.vasp_machine.get_results(dpath)
-                new_atoms.info["step"] = step
-                print("final energy: ", new_atoms.get_potential_energy())
-            else:
-                new_atoms = self.vasp_machine.get_results(dpath)
-                # check forces
-                maxforce = np.max(np.fabs(new_atoms.get_forces(apply_constraint=True)))
-                #print(new_atoms.get_forces())
-                #print("maxforce: ", maxforce)
-                #print("fmax: ", vasp_machine.fmax)
-                if not (maxforce < np.fabs(self.vasp_machine.fmax)): # fmax is ediffg so is negative
-                    # TODO: recalc structure
-                    #raise RuntimeError(f"{dpath} structure is not finished...")
-                    print(f"{dpath} structure is not finished...")
-
-            # save structure
-            write(out_xyz, new_atoms, append=True)
-
-        return
 
 
 if __name__ == "__main__":
