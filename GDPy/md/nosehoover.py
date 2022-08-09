@@ -92,7 +92,7 @@ class NoseHoover(MolecularDynamics):
         # count every step because sometimes constraints can be manually changed
         ndof = 3*len(atoms)
         for constraint in atoms._constraints:
-            ndof -= constraint.removed_dof
+            ndof -= constraint.get_removed_dof(atoms)
         ndof += 1 # bath
 
         if f is None:

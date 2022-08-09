@@ -32,7 +32,7 @@ def force_temperature(atoms, temperature, unit="K"):
     # check DOF
     ndof = 3*len(atoms)
     for constraint in atoms._constraints:
-        ndof -= constraint.removed_dof
+        ndof -= constraint.get_removed_dof(atoms)
 
     # calculate kinetic energy and get the scale
     if temperature > eps_temp:
