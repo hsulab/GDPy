@@ -169,7 +169,7 @@ class ComposedSelector(AbstractSelector):
                 cur_index_map = mapped_indices.copy()
 
                 # TODO: should print-out intermediate results?
-                write(self.directory/f"{sys_name}-{selector.name}-selected-{isele}.xyz", cur_frames)
+                write(self.directory/f"{sys_name}-{selector.name}-selection-{isele}.xyz", cur_frames)
             
             merged_final_indices += final_indices
 
@@ -192,7 +192,7 @@ class ComposedSelector(AbstractSelector):
             return merged_final_indices
         else:
             selected_frames = [frames[i] for i in merged_final_indices]
-            write(self.directory/f"merged-{selector.name}-selected-final.xyz", selected_frames)
+            write(self.directory/f"merged-{selector.name}-selection-final.xyz", selected_frames)
 
             return selected_frames
 
