@@ -4,7 +4,6 @@
 import numpy as np
 
 from typing import NoReturn
-from unittest.result import failfast
 
 from ase.io import read, write
 from ase.constraints import FixAtoms
@@ -26,7 +25,8 @@ class ReactionExplorer(AbstractExplorer):
     name = "rxn" # exploration name
 
     creation_params = dict(
-        calc_dir_name = "tmp_folder"
+        opt_dname = "tmp_folder",
+        struc_prefix = "cand"
     )
 
     collection_params = dict(
@@ -34,176 +34,137 @@ class ReactionExplorer(AbstractExplorer):
         selection_tags = ["TS", "FS", "optraj"]
     )
 
-
-    def icreate(self, exp_name, working_directory) -> NoReturn:
-        """ create and submit exploration tasks
+    def _prior_create(self, input_params):
+        """ some codes before creating exploratiosn of systems
+            parse actions for this exploration from dict params
         """
-        # - a few info
-        exp_dict = self.explorations[exp_name]
-        included_systems = exp_dict.get("systems", None)
+        selector = super()._prior_create(input_params)
 
-        # - create action
-        afir_params = exp_dict["creation"]["AFIR"]
+        # NOTE: currently, we only have AFIR...
+        afir_params = input_params["create"]["AFIR"]
         afir_search = AFIRSearch(**afir_params)
         
         calc = self.pot_manager.calc
 
-        # - run systems
-        if included_systems is not None:
-            for slabel in included_systems:
-                print(f"----- Explore System {slabel} -----")
+        actions = {}
+        actions["reaction"] = afir_search
 
-                # - prepare output directory
-                res_dir = working_directory / exp_name / slabel
-                if not res_dir.exists():
-                    res_dir.mkdir(parents=True)
-                else:
-                    print(f"  {res_dir.name} exists, so next...")
-                    continue
+        return actions, selector
+    
+    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+        """"""
+        super()._single_create(res_dpath, frames, cons_text, actions, *args, **kwargs)
 
-                # - read substrate
-                system_dict = self.init_systems.get(slabel, None) # system name
-                if system_dict is None:
-                    raise ValueError(f"Find unexpected system {system_dict}.")
-                sys_cons_text = system_dict.get("constraint", None)
-                
-                # - read start frames
-                # the expedition can start with different initial configurations
-                stru_path = system_dict["structure"]
-                frames = read(stru_path, ":")
+        # - action
+        # NOTE: create a separate calculation folder
+        calc_dir_path = res_dpath / "create" / self.creation_params["opt_dname"]
+        if not calc_dir_path.exists():
+            calc_dir_path.mkdir(parents=True)
+        #else:
+        #    print(f"  {calc_dir_path.name} exists, so next...")
 
-                print("number of frames: ", len(frames))
-                
-                # - action
-                # NOTE: create a separate calculation folder
-                calc_dir_path = res_dir / self.creation_params["calc_dir_name"]
-                if not calc_dir_path.exists():
-                    calc_dir_path.mkdir(parents=True)
-                else:
-                    print(f"  {calc_dir_path.name} exists, so next...")
-                    continue
+        for icand, atoms in enumerate(frames):
+            # --- TODO: check constraints on atoms
+            #           actually this should be in a dynamics object
+            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+            if frozen_indices:
+                atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
-                for icand, atoms in enumerate(frames):
-                    # --- TODO: check constraints on atoms
-                    #           actually this should be in a dynamics object
-                    mobile_indices, frozen_indices = parse_constraint_info(atoms, sys_cons_text, ret_text=False)
-                    if frozen_indices:
-                        atoms.set_constraint(FixAtoms(indices=frozen_indices))
-
-                    print(f"--- candidate {icand} ---")
-                    afir_search.directory = calc_dir_path / (f"cand{icand}")
-                    afir_search.run(atoms, calc)
-                    #break
-
+            print(f"--- candidate {icand} ---")
+            actions["reaction"].directory = calc_dir_path / (f"cand{icand}")
+            actions["reaction"].run(atoms, self.pot_manager.calc)
+            #break
+        
         return
+    
+    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+        """"""
+        super()._single_collect(res_dpath, frames, cons_text, actions, *args, **kwargs)
 
-    def icollect(self, exp_name, working_directory) -> NoReturn:
-        """
-        """
-        # - a few info
-        exp_dict = self.explorations[exp_name]
-        included_systems = exp_dict.get("systems", None)
+        traj_period = self.creation_params["traj_period"]
 
-        # - collect action TODO: move this to main?
-        collection_params = exp_dict["collection"]
-        traj_period = collection_params.get("traj_period", 1)
-        print(f"traj_period: {traj_period}")
+        create_dpath = res_dpath / "create"
+        collect_dpath = res_dpath / "collect"
 
-        # - run systems
-        if included_systems is not None:
-            for slabel in included_systems:
-                print(f"----- Explore System {slabel} -----")
+        calc_dir_path = create_dpath / self.creation_params["opt_dname"]
 
-                # - prepare output directory
-                res_dir = working_directory / exp_name / slabel
-                if not res_dir.exists():
-                    # res_dir.mkdir(parents=True)
-                    print(f"  {res_dir.name} does not exist, so next...")
-                    continue
-                else:
-                    pass
+        # - find opt-trajs and pseudo_pathway
+        #   cand0/f0/g0 and pseudo_pathway.xyz
+        # NOTE: what we need
+        #       approx. TS and related trajs
+        approx_TSs = []
+        approx_FSs = []
+        optraj_frames = []
 
-                calc_dir_path = res_dir / self.creation_params["calc_dir_name"]
+        with CustomTimer("read-structure"):
+            # TODO: check output exists?
+            if (collect_dpath/"optraj_frames.xyz").exists():
+                approx_TSs = read(collect_dpath/"approx_TSs.xyz", ":")
+                approx_FSs = read(collect_dpath/"approx_FSs.xyz", ":")
+                optraj_frames = read(collect_dpath/"optraj_frames.xyz", ":")
+            else:
+                cand_dirs = calc_dir_path.glob("cand*") # TODO: user-defined dir prefix
+                cand_dirs = sorted(cand_dirs, key=lambda x: int(x.name.strip("cand")))
+                #print(cand_dirs)
+                # TODO: joblib?
+                for cand_dir in cand_dirs:
+                    # --- find reactions
+                    reac_dirs = cand_dir.glob("f*")
+                    reac_dirs = sorted(reac_dirs, key=lambda x: int(x.name.strip("f")))
+                    for reac_dir in reac_dirs:
+                        # ----- find biased opt trajs
+                        # TODO: make this a utility function?
+                        gam_dirs = reac_dir.glob("g*")
+                        gam_dirs = sorted(gam_dirs, key=lambda x: int(x.name.strip("g")))
 
-                sorted_dir = working_directory / exp_name / slabel / "sorted"
-                if not sorted_dir.exists():
-                    sorted_dir.mkdir(parents=True)
-                else:
-                    print(f"  {sorted_dir.name} does not exist, so next...")
-                    continue
+                        # optrajs
+                        for gam_dir in gam_dirs:
+                            traj_frames = read(gam_dir/"traj.xyz", ":")
+                            for i, a in enumerate(traj_frames):
+                                a.info["comment"] = "-".join([cand_dir.name, reac_dir.name, gam_dir.name, str(i)])
+                            traj_indices = list(range(1,len(traj_frames)-1,traj_period))
+                            optraj_frames.extend([traj_frames[ti] for ti in traj_indices]) # NOTE: first is IS, last is in pseudo
+                        # pathway, find TS and FS
+                        path_frames = read(reac_dir/"pseudo_path.xyz", ":")
+                        for i, a in enumerate(path_frames):
+                            a.info["comment"] = "-".join([cand_dir.name, reac_dir.name, "pseudo_path", str(i)])
+                        approx_FSs.append(path_frames[-1])
 
-                # - find opt-trajs and pseudo_pathway
-                #   cand0/f0/g0 and pseudo_pathway.xyz
-                # NOTE: what we need
-                #       approx. TS and related trajs
-                approx_TSs = []
-                approx_FSs = []
-                optraj_frames = []
-
-                with CustomTimer("read-structure"):
-                    # TODO: check output exists?
-                    if (sorted_dir/"optraj_frames.xyz").exists():
-                        approx_TSs = read(sorted_dir/"approx_TSs.xyz", ":")
-                        approx_FSs = read(sorted_dir/"approx_FSs.xyz", ":")
-                        optraj_frames = read(sorted_dir/"optraj_frames.xyz", ":")
-                    else:
-                        cand_dirs = calc_dir_path.glob("cand*") # TODO: user-defined dir prefix
-                        cand_dirs = sorted(cand_dirs, key=lambda x: int(x.name.strip("cand")))
-                        #print(cand_dirs)
-                        # TODO: joblib?
-                        for cand_dir in cand_dirs:
-                            # --- find reactions
-                            reac_dirs = cand_dir.glob("f*")
-                            reac_dirs = sorted(reac_dirs, key=lambda x: int(x.name.strip("f")))
-                            for reac_dir in reac_dirs:
-                                # ----- find biased opt trajs
-                                # TODO: make this a utility function?
-                                gam_dirs = reac_dir.glob("g*")
-                                gam_dirs = sorted(gam_dirs, key=lambda x: int(x.name.strip("g")))
-
-                                # optrajs
-                                for gam_dir in gam_dirs:
-                                    traj_frames = read(gam_dir/"traj.xyz", ":")
-                                    for i, a in enumerate(traj_frames):
-                                        a.info["comment"] = "-".join([cand_dir.name, reac_dir.name, gam_dir.name, str(i)])
-                                    traj_indices = list(range(1,len(traj_frames)-1,traj_period))
-                                    optraj_frames.extend([traj_frames[ti] for ti in traj_indices]) # NOTE: first is IS, last is in pseudo
-                                # pathway, find TS and FS
-                                path_frames = read(reac_dir/"pseudo_path.xyz", ":")
-                                for i, a in enumerate(path_frames):
-                                    a.info["comment"] = "-".join([cand_dir.name, reac_dir.name, "pseudO_path", str(i)])
-                                approx_FSs.append(path_frames[-1])
-
-                                energies = [a.get_potential_energy() for a in path_frames]
-                                max_idx = np.argmax(energies)
-                                approx_TSs.append(path_frames[max_idx])
+                        energies = [a.get_potential_energy() for a in path_frames]
+                        max_idx = np.argmax(energies)
+                        approx_TSs.append(path_frames[max_idx])
                 
-                        write(sorted_dir/"approx_TSs.xyz", approx_TSs)
-                        write(sorted_dir/"approx_FSs.xyz", approx_FSs)
-                        write(sorted_dir/"optraj_frames.xyz", optraj_frames)
+                write(collect_dpath/"approx_TSs.xyz", approx_TSs)
+                write(collect_dpath/"approx_FSs.xyz", approx_FSs)
+                write(collect_dpath/"optraj_frames.xyz", optraj_frames)
 
-                # - selection
-                # 1. select approx. TS and FS
-                # 2. select opt trajs
-                selection_params = exp_dict.get("selection", None)
-                selector = create_selector(selection_params, directory=sorted_dir)
+        # - select
+        sorted_dir = res_dpath / "sorted"
 
-                if selector:
-                    candidate_group = dict(
-                        TS = approx_TSs,
-                        FS = approx_FSs,
-                        optraj = optraj_frames
-                    )
-                    for prefix, cur_frames in candidate_group.items():
-                        # TODO: add info to selected frames
-                        # TODO: select based on minima (Trajectory-based Boltzmann)
-                        print(f"--- Selection Method {selector.name} for {prefix} ---")
-                        #print("ncandidates: ", len(cur_frames))
-                        # NOTE: there is an index map between traj_indices and selected_indices
-                        selector.prefix = prefix
-                        cur_frames = selector.select(cur_frames)
-                        #print("nselected: ", len(cur_frames))
-                        #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
+        if selector:
+            if not sorted_dir.exists():
+                sorted_dir.mkdir(parents=True)
+            else:
+                #print(f"  {sorted_dir.name} does not exist, so next...")
+                pass
+                
+            selector.directory = sorted_dir
+
+            candidate_group = dict(
+                TS = approx_TSs,
+                FS = approx_FSs,
+                optraj = optraj_frames
+            )
+            for prefix, cur_frames in candidate_group.items():
+                # TODO: add info to selected frames
+                # TODO: select based on minima (Trajectory-based Boltzmann)
+                print(f"--- Selection Method {selector.name} for {prefix} ---")
+                #print("ncandidates: ", len(cur_frames))
+                # NOTE: there is an index map between traj_indices and selected_indices
+                selector.prefix = prefix
+                cur_frames = selector.select(cur_frames)
+                #print("nselected: ", len(cur_frames))
+                #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
 
         return
 
