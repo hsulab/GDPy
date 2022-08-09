@@ -18,6 +18,8 @@ from GDPy.trainer.train_potential import find_systems, generate_random_seed
 
 from GDPy.utils.command import run_command
 
+from GDPy.machine.factory import create_machine
+
 
 class AbstractPotential(abc.ABC):
     """
@@ -168,6 +170,7 @@ class VaspManager(AbstractPotential):
             calc.set_xc_params("PBE") # NOTE: since incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
+            calc.set(lreal="Auto")
             if incar is not None:
                 calc.read_incar(incar)
             self._set_environs(pp_path, vdw_path)
@@ -185,15 +188,30 @@ class VaspManager(AbstractPotential):
 
         return
 
-    def create_machine(self, calc=None, *args, **kwargs):
+    def create_machine(self, calc=None, machine_params=None, *args, **kwargs):
         """ a machine operates calculations submitted to queue
         """
         calc_ = self.calc
         if calc is not None:
             calc_ = calc
 
-        from GDPy.calculator.worker import VaspMachine2
-        calc_machine = VaspMachine2(calc_)
+        from GDPy.calculator.worker import VaspWorker
+        calc_machine = VaspWorker(calc_)
+
+        # - vasp environs
+        environs = dict(
+            VASP_PP_PATH = os.environ.get("VASP_PP_PATH"),
+            ASE_VASP_VDW = os.environ.get("ASE_VASP_VDW")
+        )
+        calc_machine.environs = environs
+
+        # - attach machine
+        if machine_params is not None:
+            machine = create_machine(machine_params)
+        else:
+            machine = None
+
+        calc_machine.machine = machine
 
         # - find latest job ID
 
