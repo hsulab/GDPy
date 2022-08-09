@@ -184,16 +184,19 @@ def vasp_main(
         input_dict = {}
     
     # - read input
-    print("inputs: ", input_dict)
-    if input_file is not None:
-        input_file = Path(input_file)
-        if "INCAR" in input_file.name:
-            input_dict["incar"] = str(input_file)
-        else:
-            # assume it is a config file
-            new_dict = parse_input_file(input_file)
-            input_dict.update(new_dict)
-    print("inputs: ", input_dict)
+    if choice in ["create", "freq", "data"]:
+        print("inputs: ", input_dict)
+        if input_file is not None:
+            input_file = Path(input_file)
+            if "INCAR" in input_file.name:
+                input_dict["incar"] = str(input_file)
+            else:
+                # assume it is a config file
+                new_dict = parse_input_file(input_file)
+                input_dict.update(new_dict)
+        print("inputs: ", input_dict)
+
+        incar_template = input_dict["incar"]
 
     # - run specific choice
     if choice == "create":
@@ -304,8 +307,16 @@ def vasp_main(
             print("nframes: ", len(frames))
     elif choice == "work":
         from GDPy.calculator.worker import VaspWorker
-        single_task_command = input_dict.get("command", None)
-        worker = VaspWorker(input_dict, single_task_command)
+        params = parse_input_file(input_file)
+        command = params.pop("command", None)
+        assert command is not None, "vasp command is not set..."
+        environs = params.pop("environs", None)
+        assert environs is not None, "vasp environs is not set..."
+
+        worker = VaspWorker(input_file)
+        worker.environs = environs
+        worker.calc.command = command
+
         worker.run(pstru, index_text=indices)
     else:
         pass
