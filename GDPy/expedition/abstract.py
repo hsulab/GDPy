@@ -485,14 +485,15 @@ class AbstractExplorer(ABC):
                 write(database_path / xyzfile_path, frames)
 
             # - check parity
-            from GDPy.data.operators import calc_and_compare_results, plot_comparasion
+            if self.label_params["check_parity"]:
+                from GDPy.data.operators import calc_and_compare_results, plot_comparasion
 
-            # use loaded frames
-            with CustomTimer(name="comparasion"):
-                figpath = sorted_fp_path / "cmp.png"
-                calc_name = self.pot_manager.calc.name.lower()
-                energies, forces = calc_and_compare_results(frames, self.pot_manager.calc)
-                plot_comparasion(calc_name, energies, forces, figpath)
+                # use loaded frames
+                with CustomTimer(name="comparasion"):
+                    figpath = sorted_fp_path / "cmp.png"
+                    calc_name = self.pot_manager.calc.name.lower()
+                    energies, forces = calc_and_compare_results(frames, self.pot_manager.calc)
+                    plot_comparasion(calc_name, energies, forces, figpath)
 
         return
 
