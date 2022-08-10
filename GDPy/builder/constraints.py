@@ -57,7 +57,7 @@ def convert_indices(indices: Union[str,List[int]], index_convention="lmp"):
 
     return ret
 
-def parse_constraint_info(atoms, cons_text, check_ase_constraints=True, ret_text=True) -> List[int]:
+def parse_constraint_info(atoms, cons_text, ignore_ase_constraints=True, ret_text=True) -> List[int]:
     """ constraint info can be any forms below, 
         and transformed into indices that start from 1
         "2:5 8" means 2,3,4,5,8 (default uses lmp convention)
@@ -66,7 +66,7 @@ def parse_constraint_info(atoms, cons_text, check_ase_constraints=True, ret_text
         "lowest 10" means 10 atoms with smallest z-positions
         "zpos 4.5" means all atoms with zpositions smaller than 4.5
 
-        return lammps format atom index group
+        return lammps format text or python format list
     """
     # - set some init values
     aindices = list(range(len(atoms)))
@@ -77,7 +77,7 @@ def parse_constraint_info(atoms, cons_text, check_ase_constraints=True, ret_text
     # TODO: check if atoms have constraint
     # NOTE: only need to determine which atoms are frozen then others are mobile
     cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
-    if check_ase_constraints and cons_indices.size > 0:
+    if (not ignore_ase_constraints) and cons_indices.size > 0:
         # convert to lammps convention
         frozen_indices = cons_indices.copy().tolist()
     else:
