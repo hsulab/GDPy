@@ -335,8 +335,8 @@ class Lammps(FileIOCalculator):
         # - minimisation
         etol = 0.0,
         ftol = 0.05,
-        maxiter = 200, # NOTE: this is steps for MD
-        maxeval = 400,
+        maxiter = 0, # NOTE: this is steps for MD
+        maxeval = 0,
         min_style = "fire",
         min_modify = "integrator verlet tmax 4"
     )
@@ -540,7 +540,7 @@ class Lammps(FileIOCalculator):
         mobile_text, frozen_text = parse_constraint_info(atoms, self.constraint)
         content += "group mobile id %s\n" %mobile_text
         content += "\n"
-        if frozen_text is not None:
+        if frozen_text: # not empty string
             # content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
             content += "group frozen id %s\n" %frozen_text
             content += "fix cons frozen setforce 0.0 0.0 0.0\n"
