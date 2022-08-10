@@ -5,7 +5,7 @@ import abc
 import copy
 import pathlib
 
-from typing import Optional
+from typing import Optional, NoReturn
 from collections.abc import Iterable
 
 import numpy as np
@@ -33,6 +33,18 @@ class AbstractDriver(abc.ABC):
         return
     
     @property
+    @abc.abstractmethod
+    def default_task(self):
+
+        return
+
+    @property
+    @abc.abstractmethod
+    def supported_tasks(self):
+
+        return
+    
+    @property
     def directory(self):
 
         return self._directory
@@ -45,10 +57,26 @@ class AbstractDriver(abc.ABC):
 
         return
     
-    def _parse_params(self, params):
-        """"""
+    @abc.abstractmethod
+    def _parse_params(self, params: dict) -> NoReturn:
+        """ parse different tasks, and prepare init and run params
+            for each task, different behaviours should be realised in specific object
+        """
+        task_ = params.pop("task", self.default_task)
+        if task_ not in self.supported_tasks:
+            raise NotImplementedError(f"{task_} is invalid for {self.__name__}...")
 
-        return
+        init_params_ = params.pop("init", {})
+        init_params_.update(self.default_init_params[task_])
+
+        run_params_ = params.pop("run", {})
+        run_params_.update(self.default_run_params[task_])
+
+        self.task = task_
+        self.init_params = init_params_
+        self.run_params = run_params_
+
+        return 
     
     def reset(self):
         """ remove results stored in dynamics calculator
