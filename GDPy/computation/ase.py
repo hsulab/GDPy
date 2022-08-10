@@ -34,6 +34,9 @@ from GDPy.builder.constraints import parse_constraint_info
 class AseDriver(AbstractDriver):
 
     # - defaults
+    default_task = "bfgs"
+    supported_tasks = ["bfgs", "ts", "nvt"]
+
     default_init_params = {
         "nvt": dict(
             timestep = 1.0, # fs
@@ -79,36 +82,20 @@ class AseDriver(AbstractDriver):
     def _parse_params(self, params):
         """ init dynamics object
         """
-        task_ = params.pop("task", "bfgs")
+        super()._parse_params(params)
 
-        init_params_ = params.pop("init", {})
-        init_params_.update(self.default_init_params[task_])
-
-        run_params_ = params.pop("run", {})
-        run_params_.update(self.default_run_params[task_])
-
-        if task_ == "bfgs":
+        if self.task == "bfgs":
             from ase.optimize import BFGS
             driver_cls = BFGS
-        elif task_ == "ts":
+        elif self.task == "ts":
             from sella import Sella, Constraints
             driver_cls = Sella
-        elif task_ == "nvt":
+        elif self.task == "nvt":
             driver_cls = NoseHoover
         else:
-            raise NotImplementedError(f"{task_} is invalid for {self.__name__}...")
+            pass
         
-        self.task = task_
-        self.init_params = init_params_
-        self.run_params = run_params_
         self.driver_cls = driver_cls
-
-        return
-    
-    def reset(self):
-        """ remove calculated quantities
-        """
-        self.calc.reset()
 
         return
     
