@@ -64,19 +64,40 @@ class AbstractDriver(abc.ABC):
         """
         task_ = params.pop("task", self.default_task)
         if task_ not in self.supported_tasks:
-            raise NotImplementedError(f"{task_} is invalid for {self.__name__}...")
+            raise NotImplementedError(f"{task_} is invalid for {self.__class__.__name__}...")
 
-        init_params_ = params.pop("init", {})
-        init_params_.update(self.default_init_params[task_])
+        # - init
+        init_params_ = self.default_init_params[task_].copy()
+        kwargs_ = params.pop("init", {})
+        kwargs_ = self._map_params(kwargs_)
+        init_params_.update(**kwargs_)
 
-        run_params_ = params.pop("run", {})
-        run_params_.update(self.default_run_params[task_])
+        # - run
+        run_params_ = self.default_run_params[task_].copy()
+        kwargs_ = params.pop("run", {})
+        kwargs_ = self._map_params(kwargs_)
+        run_params_.update(**kwargs_)
 
         self.task = task_
         self.init_params = init_params_
         self.run_params = run_params_
 
         return 
+    
+    def _map_params(self, params):
+        """ map params, avoid conflicts
+        """
+        if hasattr(self, "param_mapping"):
+            params_ = {}
+            for key, value in params.items():
+                new_key = self.param_mapping.get(key, None)
+                if new_key is not None:
+                    key = new_key
+                params_[key] = value
+        else:
+            params_ = params
+
+        return params_
     
     def reset(self):
         """ remove results stored in dynamics calculator
@@ -111,8 +132,8 @@ class AbstractDriver(abc.ABC):
 
     @abc.abstractmethod
     def run(self, atoms, **kwargs):
-        """"""
-
+        """ whether return atoms or the entire trajectory
+        """
 
         return 
 
