@@ -25,7 +25,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.utils.command import run_command, parse_input_file
 from GDPy.machine.machine import SlurmMachine
-from GDPy.calculator.utils import create_single_point_calculator
+from GDPy.computation.utils import create_single_point_calculator
 
 """ wrap ase-vasp into a few utilities
 """

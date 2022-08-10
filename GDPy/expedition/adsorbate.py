@@ -17,9 +17,7 @@ from ase.io import read, write
 from GDPy.utils.command import parse_input_file
 
 from .abstract import AbstractExplorer
-from GDPy import config
-from GDPy.calculator.dynamics import AbstractDynamics
-from GDPy.selector.abstract import create_selector
+from GDPy.computation.driver import AbstractDriver
 
 from GDPy.builder.adsorbate import StructureGenerator, AdsorbateGraphGenerator
 
@@ -130,7 +128,7 @@ class AdsorbateEvolution(AbstractExplorer):
                     cur_frames = action.run(cur_frames)
                 else:
                     cur_frames = read(act_outpath, ":")
-            elif isinstance(action, AbstractDynamics):
+            elif isinstance(action, AbstractDriver):
                 act_outpath = create_dpath / self.creation_params["opt_fname"]
                 tmp_folder = create_dpath / self.creation_params["opt_dname"]
                 if not tmp_folder.exists():
@@ -171,7 +169,7 @@ class AdsorbateEvolution(AbstractExplorer):
 
         # - act, retrieve trajectory frames
         with CustomTimer("collect"):
-            from GDPy.calculator.dynamics import read_trajectories
+            from GDPy.computation.dynamics import read_trajectories
             action = actions["dynamics"]
             all_traj_frames = read_trajectories(
                 action, create_dpath / self.creation_params["opt_dname"], traj_period, 

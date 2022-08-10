@@ -25,7 +25,6 @@ from ase.calculators.vasp import Vasp
 
 from GDPy import config
 from GDPy.utils.command import parse_input_file, convert_indices, CustomTimer
-from GDPy.calculator.vasp import VaspMachine
 
 from GDPy.machine.machine import AbstractMachine
 
