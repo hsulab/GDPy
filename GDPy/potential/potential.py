@@ -56,7 +56,7 @@ class AbstractPotential(abc.ABC):
 
         return
 
-    def create_worker(
+    def create_driver(
         self, 
         dyn_params: dict = {},
         **kwargs
@@ -86,21 +86,20 @@ class AbstractPotential(abc.ABC):
 
         dynrun_params = dyn_params.copy()
         if dynamics == "ase":
-            from GDPy.calculator.asedyn import AseDynamics
-            worker = AseDynamics(calc, dyn_runparams=dynrun_params, directory=calc.directory)
+            from GDPy.computation.ase import AseDriver as dyn
             # use ase no need to recaclc constraint since atoms has one
             # cons_indices = None # this is used in minimise
         elif dynamics == "lammps":
-            from GDPy.calculator.lammps import LmpDynamics as dyn
+            from GDPy.computation.lammps import LmpDynamics as dyn
             # use lammps optimisation
-            worker = dyn(calc, dynrun_params=dynrun_params, directory=calc.directory)
             #else:
             #    raise NotImplementedError("no other eann lammps dynamics")
         elif dynamics == "lasp":
-            from GDPy.calculator.lasp import LaspDynamics as dyn
-            worker = dyn(calc, directory=calc.directory)
+            from GDPy.computation.lasp import LaspDriver as dyn
+
+        driver = dyn(calc, dyn_params, directory=calc.directory)
         
-        return worker
+        return driver
     
     def create_machine(self, args, kwargs):
         """ a machine operates calculations submitted to queue
@@ -195,7 +194,7 @@ class VaspManager(AbstractPotential):
         if calc is not None:
             calc_ = calc
 
-        from GDPy.calculator.worker import VaspWorker
+        from GDPy.computation.worker import VaspWorker
         calc_machine = VaspWorker(calc_)
 
         # - vasp environs
@@ -299,7 +298,7 @@ class DPManager(AbstractPotential):
         """
         if self.backend == 'ase':
             # return ase calculator
-            from GDPy.calculator.dp import DP
+            from GDPy.computation.dp import DP
             calc = DP(model=self.models, type_dict=self.type_map)
         elif self.backend == 'lammps':
             # return deepmd pair related content
@@ -518,7 +517,7 @@ class EANNManager(AbstractPotential):
             #calc = content
 
             # eann has different backends (ase, lammps)
-            from GDPy.calculator.lammps import Lammps
+            from GDPy.computation.lammps import Lammps
             calc = Lammps(command=command, directory=directory, **calc_params)
         
         self.calc = calc
@@ -657,7 +656,7 @@ class LaspManager(AbstractPotential):
 
         self.calc = None
         if self.calc_backend == "lasp":
-            from GDPy.calculator.lasp import LaspNN
+            from GDPy.computation.lasp import LaspNN
             self.calc = LaspNN(**self.calc_params)
         elif self.calc_backend == "lammps":
             # TODO: add lammps calculator
