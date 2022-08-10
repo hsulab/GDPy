@@ -106,6 +106,10 @@ class LaspDriver(AbstractDriver):
 
     saved_cards = ["allstr.arc", "allfor.arc"]
 
+    # - defaults
+    default_task = "opt"
+    supported_tasks = ["opt"]
+
     default_init_params = {
         "opt": {
             "explore_type": "ssw",
@@ -128,17 +132,7 @@ class LaspDriver(AbstractDriver):
 
     def _parse_params(self, params):
         """"""
-        task_ = params.pop("task", "opt")
-
-        init_params_ = params.pop("init", {})
-        init_params_.update(self.default_init_params[task_])
-
-        run_params_ = params.pop("run", {})
-        run_params_.update(self.default_run_params[task_])
-        
-        self.task = task_
-        self.init_params = init_params_
-        self.run_params = run_params_
+        super()._parse_params(params)
 
         return 
 
