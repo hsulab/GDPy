@@ -148,15 +148,10 @@ class LaspDriver(AbstractDriver):
         self.delete_keywords(self.calc.parameters)
         
         # - run params
-        kwargs_ = {}
-        for key, value in kwargs.items():
-            new_key = self.param_mapping.get(key, None)
-            if new_key is not None:
-                key = new_key
-            kwargs_[key] = value
+        kwargs = self._map_params(kwargs)
 
         run_params = self.run_params.copy()
-        run_params.update(**kwargs_)
+        run_params.update(kwargs)
 
         # - init params
         run_params.update(**self.init_params)
