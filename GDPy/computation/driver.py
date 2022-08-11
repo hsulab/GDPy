@@ -5,11 +5,12 @@ import abc
 import copy
 import pathlib
 
-from typing import Optional, NoReturn
+from typing import Optional, NoReturn, List
 from collections.abc import Iterable
 
 import numpy as np
 
+from ase import Atoms
 from ase.io import read, write
 
 
@@ -136,6 +137,13 @@ class AbstractDriver(abc.ABC):
         """
 
         return 
+
+    @abc.abstractmethod
+    def read_trajectory(self) -> List[Atoms]:
+        """ read trajectory in the current working directory
+        """
+
+        return
 
 
 def read_trajectories(
