@@ -12,6 +12,7 @@ from ase import Atoms
 from ase import build
 
 from GDPy import config
+from GDPy.builder.builder import StructureGenerator
 
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
 from GDPy.graph.utils import unique_chem_envs, compare_chem_envs
@@ -21,12 +22,6 @@ from GDPy.graph.para import paragroup_unique_chem_envs
 
 from GDPy.utils.command import CustomTimer
 
-
-class StructureGenerator():
-
-    def __init__(self, *args, **kwargs):
-
-        return
 
 class AdsorbateGraphGenerator(StructureGenerator):
 
@@ -134,21 +129,17 @@ class AdsorbateGraphGenerator(StructureGenerator):
             raise ValueError(f"Cant create species {species}")
 
         # joblib version
-        st = time.time()
+        with CustomTimer(name="add-adsorbate"):
+            ads_frames = Parallel(n_jobs=self.njobs)(
+                delayed(add_adsorbate)(
+                    self.graph_params, idx, a, adsorbate, distance_to_site, check_unique=self.check_site_unique
+                ) for idx, a in enumerate(frames)
+            )
+            #print(ads_frames)
 
-        ads_frames = Parallel(n_jobs=self.njobs)(
-            delayed(add_adsorbate)(
-                self.graph_params, idx, a, adsorbate, distance_to_site, check_unique=self.check_site_unique
-            ) for idx, a in enumerate(frames)
-        )
-        #print(ads_frames)
-
-        created_frames = []
-        for af in ads_frames:
-            created_frames.extend(af)
-
-        et = time.time()
-        print("add_adsorbate time: ", et - st)
+            created_frames = []
+            for af in ads_frames:
+                created_frames.extend(af)
 
         return created_frames
     
