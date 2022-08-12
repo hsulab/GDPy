@@ -15,6 +15,7 @@ import numpy as np
 from ase import Atoms
 from ase import units
 
+from ase.io import read, write
 from ase.constraints import FixAtoms
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 
@@ -38,6 +39,7 @@ class AseDriver(AbstractDriver):
     supported_tasks = ["bfgs", "ts", "nvt"]
 
     default_init_params = {
+        # TODO: make md params consistent
         "nvt": dict(
             timestep = 1.0, # fs
             temperature = 300, # Kelvin
@@ -243,7 +245,14 @@ class AseDriver(AbstractDriver):
             min_results = fopen.read()
 
         return min_results
+    
+    def read_trajectory(self, *args, **kwargs):
+        """ read trajectory in the current working directory
+        """
+        traj_frames = read(self.traj_fpath, ":")
+
+        return traj_frames
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass

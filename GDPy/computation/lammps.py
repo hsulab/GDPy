@@ -156,8 +156,10 @@ class LmpDriver(AbstractDriver):
 
         return params
     
-    def run(self, atoms, read_exists: bool=True, extra_info: dict=None, **kwargs):
+    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, **kwargs):
         """"""
+        atoms = atoms_.copy()
+
         # - backup old params
         # TODO: change to context message?
         calc_old = atoms.calc 
@@ -288,9 +290,10 @@ class LmpDriver(AbstractDriver):
 
         return stat_content
     
-    def _read_trajectory(self, atoms, label_steps=True):
-        """"""
-        self.calc.type_list = parse_type_list(atoms)
+    def read_trajectory(self, type_list, label_steps=True, *args, **kwargs) -> List[Atoms]:
+        """ lammps dump file has no element info
+        """
+        self.calc.type_list = type_list
 
         return self.calc._read_trajectory(label_steps)
 

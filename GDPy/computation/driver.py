@@ -134,12 +134,13 @@ class AbstractDriver(abc.ABC):
     @abc.abstractmethod
     def run(self, atoms, **kwargs):
         """ whether return atoms or the entire trajectory
+            copy input atoms, and return a new atoms
         """
 
         return 
 
     @abc.abstractmethod
-    def read_trajectory(self) -> List[Atoms]:
+    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
         """ read trajectory in the current working directory
         """
 
