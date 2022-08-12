@@ -24,9 +24,10 @@ from ase.constraints import constrained_indices, FixAtoms
 from GDPy.machine.machine import SlurmMachine
 
 from GDPy.utils.data import vasp_creator, vasp_collector
-from GDPy.utils.command import parse_input_file, convert_indices
+from GDPy.utils.command import parse_input_file, convert_indices, CustomTimer
 
 from GDPy.expedition.abstract import AbstractExplorer
+from GDPy.computation.utils import parse_type_list
 from GDPy.selector.abstract import create_selector
 
 
@@ -34,8 +35,9 @@ from GDPy.selector.abstract import create_selector
 class MDParams:        
 
     #unit = "ase"
-    method: str = "md"
+    task: str = "md"
     md_style: str = "nvt" # nve, nvt, npt
+
     steps: int = 0 
     dump_period: int = 1 
     timestep: float = 2 # fs
@@ -104,7 +106,6 @@ class MDBasedExpedition(AbstractExplorer):
     """
 
     method = "MD" # nve, nvt, npt
-    backend = "lammps" # run MD in lammps, maybe ASE
 
     # TODO: !!!!
     # check whether submit jobs
@@ -113,372 +114,107 @@ class MDBasedExpedition(AbstractExplorer):
     # check overwrite during collect and select and calc
     # check different structures input format in collect
 
-    supported_potentials = ["reax", "deepmd", "eann"]
-    supported_procedures = ["create", "collect", "select", "calculate"]
-
-    default_params = {
-        "collect": {
-            "deviation": None
-        }
-    }
-
-    # general parameters
-    general_params = dict(
-        ignore_exists = False
+    collection_params = dict(
+        resdir_name = "select",
+        selection_tags = ["converged", "traj"]
     )
 
-    def __init__(self, pm, main_dict: dict):
-        """"""
-        self.pot_manager = pm
-        self._register_type_map(main_dict)
-        #assert self.pot_manager.type_map == self.type_map, 'type map should be consistent'
-
-        self.explorations = main_dict['explorations']
-        self.init_systems = main_dict['systems']
-
-        self._parse_general_params(main_dict)
-
-        # for job prefix
-        self.job_prefix = ""
-
-
-        return
-    
-    def _parse_dyn_params(self, exp_dict: dict):
+    def _parse_drivers(self, exp_dict: dict):
         """ create a list of workers based on dyn params
         """
-        dyn_params = exp_dict["dynamics"]
+        dyn_params = exp_dict["create"]["driver"]
         #print(dyn_params)
 
         backend = dyn_params.pop("backend", None)
 
-        #for m in itertools.zip_longest():
-        #    return
+        # TODO: merge driver's init and run together
+        dyn_params = dict(
+            **dyn_params.get("init", {}),
+            **dyn_params.get("run", {})
+        )
+
         p = MDParams(**dyn_params)
         dcls_list = create_dataclass_from_dict(MDParams, dyn_params)
 
-        workers = []
+        drivers = []
         for p in dcls_list:
             p_ = dataclasses.asdict(p)
+            run_params_ = dict(steps=p_.pop("steps", 0))
+            init_params_ = p_.copy()
+            p_ = dict(init=init_params_, run=run_params_)
             p_.update(backend=backend)
-            worker = self.pot_manager.create_worker(p_)
-            workers.append(worker)
 
-        return workers
+            driver = self.pot_manager.create_driver(p_)
+            drivers.append(driver)
 
-    def icreate(self, exp_name, working_directory):
-        """create for each exploration"""
-        # - a few info
-        exp_dict = self.explorations[exp_name]
-        job_script = exp_dict.get('jobscript', None)
-        included_systems = exp_dict.get('systems', None)
-
-        # - check info
-        if included_systems is not None:
-            # NOTE: create a list of workers
-            workers = self._parse_dyn_params(exp_dict)
-
-            # loop over systems
-            for slabel in included_systems:
-                # - result path
-                name_path = working_directory / exp_name / slabel
-                if not name_path.exists():
-                    name_path.mkdir(parents=True)
-                else:
-                    # TODO: check ignore_exists
-                    pass
-                # NOTE: since multiple explorations are applied to one system, 
-                # a metedata file shall be created to log the parameters
-                pkeys = workers[0].dynrun_params.keys()
-                content = "#" + " ".join(pkeys) + "\n"
-                for w in workers:
-                    c = [w.dynrun_params[k] for k in pkeys]
-                    content += " ".join([str(x) for x in c]) + "\n"
-                with open(name_path / "metadata.txt", "w") as fopen:
-                    fopen.write(content)
-                
-                # - parse structure and composition
-                system_dict = self.init_systems.get(slabel, None) # system name
-                if system_dict is None:
-                    raise ValueError(f"Find unexpected system {system_dict}.")
-                scomp = system_dict['composition'] # system composition
-                atypes = []
-                for atype, number in scomp.items():
-                    if number > 0:
-                        atypes.append(atype)
-                sys_cons_text = system_dict.get('constraint', None)
-
-                # - read structures
-                # the expedition can start with different initial configurations
-                stru_path = system_dict["structure"]
-                frames = read(stru_path, ":")
-
-                # - run over systems
-                for iframe, atoms in enumerate(frames):
-                    name = atoms.info.get("name", "f"+str(iframe))
-                    # TODO: check if atoms have constraint
-                    cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
-                    if cons_indices.size > 0:
-                        # convert to lammps convention
-                        cons_indices += 1
-                        cons_text = convert_indices(cons_indices.tolist())
-                    else:
-                        cons_text = sys_cons_text
-                    print("cons_text: ", cons_text)
-
-                    work_path = name_path / name
-                    print(work_path)
-
-                    # - run simulation
-                    for iw, worker in enumerate(workers):
-                        worker.set_output_path(work_path/("w"+str(iw)))
-                        # TODO: run directly or attach a machine
-                        new_atoms = worker.run(atoms, constraint=cons_text)
-                        print(new_atoms)
-                        print(new_atoms.get_potential_energy())
-
-        return
+        return drivers
     
-    def icollect(self, exp_name, working_directory, skipped_systems=[]):
-        """collect data from single calculation"""
-        exp_dict = self.explorations[exp_name]
-        # - create a selector
-        # TODO: use function from selector
-        selection_params = exp_dict.get("selection", None)
-        selectors = create_selector(selection_params)
+    def _prior_create(self, input_params: dict, *args, **kwargs):
+        """"""
+        selector = super()._prior_create(input_params)
 
+        drivers = self._parse_drivers(input_params)
+
+        return drivers, selector
+    
+    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+        """"""
         # - run over systems
-        included_systems = exp_dict.get('systems', None)
-        if included_systems is not None:
-            # NOTE: create a list of workers
-            workers = self._parse_dyn_params(exp_dict)
+        for i, atoms in enumerate(frames):
+            name = atoms.info.get("name", "cand"+str(i))
+            print("cons_text: ", cons_text)
 
-            # - loop over systems
-            for slabel in included_systems:
-                sys_frames = [] # NOTE: all frames
-                # TODO: make this into system
-                if slabel in skipped_systems:
-                    continue
-                # - result path
-                name_path = working_directory / exp_name / slabel
-
-                # - read structures
-                # the expedition can start with different initial configurations
-                system_dict = self.init_systems[slabel] # system name
-                stru_path = system_dict["structure"]
-                frames = read(stru_path, ":")
-
-                # - parse structure and composition
-                system_dict = self.init_systems.get(slabel, None) # system name
-                if system_dict is None:
-                    raise ValueError(f"Find unexpected system {system_dict}.")
-                scomp = system_dict['composition'] # system composition
-                atypes = []
-                for atype, number in scomp.items():
-                    if number > 0:
-                        atypes.append(atype)
-                sys_cons_text = system_dict.get('constraint', None)
-
-                # - run over systems
-                for iframe, atoms in enumerate(frames):
-                    name = atoms.info.get("name", "f"+str(iframe))
-                    # TODO: check if atoms have constraint
-                    cons_indices = constrained_indices(atoms, only_include=FixAtoms) # array
-                    if cons_indices.size > 0:
-                        # convert to lammps convention
-                        cons_indices += 1
-                        cons_text = convert_indices(cons_indices.tolist())
-                    else:
-                        cons_text = sys_cons_text
-                    print("cons_text: ", cons_text)
-
-                    work_path = name_path / name
-                    print(work_path)
-
-                    # - run simulation
-                    for iw, worker in enumerate(workers):
-                        worker.set_output_path(work_path/("w"+str(iw)))
-                        # TODO: run directly or attach a machine
-                        traj_frames = worker._read_trajectory(atoms)
-                        #write("xxx.xyz", traj_frames)
-                        sys_frames.extend(traj_frames)
-            
-                # - systemwise selection
-                if selectors is not None:
-                    # -- create dir
-                    sorted_path = name_path / "sorted"
-                    if sorted_path.exists():
-                        if self.ignore_exists:
-                            warnings.warn("sorted_path removed in %s" %name_path, UserWarning)
-                            shutil.rmtree(sorted_path)
-                            sorted_path.mkdir()
-                        else:
-                            warnings.warn("sorted_path exists in %s" %name_path, UserWarning)
-                            continue
-                    else:
-                        sorted_path.mkdir()
-                    # -- perform selections
-                    cur_frames = sys_frames
-                    for isele, selector in enumerate(selectors):
-                        # TODO: add info to selected frames
-                        print(f"--- Selection {isele} Method {selector.name}---")
-                        print("ncandidates: ", len(cur_frames))
-                        cur_frames = selector.select(cur_frames)
-                        print("nselected: ", len(cur_frames))
-                    
-                        write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
+            cand_path = self.step_dpath / name
+            print(cand_path)
+            # - run simulation
+            for iw, driver in enumerate(actions):
+                driver.directory = cand_path / ("w"+str(iw))
+                # TODO: run directly or attach a machine
+                driver.run(atoms, constraint=cons_text) # NOTE: other run_params have already been set
 
         return
     
-    def icalc(self, exp_name, working_directory, skipped_systems=[]):
-        """calculate configurations with reference method"""
-        exp_dict = self.explorations[exp_name]
-
-        # some parameters
-        calc_dict = exp_dict["calculation"]
-        machine_dict = calc_dict["machine"]
-        nstructures = calc_dict.get("nstructures", 100000) # number of structures in each calculation dirs
-
-        # - create fp main dir
-        prefix = working_directory / (exp_name + "-fp")
-        if prefix.exists():
-            warnings.warn("fp directory exists...", UserWarning)
-        else:
-            prefix.mkdir(parents=True)
-
+    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+        """"""
         # - run over systems
-        included_systems = exp_dict.get('systems', None)
-        if included_systems is not None:
-            # - loop over systems
-            # TODO: asyncio
-            for slabel in included_systems:
-                sys_frames = [] # NOTE: all frames
-                # TODO: make this into system
-                if slabel in skipped_systems:
-                    continue
-                # - result path
-                name_path = working_directory / exp_name / slabel
+        merged_traj_frames = []
+        #traj_dirs = []
+        for i, atoms in enumerate(frames):
+            name = atoms.info.get("name", "cand"+str(i))
 
-                # - read collected/selected frames
-                sorted_path = name_path / "sorted"
-                if sorted_path.exists():
-                    # - find all selected files
-                    # TODO: if no selected were applied?
-                    xyzfiles = list(sorted_path.glob("*.xyz"))
-                    xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
-                    # - create input file
-                    sorted_fp_path = prefix / slabel
-                    if not sorted_fp_path.exists():
-                        sorted_fp_path.mkdir()
-                        # -- update params with systemwise info
-                        calc_params = calc_dict.copy()
-                        for k in calc_params.keys():
-                            if calc_params[k] == "system":
-                                calc_params[k] = self.init_systems[slabel][k]
-                        with open(sorted_fp_path/"vasp_params.json", "w") as fopen:
-                            json.dump(calc_params, fopen, indent=4)
-                        # -- create job script
-                        machine_params = machine_dict.copy()
-                        machine_params["job-name"] = slabel+"-fp"
+            cand_path = res_dpath / "create" / name
 
-                        # TODO: mpirun or mpiexec
-                        command = calc_params["command"]
-                        if command.strip().startswith("mpirun"):
-                            ntasks = command.split()[2]
-                        else:
-                            ntasks = 1
-                        machine_params.update(**{"nodes": "1-1", "ntasks": ntasks, "cpus-per-task": 1, "mem-per-cpu": "4G"})
+            type_list = parse_type_list(atoms) # NOTE: lammps needs this!
 
-                        machine = SlurmMachine(**machine_params)
-                        machine.user_commands = "python ~/repository/GDPy/GDPy/calculator/vasp.py {} -p {}".format(
-                            str(xyzfiles[-1].resolve()), (sorted_fp_path/"vasp_params.json").resolve()
-                        )
-                        machine.write(sorted_fp_path/"vasp.slurm")
-                    else:
-                        print(f"{sorted_fp_path} already exists.")
-                else:
-                    print(f"No candidates to calculate in {str(name_path)}")
+            # - run simulation
+            for iw, driver in enumerate(actions):
+                #traj_dirs.append( cand_path / ("w"+str(iw)) )
+                traj_dir = cand_path / ("w"+str(iw))
+                driver.directory = traj_dir
+                # TODO: need first frame? it is the init structure...
+                traj_frames = driver.read_trajectory(type_list=type_list) # TODO: accept traj_period?
+                merged_traj_frames.extend(traj_frames)
+        
+        write(self.step_dpath/"traj_frames.xyz", traj_frames)
+        
+        # NOTE: not save all explored configurations
+        #       since they are too many
+        #from GDPy.computation.utils import read_trajectories
+        #with CustomTimer(name="collect-trajectories"):
+        #    merged_traj_frames = read_trajectories(
+        #        driver, traj_dirs, type_list, 
+        #        traj_period, traj_fpath, traj_ind_fpath
+        #    )
+        
+        # - select
+        if selector:
+            select_dpath = self._make_step_dir(res_dpath, "select")
+            print(select_dpath)
 
-        return
-    
-    def iharvest(self, exp_name, working_directory: Union[str, pathlib.Path]):
-        """harvest all vasp results"""
-        # TODO: replace this by a object
-        # run over directories and check
-        main_dir = pathlib.Path(working_directory) / (exp_name + "-fp")
-        vasp_main_dirs = []
-        for p in main_dir.iterdir():
-            calc_file = p / "calculated_0.xyz"
-            if p.is_dir() and calc_file.exists():
-                vasp_main_dirs.append(p)
-        print(vasp_main_dirs)
+            selector.prefix = "traj"
+            selector.directory = select_dpath
 
-        # TODO: optional parameters
-        pot_gen = pathlib.Path.cwd().name
-        pattern = "vasp_0_*"
-        njobs = 4
-        vaspfile, indices = "vasprun.xml", "-1:"
-
-        for d in vasp_main_dirs:
-            print("\n===== =====")
-            vasp_dirs = []
-            for p in d.parent.glob(d.name+'*'):
-                if p.is_dir():
-                    vasp_dirs.extend(vasp_collector.find_vasp_dirs(p, pattern))
-            print('total vasp dirs: %d' %(len(vasp_dirs)))
-
-            print("sorted by last integer number...")
-            vasp_dirs_sorted = sorted(
-                vasp_dirs, key=lambda k: int(k.name.split('_')[-1])
-            ) # sort by name
-
-            # check number of frames equal output?
-            input_xyz = []
-            for p in d.iterdir():
-                if p.name.endswith("-sel.xyz"):
-                    input_xyz.append(p)
-                if p.name.endswith("_ALL.xyz"):
-                    input_xyz.append(p)
-            if len(input_xyz) == 1:
-                input_xyz = input_xyz[0]
-            else:
-                raise ValueError(d, " has both sel and ALL xyz file...")
-            nframes_input = len(read(input_xyz, ":"))
-
-            atoms = read(input_xyz, "0")
-            c = Counter(atoms.get_chemical_symbols())
-            sys_name_list = []
-            for s in self.type_list:
-                sys_name_list.append(s)
-                num = c.get(s, 0)
-                sys_name_list.append(str(num))
-            sys_name = "".join(sys_name_list)
-            out_name = self.main_database / sys_name / (d.name + "-" + pot_gen + ".xyz")
-            if out_name.exists():
-                nframes_out = len(read(out_name, ":"))
-                if nframes_input == nframes_out:
-                    print(d, "already has been harvested...")
-                    continue
-
-            # start harvest
-            st = time.time()
-            print("using num of jobs: ", njobs)
-            cur_frames = Parallel(n_jobs=njobs)(delayed(vasp_collector.extract_atoms)(p, vaspfile, indices) for p in vasp_dirs_sorted)
-            if isinstance(cur_frames, Atoms):
-                cur_frames = [cur_frames]
-            frames = []
-            for f in cur_frames:
-                frames.extend(f) # merge all frames
-
-            et = time.time()
-            print("cost time: ", et-st)
-
-            # move structures to data path
-            if len(frames) > 0:
-                print("Number of frames: ", len(frames))
-                write(out_name, frames)
-            else:
-                print("No frames...")
+            selected_frames = selector.select(merged_traj_frames)
 
         return
     
