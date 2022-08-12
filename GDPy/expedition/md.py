@@ -161,11 +161,10 @@ class MDBasedExpedition(AbstractExplorer):
         """"""
         # - run over systems
         for i, atoms in enumerate(frames):
+            # - set working dir
             name = atoms.info.get("name", "cand"+str(i))
-            print("cons_text: ", cons_text)
-
             cand_path = self.step_dpath / name
-            print(cand_path)
+
             # - run simulation
             for iw, driver in enumerate(actions):
                 driver.directory = cand_path / ("w"+str(iw))
@@ -179,9 +178,10 @@ class MDBasedExpedition(AbstractExplorer):
         # - run over systems
         merged_traj_frames = []
         #traj_dirs = []
+        """
         for i, atoms in enumerate(frames):
+            # - set working dir
             name = atoms.info.get("name", "cand"+str(i))
-
             cand_path = res_dpath / "create" / name
 
             type_list = parse_type_list(atoms) # NOTE: lammps needs this!
@@ -195,16 +195,39 @@ class MDBasedExpedition(AbstractExplorer):
                 traj_frames = driver.read_trajectory(type_list=type_list) # TODO: accept traj_period?
                 merged_traj_frames.extend(traj_frames)
         
-        write(self.step_dpath/"traj_frames.xyz", traj_frames)
-        
+        write(self.step_dpath/"traj_frames.xyz", merged_traj_frames)
+        """
         # NOTE: not save all explored configurations
         #       since they are too many
-        #from GDPy.computation.utils import read_trajectories
-        #with CustomTimer(name="collect-trajectories"):
-        #    merged_traj_frames = read_trajectories(
-        #        driver, traj_dirs, type_list, 
-        #        traj_period, traj_fpath, traj_ind_fpath
-        #    )
+        traj_dir_groups = {}
+        for i, atoms in enumerate(frames):
+            # - set working dir
+            name = atoms.info.get("name", "cand"+str(i))
+            cand_path = res_dpath / "create" / name
+
+            # - run simulation
+            for iw, driver in enumerate(actions):
+                driver_id = "w"+str(iw)
+                traj_dir = cand_path / driver_id
+                if driver_id in traj_dir_groups:
+                    traj_dir_groups[driver_id].append(traj_dir)
+                else:
+                    traj_dir_groups[driver_id] = [traj_dir]
+
+        # TODO: replace with composition
+        type_list = parse_type_list(frames[0])
+        traj_period = self.collection_params["traj_period"]
+        
+        from GDPy.computation.utils import read_trajectories
+        for driver_id, traj_dirs in traj_dir_groups.items():
+            traj_fpath = self.step_dpath / f"traj_frames-{driver_id}.xyz"
+            traj_ind_fpath = self.step_dpath / f"traj_indices-{driver_id}.xyz"
+            with CustomTimer(name=f"collect-trajectories-{driver_id}"):
+                cur_traj_frames = read_trajectories(
+                    driver, traj_dirs, type_list, 
+                    traj_period, traj_fpath, traj_ind_fpath
+                )
+            merged_traj_frames.extend(cur_traj_frames)
         
         # - select
         if selector:
@@ -220,13 +243,4 @@ class MDBasedExpedition(AbstractExplorer):
     
 
 if __name__ == '__main__':
-    import json
-    with open('/users/40247882/repository/GDPy/templates/inputs/main.json', 'r') as fopen:
-        main_dict = json.load(fopen)
-    
-    exp_dict = main_dict['explorations']['reax-surface-diffusion']
-    md_prefix = pathlib.Path('/users/40247882/projects/oxides/gdp-main/reax-metad')
-    init_systems = main_dict['systems']
-    type_map = {'O': 0, 'Pt': 1}
-
-    icollect_data(exp_dict, md_prefix, init_systems, type_map)
+    pass
