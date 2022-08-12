@@ -29,6 +29,8 @@ class AbstractPotential(abc.ABC):
     name = "potential"
     version = "m00" # calculator name
 
+    external_engines = ["lammps", "lasp"]
+
     implemented_backends = []
     backends = dict(
         single = [], # single pointe energy
@@ -71,6 +73,12 @@ class AbstractPotential(abc.ABC):
         # parse backends
         self.dyn_params = dyn_params
         dynamics = dyn_params.get("backend", self.calc_backend)
+        if dynamics == "external":
+            dynamics = self.calc_backend
+            #if dynamics.lower() in self.external_engines:
+            #    dynamics = self.calc_backend
+            #else:
+            #    dynamics == "ase"
 
         if [self.calc_backend, dynamics] not in self.valid_combinations:
             raise RuntimeError(f"Invalid dynamics backend based on {self.calc_backend} calculator")
@@ -86,18 +94,18 @@ class AbstractPotential(abc.ABC):
 
         dynrun_params = dyn_params.copy()
         if dynamics == "ase":
-            from GDPy.computation.ase import AseDriver as dyn
+            from GDPy.computation.ase import AseDriver as driver_cls
             # use ase no need to recaclc constraint since atoms has one
             # cons_indices = None # this is used in minimise
         elif dynamics == "lammps":
-            from GDPy.computation.lammps import LmpDynamics as dyn
+            from GDPy.computation.lammps import LmpDriver as driver_cls
             # use lammps optimisation
             #else:
             #    raise NotImplementedError("no other eann lammps dynamics")
         elif dynamics == "lasp":
-            from GDPy.computation.lasp import LaspDriver as dyn
+            from GDPy.computation.lasp import LaspDriver as driver_cls
 
-        driver = dyn(calc, dyn_params, directory=calc.directory)
+        driver = driver_cls(calc, dyn_params, directory=calc.directory)
         
         return driver
     
