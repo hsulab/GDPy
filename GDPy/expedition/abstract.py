@@ -208,6 +208,7 @@ class AbstractExplorer(ABC):
                 while status != "finished":
                     status = self._check_create_status(res_dpath)
                     print(f"===== current status: {status}  =====")
+                    self.step_dpath = self._make_step_dir(res_dpath, status)
                     if status == "create":
                         with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
@@ -234,13 +235,34 @@ class AbstractExplorer(ABC):
 
         return
     
+    def _make_step_dir(self, res_dpath: Path, status: str) -> Path:
+        """"""
+        if status not in ["create", "collect", "select"]:
+            return
+
+        # - create collect dir
+        step_dir = res_dpath / status
+        if step_dir.exists():
+            if self.ignore_exists:
+                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
+                shutil.rmtree(step_dir)
+                step_dir.mkdir()
+            else:
+                # TODO: How to deal with previous results?
+                pass
+        else:
+            step_dir.mkdir()
+        
+        return step_dir
+    
     @abstractmethod
     def _prior_create(self, input_params: dict, *args, **kwargs):
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
         """
         # - update a few parameters from input
-        traj_period_ = input_params["collect"].get("traj_period", 1)
+        collect_params_ = input_params.get("collect", self.collection_params)
+        traj_period_ = collect_params_.get("traj_period", 1)
         self.creation_params["traj_period"] = traj_period_
 
         # TODO: move select to this part?
@@ -258,34 +280,12 @@ class AbstractExplorer(ABC):
     def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
         """ some codes run explorations
         """
-        # - create collect dir
-        create_dpath = res_dpath / "create"
-        if create_dpath.exists():
-            if self.ignore_exists:
-                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
-                shutil.rmtree(create_dpath)
-                create_dpath.mkdir()
-            else:
-                pass
-        else:
-            create_dpath.mkdir()
 
         return
 
-    def _single_collect(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
         """ some codes run explorations
         """
-        # - create collect dir
-        collect_path = res_dpath / "collect"
-        if collect_path.exists():
-            if self.ignore_exists:
-                #warnings.warn("sorted_path removed in %s" %res_dpath, UserWarning)
-                shutil.rmtree(collect_path)
-                collect_path.mkdir()
-            else:
-                pass
-        else:
-            collect_path.mkdir()
 
         return
 
@@ -385,7 +385,7 @@ class AbstractExplorer(ABC):
                 name_path = working_directory / exp_name / slabel
 
                 # - read collected/selected frames
-                sorted_path = name_path / self.collection_params["resdir_name"]
+                sorted_path = name_path / self.collection_params["resdir_name"] # TODO: collect or select???
                 if sorted_path.exists():
                     for tag_name in self.collection_params["selection_tags"]:
                         # - find all selected files
@@ -393,21 +393,26 @@ class AbstractExplorer(ABC):
                         # TODO: if no selected were applied?
                         xyzfiles = list(sorted_path.glob(f"{tag_name}*-selection*.xyz"))
                         #print(tag_name, xyzfiles)
-                        if len(xyzfiles) == 1:
-                            final_selected_path = xyzfiles[0]
+                        nfiles = len(xyzfiles)
+                        if nfiles > 0:
+                            if nfiles == 1:
+                                final_selected_path = xyzfiles[0]
+                            else:
+                                # assert files have selection order
+                                xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
+                                final_selected_path = xyzfiles[-1]
+                            print(f"found selected structure file {str(final_selected_path)}")
+                            print("nframes: ", len(read(final_selected_path, ":")))
+                            # - create input files
+                            fp_path = prefix / slabel / tag_name
+                            self._prepare_calc_dir(
+                                calc_machine,
+                                slabel, fp_path, 
+                                final_selected_path
+                            )
                         else:
-                            # assert files have selection order
-                            xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
-                            final_selected_path = xyzfiles[-1]
-                        print(f"found selected structure file {str(final_selected_path)}")
-                        print("nframes: ", len(read(final_selected_path, ":")))
-                        # - create input files
-                        fp_path = prefix / slabel / tag_name
-                        self._prepare_calc_dir(
-                            calc_machine,
-                            slabel, fp_path, 
-                            final_selected_path
-                        )
+                            print(f"Cant find selected structure file with tag {tag_name}")
+                            continue
                 else:
                     print(f"No candidates to calculate in {str(name_path)}")
 
