@@ -58,6 +58,7 @@ class AbstractExplorer(ABC):
 
     collection_params = dict(
         resdir_name = "sorted",
+        traj_period = 1,
         selection_tags = ["final"]
     )
 
@@ -263,7 +264,7 @@ class AbstractExplorer(ABC):
         # - update a few parameters from input
         collect_params_ = input_params.get("collect", self.collection_params)
         traj_period_ = collect_params_.get("traj_period", 1)
-        self.creation_params["traj_period"] = traj_period_
+        self.collection_params["traj_period"] = traj_period_
 
         # TODO: move select to this part?
 
