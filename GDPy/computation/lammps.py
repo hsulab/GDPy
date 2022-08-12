@@ -587,7 +587,7 @@ class Lammps(FileIOCalculator):
                     self.temp, self.temp, Tdamp_
                 )
             elif self.md_style == "npt":
-                pres_ = unitconvert.convert(self.pres, "pressure", "ASE", self.units)
+                pres_ = unitconvert.convert(self.pres, "pressure", "metal", self.units)
                 Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
                 Pdamp_ = unitconvert.convert(self.Pdamp, "time", "real", self.units)
                 content += "fix             thermostat mobile npt temp {} {} {} aniso {} {} {}\n".format(
