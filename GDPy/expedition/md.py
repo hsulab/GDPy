@@ -141,8 +141,10 @@ class MDBasedExpedition(AbstractExplorer):
             p_ = dataclasses.asdict(p)
             run_params_ = dict(steps=p_.pop("steps", 0))
             init_params_ = p_.copy()
+            task = init_params_.pop("task")
             p_ = dict(init=init_params_, run=run_params_)
             p_.update(backend=backend)
+            p_.update(task=task)
 
             driver = self.pot_manager.create_driver(p_)
             drivers.append(driver)
