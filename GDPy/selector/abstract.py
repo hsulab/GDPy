@@ -82,7 +82,7 @@ class ComposedSelector(AbstractSelector):
             if so, selections will be performed on converged ones and 
             others separately
         """
-        conv_i = None, None
+        conv_i = None
         selectors_ = self.selectors
         for i, s in enumerate(selectors_):
             if s.name == "convergence":
