@@ -22,7 +22,6 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from GDPy.computation.driver import AbstractDriver
 
 from GDPy.md.md_utils import force_temperature
-from GDPy.md.nosehoover import NoseHoover
 
 from GDPy.builder.constraints import parse_constraint_info
 
@@ -36,16 +35,20 @@ class AseDriver(AbstractDriver):
 
     # - defaults
     default_task = "bfgs"
-    supported_tasks = ["bfgs", "ts", "nvt"]
+    supported_tasks = ["bfgs", "ts", "md"]
 
     default_init_params = {
         # TODO: make md params consistent
-        "nvt": dict(
-            timestep = 1.0, # fs
-            temperature = 300, # Kelvin
-            nvt_q = 334.,
-            loginterval=1
-        )
+        "md": {
+            "md_style": "nvt",
+            "velocity_seed": 1112,
+            "timestep": 1.0, # fs
+            "temperature_K": 300, # K
+            "taut": 100, # fs
+            "pressure": 1.0, # bar
+            "taup": 100,
+            "loginterval": 1
+        }
     }
 
     default_run_params = {
@@ -54,10 +57,18 @@ class AseDriver(AbstractDriver):
             fmax = 0.05
         ),
         "ts": {},
-        "nvt": dict(
+        "md": dict(
             steps = 10
         )
     }
+
+    param_mapping = dict(
+        temp = "temperature_K",
+        taut = "Tdamp",
+        pres = "pressure",
+        taup = "Pdamp",
+        dump_period = "loginterval"
+    )
 
     # - other files
     log_fname = "dyn.log"
@@ -92,8 +103,14 @@ class AseDriver(AbstractDriver):
         elif self.task == "ts":
             from sella import Sella, Constraints
             driver_cls = Sella
-        elif self.task == "nvt":
-            driver_cls = NoseHoover
+        elif self.task == "md":
+            if self.init_params["md_style"] == "nve":
+                from ase.md.verlet import VelocityVerlet as driver_cls
+            elif self.init_params["md_style"] == "nvt":
+                #from GDPy.md.nosehoover import NoseHoover as driver_cls
+                from ase.md.nvtberendsen import NVTBerendsen as driver_cls
+            elif self.init_params["md_style"] == "npt":
+                from ase.md.nptberendsen import NPTBerendsen as driver_cls
         else:
             pass
         
@@ -140,10 +157,9 @@ class AseDriver(AbstractDriver):
             self.directory.mkdir(parents=True)
         
         # - overwrite 
+        kwargs = self._map_params(kwargs)
         run_params = self.run_params.copy()
-        #print(run_params)
         run_params.update(**kwargs)
-        #print(run_params)
 
         # TODO: if have cons in kwargs overwrite current cons stored in atoms
         cons_text = run_params.pop("constraint", None)
@@ -170,17 +186,40 @@ class AseDriver(AbstractDriver):
                 logfile=self.log_fpath,
                 trajectory=str(self.traj_fpath)
             )
-        elif self.task == "nvt":
+        elif self.task == "md":
+            # - adjust params
+            init_params_ = self.init_params.copy()
+            velocity_seed = init_params_.pop("velocity_seed")
+            rng = np.random.default_rng(velocity_seed)
+
             # - velocity
-            MaxwellBoltzmannDistribution(atoms, self.init_params["temperature"]*units.kB)
-            force_temperature(atoms, self.init_params["temperature"])
+            MaxwellBoltzmannDistribution(atoms, temperature_K=init_params_["temperature_K"], rng=rng)
+            force_temperature(atoms, init_params_["temperature_K"], unit="K") # NOTE: respect constraints
+
+            # - prepare args
+            md_style = init_params_.pop("md_style")
+            if md_style == "nve":
+                init_params_ = {k:v for k,v in init_params_.items() if k in ["loginterval", "timestep"]}
+            elif md_style == "nvt":
+                init_params_ = {
+                    k:v for k,v in init_params_.items() 
+                    if k in ["loginterval", "timestep", "temperature_K", "taut"]
+                }
+            elif md_style == "npt":
+                init_params_ = {
+                    k:v for k,v in init_params_.items() 
+                    if k in ["loginterval", "timestep", "temperature_K", "taut", "pressure", "taup"]
+                }
+                init_params_["pressure"] *= (1./(160.21766208/0.000101325))
+
+            # TODO: move this to parse_params?
+            init_params_["timestep"] *= units.fs
+            #print(init_params_)
 
             # - construct the driver
             driver = self.driver_cls(
                 atoms = atoms,
-                timestep = self.init_params["timestep"] * units.fs,
-                temperature = self.init_params["temperature"] * units.kB,
-                nvt_q = self.init_params["nvt_q"],
+                **init_params_,
                 logfile=self.log_fpath,
                 trajectory=str(self.traj_fpath)
             )
