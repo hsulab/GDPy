@@ -115,7 +115,6 @@ class MDBasedExpedition(AbstractExplorer):
     # check different structures input format in collect
 
     collection_params = dict(
-        resdir_name = "select",
         selection_tags = ["converged", "traj"]
     )
 

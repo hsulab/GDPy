@@ -30,7 +30,6 @@ class ReactionExplorer(AbstractExplorer):
     )
 
     collection_params = dict(
-        resdir_name = "sorted",
         selection_tags = ["TS", "FS", "optraj"]
     )
 
