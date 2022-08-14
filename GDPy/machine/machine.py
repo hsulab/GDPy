@@ -22,28 +22,66 @@ class AbstractMachine(ABC):
     SHELL = None
     SUBMIT_COMMAND = None
 
+    default_parameters = {}
+    parameters = {}
+
+    _script = None
+
+    environs = None
+    user_commands = None
+
+    status = []
+
+    @property
+    def script(self):
+
+        return self._script
+    
+    @script.setter
+    def script(self, script_):
+        self._script = pathlib.Path(script_)
+        return 
+
+    def _get_default_parameters(self):
+        return self.default_parameters.copy()
+
+    def set(self, **kwargs) -> dict:
+        """"""
+        #changed_parameters = {}
+        for key, value in kwargs.items():
+            oldvalue = self.parameters.get(key)
+            #if key not in self.parameters or not equal(value, oldvalue):
+            #    changed_parameters[key] = value
+            #    self.parameters[key] = value
+            self.parameters[key] = value
+
+        return
+
     def write_script(self):
         pass
-
-    @abstractmethod
-    def parse_params(self, *args, **kwargs):
-        return
 
     def register_mode(self, *args):
         return
 
-    def submit(self, script_path):
+    def write(self):
+        """"""
+        with open(self.script, "w") as fopen:
+            fopen.write(str(self))
+
+        return
+
+    def submit(self):
         """submit job using specific machine command"""
         # submit job
-        command = "{0} {1}".format(self.SUBMIT_COMMAND, script_path.name)
+        command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
         proc = subprocess.Popen(
-            command, shell=True, cwd=script_path.parent,
+            command, shell=True, cwd=self.script.parent,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             encoding = "utf-8"
         )
         errorcode = proc.wait(timeout=10) # 10 seconds
         if errorcode:
-            raise ValueError("Error in submit job script %s" %script_path)
+            raise RuntimeError(f"Error in submitting job script {str(self.script)}")
 
         output = "".join(proc.stdout.readlines())
 
@@ -68,7 +106,9 @@ class SlurmMachine(AbstractMachine):
     PREFIX = "#SBATCH"
     SUFFIX = ".slurm"
     SHELL = "#!/bin/bash -l"
+
     SUBMIT_COMMAND = "sbatch"
+    ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.24j %.4t %.12M %.12L %.5D %.4C\""
 
     # full name starts with --
     full_keywords = [ 
@@ -86,60 +126,51 @@ class SlurmMachine(AbstractMachine):
 
     # compability for different machine
     # not all keywords are necessary
-    default_cpu_parameters = {
-        "job-name": "slurmJob",
-        "partition": None,
-        "time": None
-    }
-
-    __default_cpu_parameters = {
+    default_parameters = {
         "job-name": "slurmJob",
         "account": None,
         "partition": None,
-        "qos": None,
         "time": None,
+        # - CPU
         "nodes": None,
         "ntasks": None,
         "tasks-per-node": None,
         "cpus-per-task": None,
-        "mem-per-cpu": "4G",
-        "output": "slurm.o%j",
-        "error": "slurm.e%j"
-    }
-
-    extra_gpu_parameters = {
+        "mem-per-cpu": None, #"4G"
+        #"output": "slurm.o%j",
+        #"error": "slurm.e%j"
+        # - GPU
         "gres": None,
-        "mem-per-gpu": "32G"
+        "mem-per-gpu": None # "32G"
     }
 
     status = ["R", "Q", "PD", "CG"]
+    running_status = ["R", "Q", "PD"]
 
-    environs = None
-    user_commands = None
-
-    def __init__(self, use_gpu=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         """"""
-        # make default machine dict
-        self.machine_dict = self.default_cpu_parameters.copy()
-        if use_gpu:
-            self.machine_dict.update(self.extra_gpu_parameters)
-        
         # - update params
         self.environs = kwargs.pop("environs", "")
         self.user_commands = kwargs.pop("user_commands", "")
-        self.machine_dict.update(**kwargs)
+
+        # - make default params
+        self.parameters = self._get_default_parameters()
+        #parameters_ = kwargs.pop("parameters", None)
+        #if parameters_:
+        #    self.parameters.update(parameters_)
+        self.parameters.update(kwargs)
         
         return
 
     def __str__(self):
         """job script"""
         # - slurm params
-        content = self.SHELL + '\n'
-        for key, value in self.machine_dict.items():
+        content = self.SHELL + "\n"
+        for key, value in self.parameters.items():
             if value:
                 content += "{} --{}={}\n".format(self.PREFIX, key, value)
-            else:
-                raise ValueError("Keyword *%s* not properly set." %key)
+            #else:
+            #    raise ValueError("Keyword *%s* not properly set." %key)
         
         if self.environs:
             content += "\n\n"
@@ -151,10 +182,6 @@ class SlurmMachine(AbstractMachine):
 
         return content
 
-    def parse_params(self):
-
-        return
-    
     def update(self, input_params):
         """update machine parameters"""
         machine_dict = parse_input_file(input_params) # dict, json, yaml
@@ -164,11 +191,11 @@ class SlurmMachine(AbstractMachine):
             # self.machine_dict = machine_dict
             self.machine_dict.update(**machine_dict)
         elif input_params.suffix == self.SUFFIX:
-            self.__read(input_params)
+            self._read(input_params)
 
         return
 
-    def __read(self, slurm_file):
+    def _read(self, slurm_file):
         """ read slurm file and update machine params
             for now, only support keywords start from --
         """
@@ -206,15 +233,34 @@ class SlurmMachine(AbstractMachine):
 
         return
 
-    def write(self, script_path):
+    def is_finished(self) -> bool:
         """"""
-        with open(script_path, "w") as fopen:
-            fopen.write(str(self))
+        # - run enquire
+        p = subprocess.Popen(
+            [self.ENQUIRE_COMMAND],
+            shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            close_fds=True, universal_newlines=True
+        )
+        fout = p.stdout
+        lines = fout.readlines()
 
-        return
+        # - run over results
+        finished = False
+        for line in lines[1:]: # skipe first info line
+            data = line.strip().split()
+            jobid, name, status = data[0], data[2], data[3]
+            #if name.startswith(self.prefix) and status in self.running_status:
+            #    indices = re.match(self.prefix+"*", name).span()
+            #    if indices is not None:
+            #        confid = int(name[indices[1]:])
+            #    confids.append(int(confid))
+            if name == self.parameters["job-name"]:
+                finished = False
+                break
+        else:
+            finished = True
 
-    def check_status(self):
-        pass
+        return finished
 
 
 class PbsMachine(AbstractMachine):
