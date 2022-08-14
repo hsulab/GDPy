@@ -200,6 +200,7 @@ class AbstractExplorer(ABC):
                 #    continue
 
                 # - read substrate
+                self.step_dpath = self._make_step_dir(res_dpath, "init")
                 frames, cons_text = self._read_structure(slabel)
 
                 # - run exploration
@@ -238,7 +239,7 @@ class AbstractExplorer(ABC):
     
     def _make_step_dir(self, res_dpath: Path, status: str) -> Path:
         """"""
-        if status not in ["create", "collect", "select"]:
+        if status not in ["init", "create", "collect", "select"]:
             return
 
         # - create collect dir
@@ -284,13 +285,8 @@ class AbstractExplorer(ABC):
 
         return
 
+    @abstractmethod 
     def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
-        """ some codes run explorations
-        """
-
-        return
-
-    def _single_select(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
         """ some codes run explorations
         """
 
@@ -318,23 +314,36 @@ class AbstractExplorer(ABC):
     
     def _read_structure(self, slabel):
         """ read initial structures of a single system
+            or generate structures from initial configurations
         """
         # - read structure
         system_dict = self.init_systems.get(slabel, None) # system name
         if system_dict is None:
             raise RuntimeError(f"Find unexpected system {system_dict}.")
-
+        
         # - read structures
         # the expedition can start with different initial configurations
-        stru_path = system_dict.get("structure", None)
-        if stru_path is None:
-            frames = []
-            if self.name != "gs": # global search
-                # global search expedition doesnt need initial structures
-                raise RuntimeError(f"{self.name} needs initial structures of {slabel}")
+        init_frame_path = self.step_dpath / "init"
+        if init_frame_path.exists():
+            frames = read(init_frame_path, ":")
         else:
-            indices = system_dict.get("index", ":")
-            frames = read(stru_path, indices)
+            stru_path = system_dict.get("structure", None)
+            gen_params = system_dict.get("generator", None)
+            if (stru_path is None and gen_params is not None): 
+                from GDPy.builder.interface import create_generator
+                generator = create_generator(gen_params)
+                generator.directory = self.step_dpath
+                frames = generator.run(system_dict.get("size", 1))
+                #if self.name != "gs": # global search
+                #    # global search expedition doesnt need initial structures
+                #    raise RuntimeError(f"{self.name} needs initial structures of {slabel}")
+            elif (stru_path is not None and gen_params is None):
+                indices = system_dict.get("index", ":")
+                frames = read(stru_path, indices)
+            else:
+                raise RuntimeError("Use either structure or generation...")
+        
+            write(self.step_dpath/"init.xyz", frames)
         
         print("number of initial structures: ", len(frames)) # TODO: use logging
 
