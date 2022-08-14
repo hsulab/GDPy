@@ -321,12 +321,16 @@ class AbstractExplorer(ABC):
         if system_dict is None:
             raise RuntimeError(f"Find unexpected system {system_dict}.")
         
+        print("reading initial structures...")
+        
         # - read structures
         # the expedition can start with different initial configurations
-        init_frame_path = self.step_dpath / "init"
+        init_frame_path = self.step_dpath / "init.xyz" 
         if init_frame_path.exists():
+            print("read existed structure file...")
             frames = read(init_frame_path, ":")
         else:
+            print("try to use generator...")
             stru_path = system_dict.get("structure", None)
             gen_params = system_dict.get("generator", None)
             if (stru_path is None and gen_params is not None): 
@@ -392,39 +396,52 @@ class AbstractExplorer(ABC):
                 if slabel in skipped_systems:
                     continue
                 # - result path
-                name_path = working_directory / exp_name / slabel
+                res_dpath = working_directory / exp_name / slabel
 
                 # - read collected/selected frames
-                sorted_path = name_path / self.collection_params["resdir_name"] # TODO: collect or select???
-                if sorted_path.exists():
-                    for tag_name in self.collection_params["selection_tags"]:
-                        # - find all selected files
-                        # or find final selected that is produced by a composed selector
-                        # TODO: if no selected were applied?
+                sorted_path = res_dpath / "select"
+                if not sorted_path.exists():
+                    sorted_path = res_dpath / "collect"
+                    if not sorted_path.exists():
+                        print(f"No candidates to calculate in {str(res_dpath)}")
+                        continue
+
+                found_files = {}
+                for tag_name in self.collection_params["selection_tags"]:
+                    # - find all selected files
+                    # or find final selected that is produced by a composed selector
+                    # TODO: if no selected were applied?
+                    if sorted_path.name == "collect":
+                        xyzfiles = list(sorted_path.glob(f"{tag_name}*.xyz"))
+                    if sorted_path.name == "select":
                         xyzfiles = list(sorted_path.glob(f"{tag_name}*-selection*.xyz"))
-                        #print(tag_name, xyzfiles)
-                        nfiles = len(xyzfiles)
-                        if nfiles > 0:
-                            if nfiles == 1:
-                                final_selected_path = xyzfiles[0]
-                            else:
-                                # assert files have selection order
-                                xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
-                                final_selected_path = xyzfiles[-1]
+                    #print(tag_name, xyzfiles)
+                    nfiles = len(xyzfiles)
+                    if nfiles > 0:
+                        if nfiles == 1:
+                            final_selected_path = xyzfiles[0]
+                        else:
+                            # assert files have selection order
+                            xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
+                            final_selected_path = xyzfiles[-1]
+                        if final_selected_path.stat().st_size > 0:
                             print(f"found selected structure file {str(final_selected_path)}")
                             print("nframes: ", len(read(final_selected_path, ":")))
                             # - create input files
                             fp_path = prefix / slabel / tag_name
-                            self._prepare_calc_dir(
-                                calc_machine,
-                                slabel, fp_path, 
-                                final_selected_path
-                            )
+                            found_files[tag_name] = [fp_path, final_selected_path]
                         else:
                             print(f"Cant find selected structure file with tag {tag_name}")
-                            continue
-                else:
-                    print(f"No candidates to calculate in {str(name_path)}")
+                    else:
+                        print(f"Cant find selected structure file with tag {tag_name}")
+                    
+                # - run preparation
+                for tag_name, (fp_path, final_selected_path) in found_files.items():
+                    self._prepare_calc_dir(
+                        calc_machine,
+                        slabel, fp_path, 
+                        final_selected_path
+                    )
 
         return
     
