@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import copy
 import time
 import shutil
 import warnings
 from pathlib import Path
+from typing import List
 
 import numpy as np
 
@@ -107,27 +109,53 @@ class LaspDriver(AbstractDriver):
     saved_cards = ["allstr.arc", "allfor.arc"]
 
     # - defaults
-    default_task = "opt"
-    supported_tasks = ["opt"]
+    default_task = "min"
+    supported_tasks = ["min", "md"]
 
     default_init_params = {
-        "opt": {
+        "min": {
             "explore_type": "ssw",
-            "SSW.SSWsteps": 1
+            #"SSW.SSWsteps": 1 # min_style
+            "min_style": 1, # SSW.SSWsteps
+            "dump_period": 1
+        },
+        "md": {
+            "md_style": "nvt",
+            "velocity_seed": None,
+            "timestep": 1.0, # fs
+            "temp": 300, # K
+            "Tdamp": 100, # fs
+            "pres": 1.0, # atm
+            "Pdamp": 100,
+            "dump_period": 1
         }
-
     }
 
     default_run_params = {
-        "opt": {
+        "min": {
             "SSW.ftol": 0.05,
             "SSW.MaxOptstep": 200
+        },
+        "md": {
+            "SSW.MaxOptstep": 0
         }
     }
 
     param_mapping = {
+        # - min
+        "min_style": "SSW.SSWsteps",
+        # - md
+        "md_style": "explore_type",
+        "timestep" : "MD.dt", # fs
+        "dump_period": "MD.print_freq", # for MD.print_strfreq as well
+        # MD.ttotal uses value equal SSW.MaxOptstep*MD.dt
+        "temp": "MD.target_T", # K
+        "Tdamp": "nhmass",
+        "pres": "MD.target_P",
+        "Pdamp": "MD.prmass",
         "fmax": "SSW.ftol",
-        "steps": "SSW.MaxOptstep"
+        "steps": "SSW.MaxOptstep",
+        "velocity_seed": "Ranseed"
     }
 
     def _parse_params(self, params):
@@ -136,9 +164,27 @@ class LaspDriver(AbstractDriver):
 
         return 
 
-    def run(self, atoms, **kwargs):
+    def __set_special_params(self, params):
+        """"""
+        if self.task == "md":
+            total_time = params.get("MD.ttotal", None)
+            if total_time is None:
+                params["MD.ttotal"] = params["MD.dt"]*params["SSW.MaxOptstep"]
+        
+            init_temp = params.get("MD.initial_T", None)
+            if init_temp is None:
+                params["MD.initial_T"] = params["MD.target_T"]
+
+            params["MD.print_freq"] *= params["MD.dt"] # freq has unit fs
+            params["MD.print_strfreq"] = params["MD.print_freq"]
+
+        return params
+
+    def run(self, atoms_, read_exists=True, *args, **kwargs):
         """
         """
+        atoms = atoms_.copy()
+
         # - backup calc params
         calc_old = atoms.calc
         params_old = copy.deepcopy(self.calc.parameters)
@@ -146,7 +192,7 @@ class LaspDriver(AbstractDriver):
         # set special keywords
         self.delete_keywords(kwargs)
         self.delete_keywords(self.calc.parameters)
-        
+
         # - run params
         kwargs = self._map_params(kwargs)
 
@@ -156,23 +202,35 @@ class LaspDriver(AbstractDriver):
         # - init params
         run_params.update(**self.init_params)
 
+        run_params = self.__set_special_params(run_params)
+
         self.calc.set(**run_params)
         atoms.calc = self.calc
 
         # - run dynamics
         try:
-            _  = atoms.get_forces()
+            if read_exists:
+                converged = atoms.calc._is_converged()
+                if converged:
+                    # atoms.calc.read_results()
+                    pass
+                else:
+                    # NOTE: restart calculation!!!
+                    _  = atoms.get_forces()
+                    converged = atoms.calc._is_converged()
+            else:
+                _  = atoms.get_forces()
+                converged = atoms.calc._is_converged()
         except OSError:
             converged = False
-        else:
-            converged = True
+        #else:
+        #    converged = True
+
+        assert converged, "LaspDriver is not converged..."
         
         # read new atoms positions
-        new_atoms = read(
-            self.directory / "allstr.arc", "-1", format="dmol-arc"
-        )
-        sp_calc = SinglePointCalculator(new_atoms, **copy.deepcopy(self.calc.results))
-        new_atoms.calc = sp_calc
+        traj_frames = self.calc._read_trajectory()
+        new_atoms = traj_frames[-1]
 
         # - restore to old calculator
         self.calc.reset() 
@@ -231,6 +289,9 @@ class LaspDriver(AbstractDriver):
         min_results = "".join(final_step_info)
 
         return min_results
+    
+    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+        return self.calc._read_trajectory()
 
 
 class LaspNN(FileIOCalculator):
@@ -243,13 +304,29 @@ class LaspNN(FileIOCalculator):
     default_parameters = {
         # built-in parameters
         "potential": "NN",
-        "explore_type": "ssw", # nve nvt npt rigidssw train
+        # - general settings
+        "explore_type": "ssw", # ssw, nve nvt npt rigidssw train
+        "Ranseed": None,
+        # - ssw
+        "SSW.internal_LJ": True,
         "SSW.ftol": 0.05, # fmax
         "SSW.SSWsteps": 0, # 0 sp 1 opt >1 ssw search
         "SSW.Bfgs_maxstepsize": 0.2,
         "SSW.MaxOptstep": 0, # lasp default 300
         "SSW.output": "T",
         "SSW.printevery": "T",
+        # md
+        "MD.dt": 1.0, # fs
+        "MD.ttotal": 0, 
+        "MD.initial_T": None,
+        "MD.equit": 0,
+        "MD.target_T": 300, # K
+        "MD.nhmass": 1000, # eV*fs**2
+        "MD.target_P": 300, # 1 bar = 1e-4 GPa
+        "MD.prmass": 1000, # eV*fs**2
+        "MD.realmass": ".true.",
+        "MD.print_freq": 10,
+        "MD.print_strfreq": 10,
         # calculator-related
         "constraint": None, # str, lammps-like notation
     }
@@ -257,12 +334,9 @@ class LaspNN(FileIOCalculator):
     def __init__(self, *args, label="LASP", **kwargs):
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
 
-        self._directory_path = Path(self.directory)
-
         return
     
     def calculate(self, *args, **kwargs):
-        self._directory_path = Path(self.directory) # NOTE: check if directory changed before calc
         FileIOCalculator.calculate(self, *args, **kwargs)
 
         return
@@ -273,7 +347,7 @@ class LaspNN(FileIOCalculator):
 
         # structure
         write(
-            self._directory_path / "lasp.str", atoms, format="dmol-arc",
+            os.path.join(self.directory, "lasp.str"), atoms, format="dmol-arc",
             parallel=False
         )
 
@@ -291,7 +365,7 @@ class LaspNN(FileIOCalculator):
             pot_path = Path(self.parameters["pot"][atype]).resolve()
             content += "  {:<4s} {:s}\n".format(atype, pot_path.name)
             # creat potential link
-            pot_link = self._directory_path / pot_path.name
+            pot_link = Path(os.path.join(self.directory,pot_path.name))
             if not pot_link.is_symlink(): # false if not exists
                 pot_link.symlink_to(pot_path)
         content += "%endblock netinfo\n"
@@ -311,6 +385,12 @@ class LaspNN(FileIOCalculator):
                     s, e = info[0], info[0]
                 content += "  {} {} xyz\n".format(s, e)
             content += "%endblock fixatom\n"
+        
+        # - general settings
+        seed = self.parameters["Ranseed"]
+        if seed is None:
+            seed = np.random.randint(1,10000)
+        content += "{}  {}".format("Ranseed", seed)
 
         # - simulation task
         explore_type = self.parameters["explore_type"]
@@ -320,30 +400,73 @@ class LaspNN(FileIOCalculator):
                 if key.startswith("SSW."):
                     content += "{}  {}\n".format(key, value)
         elif explore_type in ["nve", "nvt", "npt"]:
-            content += "explore_type nve\n"
-            content += "MD.dt           1.0\n"
-            content += "MD.ttotal       0\n"
-            content += "MD.target_T     300\n"
-            content += "MD.realmass     .true.\n"
-            content += "MD.print_freq      10\n"
+            required_keys = [
+                "MD.dt", "MD.ttotal", "MD.realmass", 
+                "MD.print_freq", "MD.print_strfreq"
+            ]
+            if explore_type == "nvt":
+                required_keys.extend(["MD.initial_T", "MD.target_T", "MD.equit"])
+            if explore_type == "npt":
+                required_keys.extend(["MD.target_P"])
+            
+            self.parameters["MD.ttotal"] = (
+                self.parameters["MD.dt"] * self.parameters["SSW.MaxOptstep"]
+            )
+
+            for k, v in self.parameters.items():
+                if k == "MD.target_P":
+                    v *= 1e4 # from bar to GPa
+                if k in required_keys:
+                    content += "{}  {}\n".format(k, v)
         else:
             # TODO: should check explore_type in init
             pass
 
-        with open(self._directory_path / "lasp.in", "w") as fopen:
+        with open(os.path.join(self.directory, "lasp.in"), "w") as fopen:
             fopen.write(content)
 
         return
     
     def read_results(self):
         """read LASP results"""
-        natoms = len(self.atoms)
+        # have to read last structure
+        traj_frames = self._read_trajectory()
+
+        energy = traj_frames[-1].get_potential_energy()
+        forces = traj_frames[-1].get_forces().copy()
+
+        self.results["energy"] = energy
+        self.results["forces"] = forces
+
+        return
+    
+    def _is_converged(self) -> bool:
+        """"""
+        converged = False
+        lasp_out = Path(os.path.join(self.directory, "lasp.out" ))
+        if lasp_out.exists():
+            with open(lasp_out, "r") as fopen:
+                lines = fopen.readlines()
+            if lines[-1].strip().startswith("elapse_time"): # NOTE: its a typo in LASP!!
+                converged = True
+
+        return converged
+    
+    def _read_trajectory(self) -> List[Atoms]:
+        """"""
+        traj_frames = read(os.path.join(self.directory, "allstr.arc"), ":", format="dmol-arc")
+        natoms = len(traj_frames[-1])
+
+        traj_energies = []
+        traj_forces = []
+
+        # NOTE: for lbfgs opt, steps+2 frames would be output?
 
         # have to read last structure
-        with open(self._directory_path / "allfor.arc", "r") as fopen:
+        with open(os.path.join(self.directory, "allfor.arc"), "r") as fopen:
             while True:
                 line = fopen.readline()
-                if line.startswith(" For"):
+                if line.strip().startswith("For"):
                     energy = float(line.split()[3])
                     # stress
                     line = fopen.readline()
@@ -354,16 +477,21 @@ class LaspNN(FileIOCalculator):
                         line = fopen.readline()
                         forces.append(line.split())
                     forces = np.array(forces, dtype=float)
-                    cur_results = {"energy": energy, "forces": forces}
+                    traj_energies.append(energy)
+                    traj_forces.append(forces)
                 if line.strip() == "":
-                    cur_results = []
+                    pass
                 if not line: # if line == "":
                     break
+        
+        # - create traj
+        for i, atoms in enumerate(traj_frames):
+            calc = SinglePointCalculator(
+                atoms, energy=traj_energies[i], forces=traj_forces[i]
+            )
+            atoms.calc = calc
 
-        self.results["energy"] = energy
-        self.results["forces"] = forces
-
-        return
+        return traj_frames
 
 
 if __name__ == "__main__":
