@@ -164,7 +164,8 @@ class MDBasedExpedition(AbstractExplorer):
         # - run over systems
         for i, atoms in enumerate(frames):
             # - set working dir
-            name = atoms.info.get("name", "cand"+str(i))
+            #name = atoms.info.get("name", "cand"+str(i))
+            name = "cand" + str(i)
             cand_path = self.step_dpath / name
 
             # - run simulation
@@ -204,7 +205,8 @@ class MDBasedExpedition(AbstractExplorer):
         traj_dir_groups = {}
         for i, atoms in enumerate(frames):
             # - set working dir
-            name = atoms.info.get("name", "cand"+str(i))
+            #name = atoms.info.get("name", "cand"+str(i))
+            name = "cand" + str(i)
             cand_path = res_dpath / "create" / name
 
             # - run simulation
