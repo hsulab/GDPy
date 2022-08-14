@@ -13,6 +13,8 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy.utils.command import CustomTimer
+
 
 class AbstractDriver(abc.ABC):
 
@@ -190,30 +192,41 @@ def read_trajectories(
     return all_traj_frames
 
 
-def run_driver(potter, params, structure):
+def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
     """
     """
     import shutil
-    # - parse inputs
-    print("potter: ", potter.name)
     from ase.io import read, write
     from GDPy.utils.command import parse_input_file
+    from GDPy.potential.manager import PotManager
+
+    # - parse inputs
     params = parse_input_file(params)
+    if potter is None:
+        pot_dict = params.pop("potential", None)
+        if pot_dict is None:
+            raise RuntimeError("Need potential...")
+        pm = PotManager() # main potential manager
+        potter = pm.create_potential(pot_name = pot_dict["name"])
+        potter.register_calculator(pot_dict["params"])
+        potter.version = pot_dict["version"] # NOTE: important for calculation in exp
+    print("potter: ", potter.name)
     driver = potter.create_driver(params)
 
     frames = read(structure, ":")
     print("nframes: ", len(frames))
 
-    res_dpath = pathlib.Path.cwd() / "results"
-    if res_dpath.exists():
-        shutil.rmtree(res_dpath)
-        print("remove previous results...")
-    res_dpath.mkdir()
+    #res_dpath = pathlib.Path.cwd() / "results"
+    #if res_dpath.exists():
+    #    shutil.rmtree(res_dpath)
+    #    print("remove previous results...")
+    #res_dpath.mkdir()
 
     # - run dynamics
-    for i, atoms in enumerate(frames):
-        driver.directory = res_dpath / ("cand"+str(i))
-        driver.run(atoms)
+    with CustomTimer(name="run-driver"):
+        for i, atoms in enumerate(frames):
+            driver.directory = directory / ("cand"+str(i))
+            driver.run(atoms)
 
     return
 
