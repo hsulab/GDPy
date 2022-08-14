@@ -168,16 +168,32 @@ def main():
         help = "add energy correction for each structure"
     )
 
-
     # --- driver interface
-    parser_ase = subparsers.add_parser(
+    parser_driver = subparsers.add_parser(
         "driver", help="run a driver"
     )
-    parser_ase.add_argument(
+    parser_driver.add_argument(
         "params",
         help="json/yaml file that stores parameters for a driver"
     )
-    parser_ase.add_argument(
+    parser_driver.add_argument(
+        "-s", "--structure",
+        help="a structure file that stores one or more structures"
+    )
+    parser_driver.add_argument(
+        "-d", "--directory", default=Path.cwd(),
+        help="working directory"
+    )
+
+    # --- worker interface
+    parser_worker = subparsers.add_parser(
+        "worker", help="run a worker"
+    )
+    parser_worker.add_argument(
+        "params",
+        help="json/yaml file that stores parameters for a worker"
+    )
+    parser_worker.add_argument(
         "-s", "--structure",
         help="a structure file that stores one or more structures"
     )
@@ -311,10 +327,13 @@ def main():
         manual_train(args.INPUTS, args.iter, args.stage)
     elif args.subcommand == "driver":
         from GDPy.computation.driver import run_driver
-        run_driver(pot_manager, args.params, args.structure)
+        run_driver(args.params, args.structure, args.directory, pot_manager)
+    elif args.subcommand == "worker":
+        from GDPy.computation.worker.worker import run_worker
+        run_worker(args.params, args.structure, pot_manager)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
-        run_validation(args.INPUTS, pot_manager, args.structure)
+        run_validation(args.INPUTS, args.structure, pot_manager)
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
         selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)
