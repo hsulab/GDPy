@@ -9,10 +9,11 @@ from joblib import Parallel, delayed
 
 import ase
 from ase import Atoms
-from ase import build
+from ase.io import read, write
 
 from GDPy import config
 from GDPy.builder.builder import StructureGenerator
+from GDPy.builder.species import build_species
 
 from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
 from GDPy.graph.utils import unique_chem_envs, compare_chem_envs
@@ -30,11 +31,14 @@ class AdsorbateGraphGenerator(StructureGenerator):
     """
 
 
-    def __init__(self, comp_dict: dict, graph_dict: dict, directory=Path.cwd()):
+    def __init__(self, substrate: str, composition: dict, graph: dict, directory=Path.cwd()):
         """"""
+        # - read substrate
+        self.substrate = read(substrate, ":")
+
         # --- unpack some params
         # TODO: only support one species now
-        for data in comp_dict:
+        for data in composition:
             self.species = data["species"] # atom or molecule
             self.action = data["action"]
             self.distance_to_site = data.get("distance_to_site", 1.5)
@@ -42,8 +46,8 @@ class AdsorbateGraphGenerator(StructureGenerator):
         else:
             pass
 
-        self.check_site_unique = graph_dict.pop("check_site_unique", True)
-        self.graph_params = graph_dict
+        self.check_site_unique = graph.pop("check_site_unique", True)
+        self.graph_params = graph
 
         self.directory = Path(directory)
 
@@ -51,8 +55,10 @@ class AdsorbateGraphGenerator(StructureGenerator):
 
         return
     
-    def run(self, frames) -> List[Atoms]:
+    def run(self, *args, **kwargs) -> List[Atoms]:
         """"""
+        frames = self.substrate
+
         if self.action == "add":
             created_frames = self.add_adsorbate(frames, self.species, self.distance_to_site)
         elif self.action == "delete":
@@ -120,13 +126,7 @@ class AdsorbateGraphGenerator(StructureGenerator):
         """"""
         print("start adsorbate addition")
         # - build adsorbate
-        adsorbate = None
-        if species in ase.data.chemical_symbols:
-            adsorbate = Atoms(species, positions=[[0.,0.,0.]])
-        elif species in ase.collections.g2.names:
-            adsorbate = build.molecule(species)
-        else:
-            raise ValueError(f"Cant create species {species}")
+        adsorbate = build_species(species)
 
         # joblib version
         with CustomTimer(name="add-adsorbate"):
@@ -207,3 +207,7 @@ class AdsorbateGraphGenerator(StructureGenerator):
                 print("number of unique groups: ", len(unique_groups))
 
         return unique_groups
+
+
+if __name__ == "__main__":
+    pass

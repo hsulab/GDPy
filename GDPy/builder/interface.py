@@ -12,7 +12,7 @@ def create_generator(params) -> StructureGenerator:
     if method == "random":
         generator = RandomGenerator(params)
     elif method == "adsorbate":
-        generator = AdsorbateGraphGenerator(params)
+        generator = AdsorbateGraphGenerator(**params)
 
     return generator
     
