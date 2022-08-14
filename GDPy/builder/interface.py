@@ -10,9 +10,9 @@ def create_generator(params) -> StructureGenerator:
     """"""
     method = params.pop("method", "random")
     if method == "random":
-        generator = RandomGenerator
+        generator = RandomGenerator(params)
     elif method == "adsorbate":
-        generator = AdsorbateGraphGenerator
+        generator = AdsorbateGraphGenerator(params)
 
     return generator
     
