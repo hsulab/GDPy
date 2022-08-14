@@ -70,14 +70,14 @@ class AbstractDriver(abc.ABC):
         # - init
         init_params_ = self.default_init_params[task_].copy()
         kwargs_ = params.pop("init", {})
-        kwargs_ = self._map_params(kwargs_)
         init_params_.update(**kwargs_)
+        init_params_ = self._map_params(init_params_)
 
         # - run
         run_params_ = self.default_run_params[task_].copy()
         kwargs_ = params.pop("run", {})
-        kwargs_ = self._map_params(kwargs_)
         run_params_.update(**kwargs_)
+        run_params_ = self._map_params(run_params_)
 
         self.task = task_
         self.init_params = init_params_
