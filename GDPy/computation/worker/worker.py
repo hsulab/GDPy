@@ -29,7 +29,6 @@ class SpecificWorker():
             job
     """
 
-    mode = "serial" # serial, queue
     batchsize = 1 # how many structures performed in one job
 
     _directory = pathlib.Path.cwd()
@@ -110,6 +109,7 @@ class SpecificWorker():
         else:
             pass
         
+        frame_groups = []
         finished_wdirs = []
 
         machine = self.machine
@@ -120,40 +120,43 @@ class SpecificWorker():
             # - set specific params
             job_name = self.prefix + f"-g{i}"
             machine.set(**{"job-name": job_name})
-            machine.script = group_directory/"run-driver.slurm" 
+            machine.script = group_directory/"run-driver.script" 
 
             # - create or check the working directory
             if not group_directory.exists():
                 group_directory.mkdir()
 
-                with open(group_directory/"driver.yaml", "w") as fopen:
-                    yaml.dump(self.params, fopen)
-        
-                write(group_directory/"frames.xyz", cur_frames)
+                if machine.name != "local":
+                    with open(group_directory/"driver.yaml", "w") as fopen:
+                        yaml.dump(self.params, fopen)
+                    write(group_directory/"frames.xyz", cur_frames)
 
-                if self.mode == "serial":
                     machine.user_commands = "gdp driver {} -s {}".format(
                         group_directory/"driver.yaml", 
                         group_directory/"frames.xyz"
                     )
                     machine.write()
                     print(f"{group_directory.name}: ", machine.submit())
-                #print(self.machine)
-            else:
-                # - check status and get results
-                if machine.is_finished():
-                    print(f"{job_name} is finished...")
-                    finished_wdirs.append(group_directory)
                 else:
-                    print(f"{job_name} is running...")
+                    for ia, atoms in enumerate(cur_frames):
+                        self.driver.directory = group_directory/("cand"+str(ia))
+                        self.driver.run(atoms)
+
+            # - check status and get results
+            if machine.is_finished():
+                print(f"{job_name} is finished...")
+                frame_groups.append(cur_frames)
+                finished_wdirs.append(group_directory)
+            else:
+                print(f"{job_name} is running...")
         
         # - read results
         if finished_wdirs:
-            self.read_results(finished_wdirs)
+            self.read_results(finished_wdirs, frame_groups)
         
         return
     
-    def read_results(self, wdirs=None):
+    def read_results(self, wdirs, fgroups):
         """"""
         print("ndirs: ", len(wdirs))
 
@@ -161,8 +164,7 @@ class SpecificWorker():
         
         driver = self.driver
         with CustomTimer(name="read-results"):
-            for wd in wdirs:
-                cur_frames = read(wd/"frames.xyz", ":")
+            for wd, cur_frames in zip(wdirs, fgroups):
                 for i, atoms in enumerate(cur_frames):
                     driver.directory = wd / ("cand"+str(i))
                     new_atoms = driver.run(atoms, read_exsits=True)
@@ -172,6 +174,11 @@ class SpecificWorker():
 
         return
 
+def create_worker(params: dict):
+    """"""
+    worker = SpecificWorker(params)
+
+    return worker
 
 def run_worker(params: str, structure: str, potter=None):
     """"""
