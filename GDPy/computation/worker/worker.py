@@ -6,6 +6,7 @@
 
 import pathlib
 import yaml
+import time
 
 import numpy as np
 
@@ -35,6 +36,7 @@ class SpecificWorker():
     _machine = None
 
     prefix = "worker"
+    worker_status = dict(queued=[], finished=[])
 
     def __init__(self, params) -> None:
         """
@@ -45,7 +47,7 @@ class SpecificWorker():
         self.batchsize = params.pop("batchsize", 1)
 
         # - potter and driver
-        pot_dict = params.get("potential", None)
+        pot_dict = params.get("potential", None).copy()
         if pot_dict is None:
             raise RuntimeError("Need potential...")
         pm = PotManager() # main potential manager
@@ -87,10 +89,9 @@ class SpecificWorker():
 
         return
     
-    def run(self, frames=None) -> None:
+    def _split_groups(self, nframes):
         """"""
         # - split frames
-        nframes = len(frames)
         ngroups = int(np.floor(1.*nframes/self.batchsize))
         group_indices = [0]
         for i in range(ngroups):
@@ -103,60 +104,129 @@ class SpecificWorker():
         #group_indices = [f"{s}:{e}" for s, e in zip(starts,ends)]
         #print(group_indices)
 
+        return (starts, ends)
+    
+    def run(self, frames=None):
+        """ split frames into groups
+            return latest results
+        """
+        starts, ends = self._split_groups(len(frames))
+
         # - create main dir
         if not self.directory.exists():
-            self.directory.mkdir()
+            self.directory.mkdir() # NOTE: ./tmp_folder
         else:
             pass
         
-        frame_groups = []
-        finished_wdirs = []
+        job_info = []
 
         machine = self.machine
         for i, (s,e) in enumerate(zip(starts,ends)):
+            # - prepare structures and dirnames
+            global_indices = range(s,e)
             cur_frames = frames[s:e]
+            confids = []
+            for x in cur_frames:
+                confid = x.info.get("confid", None)
+                if confid:
+                    confids.append(confid)
+                else:
+                    confids = []
+                    break
+            if confids:
+                print("Use confids from structures ", confids)
+                wdirs = [f"cand{ia}" for ia in confids]
+            else:
+                print("Use global indices ", confids)
+                wdirs = [f"cand{ia}" for ia in global_indices]
+            #print(list(global_indices))
+
             # - prepare machine
-            group_directory = self.directory / f"g{i}"
+            group_directory = self.directory / f"g{i}" # contain one or more structures
             # - set specific params
             job_name = self.prefix + f"-g{i}"
+            job_info.append([group_directory, job_name, cur_frames, wdirs])
+        
+        # - read metadata from file or database
+        metadata_fpath = self.directory/".metadata.yaml"
+        if (metadata_fpath).exists():
+            self.worker_status = parse_input_file(metadata_fpath)
+
+        # - run or read
+        for group_directory, job_name, cur_frames, wdirs in job_info:
+            if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
+                continue
             machine.set(**{"job-name": job_name})
             machine.script = group_directory/"run-driver.script" 
 
             # - create or check the working directory
-            if not group_directory.exists():
-                group_directory.mkdir()
+            group_directory.mkdir()
 
-                if machine.name != "local":
-                    with open(group_directory/"driver.yaml", "w") as fopen:
-                        yaml.dump(self.params, fopen)
-                    write(group_directory/"frames.xyz", cur_frames)
+            if machine.name != "local":
+                cur_params = self.params.copy()
+                cur_params["wdirs"] = wdirs
+                with open(group_directory/"driver.yaml", "w") as fopen:
+                    yaml.dump(cur_params, fopen)
 
-                    machine.user_commands = "gdp driver {} -s {}".format(
-                        group_directory/"driver.yaml", 
-                        group_directory/"frames.xyz"
-                    )
-                    machine.write()
-                    print(f"{group_directory.name}: ", machine.submit())
-                else:
-                    for ia, atoms in enumerate(cur_frames):
-                        self.driver.directory = group_directory/("cand"+str(ia))
-                        self.driver.run(atoms)
+                write(group_directory/"frames.xyz", cur_frames)
 
-            # - check status and get results
-            if machine.is_finished():
-                print(f"{job_name} is finished...")
-                frame_groups.append(cur_frames)
-                finished_wdirs.append(group_directory)
+                machine.user_commands = "gdp driver {} -s {}".format(
+                    group_directory/"driver.yaml", 
+                    group_directory/"frames.xyz"
+                )
+                machine.write()
+                print(f"{group_directory.name}: ", machine.submit())
+
+                #worker_status["queued"].extend([group_directory/x for x in wdirs])
+                self.worker_status["queued"].append(job_name)
             else:
-                print(f"{job_name} is running...")
+                for wdir, atoms in zip(wdirs,cur_frames):
+                    #worker_status["queued"].extend([group_directory/x for x in wdirs])
+                    self.driver.directory = group_directory/wdir
+                    print(f"{job_name} {self.driver.directory.name} is running...")
+                    self.driver.reset()
+                    self.driver.run(atoms)
+                self.worker_status["queued"].append(job_name)
         
-        # - read results
+        print("numebr of running jobs: ", self.get_number_of_running_jobs())
+
+        #return
+
+    #def retrieve(self):
+        # - read metadata from file or database
+        metadata_fpath = self.directory/".metadata.yaml"
+        if (metadata_fpath).exists():
+            self.worker_status = parse_input_file(metadata_fpath)
+
+        # - check status and get latest results
+        finished_jobnames = []
+        finished_frames = []
+        finished_wdirs = []
+        for group_directory, job_name, cur_frames, wdirs in job_info:
+            if job_name in self.worker_status["queued"] and job_name not in self.worker_status["finished"]:
+                machine.set(**{"job-name": job_name})
+                machine.script = group_directory/"run-driver.script" 
+                if machine.is_finished():
+                    print(f"{job_name} is finished...")
+                    finished_wdirs.extend([group_directory/x for x in wdirs])
+                    finished_frames.extend(cur_frames)
+                    finished_jobnames.append(job_name)
+                else:
+                    print(f"{job_name} is running...")
+        
+        # - try to read results
+        new_frames = None
         if finished_wdirs:
-            self.read_results(finished_wdirs, frame_groups)
+            new_frames = self._read_results(finished_wdirs, finished_frames)
+        #print(new_frames)
         
-        return
+        self.worker_status["finished"].extend(finished_jobnames)
+        with open(metadata_fpath, "w") as fopen:
+            yaml.dump(self.worker_status, fopen)
+        
+        return new_frames
     
-    def read_results(self, wdirs, fgroups):
+    def _read_results(self, wdirs, frames):
         """"""
         print("ndirs: ", len(wdirs))
 
@@ -164,15 +234,23 @@ class SpecificWorker():
         
         driver = self.driver
         with CustomTimer(name="read-results"):
-            for wd, cur_frames in zip(wdirs, fgroups):
-                for i, atoms in enumerate(cur_frames):
-                    driver.directory = wd / ("cand"+str(i))
-                    new_atoms = driver.run(atoms, read_exsits=True)
-                    print(new_atoms.get_potential_energy())
-                    results.append(new_atoms)
-        print(results)
+            for wdir, atoms in zip(wdirs, frames):
+                confid = int(wdir.name.strip("cand"))
+                driver.directory = wdir
+                new_atoms = driver.run(atoms, read_exsits=True)
+                new_atoms.info["confid"] = confid
+                print(new_atoms.info["confid"], new_atoms.get_potential_energy())
+                results.append(new_atoms)
 
-        return
+        return results
+    
+    def get_number_of_running_jobs(self):
+        """"""
+        running_jobs = [
+            x for x in self.worker_status["queued"] if x not in self.worker_status["finished"]
+        ]
+
+        return len(running_jobs)
 
 def create_worker(params: dict):
     """"""
