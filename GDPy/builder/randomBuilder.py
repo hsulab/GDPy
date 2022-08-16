@@ -73,10 +73,9 @@ class RandomGenerator(StructureGenerator):
 
         elif system_type == "surface":
             # read substrate
-            substrate_dict = params["substrate"]
-            substrate_file = substrate_dict["file"]
-            surfdis = substrate_dict.get("surfdis", None)
-            constraint = substrate_dict.get("constraint", None)
+            substrate_file = params["substrate"]
+            surfdis = params.get("surfdis", None)
+            constraint = params.get("constraint", None)
 
             # create the surface
             slab = read(substrate_file) # NOTE: only one structure
@@ -171,6 +170,12 @@ class RandomGenerator(StructureGenerator):
             test_too_far = test_too_far,
             rng = rng
         ) # structure generator
+
+        # --- NOTE: we need some attributes to access
+        self.slab = slab
+        self.atom_numbers_to_optimise = atom_numbers
+
+        self.blmin = blmin
 
         return generator
 
