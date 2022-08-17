@@ -147,6 +147,15 @@ class AbstractDriver(abc.ABC):
         """
 
         return
+    
+    @abc.abstractmethod
+    def read_converged(self, *args, **kwargs) -> Atoms:
+        """ read last frame of the trajectory
+            should better be converged
+        """
+        traj_frames = self.read_trajectory(*args, **kwargs)
+
+        return traj_frames[-1]
 
 
 def read_trajectories(
@@ -200,8 +209,18 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
     from GDPy.utils.command import parse_input_file
     from GDPy.potential.manager import PotManager
 
-    # - parse inputs
     params = parse_input_file(params)
+
+    # - read structures
+    frames = read(structure, ":")
+    nframes = len(frames)
+    print("nframes: ", nframes)
+
+    wdirs = params.pop("wdirs", None)
+    if wdirs is None:
+        wdirs = [f"cand{i}" for i in range(nframes)]
+
+    # - parse inputs
     if potter is None:
         pot_dict = params.pop("potential", None)
         if pot_dict is None:
@@ -213,9 +232,6 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
     print("potter: ", potter.name)
     driver = potter.create_driver(params)
 
-    frames = read(structure, ":")
-    print("nframes: ", len(frames))
-
     #res_dpath = pathlib.Path.cwd() / "results"
     #if res_dpath.exists():
     #    shutil.rmtree(res_dpath)
@@ -224,8 +240,9 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
 
     # - run dynamics
     with CustomTimer(name="run-driver"):
-        for i, atoms in enumerate(frames):
-            driver.directory = directory / ("cand"+str(i))
+        for wdir, atoms in zip(wdirs, frames):
+            driver.reset()
+            driver.directory = directory / wdir
             driver.run(atoms)
 
     return
