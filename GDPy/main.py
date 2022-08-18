@@ -198,6 +198,15 @@ def main():
         help="a structure file that stores one or more structures"
     )
 
+    # --- task interface
+    parser_task = subparsers.add_parser(
+        "task", help="run a task (e.g. GA and MC)"
+    )
+    parser_task.add_argument(
+        "params",
+        help="json/yaml file that stores parameters for a task"
+    )
+
     # selection
     parser_select = subparsers.add_parser(
         "select",
@@ -331,6 +340,9 @@ def main():
     elif args.subcommand == "worker":
         from GDPy.computation.worker.worker import run_worker
         run_worker(args.params, args.structure, pot_manager)
+    elif args.subcommand == "task":
+        from GDPy.task.task import run_task
+        run_task(args.params, pot_manager)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
         run_validation(args.INPUTS, args.structure, pot_manager)
@@ -344,5 +356,5 @@ def main():
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
