@@ -617,30 +617,4 @@ class Lammps(FileIOCalculator):
  
 
 if __name__ == "__main__":
-    # test new lammps
-
-    # test
-    calc = Lammps(
-        command = "lmp_cat -in ./in.lammps 2>&1 > lmp.out",
-        directory =  "./LmpMin-worker",
-        pair_style = "eann /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ensemble/model-2/eann_latest_lmp_DOUBLE.pt"
-    )
-
-    atoms = read("/mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ga/rs/uged-calc_candidates.xyz", "0")
-
-    # test dataclass
-    from GDPy.expedition.sample_main import MDParams
-    dynrun_params = dataclasses.asdict(MDParams())
-    worker = LmpDynamics(calc, dynrun_params=dynrun_params, directory="./LmpWorker")
-    worker.run(atoms, steps=1, constraint="1:16")
-
-    exit()
-
-    atoms = read("/mnt/scratch2/users/40247882/catsign/eann-main/m01r/ga-surface/cand2.xyz")
-    atoms.calc = calc
-    print(atoms.get_potential_energy())
-
-    worker = LmpDynamics(calc, directory=calc.directory)
-    min_atoms, min_results = worker.minimise(atoms, fmax=0.2, steps=100, constraint="0:12 24:36")
-    print(min_atoms)
-    print(min_results)
+    pass
