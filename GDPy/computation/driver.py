@@ -61,22 +61,24 @@ class AbstractDriver(abc.ABC):
         return
     
     @abc.abstractmethod
-    def _parse_params(self, params: dict) -> NoReturn:
+    def _parse_params(self, params_: dict) -> NoReturn:
         """ parse different tasks, and prepare init and run params
             for each task, different behaviours should be realised in specific object
         """
+        params = copy.deepcopy(params_)
+
         task_ = params.pop("task", self.default_task)
         if task_ not in self.supported_tasks:
             raise NotImplementedError(f"{task_} is invalid for {self.__class__.__name__}...")
 
         # - init
-        init_params_ = self.default_init_params[task_].copy()
+        init_params_ = copy.deepcopy(self.default_init_params[task_])
         kwargs_ = params.pop("init", {})
         init_params_.update(**kwargs_)
         init_params_ = self._map_params(init_params_)
 
         # - run
-        run_params_ = self.default_run_params[task_].copy()
+        run_params_ = copy.deepcopy(self.default_run_params[task_])
         kwargs_ = params.pop("run", {})
         run_params_.update(**kwargs_)
         run_params_ = self._map_params(run_params_)
@@ -148,7 +150,6 @@ class AbstractDriver(abc.ABC):
 
         return
     
-    @abc.abstractmethod
     def read_converged(self, *args, **kwargs) -> Atoms:
         """ read last frame of the trajectory
             should better be converged
@@ -230,7 +231,7 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
         potter.register_calculator(pot_dict["params"])
         potter.version = pot_dict["version"] # NOTE: important for calculation in exp
     print("potter: ", potter.name)
-    driver = potter.create_driver(params)
+    driver = potter.create_driver(params["driver"])
 
     #res_dpath = pathlib.Path.cwd() / "results"
     #if res_dpath.exists():
