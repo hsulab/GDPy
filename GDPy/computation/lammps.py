@@ -38,7 +38,7 @@ dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
 
     inputstructure_filename = "stru.data"
-    trajectory_filename = "surface.dump"
+    trajectory_filename = "traj.dump"
     input_fname = "in.lammps"
     log_filename = "log.lammps"
     deviation_filename = "model_devi.out"
@@ -97,7 +97,7 @@ class LmpDriver(AbstractDriver):
     keyword: Optional[str] = None
     special_keywords = {}
 
-    saved_cards = ["surface.dump"]
+    saved_cards = [ASELMPCONFIG.trajectory_filename]
 
     # - defaults
     default_task = "min"
@@ -290,10 +290,11 @@ class LmpDriver(AbstractDriver):
 
         return stat_content
     
-    def read_trajectory(self, type_list, label_steps=True, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, type_list=None, label_steps=True, *args, **kwargs) -> List[Atoms]:
         """ lammps dump file has no element info
         """
-        self.calc.type_list = type_list
+        if type_list is not None:
+            self.calc.type_list = type_list
 
         return self.calc._read_trajectory(label_steps)
 
@@ -443,7 +444,8 @@ class Lammps(FileIOCalculator):
         # NOTE: forces would be zero if setforce 0 is set
         traj_frames = read(
             _directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
-            specorder=self.type_list, units=self.units
+            #specorder=self.type_list, # NOTE: elements are written to dump file
+            units=self.units
         )
         # - read thermo data
         thermo_dict, loop_time = parse_thermo_data(_directory_path / ASELMPCONFIG.log_filename)
@@ -561,8 +563,10 @@ class Lammps(FileIOCalculator):
         content += "thermo          {}\n".format(self.dump_period) 
 
         # TODO: How to dump total energy?
-        content += "dump		1 all custom {} surface.dump id type x y z fx fy fz\n".format(self.dump_period)
-        #content += "dump_modify 1 first yes\n"
+        content += "dump		1 all custom {} {} id type element x y z fx fy fz\n".format(
+            self.dump_period, ASELMPCONFIG.trajectory_filename
+        )
+        content += "dump_modify 1 element {}\n".format(" ".join(self.type_list))
         content += "\n"
         
         # --- run type
