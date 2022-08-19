@@ -22,6 +22,7 @@ from GDPy.machine.factory import create_machine
 
 from GDPy.potential.manager import PotManager
 
+
 class SpecificWorker():
 
     """ - components
@@ -90,7 +91,7 @@ class SpecificWorker():
         self._directory = directory_
 
         # NOTE: create a database
-        self._database = TinyDB(self.directory/".metadata.json")
+        self._database = TinyDB(self.directory/".metadata.json", indent=2)
 
         return
     
@@ -118,7 +119,7 @@ class SpecificWorker():
     
     def _init_database(self):
         """"""
-        self.database = TinyDB(self.directory/".metadata.json")
+        self.database = TinyDB(self.directory/".metadata.json", indent=2)
 
         return
     
@@ -171,6 +172,7 @@ class SpecificWorker():
             #print(list(global_indices))
 
             # - prepare machine
+            # TODO: set group name randomly?
             if self.batchsize > 1:
                 group_directory = self.directory / f"g{i}" # contain one or more structures
             else:
@@ -180,15 +182,19 @@ class SpecificWorker():
             job_info.append([group_directory, cur_frames, wdirs])
         
         # - read metadata from file or database
-        metadata_fpath = self.directory/".metadata.yaml"
-        if (metadata_fpath).exists():
-            self.worker_status = parse_input_file(metadata_fpath)
+        queued_jobs = self.database.search(Query().queued.exists())
+        queued_jobs = [q["gdir"] for q in queued_jobs]
+        print("queued jobs: ", queued_jobs)
 
         # - run
         for group_directory, cur_frames, wdirs in job_info:
+            #if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
+            #    continue
             job_name = self.prefix + "-" + group_directory.name
-            if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
+            if job_name in queued_jobs:
                 continue
+
+            # - update machine
             machine.set(**{"job-name": job_name})
             machine.script = group_directory/"run-driver.script" 
 
@@ -196,7 +202,7 @@ class SpecificWorker():
             group_directory.mkdir()
 
             if machine.name != "local":
-                cur_params = self.params.copy()
+                cur_params = copy.deepcopy(self.params)
                 cur_params["wdirs"] = wdirs
                 with open(group_directory/"driver.yaml", "w") as fopen:
                     yaml.dump(cur_params, fopen)
@@ -209,22 +215,13 @@ class SpecificWorker():
                 )
                 machine.write()
                 print(f"{group_directory.name}: ", machine.submit())
-
-                #worker_status["queued"].extend([group_directory/x for x in wdirs])
-                self.worker_status["queued"].append(job_name)
             else:
                 for wdir, atoms in zip(wdirs,cur_frames):
-                    #worker_status["queued"].extend([group_directory/x for x in wdirs])
                     self.driver.directory = group_directory/wdir
                     print(f"{job_name} {self.driver.directory.name} is running...")
                     self.driver.reset()
                     self.driver.run(atoms)
-                self.worker_status["queued"].append(job_name)
-        
-        print("numebr of running jobs: ", self.get_number_of_running_jobs())
-
-        with open(metadata_fpath, "w") as fopen:
-            yaml.dump(self.worker_status, fopen)
+            self.database.insert(dict(gdir=job_name, queued=True))
         
         # - read
         new_frames = []
@@ -234,15 +231,11 @@ class SpecificWorker():
         return new_frames
 
     def retrieve(self):
-        # - read metadata from file or database
-        metadata_fpath = self.directory/".metadata.yaml"
-        if (metadata_fpath).exists():
-            self.worker_status = parse_input_file(metadata_fpath)
-        
+        """"""
         machine = self.machine
 
         # - check status and get latest results
-        finished_jobnames = []
+        #finished_jobnames = []
         finished_wdirs = []
 
         running_jobs = self._get_running_jobs()
@@ -257,7 +250,9 @@ class SpecificWorker():
             if machine.is_finished():
                 print(f"{job_name} is finished...")
                 finished_wdirs.extend([group_directory/x for x in wdirs])
-                finished_jobnames.append(job_name)
+                #finished_jobnames.append(job_name)
+                doc_data = self.database.get(Query().gdir == job_name)
+                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
             else:
                 print(f"{job_name} is running...")
         
@@ -265,13 +260,7 @@ class SpecificWorker():
         new_frames = []
         if finished_wdirs:
             new_frames = self._read_results(finished_wdirs)
-        #print(new_frames)
-        
-        self.worker_status["finished"].extend(finished_jobnames)
-        with open(metadata_fpath, "w") as fopen:
-            yaml.dump(self.worker_status, fopen)
-        
-        # print("new_frames: ", new_frames)
+        #print("new_frames: ", new_frames)
         
         return new_frames
     
@@ -297,9 +286,10 @@ class SpecificWorker():
 
     def _get_running_jobs(self):
         """"""
-        running_jobs = [
-            x for x in self.worker_status["queued"] if x not in self.worker_status["finished"]
-        ]
+        running_jobs = self.database.search(
+            Query().queued.exists() and (~Query().finished.exists())
+        )
+        running_jobs = [r["gdir"] for r in running_jobs]
 
         return running_jobs
     
