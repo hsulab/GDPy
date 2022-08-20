@@ -16,15 +16,11 @@ import ase.formula
 from ase import Atoms
 from ase.io import read, write
 from ase.ga.data import PrepareDB, DataConnection
-from ase.ga.startgenerator import StartGenerator
 from ase.ga.utilities import closest_distances_generator # generate bond distance list
 from ase.ga.utilities import get_all_atom_types # get system composition (both substrate and top)
-from ase.constraints import FixAtoms
 
 from ase.ga.population import Population
 
-from ase.ga.cutandsplicepairing import CutAndSplicePairing
-from ase.ga.standardmutations import MirrorMutation, RattleMutation, PermutationMutation
 from ase.ga.offspring_creator import OperationSelector
 
 """
@@ -75,7 +71,6 @@ class GeneticAlgorithemEngine():
     find_neighbors = None
     perform_parametrization = None
 
-    use_tags = True # perform atomic or molecular based search
     test_dist_to_slab = True
     test_too_far = True
 
@@ -236,10 +231,20 @@ class GeneticAlgorithemEngine():
             # TODO: can be aggressive, reproduce when relaxed structures are available
             print("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
             print("number before reproduction: ", self.worker.get_number_of_running_jobs() + num_relaxed_gen)
-            count = 0
+            count, failed = 0, 0
+            #if hasattr(self.pairing, "minfrac"):
+            #    previous_minfrac = self.pairing.minfrac
             while (
                 self.worker.get_number_of_running_jobs() + num_relaxed_gen < self.population_size
             ):
+                #if failed >= 10:
+                #    if hasattr(self.pairing, "minfrac"):
+                #        self.pairing.minfrac = 0
+                #        print("switch minfrac to zero...")
+                #    else:
+                #        print("too many failures...")
+                #        break
+                print(f"\n\n ----- try to reproduce, count {count}, failed {failed} -----")
                 atoms = self._reproduce()
                 if atoms:
                     # run opt
@@ -247,9 +252,14 @@ class GeneticAlgorithemEngine():
                     _ = self.worker.run([atoms]) # retrieve later
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
                     count += 1
+                else:
+                    failed += 1
             else:
                 print(f"{count} candidates were reproduced in this run...")
                 print("enough jobs are running for the current generation...")
+            #if hasattr(self.pairing, "minfrac"):
+            #    self.pairing.minfrac = previous_minfrac 
+            #    print(f"switch minfrac to {self.pairing.minfrac}...")
         else:
             print("Enough candidates or not finished relaxing current generation...")
 
@@ -287,7 +297,10 @@ class GeneticAlgorithemEngine():
         # get basic system information
         self.atom_numbers_to_optimize = self.da.get_atom_numbers_to_optimize()
         self.n_to_optimize = len(self.atom_numbers_to_optimize)
-        self.slab = self.generator.slab
+        self.slab = self.da.get_slab()
+
+        self.use_tags = self.generator.use_tags
+        self.blmin = self.generator.blmin
 
         return
 
@@ -297,20 +310,9 @@ class GeneticAlgorithemEngine():
         self.da = DataConnection(self.db_name)
 
         # get basic system information
-        self.atom_numbers_to_optimize = self.da.get_atom_numbers_to_optimize()
-        self.n_to_optimize = len(self.atom_numbers_to_optimize)
-        print("fxxk: ", self.n_to_optimize)
-        self.slab = self.da.get_slab()
+        self.__initialise()
 
         # set bond list minimum
-        init_dict = self.ga_dict["system"]
-        covalent_ratio = init_dict.get("covalent_ratio", 0.8)
-
-        all_atom_types = get_all_atom_types(self.slab, self.atom_numbers_to_optimize)
-        self.blmin = closest_distances_generator(
-            all_atom_types,
-            ratio_of_covalent_radii=covalent_ratio
-        )
         self.generator._print_blmin(self.blmin)
 
         return
@@ -450,7 +452,7 @@ class GeneticAlgorithemEngine():
     
     def _register_operators(self):
         """ register various operators
-            comparator, pairing, mutation
+            comparator, pairing, mutations
         """
         op_dict = self.ga_dict.get("operators", None)
         if op_dict is None:
@@ -486,15 +488,20 @@ class GeneticAlgorithemEngine():
         if "n_top" in params.keys():
             params["n_top"] = self.n_to_optimize
         if "blmin" in params.keys():
-            params["blmin"] = self.generator.blmin
+            params["blmin"] = self.blmin
         if "use_tags" in params.keys():
             params["use_tags"] = self.use_tags
         if isinstance(kwargs, dict):
             params.update(**kwargs)
+        #print("pairing params: ")
+        #for k, v in params.items():
+        #    print(k, "->", v)
         self.pairing = crossover(**params)
+        #self.pairing = CutAndSplicePairing(self.slab, self.n_to_optimize, self.blmin)
 
         print("--- crossover ---")
         print(f"Use crossover {crossover.__name__}.")
+        #print("pairing: ", self.pairing)
 
         # --- mutations
         mutations, probs = [], []
@@ -508,7 +515,7 @@ class GeneticAlgorithemEngine():
                 if "n_top" in params.keys():
                     params["n_top"] = self.n_to_optimize
                 if "blmin" in params.keys():
-                    params["blmin"] = self.generator.blmin
+                    params["blmin"] = self.blmin
                 if "use_tags" in params.keys():
                     params["use_tags"] = self.use_tags
                 # NOTE: check this mutation whether valid for this system
@@ -528,7 +535,7 @@ class GeneticAlgorithemEngine():
             if "n_top" in params.keys():
                 params["n_top"] = self.n_to_optimize
             if "blmin" in params.keys():
-                params["blmin"] = self.generator.blmin
+                params["blmin"] = self.blmin
             if "use_tags" in params.keys():
                 params["use_tags"] = self.use_tags
             if kwargs is None:
@@ -639,15 +646,14 @@ class GeneticAlgorithemEngine():
         """generate an offspring"""
         # Submit new candidates until enough are running
         a3 = None
-        a1, a2 = self.population.get_two_candidates()
         for i in range(self.MAX_REPROC_TRY):
             # try 10 times
-            a3, desc = self.pairing.get_new_individual([a1, a2]) # NOTE: this also adds key_value_pairs to a.info
+            parents = self.population.get_two_candidates()
+            a3, desc = self.pairing.get_new_individual(parents) # NOTE: this also adds key_value_pairs to a.info
             if a3 is not None:
                 self.da.add_unrelaxed_candidate(
                     a3, description=desc # here, desc is used to add "pairing": 1 to database
                 ) # if mutation happens, it will not be relaxed
-                #print("a3: ", a3.info)
 
                 mut_desc = ""
                 if random() < self.pmut:
@@ -657,11 +663,11 @@ class GeneticAlgorithemEngine():
                     if a3_mut is not None:
                         self.da.add_unrelaxed_step(a3_mut, mut_desc)
                         a3 = a3_mut
-                print("generate offspring a3 ", desc + " " + mut_desc + " after ", i+1, " attempts..." )
+                print(f"  generate offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
                 break
             else:
                 mut_desc = ""
-                print("failed generating offspring a3 ", desc + " " + mut_desc + " after ", i+1, " attempts..." )
+                print(f"  failed generating offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
         else:
             print("cannot generate offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
 
