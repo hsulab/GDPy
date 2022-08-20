@@ -88,7 +88,7 @@ def parse_constraint_info(atoms, cons_text, ignore_ase_constraints=True, ret_tex
             # - parse constraint text type
             cons_data = cons_text.split()
             if cons_data[0] not in ["py", "lmp", "lowest", "zpos"]:
-                cons_type, cons_info = "lmp", cons_data
+                cons_type, cons_info = "lmp", " ".join(cons_data)
             else:
                 cons_type, cons_info = cons_data[0], " ".join(cons_data[1:])
             #print("cons_info: ", cons_type, cons_info)
