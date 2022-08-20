@@ -22,6 +22,7 @@ from GDPy.machine.factory import create_machine
 
 from GDPy.potential.manager import PotManager
 
+DEFAULT_MAIN_DIRNAME = "MyWorker"
 
 class SpecificWorker():
 
@@ -37,14 +38,14 @@ class SpecificWorker():
 
     batchsize = 1 # how many structures performed in one job
 
-    _directory = pathlib.Path.cwd()
+    _directory = None
     _machine = None
     _database = None
 
     prefix = "worker"
     worker_status = dict(queued=[], finished=[])
 
-    def __init__(self, params) -> None:
+    def __init__(self, params, directory_=None) -> None:
         """
         """
         # - pop some
@@ -70,7 +71,9 @@ class SpecificWorker():
         self.driver = potter.create_driver(params_["driver"])
 
         # - set default directory
-        self.directory = self.directory / "MyWorker" # TODO: set dir
+        #self.directory = self.directory / "MyWorker" # TODO: set dir
+        if directory_:
+            self.directory = directory_
 
         return
 
@@ -144,6 +147,8 @@ class SpecificWorker():
         """ split frames into groups
             return latest results
         """
+        assert self.directory, "Working directory is not set properly..."
+
         machine = self.machine
         self._init_database()
         
@@ -223,10 +228,10 @@ class SpecificWorker():
                     self.driver.run(atoms)
             self.database.insert(dict(gdir=job_name, queued=True))
         
-        # - read
+        # - read NOTE: cant retrieve immediately
         new_frames = []
-        if self.get_number_of_running_jobs() > 0:
-            new_frames = self.retrieve()
+        #if self.get_number_of_running_jobs() > 0:
+        #    new_frames = self.retrieve()
 
         return new_frames
 
@@ -260,6 +265,7 @@ class SpecificWorker():
         new_frames = []
         if finished_wdirs:
             new_frames = self._read_results(finished_wdirs)
+            print("new_frames: ", len(new_frames), new_frames[0].get_potential_energy())
         #print("new_frames: ", new_frames)
         
         return new_frames
@@ -327,8 +333,11 @@ def run_worker(params: str, structure: str, potter=None):
     frames = read(structure, ":")
 
     # - find input frames
+    worker.directory = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME
+
     worker.run(frames)
-    #worker.retrieve()
+    if worker.get_number_of_running_jobs() > 0:
+        worker.retrieve()
 
     return
 
