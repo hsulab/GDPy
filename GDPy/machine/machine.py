@@ -70,7 +70,7 @@ class AbstractMachine(ABC):
 
         return
 
-    def submit(self):
+    def submit(self) -> str:
         """submit job using specific machine command"""
         # submit job
         command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
@@ -84,16 +84,26 @@ class AbstractMachine(ABC):
             raise RuntimeError(f"Error in submitting job script {str(self.script)}")
 
         output = "".join(proc.stdout.readlines())
+        job_id = output.strip().split()[-1]
 
-        return output
+        return job_id
 
 class LocalMachine(AbstractMachine):
 
-    def __init__(self):
-        pass
+    name = "local"
 
-    def parse_params(self):
-        pass
+    def __init__(self):
+
+        return
+
+    def submit(self):
+
+        return
+    
+    def is_finished(self) -> bool:
+
+        return True
+
 
 class SlurmMachine(AbstractMachine):
 
@@ -102,6 +112,8 @@ class SlurmMachine(AbstractMachine):
     module and environment
     executables
     """
+
+    name = "slurm"
 
     PREFIX = "#SBATCH"
     SUFFIX = ".slurm"
@@ -264,6 +276,8 @@ class SlurmMachine(AbstractMachine):
 
 
 class PbsMachine(AbstractMachine):
+
+    name = "pbs"
 
     PREFIX = "#$"
     SUFFIX = ".slurm"
