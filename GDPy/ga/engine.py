@@ -273,9 +273,22 @@ class GeneticAlgorithemEngine():
                 key_value_pairs = {"extinct": 0}
             )
             cand.info.update(extra_info)
+            # get tags
+            confid = cand.info["confid"]
+            if self.use_tags:
+                rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
+                for row in rows:
+                    if row.formula:
+                        previous_atoms = row.toatoms(add_additional_information=True)
+                        previous_tags = previous_atoms.get_tags()
+                        print("tags: ", previous_tags)
+                        break
+                else:
+                    raise RuntimeError(f"Cant find tags for cand {confid}")
+                cand.set_tags(previous_tags)
             # evaluate raw score
             self.evaluate_candidate(cand)
-            print("  add relaxed cand ", cand.info["confid"])
+            print("  add relaxed cand ", confid)
             print("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
             self.da.add_relaxed_step(
                 cand,
