@@ -189,7 +189,7 @@ class SpecificWorker():
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
         queued_jobs = [q["gdir"] for q in queued_jobs]
-        print("queued jobs: ", queued_jobs)
+        #print("queued jobs: ", queued_jobs)
 
         # - run
         for group_directory, cur_frames, wdirs in job_info:
@@ -245,7 +245,9 @@ class SpecificWorker():
 
         running_jobs = self._get_running_jobs()
         for job_name in running_jobs:
-            group_directory = self.directory / job_name.strip(self.prefix+"-")
+            # NOTE: sometimes prefix has number so confid may be striped
+            group_directory = self.directory / job_name[len(self.prefix)+1:]
+            #print(group_directory)
             machine.set(**{"job-name": job_name})
             machine.script = group_directory/"run-driver.script" 
             if self.batchsize > 1:
@@ -279,7 +281,9 @@ class SpecificWorker():
         
         driver = self.driver
         with CustomTimer(name="read-results"):
+            #print("wdirs: ", wdirs)
             for wdir in wdirs:
+                #print("wdir: ", wdir)
                 confid = int(wdir.name.strip("cand"))
                 driver.directory = wdir
                 #new_atoms = driver.run(atoms, read_exsits=True)
