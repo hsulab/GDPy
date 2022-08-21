@@ -25,10 +25,29 @@ class AbstractSelector(abc.ABC):
 
     default_parameters = dict(
         selection_ratio = 0.2,
-        selection_number = 320
+        selection_number = 16
     )
 
     prefix = "structure"
+    _directory = None
+
+    def __init__(self, directory=Path.cwd(), *args, **kwargs) -> None:
+        """"""
+        self.directory = directory
+
+        self.selection_ratio = self.default_parameters.get("selection_ratio", 0.2)
+        self.selection_number = self.default_parameters.get("selection_number", 16)
+
+        return
+
+    @property
+    def directory(self):
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory_):
+        self._directory = Path(directory_)
+        return 
 
     @abc.abstractmethod
     def select(self, *args, **kargs):
@@ -36,9 +55,11 @@ class AbstractSelector(abc.ABC):
         return
 
     def _parse_selection_number(self, nframes):
-        """"""
-        ratio = self.default_parameters["selection_ratio"]
-        number = self.default_parameters["selection_number"]
+        """ nframes - number of frames
+            sometimes maybe zero
+        """
+        ratio = self.selection_ratio
+        number = self.selection_number
 
         number_info = self.selec_dict.get("number", [None,ratio])
         if isinstance(number_info, int):
@@ -417,6 +438,11 @@ class DescriptorBasedSelector(AbstractSelector):
     }
     """
 
+    default_parameters = dict(
+        selection_ratio = 0.2,
+        selection_number = 16
+    )
+
     njobs = 1
 
     verbose = False
@@ -425,12 +451,14 @@ class DescriptorBasedSelector(AbstractSelector):
         self, 
         descriptor,
         criteria,
-        directory = Path.cwd()
+        directory = Path.cwd(),
+        *args, **kwargs
     ):
+        """"""
+        super().__init__(directory=directory, *args, **kwargs)
+
         self.desc_dict = descriptor
         self.selec_dict = criteria
-
-        self.directory = Path(directory)
 
         self.njobs = config.NJOBS
 
