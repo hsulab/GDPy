@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import copy
+
 
 """ create machine
 """
 
-def create_machine(params):
+def create_machine(params_):
     """
     """
+    params = copy.deepcopy(params_) # NOTE: params_ may be used many times
     if params is None:
         from GDPy.machine.machine import LocalMachine
         machine = LocalMachine()
