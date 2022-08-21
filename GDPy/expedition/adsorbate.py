@@ -100,7 +100,7 @@ class AdsorbateEvolution(AbstractExplorer):
         merged_traj_frames = []
 
         traj_fpath = self.step_dpath / f"traj_frames.xyz"
-        traj_ind_fpath = self.step_dpath / f"traj_indices.xyz"
+        traj_ind_fpath = self.step_dpath / f"traj_indices.npy"
         with CustomTimer(name=f"collect-trajectories"):
             cur_traj_frames = read_trajectories(
                 driver, traj_dirs, type_list, 
