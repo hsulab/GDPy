@@ -26,6 +26,7 @@ class RandomGenerator(StructureGenerator):
 
     supported_systems = ["bulk", "cluster", "surface"]
 
+    MAX_FAILED = 10
     MAX_RANDOM_TRY = 100
 
     def __init__(self, params, directory=Path.cwd()):
@@ -131,6 +132,7 @@ class RandomGenerator(StructureGenerator):
                 use_tags = True
                 break
         else:
+            use_tags = False
             print("Perform atomic search...")
 
         atom_numbers = [] # atomic number of inserted atoms
@@ -174,6 +176,8 @@ class RandomGenerator(StructureGenerator):
         # --- NOTE: we need some attributes to access
         self.slab = slab
         self.atom_numbers_to_optimise = atom_numbers
+
+        self.use_tags = use_tags
 
         self.blmin = blmin
 
@@ -223,7 +227,7 @@ class RandomGenerator(StructureGenerator):
                     candidate.positions += region_centre - cop
                 starting_population.append(candidate)
             #print("now we have ", len(starting_population))
-            if nfailed > int(np.ceil(ran_size*0.2)):
+            if nfailed > int(np.ceil(ran_size*100)):
                 warnings.warn(
                     f"Too many failed generations, {nfailed} nfailed, {len(starting_population)} ngenerated...", 
                     RuntimeWarning
