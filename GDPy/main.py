@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-from select import select
 import sys
 
 import argparse
@@ -23,13 +22,18 @@ def main():
     
     # the workflow tracker
     parser.add_argument(
-        "-pot", "--potential", nargs=2, default = [None, "calc1"],
-        help = "potential related configuration"
+        "-p", "--potential", default=None,
+        help = "target potential related configuration (json/yaml)"
     )
 
     parser.add_argument(
-        '-s', '--status', 
-        help='pickle file with info on the current workflow'
+        "-r", "--reference", default=None,
+        help = "reference potential related configuration (json/yaml)"
+    )
+
+    parser.add_argument(
+        "-s", "--scheduler", default=None,
+        help = "scheduler related configuration (json/yaml)"
     )
 
     parser.add_argument(
@@ -298,14 +302,22 @@ def main():
     # also, the global logger will be initialised 
     # TODO: track the workflow 
     # tracker = track_workflow(args.status)
-    from GDPy.potential.manager import create_pot_manager
-    pot_manager = None
-    if args.potential:
-        pot_config = args.potential[0] # configuration file of potential
-        pot_version = args.potential[1]
-        pot_manager = create_pot_manager(pot_config, pot_version)
 
-    # use subcommands
+    # - potential
+    from GDPy.potential.manager import create_potter
+    potter = None
+    if args.potential:
+        pot_config = args.potential # configuration file of potential
+        potter = create_potter(pot_config) # register calculator, and scheduler if exists
+    
+    referee = None
+    if args.reference:
+        ref_config = args.potential # configuration file of potential
+        referee = create_potter(ref_config) # register calculator, and scheduler if exists
+    
+    # - scheduler
+
+    # - use subcommands
     if args.subcommand == "vasp":
         from GDPy.utils.vasp.main import vasp_main
         vasp_main(args.STRUCTURE, args.CHOICE, args.indices, args.input, args.aindices, args.nosort, args.sub)
@@ -320,13 +332,13 @@ def main():
         elif args.mode == "create":
             pm.create_ensemble()
     elif args.subcommand == "explore":
-        from GDPy.expedition import run_exploration
-        run_exploration(pot_manager, args.EXPEDITION, args.step, args.opt_params)
+        from GDPy.expedition import run_expedition
+        run_expedition(potter, referee, args.EXPEDITION, args.step, args.opt_params)
     elif args.subcommand == "data":
         from GDPy.data.main import data_main
         data_main(
             args.DATA,
-            pot_manager, args.choice, args.mode,
+            potter, args.choice, args.mode,
             args.system,
             args.name, args.pattern,
             args.number, args.energy_tolerance, args.energy_shift
@@ -336,16 +348,16 @@ def main():
         manual_train(args.INPUTS, args.iter, args.stage)
     elif args.subcommand == "driver":
         from GDPy.computation.driver import run_driver
-        run_driver(args.params, args.structure, args.directory, pot_manager)
+        run_driver(args.params, args.structure, args.directory, potter)
     elif args.subcommand == "worker":
         from GDPy.computation.worker.worker import run_worker
-        run_worker(args.params, args.structure, pot_manager)
+        run_worker(args.params, args.structure, potter)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
-        run_task(args.params, pot_manager)
+        run_task(args.params, potter)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
-        run_validation(args.INPUTS, args.structure, pot_manager)
+        run_validation(args.INPUTS, args.structure, potter)
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
         selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)
