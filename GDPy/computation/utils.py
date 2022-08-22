@@ -32,25 +32,36 @@ def parse_type_list(atoms):
 
 
 def read_trajectories(
-    driver, traj_dirs, type_list, 
-    traj_period, traj_fpath, traj_ind_fpath
+    driver, traj_dirs,
+    traj_period, traj_fpath, traj_ind_fpath,
+    include_first=False, include_last=True
 ):
     """ read trajectories from several directories
     """
     # - act, retrieve trajectory frames
     # TODO: more general interface not limited to dynamics
     # TODO: change this to joblib?
+    # TODO: check whether the existed files are empty
     if not traj_fpath.exists():
         traj_indices = [] # use traj indices to mark selected traj frames
         all_traj_frames = []
         for t_dir in traj_dirs:
             # --- read confid and parse corresponding trajectory
             driver.directory = t_dir
-            traj_frames = driver.read_trajectory(type_list=type_list)
+            traj_frames = driver.read_trajectory()
+            #print("n_trajframes: ", len(traj_frames))
+            n_trajframes = len(traj_frames)
             # --- generate indices
+            first, last = 0, n_trajframes-1
             # NOTE: last one should be always included since it may be converged structure
+            cur_indices = list(range(0,len(traj_frames),traj_period))
+            if include_last:
+                if last not in cur_indices:
+                    cur_indices.append(last)
+            if not include_first:
+                cur_indices = cur_indices[1:]
+            # ----- map indices to global ones
             cur_nframes = len(all_traj_frames)
-            cur_indices = list(range(0,len(traj_frames)-1,traj_period)) + [len(traj_frames)-1]
             cur_indices = [c+cur_nframes for c in cur_indices]
             # --- add frames
             traj_indices.extend(cur_indices)
@@ -60,10 +71,12 @@ def read_trajectories(
     else:
         all_traj_frames = read(traj_fpath, ":")
     print("ntrajframes: ", len(all_traj_frames))
+    #print(len(traj_indices))
             
+    #print(traj_ind_fpath)
     if traj_ind_fpath.exists():
         traj_indices = np.load(traj_ind_fpath)
-        all_traj_frames = [all_traj_frames[i] for i in traj_indices]
+    all_traj_frames = [all_traj_frames[i] for i in traj_indices]
         #print(traj_indices)
     print("ntrajframes: ", len(all_traj_frames), f" by {traj_period} traj_period")
 
