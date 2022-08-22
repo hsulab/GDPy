@@ -1,34 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import re
-import time
-import shutil
-import json
-import sys
-import itertools
 from typing import Counter, Union, List
-import warnings
-import pathlib
-from joblib import Parallel, delayed
 import numpy as np
-import numpy.ma as ma
 
 import dataclasses
 from dataclasses import dataclass, field
 
 from ase import Atoms
 from ase.io import read, write
-from ase.constraints import constrained_indices, FixAtoms
 
-from GDPy.machine.machine import SlurmMachine
-
-from GDPy.utils.data import vasp_creator, vasp_collector
 from GDPy.utils.command import parse_input_file, convert_indices, CustomTimer
 
 from GDPy.expedition.abstract import AbstractExplorer
-from GDPy.computation.utils import parse_type_list
-from GDPy.selector.abstract import create_selector
 
 
 @dataclasses.dataclass
@@ -90,19 +74,14 @@ class MDBasedExpedition(AbstractExplorer):
 
     """
     Exploration Strategies
-        1. random structure sampling
-        2. small pertubations on given structures
-        3. molecular dynamics with surrogate potential
-        4. molecular dynamics with uncertainty-aware potential
+        brute-force molecular dynamics
+        biased molecular dynamics
     
     Initial Systems
         initial structures must be manually prepared
     
     Units
         fs, eV, eV/AA
-    
-    Workflow
-        create+/run-collect+/select-calculate+/harvest
     """
 
     method = "MD" # nve, nvt, npt
@@ -111,8 +90,6 @@ class MDBasedExpedition(AbstractExplorer):
     # check whether submit jobs
     # check system symbols with type list
     # check lost atoms when collecting
-    # check overwrite during collect and select and calc
-    # check different structures input format in collect
 
     collection_params = dict(
         selection_tags = ["converged", "traj"]
@@ -178,27 +155,7 @@ class MDBasedExpedition(AbstractExplorer):
     def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
         """"""
         # - run over systems
-        merged_traj_frames = []
-        #traj_dirs = []
-        """
-        for i, atoms in enumerate(frames):
-            # - set working dir
-            name = atoms.info.get("name", "cand"+str(i))
-            cand_path = res_dpath / "create" / name
 
-            type_list = parse_type_list(atoms) # NOTE: lammps needs this!
-
-            # - run simulation
-            for iw, driver in enumerate(actions):
-                #traj_dirs.append( cand_path / ("w"+str(iw)) )
-                traj_dir = cand_path / ("w"+str(iw))
-                driver.directory = traj_dir
-                # TODO: need first frame? it is the init structure...
-                traj_frames = driver.read_trajectory(type_list=type_list) # TODO: accept traj_period?
-                merged_traj_frames.extend(traj_frames)
-        
-        write(self.step_dpath/"traj_frames.xyz", merged_traj_frames)
-        """
         # NOTE: not save all explored configurations
         #       since they are too many
         traj_dir_groups = {}
@@ -218,16 +175,17 @@ class MDBasedExpedition(AbstractExplorer):
                     traj_dir_groups[driver_id] = [traj_dir]
 
         # TODO: replace with composition
-        type_list = parse_type_list(frames[0])
         traj_period = self.collection_params["traj_period"]
         
+        merged_traj_frames = []
         from GDPy.computation.utils import read_trajectories
         for driver_id, traj_dirs in traj_dir_groups.items():
+            # print("traj_dirs: ", traj_dirs) # equal number of candidates
             traj_fpath = self.step_dpath / f"traj_frames-{driver_id}.xyz"
             traj_ind_fpath = self.step_dpath / f"traj_indices-{driver_id}.xyz"
             with CustomTimer(name=f"collect-trajectories-{driver_id}"):
                 cur_traj_frames = read_trajectories(
-                    driver, traj_dirs, type_list, 
+                    driver, traj_dirs,
                     traj_period, traj_fpath, traj_ind_fpath
                 )
             merged_traj_frames.extend(cur_traj_frames)
