@@ -3,4 +3,4 @@
 
 #from .md import MDBasedExpedition
 #from .randomSearch import RandomExplorer
-from .interface import run_exploration
+from .interface import run_expedition

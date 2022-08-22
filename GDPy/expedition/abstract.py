@@ -75,9 +75,8 @@ class AbstractExplorer(ABC):
     type_map = {}
     type_list = []
 
-    def __init__(self, potter, main_dict):
+    def __init__(self, main_dict, potter, referee=None):
         """"""
-        self.pot_manager = potter
         self._register_type_map(main_dict) # obtain type_list or type_map
 
         self.explorations = main_dict["explorations"]
@@ -92,15 +91,14 @@ class AbstractExplorer(ABC):
 
         self.njobs = config.NJOBS
 
+        # - potential and reference
+        self.pot_manager = potter
+        self.ref_manager = referee
+
         # - parse params
         # --- create
         # --- collect/select
         # --- label/acquire
-        pot_dict = main_dict.get("calculation", None)
-        if pot_dict is not None:
-            self.ref_manager = create_potter(pot_dict)
-        else:
-            self.ref_manager = None
 
         return
     
@@ -143,12 +141,6 @@ class AbstractExplorer(ABC):
 
         return
     
-    def register_machine(self, pm):
-        """ create machine
-        """
-
-        return
-    
     def parse_specorder(self, composition: dict):
         """ determine species order from current structure
             since many systems with different compositions 
@@ -186,7 +178,7 @@ class AbstractExplorer(ABC):
         exp_dict = self.explorations[exp_name]
         included_systems = exp_dict.get("systems", None)
 
-        actions, selector = self._prior_create(exp_dict)
+        actions = self._prior_create(exp_dict)
 
         if included_systems is not None:
             for slabel in included_systems:
@@ -229,7 +221,7 @@ class AbstractExplorer(ABC):
                     elif status == "collect":
                         with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        self._single_collect(res_dpath, frames, actions, selector)
+                        self._single_collect(res_dpath, frames, actions)
                         with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                         os.remove(res_dpath/"COLLECT_RUNNING")
@@ -266,10 +258,12 @@ class AbstractExplorer(ABC):
         return step_dir
     
     @abstractmethod
-    def _prior_create(self, input_params: dict, *args, **kwargs):
+    def _prior_create(self, input_params: dict, *args, **kwargs) -> dict:
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
         """
+        actions = {}
+
         # - create
         # parse in subclasses
 
@@ -284,8 +278,9 @@ class AbstractExplorer(ABC):
             selector = create_selector(select_params, directory=Path.cwd())
         else:
             selector = None
+        actions["selector"] = selector
 
-        return selector
+        return actions
 
     @abstractmethod 
     def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
@@ -295,7 +290,7 @@ class AbstractExplorer(ABC):
         return
 
     @abstractmethod 
-    def _single_collect(self, res_dpath, frames, actions, selector, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """ some codes run explorations
         """
 

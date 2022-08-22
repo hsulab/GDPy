@@ -4,23 +4,23 @@
 from GDPy.utils.command import parse_input_file
 
 
-def run_exploration(pot_manager, exp_json, chosen_step, global_params = None):
+def run_expedition(potter, referee, exp_json, chosen_step, global_params = None):
     # - create exploration
     exp_dict = parse_input_file(exp_json)
 
     method = exp_dict.get("method", "MD")
     if method == "MD":
         from .md import MDBasedExpedition
-        scout = MDBasedExpedition(pot_manager, exp_dict)
+        scout = MDBasedExpedition(exp_dict, potter, referee)
     elif method == "GA":
         from .randomSearch import RandomExplorer
-        scout = RandomExplorer(pot_manager, exp_dict)
+        scout = RandomExplorer(exp_dict, potter, referee)
     elif method == "adsorbate":
         from .adsorbate import AdsorbateEvolution
-        scout = AdsorbateEvolution(pot_manager, exp_dict)
+        scout = AdsorbateEvolution(exp_dict, potter, referee)
     elif method == "reaction":
         from .reaction import ReactionExplorer
-        scout = ReactionExplorer(pot_manager, exp_dict)
+        scout = ReactionExplorer(exp_dict, potter, referee)
     else:
         raise ValueError(f"Unknown method {method}")
 
@@ -32,7 +32,7 @@ def run_exploration(pot_manager, exp_json, chosen_step, global_params = None):
             print(global_params[first], " -> ", global_params[first+1])
             scout.default_params[chosen_step][global_params[first]] = eval(global_params[first+1])
 
-    # compute
+    # - run
     op_name = "i" + chosen_step
     assert isinstance(op_name, str), "op_nam must be a string"
     op = getattr(scout, op_name, None)
