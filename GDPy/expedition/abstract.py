@@ -6,6 +6,7 @@ from typing import Union, Callable, Counter, Union, List, NoReturn
 from pathlib import Path
 
 import os
+import copy
 import shutil
 import uuid
 import time
@@ -21,7 +22,7 @@ from GDPy import config
 from GDPy.machine.machine import SlurmMachine
 from GDPy.utils.command import CustomTimer
 
-from GDPy.potential.manager import create_pot_manager
+from GDPy.potential.manager import create_potter
 from GDPy.selector.abstract import create_selector
 
 
@@ -74,9 +75,9 @@ class AbstractExplorer(ABC):
     type_map = {}
     type_list = []
 
-    def __init__(self, pm, main_dict):
+    def __init__(self, potter, main_dict):
         """"""
-        self.pot_manager = pm
+        self.pot_manager = potter
         self._register_type_map(main_dict) # obtain type_list or type_map
 
         self.explorations = main_dict["explorations"]
@@ -97,7 +98,7 @@ class AbstractExplorer(ABC):
         # --- label/acquire
         pot_dict = main_dict.get("calculation", None)
         if pot_dict is not None:
-            self.ref_manager = create_pot_manager(pot_dict)
+            self.ref_manager = create_potter(pot_dict)
         else:
             self.ref_manager = None
 
@@ -203,6 +204,13 @@ class AbstractExplorer(ABC):
                 self.step_dpath = self._make_step_dir(res_dpath, "init")
                 frames, cons_text = self._read_structure(slabel)
 
+                # --- update cons text
+                if isinstance(actions["driver"], list):
+                    for driver in actions["driver"]:
+                        driver.run_params.update(constraint=cons_text)
+                else:
+                    actions["driver"].run_params.update(constraint=cons_text)
+
                 # - run exploration
                 # NOTE: check status?
                 # TODO: make this a while loop
@@ -214,14 +222,14 @@ class AbstractExplorer(ABC):
                     if status == "create":
                         with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        self._single_create(res_dpath, frames, cons_text, actions)
+                        self._single_create(res_dpath, frames, actions)
                         with open(res_dpath/"CREATE_FINISHED", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                         os.remove(res_dpath/"CREATE_RUNNING")
                     elif status == "collect":
                         with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        self._single_collect(res_dpath, frames, cons_text, actions, selector)
+                        self._single_collect(res_dpath, frames, actions, selector)
                         with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
                             fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                         os.remove(res_dpath/"COLLECT_RUNNING")
@@ -262,12 +270,13 @@ class AbstractExplorer(ABC):
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
         """
-        # - update a few parameters from input
-        collect_params_ = input_params.get("collect", self.collection_params)
-        traj_period_ = collect_params_.get("traj_period", 1)
-        self.collection_params["traj_period"] = traj_period_
+        # - create
+        # parse in subclasses
 
-        # TODO: move select to this part?
+        # - collect
+        collect_params_ = copy.deepcopy(self.collection_params)
+        collect_params_.update(input_params.get("collect", None))
+        self.collection_params = collect_params_
 
         # - select
         select_params = input_params.get("select", None)
@@ -279,14 +288,14 @@ class AbstractExplorer(ABC):
         return selector
 
     @abstractmethod 
-    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
         """ some codes run explorations
         """
 
         return
 
     @abstractmethod 
-    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, selector, *args, **kwargs):
         """ some codes run explorations
         """
 
