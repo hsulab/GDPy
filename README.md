@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/logo.png" width="400" height="300">
+</p>
+
 # Table of Contents
 
 - [Overview](#overview)
