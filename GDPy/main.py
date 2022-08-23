@@ -312,7 +312,7 @@ def main():
     
     referee = None
     if args.reference:
-        ref_config = args.potential # configuration file of potential
+        ref_config = args.reference # configuration file of potential
         referee = create_potter(ref_config) # register calculator, and scheduler if exists
     
     # - scheduler
