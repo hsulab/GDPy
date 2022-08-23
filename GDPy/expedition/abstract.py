@@ -68,7 +68,7 @@ class AbstractExplorer(ABC):
     )
 
     label_params = dict(
-        check_parity = True
+        check_parity = False
     )
 
     # system-specific info
@@ -137,7 +137,7 @@ class AbstractExplorer(ABC):
         if main_database is None:
             raise RuntimeError("dataset should not be None...")
         else:
-            self.main_database = Path(main_database)
+            self.main_database = Path(main_database).resolve()
 
         return
     
@@ -376,17 +376,11 @@ class AbstractExplorer(ABC):
             #    calc_dict
             #)
             # TODO: too complex here!!!
-            calc_machine = self.ref_manager.create_machine(
-                self.ref_manager.calc, 
-                self.machine_dict.get(exp_dict["label"].get("mach_name", "mach1"), None)
+            driver = self.ref_manager.create_driver() # default is spc
+            worker = self.ref_manager.create_worker(
+                driver,
+                self.ref_manager.scheduler
             )
-
-        # - create fp main dir
-        prefix = working_directory / (exp_name + "-fp")
-        if prefix.exists():
-            warnings.warn("fp directory exists...", UserWarning)
-        else:
-            prefix.mkdir(parents=True)
 
         # - run over systems
         included_systems = exp_dict.get("systems", None)
@@ -414,7 +408,6 @@ class AbstractExplorer(ABC):
                 for tag_name in self.collection_params["selection_tags"]:
                     # - find all selected files
                     # or find final selected that is produced by a composed selector
-                    # TODO: if no selected were applied?
                     if sorted_path.name == "collect":
                         xyzfiles = list(sorted_path.glob(f"{tag_name}*.xyz"))
                     if sorted_path.name == "select":
@@ -432,7 +425,7 @@ class AbstractExplorer(ABC):
                             print(f"found selected structure file {str(final_selected_path)}")
                             print("nframes: ", len(read(final_selected_path, ":")))
                             # - create input files
-                            fp_path = prefix / slabel / tag_name
+                            fp_path = res_dpath / "label" / tag_name
                             found_files[tag_name] = [fp_path, final_selected_path]
                         else:
                             print(f"Cant find selected structure file with tag {tag_name}")
@@ -442,7 +435,7 @@ class AbstractExplorer(ABC):
                 # - run preparation
                 for tag_name, (fp_path, final_selected_path) in found_files.items():
                     self._prepare_calc_dir(
-                        calc_machine,
+                        worker,
                         slabel, fp_path, 
                         final_selected_path
                     )
@@ -450,35 +443,49 @@ class AbstractExplorer(ABC):
         return
     
     def _prepare_calc_dir(
-        self, calc_machine, slabel, sorted_fp_path, final_selected_path
+        self, worker, slabel, sorted_fp_path, final_selected_path
     ):
         """ prepare calculation dir
             currently, only vasp is supported
         """
-        # - create input file TODO: move this to vasp part
+        # - check target calculation structures
+        frames_in = read(final_selected_path, ":")
+        nframes_in = len(frames_in)
+
+        # - update some specific params of worker
+        worker._submit = True
+        worker.prefix = "_".join([slabel,"Worker"])
+        worker.directory = sorted_fp_path
+        worker.batchsize = nframes_in
+
+        # - create input file
+        system_dict = self.init_systems[slabel]
         if not sorted_fp_path.exists():
             sorted_fp_path.mkdir(parents=True)
             # - update system-wise parameters
-            extra_params = dict(
-                system = slabel,
-                # NOTE: kpts not for all calculators?
-                kpts = self.init_systems[slabel].get("kpts", [1,1,1])
-            )
+            #extra_params = dict(
+            #    system = slabel,
+            #    # NOTE: kpts not for all calculators?
+            #    kpts = self.init_systems[slabel].get("kpts", [1,1,1])
+            #)
+            for k in worker.driver.syswise_keys:
+                v = system_dict.get(k, None)
+                if v:
+                    #worker.driver.init_params.update(k=v)
+                    worker.driver.init_params.update(**{k: v})
+                
+            worker.run(frames_in)
 
             # - machine params
-            user_commands = "gdp vasp work {} -in {}".format(
-                str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
-            )
+            #user_commands = "gdp vasp work {} -in {}".format(
+            #    str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
+            #)
 
             # - create input files
-            calc_machine._prepare_calculation(sorted_fp_path, extra_params, user_commands)
+            #calc_machine._prepare_calculation(sorted_fp_path, extra_params, user_commands)
         else:
             # TODO: move harvest function here?
             print(f"{sorted_fp_path} already exists.")
-
-            # - check target calculation structures
-            frames_in = read(final_selected_path, ":")
-            nframes_in = len(frames_in)
 
             # - store in database
             # TODO: provide an unified interfac to all type of databases 
@@ -506,15 +513,24 @@ class AbstractExplorer(ABC):
                 frames = frames_exists
             else:
                 # - read results
+                labelled_frames = worker.directory/"new_frames.xyz"
+                
                 with CustomTimer(name="harvest"):
-                    frames = calc_machine._read_results(sorted_fp_path)
-                    nframes = len(frames)
-                    print("nframes calculated: ", nframes)
+                    new_frames = worker.retrieve()
+                    if new_frames:
+                        write(labelled_frames, new_frames, append=True)
+                        print("nframes newly added: ", len(new_frames))
+                        # - tag every data
+                        # TODO: add uuid in worker?
+                        for atoms in new_frames:
+                            atoms.info["uuid"] = str(uuid.uuid1())
+                
+                if labelled_frames.exists():
+                    frames = read(labelled_frames, ":")
+                else:
+                    frames = []
+                nframes = len(frames)
             
-                # - tag every data
-                for atoms in frames:
-                    atoms.info["uuid"] = str(uuid.uuid1())
-
                 if nframes != nframes_in:
                     warnings.warn("calculation may not finish...", RuntimeWarning)
 
