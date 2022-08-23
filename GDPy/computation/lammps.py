@@ -93,6 +93,8 @@ class LmpDriver(AbstractDriver):
         minimisation and/or molecular dynamics
     """
 
+    name = "lammps"
+
     delete = []
     keyword: Optional[str] = None
     special_keywords = {}
@@ -123,8 +125,8 @@ class LmpDriver(AbstractDriver):
         "min": {
             "etol": 0.0,
             "ftol": 0.05,
-            "maxiter": 200,
-            "maxeval": 400
+            "maxiter": 0,
+            "maxeval": 0
         },
         "md": {
             "maxiter": 0

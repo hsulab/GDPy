@@ -106,6 +106,8 @@ class LaspDriver(AbstractDriver):
     """ local optimisation
     """
 
+    name = "Lasp"
+
     saved_cards = ["allstr.arc", "allfor.arc"]
 
     # - defaults
@@ -134,7 +136,7 @@ class LaspDriver(AbstractDriver):
     default_run_params = {
         "min": {
             "SSW.ftol": 0.05,
-            "SSW.MaxOptstep": 200
+            "SSW.MaxOptstep": 0
         },
         "md": {
             "SSW.MaxOptstep": 0
