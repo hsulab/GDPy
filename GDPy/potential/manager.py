@@ -13,7 +13,7 @@ TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 class PotManager():
 
     SUFFIX = "Manager"
-    potential_names = ["Vasp", "DP", "EANN", "Lasp", "NequIP"]
+    potential_names = ["vasp", "dp", "eann", "lasp", "nequip"]
 
     def __init__(self):
         """
@@ -22,7 +22,7 @@ class PotManager():
         self.registered_potentials = {}
         managers = importlib.import_module("GDPy.potential.potential")
         for pot_name in self.potential_names:
-            self.registered_potentials[pot_name] = getattr(managers, pot_name+self.SUFFIX)
+            self.registered_potentials[pot_name] = getattr(managers, pot_name.capitalize()+self.SUFFIX)
 
         return
     
@@ -49,84 +49,29 @@ class PotManager():
         return potential
 
 
-def create_manager(input_json):
-    """create a potential manager"""
-    # create potential manager
-    #with open(input_json, 'r') as fopen:
-    #    pot_dict = json.load(fopen)
-    pot_dict = parse_input_file(input_json)
-    train_dict = pot_dict.get("training", None)
-    mpm = PotManager() # main potential manager
-    pm = mpm.create_potential(
-        pot_dict["name"], train_dict,
-        pot_dict["backend"], 
-        **pot_dict["kwargs"]
-    )
-    #print(pm.models)
-
-    return pm
-
-def create_manager_new(input_dict):
+def create_potter(config_file=None):
     """"""
-    atype_map = {}
-    for i, a in enumerate(input_dict["calc_params"]["type_list"]):
-        atype_map[a] = i
+    potter = None
+    if config_file:
+        params = parse_input_file(config_file)
+        manager = PotManager()
 
-    # create potential
-    mpm = PotManager() # main potential manager
-    eann_pot = mpm.create_potential(
-        pot_name = input_dict["name"],
-        # TODO: remove this kwargs
-        backend = "ase",
-        models = input_dict["calc_params"]["pair_style"]["model"],
-        type_map = atype_map
-    )
+        # - calculator
+        potential_params = params.get("potential", None)
+        if not potential_params:
+            potential_params = params
 
-    worker, run_params = eann_pot.create_worker(
-        backend = input_dict["backend"],
-        calc_params = input_dict["calc_params"],
-        dyn_params = input_dict["dyn_params"]
-    )
-    print(run_params)
+        name = potential_params.get("name", None)
+        potter = manager.create_potential(pot_name=name)
+        potter.register_calculator(potential_params.get("params", {}))
+        potter.version = potential_params.get("version", "unknown")
 
-    return worker, run_params
+        # - scheduler
+        scheduler_params = params.get("scheduler", None)
+        if scheduler_params:
+            potter.register_scheduler(scheduler_params)
 
-def create_pot_manager(input_file=None, calc_name="calc1"):
-    """"""
-    if input_file is not None:
-        pot_dict = parse_input_file(input_file)
-
-        # - find calculators
-
-        mpm = PotManager() # main potential manager
-        pm = mpm.create_potential(pot_name = pot_dict["name"])
-        pm.register_calculator(pot_dict["calculators"][calc_name])
-        pm.version = calc_name
-    else:
-        pm = None
-    
-    return pm
+    return potter
 
 if __name__ == "__main__":
-    # test old manager
-    #pm = PotManager()
-    #pot = pm.create_potential('DP', miaow='xx')
-    #from GDPy.potential.potential import NPManager
-    #pm.register_potential('NP', NPManager)
-    #pot = pm.create_potential('NP', what='nani')
-    # test new
-    pot_dict = dict(
-        name = "eann",
-        backend = "lammps",
-        kwargs  = [] # parameters for the backend
-    )
-    dyn_dict = {
-        # check current pot's backend is valid for this task
-        "task": "min",
-        "kwargs": {
-            "steps": 400,
-            "fmax": 0.05,
-            "repeat": 1
-        }
-    }
     pass

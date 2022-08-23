@@ -9,9 +9,10 @@ deals with various machine learning potentials
 import os
 import json
 import abc
+import copy
 import pathlib
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, NoReturn
 
 
 from GDPy.trainer.train_potential import find_systems, generate_random_seed
@@ -38,12 +39,33 @@ class AbstractPotential(abc.ABC):
     )
     valid_combinations = []
 
+    _calc = None
+    _scheduler = None
+
     def __init__(self):
         """
         """
 
         self.uncertainty = None # uncertainty estimation method
 
+        return
+    
+    @property
+    def calc(self):
+        return self._calc
+    
+    @calc.setter
+    def calc(self, calc_):
+        self._calc = calc_
+        return 
+    
+    @property
+    def scheduler(self):
+        return self._scheduler
+    
+    @scheduler.setter
+    def scheduler(self, scheduler_):
+        self._scheduler = scheduler_
         return
     
     @abc.abstractmethod
@@ -54,21 +76,21 @@ class AbstractPotential(abc.ABC):
         if self.calc_backend not in self.implemented_backends:
             raise RuntimeError(f"Unknown backend for potential {self.name}")
 
-        self.calc_params = calc_params
+        self.calc_params = copy.deepcopy(calc_params)
 
         return
 
     def create_driver(
         self, 
         dyn_params: dict = {},
-        **kwargs
+        *args, **kwargs
     ):
         """ create a worker for dynamics
             default the dynamics backend will be the same as calc
             however, ase-based dynamics can be used for all calculators
         """
         if not hasattr(self, "calc") or self.calc is None:
-            raise AttributeError("Cant create worker before a calculator has been properly registered.")
+            raise AttributeError("Cant create driver before a calculator has been properly registered.")
             
         # parse backends
         self.dyn_params = dyn_params
@@ -81,18 +103,11 @@ class AbstractPotential(abc.ABC):
             #    dynamics == "ase"
 
         if [self.calc_backend, dynamics] not in self.valid_combinations:
-            raise RuntimeError(f"Invalid dynamics backend based on {self.calc_backend} calculator")
+            raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
         
         # create dynamics
         calc = self.calc
 
-        # check method
-        #if method is None:
-        #    method = dyn_params.pop("method", None)
-        #if method is None:
-        #    raise RuntimeError("Cannot find method parameter.")
-
-        dynrun_params = dyn_params.copy()
         if dynamics == "ase":
             from GDPy.computation.ase import AseDriver as driver_cls
             # use ase no need to recaclc constraint since atoms has one
@@ -104,16 +119,43 @@ class AbstractPotential(abc.ABC):
             #    raise NotImplementedError("no other eann lammps dynamics")
         elif dynamics == "lasp":
             from GDPy.computation.lasp import LaspDriver as driver_cls
+        elif dynamics == "Vasp":
+            from GDPy.computation.vasp import VaspDriver as driver_cls
 
         driver = driver_cls(calc, dyn_params, directory=calc.directory)
+        driver.pot_params = self.as_dict()
         
         return driver
     
-    def create_machine(self, args, kwargs):
-        """ a machine operates calculations submitted to queue
+    def register_scheduler(self, params_, *args, **kwargs) -> NoReturn:
+        """ register machine used to submit jobs
         """
+        params = copy.deepcopy(params_)
+        scheduler = create_machine(params)
+
+        self.scheduler = scheduler
 
         return
+
+    def create_worker(self, driver, scheduler, *args, **kwargs):
+        """ a machine operates calculations submitted to queue
+        """
+        # TODO: check driver is consistent with this potential
+
+        from GDPy.computation.worker.worker import DriverBasedWorker
+        worker = DriverBasedWorker(driver, scheduler)
+
+        # TODO: check if scheduler resource satisfies driver's command
+
+        return worker
+    
+    def as_dict(self):
+        """"""
+        params = {"backend": self.name}
+        params.update(copy.deepcopy(self.calc_params))
+
+        return params
+
     
 class VaspManager(AbstractPotential):
 
@@ -122,8 +164,7 @@ class VaspManager(AbstractPotential):
     implemented_backends = ["Vasp"]
 
     valid_combinations = [
-        ["vasp", "vasp"], # calculator, dynamics
-        ["lammps", "lammps"]
+        ["Vasp", "Vasp"] # calculator, dynamics
     ]
 
     def __init__(self):
@@ -154,15 +195,7 @@ class VaspManager(AbstractPotential):
         # - some extra params
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", Path.cwd())
-        atypes = calc_params.pop("type_list", [])
 
-        models = calc_params.pop("file", None)
-        #pair_style = calc_params.get("pair_style", None)
-
-        type_map = {}
-        for i, a in enumerate(atypes):
-            type_map[a] = i
-        
         # TODO: check pp and vdw
         incar = calc_params.pop("incar", None)
         pp_path = calc_params.pop("pp_path", None)
@@ -182,16 +215,12 @@ class VaspManager(AbstractPotential):
                 calc.read_incar(incar)
             self._set_environs(pp_path, vdw_path)
             #print("fmax: ", calc.asdict()["inputs"])
+            # - update residual params
+            calc.set(**calc_params)
         else:
             pass
         
         self.calc = calc
-
-        return
-
-    def register_machine(self):
-        """ register machine used to submit jobs
-        """
 
         return
 
@@ -256,7 +285,7 @@ class RXManager(AbstractPotential):
 
         return calc
 
-class DPManager(AbstractPotential):
+class DpManager(AbstractPotential):
 
     name = 'DP'
     implemented_backends = ['ase', 'lammps']
@@ -430,9 +459,9 @@ class DPManager(AbstractPotential):
         print(output)
         return 
 
-class EANNManager(AbstractPotential):
+class EannManager(AbstractPotential):
 
-    name = "EANN"
+    name = "eann"
     implemented_backends = ["ase", "lammps"]
 
     backends = dict(
@@ -673,7 +702,7 @@ class LaspManager(AbstractPotential):
         return
     
 
-class NequIPManager(AbstractPotential):
+class NequipManager(AbstractPotential):
 
     implemented_backends = ["ase"]
     valid_combinations = [
@@ -715,5 +744,5 @@ class NequIPManager(AbstractPotential):
         return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
