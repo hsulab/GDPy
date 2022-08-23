@@ -26,7 +26,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.utils.command import run_command, parse_input_file
-from GDPy.machine.machine import SlurmMachine
 from GDPy.computation.utils import create_single_point_calculator
 from GDPy.computation.driver import AbstractDriver
 

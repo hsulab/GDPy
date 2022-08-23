@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-""" worker = drivers + machine
+""" worker = driver + scheduler
+    A worker that manages a series of dynamics tasks
+    worker needs a scheduler to dertermine whether run by serial
+    or on cluster
 """
 
 import pathlib
@@ -18,9 +21,13 @@ from tinydb import TinyDB, Query
 
 from GDPy.utils.command import parse_input_file, CustomTimer
 
-from GDPy.machine.factory import create_machine
+from GDPy.scheduler.factory import create_machine
+
+from GDPy.scheduler.scheduler import AbstractScheduler
+from GDPy.computation.driver import AbstractDriver
 
 from GDPy.potential.manager import PotManager
+
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -30,7 +37,7 @@ class SpecificWorker():
         single-frame methods
             Monte Carlo
         population methods
-            GA = (generator + propagator) + driver + machine
+            GA = (generator + propagator) + driver + scheduler
         - machines
             moniter
             job
@@ -39,8 +46,10 @@ class SpecificWorker():
     batchsize = 1 # how many structures performed in one job
 
     _directory = None
-    _machine = None
+    _scheduler = None
     _database = None
+
+    _submit = True
 
     prefix = "worker"
     worker_status = dict(queued=[], finished=[])
@@ -49,14 +58,12 @@ class SpecificWorker():
         """
         """
         # - pop some
-        self.params = params
-
         self.prefix = params.pop("prefix", "worker")
         self.batchsize = params.pop("batchsize", 1)
 
-        # - create machine
-        machine_params = params.pop("machine", None)
-        self.machine = create_machine(machine_params)
+        # - create scheduler
+        scheduler_params = params.pop("scheduler", None)
+        self.scheduler = create_machine(scheduler_params)
 
         # - potter and driver
         params_ = copy.deepcopy(params)
@@ -99,13 +106,13 @@ class SpecificWorker():
         return
     
     @property
-    def machine(self):
+    def scheduler(self):
 
-        return self._machine
+        return self._scheduler
     
-    @machine.setter
-    def machine(self, machine_):
-        self._machine = machine_
+    @scheduler.setter
+    def scheduler(self, scheduelr_):
+        self._scheduler = scheduelr_
 
         return
     
@@ -149,7 +156,7 @@ class SpecificWorker():
         """
         assert self.directory, "Working directory is not set properly..."
 
-        machine = self.machine
+        scheduler = self.scheduler
         self._init_database()
         
         starts, ends = self._split_groups(len(frames))
@@ -176,7 +183,7 @@ class SpecificWorker():
                 wdirs = [f"cand{ia}" for ia in global_indices]
             #print(list(global_indices))
 
-            # - prepare machine
+            # - prepare scheduler
             # TODO: set group name randomly?
             if self.batchsize > 1:
                 group_directory = self.directory / f"g{i}" # contain one or more structures
@@ -199,27 +206,30 @@ class SpecificWorker():
             if job_name in queued_jobs:
                 continue
 
-            # - update machine
-            machine.set(**{"job-name": job_name})
-            machine.script = group_directory/"run-driver.script" 
+            # - update scheduler
+            scheduler.set(**{"job-name": job_name})
+            scheduler.script = group_directory/"run-driver.script" 
 
             # - create or check the working directory
             group_directory.mkdir()
 
-            if machine.name != "local":
-                cur_params = copy.deepcopy(self.params)
+            if scheduler.name != "local":
+                cur_params = self.driver.as_dict()
                 cur_params["wdirs"] = wdirs
                 with open(group_directory/"driver.yaml", "w") as fopen:
                     yaml.dump(cur_params, fopen)
 
                 write(group_directory/"frames.xyz", cur_frames)
 
-                machine.user_commands = "gdp driver {} -s {}".format(
-                    group_directory/"driver.yaml", 
-                    group_directory/"frames.xyz"
+                scheduler.user_commands = "gdp driver {} -s {}".format(
+                    (group_directory/"driver.yaml").name, 
+                    (group_directory/"frames.xyz").name
                 )
-                machine.write()
-                print(f"{group_directory.name}: ", machine.submit())
+                scheduler.write()
+                if self._submit:
+                    print(f"{group_directory.name}: ", scheduler.submit())
+                else:
+                    print(f"{group_directory.name} waits to submit.")
             else:
                 for wdir, atoms in zip(wdirs,cur_frames):
                     self.driver.directory = group_directory/wdir
@@ -237,7 +247,7 @@ class SpecificWorker():
 
     def retrieve(self):
         """"""
-        machine = self.machine
+        scheduler = self.scheduler
 
         # - check status and get latest results
         #finished_jobnames = []
@@ -248,13 +258,13 @@ class SpecificWorker():
             # NOTE: sometimes prefix has number so confid may be striped
             group_directory = self.directory / job_name[len(self.prefix)+1:]
             #print(group_directory)
-            machine.set(**{"job-name": job_name})
-            machine.script = group_directory/"run-driver.script" 
+            scheduler.set(**{"job-name": job_name})
+            scheduler.script = group_directory/"run-driver.script" 
             if self.batchsize > 1:
-                wdirs = group_directory.glob("cand*")
+                wdirs = [x.name for x in group_directory.glob("cand*")]
             else:
                 wdirs = ["./"]
-            if machine.is_finished():
+            if scheduler.is_finished():
                 print(f"{job_name} is finished...")
                 finished_wdirs.extend([group_directory/x for x in wdirs])
                 #finished_jobnames.append(job_name)
@@ -281,9 +291,8 @@ class SpecificWorker():
         
         driver = self.driver
         with CustomTimer(name="read-results"):
-            #print("wdirs: ", wdirs)
             for wdir in wdirs:
-                #print("wdir: ", wdir)
+                print("wdir: ", wdir)
                 confid = int(wdir.name.strip("cand"))
                 driver.directory = wdir
                 #new_atoms = driver.run(atoms, read_exsits=True)
@@ -309,6 +318,20 @@ class SpecificWorker():
 
         return len(running_jobs)
 
+
+class DriverBasedWorker(SpecificWorker):
+
+    def __init__(self, driver_, scheduler_, directory_=None, *args, **kwargs):
+        """"""
+        assert isinstance(driver_, AbstractDriver), ""
+        assert isinstance(scheduler_, AbstractMachine), ""
+
+        self.driver = driver_
+        self.scheduler = scheduler_
+        if directory_:
+            self.directory = directory_
+
+        return
 
 def create_worker(params: dict):
     """"""
@@ -341,7 +364,9 @@ def run_worker(params: str, structure: str, potter=None):
 
     worker.run(frames)
     if worker.get_number_of_running_jobs() > 0:
-        worker.retrieve()
+        new_frames = worker.retrieve()
+        if new_frames:
+            write(worker.directory/"new_frames.xyz", new_frames, append=True)
 
     return
 

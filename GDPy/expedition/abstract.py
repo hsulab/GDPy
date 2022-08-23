@@ -19,10 +19,8 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy import config
-from GDPy.machine.machine import SlurmMachine
 from GDPy.utils.command import CustomTimer
 
-from GDPy.potential.manager import create_potter
 from GDPy.selector.abstract import create_selector
 
 

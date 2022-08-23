@@ -23,7 +23,7 @@ from collections import Counter
 
 from GDPy.expedition.abstract import AbstractExplorer
 
-from GDPy.machine.factory import create_machine
+from GDPy.scheduler.factory import create_scheduler
 from GDPy.selector.traj import BoltzmannMinimaSelection
 
 from GDPy.computation.utils import read_trajectories
@@ -123,7 +123,7 @@ class RandomExplorer(AbstractExplorer):
             
             # - scheduler
             #print(scheduler_params)
-            scheduler = create_machine(scheduler_params)
+            scheduler = create_scheduler(scheduler_params)
             scheduler.script = res_dpath / "run.script"
             scheduler.write()
             # TODO: if submit

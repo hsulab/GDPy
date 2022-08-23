@@ -19,7 +19,7 @@ from GDPy.trainer.train_potential import find_systems, generate_random_seed
 
 from GDPy.utils.command import run_command
 
-from GDPy.machine.factory import create_machine
+from GDPy.scheduler.factory import create_scheduler
 
 
 class AbstractPotential(abc.ABC):
@@ -131,7 +131,7 @@ class AbstractPotential(abc.ABC):
         """ register machine used to submit jobs
         """
         params = copy.deepcopy(params_)
-        scheduler = create_machine(params)
+        scheduler = create_scheduler(params)
 
         self.scheduler = scheduler
 
@@ -223,35 +223,6 @@ class VaspManager(AbstractPotential):
         self.calc = calc
 
         return
-
-    def create_machine(self, calc=None, machine_params=None, *args, **kwargs):
-        """ a machine operates calculations submitted to queue
-        """
-        calc_ = self.calc
-        if calc is not None:
-            calc_ = calc
-
-        from GDPy.computation.worker import VaspWorker
-        calc_machine = VaspWorker(calc_)
-
-        # - vasp environs
-        environs = dict(
-            VASP_PP_PATH = os.environ.get("VASP_PP_PATH"),
-            ASE_VASP_VDW = os.environ.get("ASE_VASP_VDW")
-        )
-        calc_machine.environs = environs
-
-        # - attach machine
-        if machine_params is not None:
-            machine = create_machine(machine_params)
-        else:
-            machine = None
-
-        calc_machine.machine = machine
-
-        # - find latest job ID
-
-        return calc_machine
 
 
 class RXManager(AbstractPotential):

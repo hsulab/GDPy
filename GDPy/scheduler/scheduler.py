@@ -15,7 +15,7 @@ from typing import NoReturn
 
 from GDPy.utils.command import parse_input_file
 
-class AbstractMachine(ABC):
+class AbstractScheduler(ABC):
 
     PREFIX = None
     SUFFIX = None
@@ -88,11 +88,11 @@ class AbstractMachine(ABC):
 
         return job_id
 
-class LocalMachine(AbstractMachine):
+class LocalScheduler(AbstractScheduler):
 
     name = "local"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
 
         return
 
@@ -105,7 +105,7 @@ class LocalMachine(AbstractMachine):
         return True
 
 
-class SlurmMachine(AbstractMachine):
+class SlurmScheduler(AbstractScheduler):
 
     """
     machine parameters
@@ -275,7 +275,7 @@ class SlurmMachine(AbstractMachine):
         return finished
 
 
-class PbsMachine(AbstractMachine):
+class PbsScheduler(AbstractScheduler):
 
     name = "pbs"
 
@@ -283,7 +283,7 @@ class PbsMachine(AbstractMachine):
     SUFFIX = ".slurm"
     SHELL = "#!/bin/bash -l"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
 
         return
 
@@ -306,11 +306,4 @@ class PbsMachine(AbstractMachine):
         return content
 
 if __name__ == "__main__":
-    # test slurm machine
-    #vasp_slurm = SlurmMachine(use_gpu=False)
-    #vasp_slurm.update("/users/40247882/scratch2/alumina-revised/GA/run-vasp/vasp.slurm")
-    #print(vasp_slurm)
-    # test slurm on archer2
-    vasp_slurm = SlurmMachine(use_gpu=False)
-    vasp_slurm.update("/mnt/scratch2/users/40247882/alumina-revised/GA/GA-Test/vasp.slurm")
-    print(vasp_slurm)
+    pass
