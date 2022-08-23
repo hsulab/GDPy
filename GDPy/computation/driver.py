@@ -24,6 +24,10 @@ class AbstractDriver(abc.ABC):
 
     _directory = pathlib.Path.cwd()
 
+    syswise_keys = []
+
+    pot_params = None
+
     def __init__(self, calc, params, directory, *args, **kwargs):
 
         self.calc = calc
@@ -157,6 +161,23 @@ class AbstractDriver(abc.ABC):
         traj_frames = self.read_trajectory(*args, **kwargs)
 
         return traj_frames[-1]
+    
+    def as_dict(self):
+        """"""
+        params = dict(
+            potential = dict(
+                name = self.calc.name,
+                params = copy.deepcopy(self.pot_params),
+            ),
+            driver = dict(
+                backend = self.name,
+                task = self.task,
+                init = copy.deepcopy(self.init_params),
+                run = copy.deepcopy(self.run_params)
+            )
+        )
+
+        return params
 
 
 def read_trajectories(
@@ -229,7 +250,7 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
         pm = PotManager() # main potential manager
         potter = pm.create_potential(pot_name = pot_dict["name"])
         potter.register_calculator(pot_dict["params"])
-        potter.version = pot_dict["version"] # NOTE: important for calculation in exp
+        potter.version = pot_dict.get("version", "unknown") # NOTE: important for calculation in exp
     print("potter: ", potter.name)
     driver = potter.create_driver(params["driver"])
 
@@ -240,11 +261,18 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
     #res_dpath.mkdir()
 
     # - run dynamics
+    new_frames = []
     with CustomTimer(name="run-driver"):
         for wdir, atoms in zip(wdirs, frames):
+            #print(wdirs, atoms)
             driver.reset()
             driver.directory = directory / wdir
-            driver.run(atoms)
+            new_atoms = driver.run(atoms)
+            new_frames.append(new_atoms)
+    
+    # - report
+    energies = [a.get_potential_energy() for a in new_frames]
+    print(energies)
 
     return
 
