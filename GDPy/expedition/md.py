@@ -129,15 +129,17 @@ class MDBasedExpedition(AbstractExplorer):
     
     def _prior_create(self, input_params: dict, *args, **kwargs):
         """"""
-        selector = super()._prior_create(input_params)
+        actions = super()._prior_create(input_params)
 
         drivers = self._parse_drivers(input_params)
+        actions["driver"] = drivers
 
-        return drivers, selector
+        return actions
     
-    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
         # - run over systems
+        drivers = actions["driver"]
         for i, atoms in enumerate(frames):
             # - set working dir
             #name = atoms.info.get("name", "cand"+str(i))
@@ -145,16 +147,17 @@ class MDBasedExpedition(AbstractExplorer):
             cand_path = self.step_dpath / name
 
             # - run simulation
-            for iw, driver in enumerate(actions):
+            for iw, driver in enumerate(drivers):
                 driver.directory = cand_path / ("w"+str(iw))
                 # TODO: run directly or attach a machine
-                driver.run(atoms, constraint=cons_text) # NOTE: other run_params have already been set
+                driver.run(atoms, read_exists=True) # NOTE: other run_params have already been set
 
         return
     
-    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
         # - run over systems
+        drivers = actions["driver"]
 
         # NOTE: not save all explored configurations
         #       since they are too many
@@ -166,7 +169,7 @@ class MDBasedExpedition(AbstractExplorer):
             cand_path = res_dpath / "create" / name
 
             # - run simulation
-            for iw, driver in enumerate(actions):
+            for iw, driver in enumerate(drivers):
                 driver_id = "w"+str(iw)
                 traj_dir = cand_path / driver_id
                 if driver_id in traj_dir_groups:
@@ -191,6 +194,7 @@ class MDBasedExpedition(AbstractExplorer):
             merged_traj_frames.extend(cur_traj_frames)
         
         # - select
+        selector = actions["selector"]
         if selector:
             select_dpath = self._make_step_dir(res_dpath, "select")
             print(select_dpath)
@@ -203,5 +207,5 @@ class MDBasedExpedition(AbstractExplorer):
         return
     
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
