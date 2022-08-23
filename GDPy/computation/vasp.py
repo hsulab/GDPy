@@ -4,10 +4,11 @@
 import os
 import re
 import time
+import copy
 import json
 import argparse
 import subprocess 
-from typing import Union, List
+from typing import Union, List, NoReturn
 from collections import Counter
 
 import shutil
@@ -23,9 +24,11 @@ from ase.constraints import FixAtoms
 from ase.calculators.vasp.create_input import GenerateVaspInput
 from ase.calculators.singlepoint import SinglePointCalculator
 
+from GDPy.builder.constraints import parse_constraint_info
 from GDPy.utils.command import run_command, parse_input_file
 from GDPy.machine.machine import SlurmMachine
 from GDPy.computation.utils import create_single_point_calculator
+from GDPy.computation.driver import AbstractDriver
 
 """ wrap ase-vasp into a few utilities
 """
@@ -71,6 +74,155 @@ def read_sort(directory):
         raise ValueError('no ase-sort.dat')
 
     return sort, resort
+
+class VaspDriver(AbstractDriver):
+
+    name = "Vasp"
+
+    # - defaults
+    default_task = "min"
+    supported_tasks = ["min", "md"]
+
+    default_init_params = {
+        "min": {
+            "min_style": 1, # ibrion
+            #"min_modify": "integrator verlet tmax 4"
+        },
+        "md": {
+            "md_style": "nvt",
+            "velocity_seed": 1112,
+            "timestep": 1.0, # fs
+            "temp": 300, # K
+            "Tdamp": 100, # fs
+            "pres": 1.0, # atm
+            "Pdamp": 100
+        }
+    }
+
+    default_run_params = {
+        "min": {
+            "ediffg": 0.05,
+            "nsw": 0,
+        },
+        "md": {
+            "nsw": 0
+        }
+    }
+
+    param_mapping = {
+        "min_style": "ibrion",
+        "fmax": "ediffg",
+        "steps": "nsw"
+    }
+
+    # - system depandant params
+    syswise_keys = [
+       "system", "kpts"
+    ]
+
+    def _parse_params(self, params_: dict) -> NoReturn:
+        super()._parse_params(params_)
+
+        # - update task
+        # self.init_params.update(task=self.task)
+
+        # - special settings
+        self.run_params = self.__set_special_params(self.run_params)
+
+        return 
+    
+    def __set_special_params(self, params):
+        """"""
+        params["ediffg"] *= -1.
+
+        return params
+    
+    def run(self, atoms_, read_exists=True, extra_info=None, *args, **kwargs):
+        """"""
+        atoms = atoms_.copy()
+
+        # - backup old params
+        # TODO: change to context message?
+        calc_old = atoms.calc 
+        params_old = copy.deepcopy(self.calc.parameters)
+
+        # - set special keywords
+        self.delete_keywords(kwargs)
+        self.delete_keywords(self.calc.parameters)
+
+        # - run params
+        kwargs = self._map_params(kwargs)
+
+        run_params = self.run_params.copy()
+        run_params.update(kwargs)
+
+        # - init params
+        run_params.update(**self.init_params)
+
+        run_params = self.__set_special_params(run_params)
+
+        cons_text = run_params.pop("constraint", None)
+        mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+        if frozen_indices:
+            atoms._del_constraints()
+            atoms.set_constraint(FixAtoms(indices=frozen_indices))
+        
+        run_params["system"] = self.directory.name
+
+        self.calc.set(**run_params)
+
+        # BUG: ase 3.22.1 no special params in param_state
+        #calc_params["inputs"]["lreal"] = self.calc.special_params["lreal"] 
+
+        atoms.calc = self.calc
+        print(atoms)
+
+        # - run dynamics
+        try:
+            # NOTE: some calculation can overwrite existed data
+            if read_exists:
+                converged = False
+                if (self.directory/"OUTCAR").exists():
+                    converged = atoms.calc.read_convergence()
+                if not converged:
+                    _ = atoms.get_forces()
+            else:
+                _  = atoms.get_forces()
+                converged = atoms.calc.read_convergence()
+        except OSError:
+            converged = False
+        
+        # NOTE: always use dynamics calc
+        # TODO: should change positions and other properties for input atoms?
+        traj_frames = self.read_trajectory()
+        new_atoms = traj_frames[-1]
+
+        if extra_info is not None:
+            new_atoms.info.update(**extra_info)
+
+        # - reset params
+        self.calc.parameters = params_old
+        self.calc.reset()
+        if calc_old is not None:
+            atoms.calc = calc_old
+
+        return new_atoms
+    
+    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+        """"""
+        vasprun = self.directory / "vasprun.xml"
+
+        # - read structures
+        traj_frames_ = read(vasprun, ":")
+        traj_frames = []
+
+        # - sort frames
+        sort, resort = read_sort(self.directory)
+        for sorted_atoms in traj_frames_:
+            input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
+            traj_frames.append(input_atoms)
+
+        return traj_frames
 
 
 class VaspMachine():
