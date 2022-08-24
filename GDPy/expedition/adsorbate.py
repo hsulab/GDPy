@@ -1,31 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import time
 from pathlib import Path
 from collections import Counter
 from typing import List
-
-import shutil
-import warnings
 
 import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.utils.command import parse_input_file
-
-from .abstract import AbstractExplorer
-from GDPy.computation.driver import AbstractDriver
-from GDPy.computation.utils import read_trajectories, parse_type_list
-
-from GDPy.builder.adsorbate import StructureGenerator, AdsorbateGraphGenerator
+from GDPy.expedition.abstract import AbstractExpedition
+from GDPy.computation.utils import read_trajectories
 
 from GDPy.utils.command import CustomTimer
 
 
-class AdsorbateEvolution(AbstractExplorer):
+class AdsorbateEvolution(AbstractExpedition):
 
     name = "ads"
 
@@ -48,14 +39,13 @@ class AdsorbateEvolution(AbstractExplorer):
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
         """
-        selector = super()._prior_create(input_params)
+        actions = super()._prior_create(input_params)
 
-        actions = {}
         actions["driver"] = self.pot_manager.create_driver(input_params["create"]["driver"])
 
-        return actions, selector
+        return actions
 
-    def _single_create(self, res_dpath, frames, cons_text, actions):
+    def _single_create(self, res_dpath, frames, actions):
         """
         """
         driver = actions["driver"]
@@ -71,7 +61,7 @@ class AdsorbateEvolution(AbstractExplorer):
             confid = atoms.info["confid"] # for candid
             driver.directory = tmp_folder/(self.creation_params["struc_prefix"]+str(confid))
             # TODO: check existed results before running, lammps works
-            new_atoms = driver.run(atoms, read_exists=True, extra_info=dict(confid=confid), constraint=cons_text)
+            new_atoms = driver.run(atoms, read_exists=True, extra_info=dict(confid=confid))
             #print(new_atoms.info["confid"])
             new_frames.append(new_atoms)
         cur_frames = new_frames
@@ -79,7 +69,7 @@ class AdsorbateEvolution(AbstractExplorer):
 
         return cur_frames
     
-    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
         traj_period = self.collection_params["traj_period"]
 
@@ -94,8 +84,6 @@ class AdsorbateEvolution(AbstractExplorer):
             traj_dir = tmp_folder / (self.creation_params["struc_prefix"]+str(confid))
             traj_dirs.append(traj_dir)
         
-        type_list = parse_type_list(frames[0])
-
         # - act, retrieve trajectory frames
         merged_traj_frames = []
 
@@ -103,12 +91,13 @@ class AdsorbateEvolution(AbstractExplorer):
         traj_ind_fpath = self.step_dpath / f"traj_indices.npy"
         with CustomTimer(name=f"collect-trajectories"):
             cur_traj_frames = read_trajectories(
-                driver, traj_dirs, type_list, 
-                traj_period, traj_fpath, traj_ind_fpath
+                driver, traj_dirs, traj_period, 
+                traj_fpath, traj_ind_fpath
             )
         merged_traj_frames.extend(cur_traj_frames)
 
         # - select
+        selector = actions.get("selector", None)
         if selector:
             # -- create dir
             select_dpath = self._make_step_dir(res_dpath, "select")

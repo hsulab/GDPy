@@ -21,7 +21,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from collections import Counter
 
-from GDPy.expedition.abstract import AbstractExplorer
+from GDPy.expedition.abstract import AbstractExpedition
 
 from GDPy.scheduler.factory import create_scheduler
 from GDPy.selector.traj import BoltzmannMinimaSelection
@@ -31,7 +31,7 @@ from GDPy.computation.utils import read_trajectories
 from GDPy.utils.command import CustomTimer
 
 
-class RandomExplorer(AbstractExplorer):
+class RandomExplorer(AbstractExpedition):
     # NOTE: population-based exploration
 
     """
@@ -68,7 +68,7 @@ class RandomExplorer(AbstractExplorer):
         struc_prefix = "cand",
     )
 
-    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
         """ generator + driver + propagator
         """
 
@@ -78,12 +78,11 @@ class RandomExplorer(AbstractExplorer):
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
         """
-        selector = super()._prior_create(input_params)
+        actions = super()._prior_create(input_params)
 
-        actions = {}
         actions["driver"] = self.pot_manager.create_driver(input_params["create"]["worker"]["driver"])
 
-        return actions, selector
+        return actions
 
     def icreate(self, exp_name, working_directory):
         """ create explorations
@@ -144,7 +143,7 @@ class RandomExplorer(AbstractExplorer):
 
         boltz_selection = BoltzmannMinimaSelection(**collect_params_["boltz"])
 
-        actions, selector = self._prior_create(exp_dict)
+        actions = self._prior_create(exp_dict)
 
         for slabel in exp_systems:
             res_dpath = working_directory/exp_name/slabel
@@ -177,7 +176,7 @@ class RandomExplorer(AbstractExplorer):
 
         return
 
-    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
         traj_period = self.collection_params["traj_period"]
         print("traj_period: ", traj_period)
@@ -207,6 +206,7 @@ class RandomExplorer(AbstractExplorer):
         merged_traj_frames.extend(cur_traj_frames)
 
         # - select
+        selector = actions["selector"]
         if selector:
             # -- create dir
             select_dpath = self._make_step_dir(res_dpath, "select")

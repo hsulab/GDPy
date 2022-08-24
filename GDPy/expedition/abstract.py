@@ -10,10 +10,7 @@ import copy
 import shutil
 import uuid
 import time
-import json
 import warnings
-
-from joblib import Parallel, delayed
 
 from ase import Atoms
 from ase.io import read, write
@@ -39,7 +36,7 @@ from GDPy.selector.abstract import create_selector
 """
 
 
-class AbstractExplorer(ABC):
+class AbstractExpedition(ABC):
 
     # name of expedition
     name = "expedition"
@@ -453,7 +450,7 @@ class AbstractExplorer(ABC):
         # - update some specific params of worker
         worker._submit = True
         worker.prefix = "_".join([slabel,"Worker"])
-        worker.directory = sorted_fp_path
+        #worker.directory = sorted_fp_path # NOTE: cant define here since dir may not exist
         worker.batchsize = nframes_in
 
         # - create input file
@@ -472,6 +469,7 @@ class AbstractExplorer(ABC):
                     #worker.driver.init_params.update(k=v)
                     worker.driver.init_params.update(**{k: v})
                 
+            worker.directory = sorted_fp_path
             worker.run(frames_in)
 
             # - machine params
@@ -484,6 +482,7 @@ class AbstractExplorer(ABC):
         else:
             # TODO: move harvest function here?
             print(f"{sorted_fp_path} already exists.")
+            worker.directory = sorted_fp_path
 
             # - store in database
             # TODO: provide an unified interfac to all type of databases 

@@ -12,7 +12,7 @@ from ase.io import read, write
 
 from GDPy.utils.command import parse_input_file, convert_indices, CustomTimer
 
-from GDPy.expedition.abstract import AbstractExplorer
+from GDPy.expedition.abstract import AbstractExpedition
 
 
 @dataclasses.dataclass
@@ -70,7 +70,7 @@ def create_dataclass_from_dict(dcls: dataclasses.dataclass, params: dict) -> Lis
     return dcls_list
 
 
-class MDBasedExpedition(AbstractExplorer):
+class MDBasedExpedition(AbstractExpedition):
 
     """
     Exploration Strategies
