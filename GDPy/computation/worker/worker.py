@@ -21,7 +21,7 @@ from tinydb import TinyDB, Query
 
 from GDPy.utils.command import parse_input_file, CustomTimer
 
-from GDPy.scheduler.factory import create_machine
+from GDPy.scheduler.factory import create_scheduler
 
 from GDPy.scheduler.scheduler import AbstractScheduler
 from GDPy.computation.driver import AbstractDriver
@@ -63,7 +63,7 @@ class SpecificWorker():
 
         # - create scheduler
         scheduler_params = params.pop("scheduler", None)
-        self.scheduler = create_machine(scheduler_params)
+        self.scheduler = create_scheduler(scheduler_params)
 
         # - potter and driver
         params_ = copy.deepcopy(params)
@@ -324,7 +324,7 @@ class DriverBasedWorker(SpecificWorker):
     def __init__(self, driver_, scheduler_, directory_=None, *args, **kwargs):
         """"""
         assert isinstance(driver_, AbstractDriver), ""
-        assert isinstance(scheduler_, AbstractMachine), ""
+        assert isinstance(scheduler_, AbstractScheduler), ""
 
         self.driver = driver_
         self.scheduler = scheduler_
