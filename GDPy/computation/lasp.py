@@ -106,7 +106,7 @@ class LaspDriver(AbstractDriver):
     """ local optimisation
     """
 
-    name = "Lasp"
+    name = "lasp"
 
     saved_cards = ["allstr.arc", "allfor.arc"]
 
@@ -336,6 +336,13 @@ class LaspNN(FileIOCalculator):
     def __init__(self, *args, label="LASP", **kwargs):
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
 
+        # NOTE: need resolved pot path
+        pot_ = {}
+        pot = self.parameters.get("pot", None)
+        for k, v in pot.items():
+            pot_[k] = Path(v).resolve()
+        self.set(pot=pot_)
+
         return
     
     def calculate(self, *args, **kwargs):
@@ -497,54 +504,4 @@ class LaspNN(FileIOCalculator):
 
 
 if __name__ == "__main__":
-    # ===== test lasp format =====
-    read_laspset("/mnt/scratch2/users/40247882/pbe-oxides/LASPset/TrainStr.txt")
-    exit()
-
-    # ===== test lasp calculator =====
-    # atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/xxx.xyz")
-    atoms = read("/mnt/scratch2/users/40247882/catsign/lasp-main/ga-surface/PGM.xyz")
-
-    pot_path = "/mnt/scratch2/users/40247882/catsign/lasp-main/ZnCrO.pot"
-    pot = dict(
-        O  = pot_path,
-        Cr = pot_path,
-        Zn = pot_path
-    )
-    calc = LaspNN(
-        directory = "./LaspNN-Worker",
-        command = "mpirun -n 4 lasp",
-        pot=pot
-    )
-
-    atoms.calc = calc
-    print("initial energy: ", atoms.get_potential_energy())
-    # print(atoms.get_forces())
-
-    # constraint = "1:24 49:72"
-    constraint = "1:12 51:62"
-
-    # use LaspDynamics
-    st = time.time()
-    worker = LaspDynamics(calc, directory=calc.directory)
-    new_atoms, min_results = worker.minimise(atoms, fmax=0.05, steps=100, constraint=constraint)
-    et = time.time()
-    #print(new_atoms.get_forces())
-    print(new_atoms.get_potential_energy())
-    print(min_results)
-    print("time: ", et - st)
-
-    write("PGM_opt.xyz", new_atoms)
-
-    exit()
-
-    # use ASE internal dynamics
-    from GDPy.computation.ase_interface import AseDynamics
-    st = time.time()
-    worker = AseDynamics(calc, directory=calc.directory)
-    #worker.run(atoms, fmax=0.05, steps=10)
-    _ = worker.minimise(atoms, fmax=0.05, steps=10)
-    et = time.time()
-    print("time: ", et - st)
-    print(_)
-    print("opt energy: ", atoms.get_potential_energy())
+    pass
