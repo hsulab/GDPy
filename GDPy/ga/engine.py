@@ -210,6 +210,15 @@ class GeneticAlgorithemEngine():
         print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
         print(sorted(unrelaxed_confids))
 
+        # --- check generation
+        if cur_gen > max_gen and (num_relaxed_gen == num_unrelaxed_gen):
+        #if cur_gen > max_gen:
+            print("reach maximum generation...")
+            self.report()
+            return
+        else:
+            print("Have not converged...")
+
         # - run
         # --- initial population
         if cur_gen == 0:
@@ -222,6 +231,7 @@ class GeneticAlgorithemEngine():
                 _ = self.worker.run([atoms]) # retrieve later
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
 
+        print("\n\n===== Optimisation and Reproduction =====")
         if (
             # nunrelaxed_gen == 0
             #nrelaxed_gen == unrelaxed_gen == self.population_size
@@ -295,14 +305,6 @@ class GeneticAlgorithemEngine():
                 find_neighbors=self.find_neighbors,
                 perform_parametrization=self.perform_parametrization
             )
-
-        # --- check generation
-        cur_gen = self.da.get_generation_number()
-        #if cur_gen > max_gen and (num_relaxed_gen == num_unrelaxed_gen):
-        print("current generation number: ", cur_gen)
-        if cur_gen > max_gen:
-            print("reach maximum generation...")
-            self.report()
 
         return
     
