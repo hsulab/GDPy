@@ -8,7 +8,7 @@ from typing import NoReturn
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-from GDPy.expedition.abstract import AbstractExplorer
+from GDPy.expedition.abstract import AbstractExpedition
 from GDPy.reaction.AFIR import AFIRSearch
 
 from GDPy.builder.constraints import parse_constraint_info
@@ -17,7 +17,7 @@ from GDPy.selector.abstract import create_selector
 from GDPy.utils.command import CustomTimer
 
 
-class ReactionExplorer(AbstractExplorer):
+class ReactionExplorer(AbstractExpedition):
 
     """ currently, use AFIR to search reaction pairs
     """
@@ -37,23 +37,18 @@ class ReactionExplorer(AbstractExplorer):
         """ some codes before creating exploratiosn of systems
             parse actions for this exploration from dict params
         """
-        selector = super()._prior_create(input_params)
+        actions = super()._prior_create(input_params)
 
         # NOTE: currently, we only have AFIR...
         afir_params = input_params["create"]["AFIR"]
         afir_search = AFIRSearch(**afir_params)
         
-        calc = self.pot_manager.calc
-
-        actions = {}
         actions["reaction"] = afir_search
 
-        return actions, selector
+        return actions
     
-    def _single_create(self, res_dpath, frames, cons_text, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
-        super()._single_create(res_dpath, frames, cons_text, actions, *args, **kwargs)
-
         # - action
         # NOTE: create a separate calculation folder
         calc_dir_path = res_dpath / "create" / self.creation_params["opt_dname"]
@@ -63,12 +58,6 @@ class ReactionExplorer(AbstractExplorer):
         #    print(f"  {calc_dir_path.name} exists, so next...")
 
         for icand, atoms in enumerate(frames):
-            # --- TODO: check constraints on atoms
-            #           actually this should be in a dynamics object
-            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
-            if frozen_indices:
-                atoms.set_constraint(FixAtoms(indices=frozen_indices))
-
             print(f"--- candidate {icand} ---")
             actions["reaction"].directory = calc_dir_path / (f"cand{icand}")
             actions["reaction"].run(atoms, self.pot_manager.calc)
@@ -76,9 +65,8 @@ class ReactionExplorer(AbstractExplorer):
         
         return
     
-    def _single_collect(self, res_dpath, frames, cons_text, actions, selector, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
-        super()._single_collect(res_dpath, frames, cons_text, actions, *args, **kwargs)
 
         traj_period = self.creation_params["traj_period"]
 
@@ -138,16 +126,12 @@ class ReactionExplorer(AbstractExplorer):
                 write(collect_dpath/"optraj_frames.xyz", optraj_frames)
 
         # - select
-        sorted_dir = res_dpath / "sorted"
-
+        selector = actions["selector"]
         if selector:
-            if not sorted_dir.exists():
-                sorted_dir.mkdir(parents=True)
-            else:
-                #print(f"  {sorted_dir.name} does not exist, so next...")
-                pass
+            # -- create dir
+            select_dpath = self._make_step_dir(res_dpath, "select")
                 
-            selector.directory = sorted_dir
+            selector.directory = select_dpath
 
             candidate_group = dict(
                 TS = approx_TSs,

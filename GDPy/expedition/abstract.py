@@ -192,11 +192,15 @@ class AbstractExpedition(ABC):
                 frames, cons_text = self._read_structure(slabel)
 
                 # --- update cons text
-                if isinstance(actions["driver"], list):
-                    for driver in actions["driver"]:
-                        driver.run_params.update(constraint=cons_text)
+                # TODO: need a unified interface here...
+                if self.name == "rxn":
+                    actions["reaction"].constraint = cons_text
                 else:
-                    actions["driver"].run_params.update(constraint=cons_text)
+                    if isinstance(actions["driver"], list):
+                        for driver in actions["driver"]:
+                            driver.run_params.update(constraint=cons_text)
+                    else:
+                        actions["driver"].run_params.update(constraint=cons_text)
 
                 # - run exploration
                 # NOTE: check status?

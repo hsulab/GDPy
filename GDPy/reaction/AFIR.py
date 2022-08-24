@@ -5,9 +5,7 @@
 Artificial force induced reaction (AFIR)
 """
 
-from ast import For
 import time
-from tkinter import Frame
 
 import numpy as np
 
@@ -410,15 +408,11 @@ class AFIRSearch():
             out: a bunch of opt trajs + a pseudo pathway
     """
 
-    default_parameters = dict(
-        dynamics = dict(
-            fmax = 0.1, steps = 100
-        )
-    )
-
     nfragments_to_reaction = 2
 
     run_NEB = False
+
+    constraint = None
 
     def __init__(
         self, 
@@ -476,6 +470,12 @@ class AFIRSearch():
             # TODO: return IS-TS-FS ???
             print(f"{self.directory.name} may have finished...")
             return
+        
+        # --- add constraint
+        if self.constraint:
+            mobile_indices, frozen_indices = parse_constraint_info(atoms, self.constraint, ret_text=False)
+            if frozen_indices:
+                atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
         # --- prepare fragments
         fragments = partition_fragments(self.graph_creator, atoms)
