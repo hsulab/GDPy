@@ -662,6 +662,15 @@ class LaspManager(AbstractPotential):
         """
         super().register_calculator(calc_params)
 
+        self.calc_params["pot_name"] = self.name
+
+        # NOTE: need resolved pot path
+        pot = {}
+        pot_ = calc_params.get("pot")
+        for k, v in pot_.items():
+            pot[k] = str(Path(v).resolve())
+        self.calc_params["pot"] = pot
+
         self.calc = None
         if self.calc_backend == "lasp":
             from GDPy.computation.lasp import LaspNN
@@ -669,6 +678,8 @@ class LaspManager(AbstractPotential):
         elif self.calc_backend == "lammps":
             # TODO: add lammps calculator
             pass
+        else:
+            raise NotImplementedError(f"{self.name} does not have {self.calc_backend}.")
 
         return
     
