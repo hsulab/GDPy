@@ -62,7 +62,7 @@ class SpecificWorker():
         self.batchsize = params.pop("batchsize", 1)
 
         # - create scheduler
-        scheduler_params = params.pop("scheduler", None)
+        scheduler_params = params.pop("scheduler", {})
         self.scheduler = create_scheduler(scheduler_params)
 
         # - potter and driver
