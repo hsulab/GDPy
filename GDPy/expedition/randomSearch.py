@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from os import system
 from pathlib import Path
 import copy
-import shutil
-import sys
-import time
-import warnings
 
 from dataclasses import dataclass
 from typing import Union, Callable
 
 import numpy as np
-from joblib import Parallel, delayed
 
 from ase import Atoms
 from ase.io import read, write
-from ase.calculators.singlepoint import SinglePointCalculator
-
-from collections import Counter
 
 from GDPy.expedition.abstract import AbstractExpedition
 
@@ -27,6 +18,7 @@ from GDPy.scheduler.factory import create_scheduler
 from GDPy.selector.traj import BoltzmannMinimaSelection
 
 from GDPy.computation.utils import read_trajectories
+from GDPy.computation.worker.worker import create_worker
 
 from GDPy.utils.command import CustomTimer
 
@@ -67,12 +59,6 @@ class RandomExplorer(AbstractExpedition):
         opt_dname = "tmp_folder", # dir name for optimisations
         struc_prefix = "cand",
     )
-
-    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
-        """ generator + driver + propagator
-        """
-
-        return
     
     def _prior_create(self, input_params: dict, *args, **kwargs):
         """ some codes before creating exploratiosn of systems
@@ -80,9 +66,33 @@ class RandomExplorer(AbstractExpedition):
         """
         actions = super()._prior_create(input_params)
 
-        actions["driver"] = self.pot_manager.create_driver(input_params["create"]["worker"]["driver"])
+        create_params = input_params.get("create", None)
+        task_params = copy.deepcopy(create_params["task"])
+        worker_params = copy.deepcopy(create_params["worker"])
+        scheduler_params = copy.deepcopy(create_params["scheduler"])
+
+        # - task
+        actions["task"] = task_params
+
+        # NOTE: check input is valid
+        # - worker
+        worker = create_worker(copy.deepcopy(worker_params))
+        #cur_worker_params = worker.driver.as_dict()
+        #cur_worker_params.update(scheduler=params["worker"].get("scheduler", {}))
+        #params["worker"].update(**cur_worker_params)
+        actions["worker"] = worker
+
+        # - scheduler
+        scheduler = create_scheduler(scheduler_params)
+        actions["scheduler"] = scheduler
 
         return actions
+
+    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
+        """ generator + driver + propagator
+        """
+
+        return
 
     def icreate(self, exp_name, working_directory):
         """ create explorations
@@ -101,20 +111,29 @@ class RandomExplorer(AbstractExpedition):
             res_dpath = working_directory / exp_name / slabel / "create"
             if not res_dpath.exists():
                 res_dpath.mkdir(parents=True)
-
+            
             # - prepare input
             params = copy.deepcopy(task_params)
             params["system"] = copy.deepcopy(self.init_systems[slabel].get("generator", None))
             substrate = Path(params["system"].get("substrate", None))
             if substrate:
-                shutil.copy(substrate, res_dpath/substrate.name)
+            #    shutil.copy(substrate, res_dpath/substrate.name)
+                params["system"]["substrate"] = Path(substrate).resolve()
+            # TODO: check generator is valid
 
+            # --- worker
             params["worker"] = copy.deepcopy(worker_params)
             params["worker"]["prefix"] = slabel
 
             constraint = self.init_systems[slabel].get("constraint", None)
             if constraint:
                 params["worker"]["driver"]["run"]["constraint"] = constraint
+            
+            # NOTE: check input is valid
+            worker = create_worker(copy.deepcopy(params["worker"]))
+            cur_worker_params = worker.driver.as_dict()
+            cur_worker_params.update(scheduler=params["worker"].get("scheduler", {}))
+            params["worker"].update(**cur_worker_params)
             
             import yaml
             with open(res_dpath/"task.yaml", "w") as fopen:
@@ -172,7 +191,7 @@ class RandomExplorer(AbstractExpedition):
             write(self.step_dpath/"converged_frames.xyz", converged_frames)
 
             # - final select
-            self._single_collect(res_dpath, converged_frames, "", actions, selector)
+            self._single_collect(res_dpath, converged_frames, actions)
 
         return
 
@@ -182,7 +201,7 @@ class RandomExplorer(AbstractExpedition):
         print("traj_period: ", traj_period)
 
         # - create collect dir
-        driver = actions["driver"]
+        driver = actions["worker"].driver
 
         tmp_folder = res_dpath / "create" / self.creation_params["opt_dname"] 
 
