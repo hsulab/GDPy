@@ -19,7 +19,6 @@ from GDPy import config
 """ Various Selection Protocols
 """
 
-# TODO: create a composed selector
 
 class AbstractSelector(abc.ABC):
 
@@ -278,9 +277,9 @@ class DeviationSelector(AbstractSelector):
 
         self.directory = directory
 
-        self.__register_potential(potential)
-
         # - parse properties
+        #self.__register_potential(potential)
+
         # TODO: select on properties not only on fixed name (energy, forces)
         # if not set properly, will try to call calculator
         self.energy_tag = properties["atomic_energy"]
@@ -325,32 +324,6 @@ class DeviationSelector(AbstractSelector):
 
         return
     
-    def calculate(self, frames):
-        """"""
-        # TODO: move this part to potential manager?
-        if self.calc is None:
-            raise RuntimeError("calculator is not set properly...")
-        
-        energies, maxforces = [], []
-        energy_deviations, force_deviations = [], []
-        
-        for atoms in frames:
-            self.calc.reset()
-            self.calc.calc_uncertainty = True # TODO: this is not a universal interface
-            atoms.calc = self.calc
-            # obtain results
-            energy = atoms.get_potential_energy()
-            fmax = np.max(np.fabs(atoms.get_forces()))
-            enstdvar = atoms.calc.results["en_stdvar"] / len(atoms)
-            maxfstdvar = np.max(atoms.calc.results["force_stdvar"])
-            # add results
-            energies.append(energy)
-            maxforces.append(fmax)
-            energy_deviations.append(enstdvar)
-            force_deviations.append(maxfstdvar)
-
-        return (energies, maxforces, energy_deviations, force_deviations)
-    
     def select(self, frames, index_map=None, ret_indices: bool=False) -> List[Atoms]:
         """"""
         energy_deviations = [a.info[self.energy_tag] for a in frames]
@@ -366,7 +339,7 @@ class DeviationSelector(AbstractSelector):
             return selected_frames
         else:
             return selected_indices
-    
+
     def _select_indices(self, energy_deviations, force_deviations = None) -> List[int]:
         """
         """
@@ -392,6 +365,32 @@ class DeviationSelector(AbstractSelector):
                     continue
 
         return selected
+
+    def calculate(self, frames):
+        """"""
+        # TODO: move this part to potential manager?
+        if self.calc is None:
+            raise RuntimeError("calculator is not set properly...")
+        
+        energies, maxforces = [], []
+        energy_deviations, force_deviations = [], []
+        
+        for atoms in frames:
+            self.calc.reset()
+            self.calc.calc_uncertainty = True # TODO: this is not a universal interface
+            atoms.calc = self.calc
+            # obtain results
+            energy = atoms.get_potential_energy()
+            fmax = np.max(np.fabs(atoms.get_forces()))
+            enstdvar = atoms.calc.results["en_stdvar"] / len(atoms)
+            maxfstdvar = np.max(atoms.calc.results["force_stdvar"])
+            # add results
+            energies.append(energy)
+            maxforces.append(fmax)
+            energy_deviations.append(enstdvar)
+            force_deviations.append(maxfstdvar)
+
+        return (energies, maxforces, energy_deviations, force_deviations)
     
     def __register_potential(self, potential=None):
         """"""
