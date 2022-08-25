@@ -33,40 +33,45 @@ from GDPy.builder.constraints import parse_constraint_info
 
 class AseDriver(AbstractDriver):
 
+    name = "ase"
+
     # - defaults
-    default_task = "bfgs"
-    supported_tasks = ["bfgs", "ts", "md"]
+    default_task = "min"
+    supported_tasks = ["min", "ts", "md"]
 
     default_init_params = {
-        # TODO: make md params consistent
+        "min": {
+            "min_style": "bfgs",
+            "min_modify": "integrator verlet tmax 4"
+        },
         "md": {
             "md_style": "nvt",
             "velocity_seed": 1112,
             "timestep": 1.0, # fs
-            "temperature_K": 300, # K
-            "taut": 100, # fs
-            "pressure": 1.0, # bar
-            "taup": 100,
-            "loginterval": 1
+            "temp": 300, # K
+            "Tdamp": 100, # fs
+            "press": 1.0, # bar
+            "Pdamp": 100,
+            "dump_period": 1
         }
     }
 
     default_run_params = {
-        "bfgs": dict(
-            steps= 200,
+        "min": dict(
+            steps= 0,
             fmax = 0.05
         ),
         "ts": {},
         "md": dict(
-            steps = 10
+            steps = 0
         )
     }
 
     param_mapping = dict(
         temp = "temperature_K",
-        taut = "Tdamp",
+        Tdamp = "taut",
         pres = "pressure",
-        taup = "Pdamp",
+        Pdamp = "taup",
         dump_period = "loginterval"
     )
 
@@ -97,9 +102,10 @@ class AseDriver(AbstractDriver):
         """
         super()._parse_params(params)
 
-        if self.task == "bfgs":
-            from ase.optimize import BFGS
-            driver_cls = BFGS
+        if self.task == "min":
+            if self.init_params["min_style"] == "bfgs":
+                from ase.optimize import BFGS
+                driver_cls = BFGS
         elif self.task == "ts":
             from sella import Sella, Constraints
             driver_cls = Sella
@@ -112,7 +118,7 @@ class AseDriver(AbstractDriver):
             elif self.init_params["md_style"] == "npt":
                 from ase.md.nptberendsen import NPTBerendsen as driver_cls
         else:
-            pass
+            raise NotImplementedError(f"{self.__class__.name} does not have {self.task} task.")
         
         self.driver_cls = driver_cls
 
@@ -172,7 +178,7 @@ class AseDriver(AbstractDriver):
         #print(atoms.constraints)
 
         # - init driver
-        if self.task == "bfgs":
+        if self.task == "min":
             driver = self.driver_cls(
                 atoms, 
                 logfile=self.log_fpath,
@@ -214,7 +220,7 @@ class AseDriver(AbstractDriver):
 
             # TODO: move this to parse_params?
             init_params_["timestep"] *= units.fs
-            #print(init_params_)
+            print(init_params_)
 
             # - construct the driver
             driver = self.driver_cls(
