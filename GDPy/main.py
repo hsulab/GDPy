@@ -210,6 +210,10 @@ def main():
         "params",
         help="json/yaml file that stores parameters for a task"
     )
+    parser_task.add_argument(
+        "--run", default=1, type=int,
+        help="running options"
+    )
 
     # selection
     parser_select = subparsers.add_parser(
@@ -354,7 +358,10 @@ def main():
         run_worker(args.params, args.structure, potter)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
-        run_task(args.params, potter)
+        # reparse pot NOTE: a better interface?
+        from GDPy.computation.utils import register_worker
+        worker = register_worker(args.potential)
+        run_task(args.params, worker, args.run)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
         run_validation(args.INPUTS, args.structure, potter)

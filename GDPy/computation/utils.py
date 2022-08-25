@@ -6,6 +6,44 @@ import numpy as np
 from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 
+from GDPy.computation.worker.worker import DriverBasedWorker
+from GDPy.potential.manager import PotManager
+from GDPy.utils.command import parse_input_file
+
+def register_worker(config_file: dict):
+    """ return either potter or worker
+    """
+    params = parse_input_file(config_file)
+
+    potter, driver, worker = None, None, None
+
+    # - get potter first
+    potential_params = params.get("potential", {})
+    if not potential_params:
+        potential_params = params
+        # potential-only
+    manager = PotManager()
+    name = potential_params.get("name", None)
+    potter = manager.create_potential(pot_name=name)
+    potter.register_calculator(potential_params.get("params", {}))
+    potter.version = potential_params.get("version", "unknown")
+
+    # - try to get driver
+    driver_params = params.get("driver", {})
+    if driver_params:
+        driver = potter.create_driver(driver_params)
+
+    # - scheduler
+    scheduler_params = params.get("scheduler", {})
+    if scheduler_params:
+        potter.register_scheduler(scheduler_params)
+    
+    # - try worker
+    if driver and potter.scheduler:
+        worker = DriverBasedWorker(driver, potter.scheduler)
+    
+    return (potter if not worker else worker)
+
 def create_single_point_calculator(atoms_sorted, resort, calc_name):
     """ create a spc to store calc results
         since some atoms may share a calculator
@@ -81,3 +119,6 @@ def read_trajectories(
     print("ntrajframes: ", len(all_traj_frames), f" by {traj_period} traj_period")
 
     return all_traj_frames
+
+if __name__ == "__main__":
+    pass
