@@ -17,7 +17,7 @@ from ase.constraints import FixAtoms
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.md.langevin import Langevin
 
-from GDPy.calculator.aseplumed import AsePlumed
+from GDPy.computation.aseplumed import AsePlumed
 
 
 class GridReactionSampling():
@@ -208,7 +208,7 @@ if __name__ == "__main__":
 
     grs = GridReactionSampling(reactant, surface)
 
-    from GDPy.calculator.lasp import LaspNN
+    from GDPy.computation.lasp import LaspNN
     pot_path = "/mnt/scratch2/users/40247882/catsign/lasp-main/ZnCrOCH.pot"
     pot = dict(
         H  = pot_path,
