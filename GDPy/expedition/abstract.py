@@ -10,6 +10,7 @@ import copy
 import shutil
 import uuid
 import time
+import logging
 import warnings
 
 from ase import Atoms
@@ -42,6 +43,8 @@ class AbstractExpedition(ABC):
     name = "expedition"
 
     parameters = dict()
+
+    restart = False # for the logger
 
     # general parameters
     general_params = dict(
@@ -77,8 +80,6 @@ class AbstractExpedition(ABC):
         self.explorations = main_dict["explorations"]
         self.init_systems = main_dict["systems"]
 
-        self.machine_dict = main_dict.get("machines", {})
-
         self._parse_general_params(main_dict)
 
         # for job prefix
@@ -94,6 +95,44 @@ class AbstractExpedition(ABC):
         # --- create
         # --- collect/select
         # --- label/acquire
+
+        return
+
+    def _init_logger(self, working_directory):
+        """"""
+        self.logger = logging.getLogger(__name__)
+
+        log_level = logging.INFO
+
+        self.logger.setLevel(log_level)
+
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+
+        working_directory = Path(working_directory)
+        log_fpath = working_directory / (self.name+".out")
+
+        if self.restart:
+            fh = logging.FileHandler(filename=log_fpath, mode="a")
+        else:
+            fh = logging.FileHandler(filename=log_fpath, mode="w")
+
+        fh.setLevel(log_level)
+        #fh.setFormatter(formatter)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(log_level)
+        #ch.setFormatter(formatter)
+
+        self.logger.addHandler(ch)
+        self.logger.addHandler(fh)
+
+        # begin!
+        self.logger.info(
+            "\nStart at %s\n", 
+            time.asctime( time.localtime(time.time()) )
+        )
 
         return
     
@@ -172,65 +211,62 @@ class AbstractExpedition(ABC):
         # - a few info
         exp_dict = self.explorations[exp_name]
         included_systems = exp_dict.get("systems", None)
+        assert len(included_systems)>0, f"Expedition {self.name} needs at least one system."
 
         actions = self._prior_create(exp_dict)
 
-        if included_systems is not None:
-            for slabel in included_systems:
-                print(f"----- Explore System {slabel} -----")
+        for slabel in included_systems:
+            print(f"----- Explore System {slabel} -----")
 
-                # - prepare output directory
-                res_dpath = working_directory / exp_name / slabel
-                if not res_dpath.exists():
-                    res_dpath.mkdir(parents=True)
-                #else:
-                #    print(f"  {res_dpath.name} exists, so next...")
-                #    continue
+            # - prepare output directory
+            res_dpath = working_directory / exp_name / slabel
+            if not res_dpath.exists():
+                res_dpath.mkdir(parents=True)
+            #else:
+            #    print(f"  {res_dpath.name} exists, so next...")
+            #    continue
 
-                # - read substrate
-                self.step_dpath = self._make_step_dir(res_dpath, "init")
-                frames, cons_text = self._read_structure(slabel)
+            # - read substrate
+            self.step_dpath = self._make_step_dir(res_dpath, "init")
+            frames, cons_text = self._read_structure(slabel)
 
-                # --- update cons text
-                # TODO: need a unified interface here...
-                if self.name == "rxn":
-                    actions["reaction"].constraint = cons_text
+            # --- update cons text
+            # TODO: need a unified interface here...
+            if self.name == "rxn":
+                actions["reaction"].constraint = cons_text
+            else:
+                if isinstance(actions["driver"], list):
+                    for driver in actions["driver"]:
+                        driver.run_params.update(constraint=cons_text)
                 else:
-                    if isinstance(actions["driver"], list):
-                        for driver in actions["driver"]:
-                            driver.run_params.update(constraint=cons_text)
-                    else:
-                        actions["driver"].run_params.update(constraint=cons_text)
+                    actions["driver"].run_params.update(constraint=cons_text)
 
-                # - run exploration
-                # NOTE: check status?
-                # TODO: make this a while loop
-                status = ""
-                while status != "finished":
-                    status = self._check_create_status(res_dpath)
-                    print(f"===== current status: {status}  =====")
-                    self.step_dpath = self._make_step_dir(res_dpath, status)
-                    if status == "create":
-                        with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
-                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        self._single_create(res_dpath, frames, actions)
-                        with open(res_dpath/"CREATE_FINISHED", "a") as fopen:
-                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        os.remove(res_dpath/"CREATE_RUNNING")
-                    elif status == "collect":
-                        with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
-                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        self._single_collect(res_dpath, frames, actions)
-                        with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
-                            fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                        os.remove(res_dpath/"COLLECT_RUNNING")
-                    elif status == "finished":
-                        pass
-                    else:
-                        raise RuntimeError("Unknown status for exploration...")
-        else:
-            # NOTE: no systems to explore
-            pass
+            # - run exploration
+            # NOTE: check status?
+            # TODO: make this a while loop
+            status = ""
+            while status != "finished":
+                status = self._check_create_status(res_dpath)
+                print(f"===== current status: {status}  =====")
+                self.step_dpath = self._make_step_dir(res_dpath, status)
+                if status == "create":
+                    with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    self._single_create(res_dpath, frames, actions)
+                    with open(res_dpath/"CREATE_FINISHED", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    os.remove(res_dpath/"CREATE_RUNNING")
+                elif status == "collect":
+                    with open(res_dpath/"COLLECT_RUNNING", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    self._single_collect(res_dpath, frames, actions)
+                    with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
+                        fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    os.remove(res_dpath/"COLLECT_RUNNING")
+                elif status == "finished":
+                    pass
+                else:
+                    raise RuntimeError("Unknown status for exploration...")
 
         self._post_create()
 
