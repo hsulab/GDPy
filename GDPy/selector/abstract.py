@@ -487,13 +487,15 @@ class DescriptorBasedSelector(AbstractSelector):
         features = None
         if desc_name == "soap":
             soap = SOAP(**desc_params)
-            print("descriptor dimension: ", soap.get_number_of_features())
+            ndim = soap.get_number_of_features()
+            print("descriptor dimension: ", ndim)
             features = soap.create(frames, n_jobs=self.njobs)
         else:
             raise RuntimeError(f"Unknown descriptor {desc_name}.")
         print("finished calculating features...")
 
         # save calculated features 
+        features = features.reshape(-1,ndim)
         if self.verbose:
             np.save(features_path, features)
             print('number of soap instances', len(features))
@@ -536,10 +538,13 @@ class DescriptorBasedSelector(AbstractSelector):
         number = self._parse_selection_number(nframes)
 
         # cur decomposition
-        cur_scores, selected = cur_selection(
-            features, number,
-            self.selec_dict["zeta"], self.selec_dict["strategy"]
-        )
+        if nframes == 1:
+            selected = [0]
+        else:
+            cur_scores, selected = cur_selection(
+                features, number,
+                self.selec_dict["zeta"], self.selec_dict["strategy"]
+            )
 
         # TODO: if output
         if self.verbose:
