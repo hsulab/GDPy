@@ -10,19 +10,19 @@ def run_expedition(potter, referee, exp_json, chosen_step, global_params = None)
 
     method = exp_dict.get("method", "MD")
     if method == "MD":
-        from .md import MDBasedExpedition
-        scout = MDBasedExpedition(exp_dict, potter, referee)
+        from .md import MDBasedExpedition as exp_cls
     elif method == "GA":
-        from .randomSearch import RandomExplorer
-        scout = RandomExplorer(exp_dict, potter, referee)
+        from .randomSearch import RandomExplorer as exp_cls
     elif method == "adsorbate":
-        from .adsorbate import AdsorbateEvolution
-        scout = AdsorbateEvolution(exp_dict, potter, referee)
+        from .adsorbate import AdsorbateEvolution as exp_cls
     elif method == "reaction":
-        from .reaction import ReactionExplorer
-        scout = ReactionExplorer(exp_dict, potter, referee)
+        from .reaction import ReactionExplorer as exp_cls
+    elif method == "otf":
+        from .online.md import OnlineDynamicsBasedExpedition as exp_cls
     else:
-        raise ValueError(f"Unknown method {method}")
+        raise NotImplementedError(f"Method {method} is not supported.")
+
+    scout = exp_cls(exp_dict, potter, referee)
 
     # - adjust global params
     print("optional params ", global_params)
