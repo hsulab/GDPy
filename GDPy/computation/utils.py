@@ -30,8 +30,7 @@ def register_worker(config_file: dict):
 
     # - try to get driver
     driver_params = params.get("driver", {})
-    if driver_params:
-        driver = potter.create_driver(driver_params)
+    driver = potter.create_driver(driver_params) # use external backend
 
     # - scheduler
     scheduler_params = params.get("scheduler", {})

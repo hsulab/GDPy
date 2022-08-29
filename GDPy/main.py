@@ -309,6 +309,7 @@ def main():
 
     # - potential
     from GDPy.potential.manager import create_potter
+    from GDPy.computation.utils import register_worker
     potter = None
     if args.potential:
         pot_config = args.potential # configuration file of potential
@@ -317,7 +318,7 @@ def main():
     referee = None
     if args.reference:
         ref_config = args.reference # configuration file of potential
-        referee = create_potter(ref_config) # register calculator, and scheduler if exists
+        referee = register_worker(ref_config) # register calculator, and scheduler if exists
     
     # - scheduler
 
@@ -359,7 +360,6 @@ def main():
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         # reparse pot NOTE: a better interface?
-        from GDPy.computation.utils import register_worker
         worker = register_worker(args.potential)
         run_task(args.params, worker, args.run)
     elif args.subcommand == 'valid':

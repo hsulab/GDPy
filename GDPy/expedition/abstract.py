@@ -274,7 +274,7 @@ class AbstractExpedition(ABC):
     
     def _make_step_dir(self, res_dpath: Path, status: str) -> Path:
         """"""
-        if status not in ["init", "create", "collect", "select"]:
+        if status not in ["init", "create", "collect", "select", "label"]:
             return
 
         # - create collect dir
