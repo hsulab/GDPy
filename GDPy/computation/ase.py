@@ -30,6 +30,23 @@ from GDPy.builder.constraints import parse_constraint_info
         add uncertainty quatification
 """
 
+def retrieve_and_save_deviation(atoms, devi_fpath):
+    """"""
+    results = copy.deepcopy(atoms.calc.results)
+    devi_results = [(k,v) for k,v in results.items() if "devi" in k]
+    if devi_results:
+        devi_names = [x[0] for x in devi_results]
+        devi_values = np.array([x[1] for x in devi_results]).reshape(1,-1)
+
+        if devi_fpath.exists():
+            with open(devi_fpath, "a") as fopen:
+                np.savetxt(fopen, devi_values, fmt="%18.6e")
+        else:
+            with open(devi_fpath, "w") as fopen:
+                np.savetxt(fopen, devi_values, fmt="%18.6e", header=" ".join(devi_names))
+
+    return
+
 
 class AseDriver(AbstractDriver):
 
@@ -46,7 +63,7 @@ class AseDriver(AbstractDriver):
         },
         "md": {
             "md_style": "nvt",
-            "velocity_seed": 1112,
+            "velocity_seed": None,
             "timestep": 1.0, # fs
             "temp": 300, # K
             "Tdamp": 100, # fs
@@ -150,11 +167,8 @@ class AseDriver(AbstractDriver):
 
         return 
     
-    def run(self, atoms, **kwargs):
-        """ run the driver
-            parameters of calculator will not change since
-            it still performs single-point calculation
-        """
+    def _create_dynamics(self, atoms, *args, **kwargs):
+        """"""
         # - set special keywords
         atoms.calc = self.calc
 
@@ -194,13 +208,17 @@ class AseDriver(AbstractDriver):
             )
         elif self.task == "md":
             # - adjust params
-            init_params_ = self.init_params.copy()
-            velocity_seed = init_params_.pop("velocity_seed")
+            init_params_ = copy.deepcopy(self.init_params)
+            velocity_seed = init_params_.pop("velocity_seed", np.random.randint(0,10000))
             rng = np.random.default_rng(velocity_seed)
 
             # - velocity
-            MaxwellBoltzmannDistribution(atoms, temperature_K=init_params_["temperature_K"], rng=rng)
-            force_temperature(atoms, init_params_["temperature_K"], unit="K") # NOTE: respect constraints
+            if atoms.get_kinetic_energy() > 0.:
+                # atoms have momenta
+                pass
+            else:
+                MaxwellBoltzmannDistribution(atoms, temperature_K=init_params_["temperature_K"], rng=rng)
+                force_temperature(atoms, init_params_["temperature_K"], unit="K") # NOTE: respect constraints
 
             # - prepare args
             md_style = init_params_.pop("md_style")
@@ -220,7 +238,7 @@ class AseDriver(AbstractDriver):
 
             # TODO: move this to parse_params?
             init_params_["timestep"] *= units.fs
-            print(init_params_)
+            #print(init_params_)
 
             # - construct the driver
             driver = self.driver_cls(
@@ -230,71 +248,46 @@ class AseDriver(AbstractDriver):
                 trajectory=str(self.traj_fpath)
             )
         else:
-            pass
+            raise NotImplementedError(f"Unknown task {self.task}.")
+        
+        return driver, run_params
 
+    def run(self, atoms, *args, **kwargs):
+        """ run the driver
+            parameters of calculator will not change since
+            it still performs single-point calculation
+        """
+        driver, run_params = self._create_dynamics(atoms, *args, **kwargs)
+
+        # TODO: use step to retrieve deviation info
+        driver.attach(
+            retrieve_and_save_deviation, interval=self.init_params["loginterval"], 
+            atoms=atoms, devi_fpath=self.directory/"model_devi-ase.dat"
+        )
         driver.run(**run_params)
 
         return atoms
-    
-    def minimise(self, atoms, repeat=1, extra_info=None, verbose=True, **kwargs) -> Atoms:
-        """ return a new atoms with singlepoint calc
-            input atoms wont be changed
-        """
-        # run dynamics
-        cur_params = self.dyn_runparams.copy()
-        for k, v in kwargs:
-            if k in cur_params:
-                cur_params[k] = v
-        fmax = cur_params["fmax"]
-
-        # TODO: add verbose
-        content = f"\n=== Start minimisation maximum try {repeat} times ===\n"
-        for i in range(repeat):
-            content += f"--- attempt {i} ---\n"
-            min_atoms = self.run(atoms, **cur_params)
-            min_results = self.__read_min_results(self._logfile_path)
-            content += min_results
-            # NOTE: add few information
-            # if extra_info is not None:
-            #     min_atoms.info.update(extra_info)
-            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
-            if maxforce <= fmax:
-                break
-            else:
-                atoms = min_atoms
-                print("backup old data...")
-                for card in self.saved_cards:
-                    card_path = self._directory_path / card
-                    bak_fmt = ("bak.{:d}."+card)
-                    idx = 0
-                    while True:
-                        bak_card = bak_fmt.format(idx)
-                        if not Path(bak_card).exists():
-                            saved_card_path = self._directory_path / bak_card
-                            shutil.copy(card_path, saved_card_path)
-                            break
-                        else:
-                            idx += 1
-        else:
-            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
-        
-        if verbose:
-            print(content)
-
-        return min_atoms
-
-    def __read_min_results(self, fpath):
-        """ compatibilty to lammps
-        """
-        with open(fpath, "r") as fopen:
-            min_results = fopen.read()
-
-        return min_results
     
     def read_trajectory(self, *args, **kwargs):
         """ read trajectory in the current working directory
         """
         traj_frames = read(self.traj_fpath, ":")
+
+        # - read deviation, similar to lammps
+        devi_fpath = self.directory / "model_devi-ase.dat"
+        if devi_fpath.exists():
+            with open(devi_fpath, "r") as fopen:
+                lines = fopen.readlines()
+            dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
+            dkeys = [x.strip() for x in dkeys][1:]
+            data = np.loadtxt(devi_fpath, dtype=float)
+            ncols = data.shape[-1]
+            data = data.reshape(-1,ncols)
+            data = data.transpose()[1:,:len(traj_frames)]
+
+            for i, atoms in enumerate(traj_frames):
+                for j, k in enumerate(dkeys):
+                    atoms.info[k] = data[j,i]
 
         return traj_frames
 
