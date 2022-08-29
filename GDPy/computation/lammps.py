@@ -432,9 +432,15 @@ class Lammps(FileIOCalculator):
         # - Be careful with UNITS
         # read forces from dump file
         self.cached_traj_frames = self._read_trajectory()
+        converged_frame = self.cached_traj_frames[-1]
 
-        self.results["forces"] = self.cached_traj_frames[-1].get_forces().copy()
-        self.results["energy"] = self.cached_traj_frames[-1].get_potential_energy()
+        self.results["forces"] = converged_frame.get_forces().copy()
+        self.results["energy"] = converged_frame.get_potential_energy()
+
+        # - add deviation info
+        for k, v in converged_frame.info.items():
+            if "devi" in k:
+                self.results[k] = v
 
         return
 
@@ -471,7 +477,10 @@ class Lammps(FileIOCalculator):
                 lines = fopen.readlines()
             dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
             dkeys = [x.strip() for x in dkeys][1:]
-            data = np.loadtxt(devi_path, dtype=float).transpose()[1:,:len(traj_frames)]
+            data = np.loadtxt(devi_path, dtype=float)
+            ncols = data.shape[-1]
+            data = data.reshape(-1,ncols)
+            data = data.transpose()[1:,:len(traj_frames)]
 
             for i, atoms in enumerate(traj_frames):
                 for j, k in enumerate(dkeys):
@@ -565,7 +574,7 @@ class Lammps(FileIOCalculator):
         content += "thermo          {}\n".format(self.dump_period) 
 
         # TODO: How to dump total energy?
-        content += "dump		1 all custom {} {} id type element x y z fx fy fz\n".format(
+        content += "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
             self.dump_period, ASELMPCONFIG.trajectory_filename
         )
         content += "dump_modify 1 element {}\n".format(" ".join(self.type_list))
