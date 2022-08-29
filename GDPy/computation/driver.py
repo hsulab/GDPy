@@ -108,6 +108,21 @@ class AbstractDriver(abc.ABC):
 
         return params_
     
+    def get(self, key):
+        """ get param value from init/run params
+            by a mapped key name
+        """
+        parameters = copy.deepcopy(self.init_params)
+        parameters.update(copy.deepcopy(self.run_params))
+
+        value = parameters.get(key, None)
+        if not value:
+            mapped_key = self.param_mapping.get(key, None)
+            if mapped_key:
+                value = parameters.get(mapped_key, None)
+
+        return value
+    
     def reset(self):
         """ remove results stored in dynamics calculator
         """
