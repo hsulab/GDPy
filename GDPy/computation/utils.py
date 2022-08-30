@@ -67,6 +67,15 @@ def parse_type_list(atoms):
 
     return type_list
 
+def get_composition_from_atoms(atoms):
+    """"""
+    from collections import Counter
+    chemical_symbols = atoms.get_chemical_symbols()
+    composition = Counter(chemical_symbols)
+    sorted_composition = sorted(composition.items(), key=lambda x:x[0])
+
+    return sorted_composition
+
 
 def read_trajectories(
     driver, traj_dirs,
