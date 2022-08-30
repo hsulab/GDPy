@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import json
 import importlib
 import typing
 
@@ -35,14 +34,14 @@ class PotManager():
 
         return
     
-    def create_potential(self, pot_name, train_dict=None, *args, **kwargs):
+    def create_potential(self, pot_name, train_params=None, *args, **kwargs):
         """
         """
         if pot_name in self.potential_names:
             pot_class = self.registered_potentials[pot_name]
             potential = pot_class(*args, **kwargs)
-            if train_dict is not None:
-                potential.register_training(train_dict)
+            if train_params is not None:
+                potential.register_training(train_params)
         else:
             raise NotImplementedError('%s is not registered as a potential.' %(pot_name))
 
@@ -51,27 +50,45 @@ class PotManager():
 
 def create_potter(config_file=None):
     """"""
-    potter = None
-    if config_file:
-        params = parse_input_file(config_file)
-        manager = PotManager()
+    params = parse_input_file(config_file)
 
-        # - calculator
-        potential_params = params.get("potential", None)
-        if not potential_params:
-            potential_params = params
+    potter, train_worker, driver, run_worker = None, None, None, None
 
-        name = potential_params.get("name", None)
-        potter = manager.create_potential(pot_name=name)
-        potter.register_calculator(potential_params.get("params", {}))
-        potter.version = potential_params.get("version", "unknown")
+    # - get potter first
+    potential_params = params.get("potential", {})
+    if not potential_params:
+        potential_params = params
+    manager = PotManager()
+    name = potential_params.get("name", None)
+    potter = manager.create_potential(pot_name=name)
+    potter.register_calculator(potential_params.get("params", {}))
+    potter.version = potential_params.get("version", "unknown")
 
-        # - scheduler
-        scheduler_params = params.get("scheduler", None)
-        if scheduler_params:
-            potter.register_scheduler(scheduler_params)
+    # - scheduler for training the potential
+    train_params = potential_params.get("trainer", {})
+    if train_params:
+        from GDPy.computation.worker.train import TrainWorker
+        potter.register_trainer(train_params)
+        train_worker = TrainWorker(potter, potter.train_scheduler)
 
-    return potter
+    # - try to get driver
+    driver_params = params.get("driver", {})
+    if potter.calc:
+        driver = potter.create_driver(driver_params) # use external backend
+
+    # - scheduler for running the potential
+    scheduler_params = params.get("scheduler", {})
+    if scheduler_params:
+        potter.register_scheduler(scheduler_params)
+
+    # - try worker
+    if driver and potter.scheduler:
+        from GDPy.computation.worker.drive import DriverBasedWorker
+        run_worker = DriverBasedWorker(driver, potter.scheduler)
+    
+    # TODO: cant define train and run at the same time?
+
+    return (potter if not train_worker else train_worker)
 
 if __name__ == "__main__":
     pass

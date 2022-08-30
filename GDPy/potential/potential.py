@@ -8,6 +8,7 @@ deals with various machine learning potentials
 
 import os
 import json
+import yaml
 import abc
 import copy
 import pathlib
@@ -442,27 +443,11 @@ class EannManager(AbstractPotential):
 
     valid_combinations = [
         ["ase", "ase"], # calculator, dynamics
-        ["lammps", "lammps"]
+        ["lammps", "ase"],
+        ["lammps", "lammps"],
     ]
 
     TRAIN_INPUT_NAME = "input_nn.json"
-
-    #def __init__(self, backend: str, models: Union[str, list], type_map: dict, **kwargs):
-    #    """ create a eann manager
-    #    """
-    #    self.backend = backend
-    #    if self.backend not in self.implemented_backends:
-    #        raise NotImplementedError('Backend %s is not implemented.' %self.backend)
-
-    #    # check models
-    #    self.models = models
-    #    self.__parse_models()
-    #    self.__check_uncertainty_support()
-
-    #    self.type_map = type_map
-    #    self.type_list = list(type_map.keys())
-
-    #    return
     
     def __init__(self):
 
@@ -492,7 +477,7 @@ class EannManager(AbstractPotential):
 
         return
     
-    def register_calculator(self, calc_params):
+    def register_calculator(self, calc_params, *args, **kwargs):
         """"""
         super().register_calculator(calc_params)
 
@@ -501,7 +486,7 @@ class EannManager(AbstractPotential):
         atypes = calc_params.pop("type_list", [])
 
         models = calc_params.pop("file", None)
-        #pair_style = calc_params.get("pair_style", None)
+        pair_style = calc_params.get("pair_style", None)
 
         type_map = {}
         for i, a in enumerate(atypes):
@@ -510,135 +495,130 @@ class EannManager(AbstractPotential):
         if self.calc_backend == "ase":
             # return ase calculator
             from eann.interface.ase.calculator import Eann
-            calc = Eann(
-                model=models, type_map=type_map,
-                command = command, directory=directory
-            )
+            if models:
+                calc = Eann(
+                    model=models, type_map=type_map,
+                    command = command, directory=directory
+                )
+            else:
+                calc = None
         elif self.calc_backend == "lammps":
-            # return deepmd pair related content
-            #content = "units           metal\n"
-            #content += "atom_style      atomic\n"
-            #content = "neighbor        0.0 bin\n"
-            #content += "pair_style      eann %s \n" \
-            #    %(' '.join([m for m in models]))
-            #content += "pair_coeff * * double %s" %(" ".join(atypes))
-            #calc = content
-
             # eann has different backends (ase, lammps)
             from GDPy.computation.lammps import Lammps
-            calc = Lammps(command=command, directory=directory, **calc_params)
+            if pair_style:
+                calc = Lammps(command=command, directory=directory, **calc_params)
+
+                # TODO: assert unit and atom_style
+                #content = "units           metal\n"
+                #content += "atom_style      atomic\n"
+                #content = "neighbor        0.0 bin\n"
+                #content += "pair_style      eann %s \n" \
+                #    %(' '.join([m for m in models]))
+                #content += "pair_coeff * * double %s" %(" ".join(atypes))
+                #calc = content
+            else:
+                calc = None
         
         self.calc = calc
 
         return
     
-    def generate_calculator(
-        self, backend: str, models: list, atypes: List[str] = None
-    ):
-        """ generate calculator with various backends
-            for single-point calculation
-        """
-        type_map = {}
-        for i, a in atypes:
-            type_map[a] = i
-
-        if backend == "ase":
-            # return ase calculator
-            from eann.interface.ase.calculator import Eann
-            calc = Eann(model=models, type_map=type_map)
-        elif backend == "lammps":
-            # return deepmd pair related content
-            #content = "units           metal\n"
-            #content += "atom_style      atomic\n"
-            content = "neighbor        0.0 bin\n"
-            content += "pair_style      eann %s \n" \
-                %(' '.join([m for m in models]))
-            content += "pair_coeff * * double %s" %(" ".join(atypes))
-            calc = content
-
-        return calc
-    
-    def register_training(self, train_dict: dict):
+    def register_trainer(self, train_params_: dict):
         """"""
-        self.dataset = train_dict["dataset"]
-        self.machine_file = train_dict["machine"]
-        with open(train_dict["input"], "r") as fopen:
-            self.train_input = json.load(fopen)
-        self.model_size = train_dict["model_size"]
+        train_params = copy.deepcopy(train_params_)
+        self.train_config = train_params.get("config", None)
 
-        return
-    
-    def create_ensemble(self):
-        # preprocess the dataset
+        self.train_size = train_params.get("size", 1)
+        self.train_dataset = train_params.get("dataset", None)
 
-        # machine file
-        from ..machine.machine import SlurmMachine
-        slurm_machine = SlurmMachine(self.machine_file)
+        scheduelr_params = train_params.get("scheduler", {}) 
+        self.train_scheduler = create_scheduler(scheduelr_params)
 
-        # read json
-        cwd = pathlib.Path.cwd()
-        # change seed and system dirs
-        ensemble_dir = cwd / "ensemble"
-        ensemble_dir.mkdir()
-        for idx in range(self.model_size):
-            input_json = self.train_input.copy()
-            #print(params_dict)
-            model_dir = ensemble_dir / ('model-'+str(idx))
-            model_dir.mkdir()
-            # TODO: add input changes here
-            input_json["dataset"] = self.dataset
+        train_command = train_params.get("train", None)
+        self.train_command = train_command
 
-            # write input
-            para_dir = model_dir / "para"
-            para_dir.mkdir()
-            with open(para_dir/self.TRAIN_INPUT_NAME, "w") as fopen:
-                json.dump(input_json, fopen, indent=4)
-
-            # write machine 
-            #restart = True
-            restart = False
-            slurm_machine.machine_dict['job-name'] = 'model-'+str(idx)
-            # see user_commands
-            # command = "python -u " 
-            # slurm_machine.machine_dict['command'] = command
-            slurm_machine.write(model_dir/'eann-train.slurm')
+        freeze_command = train_params.get("freeze", None)
+        self.freeze_command = freeze_command
 
         return
 
-    def freeze_ensemble(self):
-        """freeze model"""
-        # find models
-        cwd = pathlib.Path.cwd()
-        model_dirs = []
-        for p in cwd.glob("model*"):
-            model_dirs.append(p)
-        model_dirs.sort()
+    def _make_train_files(self, dataset=None, train_dir=Path.cwd()):
+        """ make files for training
+        """
+        # - add dataset to config
+        if not dataset:
+            dataset = self.train_dataset
+        assert dataset, f"No dataset has been set for the potential {self.name}."
 
-        print(model_dirs)
+        # TODO: for now, only List[Atoms]
+        from GDPy.computation.utils import get_composition_from_atoms
+        groups = {}
+        for atoms in dataset:
+            composition = get_composition_from_atoms(atoms)
+            key = "".join([k+str(v) for k,v in composition])
+            if key in groups:
+                groups[key].append(atoms)
+            else:
+                groups[key] = [atoms]
+        from ase.io import read, write
+        systems = []
+        dataset_dir = train_dir/"dataset"
+        dataset_dir.mkdir()
+        for key, frames in groups.items():
+            k_dir = dataset_dir/key
+            k_dir.mkdir()
+            write(k_dir/"frames.xyz", frames)
+            systems.append(str(k_dir.resolve()))
 
-        # freeze models
-        for model_dir in model_dirs:
-            #if self.check_finished(model_dir):
-            #    self.freeze_model(model_dir)
-            self.__freeze(model_dir)
-
-        return
-    
-    def __freeze(self, model_path):
-        """freeze single model"""
-        # find best
-        best_path = list(model_path.glob("*BEST*"))
-        assert len(best_path) == 1, "there are two or more best models..."
-        best_path = best_path[0]
-        print(best_path)
-
-        # TODO: change later
-        command = "python -u /users/40247882/repository/EANN/eann freeze -pt {0} -o eann_best_".format(
-            best_path
+        dataset_config = dict(
+            style = "auto",
+            systems = systems,
+            batchsizes = [[self.train_config["training"]["batchsize"],len(systems)]]
         )
-        output = run_command(model_path, command)
-        print(output)
-        return 
+
+        train_config = copy.deepcopy(self.train_config)
+        train_config.update(dataset=dataset_config)
+        with open(train_dir/"config.yaml", "w") as fopen:
+            yaml.safe_dump(train_config, fopen, indent=2)
+
+        return
+    
+    def train(self, dataset=None, train_dir=Path.cwd()):
+        """"""
+        self._make_train_files(dataset, train_dir)
+        # run command
+
+        return
+    
+    def freeze(self, train_dir=Path.cwd()):
+        """ freeze model and return a new calculator
+            that may have a committee for uncertainty
+        """
+        # - find subdirs
+        train_dir = Path(train_dir)
+        mdirs = []
+        for p in train_dir.iterdir():
+            if p.is_dir() and p.name.startswith("m"):
+                mdirs.append(p.resolve())
+        assert len(mdirs) == self.train_size, "Number of models does not equal model size..."
+
+        # - find models
+        calc_params = copy.deepcopy(self.calc_params)
+        calc_params.update(backend=self.calc_backend)
+        if self.calc_backend == "ase":
+            models = []
+            for p in mdirs:
+                models.append(str(p/"eann_latest_py_DOUBLE.pt"))
+            calc_params["file"] = models
+        elif self.calc_backend == "lammps":
+            models = []
+            for p in mdirs:
+                models.append(str(p/"eann_latest_lmp_DOUBLE.pt"))
+            calc_params["pair_style"] = "eann {}".format(" ".join(models))
+        #print("models: ", models)
+        self.register_calculator(calc_params)
+
+        return
 
 
 class LaspManager(AbstractPotential):
