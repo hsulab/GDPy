@@ -6,7 +6,7 @@ import numpy as np
 from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.computation.worker.worker import DriverBasedWorker
+from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.potential.manager import PotManager
 from GDPy.utils.command import parse_input_file
 
