@@ -44,7 +44,7 @@ class AbstractExpedition(ABC):
 
     parameters = dict()
 
-    restart = False # for the logger
+    restart = True # for the logger
 
     # general parameters
     general_params = dict(
@@ -274,7 +274,7 @@ class AbstractExpedition(ABC):
     
     def _make_step_dir(self, res_dpath: Path, status: str) -> Path:
         """"""
-        if status not in ["init", "create", "collect", "select", "label"]:
+        if status not in ["init", "create", "collect", "select", "label", "train"]:
             return
 
         # - create collect dir
