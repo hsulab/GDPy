@@ -32,6 +32,21 @@ class AbstractScheduler(ABC):
 
     status = []
 
+    def __init__(self, *args, **kwargs):
+        """"""
+        # - update params
+        self.environs = kwargs.pop("environs", "")
+        self.user_commands = kwargs.pop("user_commands", "")
+
+        # - make default params
+        self.parameters = self._get_default_parameters()
+        #parameters_ = kwargs.pop("parameters", None)
+        #if parameters_:
+        #    self.parameters.update(parameters_)
+        self.parameters.update(kwargs)
+        
+        return
+
     @property
     def script(self):
 
@@ -91,10 +106,6 @@ class AbstractScheduler(ABC):
 class LocalScheduler(AbstractScheduler):
 
     name = "local"
-
-    def __init__(self, *args, **kwargs):
-
-        return
 
     def submit(self):
 
@@ -158,21 +169,6 @@ class SlurmScheduler(AbstractScheduler):
 
     status = ["R", "Q", "PD", "CG"]
     running_status = ["R", "Q", "PD"]
-
-    def __init__(self, *args, **kwargs):
-        """"""
-        # - update params
-        self.environs = kwargs.pop("environs", "")
-        self.user_commands = kwargs.pop("user_commands", "")
-
-        # - make default params
-        self.parameters = self._get_default_parameters()
-        #parameters_ = kwargs.pop("parameters", None)
-        #if parameters_:
-        #    self.parameters.update(parameters_)
-        self.parameters.update(kwargs)
-        
-        return
 
     def __str__(self):
         """job script"""
