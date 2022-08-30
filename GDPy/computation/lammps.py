@@ -112,7 +112,7 @@ class LmpDriver(AbstractDriver):
         },
         "md": {
             "md_style": "nvt",
-            "velocity_seed": 1112,
+            "velocity_seed": None,
             "timestep": 1.0, # fs
             "temp": 300, # K
             "Tdamp": 100, # fs
@@ -389,10 +389,16 @@ class Lammps(FileIOCalculator):
     def write_input(self, atoms, properties=None, system_changes=None):
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
+        # - check velocities
+        self.write_velocities = False
+        if atoms.get_kinetic_energy() > 0.:
+            self.write_velocities = True
+
         # write structure
         stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
         write_lammps_data(
-            stru_data, atoms, specorder=self.type_list, force_skew=True, 
+            stru_data, atoms, specorder=self.type_list, 
+            force_skew=True, prismobj=None, velocities=self.write_velocities,
             units=self.units, atom_style=self.atom_style
         )
 
@@ -591,10 +597,11 @@ class Lammps(FileIOCalculator):
                 self.maxiter, self.maxeval
             )
         elif self.task == "md":
-            velocity_seed = self.velocity_seed
-            if velocity_seed is None:
-                velocity_seed = np.random.randint(0,10000)
-            content += "velocity        mobile create {} {}\n".format(self.temp, velocity_seed)
+            if not self.write_velocities:
+                velocity_seed = self.velocity_seed
+                if velocity_seed is None:
+                    velocity_seed = np.random.randint(0,10000)
+                content += "velocity        mobile create {} {}\n".format(self.temp, velocity_seed)
         
             if self.md_style == "nvt":
                 Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
