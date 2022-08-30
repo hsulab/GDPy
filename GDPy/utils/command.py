@@ -79,7 +79,7 @@ def run_command(directory, command, comment="", timeout=None):
     msg = "Message: " + "".join(proc.stdout.readlines())
     print(msg)
     if errorcode:
-        raise ValueError("Error in %s at %s." %(comment, directory))
+        raise RuntimeError("Error in %s at %s." %(comment, directory))
     
     return msg
 
