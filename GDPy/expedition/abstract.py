@@ -82,9 +82,6 @@ class AbstractExpedition(ABC):
 
         self._parse_general_params(main_dict)
 
-        # for job prefix
-        self.job_prefix = ""
-
         self.njobs = config.NJOBS
 
         # - potential and reference
@@ -182,7 +179,7 @@ class AbstractExpedition(ABC):
         """
         type_list = []
         for sym, num in composition.items():
-            print(sym, num)
+            self.logger.info(sym, num)
             if num != 0:
                 type_list.append(sym)
 
@@ -194,18 +191,46 @@ class AbstractExpedition(ABC):
         working_directory: Union[str, Path]
     ): 
         """create for all explorations"""
-        # TODO: automatically check if the current step is finished
         working_directory = Path(working_directory)
-        self.job_prefix = working_directory.resolve().name # use resolve to get abspath
-        print("job prefix: ", self.job_prefix)
+        if not working_directory.exists():
+            working_directory.mkdir(parents=True)
         for exp_name in self.explorations.keys():
             exp_directory = working_directory / exp_name
-            # note: check dir existence in sub function
-            operator(exp_name, working_directory)
+            if not exp_directory.exists():
+                exp_directory.mkdir(parents=True)
+            self._init_logger(exp_directory)
+            operator(exp_name, exp_directory)
 
         return
 
-    def icreate(self, exp_name: str, working_directory: Union[str,Path]) -> NoReturn:
+    @abstractmethod
+    def _prior_create(self, input_params: dict, *args, **kwargs) -> dict:
+        """ some codes before creating exploratiosn of systems
+            parse actions for this exploration from dict params
+        """
+        actions = {}
+
+        # - create
+        # parse in subclasses
+
+        # - collect
+        collect_params_ = copy.deepcopy(self.collection_params)
+        collect_params_.update(input_params.get("collect", None))
+        self.collection_params = collect_params_
+
+        # - select
+        select_params = input_params.get("select", None)
+        if select_params is not None:
+            selector = create_selector(select_params, directory=Path.cwd())
+        else:
+            selector = None
+        actions["selector"] = selector
+
+        # - label
+
+        return actions
+
+    def icreate(self, exp_name: str, exp_directory: Union[str,Path]) -> NoReturn:
         """ create expedition tasks and gather results
         """
         # - a few info
@@ -216,15 +241,12 @@ class AbstractExpedition(ABC):
         actions = self._prior_create(exp_dict)
 
         for slabel in included_systems:
-            print(f"----- Explore System {slabel} -----")
+            self.logger.info(f"\n\n===== Explore System {slabel} =====")
 
             # - prepare output directory
-            res_dpath = working_directory / exp_name / slabel
+            res_dpath = exp_directory / slabel
             if not res_dpath.exists():
                 res_dpath.mkdir(parents=True)
-            #else:
-            #    print(f"  {res_dpath.name} exists, so next...")
-            #    continue
 
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
@@ -243,11 +265,11 @@ class AbstractExpedition(ABC):
 
             # - run exploration
             # NOTE: check status?
-            # TODO: make this a while loop
+            # TODO: use tinydb to mark status
             status = ""
             while status != "finished":
                 status = self._check_create_status(res_dpath)
-                print(f"===== current status: {status}  =====")
+                self.logger.info(f"===== current status: {status}  =====")
                 self.step_dpath = self._make_step_dir(res_dpath, status)
                 if status == "create":
                     with open(res_dpath/"CREATE_RUNNING", "a") as fopen:
@@ -263,6 +285,8 @@ class AbstractExpedition(ABC):
                     with open(res_dpath/"COLLECT_FINISHED", "a") as fopen:
                         fopen.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                     os.remove(res_dpath/"COLLECT_RUNNING")
+                elif status == "label":
+                    pass
                 elif status == "finished":
                     pass
                 else:
@@ -291,31 +315,6 @@ class AbstractExpedition(ABC):
             step_dir.mkdir()
         
         return step_dir
-    
-    @abstractmethod
-    def _prior_create(self, input_params: dict, *args, **kwargs) -> dict:
-        """ some codes before creating exploratiosn of systems
-            parse actions for this exploration from dict params
-        """
-        actions = {}
-
-        # - create
-        # parse in subclasses
-
-        # - collect
-        collect_params_ = copy.deepcopy(self.collection_params)
-        collect_params_.update(input_params.get("collect", None))
-        self.collection_params = collect_params_
-
-        # - select
-        select_params = input_params.get("select", None)
-        if select_params is not None:
-            selector = create_selector(select_params, directory=Path.cwd())
-        else:
-            selector = None
-        actions["selector"] = selector
-
-        return actions
 
     @abstractmethod 
     def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
@@ -360,16 +359,16 @@ class AbstractExpedition(ABC):
         if system_dict is None:
             raise RuntimeError(f"Find unexpected system {system_dict}.")
         
-        print("reading initial structures...")
+        self.logger.info("reading initial structures...")
         
         # - read structures
         # the expedition can start with different initial configurations
         init_frame_path = self.step_dpath / "init.xyz" 
         if init_frame_path.exists():
-            print("read existed structure file...")
+            self.logger.info("read existed structure file...")
             frames = read(init_frame_path, ":")
         else:
-            print("try to use generator...")
+            self.logger.info("try to use generator...")
             stru_path = system_dict.get("structure", None)
             gen_params = system_dict.get("generator", None)
             if (stru_path is None and gen_params is not None): 
@@ -388,13 +387,13 @@ class AbstractExpedition(ABC):
         
             write(self.step_dpath/"init.xyz", frames)
         
-        print("number of initial structures: ", len(frames)) # TODO: use logging
+        self.logger.info(f"number of initial structures: {len(frames)}")
 
         sys_cons_text = system_dict.get("constraint", None) # some action may need constraint info
 
         return frames, sys_cons_text
 
-    def icalc(self, exp_name, working_directory, skipped_systems=[]):
+    def icalc(self, exp_name, exp_directory, skipped_systems=[]):
         """calculate configurations with reference method"""
         exp_dict = self.explorations[exp_name]
 
@@ -406,79 +405,68 @@ class AbstractExpedition(ABC):
         # - create a calculation machine (vasp, ...)
         if self.ref_manager is None:
             raise RuntimeError("Ref Manager does not exist...")
-        else:
-            #calc_machine = self.ref_manager.create_machine(
-            #    calc_dict
-            #)
-            # TODO: too complex here!!!
-            driver = self.ref_manager.create_driver() # default is spc
-            worker = self.ref_manager.create_worker(
-                driver,
-                self.ref_manager.scheduler
-            )
-
+        
         # - run over systems
         included_systems = exp_dict.get("systems", None)
-        if included_systems is not None:
-            # - loop over systems
-            # TODO: asyncio
-            for slabel in included_systems:
-                print("--- ")
-                sys_frames = [] # NOTE: all frames
-                # TODO: make this into system
-                if slabel in skipped_systems:
-                    continue
-                # - result path
-                res_dpath = working_directory / exp_name / slabel
+        # - loop over systems
+        # TODO: asyncio
+        for slabel in included_systems:
+            self.logger.info(f"\n\n===== Explore System {slabel} =====")
+            sys_frames = [] # NOTE: all frames
+            # TODO: make this into system
+            if slabel in skipped_systems:
+                continue
+            # - result path
+            res_dpath = exp_directory/slabel
 
-                # - read collected/selected frames
-                sorted_path = res_dpath / "select"
+            # - read collected/selected frames
+            sorted_path = res_dpath / "select"
+            if not sorted_path.exists():
+                sorted_path = res_dpath / "collect"
                 if not sorted_path.exists():
-                    sorted_path = res_dpath / "collect"
-                    if not sorted_path.exists():
-                        print(f"No candidates to calculate in {str(res_dpath)}")
-                        continue
+                    self.logger.info(f"No candidates to calculate in {str(res_dpath)}")
+                    continue
 
-                found_files = {}
-                for tag_name in self.collection_params["selection_tags"]:
-                    # - find all selected files
-                    # or find final selected that is produced by a composed selector
-                    if sorted_path.name == "collect":
-                        xyzfiles = list(sorted_path.glob(f"{tag_name}*.xyz"))
-                    if sorted_path.name == "select":
-                        xyzfiles = list(sorted_path.glob(f"{tag_name}*-selection*.xyz"))
-                    #print(tag_name, xyzfiles)
-                    nfiles = len(xyzfiles)
-                    if nfiles > 0:
-                        if nfiles == 1:
-                            final_selected_path = xyzfiles[0]
-                        else:
-                            # assert files have selection order
-                            xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
-                            final_selected_path = xyzfiles[-1]
-                        if final_selected_path.stat().st_size > 0:
-                            print(f"found selected structure file {str(final_selected_path)}")
-                            print("nframes: ", len(read(final_selected_path, ":")))
-                            # - create input files
-                            fp_path = res_dpath / "label" / tag_name
-                            found_files[tag_name] = [fp_path, final_selected_path]
-                        else:
-                            print(f"Cant find selected structure file with tag {tag_name}")
+            found_files = {}
+            for tag_name in self.collection_params["selection_tags"]:
+                # - find all selected files
+                # or find final selected that is produced by a composed selector
+                if sorted_path.name == "collect":
+                    xyzfiles = list(sorted_path.glob(f"{tag_name}*.xyz"))
+                if sorted_path.name == "select":
+                    xyzfiles = list(sorted_path.glob(f"{tag_name}*-selection*.xyz"))
+                #self.logger.info(tag_name, xyzfiles)
+                nfiles = len(xyzfiles)
+                if nfiles > 0:
+                    if nfiles == 1:
+                        final_selected_path = xyzfiles[0]
                     else:
-                        print(f"Cant find selected structure file with tag {tag_name}")
-                    
-                # - run preparation
-                for tag_name, (fp_path, final_selected_path) in found_files.items():
-                    self._prepare_calc_dir(
-                        worker,
-                        slabel, fp_path, 
-                        final_selected_path
-                    )
+                        # assert files have selection order
+                        xyzfiles = sorted(xyzfiles, key=lambda x:int(x.name.split(".")[0].split("-")[-1]))
+                        final_selected_path = xyzfiles[-1]
+                    if final_selected_path.stat().st_size > 0:
+                        self.logger.info(f"found selected structure file {str(final_selected_path)}")
+                        final_frames = read(final_selected_path, ":")
+                        self.logger.info(f"nframes: {len(final_frames)}")
+                        # - create input files
+                        fp_path = res_dpath / "label" / tag_name
+                        found_files[tag_name] = [fp_path, final_selected_path]
+                    else:
+                        self.logger.info(f"Cant find selected structure file with tag {tag_name}")
+                else:
+                    self.logger.info(f"Cant find selected structure file with tag {tag_name}")
+                
+            # - run preparation
+            for tag_name, (fp_path, final_selected_path) in found_files.items():
+                self._prepare_calc_dir(
+                    slabel, fp_path, 
+                    final_selected_path
+                )
 
         return
     
     def _prepare_calc_dir(
-        self, worker, slabel, sorted_fp_path, final_selected_path
+        self, slabel, sorted_fp_path, final_selected_path
     ):
         """ prepare calculation dir
             currently, only vasp is supported
@@ -488,6 +476,7 @@ class AbstractExpedition(ABC):
         nframes_in = len(frames_in)
 
         # - update some specific params of worker
+        worker = self.ref_manager
         worker._submit = True
         worker.prefix = "_".join([slabel,"Worker"])
         #worker.directory = sorted_fp_path # NOTE: cant define here since dir may not exist
@@ -511,17 +500,8 @@ class AbstractExpedition(ABC):
                 
             worker.directory = sorted_fp_path
             worker.run(frames_in)
-
-            # - machine params
-            #user_commands = "gdp vasp work {} -in {}".format(
-            #    str(final_selected_path.resolve()), (sorted_fp_path/"vasp_params.json").resolve()
-            #)
-
-            # - create input files
-            #calc_machine._prepare_calculation(sorted_fp_path, extra_params, user_commands)
         else:
-            # TODO: move harvest function here?
-            print(f"{sorted_fp_path} already exists.")
+            self.logger.info(f"{str(sorted_fp_path)} already exists.")
             worker.directory = sorted_fp_path
 
             # - store in database
@@ -536,17 +516,17 @@ class AbstractExpedition(ABC):
                 database_path.mkdir(parents=True)
 
             xyzfile_path = database_path / ("-".join([slabel, self.name, sorted_fp_path.name, self.pot_manager.version]) + ".xyz")
-            print(xyzfile_path)
+            self.logger.info(str(xyzfile_path))
             #exit()
 
             if xyzfile_path.exists():
                 frames_exists = read(xyzfile_path, ":")
                 nframes_exists = len(frames_exists)
                 if nframes_exists == nframes_in:
-                    print("  calculated structures have been stored...")
+                    self.logger.info("  calculated structures have been stored...")
                     #return
                 else:
-                    print("  calculated structures may not finish...")
+                    self.logger.info("  calculated structures may not finish...")
                 frames = frames_exists
             else:
                 # - read results
@@ -556,7 +536,7 @@ class AbstractExpedition(ABC):
                     new_frames = worker.retrieve()
                     if new_frames:
                         write(labelled_frames, new_frames, append=True)
-                        print("nframes newly added: ", len(new_frames))
+                        self.logger.info(f"nframes newly added: {len(new_frames)}")
                         # - tag every data
                         # TODO: add uuid in worker?
                         for atoms in new_frames:
