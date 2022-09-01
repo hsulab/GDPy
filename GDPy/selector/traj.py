@@ -33,8 +33,9 @@ class BoltzmannMinimaSelection(AbstractSelector):
 
         return
     
-    def select(self, frames, index_map=None, ret_indices: bool=False, *args, **kargs) -> List[Atoms]:
+    def select(self, frames, index_map=None, ret_indices: bool=False, *args, **kwargs) -> List[Atoms]:
         """"""
+        super().select(*args,**kwargs)
         # - find minima
         #print("nframes: ", len(frames))
         converged_indices = []
