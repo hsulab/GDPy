@@ -32,11 +32,6 @@ def main():
     )
 
     parser.add_argument(
-        "-s", "--scheduler", default=None,
-        help = "scheduler related configuration (json/yaml)"
-    )
-
-    parser.add_argument(
         "-nj", "--n_jobs", default = 1, type=int,
         help = "number of processors"
     )
@@ -106,20 +101,15 @@ def main():
 
     # explore
     parser_explore = subparsers.add_parser(
-        "explore", help='create input files for exploration'
+        "explore", help="exploration configuration file (json/yaml)"
     )
     parser_explore.add_argument(
         "EXPEDITION", 
         help="expedition configuration file (json/yaml)"
     )
     parser_explore.add_argument(
-        "-s", "--step", required=True,
-        choices = ["create", "collect", "select", "calc", "harvest"],
-        help="exploration steps (create/collect/select)"
-    )
-    parser_explore.add_argument(
-        "-op", "--opt_params", nargs="*",
-        help="global parameters for exploration"
+        "--run", default=None,
+        help="running option"
     )
 
     # ----- data analysis -----
@@ -309,7 +299,6 @@ def main():
 
     # - potential
     from GDPy.potential.manager import create_potter
-    from GDPy.computation.utils import register_worker
     potter = None
     if args.potential:
         pot_config = args.potential # configuration file of potential
@@ -318,9 +307,7 @@ def main():
     referee = None
     if args.reference:
         ref_config = args.reference # configuration file of potential
-        referee = register_worker(ref_config) # register calculator, and scheduler if exists
-    
-    # - scheduler
+        referee = create_potter(ref_config) # register calculator, and scheduler if exists
 
     # - use subcommands
     if args.subcommand == "vasp":
@@ -338,7 +325,7 @@ def main():
             pm.create_ensemble()
     elif args.subcommand == "explore":
         from GDPy.expedition import run_expedition
-        run_expedition(potter, referee, args.EXPEDITION, args.step, args.opt_params)
+        run_expedition(potter, referee, args.EXPEDITION)
     elif args.subcommand == "data":
         from GDPy.data.main import data_main
         data_main(
@@ -355,13 +342,11 @@ def main():
         from GDPy.computation.driver import run_driver
         run_driver(args.params, args.structure, args.directory, potter)
     elif args.subcommand == "worker":
-        from GDPy.computation.worker.worker import run_worker
+        from GDPy.computation.worker import run_worker
         run_worker(args.params, args.structure, potter)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
-        # reparse pot NOTE: a better interface?
-        worker = register_worker(args.potential)
-        run_task(args.params, worker, args.run)
+        run_task(args.params, potter, args.run)
     elif args.subcommand == 'valid':
         from .validator.validation import run_validation
         run_validation(args.INPUTS, args.structure, potter)
