@@ -179,21 +179,11 @@ class AbstractDriver(abc.ABC):
     
     def as_dict(self):
         """"""
-        # TODO: better access pot name
-        pot_name = self.pot_params.get("pot_name", None)
-        if not pot_name:
-            pot_name = self.calc.name
         params = dict(
-            potential = dict(
-                name = pot_name, # pot_name
-                params = copy.deepcopy(self.pot_params),
-            ),
-            driver = dict(
-                backend = self.name,
-                task = self.task,
-                init = copy.deepcopy(self.init_params),
-                run = copy.deepcopy(self.run_params)
-            )
+            backend = self.name,
+            task = self.task,
+            init = copy.deepcopy(self.init_params),
+            run = copy.deepcopy(self.run_params)
         )
 
         return params

@@ -76,7 +76,7 @@ def read_sort(directory):
 
 class VaspDriver(AbstractDriver):
 
-    name = "Vasp"
+    name = "vasp"
 
     # - defaults
     default_task = "min"

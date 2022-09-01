@@ -127,7 +127,9 @@ class DriverBasedWorker(AbstractWorker):
             group_directory.mkdir()
 
             if scheduler.name != "local":
-                cur_params = self.driver.as_dict()
+                cur_params = {}
+                cur_params["driver"] = self.driver.as_dict()
+                cur_params["potential"] = self.potter.as_dict()
                 cur_params["wdirs"] = wdirs
                 with open(group_directory/"driver.yaml", "w") as fopen:
                     yaml.dump(cur_params, fopen)
