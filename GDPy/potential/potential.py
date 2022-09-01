@@ -120,7 +120,7 @@ class AbstractPotential(abc.ABC):
             #    raise NotImplementedError("no other eann lammps dynamics")
         elif dynamics == "lasp":
             from GDPy.computation.lasp import LaspDriver as driver_cls
-        elif dynamics == "Vasp":
+        elif dynamics == "vasp":
             from GDPy.computation.vasp import VaspDriver as driver_cls
 
         driver = driver_cls(calc, dyn_params, directory=calc.directory)
@@ -152,20 +152,26 @@ class AbstractPotential(abc.ABC):
     
     def as_dict(self):
         """"""
-        params = {"backend": self.name}
-        params.update(copy.deepcopy(self.calc_params))
+        params = {}
+        params["name"] = self.name
+
+        pot_params = {"backend": self.calc_backend}
+        pot_params.update(copy.deepcopy(self.calc_params))
+        params["params"] = pot_params
+
+        # TODO: add train params?
 
         return params
 
     
 class VaspManager(AbstractPotential):
 
-    name = "Vasp"
+    name = "vasp"
 
-    implemented_backends = ["Vasp"]
+    implemented_backends = ["vasp"]
 
     valid_combinations = [
-        ["Vasp", "Vasp"] # calculator, dynamics
+        ["vasp", "vasp"] # calculator, dynamics
     ]
 
     def __init__(self):
@@ -202,7 +208,7 @@ class VaspManager(AbstractPotential):
         pp_path = calc_params.pop("pp_path", None)
         vdw_path = calc_params.pop("vdw_path", None)
 
-        if self.calc_backend == "Vasp":
+        if self.calc_backend == "vasp":
             # return ase calculator
             from ase.calculators.vasp import Vasp
             calc = Vasp(directory=directory, command=command)
