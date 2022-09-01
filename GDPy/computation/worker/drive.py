@@ -9,7 +9,7 @@ from tinydb import Query
 
 from ase.io import read, write
 
-from GDPy.scheduler.scheduler import AbstractScheduler
+from GDPy.potential.potential import AbstractPotential
 from GDPy.computation.driver import AbstractDriver
 from GDPy.computation.worker.worker import AbstractWorker
 
@@ -18,16 +18,34 @@ from GDPy.utils.command import CustomTimer
 
 class DriverBasedWorker(AbstractWorker):
 
-    def __init__(self, driver_, scheduler_, directory_=None, *args, **kwargs):
-        """"""
-        assert isinstance(driver_, AbstractDriver), ""
-        assert isinstance(scheduler_, AbstractScheduler), ""
+    batchsize = 1 # how many structures performed in one job
 
+    _driver = None
+
+    def __init__(self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs):
+        """"""
+        self.batchsize = kwargs.pop("batchsize", 1)
+
+        assert isinstance(potter_, AbstractPotential), ""
+
+        self.potter = potter_
         self.driver = driver_
         self.scheduler = scheduler_
         if directory_:
             self.directory = directory_
 
+        return
+    
+    @property
+    def driver(self):
+        return self._driver
+    
+    @driver.setter
+    def driver(self, driver_):
+        """"""
+        assert isinstance(driver_, AbstractDriver), ""
+        # TODO: check driver is consistent with potter
+        self._driver = driver_
         return
 
     def _split_groups(self, nframes):
@@ -39,22 +57,18 @@ class DriverBasedWorker(AbstractWorker):
             group_indices.append((i+1)*self.batchsize)
         if group_indices[-1] != nframes:
             group_indices.append(nframes)
-        #print(group_indices)
         starts, ends = group_indices[:-1], group_indices[1:]
         assert len(starts) == len(ends), "Inconsistent start and end indices..."
         #group_indices = [f"{s}:{e}" for s, e in zip(starts,ends)]
-        #print(group_indices)
 
         return (starts, ends)
     
-    def run(self, frames=None):
+    def run(self, frames=None, *args, **kwargs):
         """ split frames into groups
             return latest results
         """
-        assert self.directory, "Working directory is not set properly..."
-
+        super().run(*args, **kwargs)
         scheduler = self.scheduler
-        self._init_database()
         
         starts, ends = self._split_groups(len(frames))
 
@@ -73,12 +87,10 @@ class DriverBasedWorker(AbstractWorker):
                     confids = []
                     break
             if confids:
-                print("Use confids from structures ", confids)
                 wdirs = [f"cand{ia}" for ia in confids]
             else:
-                print("Use global indices ", confids)
                 wdirs = [f"cand{ia}" for ia in global_indices]
-            #print(list(global_indices))
+            self.logger.info(f"Use confids as {wdirs}")
 
             # - prepare scheduler
             # TODO: set group name randomly?
@@ -93,7 +105,6 @@ class DriverBasedWorker(AbstractWorker):
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
         queued_jobs = [q["gdir"] for q in queued_jobs]
-        #print("queued jobs: ", queued_jobs)
 
         # - run
         for group_directory, cur_frames, wdirs in job_info:
@@ -124,26 +135,23 @@ class DriverBasedWorker(AbstractWorker):
                 )
                 scheduler.write()
                 if self._submit:
-                    print(f"{group_directory.name}: ", scheduler.submit())
+                    self.logger.info(f"{group_directory.name}: {scheduler.submit()}")
                 else:
-                    print(f"{group_directory.name} waits to submit.")
+                    self.logger.info(f"{group_directory.name} waits to submit.")
             else:
                 for wdir, atoms in zip(wdirs,cur_frames):
                     self.driver.directory = group_directory/wdir
-                    print(f"{job_name} {self.driver.directory.name} is running...")
+                    self.logger.info(f"{job_name} {self.driver.directory.name} is running...")
                     self.driver.reset()
                     self.driver.run(atoms)
             self.database.insert(dict(gdir=job_name, queued=True))
         
-        # - read NOTE: cant retrieve immediately
-        new_frames = []
-        #if self.get_number_of_running_jobs() > 0:
-        #    new_frames = self.retrieve()
+        return 
 
-        return new_frames
-
-    def retrieve(self):
+    def retrieve(self, *args, **kwargs):
         """"""
+        super().retrieve(*args, **kwargs)
+
         scheduler = self.scheduler
 
         # - check status and get latest results
@@ -154,7 +162,6 @@ class DriverBasedWorker(AbstractWorker):
         for job_name in running_jobs:
             # NOTE: sometimes prefix has number so confid may be striped
             group_directory = self.directory / job_name[len(self.prefix)+1:]
-            #print(group_directory)
             scheduler.set(**{"job-name": job_name})
             scheduler.script = group_directory/"run-driver.script" 
             if self.batchsize > 1:
@@ -162,41 +169,43 @@ class DriverBasedWorker(AbstractWorker):
             else:
                 wdirs = ["./"]
             if scheduler.is_finished():
-                print(f"{job_name} is finished...")
+                self.logger.info(f"{job_name} is finished...")
                 finished_wdirs.extend([group_directory/x for x in wdirs])
                 #finished_jobnames.append(job_name)
                 doc_data = self.database.get(Query().gdir == job_name)
                 self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
             else:
-                print(f"{job_name} is running...")
+                self.logger.info(f"{job_name} is running...")
         
         # - try to read results
         new_frames = []
         if finished_wdirs:
             new_frames = self._read_results(finished_wdirs)
-            print("new_frames: ", len(new_frames), new_frames[0].get_potential_energy())
-        #print("new_frames: ", new_frames)
+            self.logger.info(f"new_frames: {len(new_frames)} {new_frames[0].get_potential_energy()}")
         
         return new_frames
     
-    def _read_results(self, wdirs):
+    def _read_results(self, wdirs, read_traj=False):
         """ wdirs - candidate dir with computation files
         """
-        #print("ndirs: ", len(wdirs))
-
+        # TODO: add if retrieved in metadata
         results = []
         
         driver = self.driver
-        with CustomTimer(name="read-results"):
+        with CustomTimer(name="read-results", func=self.logger.info):
             for wdir in wdirs:
-                print("wdir: ", wdir)
-                confid = int(wdir.name.strip("cand"))
                 driver.directory = wdir
-                #new_atoms = driver.run(atoms, read_exsits=True)
-                new_atoms = driver.read_converged()
-                new_atoms.info["confid"] = confid
-                #print(new_atoms.info["confid"], new_atoms.get_potential_energy())
-                results.append(new_atoms)
+                confid = int(wdir.name.strip("cand"))
+                if not read_traj:
+                    new_atoms = driver.read_converged()
+                    new_atoms.info["confid"] = confid
+                    results.append(new_atoms)
+                else:
+                    # TODO: remove first or last frames since they are always the same?
+                    traj_frames = driver.read_trajectory(add_step_info=True) # TODO: add step to info
+                    for a in traj_frames:
+                        a.info["confid"] = confid
+                    results.extend(traj_frames)
 
         return results
 

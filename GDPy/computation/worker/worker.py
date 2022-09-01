@@ -10,11 +10,13 @@
 import abc
 import copy
 import pathlib
+import logging
 
 from tinydb import TinyDB, Query
 
 from GDPy.scheduler.factory import create_scheduler
 from GDPy.potential.manager import PotManager
+from GDPy.scheduler.scheduler import AbstractScheduler
 
 
 class AbstractWorker(abc.ABC):
@@ -29,7 +31,8 @@ class AbstractWorker(abc.ABC):
             job
     """
 
-    batchsize = 1 # how many structures performed in one job
+    restart = True
+    logger = None
 
     _directory = None
     _scheduler = None
@@ -45,7 +48,6 @@ class AbstractWorker(abc.ABC):
         """
         # - pop some
         self.prefix = params.pop("prefix", "worker")
-        self.batchsize = params.pop("batchsize", 1)
 
         # - create scheduler
         scheduler_params = params.pop("scheduler", {})
@@ -67,7 +69,7 @@ class AbstractWorker(abc.ABC):
         #self.directory = self.directory / "MyWorker" # TODO: set dir
         if directory_:
             self.directory = directory_
-
+        
         return
 
     @property
@@ -97,8 +99,10 @@ class AbstractWorker(abc.ABC):
         return self._scheduler
     
     @scheduler.setter
-    def scheduler(self, scheduelr_):
-        self._scheduler = scheduelr_
+    def scheduler(self, scheduler_):
+        """"""
+        assert isinstance(scheduler_, AbstractScheduler), ""
+        self._scheduler = scheduler_
 
         return
     
@@ -119,12 +123,58 @@ class AbstractWorker(abc.ABC):
 
         return
     
+    def _init_logger(self):
+        """"""
+        self.logger = logging.getLogger(__name__)
+
+        log_level = logging.INFO
+
+        self.logger.setLevel(log_level)
+
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+
+        working_directory = self.directory
+        log_fpath = working_directory / (self.__class__.__name__+".out")
+
+        if self.restart:
+            fh = logging.FileHandler(filename=log_fpath, mode="a")
+        else:
+            fh = logging.FileHandler(filename=log_fpath, mode="w")
+
+        fh.setLevel(log_level)
+        #fh.setFormatter(formatter)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(log_level)
+        #ch.setFormatter(formatter)
+
+        self.logger.addHandler(ch)
+        self.logger.addHandler(fh)
+
+        return
+    
+    def _initialise(self, *args, **kwargs):
+        """"""
+        assert self.directory, "Working directory is not set properly..."
+        self._init_database()
+        if self.logger is None:
+            self._init_logger()
+        self.logger.info(f"@@@{self.__class__.__name__}")
+
+        return
+    
     @abc.abstractmethod
-    def run(*args, **kwargs):
+    def run(self, *args, **kwargs):
+        """"""
+        self._initialise(*args, **kwargs)
         return
     
     @abc.abstractmethod
     def retrieve(self, *args, **kwargs):
+        """"""
+        self._initialise(*args, **kwargs)
         return
 
     def _get_running_jobs(self):

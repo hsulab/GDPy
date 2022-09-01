@@ -24,12 +24,12 @@ class TrainWorker(AbstractWorker):
 
         return
     
-    def run(self, dataset=None, size=1):
+    def run(self, dataset=None, size=1, *args, **kwargs):
         """"""
-        assert self.directory, "Working directory is not set properly..."
+        super().run(*args, **kwargs)
+
         potter = self.potter
         scheduler = self.scheduler
-        self._init_database()
 
         train_dirs = []
         for i in range(size):
@@ -56,9 +56,9 @@ class TrainWorker(AbstractWorker):
             if scheduler.name != "local":
                 scheduler.write()
                 if self._submit:
-                    print(f"{train_dir.name}: ", scheduler.submit())
+                    self.logger.info(f"{train_dir.name}: {scheduler.submit()}")
                 else:
-                    print(f"{train_dir.name} waits to submit.")
+                    self.logger.info(f"{train_dir.name} waits to submit.")
             else:
                 # train directly
                 run_command(str(train_dir), self.potter.train_command)
@@ -67,8 +67,9 @@ class TrainWorker(AbstractWorker):
 
         return
     
-    def retrieve(self):
+    def retrieve(self, *args, **kwargs):
         """"""
+        super().retrieve(*args, **kwargs)
         scheduler = self.scheduler
 
         finished_wdirs = []
@@ -82,7 +83,7 @@ class TrainWorker(AbstractWorker):
                 doc_data = self.database.get(Query().gdir == tdir_name)
                 self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
             else:
-                print(f"{tdir_name} is running...")
+                self.logger.info(f"{tdir_name} is running...")
         
         if finished_wdirs:
             _ = self._read_results(finished_wdirs)
