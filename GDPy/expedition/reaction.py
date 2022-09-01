@@ -11,9 +11,6 @@ from ase.constraints import FixAtoms
 from GDPy.expedition.abstract import AbstractExpedition
 from GDPy.reaction.AFIR import AFIRSearch
 
-from GDPy.builder.constraints import parse_constraint_info
-from GDPy.selector.abstract import create_selector
-
 from GDPy.utils.command import CustomTimer
 
 
@@ -30,6 +27,7 @@ class ReactionExplorer(AbstractExpedition):
     )
 
     collection_params = dict(
+        traj_period = 1,
         selection_tags = ["TS", "FS", "optraj"]
     )
 
@@ -57,18 +55,17 @@ class ReactionExplorer(AbstractExpedition):
         #else:
         #    print(f"  {calc_dir_path.name} exists, so next...")
 
+        is_finished = True
         for icand, atoms in enumerate(frames):
             print(f"--- candidate {icand} ---")
             actions["reaction"].directory = calc_dir_path / (f"cand{icand}")
-            actions["reaction"].run(atoms, self.pot_manager.calc)
-            #break
+            actions["reaction"].run(atoms, self.pot_worker.potter.calc)
         
-        return
+        return is_finished
     
     def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
-
-        traj_period = self.creation_params["traj_period"]
+        traj_period = self.collection_params["traj_period"]
 
         create_dpath = res_dpath / "create"
         collect_dpath = res_dpath / "collect"
@@ -83,7 +80,7 @@ class ReactionExplorer(AbstractExpedition):
         approx_FSs = []
         optraj_frames = []
 
-        with CustomTimer("read-structure"):
+        with CustomTimer("read-structure", func=self.logger.info):
             # TODO: check output exists?
             if (collect_dpath/"optraj_frames.xyz").exists():
                 approx_TSs = read(collect_dpath/"approx_TSs.xyz", ":")
@@ -149,7 +146,7 @@ class ReactionExplorer(AbstractExpedition):
                 #print("nselected: ", len(cur_frames))
                 #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
 
-        return
+        return True
 
 
 if __name__ == "__main__":

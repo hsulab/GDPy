@@ -2,15 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from typing import Counter, Union, List
-import numpy as np
 
 import dataclasses
-from dataclasses import dataclass, field
 
 from ase import Atoms
 from ase.io import read, write
-
-from GDPy.utils.command import parse_input_file, convert_indices, CustomTimer
 
 from GDPy.expedition.abstract import AbstractExpedition
 
@@ -84,10 +80,9 @@ class MDBasedExpedition(AbstractExpedition):
         fs, eV, eV/AA
     """
 
-    method = "MD" # nve, nvt, npt
+    name = "MD" # nve, nvt, npt
 
     # TODO: !!!!
-    # check whether submit jobs
     # check system symbols with type list
     # check lost atoms when collecting
 
@@ -122,7 +117,7 @@ class MDBasedExpedition(AbstractExpedition):
             p_.update(backend=backend)
             p_.update(task=task)
 
-            driver = self.pot_manager.create_driver(p_)
+            driver = self.pot_worker.potter.create_driver(p_)
             drivers.append(driver)
 
         return drivers
@@ -140,71 +135,67 @@ class MDBasedExpedition(AbstractExpedition):
         """"""
         # - run over systems
         drivers = actions["driver"]
-        for i, atoms in enumerate(frames):
-            # - set working dir
-            #name = atoms.info.get("name", "cand"+str(i))
-            name = "cand" + str(i)
-            cand_path = self.step_dpath / name
 
-            # - run simulation
-            for iw, driver in enumerate(drivers):
-                driver.directory = cand_path / ("w"+str(iw))
-                # TODO: run directly or attach a machine
-                driver.run(atoms, read_exists=True) # NOTE: other run_params have already been set
+        worker = self.pot_worker
+        for iw, driver in enumerate(drivers):
+            worker.logger = self.logger
+            worker.directory = self.step_dpath/f"w{iw}"
+            worker.driver = driver
+            worker.batchsize = len(frames)
+            worker.run(frames)
+        
+        # - check if finished
+        is_finished = False
+        for iw, driver in enumerate(drivers):
+            worker.logger = self.logger
+            worker.directory = self.step_dpath/f"w{iw}"
+            worker.driver = driver
+            worker.batchsize = len(frames)
+            worker.inspect()
+            if worker.get_number_of_running_jobs() > 0:
+                is_finished = False
+                break
+        else:
+            is_finished = True
 
-        return
+        return is_finished
     
     def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
         """"""
-        # - run over systems
-        drivers = actions["driver"]
+        traj_period = self.collection_params["traj_period"]
 
         # NOTE: not save all explored configurations
         #       since they are too many
-        traj_dir_groups = {}
-        for i, atoms in enumerate(frames):
-            # - set working dir
-            #name = atoms.info.get("name", "cand"+str(i))
-            name = "cand" + str(i)
-            cand_path = res_dpath / "create" / name
 
-            # - run simulation
-            for iw, driver in enumerate(drivers):
-                driver_id = "w"+str(iw)
-                traj_dir = cand_path / driver_id
-                if driver_id in traj_dir_groups:
-                    traj_dir_groups[driver_id].append(traj_dir)
-                else:
-                    traj_dir_groups[driver_id] = [traj_dir]
+        is_collected = True
+        worker = self.pot_worker
 
-        # TODO: replace with composition
-        traj_period = self.collection_params["traj_period"]
-        
+        drivers = actions["driver"]
+        for iw, driver in enumerate(drivers):
+            worker.logger = self.logger
+            worker.directory = res_dpath/"create"/f"w{iw}"
+            worker.driver = driver
+            traj_fpath = self.step_dpath / f"traj_frames-w{iw}.xyz"
+            new_frames = worker.retrieve(read_traj=True)
+            if new_frames:
+                write(traj_fpath, new_frames, append=True)
+            if len(worker._get_unretrieved_jobs()) > 0:
+                is_collected = False
+                continue
+            # TODO: move this info to worker
+            self.logger.info(f"worker {iw} retrieves {len(new_frames)} structures...")
+
         merged_traj_frames = []
-        from GDPy.computation.utils import read_trajectories
-        for driver_id, traj_dirs in traj_dir_groups.items():
-            # print("traj_dirs: ", traj_dirs) # equal number of candidates
-            traj_fpath = self.step_dpath / f"traj_frames-{driver_id}.xyz"
-            traj_ind_fpath = self.step_dpath / f"traj_indices-{driver_id}.xyz"
-            with CustomTimer(name=f"collect-trajectories-{driver_id}"):
-                cur_traj_frames = read_trajectories(
-                    driver, traj_dirs,
-                    traj_period, traj_fpath, traj_ind_fpath
-                )
-            merged_traj_frames.extend(cur_traj_frames)
-        
+        for i in range(len(drivers)):
+            traj_fpath = self.step_dpath / f"traj_frames-w{i}.xyz"
+            traj_frames = read(traj_fpath, ":")
+            merged_traj_frames.extend(traj_frames)
+        self.logger.info(f"total nframes: {len(merged_traj_frames)}")
+
         # - select
-        selector = actions["selector"]
-        if selector:
-            select_dpath = self._make_step_dir(res_dpath, "select")
-            print(select_dpath)
+        is_selected = self._single_select(res_dpath, merged_traj_frames, actions)
 
-            selector.prefix = "traj"
-            selector.directory = select_dpath
-
-            selected_frames = selector.select(merged_traj_frames)
-
-        return
+        return (is_collected and is_selected)
     
 
 if __name__ == "__main__":
