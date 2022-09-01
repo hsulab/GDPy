@@ -8,6 +8,7 @@
 """
 
 import abc
+import uuid
 import copy
 import pathlib
 import logging
@@ -31,6 +32,8 @@ class AbstractWorker(abc.ABC):
             job
     """
 
+    UUIDLEN = 36 # length of uuid
+
     restart = True
     logger = None
 
@@ -40,15 +43,11 @@ class AbstractWorker(abc.ABC):
 
     _submit = True
 
-    prefix = "worker"
     worker_status = dict(queued=[], finished=[])
 
     def __init__(self, params, directory_=None) -> None:
         """
         """
-        # - pop some
-        self.prefix = params.pop("prefix", "worker")
-
         # - create scheduler
         scheduler_params = params.pop("scheduler", {})
         self.scheduler = create_scheduler(scheduler_params)
@@ -170,11 +169,54 @@ class AbstractWorker(abc.ABC):
         """"""
         self._initialise(*args, **kwargs)
         return
+
+    def inspect(self, *args, **kwargs):
+        """ check if any job were finished
+        """
+        self._initialise(*args, **kwargs)
+
+        scheduler = self.scheduler
+
+        running_jobs = self._get_running_jobs()
+        for job_name in running_jobs:
+            group_directory = self.directory / job_name[self.UUIDLEN+1:]
+            scheduler.set(**{"job-name": job_name})
+            scheduler.script = group_directory/"run-driver.script" 
+
+            info_name = job_name[self.UUIDLEN+1:]
+            if scheduler.is_finished():
+                self.logger.info(f"{info_name} is finished...")
+                doc_data = self.database.get(Query().gdir == job_name)
+                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+            else:
+                self.logger.info(f"{info_name} is running...")
+
+        return
     
-    @abc.abstractmethod
     def retrieve(self, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
+
+        gdirs = []
+
+        # - check status and get latest results
+        unretrieved_jobs = self._get_unretrieved_jobs()
+        for job_name in unretrieved_jobs:
+            # NOTE: sometimes prefix has number so confid may be striped
+            group_directory = self.directory / job_name[self.UUIDLEN+1:]
+            gdirs.append(group_directory)
+
+        results = self._read_results(gdirs, *args, **kwargs)
+
+        for job_name in unretrieved_jobs:
+            doc_data = self.database.get(Query().gdir == job_name)
+            self.database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+
+        return results
+    
+    @abc.abstractmethod
+    def _read_results(self, gdirs, *args, **kwargs):
+        """"""
         return
 
     def _get_running_jobs(self):
@@ -185,6 +227,35 @@ class AbstractWorker(abc.ABC):
         running_jobs = [r["gdir"] for r in running_jobs]
 
         return running_jobs
+
+    def _get_finished_jobs(self):
+        """"""
+        finished_jobs = self.database.search(
+            Query().queued.exists() and (Query().finished.exists())
+        )
+        finished_jobs = [r["gdir"] for r in finished_jobs]
+
+        return finished_jobs
+    
+    def _get_retrieved_jobs(self):
+        """"""
+        retrieved_jobs = self.database.search(
+            Query().queued.exists() and (Query().finished.exists()) and
+            Query().retrieved.exists()
+        )
+        retrieved_jobs = [r["gdir"] for r in retrieved_jobs]
+
+        return retrieved_jobs
+    
+    def _get_unretrieved_jobs(self):
+        """"""
+        unretrieved_jobs = self.database.search(
+            Query().queued.exists() and Query().finished.exists() and
+            ~(Query().retrieved.exists())
+        )
+        unretrieved_jobs = [r["gdir"] for r in unretrieved_jobs]
+
+        return unretrieved_jobs
     
     def get_number_of_running_jobs(self):
         """"""
