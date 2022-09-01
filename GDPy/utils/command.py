@@ -33,7 +33,7 @@ class CustomTimer():
         """"""
         self.et = time.time() # end time
 
-        content = "*** "+self.name+" time: "+"{:>8.4f}".format(self.et-self.st)+" ***" +"\n"
+        content = "*** "+self.name+" time: "+"{:>8.4f}".format(self.et-self.st)+" ***"
         self.func(content)
 
         return
