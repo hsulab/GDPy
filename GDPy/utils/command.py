@@ -16,9 +16,10 @@ import numpy as np
 
 class CustomTimer():
 
-    def __init__(self, name="code"):
+    def __init__(self, name="code", func=print):
         """"""
         self.name = name
+        self.func = func
 
         return
 
@@ -32,8 +33,8 @@ class CustomTimer():
         """"""
         self.et = time.time() # end time
 
-        # TODO: custom output
-        print("*** " + self.name + " time: " + "{:>8.4f}".format(self.et-self.st) + " ***")
+        content = "*** "+self.name+" time: "+"{:>8.4f}".format(self.et-self.st)+" ***" +"\n"
+        self.func(content)
 
         return
 
