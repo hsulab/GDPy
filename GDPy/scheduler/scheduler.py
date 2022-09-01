@@ -131,7 +131,7 @@ class SlurmScheduler(AbstractScheduler):
     SHELL = "#!/bin/bash -l"
 
     SUBMIT_COMMAND = "sbatch"
-    ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.24j %.4t %.12M %.12L %.5D %.4C\""
+    ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.60j %.4t %.12M %.12L %.5D %.4C\""
 
     # full name starts with --
     full_keywords = [ 
