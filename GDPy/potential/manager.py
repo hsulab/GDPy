@@ -78,17 +78,15 @@ def create_potter(config_file=None):
 
     # - scheduler for running the potential
     scheduler_params = params.get("scheduler", {})
-    if scheduler_params:
-        potter.register_scheduler(scheduler_params)
+    # default is local machine
+    potter.register_scheduler(scheduler_params)
 
     # - try worker
     if driver and potter.scheduler:
         from GDPy.computation.worker.drive import DriverBasedWorker
-        run_worker = DriverBasedWorker(driver, potter.scheduler)
+        run_worker = DriverBasedWorker(potter, driver, potter.scheduler)
     
-    # TODO: cant define train and run at the same time?
-
-    return (potter if not train_worker else train_worker)
+    return (run_worker if not train_worker else train_worker)
 
 if __name__ == "__main__":
     pass
