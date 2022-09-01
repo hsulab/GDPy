@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import uuid
 import yaml
 
 import numpy as np
@@ -17,6 +18,10 @@ from GDPy.utils.command import CustomTimer
 
 
 class DriverBasedWorker(AbstractWorker):
+
+    """ job lifetime
+        queued (running) -> finished -> retrieved
+    """
 
     batchsize = 1 # how many structures performed in one job
 
@@ -104,17 +109,17 @@ class DriverBasedWorker(AbstractWorker):
         
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
-        queued_jobs = [q["gdir"] for q in queued_jobs]
+        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
 
         # - run
         for group_directory, cur_frames, wdirs in job_info:
             #if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
             #    continue
-            job_name = self.prefix + "-" + group_directory.name
-            if job_name in queued_jobs:
+            if group_directory.name in queued_names:
                 continue
 
             # - update scheduler
+            job_name = str(uuid.uuid1()) + "-" + group_directory.name
             scheduler.set(**{"job-name": job_name})
             scheduler.script = group_directory/"run-driver.script" 
 
@@ -148,52 +153,23 @@ class DriverBasedWorker(AbstractWorker):
         
         return 
 
-    def retrieve(self, *args, **kwargs):
-        """"""
-        super().retrieve(*args, **kwargs)
-
-        scheduler = self.scheduler
-
-        # - check status and get latest results
-        #finished_jobnames = []
-        finished_wdirs = []
-
-        running_jobs = self._get_running_jobs()
-        for job_name in running_jobs:
-            # NOTE: sometimes prefix has number so confid may be striped
-            group_directory = self.directory / job_name[len(self.prefix)+1:]
-            scheduler.set(**{"job-name": job_name})
-            scheduler.script = group_directory/"run-driver.script" 
+    def _read_results(self, gdirs, read_traj=False):
+        """ wdirs - candidate dir with computation files
+        """
+        unretrived_wdirs = []
+        for group_directory in gdirs:
             if self.batchsize > 1:
                 wdirs = [x.name for x in group_directory.glob("cand*")]
             else:
                 wdirs = ["./"]
-            if scheduler.is_finished():
-                self.logger.info(f"{job_name} is finished...")
-                finished_wdirs.extend([group_directory/x for x in wdirs])
-                #finished_jobnames.append(job_name)
-                doc_data = self.database.get(Query().gdir == job_name)
-                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-            else:
-                self.logger.info(f"{job_name} is running...")
-        
-        # - try to read results
-        new_frames = []
-        if finished_wdirs:
-            new_frames = self._read_results(finished_wdirs)
-            self.logger.info(f"new_frames: {len(new_frames)} {new_frames[0].get_potential_energy()}")
-        
-        return new_frames
-    
-    def _read_results(self, wdirs, read_traj=False):
-        """ wdirs - candidate dir with computation files
-        """
-        # TODO: add if retrieved in metadata
+            unretrived_wdirs.extend([group_directory/x for x in wdirs])
+
+        # - get results
         results = []
         
         driver = self.driver
         with CustomTimer(name="read-results", func=self.logger.info):
-            for wdir in wdirs:
+            for wdir in unretrived_wdirs:
                 driver.directory = wdir
                 confid = int(wdir.name.strip("cand"))
                 if not read_traj:
@@ -206,6 +182,9 @@ class DriverBasedWorker(AbstractWorker):
                     for a in traj_frames:
                         a.info["confid"] = confid
                     results.extend(traj_frames)
+
+        if results:
+            self.logger.info(f"new_frames: {len(results)} {results[0].get_potential_energy()}")
 
         return results
 
