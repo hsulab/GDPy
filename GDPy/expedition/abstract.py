@@ -245,7 +245,8 @@ class AbstractExpedition(ABC):
 
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
-            frames, cons_text = self._read_structure(slabel)
+            generator, cons_text = self._read_structure(slabel)
+            actions["generator"] = generator
 
             # --- update cons text
             # TODO: need a unified interface here...
@@ -262,7 +263,9 @@ class AbstractExpedition(ABC):
             status = "create"
             self.logger.info(f"\n\n===== current status: {status}  =====")
             self.step_dpath = self._make_step_dir(res_dpath, status)
-            is_created = self._single_create(res_dpath, frames, actions)
+            is_created = self._single_create(
+                res_dpath, actions, ran_size=self.init_systems[slabel].get("size", 1)
+            )
             if not is_created:
                 self.logger.info("Creation is not finished...")
                 continue
@@ -272,7 +275,7 @@ class AbstractExpedition(ABC):
             status = "collect"
             self.logger.info(f"\n\n===== current status: {status}  =====")
             self.step_dpath = self._make_step_dir(res_dpath, status)
-            is_collected = self._single_collect(res_dpath, frames, actions)
+            is_collected = self._single_collect(res_dpath, actions)
             if not is_collected:
                 self.logger.info("Collect/Select is not finished...")
                 continue
@@ -282,7 +285,7 @@ class AbstractExpedition(ABC):
             status = "label"
             self.logger.info(f"\n\n===== current status: {status}  =====")
             self.step_dpath = self._make_step_dir(res_dpath, status)
-            self._single_label(res_dpath, frames, actions)
+            self._single_label(res_dpath, actions)
 
         self._post_create()
 
@@ -309,14 +312,14 @@ class AbstractExpedition(ABC):
         return step_dir
 
     @abstractmethod 
-    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, *args, **kwargs):
         """ some codes run explorations
         """
 
         return
 
     @abstractmethod 
-    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, *args, **kwargs):
         """ some codes run explorations
         """
 
@@ -380,8 +383,10 @@ class AbstractExpedition(ABC):
         # the expedition can start with different initial configurations
         init_frame_path = self.step_dpath / "init.xyz" 
         if init_frame_path.exists():
-            self.logger.info("read existed structure file...")
+            self.logger.info("read cached structure file...")
+            from GDPy.builder.direct import DirectGenerator
             frames = read(init_frame_path, ":")
+            generator = DirectGenerator(frames, self.step_dpath)
         else:
             self.logger.info("try to use generator...")
             stru_path = system_dict.get("structure", None)
@@ -390,25 +395,20 @@ class AbstractExpedition(ABC):
                 from GDPy.builder.interface import create_generator
                 generator = create_generator(gen_params)
                 generator.directory = self.step_dpath
-                frames = generator.run(system_dict.get("size", 1))
-                #if self.name != "gs": # global search
-                #    # global search expedition doesnt need initial structures
-                #    raise RuntimeError(f"{self.name} needs initial structures of {slabel}")
+                #frames = generator.run(system_dict.get("size", 1))
             elif (stru_path is not None and gen_params is None):
                 indices = system_dict.get("index", ":")
                 frames = read(stru_path, indices)
+                from GDPy.builder.direct import DirectGenerator
+                generator = DirectGenerator(frames, self.step_dpath)
             else:
                 raise RuntimeError("Use either structure or generation...")
         
-            write(self.step_dpath/"init.xyz", frames)
-        
-        self.logger.info(f"number of initial structures: {len(frames)}")
-
         sys_cons_text = system_dict.get("constraint", None) # some action may need constraint info
 
-        return frames, sys_cons_text
+        return generator, sys_cons_text
     
-    def _single_label(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_label(self, res_dpath, actions, *args, **kwargs):
         """"""
         # - read collected/selected frames
         sorted_path = res_dpath / "select"
@@ -519,75 +519,6 @@ class AbstractExpedition(ABC):
         
         return
 
-        # - create input file
-        if not sorted_fp_path.exists():
-            pass
-        else:
-            self.logger.info(f"{str(sorted_fp_path)} already exists.")
-            worker.directory = sorted_fp_path
-
-            # - store in database
-            # TODO: provide an unified interfac to all type of databases 
-            # TODO: offer default xyzfile prefix
-            composition = self.init_systems[slabel]["composition"]
-            sorted_composition = sorted(composition.items(), key=lambda x:x[0])
-            comp_name = "".join([ k+str(v) for k,v in sorted_composition])
-            database_path = self.main_database / (self.init_systems[slabel]["prefix"]+"-"+comp_name)
-
-            if not database_path.exists():
-                database_path.mkdir(parents=True)
-
-            xyzfile_path = database_path / ("-".join([slabel, self.name, sorted_fp_path.name, worker.potter.version]) + ".xyz")
-            self.logger.info(str(xyzfile_path))
-            #exit()
-
-            if xyzfile_path.exists():
-                frames_exists = read(xyzfile_path, ":")
-                nframes_exists = len(frames_exists)
-                if nframes_exists == nframes_in:
-                    self.logger.info("  calculated structures have been stored...")
-                    #return
-                else:
-                    self.logger.info("  calculated structures may not finish...")
-                frames = frames_exists
-            else:
-                # - read results
-                labelled_frames = worker.directory/"new_frames.xyz"
-                
-                with CustomTimer(name="harvest"):
-                    worker.inspect()
-                    new_frames = worker.retrieve()
-                    if new_frames:
-                        write(labelled_frames, new_frames, append=True)
-                        self.logger.info(f"nframes newly added: {len(new_frames)}")
-                        # - tag every data
-                        # TODO: add uuid in worker?
-                        for atoms in new_frames:
-                            atoms.info["uuid"] = str(uuid.uuid1())
-                
-                if labelled_frames.exists():
-                    frames = read(labelled_frames, ":")
-                else:
-                    frames = []
-                nframes = len(frames)
-            
-                if nframes != nframes_in:
-                    warnings.warn("calculation may not finish...", RuntimeWarning)
-
-                write(database_path / xyzfile_path, frames)
-
-            # - check parity
-            if self.label_params["check_parity"]:
-                from GDPy.data.operators import calc_and_compare_results, plot_comparasion
-
-                # use loaded frames
-                with CustomTimer(name="comparasion"):
-                    figpath = sorted_fp_path / "cmp.png"
-                    calc_name = self.pot_manager.calc.name.lower()
-                    energies, forces = calc_and_compare_results(frames, self.pot_manager.calc)
-                    plot_comparasion(calc_name, energies, forces, figpath)
-
-        return
 
 if __name__ == "__main__":
     pass
