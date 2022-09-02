@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import warnings
 
 from typing import List
@@ -33,7 +34,8 @@ class RandomGenerator(StructureGenerator):
         """"""
         super().__init__(directory)
 
-        self.generator = self._create_generator(params)
+        self.params = copy.deepcopy(params)
+        self.generator = self._create_generator(self.params)
 
         return
     
@@ -75,6 +77,8 @@ class RandomGenerator(StructureGenerator):
         elif system_type == "surface":
             # read substrate
             substrate_file = params["substrate"]
+            self.params["substrate"] = str(Path(substrate_file).resolve())
+
             surfdis = params.get("surfdis", None)
             constraint = params.get("constraint", None)
 
@@ -235,6 +239,10 @@ class RandomGenerator(StructureGenerator):
                 break
 
         return starting_population
+    
+    def as_dict(self):
+        """"""
+        return copy.deepcopy(self.params)
 
 
 if __name__ == "__main__":
