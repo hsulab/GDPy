@@ -131,8 +131,15 @@ class MDBasedExpedition(AbstractExpedition):
 
         return actions
     
-    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, *args, **kwargs):
         """"""
+        generator = actions["generator"]
+        self.logger.info(generator.__class__.__name__)
+        frames = generator.run(kwargs.get("ran_size", 1))
+        self.logger.info(f"number of initial structures: {len(frames)}")
+        from GDPy.builder.direct import DirectGenerator
+        actions["generator"] = DirectGenerator(frames, res_dpath/"init")
+
         # - run over systems
         drivers = actions["driver"]
 
@@ -160,8 +167,13 @@ class MDBasedExpedition(AbstractExpedition):
 
         return is_finished
     
-    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, *args, **kwargs):
         """"""
+        generator = actions["generator"]
+        self.logger.info(generator.__class__.__name__)
+        frames = generator.run(kwargs.get("ran_size", 1))
+        self.logger.info(f"number of initial structures: {len(frames)}")
+
         traj_period = self.collection_params["traj_period"]
 
         # NOTE: not save all explored configurations
@@ -175,6 +187,7 @@ class MDBasedExpedition(AbstractExpedition):
             worker.logger = self.logger
             worker.directory = res_dpath/"create"/f"w{iw}"
             worker.driver = driver
+            worker.batchsize = len(frames)
             traj_fpath = self.step_dpath / f"traj_frames-w{iw}.xyz"
             new_frames = worker.retrieve(read_traj=True)
             if new_frames:

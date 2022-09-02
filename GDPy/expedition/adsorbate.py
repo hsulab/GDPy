@@ -39,9 +39,16 @@ class AdsorbateEvolution(AbstractExpedition):
 
         return actions
 
-    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, *args, **kwargs):
         """
         """
+        generator = actions["generator"]
+        self.logger.info(generator.__class__.__name__)
+        frames = generator.run(kwargs.get("ran_size", 1))
+        self.logger.info(f"number of initial structures: {len(frames)}")
+        from GDPy.builder.direct import DirectGenerator
+        actions["generator"] = DirectGenerator(frames, res_dpath/"init")
+
         driver = actions["driver"]
         worker = self.pot_worker
 
@@ -63,8 +70,13 @@ class AdsorbateEvolution(AbstractExpedition):
 
         return is_finished
     
-    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, *args, **kwargs):
         """"""
+        generator = actions["generator"]
+        self.logger.info(generator.__class__.__name__)
+        frames = generator.run(kwargs.get("ran_size", 1))
+        self.logger.info(f"number of initial structures: {len(frames)}")
+
         traj_period = self.collection_params["traj_period"]
 
         driver = actions["driver"]
