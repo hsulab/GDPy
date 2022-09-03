@@ -410,6 +410,8 @@ class AbstractExpedition(ABC):
     
     def _single_label(self, res_dpath, actions, *args, **kwargs):
         """"""
+        assert self.ref_worker, "Reference worker is not set properly."
+
         # - read collected/selected frames
         sorted_path = res_dpath / "select"
         if not sorted_path.exists():
