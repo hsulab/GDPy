@@ -11,11 +11,11 @@ def run_expedition(potter, referee, exp_json):
     method = exp_dict.get("method", "MD")
     if method == "MD":
         from .md import MDBasedExpedition as exp_cls
-    elif method == "GA":
-        from .randomSearch import RandomExplorer as exp_cls
-    elif method == "adsorbate":
+    elif method == "evo":
+        from .evoSearch import EvolutionaryExpedition as exp_cls
+    elif method == "adsorbate": # ads
         from .adsorbate import AdsorbateEvolution as exp_cls
-    elif method == "reaction":
+    elif method == "reaction": # rxn
         from .reaction import ReactionExplorer as exp_cls
     elif method == "otf":
         from .online.md import OnlineDynamicsBasedExpedition as exp_cls
