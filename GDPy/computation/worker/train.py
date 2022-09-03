@@ -4,6 +4,8 @@
 """ worker for training potentials
 """
 
+import uuid
+
 from tinydb import Query
 
 from GDPy.computation.worker.worker import AbstractWorker
@@ -40,18 +42,19 @@ class TrainWorker(AbstractWorker):
 
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
-        queued_jobs = [q["gdir"] for q in queued_jobs]
+        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         
         scheduler.user_commands = "\n".join(
             [self.potter.train_command, self.potter.freeze_command]
         )
         for train_dir in train_dirs:
-            if train_dir.name in queued_jobs:
+            if train_dir.name in queued_names:
                 continue
             # --- write files for training
             potter._make_train_files(dataset, train_dir)
             # ---
-            scheduler.set(**{"job-name": train_dir.name})
+            job_name = str(uuid.uuid1()) + "-" + train_dir.name
+            scheduler.set(**{"job-name": job_name})
             scheduler.script = train_dir / "train.script"
             if scheduler.name != "local":
                 scheduler.write()
@@ -63,30 +66,7 @@ class TrainWorker(AbstractWorker):
                 # train directly
                 run_command(str(train_dir), self.potter.train_command)
                 run_command(str(train_dir), self.potter.freeze_command)
-            self.database.insert(dict(gdir=train_dir.name, queued=True))
-
-        return
-    
-    def retrieve(self, *args, **kwargs):
-        """"""
-        super().retrieve(*args, **kwargs)
-        scheduler = self.scheduler
-
-        finished_wdirs = []
-        running_jobs = self._get_running_jobs()
-        for tdir_name in running_jobs:
-            tdir = self.directory / tdir_name
-            scheduler.set(**{"job-name": tdir_name})
-            scheduler.script = tdir/"train.script" 
-            if scheduler.is_finished():
-                finished_wdirs.append(tdir)
-                doc_data = self.database.get(Query().gdir == tdir_name)
-                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-            else:
-                self.logger.info(f"{tdir_name} is running...")
-        
-        if finished_wdirs:
-            _ = self._read_results(finished_wdirs)
+            self.database.insert(dict(gdir=job_name, queued=True))
 
         return
     
