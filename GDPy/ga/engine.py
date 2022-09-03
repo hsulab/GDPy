@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import time
 from random import random
 import pathlib
@@ -84,7 +85,7 @@ class GeneticAlgorithemEngine():
 
     def __init__(self, ga_dict: dict):
         """"""
-        self.ga_dict = ga_dict
+        self.ga_dict = copy.deepcopy(ga_dict)
 
         # - check system type
         from GDPy.builder.randomBuilder import RandomGenerator
@@ -94,8 +95,8 @@ class GeneticAlgorithemEngine():
         self.db_name = pathlib.Path(ga_dict["database"])
 
         # --- calculation ---
-        from GDPy.computation.worker.worker import create_worker
-        self.worker = create_worker(ga_dict["worker"])
+        from GDPy.potential.manager import create_potter
+        self.worker = create_potter(ga_dict["worker"])
         self.worker.directory = Path.cwd() / self.CALC_DIRNAME
 
         # --- directory ---
@@ -274,6 +275,7 @@ class GeneticAlgorithemEngine():
             print("Enough candidates or not finished relaxing current generation...")
 
         # --- check if there were finished jobs
+        self.worker.inspect()
         converged_candidates = self.worker.retrieve()
         for cand in converged_candidates:
             # TODO: use tags
