@@ -37,43 +37,13 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         selection_tags = ["final"]
     )
 
-    def __init__(self, params: dict, potter, referee=None):
-        """"""
-        self._register_type_map(params) # obtain type_list or type_map
-
-        self.explorations = params["explorations"]
-        self.init_systems = params["systems"]
-
-        self._parse_general_params(params)
-
-        self.njobs = config.NJOBS
-
-        # - potential and reference
-        self.potter = potter
-        self.referee = referee # either a manager or a worker
-
-        # - parse params
-        # --- create
-        # --- collect/select
-        # --- label/acquire
-
-        return
-    
-    def run(self, operator, working_directory):
+    def run(self, working_directory):
         """"""
         nexps = len(self.explorations.keys())
         # TODO: explore many times?
         assert nexps == 1, "Online expedition only supports one at a time."
 
-        working_directory = Path(working_directory)
-        if not working_directory.exists():
-            working_directory.mkdir(parents=True)
-        for exp_name in self.explorations.keys():
-            # note: check dir existence in sub function
-            exp_directory = working_directory / exp_name
-            if not exp_directory.exists():
-                exp_directory.mkdir(parents=True)
-            operator(exp_name, exp_directory)
+        super().run(working_directory)
 
         return
 
@@ -83,24 +53,21 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
         # TODO: check if potential is available
         driver_params = input_params["create"]["driver"]
-        if self.potter.potter.calc:
-            driver = self.potter.potter.create_driver(driver_params)
+        if self.pot_worker.potter.calc:
+            driver = self.pot_worker.potter.create_driver(driver_params)
             actions["driver"] = driver
         else:
             actions["driver"] = None
 
         return actions
     
-    def icreate(self, exp_name: str, exp_directory: Union[str,Path]) -> NoReturn:
+    def _irun(self, exp_name: str, exp_directory: Union[str,Path]) -> NoReturn:
         """ create expedition tasks and gather results
         """
         # - a few info
         exp_dict = self.explorations[exp_name]
         included_systems = exp_dict.get("systems", None)
         assert len(included_systems)==1, "Online expedition only supports one system."
-
-        # - check logger
-        self._init_logger(exp_directory)
 
         # TODO: check if potential is available
         actions = self._prior_create(exp_dict)
@@ -119,8 +86,8 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
-            frames, cons_text = self._read_structure(slabel)
-            assert len(frames) == 1, "Online expedition only supports one structure."
+            generator, cons_text = self._read_structure(slabel)
+            actions["generator"] = generator
 
             # - check driver
             if actions["driver"]:
@@ -132,18 +99,22 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                     init_frames = read(init_data, ":")
                     self.logger.info(f"Train calculator on inital dataset, {len(init_frames)}...")
                     self._single_train(self.step_dpath, init_frames)
-                    actions["driver"] = self.potter.potter.create_driver(exp_dict["create"]["driver"])
+                    actions["driver"] = self.pot_worker.potter.create_driver(exp_dict["create"]["driver"])
                 else:
                     raise RuntimeError("Either prepared init model or init dataset should be provided.")
 
             # - run
             self.step_dpath = self._make_step_dir(res_dpath, "create")
-            self._single_create(res_dpath, frames, actions)
+            self._single_create(res_dpath, actions)
 
         return
 
-    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, *args, **kwargs):
         """"""
+        generator = actions["generator"]
+        frames = generator.run()
+        assert len(frames) == 1, "Online expedition only supports one structure."
+
         # - create dirs
         collect_dpath = self._make_step_dir(res_dpath, f"collect")
         label_dpath = self._make_step_dir(res_dpath, f"label")
@@ -157,10 +128,13 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         # - check components
         # --- driver
         driver = actions["driver"]
-        driver_params = driver.as_dict()["driver"]
+        driver_params = driver.as_dict()
         
         # --- worker
-        self.referee.directory = label_dpath
+        self.pot_worker.logger = self.logger
+
+        self.ref_worker.directory = label_dpath
+        self.ref_worker.logger = self.logger
 
         # --- steps and intervals
         traj_period = self.collection_params["traj_period"]
@@ -232,7 +206,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                     train_frames = read(label_dpath/"calculated.xyz", ":")
                     is_trained = self._single_train(train_dpath, train_frames)
                     if is_trained:
-                        driver = self.potter.potter.create_driver(driver_params)
+                        driver = self.pot_worker.potter.create_driver(driver_params)
                     else:
                         self.logger.info("break, wait for training...")
                         break
@@ -281,14 +255,14 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
     def _single_label(self, res_dpath, traj_frames, *args, **kwargs):
         """"""
         # - label structures
-        #self.referee._submit = False
-        self.referee.run(traj_frames)
+        #self.ref_worker._submit = False
+        self.ref_worker.run(traj_frames)
         # TODO: wait here
         is_calculated = True
-        calibrated_frames = self.referee.retrieve()
+        calibrated_frames = self.ref_worker.retrieve()
         if calibrated_frames:
             write(res_dpath/"calculated.xyz", calibrated_frames, append=True)
-        if self.referee.get_number_of_running_jobs() > 0:
+        if self.ref_worker.get_number_of_running_jobs() > 0:
             is_calculated = False
 
         return is_calculated
@@ -307,21 +281,21 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         else:
             cur_tdir = wdir / "t0"
         # - train potentials
-        self.logger.info(f"TRAIN at {cur_tdir.name}, {self.potter.potter.train_size} models...")
+        self.logger.info(f"TRAIN at {cur_tdir.name}, {self.pot_worker.potter.train_size} models...")
         self.logger.info(f"dataset size (nframes): {len(frames)}")
-        #self.potter._submit = False
-        self.potter.directory = cur_tdir
-        _ = self.potter.run(frames, size=self.potter.potter.train_size)
+        #self.pot_worker._submit = False
+        self.pot_worker.directory = cur_tdir
+        _ = self.pot_worker.run(frames, size=self.pot_worker.potter.train_size)
         
         # - check if training is finished
         is_trained = True
-        _ = self.potter.retrieve()
-        if self.potter.get_number_of_running_jobs() > 0:
+        _ = self.pot_worker.retrieve()
+        if self.pot_worker.get_number_of_running_jobs() > 0:
             is_trained = False
         else:
             # - update potter's calc
             self.logger.info("UPDATE POTENTIAL...")
-            self.potter.potter.freeze(cur_tdir)
+            self.pot_worker.potter.freeze(cur_tdir)
 
         return is_trained
 
