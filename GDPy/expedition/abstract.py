@@ -87,7 +87,6 @@ class AbstractExpedition(ABC):
         # - potential and reference
         self.pot_worker = potter
         self.ref_worker = referee
-        print("pot_worker: ", self.pot_worker)
 
         return
 
