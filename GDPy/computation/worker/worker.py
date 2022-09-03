@@ -160,7 +160,6 @@ class AbstractWorker(abc.ABC):
         self._init_database()
         if self.logger is None:
             self._init_logger()
-        self.logger.info(f"@@@{self.__class__.__name__}")
 
         return
     
@@ -168,12 +167,14 @@ class AbstractWorker(abc.ABC):
     def run(self, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
+        self.logger.info(f"@@@{self.__class__.__name__}+run")
         return
 
     def inspect(self, *args, **kwargs):
         """ check if any job were finished
         """
         self._initialise(*args, **kwargs)
+        self.logger.info(f"@@@{self.__class__.__name__}+inspect")
 
         scheduler = self.scheduler
 
@@ -195,9 +196,11 @@ class AbstractWorker(abc.ABC):
     
     def retrieve(self, *args, **kwargs):
         """"""
-        self._initialise(*args, **kwargs)
+        #self._initialise(*args, **kwargs)
+        self.inspect(*args, **kwargs)
+        self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
 
-        gdirs = []
+        gdirs, results = [], []
 
         # - check status and get latest results
         unretrieved_jobs = self._get_unretrieved_jobs()
@@ -206,7 +209,8 @@ class AbstractWorker(abc.ABC):
             group_directory = self.directory / job_name[self.UUIDLEN+1:]
             gdirs.append(group_directory)
 
-        results = self._read_results(gdirs, *args, **kwargs)
+        if gdirs:
+            results = self._read_results(gdirs, *args, **kwargs)
 
         for job_name in unretrieved_jobs:
             doc_data = self.database.get(Query().gdir == job_name)
@@ -222,7 +226,7 @@ class AbstractWorker(abc.ABC):
     def _get_running_jobs(self):
         """"""
         running_jobs = self.database.search(
-            Query().queued.exists() and (~Query().finished.exists())
+            Query().queued.exists() & (~Query().finished.exists())
         )
         running_jobs = [r["gdir"] for r in running_jobs]
 
@@ -231,7 +235,7 @@ class AbstractWorker(abc.ABC):
     def _get_finished_jobs(self):
         """"""
         finished_jobs = self.database.search(
-            Query().queued.exists() and (Query().finished.exists())
+            Query().queued.exists() & (Query().finished.exists())
         )
         finished_jobs = [r["gdir"] for r in finished_jobs]
 
@@ -240,7 +244,7 @@ class AbstractWorker(abc.ABC):
     def _get_retrieved_jobs(self):
         """"""
         retrieved_jobs = self.database.search(
-            Query().queued.exists() and (Query().finished.exists()) and
+            Query().queued.exists() & (Query().finished.exists()) &
             Query().retrieved.exists()
         )
         retrieved_jobs = [r["gdir"] for r in retrieved_jobs]
@@ -250,8 +254,8 @@ class AbstractWorker(abc.ABC):
     def _get_unretrieved_jobs(self):
         """"""
         unretrieved_jobs = self.database.search(
-            Query().queued.exists() and Query().finished.exists() and
-            ~(Query().retrieved.exists())
+            (Query().queued.exists() & Query().finished.exists()) &
+            (~Query().retrieved.exists())
         )
         unretrieved_jobs = [r["gdir"] for r in unretrieved_jobs]
 
