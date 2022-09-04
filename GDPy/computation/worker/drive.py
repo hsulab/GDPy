@@ -155,7 +155,11 @@ class DriverBasedWorker(AbstractWorker):
         
         return 
 
-    def _read_results(self, gdirs, read_traj=False):
+    def _read_results(
+        self, gdirs, 
+        read_traj=False, traj_period=1, 
+        include_first=True, include_last=True
+    ):
         """ wdirs - candidate dir with computation files
         """
         unretrived_wdirs = []
@@ -179,10 +183,19 @@ class DriverBasedWorker(AbstractWorker):
                     new_atoms.info["confid"] = confid
                     results.append(new_atoms)
                 else:
-                    # TODO: remove first or last frames since they are always the same?
-                    traj_frames = driver.read_trajectory(add_step_info=True) # TODO: add step to info
+                    traj_frames = driver.read_trajectory(add_step_info=True)
                     for a in traj_frames:
                         a.info["confid"] = confid
+                    # NOTE: remove first or last frames since they are always the same?
+                    n_trajframes = len(traj_frames)
+                    first, last = 0, n_trajframes-1
+                    cur_indices = list(range(0,len(traj_frames),traj_period))
+                    if include_last:
+                        if last not in cur_indices:
+                            cur_indices.append(last)
+                    if not include_first:
+                        cur_indices = cur_indices[1:]
+                    traj_frames = [traj_frames[i] for i in cur_indices]
                     results.extend(traj_frames)
 
         if results:
