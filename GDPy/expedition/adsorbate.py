@@ -88,7 +88,9 @@ class AdsorbateEvolution(AbstractExpedition):
         worker.batchsize = len(frames)
         
         # TODO: save converged frames (last frame of each trajectory?)
-        traj_frames = worker.retrieve(read_traj=True)
+        traj_frames = worker.retrieve(
+            read_traj=True, traj_period=traj_period, include_first=True
+        )
         write(self.step_dpath/"traj_frames.xyz", traj_frames, append=True)
 
         if len(worker._get_unretrieved_jobs()) > 0:

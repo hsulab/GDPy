@@ -189,7 +189,9 @@ class MDBasedExpedition(AbstractExpedition):
             worker.driver = driver
             worker.batchsize = len(frames)
             traj_fpath = self.step_dpath / f"traj_frames-w{iw}.xyz"
-            new_frames = worker.retrieve(read_traj=True)
+            new_frames = worker.retrieve(
+                read_traj=True, traj_period=traj_period, include_first=False
+            )
             if new_frames:
                 write(traj_fpath, new_frames, append=True)
             if len(worker._get_unretrieved_jobs()) > 0:
