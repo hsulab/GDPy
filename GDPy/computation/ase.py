@@ -47,6 +47,12 @@ def retrieve_and_save_deviation(atoms, devi_fpath):
 
     return
 
+def save_trajectory(atoms, log_fpath):
+    """"""
+    write(log_fpath, atoms, append=True)
+
+    return
+
 
 class AseDriver(AbstractDriver):
 
@@ -186,7 +192,9 @@ class AseDriver(AbstractDriver):
 
         if cons_text is not None:
             atoms._del_constraints()
-            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+            mobile_indices, frozen_indices = parse_constraint_info(
+                atoms, cons_text, ignore_ase_constraints=True, ret_text=False
+            )
             if frozen_indices:
                 atoms.set_constraint(FixAtoms(indices=frozen_indices))
         #print(atoms.constraints)
@@ -252,26 +260,45 @@ class AseDriver(AbstractDriver):
         
         return driver, run_params
 
-    def run(self, atoms, *args, **kwargs):
+    def run(self, atoms_, *args, **kwargs):
         """ run the driver
             parameters of calculator will not change since
             it still performs single-point calculation
         """
-        driver, run_params = self._create_dynamics(atoms, *args, **kwargs)
+        #atoms = Atoms(
+        #    symbols=copy.deepcopy(atoms_.get_chemical_symbols()),
+        #    positions=copy.deepcopy(atoms_.get_positions()),
+        #    cell=copy.deepcopy(atoms_.get_cell(complete=True)),
+        #    pbc=copy.deepcopy(atoms_.get_pbc())
+        #)
+        atoms = copy.deepcopy(atoms_)
+        dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
 
-        # TODO: use step to retrieve deviation info
-        driver.attach(
+        # NOTE: traj file not stores properties (energy, forces) properly
+        dynamics.attach(
+            save_trajectory, interval=self.init_params["loginterval"],
+            atoms=atoms, log_fpath=self.directory/"traj.xyz"
+        )
+        # NOTE: retrieve deviation info
+        dynamics.attach(
             retrieve_and_save_deviation, interval=self.init_params["loginterval"], 
             atoms=atoms, devi_fpath=self.directory/"model_devi-ase.dat"
         )
-        driver.run(**run_params)
+        dynamics.run(**run_params)
 
         return atoms
     
-    def read_trajectory(self, *args, **kwargs):
+    def read_trajectory(self, add_step_info=True, *args, **kwargs):
         """ read trajectory in the current working directory
         """
-        traj_frames = read(self.traj_fpath, ":")
+        traj_frames = read(self.directory/"traj.xyz", index=":")
+
+        if add_step_info:
+            data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
+            timesteps = data[:, 0] # ps
+            steps = timesteps*1000/self.init_params["timestep"]
+            for step, atoms in zip(steps, traj_frames):
+                atoms.info["step"] = int(step)
 
         # - read deviation, similar to lammps
         devi_fpath = self.directory / "model_devi-ase.dat"
