@@ -292,13 +292,13 @@ class LmpDriver(AbstractDriver):
 
         return stat_content
     
-    def read_trajectory(self, type_list=None, label_steps=True, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, type_list=None, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """ lammps dump file has no element info
         """
         if type_list is not None:
             self.calc.type_list = type_list
 
-        return self.calc._read_trajectory(label_steps)
+        return self.calc._read_trajectory(add_step_info)
 
 
 class Lammps(FileIOCalculator):
@@ -450,7 +450,7 @@ class Lammps(FileIOCalculator):
 
         return
 
-    def _read_trajectory(self, label_steps: bool=False) -> List[Atoms]:
+    def _read_trajectory(self, add_step_info: bool=True) -> List[Atoms]:
         """"""
         # NOTE: always use dynamics calc
         # - read trajectory that contains positions and forces
@@ -493,7 +493,7 @@ class Lammps(FileIOCalculator):
                     atoms.info[k] = data[j,i]
         
         # - label steps
-        if label_steps:
+        if add_step_info:
             for i, atoms in enumerate(traj_frames):
                 atoms.info["source"] = _directory_path.name
                 atoms.info["step"] = int(thermo_dict["Step"][i])

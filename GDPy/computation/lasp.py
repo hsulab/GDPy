@@ -292,8 +292,8 @@ class LaspDriver(AbstractDriver):
 
         return min_results
     
-    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
-        return self.calc._read_trajectory()
+    def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
+        return self.calc._read_trajectory(add_step_info)
 
 
 class LaspNN(FileIOCalculator):
@@ -461,11 +461,12 @@ class LaspNN(FileIOCalculator):
 
         return converged
     
-    def _read_trajectory(self) -> List[Atoms]:
+    def _read_trajectory(self, add_step_info=True) -> List[Atoms]:
         """"""
         traj_frames = read(os.path.join(self.directory, "allstr.arc"), ":", format="dmol-arc")
         natoms = len(traj_frames[-1])
 
+        traj_steps = []
         traj_energies = []
         traj_forces = []
 
@@ -476,7 +477,10 @@ class LaspNN(FileIOCalculator):
             while True:
                 line = fopen.readline()
                 if line.strip().startswith("For"):
+                    step = int(line.split()[1])
+                    traj_steps.append(step)
                     energy = float(line.split()[3])
+                    traj_energies.append(energy)
                     # stress
                     line = fopen.readline()
                     stress = np.array(line.split()) # TODO: what is the format of stress
@@ -486,12 +490,12 @@ class LaspNN(FileIOCalculator):
                         line = fopen.readline()
                         forces.append(line.split())
                     forces = np.array(forces, dtype=float)
-                    traj_energies.append(energy)
                     traj_forces.append(forces)
                 if line.strip() == "":
                     pass
                 if not line: # if line == "":
                     break
+        assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
         
         # - create traj
         for i, atoms in enumerate(traj_frames):
@@ -499,6 +503,10 @@ class LaspNN(FileIOCalculator):
                 atoms, energy=traj_energies[i], forces=traj_forces[i]
             )
             atoms.calc = calc
+        
+        if add_step_info:
+            for step, atoms in zip(traj_steps, traj_frames):
+                atoms.info["step"] = step
 
         return traj_frames
 
