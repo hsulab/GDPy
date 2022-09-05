@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import time
+import logging
 from pathlib import Path
 import shutil
 
@@ -12,11 +14,13 @@ from ase import Atom, Atoms
 from ase.io import read, write
 
 from ase.constraints import FixAtoms
+from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 
 from GDPy.builder.species import build_species
 from GDPy.builder.region import Reservoir, ReducedRegion
 
 from GDPy.utils.command import CustomTimer
+from GDPy.md.md_utils import force_temperature
 
 
 class GCMC():
@@ -24,26 +28,91 @@ class GCMC():
     MCTRAJ = "./traj.xyz"
     MAX_NUM_PER_SPECIES = 10000
 
+    pfunc = print
+
+    _directory = Path.cwd()
+
     def __init__(
         self, 
         system: dict,
         restart: bool = False,
         probabilities: np.array = np.array([0.0,0.0]),
+        preprocess = {},
+        postprocess = {},
+        run = {},
         random_seed = None,
+        directory = Path.cwd()/"results",
         *args, **kwargs
     ):
         """
         """
+        self.directory = directory
         self.restart = restart
+        self._init_logger()
+
+        self.preprocess_params = copy.deepcopy(preprocess)
+        self.postprocess_params = copy.deepcopy(postprocess)
+        self.run_params = copy.deepcopy(run)
 
         # set random generator TODO: move to run?
         self.set_rng(random_seed)
-        print("RANDOM SEED: ", random_seed)
+        self.pfunc(f"RANDOM SEED: {random_seed}")
 
         self._create_init_system(system)
 
         # transition probabilities: motion, insertion, deletion
         self.accum_probs = np.cumsum(probabilities) / np.sum(probabilities)
+
+        return
+    
+    @property
+    def directory(self):
+
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory_):
+        # - create main dir
+        directory_ = Path(directory_)
+        if not directory_.exists():
+            directory_.mkdir() # NOTE: ./tmp_folder
+        else:
+            pass
+        self._directory = directory_
+
+        return
+
+    def _init_logger(self):
+        """"""
+        self.logger = logging.getLogger(__name__)
+
+        log_level = logging.INFO
+
+        self.logger.setLevel(log_level)
+
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+
+        working_directory = self.directory
+        log_fpath = working_directory / (self.__class__.__name__+".out")
+
+        if self.restart:
+            fh = logging.FileHandler(filename=log_fpath, mode="a")
+        else:
+            fh = logging.FileHandler(filename=log_fpath, mode="w")
+
+        fh.setLevel(log_level)
+        #fh.setFormatter(formatter)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(log_level)
+        #ch.setFormatter(formatter)
+
+        self.logger.addHandler(ch)
+        self.logger.addHandler(fh)
+
+        self.pfunc = self.logger.info
 
         return
 
@@ -65,7 +134,6 @@ class GCMC():
 
         # - substrate atoms
         atoms = read(substrate)
-        atoms.set_tags(0)
 
         # - region + reservoir
         reservoir = Reservoir(**reservoir_params)
@@ -82,53 +150,79 @@ class GCMC():
         self.beta = self.region.reservoir.beta
         self.cubic_wavelength = self.region.reservoir.cubic_wavelength
 
-        self.acc_volume = self.region.calc_acc_volume(self.atoms)
-
         # NOTE: use tag_list to manipulate both atoms and molecules
-        self.tag_list = {}
-        for expart in self.region.reservoir.exparts:
-            self.tag_list[expart] = []
+        self.tag_list = self.region.tag_list
 
         # TODO: restart
 
         return
 
     def run(self, worker, nattempts):
-        """"""
+        """ one step = preprocess + mc_attempts
+            mc_attempt = move/exchange + postprocess + metropolis
+        """
+        # --- prepare drivers
         self.worker = worker
 
-        # start info
+        if self.preprocess_params:
+            self.pre_driver = self.worker.potter.create_driver(self.preprocess_params)
+            assert self.pre_driver.init_params["task"] == "md", "Preprocess should be molecualr dynamics."
+        else:
+            self.pre_driver = None
+        
+        self.post_driver = self.worker.potter.create_driver(self.postprocess_params)
+        if self.post_driver.get("steps") > 0:
+            self.pfunc("Use biased monte carlo...")
+            self.acc_volume = self.region.calc_acc_volume(self.atoms)
+        else:
+            self.pfunc("Use standard monte carlo...")
+            self.acc_volume = self.region.volume
+
+        self.MCTRAJ = self.directory/self.MCTRAJ
+
+        # --- start info
         content = "===== Simulation Information @%s =====\n\n" % time.asctime( time.localtime(time.time()) )
         content += str(self.region)
-        print(content)
+        self.pfunc(content)
         
         # - opt init structure
         start_index = 0 # TODO: for restart
         self.step_index = start_index
+
+        self.pfunc("\n\n===== Initial Minimisation =====")
         # TODO: check if energy exists
         self.energy_stored, self.atoms = self.optimise(self.atoms)
-        print("Cell Info: ", self.atoms.cell)
-        print("energy_stored ", self.energy_stored)
+        #self.pfunc(f"Cell Info: {self.atoms.cell}")
+        self.pfunc(f"energy_stored {self.energy_stored}")
 
         # add optimised initial structure
-        print("\n\nrenew trajectory file")
+        self.pfunc("\n\nrenew trajectory file")
         write(self.MCTRAJ, self.atoms, append=False)
 
         # - start monte carlo
-        self.step_index = start_index + 1
-        for idx in range(start_index+1, nattempts):
+        self.step_index = start_index
+        for idx in range(start_index, nattempts):
             self.step_index = idx
-            print("\n\n===== MC Move %04d =====\n" %idx)
-            # run standard MC move
-            self.step()
+            self.pfunc(f"\n\n===== MC Cycle {idx:>8d} =====\n")
 
-            # TODO: save state
-            self.atoms.info["step"] = idx
-            write(self.MCTRAJ, self.atoms, append=True)
+            # Molecular Dynamics, for hybrid GC-MD+MC
+            self._pre_process()
+
+            # run standard MC move/exchange
+            for j in range(self.run_params.get("nmcattempts", 1)):
+                self.pfunc(f"\n=== MC Attempt {j:>8d} ===")
+                self.step()
+
+                # Metropolis
+
+                # TODO: save state
+                self.atoms.info["mcstep"] = idx
+                self.atoms.info["step"] = j
+                write(self.MCTRAJ, self.atoms, append=True)
 
             # check uncertainty
         
-        print("\n\nFINISHED PROPERLY @ %s." %time.asctime( time.localtime(time.time()) ))
+        self.pfunc(f"\n\nFINISHED PROPERLY @ {time.asctime( time.localtime(time.time()) )}")
 
         return
 
@@ -136,39 +230,41 @@ class GCMC():
         """ various actions
         [0]: move, [1]: exchange (insertion/deletion)
         """
+        self.pfunc("\n----- Monte Carlo INFO -----\n")
+
         st = time.time()
 
         # - choose species
         expart = str(self.rng.choice(self.exparts)) # each element hase same prob to chooose
-        print("selected particle: ", expart)
-        rn_mcmove = self.rng.uniform()
-        print("prob action", rn_mcmove)
+        self.pfunc(f"selected particle: {expart}")
 
         # step for selected type of particles
         nexatoms = len(self.tag_list[expart])
         if nexatoms > 0:
+            rn_mcmove = self.rng.uniform()
+            self.pfunc(f"prob action {rn_mcmove}")
             if rn_mcmove < self.accum_probs[0]:
                 # atomic motion
-                print('current attempt is *motion*')
+                self.pfunc("current attempt is *motion*")
                 self.attempt_move_atom(expart)
             elif rn_mcmove < self.accum_probs[1]:
                 # exchange (insertion/deletion)
                 rn_ex = self.rng.uniform()
-                print("prob exchange", rn_ex)
+                self.pfunc(f"prob exchange {rn_ex}")
                 if rn_ex < 0.5:
-                    print('current attempt is *insertion*')
+                    self.pfunc("current attempt is *insertion*")
                     self.attempt_insert_atom(expart)
                 else:
-                    print("current attempt is *deletion*")
+                    self.pfunc("current attempt is *deletion*")
                     self.attempt_delete_atom(expart)
             else:
                 pass # never execute here
         else:
-            print('current attempt is *insertion*')
+            self.pfunc("current attempt is *insertion*")
             self.attempt_insert_atom(expart)
 
         et = time.time()
-        print("step time: ", et - st)
+        self.pfunc(f"step time: {et-st}")
 
         return
     
@@ -179,16 +275,16 @@ class GCMC():
             idx_pick = None
         else:
             idx_pick = self.rng.choice(self.tag_list[expart])
-        #print(idx_pick, type(idx_pick))
+        #self.pfunc(idx_pick, type(idx_pick))
 
         return idx_pick
     
     def update_exlist(self):
         """update the list of exchangeable particles"""
-        print("number of particles: ")
+        self.pfunc("number of particles: ")
         for expart, indices in self.tag_list.items():
-            print("{:<4s}  {:<8d}".format(expart, len(indices)))
-            print("species tag: ", indices)
+            self.pfunc("{:<4s} number: {:<8d}".format(expart, len(indices)))
+            #self.pfunc(f"species tag: {indices}")
 
         return
     
@@ -198,9 +294,9 @@ class GCMC():
         self.update_exlist()
         tag_idx_pick = self.pick_random_atom(expart)
         if tag_idx_pick is not None:
-            print("select species with tag %d" %tag_idx_pick)
+            self.pfunc("select species with tag %d" %tag_idx_pick)
         else:
-            print("no exchangeable atoms...")
+            self.pfunc("no exchangeable atoms...")
             return 
         
         # try move
@@ -214,24 +310,24 @@ class GCMC():
         )
 
         if cur_atoms is None:
-            print(f"failed to move after {self.region.MAX_RANDOM_ATTEMPTS} attempts...")
+            self.pfunc(f"failed to move after {self.region.MAX_RANDOM_ATTEMPTS} attempts...")
             return
 
         # move info
-        print("origin position: ") 
+        self.pfunc("origin position: ") 
         for si in species_indices:
-            print(self.atoms[si].position)
-        print("-> random position: ") 
+            self.pfunc(self.atoms[si].position)
+        self.pfunc("-> random position: ") 
         for si in species_indices:
-            print(cur_atoms[si].position)
+            self.pfunc(cur_atoms[si].position)
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
         # - check opt pos
-        print("-> optimised position: ") 
+        self.pfunc("-> optimised position: ") 
         for si in species_indices:
-            print(opt_atoms[si].symbol, opt_atoms[si].position)
+            self.pfunc(f"{opt_atoms[si].symbol} {opt_atoms[si].position}")
 
         # - acceptance ratio
         beta = self.beta[expart]
@@ -246,19 +342,19 @@ class GCMC():
         )
         content += "Energy Change %.4f [eV]\n" %energy_change
         content += "Accept Ratio %.4f\n" %acc_ratio
-        print(content)
+        self.pfunc(content)
 
         rn_motion = self.rng.uniform()
         if rn_motion < acc_ratio:
             self.atoms = opt_atoms
             self.energy_stored = energy_after
         else:
-            print("fail to move")
+            self.pfunc("fail to move")
             pass
         
-        print("Translation Probability %.4f" %rn_motion)
+        self.pfunc("Translation Probability %.4f" %rn_motion)
 
-        print("energy_stored is %12.4f" %self.energy_stored)
+        self.pfunc("energy_stored is %12.4f" %self.energy_stored)
         
         return
     
@@ -268,9 +364,11 @@ class GCMC():
 
         # - extend one species
         cur_atoms = self.atoms.copy()
-        print("current natoms: ", len(cur_atoms))
+        self.pfunc(f"current natoms: {len(cur_atoms)}")
         # --- build species and assign tag
         new_species = build_species(expart)
+        #force_temperature(new_species, temperature=self.region.reservoir.temperature, unit="K")
+        MaxwellBoltzmannDistribution(new_species, temperature_K=self.region.reservoir.temperature, rng=self.rng)
 
         expart_tag = (self.exparts.index(expart)+1)*self.MAX_NUM_PER_SPECIES
         tag_max = 0
@@ -281,9 +379,12 @@ class GCMC():
 
         cur_atoms.extend(new_species)
 
-        print("natoms: ", len(cur_atoms))
+        self.pfunc(f"natoms: {len(cur_atoms)}")
         tag_idx_pick = new_tag
-        print("try to insert species with tag ", tag_idx_pick)
+        self.pfunc(f"try to insert species with tag {tag_idx_pick}")
+        self.pfunc("momenta:")
+        momenta = new_species.get_momenta()
+        self.pfunc(f"{momenta}")
 
         tags = cur_atoms.get_tags()
         species_indices = [i for i, t in enumerate(tags) if t==tag_idx_pick]
@@ -292,21 +393,21 @@ class GCMC():
             cur_atoms, species_indices, operation="insert"
         )
         if cur_atoms is None:
-            print("failed to insert after {self.region.MAX_RANDOM_ATTEMPS} attempts...")
+            self.pfunc("failed to insert after {self.region.MAX_RANDOM_ATTEMPS} attempts...")
             return
         
         # insert info
-        print("inserted position: ")
+        self.pfunc("inserted position: ")
         for si in species_indices:
-            print(cur_atoms[si].symbol, cur_atoms[si].position)
+            self.pfunc(f"{cur_atoms[si].symbol} {cur_atoms[si].position}")
 
         # TODO: change this to optimisation
         energy_after, opt_atoms = self.optimise(cur_atoms)
 
         # - check opt pos
-        print("-> optimised position: ") 
+        self.pfunc("-> optimised position: ") 
         for si in species_indices:
-            print(opt_atoms[si].symbol, opt_atoms[si].position)
+            self.pfunc(f"{opt_atoms[si].symbol} {opt_atoms[si].position}")
 
         # - acceptance ratio
         nexatoms = len(self.tag_list[expart])
@@ -319,12 +420,12 @@ class GCMC():
         energy_change = energy_after-self.energy_stored-chem_pot
         acc_ratio = np.min([1.0, coef * np.exp(-beta*(energy_change))])
 
-        content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
+        content = "\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n" %(
             self.acc_volume, nexatoms, cubic_wavelength, coef
         )
-        content += 'Energy Change %.4f [eV]\n' %energy_change
-        content += 'Accept Ratio %.4f\n' %acc_ratio
-        print(content)
+        content += "Energy Change %.4f [eV]\n" %energy_change
+        content += "Accept Ratio %.4f\n" %acc_ratio
+        self.pfunc(content)
 
         rn_insertion = self.rng.uniform()
         if rn_insertion < acc_ratio:
@@ -333,10 +434,10 @@ class GCMC():
             # update exchangeable atoms
             self.tag_list[expart].append(new_tag)
         else:
-            print('fail to insert...')
-        print('Insertion Probability %.4f' %rn_insertion)
+            self.pfunc("fail to insert...")
+        self.pfunc(f"Insertion Probability {rn_insertion}")
 
-        print('energy_stored is %12.4f' %self.energy_stored)
+        self.pfunc(f"energy_stored is {self.energy_stored:12.4f}")
 
         return
 
@@ -346,9 +447,9 @@ class GCMC():
         self.update_exlist()
         tag_idx_pick = self.pick_random_atom(expart)
         if tag_idx_pick is not None:
-            print("select species with tag %d" %tag_idx_pick)
+            self.pfunc("select species with tag %d" %tag_idx_pick)
         else:
-            print("no atom can be deleted...")
+            self.pfunc("no atom can be deleted...")
             return
 
         # try deletion
@@ -371,12 +472,12 @@ class GCMC():
         energy_change  = energy_after + chem_pot - self.energy_stored
         acc_ratio = np.min([1.0, coef*np.exp(-beta*(energy_change))])
 
-        content = '\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n' %(
+        content = "\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n" %(
             self.acc_volume, nexatoms, cubic_wavelength, coef
         )
-        content += 'Energy Change %.4f [eV]\n' %energy_change
-        content += 'Accept Ratio %.4f\n' %acc_ratio
-        print(content)
+        content += "Energy Change %.4f [eV]\n" %energy_change
+        content += "Accept Ratio %.4f\n" %acc_ratio
+        self.pfunc(content)
 
         rn_deletion = self.rng.uniform()
         if rn_deletion < acc_ratio:
@@ -388,21 +489,48 @@ class GCMC():
         else:
             pass
 
-        print('Deletion Probability %.4f' %rn_deletion)
+        self.pfunc("Deletion Probability %.4f" %rn_deletion)
 
-        print('energy_stored is %12.4f' %self.energy_stored)
+        self.pfunc("energy_stored is %12.4f" %self.energy_stored)
+
+        return
+    
+    def _pre_process(self):
+        """"""
+        self.pfunc("\n----- run preprocess -----\n")
+        driver = self.pre_driver
+        if driver is not None:
+            driver.directory = self.directory/"pre"
+            atoms = self.atoms
+            with CustomTimer(name="preprocess", func=self.pfunc):
+                self.pfunc(f"n_cur_atoms: {len(atoms)}")
+                tags = atoms.get_tags()
+                new_atoms = driver.run(atoms, 
+                    read_exists=False, extra_info = None
+                )
+                new_atoms.set_tags(tags)
+
+                #en = atoms.get_potential_energy()
+            self.atoms = new_atoms
+            # - save traj
+            traj_frames = driver.read_trajectory(add_step_info=True)
+            for a in traj_frames:
+                a.info["mcstep"] = self.step_index
+            write(self.MCTRAJ, traj_frames, append=True)
+        else:
+            self.pfunc("\nno preprocess...\n")
 
         return
 
-
     def optimise(self, atoms):
         """"""
-        print("\n----- DYNAMICS MIN INFO -----\n")
-        driver = self.worker.driver
+        self.pfunc("\n----- DYNAMICS MIN INFO -----\n")
+        driver = self.post_driver
         with CustomTimer(name="run-dynamics"):
+            driver.directory = self.directory/"post"
             # run minimisation
             tags = atoms.get_tags()
-            print("n_cur_atoms: ", len(atoms))
+            self.pfunc(f"n_cur_atoms: {len(atoms)}")
             atoms = driver.run(atoms, 
                 read_exists=False, extra_info = None
             )
