@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import time
+import itertools
 
 import numpy as np
 
@@ -135,6 +136,7 @@ class ReducedRegion():
     """
 
     MAX_RANDOM_ATTEMPS = 1000
+    MAX_NUM_PER_SPECIES = 10000
 
     _reservoir = None # determine whether insert or delete is possible
 
@@ -153,6 +155,7 @@ class ReducedRegion():
         self.atoms = atoms
         self.reservoir = reservoir
 
+        # - find all possible elements
         chemical_symbols = self.atoms.get_chemical_symbols()
         chemical_symbols.extend(self.reservoir.type_list)
         type_list = list(set(chemical_symbols))
@@ -176,6 +179,7 @@ class ReducedRegion():
         # - region
         self.cell = self.atoms.get_cell(complete=True)
         
+        # TODO: assert zaxis should be perpendiculer to xy plane
         assert len(caxis) == 2
         self.cmin, self.cmax = caxis
         self.cell[2,2] = self.cmax 
@@ -184,6 +188,41 @@ class ReducedRegion():
         self.volume = np.dot(
             self.cvect*(self.cmax-self.cmin), np.cross(self.cell[0], self.cell[1])
         )
+
+        # - find existed exchangeable particles
+        auto_tag = True
+        for expart in self.reservoir.exparts:
+            natoms_per_species = sum(Formula(expart).count().values())
+            if natoms_per_species > 1:
+                # TODO: use graph to determine?
+                auto_tag = False
+                break
+        else:
+            pass
+        if auto_tag:
+            if "tags" not in self.atoms.arrays:
+                tag_list = {k:[] for k in self.reservoir.exparts}
+                cur_tags = self.atoms.get_tags()
+                for i, atom in enumerate(self.atoms):
+                    if atom.symbol in self.reservoir.exparts and self._is_inside_region(atom.position):
+                        i_symbol = self.reservoir.exparts.index(atom.symbol)
+                        cur_tag = self.MAX_NUM_PER_SPECIES*(i_symbol+1)+len(tag_list[atom.symbol])
+                        cur_tags[i] = cur_tag
+                        tag_list[atom.symbol].append(cur_tag)
+                self.atoms.set_tags(cur_tags)
+        else:
+            if "tags" not in self.atoms.arrays:
+                self.atoms.set_tags(0)
+
+        # - set tag list
+        tag_list = {k:[] for k in self.reservoir.exparts}
+        tag_symbol = zip(self.atoms.get_tags(), self.atoms.get_chemical_symbols())
+        for k, g in itertools.groupby(tag_symbol, lambda d: d[0]):
+            symbols = sorted([x[1] for x in g])
+            formula = str(Formula("".join(symbols)).convert("hill"))
+            if formula in tag_list:
+                tag_list[formula].append(k)
+        self.tag_list = tag_list
 
         # - random
         self.rng = rng
@@ -199,41 +238,6 @@ class ReducedRegion():
     def reservoir(self, reservoir_):
         self._reservoir = reservoir_
         return
-
-    def random_position(self, positions: np.ndarray):
-        """ old implementation, not very efficient
-        """
-        mindis = 1.5
-        for i in range(1000): # maximum number of attempts
-            ran_frac_pos = self.rng.uniform(0,1,3)
-            ran_pos = np.dot(ran_frac_pos, self.cell) 
-            ran_pos[2] = self.cmin + ran_frac_pos[2] * (self.cmax-self.cmin)
-            # TODO: better
-            if not self.check_overlap(mindis, ran_pos, positions):
-                print("random position", ran_pos)
-                break
-        else:
-            print("Failed to generate a random position...")
-
-        return ran_pos
-
-    @staticmethod
-    def check_overlap(mindis, ran_pos, positions):
-        """"""
-        st = time.time()
-        # TODO: change this to the faster neigbour list construction
-        # maybe use scipy
-        overlapped = False
-        for pos in positions:
-            # TODO: use neighbour list?
-            dis = np.linalg.norm(ran_pos-pos)
-            if dis < mindis:
-                overlapped = True
-                break
-        et = time.time()
-        print("time for overlap: ", et-st)
-
-        return overlapped
 
     def random_position_neighbour(
         self, 
@@ -290,8 +294,8 @@ class ReducedRegion():
             # use neighbour list
             if not self.check_overlap_neighbour(nl, new_atoms, chemical_symbols, species_indices):
                 print(f"succeed to random after {i+1} attempts...")
-                print("original position: ", org_com)
-                print("random position: ", ran_pos)
+                #print("original position: ", org_com)
+                #print("random position: ", ran_pos)
                 break
             new_atoms.positions[species_indices] = org_positions
         else:
@@ -321,7 +325,7 @@ class ReducedRegion():
                     dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, self.cell)))
                     pairs = [chemical_symbols[ni], chemical_symbols[idx_pick]]
                     pairs = tuple([data.atomic_numbers[p] for p in pairs])
-                    print("distance: ", ni, dis, self.blmin[pairs])
+                    #print("distance: ", ni, dis, self.blmin[pairs])
                     if dis < self.blmin[pairs]:
                         overlapped = True
                         break
@@ -345,6 +349,14 @@ class ReducedRegion():
 
         return acc_volume
     
+    def _is_inside_region(self, position):
+        """"""
+        is_inside = False
+        if self.cmin < position[2] < self.cmax:
+            is_inside = True
+
+        return is_inside
+    
     def __str__(self):
         """"""
         content = "----- Region -----\n"
@@ -354,6 +366,10 @@ class ReducedRegion():
         content += "covalent ratio: {}  {}\n".format(self.covalent_min, self.covalent_max)
         content += "maximum movedisp: {}\n".format(self.max_movedisp)
         content += "use rotation: {}\n".format(self.use_rotation)
+
+        content += "tags\n"
+        for expart, expart_tags in self.tag_list.items():
+            content += f"{expart:<8s} number: {len(expart_tags):>8d}\n"
 
         content += "\n"
         content += str(self.reservoir)
