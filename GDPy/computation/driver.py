@@ -22,18 +22,16 @@ class AbstractDriver(abc.ABC):
     keyword: Optional[str] = None
     special_keywords = {}
 
-    _directory = pathlib.Path.cwd()
-
     syswise_keys = []
 
     pot_params = None
 
-    def __init__(self, calc, params, directory, *args, **kwargs):
+    def __init__(self, calc, params, directory=pathlib.Path.cwd(), *args, **kwargs):
 
         self.calc = calc
         self.calc.reset()
 
-        self.directory = pathlib.Path(directory)
+        self._directory = pathlib.Path(directory)
 
         self._parse_params(params)
 
