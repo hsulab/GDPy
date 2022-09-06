@@ -207,6 +207,8 @@ class GCMC():
 
             # Molecular Dynamics, for hybrid GC-MD+MC
             self._pre_process()
+            self.energy_stored = self.atoms.get_potential_energy()
+            self.pfunc(f"energy_stored {self.energy_stored}")
 
             # run standard MC move/exchange
             for j in range(self.run_params.get("nmcattempts", 1)):
