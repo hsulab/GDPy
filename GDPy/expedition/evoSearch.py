@@ -20,7 +20,7 @@ from GDPy.selector.traj import BoltzmannMinimaSelection
 from GDPy.computation.utils import read_trajectories
 from GDPy.computation.worker import create_worker
 from GDPy.computation.worker.command import CommandWorker
-from GDPy.potential.manager import create_potter
+from GDPy.potential.register import create_potter
 
 from GDPy.utils.command import CustomTimer
 

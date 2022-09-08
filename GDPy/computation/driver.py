@@ -236,7 +236,7 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
     import shutil
     from ase.io import read, write
     from GDPy.utils.command import parse_input_file
-    from GDPy.potential.manager import PotManager
+    from GDPy.potential.register import PotentialRegister
 
     params = parse_input_file(params)
 
@@ -254,7 +254,7 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
         pot_dict = params.pop("potential", None)
         if pot_dict is None:
             raise RuntimeError("Need potential...")
-        pm = PotManager() # main potential manager
+        pm = PotentialRegister() # main potential manager
         potter = pm.create_potential(pot_name = pot_dict["name"])
         potter.register_calculator(pot_dict["params"])
         potter.version = pot_dict.get("version", "unknown") # NOTE: important for calculation in exp

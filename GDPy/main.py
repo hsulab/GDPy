@@ -298,7 +298,7 @@ def main():
     # tracker = track_workflow(args.status)
 
     # - potential
-    from GDPy.potential.manager import create_potter
+    from GDPy.potential.register import create_potter
     potter = None
     if args.potential:
         pot_config = args.potential # configuration file of potential

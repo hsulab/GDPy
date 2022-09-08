@@ -6,7 +6,7 @@ import pathlib
 from ase.io import read, write
 
 from GDPy.computation.worker.worker import AbstractWorker
-from GDPy.potential.manager import create_potter
+from GDPy.potential.register import create_potter
 
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"

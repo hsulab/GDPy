@@ -95,7 +95,7 @@ class GeneticAlgorithemEngine():
         self.db_name = pathlib.Path(ga_dict["database"])
 
         # --- calculation ---
-        from GDPy.potential.manager import create_potter
+        from GDPy.potential.register import create_potter
         self.worker = create_potter(ga_dict["worker"])
         self.worker.directory = Path.cwd() / self.CALC_DIRNAME
 

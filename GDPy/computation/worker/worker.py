@@ -16,7 +16,7 @@ import logging
 from tinydb import TinyDB, Query
 
 from GDPy.scheduler.factory import create_scheduler
-from GDPy.potential.manager import PotManager
+from GDPy.potential.register import PotentialRegister
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 
@@ -57,7 +57,7 @@ class AbstractWorker(abc.ABC):
         pot_dict = params_.get("potential", None)
         if pot_dict is None:
             raise RuntimeError("Need potential...")
-        pm = PotManager() # main potential manager
+        pm = PotentialRegister() # main potential manager
         potter = pm.create_potential(pot_name = pot_dict["name"])
         potter.register_calculator(pot_dict["params"])
         potter.version = pot_dict.get("version", "unknown") # NOTE: important for calculation in exp
