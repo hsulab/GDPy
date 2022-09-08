@@ -1,49 +1,65 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import inspect
 import importlib
 import typing
 
 from GDPy.utils.command import parse_input_file
 
-# from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.potential import AbstractPotential
 TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 
 class PotManager():
 
     SUFFIX = "Manager"
-    potential_names = ["vasp", "dp", "eann", "lasp", "nequip"]
+    #potential_names = ["vasp", "dp", "eann", "lasp", "nequip"]
 
     def __init__(self):
         """
         """
+        self._name_cls_map = dict()
+
         # collect registered managers
         self.registered_potentials = {}
-        managers = importlib.import_module("GDPy.potential.potential")
-        for pot_name in self.potential_names:
-            self.registered_potentials[pot_name] = getattr(managers, pot_name.capitalize()+self.SUFFIX)
+        managers = importlib.import_module("GDPy.potential.managers")
+        for name, data in inspect.getmembers(managers, inspect.ismodule):
+            if name.startswith("__"):
+                continue
+            cls_name = name.capitalize() + "Manager"
+            pot_cls = getattr(data, cls_name)
+            if pot_cls:
+                assert issubclass(pot_cls, AbstractPotential), f"{cls_name} is not a PotentialManager object."
+                self._name_cls_map[name] = pot_cls
 
         return
     
-    def register_potential(self, pot_name: str, pot_class: typing.Type[TManager]):
+    def register_potential(self, pot_cls: typing.Type[TManager]=None, pot_name: str=None):
         """
         Register a custom potential manager class
         """
-        self.potential_names.append(pot_name)
-        self.registered_potentials[pot_name] = pot_class
+        if pot_name is None:
+            pot_name = pot_cls.__class__.__name__
+        if pot_cls != None:
+            self._name_cls_map[pot_name] = pot_cls
+        else:
+            def wrapper(obj):
+                self._name_method_map[pot_name] = obj
+                return obj
+            return wrapper
 
         return
     
     def create_potential(self, pot_name, train_params=None, *args, **kwargs):
         """
         """
-        if pot_name in self.potential_names:
-            pot_class = self.registered_potentials[pot_name]
-            potential = pot_class(*args, **kwargs)
+        if pot_name in self._name_cls_map:
+            pot_cls = self._name_cls_map[pot_name]
+            potential = pot_cls(*args, **kwargs)
             if train_params is not None:
                 potential.register_training(train_params)
         else:
-            raise NotImplementedError('%s is not registered as a potential.' %(pot_name))
+            raise NotImplementedError("%s is not registered as a potential." %(pot_name))
 
         return potential
 
@@ -89,4 +105,10 @@ def create_potter(config_file=None):
     return (run_worker if not train_worker else train_worker)
 
 if __name__ == "__main__":
+    manager = PotManager()
+
+    #register = PotentialRegister()
+    #from GDPy.potential.potential import VaspManager
+    #register.register(VaspManager, name="vasp")
+    #print(register._name_cls_map)
     pass
