@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import sys
 import inspect
 import importlib
 import typing
+import pathlib
 
 from GDPy.utils.command import parse_input_file
 
 from GDPy.potential.potential import AbstractPotential
 TManager = typing.TypeVar("TManager", bound="AbstractPotential")
 
-class PotManager():
-
-    SUFFIX = "Manager"
-    #potential_names = ["vasp", "dp", "eann", "lasp", "nequip"]
+class PotentialRegister():
 
     def __init__(self):
         """
@@ -53,8 +52,20 @@ class PotManager():
     def create_potential(self, pot_name, train_params=None, *args, **kwargs):
         """
         """
+        pot_cls = None
         if pot_name in self._name_cls_map:
             pot_cls = self._name_cls_map[pot_name]
+        else:
+            # - read from input
+            if pot_name.endswith(".py"):
+                #manager = inspect.getsourcefile(pot_name)
+                pot_def_path = pathlib.Path(pot_name).resolve()
+                sys.path.append(pot_def_path.parent)
+                pot_name = pot_def_path.name[:-3]
+                manager = importlib.import_module(pot_name)
+                pot_cls = getattr(manager, pot_name.capitalize()+"Manager")
+
+        if pot_cls:
             potential = pot_cls(*args, **kwargs)
             if train_params is not None:
                 potential.register_training(train_params)
@@ -74,7 +85,7 @@ def create_potter(config_file=None):
     potential_params = params.get("potential", {})
     if not potential_params:
         potential_params = params
-    manager = PotManager()
+    manager = PotentialRegister()
     name = potential_params.get("name", None)
     potter = manager.create_potential(pot_name=name)
     potter.register_calculator(potential_params.get("params", {}))
@@ -105,10 +116,4 @@ def create_potter(config_file=None):
     return (run_worker if not train_worker else train_worker)
 
 if __name__ == "__main__":
-    manager = PotManager()
-
-    #register = PotentialRegister()
-    #from GDPy.potential.potential import VaspManager
-    #register.register(VaspManager, name="vasp")
-    #print(register._name_cls_map)
     pass
