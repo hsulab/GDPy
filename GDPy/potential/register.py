@@ -9,8 +9,8 @@ import pathlib
 
 from GDPy.utils.command import parse_input_file
 
-from GDPy.potential.potential import AbstractPotential
-TManager = typing.TypeVar("TManager", bound="AbstractPotential")
+from GDPy.potential.manager import AbstractPotentialManager
+TManager = typing.TypeVar("TManager", bound="AbstractPotentialManager")
 
 class PotentialRegister():
 
@@ -28,7 +28,7 @@ class PotentialRegister():
             cls_name = name.capitalize() + "Manager"
             pot_cls = getattr(data, cls_name)
             if pot_cls:
-                assert issubclass(pot_cls, AbstractPotential), f"{cls_name} is not a PotentialManager object."
+                assert issubclass(pot_cls, AbstractPotentialManager), f"{cls_name} is not a PotentialManager object."
                 self._name_cls_map[name] = pot_cls
 
         return

@@ -13,7 +13,7 @@ from typing import Union, List, NoReturn
 from GDPy.scheduler.factory import create_scheduler
 
 
-class AbstractPotential(abc.ABC):
+class AbstractPotentialManager(abc.ABC):
     """
     Create various potential instances
     """

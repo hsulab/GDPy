@@ -6,12 +6,12 @@ from typing import Union
 
 import json
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.utils.command import run_command
 from GDPy.trainer.train_potential import find_systems, generate_random_seed
 
 
-class DeepmdManager(AbstractPotential):
+class DeepmdManager(AbstractPotentialManager):
 
     name = "deepmd"
     implemented_backends = ['ase', 'lammps']

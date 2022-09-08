@@ -4,9 +4,9 @@
 import os
 from pathlib import Path
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 
-class VaspManager(AbstractPotential):
+class VaspManager(AbstractPotentialManager):
 
     name = "vasp"
 

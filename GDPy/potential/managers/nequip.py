@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 
-class NequipManager(AbstractPotential):
+class NequipManager(AbstractPotentialManager):
 
     implemented_backends = ["ase"]
     valid_combinations = [

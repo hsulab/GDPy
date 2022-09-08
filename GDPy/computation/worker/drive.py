@@ -10,7 +10,7 @@ from tinydb import Query
 
 from ase.io import read, write
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
 from GDPy.computation.worker.worker import AbstractWorker
 
@@ -31,7 +31,7 @@ class DriverBasedWorker(AbstractWorker):
         """"""
         self.batchsize = kwargs.pop("batchsize", 1)
 
-        assert isinstance(potter_, AbstractPotential), ""
+        assert isinstance(potter_, AbstractPotentialManager), ""
 
         self.potter = potter_
         self.driver = driver_

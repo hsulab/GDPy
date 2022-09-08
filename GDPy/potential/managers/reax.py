@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 
-class ReaxManager(AbstractPotential):
+class ReaxManager(AbstractPotentialManager):
 
     name = "reax"
     implemented_backends = ['lammps']

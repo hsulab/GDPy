@@ -6,11 +6,11 @@ from pathlib import Path
 
 import yaml
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.scheduler.factory import create_scheduler
 
 
-class EannManager(AbstractPotential):
+class EannManager(AbstractPotentialManager):
 
     name = "eann"
     implemented_backends = ["ase", "lammps"]

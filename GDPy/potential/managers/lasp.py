@@ -3,9 +3,9 @@
 
 from pathlib import Path
 
-from GDPy.potential.potential import AbstractPotential
+from GDPy.potential.manager import AbstractPotentialManager
 
-class LaspManager(AbstractPotential):
+class LaspManager(AbstractPotentialManager):
 
     name = "lasp"
     implemented_backends = ["lasp"]
