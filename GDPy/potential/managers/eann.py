@@ -15,11 +15,6 @@ class EannManager(AbstractPotential):
     name = "eann"
     implemented_backends = ["ase", "lammps"]
 
-    backends = dict(
-        single = ["ase", "lammps"], # single pointe energy
-        dynamics = ["ase", "lammps"] # dynamics (opt, ts, md)
-    )
-
     valid_combinations = [
         ["ase", "ase"], # calculator, dynamics
         ["lammps", "ase"],
@@ -82,7 +77,6 @@ class EannManager(AbstractPotential):
             else:
                 calc = None
         elif self.calc_backend == "lammps":
-            # eann has different backends (ase, lammps)
             from GDPy.computation.lammps import Lammps
             if pair_style:
                 calc = Lammps(command=command, directory=directory, **calc_params)

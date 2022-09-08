@@ -21,13 +21,7 @@ class AbstractPotential(abc.ABC):
     name = "potential"
     version = "m00" # calculator name
 
-    external_engines = ["lammps", "lasp"]
-
     implemented_backends = []
-    backends = dict(
-        single = [], # single pointe energy
-        dynamics = [] # dynamics (opt, ts, md)
-    )
     valid_combinations = []
 
     _calc = None
@@ -88,10 +82,6 @@ class AbstractPotential(abc.ABC):
         dynamics = dyn_params.get("backend", self.calc_backend)
         if dynamics == "external":
             dynamics = self.calc_backend
-            #if dynamics.lower() in self.external_engines:
-            #    dynamics = self.calc_backend
-            #else:
-            #    dynamics == "ase"
 
         if [self.calc_backend, dynamics] not in self.valid_combinations:
             raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
