@@ -65,7 +65,8 @@ class AseDriver(AbstractDriver):
     default_init_params = {
         "min": {
             "min_style": "bfgs",
-            "min_modify": "integrator verlet tmax 4"
+            "min_modify": "integrator verlet tmax 4",
+            "dump_period": 1
         },
         "md": {
             "md_style": "nvt",
@@ -108,15 +109,10 @@ class AseDriver(AbstractDriver):
         self, calc=None, params: dict={}, directory="./"
     ):
         """"""
-        self.calc = calc
-        self.calc.reset()
+        super().__init__(calc, params, directory)
 
         self._log_fpath = self.directory / self.log_fname
         self._traj_fpath = self.directory / self.traj_fname
-
-        self.directory = directory
-
-        self._parse_params(params)
 
         return
     
