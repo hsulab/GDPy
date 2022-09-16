@@ -347,9 +347,9 @@ def main():
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, args.run)
-    elif args.subcommand == 'valid':
+    elif args.subcommand == "valid":
         from .validator.validation import run_validation
-        run_validation(args.INPUTS, args.structure, potter)
+        run_validation(args.INPUTS, potter)
     elif args.subcommand == "select":
         from GDPy.selector.main import selection_main
         selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)

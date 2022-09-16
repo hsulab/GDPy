@@ -26,7 +26,7 @@ from ase.neb import NEB
 from abc import ABC
 from abc import abstractmethod
 
-from GDPy.potential.manager import PotManager
+from GDPy.potential.register import PotentialRegister
 from GDPy.utils.command import parse_input_file
 
 """
@@ -55,14 +55,14 @@ class AbstractValidator(ABC):
     #    
     #    return
 
-    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
+    def __init__(self, task_outpath: str, task_params: dict, pot_worker=None):
         """
         """
         self.task_outpath = Path(task_outpath)
         self.task_params = task_params
-        self.pm = pot_manager
 
-        self.calc = pot_manager.calc
+        self.pm = pot_worker.potter
+        self.calc = self.pm.calc
 
         return
     
@@ -82,17 +82,15 @@ class AbstractValidator(ABC):
 
 class MinimaValidator(AbstractValidator):
 
-    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
+    def __init__(self, task_outpath: str, task_params: dict, pot_worker=None):
         """ run minimisation on various configurations and
             compare relative energy
             how to postprocess
         """
-        self.task_outpath = Path(task_outpath)
-        self.task_params = task_params
-        self.pm = pot_manager
+        super().__init__(task_outpath, task_params, pot_worker)
 
         #self.calc = self.__parse_calculator(self.valid_dict)
-        self.worker = pot_manager.create_worker(
+        self.driver = self.pm.create_worker(
             dyn_params = task_params["dynamics"]
         )
 
@@ -234,9 +232,9 @@ class MinimaValidator(AbstractValidator):
         print("=== minimisation ===")
         calc_frames = []
         for name, atoms in zip(names, frames):
-            self.worker.set_output_path(self.task_outpath / name)
+            self.driver.directory = self.task_outpath / name
             # NOTE: ase dynamics wont create new atoms
-            new_atoms = self.worker.minimise(atoms.copy(), verbose=True) 
+            new_atoms = self.driver.run(atoms.copy()) 
             calc_frames.append(new_atoms)
         new_energies = [a.get_potential_energy() for a in calc_frames]
 
@@ -297,25 +295,21 @@ class MinimaValidator(AbstractValidator):
 
 class ReactionValidator(AbstractValidator):
 
-    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
+    def __init__(self, task_outpath: str, task_params: dict, pot_worker=None):
         """ reaction formula
             how to postprocess
         """
-        self.task_outpath = Path(task_outpath)
-        self.task_params = task_params
-        self.pm = pot_manager
-
-        self.calc = pot_manager.calc
+        super().__init__(task_outpath, task_params, pot_worker)
 
         # create workers
-        self.workers = {}
+        self.drivers = {}
         for dyn_method, dyn_dict in task_params["dynamics"].items():
             param_dict = dyn_dict.copy()
             param_dict.update(dict(method=dyn_method))
-            cur_worker = pot_manager.create_worker(
+            cur_driver = self.pm.create_driver(
                 dyn_params = param_dict
             )
-            self.workers.update({dyn_method: cur_worker})
+            self.drivers.update({dyn_method: cur_driver})
 
         return
     
@@ -335,11 +329,11 @@ class ReactionValidator(AbstractValidator):
         en_is, en_fs = frames[0].get_potential_energy(), frames[-1].get_potential_energy()
         print(en_is, en_fs)
 
-        opt_worker = self.workers["opt"]
-        opt_worker.set_output_path(ipath / "IS")
-        initial = opt_worker.minimise(frames[0].copy(),verbose=False) 
-        opt_worker.set_output_path(ipath / "FS")
-        final = opt_worker.minimise(frames[-1].copy(), verbose=False) 
+        opt_worker = self.drivers["opt"]
+        opt_worker.directory = ipath / "IS"
+        initial = opt_worker.run(frames[0].copy()) 
+        opt_worker.directory = ipath / "FS"
+        final = opt_worker.run(frames[-1].copy()) 
 
         en_is, en_fs = initial.get_potential_energy(), final.get_potential_energy()
         print(en_is, en_fs)
@@ -352,9 +346,9 @@ class ReactionValidator(AbstractValidator):
                 transition = frames[i]
                 en_ts = transition.get_potential_energy()
                 print(en_ts)
-                ts_worker = self.workers["ts"]
-                ts_worker.set_output_path(ipath / "TS")
-                new_transition = ts_worker.minimise(transition.copy(), verbose=False) 
+                ts_worker = self.drivers["ts"]
+                ts_worker.directory = ipath / "TS"
+                new_transition = ts_worker.run(transition.copy()) 
                 en_ts = new_transition.get_potential_energy()
                 print(en_ts)
 
