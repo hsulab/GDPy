@@ -325,8 +325,11 @@ class Lammps(FileIOCalculator):
         atom_style = "atomic",
         processors = "* * 1",
         boundary = "p p p",
+        newton = None,
         pair_style = None,
         pair_coeff = None,
+        neighbor = None,
+        neigh_modify = None,
         mass = "* 1.0",
         dump_period = 1,
         # - md
@@ -514,6 +517,8 @@ class Lammps(FileIOCalculator):
         # - simulation box
         content += "boundary        p p p\n"
         content += "\n"
+        if self.newton:
+            content += "newton {}\n".format(self.newton)
         content += "box             tilt large\n"
         content += "read_data	    %s\n" %ASELMPCONFIG.inputstructure_filename
         content += "change_box      all triclinic\n"
@@ -555,6 +560,10 @@ class Lammps(FileIOCalculator):
             content += "neighbor        0.0 bin\n"
         elif potential == "deepmd":
             content += "pair_style  {}\n".format(self.pair_style)
+            content += "neighbor        0.0 bin\n"
+        else:
+            content += "pair_style {}\n".format(self.pair_style)
+            content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
             content += "neighbor        0.0 bin\n"
         content += "\n"
 
