@@ -96,10 +96,16 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             else:
                 init_data = self.collection_params["init_data"]
                 if init_data is not None:
+                    self.logger.info("\n\n--- Start Initial Model ---")
                     init_frames = read(init_data, ":")
                     self.logger.info(f"Train calculator on inital dataset, {len(init_frames)}...")
-                    self._single_train(self.step_dpath, init_frames)
-                    actions["driver"] = self.pot_worker.potter.create_driver(exp_dict["create"]["driver"])
+                    is_trained = self._single_train(self.step_dpath, init_frames)
+                    if is_trained:
+                        actions["driver"] = self.pot_worker.potter.create_driver(exp_dict["create"]["driver"])
+                        #print("committee: ", self.pot_worker.potter.committee)
+                    else:
+                        continue
+                    self.logger.info("--- End Initial Model ---\n\n")
                 else:
                     raise RuntimeError("Either prepared init model or init dataset should be provided.")
 
@@ -176,7 +182,12 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             #          it's ok for deterministic selection but ...
             atoms = driver.run(atoms, read_exists=True, **block_run_params)
             # --- unchecked frames, and some may be labelled
-            traj_frames = driver.read_trajectory()
+            traj_fpath = collect_dpath/f"traj-b{i}.xyz"
+            if not traj_fpath.exists():
+                traj_frames = driver.read_trajectory()
+                write(traj_fpath, traj_frames)
+            else:
+                traj_frames = read(traj_fpath, ":")
             confids = range(i*block_steps,(i+1)*block_steps+1,dump_period) # NOTE: include last
             for a, confid in zip(traj_frames,confids):
                 a.info["confid"] = confid
@@ -192,7 +203,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 )
             # - collect, select, label
             self.logger.info(f"num_traj_frames: {len(traj_frames)}")
-            traj_frames = self._single_collect(collect_dpath, traj_frames, actions)
+            traj_frames = self._single_collect(collect_dpath, traj_frames, actions, block_step=i)
             # - checkpoint
             # TODO: save checkpoint?
             #       current structure, current potential
@@ -204,7 +215,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 is_calculated = self._single_label(label_dpath, traj_frames)
                 if is_calculated: # (label_dpath/"calculated.xyz").exists() == True
                     train_frames = read(label_dpath/"calculated.xyz", ":")
-                    is_trained = self._single_train(train_dpath, train_frames)
+                    is_trained = self._single_train(train_dpath, train_frames, block_step=i)
                     if is_trained:
                         driver = self.pot_worker.potter.create_driver(driver_params)
                     else:
@@ -218,7 +229,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
         return 
 
-    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, frames, actions, block_step=0,*args, **kwargs):
         """ check whether a group of structues should be labelled
         """
         #for atoms in frames:
@@ -228,18 +239,18 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         selector = actions["selector"]
         selector.prefix = "traj"
 
-        sdirs = []
-        for p in res_dpath.iterdir():
-            if p.is_dir():
-                sdirs.append(p)
-        sdirs = sorted(sdirs, key=lambda x:int(x.name[1:]))
-
-        if sdirs:
-            number = int(sdirs[-1].name[1:])
-            select_dpath = res_dpath / ("s"+str(number+1))
-        else:
-            select_dpath = res_dpath / "s0"
-        select_dpath.mkdir()
+        #sdirs = []
+        #for p in res_dpath.iterdir():
+        #    if p.is_dir():
+        #        sdirs.append(p)
+        #sdirs = sorted(sdirs, key=lambda x:int(x.name[1:]))
+        #if sdirs:
+        #    number = int(sdirs[-1].name[1:])
+        #    select_dpath = res_dpath / ("s"+str(number+1))
+        #else:
+        #    select_dpath = res_dpath / "s0"
+        select_dpath = res_dpath/("s"+str(block_step))
+        select_dpath.mkdir(exist_ok=True)
         selector.directory = select_dpath
 
         frames_to_label = selector.select(frames)
@@ -267,19 +278,23 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
         return is_calculated
     
-    def _single_train(self, wdir, frames, *args, **kwargs):
+    def _single_train(self, wdir, frames, block_step=0, *args, **kwargs):
         """"""
-        tdirs = []
-        for p in wdir.iterdir():
-            if p.is_dir():
-                tdirs.append(p)
-        sdirs = sorted(tdirs, key=lambda x:int(x.name[1:]))
+        # - find train dirs
+        #tdirs = []
+        #for p in wdir.iterdir():
+        #    if p.is_dir():
+        #        tdirs.append(p)
+        #tdirs = sorted(tdirs, key=lambda x:int(x.name[1:]))
 
-        if tdirs:
-            number = int(sdirs[-1].name[1:])
-            cur_tdir = wdir / ("t"+str(number+1))
-        else:
-            cur_tdir = wdir / "t0"
+        # TODO: check if finished? if not, use previous train dir
+        #if tdirs:
+        #    number = int(tdirs[-1].name[1:])
+        #    cur_tdir = wdir / ("t"+str(number+1))
+        #else:
+        #    cur_tdir = wdir / "t0"
+        cur_tdir = wdir / ("t"+str(block_step))
+
         # - train potentials
         self.logger.info(f"TRAIN at {cur_tdir.name}, {self.pot_worker.potter.train_size} models...")
         self.logger.info(f"dataset size (nframes): {len(frames)}")
