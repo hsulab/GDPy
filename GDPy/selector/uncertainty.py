@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 
 from ase import Atoms
+from ase.io import read, write
 
 from GDPy.selector.abstract import AbstractSelector
 
@@ -32,12 +33,14 @@ class DeviationSelector(AbstractSelector):
         properties: dict,
         criteria: dict,
         directory = Path.cwd(),
-        potential = None # file
+        pot_worker = None # to access committee
     ):
         self.deviation_criteria = criteria
         self.__parse_criteria()
 
         self.directory = directory
+
+        self.pot_worker = pot_worker
 
         # - parse properties
         #self.__register_potential(potential)
@@ -88,9 +91,27 @@ class DeviationSelector(AbstractSelector):
     
     def select(self, frames, index_map=None, ret_indices: bool=False) -> List[Atoms]:
         """"""
-        energy_deviations = [a.info[self.energy_tag] for a in frames]
-        force_deviations = [a.info[self.force_tag] for a in frames] # TODO: may not exist
-        selected_indices = self._select_indices(energy_deviations, force_deviations)
+        try:
+            self.pfunc("Read uncertainty from frames' info...")
+            energy_deviations = [a.info[self.energy_tag] for a in frames] # TODO: max_devi_e is the max atomic en devi
+            force_deviations = [a.info[self.force_tag] for a in frames] # TODO: may not exist
+            selected_indices = self._select_indices(energy_deviations, force_deviations)
+        except KeyError:
+            if self.pot_worker:
+                committee = getattr(self.pot_worker.potter, "committee", None)
+                if committee:
+                    self.pfunc("Estimate uncertainty by committee...")
+                    frames = self.pot_worker.potter.estimate_uncertainty(frames)
+                    write(self.directory/"frames_devi.xyz", frames)
+                    energy_deviations = [a.info[self.energy_tag] for a in frames] # TODO: max_devi_e is the max atomic en devi
+                    force_deviations = [a.info[self.force_tag] for a in frames] # TODO: may not exist
+                    selected_indices = self._select_indices(energy_deviations, force_deviations)
+                else:
+                    self.pfunc("Could not estimate uncertainty...")
+                    selected_indices = list(range(len(frames)))
+            else:
+                self.pfunc("Could not find deviations of target properties...")
+                selected_indices = list(range(len(frames)))
 
         # map selected indices
         if index_map is not None:

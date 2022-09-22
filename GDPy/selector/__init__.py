@@ -9,7 +9,7 @@ from GDPy.selector.traj import BoltzmannMinimaSelection
 from GDPy.selector.descriptor import DescriptorBasedSelector
 from GDPy.selector.uncertainty import DeviationSelector
 
-def create_selector(input_list: list, directory=pathlib.Path.cwd()):
+def create_selector(input_list: list, directory=pathlib.Path.cwd(), pot_worker=None):
     selectors = []
     for s in input_list:
         params = copy.deepcopy(s)
@@ -17,7 +17,7 @@ def create_selector(input_list: list, directory=pathlib.Path.cwd()):
         if method == "convergence":
             selectors.append(ConvergenceSelector(**params))
         elif method == "deviation":
-            selectors.append(DeviationSelector(**params))
+            selectors.append(DeviationSelector(**params, pot_worker=pot_worker))
         elif method == "descriptor":
             selectors.append(DescriptorBasedSelector(**params))
         else:

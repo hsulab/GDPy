@@ -215,7 +215,7 @@ class AbstractExpedition(ABC):
         # - select
         select_params = input_params.get("select", None)
         if select_params is not None:
-            selector = create_selector(select_params, directory=Path.cwd())
+            selector = create_selector(select_params, directory=Path.cwd(), pot_worker=self.pot_worker)
         else:
             selector = None
         actions["selector"] = selector
