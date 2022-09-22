@@ -124,6 +124,25 @@ class AbstractPotentialManager(abc.ABC):
         # TODO: check if scheduler resource satisfies driver's command
 
         return worker
+
+    def register_trainer(self, train_params_: dict):
+        """"""
+        train_params = copy.deepcopy(train_params_)
+        self.train_config = train_params.get("config", None)
+
+        self.train_size = train_params.get("size", 1)
+        self.train_dataset = train_params.get("dataset", None)
+
+        scheduelr_params = train_params.get("scheduler", {}) 
+        self.train_scheduler = create_scheduler(scheduelr_params)
+
+        train_command = train_params.get("train", None)
+        self.train_command = train_command
+
+        freeze_command = train_params.get("freeze", None)
+        self.freeze_command = freeze_command
+
+        return
     
     def as_dict(self):
         """"""
