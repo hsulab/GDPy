@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*
 
 import time
+from typing import List
 
 import numpy as np
 
@@ -11,6 +12,40 @@ from ase.collections import g2
 from ase.build import molecule
 
 from ase.neighborlist import natural_cutoffs, NeighborList
+
+from GDPy.builder.builder import StructureGenerator
+
+class FormulaBasedGenerator(StructureGenerator):
+
+    def __init__(self, chemical_formula, directory="./", *args, **kwargs):
+        """"""
+        super().__init__(directory)
+
+        self.atoms = self._parse_formula(chemical_formula)
+
+        return
+    
+    def _parse_formula(self, formula):
+        """"""
+        # - build adsorbate
+        atoms = None
+        if formula in ase.data.chemical_symbols:
+            atoms = Atoms(formula, positions=[[0.,0.,0.]])
+        elif formula in g2.names:
+            atoms = molecule(formula)
+        else:
+            atoms = None
+
+        return atoms
+    
+    def run(self, *args, **kargs) -> List[Atoms]:
+        """"""
+        frames = None
+        if self.atoms:
+            frames = [self.atoms]
+
+        return frames
+
 
 def build_species(species):
     # - build adsorbate
