@@ -289,7 +289,7 @@ class AseDriver(AbstractDriver):
         """
         traj_frames = read(self.directory/"traj.xyz", index=":")
 
-        if add_step_info:
+        if add_step_info and self.task == "md":
             data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
             timesteps = data[:, 0] # ps
             steps = timesteps*1000/self.init_params["timestep"]
