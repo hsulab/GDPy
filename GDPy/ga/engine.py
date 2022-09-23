@@ -8,6 +8,7 @@ import pathlib
 from pathlib import Path
 import importlib
 import warnings
+import logging
 
 import numpy as np
 
@@ -17,8 +18,6 @@ import ase.formula
 from ase import Atoms
 from ase.io import read, write
 from ase.ga.data import PrepareDB, DataConnection
-from ase.ga.utilities import closest_distances_generator # generate bond distance list
-from ase.ga.utilities import get_all_atom_types # get system composition (both substrate and top)
 
 from ase.ga.population import Population
 
@@ -59,6 +58,11 @@ class GeneticAlgorithemEngine():
     Genetic Algorithem Engine
     """
 
+    # output 
+    restart = True
+    pfunc = print
+    _directory = Path.cwd()
+
     # local optimisation directory
     CALC_DIRNAME = "tmp_folder"
     PREFIX = "cand"
@@ -83,8 +87,13 @@ class GeneticAlgorithemEngine():
     #cellbounds=None,
 
 
-    def __init__(self, ga_dict: dict):
+    def __init__(self, ga_dict: dict, directroy=Path.cwd(), *args, **kwargs):
         """"""
+        # - 
+        self.directory = directroy
+        self._init_logger()
+
+        # - 
         self.ga_dict = copy.deepcopy(ga_dict)
 
         # - check system type
@@ -117,10 +126,53 @@ class GeneticAlgorithemEngine():
         self.prop_dict = ga_dict["property"]
         target = self.prop_dict.get("target", "energy")
         self.prop_dict["target"] = target
-        print("\nTarget of Global Optimisation is ", target)
+        self.pfunc(f"\nTarget of Global Optimisation is {target}")
 
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
+
+        return
+    
+    @property
+    def directory(self):
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory_):
+        self._directory = Path(directory_)
+        return
+
+    def _init_logger(self):
+        """"""
+        self.logger = logging.getLogger(__name__)
+
+        log_level = logging.INFO
+
+        self.logger.setLevel(log_level)
+
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+
+        working_directory = self.directory
+        log_fpath = working_directory / (self.__class__.__name__+".out")
+
+        if self.restart:
+            fh = logging.FileHandler(filename=log_fpath, mode="a")
+        else:
+            fh = logging.FileHandler(filename=log_fpath, mode="w")
+
+        fh.setLevel(log_level)
+        #fh.setFormatter(formatter)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(log_level)
+        #ch.setFormatter(formatter)
+
+        self.logger.addHandler(ch)
+        self.logger.addHandler(fh)
+
+        self.pfunc = self.logger.info
 
         return
     
@@ -170,29 +222,29 @@ class GeneticAlgorithemEngine():
         """
         # TODO: check database existence and generation number to determine restart
         if not self.db_name.exists():
-            print("----- create a new database -----")
+            self.pfunc("----- create a new database -----")
             self._create_initial_population()
             # make calculation dir
-            print("----- create a new tmp_folder -----")
+            self.pfunc("----- create a new tmp_folder -----")
             self.__initialise()
         else:
-            print("restart the database...")
+            self.pfunc("restart the database...")
             # balh
             self.__restart()
 
         # mutation and comparassion operators
-        print("\n\n===== register operators =====")
+        self.pfunc("\n\n===== register operators =====")
         self._register_operators()
 
-        print("\n\n===== register population =====")
+        self.pfunc("\n\n===== register population =====")
         # TODO: population settings
         self.form_population()
 
         # check current generation number
-        print("\n\n===== Generation Info =====")
+        self.pfunc("\n\n===== Generation Info =====")
 
         cur_gen = self.da.get_generation_number()
-        print("current generation number: ", cur_gen)
+        self.pfunc(f"current generation number: {cur_gen}")
         max_gen = self.conv_dict["generation"]
 
         # output a few info
@@ -206,33 +258,33 @@ class GeneticAlgorithemEngine():
         relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
         num_relaxed_gen = len(relaxed_confids)
 
-        print("number of relaxed in current generation: ", num_relaxed_gen)
-        print(sorted(relaxed_confids))
-        print("number of unrelaxed in current generation: ", num_unrelaxed_gen)
-        print(sorted(unrelaxed_confids))
+        self.pfunc(f"number of relaxed in current generation: {num_relaxed_gen}")
+        self.pfunc(sorted(relaxed_confids))
+        self.pfunc(f"number of unrelaxed in current generation: {num_unrelaxed_gen}")
+        self.pfunc(sorted(unrelaxed_confids))
 
         # --- check generation
         if cur_gen > max_gen and (num_relaxed_gen == num_unrelaxed_gen):
         #if cur_gen > max_gen:
-            print("reach maximum generation...")
+            self.pfunc("reach maximum generation...")
             self.report()
             return
         else:
-            print("Have not converged...")
+            self.pfunc("Have not converged...")
 
         # - run
         # --- initial population
         if cur_gen == 0:
-            print("\n\n===== Initial Population Calculation =====")
+            self.pfunc("\n\n===== Initial Population Calculation =====")
             while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
                 # calculate structures from init population
                 atoms = self.da.get_an_unrelaxed_candidate()
-                print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
+                self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                 # NOTE: provide unified interface to mlp and dft
                 _ = self.worker.run([atoms]) # retrieve later
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
 
-        print("\n\n===== Optimisation and Reproduction =====")
+        self.pfunc("\n\n===== Optimisation and Reproduction =====")
         if (
             # nunrelaxed_gen == 0
             #nrelaxed_gen == unrelaxed_gen == self.population_size
@@ -240,8 +292,8 @@ class GeneticAlgorithemEngine():
             # TODO: check whether worker can accept new jobs
         ):
             # TODO: can be aggressive, reproduce when relaxed structures are available
-            print("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
-            print("number before reproduction: ", self.worker.get_number_of_running_jobs() + num_relaxed_gen)
+            self.pfunc("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
+            self.pfunc("number before reproduction: {}".format(self.worker.get_number_of_running_jobs() + num_relaxed_gen))
             count, failed = 0, 0
             #if hasattr(self.pairing, "minfrac"):
             #    previous_minfrac = self.pairing.minfrac
@@ -255,24 +307,24 @@ class GeneticAlgorithemEngine():
                 #    else:
                 #        print("too many failures...")
                 #        break
-                print(f"\n\n ----- try to reproduce, count {count}, failed {failed} -----")
+                self.pfunc(f"\n\n ----- try to reproduce, count {count}, failed {failed} -----")
                 atoms = self._reproduce()
                 if atoms:
                     # run opt
-                    print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
+                    self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                     _ = self.worker.run([atoms]) # retrieve later
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
                     count += 1
                 else:
                     failed += 1
             else:
-                print(f"{count} candidates were reproduced in this run...")
-                print("enough jobs are running for the current generation...")
+                self.pfunc(f"{count} candidates were reproduced in this run...")
+                self.pfunc("enough jobs are running for the current generation...")
             #if hasattr(self.pairing, "minfrac"):
             #    self.pairing.minfrac = previous_minfrac 
-            #    print(f"switch minfrac to {self.pairing.minfrac}...")
+            #    self.pfunc(f"switch minfrac to {self.pairing.minfrac}...")
         else:
-            print("Enough candidates or not finished relaxing current generation...")
+            self.pfunc("Enough candidates or not finished relaxing current generation...")
 
         # --- check if there were finished jobs
         self.worker.inspect()
@@ -293,15 +345,15 @@ class GeneticAlgorithemEngine():
                     if row.formula:
                         previous_atoms = row.toatoms(add_additional_information=True)
                         previous_tags = previous_atoms.get_tags()
-                        print("tags: ", previous_tags)
+                        self.pfunc(f"tags: {previous_tags}")
                         break
                 else:
                     raise RuntimeError(f"Cant find tags for cand {confid}")
                 cand.set_tags(previous_tags)
             # evaluate raw score
             self.evaluate_candidate(cand)
-            print("  add relaxed cand ", confid)
-            print("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
+            self.pfunc(f"  add relaxed cand {confid}")
+            self.pfunc("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
             self.da.add_relaxed_step(
                 cand,
                 find_neighbors=self.find_neighbors,
@@ -335,7 +387,7 @@ class GeneticAlgorithemEngine():
         return
     
     def report(self):
-        print('restart the database...')
+        self.pfunc('restart the database...')
         self.__restart()
         results = pathlib.Path.cwd() / 'results'
         if not results.exists():
@@ -348,14 +400,14 @@ class GeneticAlgorithemEngine():
         # - plot population evolution
         data = []
         cur_gen_num = self.da.get_generation_number() # equals finished generation plus one
-        print('Current generation number: ', cur_gen_num)
+        self.pfunc(f"Current generation number: {cur_gen_num}")
         for i in range(cur_gen_num):
             #print('generation ', i)
             energies = [
                 atoms.get_potential_energy() for atoms in all_relaxed_candidates 
                     if atoms.info['key_value_pairs']['generation']==i
             ]
-            print(energies)
+            self.pfunc(energies)
             data.append([i, energies])
         
         import matplotlib as mpl
@@ -384,7 +436,7 @@ class GeneticAlgorithemEngine():
         """ refine structures with DFT (VASP)
             the number of structures is determined by the rule
         """
-        print('restart the database...')
+        self.pfunc('restart the database...')
         self.__restart()
         results = pathlib.Path.cwd() / "results"
         if not results.exists():
@@ -403,17 +455,17 @@ class GeneticAlgorithemEngine():
         for i in range(len(atomic_energies)):
             if atomic_energies[i] >= min_ae + aediff:
                 new_number = i
-                print(f"There are {new_number} structures in the range.")
+                self.pfunc(f"There are {new_number} structures in the range.")
                 break
         else:
-            print("All structures are in the energy range.")
+            self.pfunc("All structures are in the energy range.")
         number = np.min([number, new_number])
 
-        print(f"Select {number} structures out of {nframes}...")
+        self.pfunc(f"Select {number} structures out of {nframes}...")
         mosted = sorted_candidates[:number]
         #for atoms in mosted:
-        #    print(atoms.info['confid'], 'raw_score: ', atoms.info['key_value_pairs']['raw_score'])
-        print("energy range: ", mosted[0].get_potential_energy(), "  ", mosted[-1].get_potential_energy())
+        #    self.pfunc(atoms.info['confid'], 'raw_score: ', atoms.info['key_value_pairs']['raw_score'])
+        self.pfunc(f"energy range: {mosted[0].get_potential_energy()}  {mosted[-1].get_potential_energy()}")
         saved_xyz = results / (Path.cwd().name + f"-accurate-{number}.xyz")
         write(saved_xyz, mosted)
 
@@ -426,7 +478,7 @@ class GeneticAlgorithemEngine():
                 dname
             )
         """
-        print("create refinement directory...")
+        self.pfunc("create refinement directory...")
         from GDPy.utils.data import vasp_creator, vasp_collector
         incar_template = self.ga_dict["postprocess"]["incar"]
         # prefix = Path.cwd() / "accurate"
@@ -434,7 +486,7 @@ class GeneticAlgorithemEngine():
         if not prefix.exists():
             prefix.mkdir()
         else:
-            print("skip accurate...")
+            self.pfunc("skip accurate...")
 
         vasp_creator.create_files(
             prefix,
@@ -450,7 +502,7 @@ class GeneticAlgorithemEngine():
     def __get_operator(self, operators, settings, default_op):
         """ comparator, crossover, mutation
         """
-        #print("operators: ", operators)
+        #self.pfunc("operators: ", operators)
         #comp_settings = op_dict.get(section, None)
         if settings is not None:
             # - get operator
@@ -461,7 +513,7 @@ class GeneticAlgorithemEngine():
             op_name = default_op
             kwargs = None
 
-        #print(f"use {op_name}")
+        #self.pfunc(f"use {op_name}")
         op_obj = getattr(operators, op_name)
         default_params = getattr(operators, op_obj.__name__+"_params")
 
@@ -491,11 +543,11 @@ class GeneticAlgorithemEngine():
             params.update(**kwargs)
         self.comparing = comparator(**params)
 
-        print("--- comparator ---")
-        print(f"Use comparator {comparator.__name__}.")
+        self.pfunc("--- comparator ---")
+        self.pfunc(f"Use comparator {comparator.__name__}.")
 
         # --- crossover
-        #print("operators: ", operators)
+        #self.pfunc("operators: ", operators)
         crossover, params, kwargs = self.__get_operator(
             operators, op_dict.get("crossover", None), 
             "CutAndSplicePairing"
@@ -510,20 +562,20 @@ class GeneticAlgorithemEngine():
             params["use_tags"] = self.use_tags
         if isinstance(kwargs, dict):
             params.update(**kwargs)
-        #print("pairing params: ")
+        #self.pfunc("pairing params: ")
         #for k, v in params.items():
-        #    print(k, "->", v)
+        #    self.pfunc(k, "->", v)
         self.pairing = crossover(**params)
         #self.pairing = CutAndSplicePairing(self.slab, self.n_to_optimize, self.blmin)
 
-        print("--- crossover ---")
-        print(f"Use crossover {crossover.__name__}.")
-        #print("pairing: ", self.pairing)
+        self.pfunc("--- crossover ---")
+        self.pfunc(f"Use crossover {crossover.__name__}.")
+        #self.pfunc("pairing: ", self.pairing)
 
         # --- mutations
         mutations, probs = [], []
         mutation_list = op_dict.get("mutation", None)
-        #print(mutation_list)
+        #self.pfunc(mutation_list)
         if isinstance(mutation_list, list):
             for mut_settings in mutation_list:
                 mut, params, kwargs = self.__get_operator(
@@ -564,10 +616,10 @@ class GeneticAlgorithemEngine():
                 params.update(**kwargs)
             mutations.append(mut(**params))
 
-        print("--- mutations ---")
-        print("mutation probability: ", self.pmut)
+        self.pfunc("--- mutations ---")
+        self.pfunc(f"mutation probability: {self.pmut}")
         for mut in mutations:
-            print(f"Use mutation {mut.descriptor}.")
+            self.pfunc(f"Use mutation {mut.descriptor}.")
         self.mutations = OperationSelector(probs, mutations, rng=np.random)
 
         return
@@ -583,10 +635,10 @@ class GeneticAlgorithemEngine():
             stoichiometry = self.generator.atom_numbers_to_optimise
         )
 
-        print("\n\n===== Initial Population Creation =====")
+        self.pfunc("\n\n===== Initial Population Creation =====")
         # read seed structures
         if self.pop_init_seed is not None:
-            print("----- try to add seed structures -----")
+            self.pfunc("----- try to add seed structures -----")
             seed_frames = read(self.pop_init_seed, ":")
             seed_size = len(seed_frames)
             assert (seed_size > 0 and seed_size <= self.population_size), "number of seeds is invalid"
@@ -600,7 +652,7 @@ class GeneticAlgorithemEngine():
                 atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
                 # TODO: check geometric convergence
                 if True: # force converged
-                    print(f"  add converged seed {i}")
+                    self.pfunc(f"  add converged seed {i}")
                     da.add_relaxed_candidate(atoms)
                 else:
                     # run opt
@@ -609,17 +661,17 @@ class GeneticAlgorithemEngine():
             seed_size = 0
 
         # generate the starting population
-        print("start to create initial population")
+        self.pfunc("start to create initial population")
         starting_population = self.generator.run(self.population_size - seed_size)
-        #print("start: ", starting_population)
-        print(f"finished creating initial population...")
+        #self.pfunc("start: ", starting_population)
+        self.pfunc(f"finished creating initial population...")
 
-        print(f"save population {len(starting_population)} to database")
+        self.pfunc(f"save population {len(starting_population)} to database")
         for a in starting_population:
             da.add_unrelaxed_candidate(a)
         
         # TODO: change this to the DB interface
-        print("save population size {0} into database...".format(self.population_size))
+        self.pfunc("save population size {0} into database...".format(self.population_size))
         row = da.c.get(1)
         new_data = row["data"].copy()
         new_data['population_size'] = self.population_size
@@ -649,13 +701,13 @@ class GeneticAlgorithemEngine():
             comparator = self.comparing
         )
 
-        # print out population info
+        # self.pfunc out population info
         #frames = self.population.get_current_population()
-        #print('current population size: ', len(frames))
+        #self.pfunc('current population size: ', len(frames))
         #for atoms in frames:
         #    n_paired = atoms.info.get('n_paired', None)
         #    looks_like = atoms.info.get('looks_like', None)
-        #    print(atoms.info['confid'], ' -> ', n_paired, ' -> ', looks_like)
+        #    self.pfunc(atoms.info['confid'], ' -> ', n_paired, ' -> ', looks_like)
 
         return
     
@@ -675,18 +727,18 @@ class GeneticAlgorithemEngine():
                 mut_desc = ""
                 if random() < self.pmut:
                     a3_mut, mut_desc = self.mutations.get_new_individual([a3])
-                    #print("a3_mut: ", a3_mut.info)
-                    #print("mut_desc: ", mut_desc)
+                    #self.pfunc("a3_mut: ", a3_mut.info)
+                    #self.pfunc("mut_desc: ", mut_desc)
                     if a3_mut is not None:
                         self.da.add_unrelaxed_step(a3_mut, mut_desc)
                         a3 = a3_mut
-                print(f"  generate offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
+                self.pfunc(f"  generate offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
                 break
             else:
                 mut_desc = ""
-                print(f"  failed generating offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
+                self.pfunc(f"  failed generating offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
         else:
-            print("cannot generate offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
+            self.pfunc("cannot generate offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
 
         return a3
     
