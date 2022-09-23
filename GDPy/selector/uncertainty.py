@@ -148,49 +148,7 @@ class DeviationSelector(AbstractSelector):
                     continue
 
         return selected
-
-    def calculate(self, frames):
-        """"""
-        # TODO: move this part to potential manager?
-        if self.calc is None:
-            raise RuntimeError("calculator is not set properly...")
-        
-        energies, maxforces = [], []
-        energy_deviations, force_deviations = [], []
-        
-        for atoms in frames:
-            self.calc.reset()
-            self.calc.calc_uncertainty = True # TODO: this is not a universal interface
-            atoms.calc = self.calc
-            # obtain results
-            energy = atoms.get_potential_energy()
-            fmax = np.max(np.fabs(atoms.get_forces()))
-            enstdvar = atoms.calc.results["en_stdvar"] / len(atoms)
-            maxfstdvar = np.max(atoms.calc.results["force_stdvar"])
-            # add results
-            energies.append(energy)
-            maxforces.append(fmax)
-            energy_deviations.append(enstdvar)
-            force_deviations.append(maxfstdvar)
-
-        return (energies, maxforces, energy_deviations, force_deviations)
     
-    def __register_potential(self, potential=None):
-        """"""
-        # load potential
-        from GDPy.potential.manager import create_manager
-        if potential is not None:
-            atypes = None
-            pm = create_manager(potential)
-            if not pm.uncertainty:
-                raise RuntimeError(
-                    "Potential should be able to predict deviation if DeviationSelector is used..."
-                )
-            calc = pm.generate_calculator(atypes)
-            print("MODELS: ", pm.models)
-        else:
-            calc = None
 
-        self.calc = calc
-
-        return
+if __name__ == "__main__":
+    pass
