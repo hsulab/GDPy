@@ -241,7 +241,9 @@ def run_driver(params, structure, directory=pathlib.Path.cwd(), potter = None):
     params = parse_input_file(params)
 
     # - read structures
-    frames = read(structure, ":")
+    from GDPy.builder import create_generator
+    generator = create_generator(structure)
+    frames = generator.run()
     nframes = len(frames)
     print("nframes: ", nframes)
 
