@@ -391,7 +391,7 @@ class AbstractExpedition(ABC):
             stru_path = system_dict.get("structure", None)
             gen_params = system_dict.get("generator", None)
             if (stru_path is None and gen_params is not None): 
-                from GDPy.builder.interface import create_generator
+                from GDPy.builder import create_generator
                 generator = create_generator(gen_params)
                 generator.directory = self.step_dpath
                 #frames = generator.run(system_dict.get("size", 1))
