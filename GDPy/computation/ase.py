@@ -6,9 +6,9 @@ import copy
 import time
 import json
 import shutil
-import pathlib
 from pathlib import Path
 import warnings
+import importlib
 
 import numpy as np
 
@@ -16,6 +16,7 @@ from ase import Atoms
 from ase import units
 
 from ase.io import read, write
+import ase.constraints
 from ase.constraints import FixAtoms
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 
@@ -121,10 +122,19 @@ class AseDriver(AbstractDriver):
         """
         super()._parse_params(params)
 
+        self.driver_cls, self.filter_cls = None, None
         if self.task == "min":
+            # - to opt atomic positions
+            from ase.optimize import BFGS
             if self.init_params["min_style"] == "bfgs":
-                from ase.optimize import BFGS
                 driver_cls = BFGS
+            # - to opt unit cell
+            #   UnitCellFilter, StrainFilter, ExpCellFilter
+            # TODO: add filter params
+            filter_names = ["unitCellFilter", "StrainFilter", "ExpCellFilter"]
+            if self.init_params["min_style"] in filter_names:
+                driver_cls = BFGS
+                self.filter_cls = getattr(ase.constraints, self.init_params["min_style"])
         elif self.task == "ts":
             from sella import Sella, Constraints
             driver_cls = Sella
@@ -197,6 +207,8 @@ class AseDriver(AbstractDriver):
 
         # - init driver
         if self.task == "min":
+            if self.filter_cls:
+                atoms = self.filter_cls(atoms)
             driver = self.driver_cls(
                 atoms, 
                 logfile=self.log_fpath,
