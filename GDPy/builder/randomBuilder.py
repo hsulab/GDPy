@@ -14,6 +14,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from ase.ga.utilities import get_all_atom_types, closest_distances_generator # get system composition (both substrate and top)
+from ase.ga.utilities import CellBounds
 from ase.ga.startgenerator import StartGenerator
 
 from GDPy.builder.builder import StructureGenerator
@@ -42,19 +43,70 @@ class RandomGenerator(StructureGenerator):
     def _create_generator(self, params) -> None:
         """ create a random structure generator
         """
+        # - parse composition
+        # --- Define the composition of the atoms to optimize ---
+        composition = params["composition"] # number of inserted atoms
+        blocks = [(k,v) for k,v in composition.items()] # for start generator
+        for k, v in blocks:
+            species = build_species(k)
+            if len(species) > 1:
+                use_tags = True
+                break
+        else:
+            use_tags = False
+            #print("Perform atomic search...")
+
+        atom_numbers = [] # atomic number of inserted atoms
+        for species, num in composition.items():
+            numbers = []
+            for s, n in ase.formula.Formula(species).count().items():
+                numbers.extend([ase.data.atomic_numbers[s]]*n)
+            atom_numbers.extend(numbers*num)
+
         # unpack info
         system_type = params.get("type", "surface")
         assert system_type in self.supported_systems, f"{system_type} is not supported..."
         self.system_type = system_type
 
-        cell = params.get("cell", None) # depands on system
+        cell = params.get("cell", []) # depands on system
         region = params.get("region", None) # 4x4 matrix, where place atoms
+        splits = params.get("splits", None) # to repeat cell
 
+        volume = params.get("volume", None)
+        cell_bounds = {}
+
+        number_of_variable_cell_vectors =0
         if system_type == "bulk":
-            # TODO: specific routine for bulks
-            pass
+            slab = Atoms("", pbc=True)
+            # - check number_of_variable_cell_vectors
+            number_of_variable_cell_vectors = 3 - len(cell)
+            box_to_place_in = None
+            if number_of_variable_cell_vectors > 0:
+                box_to_place_in = [[0.,0.,0.], np.zeros((3,3))]
+                if len(cell) > 0:
+                    box_to_place_in[1][number_of_variable_cell_vectors:] = cell
+            # --- check volume
+            if not volume:
+                volume = 10.*len(atom_numbers) # AA^3
+            # --- cell bounds
+            angles, lengths = ["phi", "chi", "psi"], ["a", "b", "c"]
+            for k in angles:
+                cell_bounds[k] = region.get(k, [15, 165])
+            for k in lengths:
+                cell_bounds[k] = region.get(k, [2, 60])
+            cell_bounds = CellBounds(cell_bounds)
+            # --- splits
+            splits_ = {}
+            for r, p in zip(splits["repeats"], splits["probs"]):
+                splits_[tuple(r)] = p
+            splits = splits_
+
+            # --- two parameters
+            test_dist_to_slab = False
+            test_too_far = True
+
         elif system_type == "cluster":
-            if cell is None:
+            if not cell:
                 cell = np.ones(3)*20.
             else:
                 cell = np.array(cell)
@@ -112,51 +164,17 @@ class RandomGenerator(StructureGenerator):
             test_dist_to_slab = True
             test_too_far = True
 
-        # output summary
-        vec3_format = "{:>8.4f}  {:>8.4f}  {:>8.4f}\n"
-        print("system cell")
-        content =  "xxxxxx " + vec3_format.format(*list(cell[0]))
-        content += "xxxxxx " + vec3_format.format(*list(cell[1]))
-        content += "xxxxxx " + vec3_format.format(*list(cell[2]))
-        print(content)
-        print("insertion region")
-        content =  "origin " + vec3_format.format(*list(p0))
-        content += "xxxxxx " + vec3_format.format(*list(v1))
-        content += "xxxxxx " + vec3_format.format(*list(v2))
-        content += "xxxxxx " + vec3_format.format(*list(v3))
-        print(content)
-        #print(self.slab)
-
-        # --- Define the composition of the atoms to optimize ---
-        composition = params["composition"] # number of inserted atoms
-        blocks = [(k,v) for k,v in composition.items()] # for start generator
-        for k, v in blocks:
-            species = build_species(k)
-            if len(species) > 1:
-                use_tags = True
-                break
-        else:
-            use_tags = False
-            print("Perform atomic search...")
-
-        atom_numbers = [] # atomic number of inserted atoms
-        for species, num in composition.items():
-            numbers = []
-            for s, n in ase.formula.Formula(species).count().items():
-                numbers.extend([ase.data.atomic_numbers[s]]*n)
-            atom_numbers.extend(numbers*num)
-        unique_atom_types = get_all_atom_types(slab, atom_numbers)
-
         # define the closest distance two atoms of a given species can be to each other
+        unique_atom_types = get_all_atom_types(slab, atom_numbers)
         covalent_ratio = params.get("covalent_ratio", 0.8)
-        print("colvent ratio is: ", covalent_ratio)
         blmin = closest_distances_generator(
             atom_numbers=unique_atom_types,
             ratio_of_covalent_radii = covalent_ratio # be careful with test too far
         )
 
-        print("neighbour distance restriction")
-        self._print_blmin(blmin)
+        #print("colvent ratio is: ", covalent_ratio)
+        #print("neighbour distance restriction")
+        #self._print_blmin(blmin)
 
         # create the starting population
         #rng = np.random.default_rng(params.get("seed", 1112))
@@ -167,11 +185,11 @@ class RandomGenerator(StructureGenerator):
             slab, 
             blocks, # blocks
             blmin,
-            number_of_variable_cell_vectors=0,
+            number_of_variable_cell_vectors=number_of_variable_cell_vectors,
             box_to_place_in=box_to_place_in,
-            box_volume=None,
-            splits=None,
-            cellbounds=None,
+            box_volume=volume,
+            splits=splits,
+            cellbounds=cell_bounds,
             test_dist_to_slab = test_dist_to_slab,
             test_too_far = test_too_far,
             rng = rng
@@ -184,6 +202,17 @@ class RandomGenerator(StructureGenerator):
         self.use_tags = use_tags
 
         self.blmin = blmin
+        self.cell_bounds = cell_bounds
+
+        # - for output
+        self.type = system_type
+        self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
+
+        self.box_to_place_in = box_to_place_in
+
+        self.covalent_ratio = covalent_ratio
+        self.test_dist_to_slab = test_dist_to_slab
+        self.test_too_far = test_too_far
 
         return generator
 
@@ -206,13 +235,14 @@ class RandomGenerator(StructureGenerator):
         symbols = [ase.data.chemical_symbols[e] for e in elements]
 
         content =  "----- Bond Distance Minimum -----\n"
+        content += "covalent ratio: {}\n".format(self.covalent_ratio)
         content += " "*4+("{:>6}  "*nelements).format(*symbols) + "\n"
         for i, s in enumerate(symbols):
             content += ("{:<4}"+"{:>8.4f}"*nelements+"\n").format(s, *list(distance_map[i]))
+        content += "too_far: {}, dist_to_slab: {}\n".format(self.test_too_far, self.test_dist_to_slab)
         content += "note: default too far tolerance is 2 times\n"
-        print(content)
 
-        return
+        return content
     
     def run(self, ran_size) -> List[Atoms]:
         """"""
@@ -243,6 +273,33 @@ class RandomGenerator(StructureGenerator):
     def as_dict(self):
         """"""
         return copy.deepcopy(self.params)
+    
+    def __repr__(self):
+        """"""
+        content = ""
+        content += "----- Generator Params -----\n"
+        content += f"type :{self.type}\n"
+        content += f"number_of_variable_cell_vectors: {self.number_of_variable_cell_vectors}\n"
+
+        # output summary
+        vec3_format = "{:>8.4f}  {:>8.4f}  {:>8.4f}\n"
+        #content += "system cell\n"
+        #content +=  "xxxxxx " + vec3_format.format(*list(cell[0]))
+        #content += "xxxxxx " + vec3_format.format(*list(cell[1]))
+        #content += "xxxxxx " + vec3_format.format(*list(cell[2]))
+        box_to_place_in = self.box_to_place_in
+        if not box_to_place_in:
+            box_to_place_in = [[0.,0.,0.], np.zeros((3,3))]
+        p0, [v1, v2, v3] = box_to_place_in
+        content += "insertion region\n"
+        content +=  "origin " + vec3_format.format(*list(p0))
+        content += "xxxxxx " + vec3_format.format(*list(v1))
+        content += "xxxxxx " + vec3_format.format(*list(v2))
+        content += "xxxxxx " + vec3_format.format(*list(v3))
+
+        content += self._print_blmin(self.blmin)
+
+        return content
 
 
 if __name__ == "__main__":
