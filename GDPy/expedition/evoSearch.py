@@ -18,7 +18,6 @@ from GDPy.scheduler.factory import create_scheduler
 from GDPy.selector.traj import BoltzmannMinimaSelection
 
 from GDPy.computation.utils import read_trajectories
-from GDPy.computation.worker import create_worker
 from GDPy.computation.worker.command import CommandWorker
 from GDPy.potential.register import create_potter
 
@@ -69,7 +68,6 @@ class EvolutionaryExpedition(AbstractExpedition):
 
         create_params = input_params.get("create", None)
         task_params = copy.deepcopy(create_params["task"])
-        worker_params = copy.deepcopy(task_params["worker"])
         scheduler_params = copy.deepcopy(create_params["scheduler"])
 
         # - task
@@ -77,11 +75,10 @@ class EvolutionaryExpedition(AbstractExpedition):
 
         # NOTE: check input is valid
         # - worker
-        worker = create_potter(copy.deepcopy(worker_params))
-        actions["worker"] = worker
+        actions["worker"] = self.pot_worker
 
         # TODO: check constraint
-        actions["driver"] = worker.driver
+        actions["driver"] = self.pot_worker.driver
 
         # - scheduler
         scheduler = create_scheduler(scheduler_params)
@@ -103,17 +100,19 @@ class EvolutionaryExpedition(AbstractExpedition):
 
         # TODO: check generator should not be a direct one
         params["system"] = actions["generator"].as_dict()
-        #params["worker"] = actions["worker"].as_dict()
+        
+        import yaml
+        with open(self.step_dpath/"task.yaml", "w") as fopen:
+            yaml.safe_dump(params, fopen, indent=2)
+
+        # - worker
         worker = actions["worker"]
         worker_params = {}
         worker_params["potential"] = worker.potter.as_dict()
         worker_params["driver"] = worker.driver.as_dict()
-        params["worker"] = worker_params
-        #worker_params["scheduelr"] = worker.scheduler.as_dict()
 
-        import yaml
-        with open(self.step_dpath/"task.yaml", "w") as fopen:
-            yaml.safe_dump(params, fopen, indent=2)
+        with open(self.step_dpath/"worker.yaml", "w") as fopen:
+            yaml.safe_dump(worker_params, fopen, indent=2)
         
         command_worker = actions["command_worker"]
         command_worker.logger = self.logger
