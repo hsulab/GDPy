@@ -162,23 +162,6 @@ def main():
         help = "add energy correction for each structure"
     )
 
-    # --- driver interface
-    parser_driver = subparsers.add_parser(
-        "driver", help="run a driver"
-    )
-    parser_driver.add_argument(
-        "params",
-        help="json/yaml file that stores parameters for a driver"
-    )
-    parser_driver.add_argument(
-        "-s", "--structure",
-        help="a structure file that stores one or more structures"
-    )
-    parser_driver.add_argument(
-        "-d", "--directory", default=Path.cwd(),
-        help="working directory"
-    )
-
     # --- worker interface
     parser_worker = subparsers.add_parser(
         "worker", help="run a worker"
@@ -338,9 +321,6 @@ def main():
     elif args.subcommand == 'semi':
         from .trainer.manual_train import manual_train
         manual_train(args.INPUTS, args.iter, args.stage)
-    elif args.subcommand == "driver":
-        from GDPy.computation.driver import run_driver
-        run_driver(args.params, args.structure, args.directory, potter)
     elif args.subcommand == "worker":
         from GDPy.computation.worker import run_worker
         run_worker(args.STRUCTURE, args.directory, potter)
