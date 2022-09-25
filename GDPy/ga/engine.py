@@ -218,7 +218,7 @@ class GeneticAlgorithemEngine():
         self.pfunc("\n\n===== register worker =====")
         assert worker is not None, "Worker is not properly set..."
         self.worker = worker
-        self.worker.directory = Path.cwd() / self.CALC_DIRNAME
+        self.worker.directory = self.directory / self.CALC_DIRNAME
         self.worker.logger = self.logger
 
         # - generator info
@@ -406,7 +406,7 @@ class GeneticAlgorithemEngine():
     def report(self):
         self.pfunc("restart the database...")
         self.__restart()
-        results = pathlib.Path.cwd()/"results"
+        results = self.directory/"results"
         if not results.exists():
             results.mkdir()
 
@@ -455,7 +455,7 @@ class GeneticAlgorithemEngine():
         self.__restart()
 
         # - get all candidates
-        results = pathlib.Path.cwd() / "results"
+        results = self.directory / "results"
         if not results.exists():
             results.mkdir()
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
@@ -589,6 +589,8 @@ class GeneticAlgorithemEngine():
                 params["cellbounds"] = self.generator.cell_bounds
             if "number_of_variable_cell_vectors" in params.keys():
                 params["number_of_variable_cell_vectors"] = self.generator.number_of_variable_cell_vectors
+            if "used_modes_file" in params.keys():
+                params["used_modes_file"] = self.directory/self.CALC_DIRNAME/"used_modes.json"
             # NOTE: check this mutation whether valid for this system
             if kwargs is None:
                 prob = 1.0
@@ -601,8 +603,8 @@ class GeneticAlgorithemEngine():
 
         self.pfunc("--- mutations ---")
         self.pfunc(f"mutation probability: {self.pmut}")
-        for mut in mutations:
-            self.pfunc(f"Use mutation {mut.descriptor}.")
+        for mut, prob in zip(mutations, probs):
+            self.pfunc(f"Use mutation {mut.descriptor} with prob {prob}.")
         self.mutations = OperationSelector(probs, mutations, rng=np.random)
 
         return
