@@ -466,12 +466,15 @@ class GeneticAlgorithemEngine():
         nframes = len(sorted_candidates)
 
         # - selection
-        energies = np.array([a.get_potential_energy() for a in sorted_candidates])
-        natoms_array = np.array([len(a) for a in sorted_candidates]) # TODO: change this to the number of explored atoms
-        atomic_energies = energies / natoms_array
-        min_ae = atomic_energies[0] # minimum atomic energy
+        from GDPy.selector import create_selector
+        select_params = self.ga_dict.get("select", [])
+        select_dpath = results/"select"
+        if not select_dpath.exists():
+            select_dpath.mkdir()
+        selector = create_selector(select_params, directory=select_dpath)
+        selector.pfunc = self.logger.info
 
-        selected_frames = sorted_candidates
+        selected_frames = selector.select(sorted_candidates)
         nselected = len(selected_frames)
         self.pfunc(f"Find {nselected} frames for refinement...")
 
