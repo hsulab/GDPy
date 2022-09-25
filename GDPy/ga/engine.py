@@ -65,7 +65,6 @@ class GeneticAlgorithemEngine():
 
     # local optimisation directory
     CALC_DIRNAME = "tmp_folder"
-    PREFIX = "cand"
 
     # reproduction and mutation
     MAX_REPROC_TRY = 1
@@ -102,15 +101,6 @@ class GeneticAlgorithemEngine():
 
         # --- database ---
         self.db_name = pathlib.Path(ga_dict["database"])
-
-        # --- calculation ---
-        from GDPy.potential.register import create_potter
-        self.worker = create_potter(ga_dict["worker"])
-        self.worker.directory = Path.cwd() / self.CALC_DIRNAME
-
-        # --- directory ---
-        prefix = self.ga_dict.get("prefix", "cand")
-        self.PREFIX = prefix
 
         # --- population ---
         self.population_size = self.ga_dict["population"]["init_size"]
@@ -216,12 +206,20 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def run(self):
+    def run(self, worker):
         """ main procedure
         """
+        # - search target
         self.pfunc("\n\n===== Genetic Algorithm =====")
         target = self.prop_dict["target"]
         self.pfunc(f"\nTarget of Global Optimisation is {target}")
+
+        # - worker info
+        self.pfunc("\n\n===== register worker =====")
+        assert worker is not None, "Worker is not properly set..."
+        self.worker = worker
+        self.worker.directory = Path.cwd() / self.CALC_DIRNAME
+        self.worker.logger = self.logger
 
         # - generator info
         self.pfunc("\n\n===== register generator =====")
@@ -246,42 +244,39 @@ class GeneticAlgorithemEngine():
         # --- check current generation number
         self.pfunc("\n\n===== Generation Info =====")
 
-        cur_gen = self.da.get_generation_number()
-        self.pfunc(f"current generation number: {cur_gen}")
+        self.cur_gen = self.da.get_generation_number()
+        self.pfunc(f"current generation number: {self.cur_gen}")
 
         # output a few info
-        unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %cur_gen))
+        unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %self.cur_gen))
         #for row in unrelaxed_strus_gen:
         #    print(row) # NOTE: mark_as_queue unrelaxed_candidate will have relaxed field too...
         unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
-        num_unrelaxed_gen = len(unrelaxed_confids)
+        self.num_unrelaxed_gen = len(unrelaxed_confids)
 
-        relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %cur_gen))
+        relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %self.cur_gen))
         relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
-        num_relaxed_gen = len(relaxed_confids)
+        self.num_relaxed_gen = len(relaxed_confids)
 
         # check if this is the end of the current generation
-        end_of_gen = (num_relaxed_gen == num_unrelaxed_gen)
+        end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen)
 
-        self.pfunc(f"number of relaxed in current generation: {num_relaxed_gen}")
+        self.pfunc(f"number of relaxed in current generation: {self.num_relaxed_gen}")
         self.pfunc(sorted(relaxed_confids))
-        self.pfunc(f"number of unrelaxed in current generation: {num_unrelaxed_gen}")
+        self.pfunc(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
         self.pfunc(sorted(unrelaxed_confids))
         self.pfunc(f"end of current generation: {end_of_gen}")
 
         # --- check generation
-        max_gen = self.conv_dict["generation"]
-        if cur_gen > max_gen and (num_relaxed_gen == num_unrelaxed_gen):
-        #if cur_gen > max_gen:
+        if self.is_converged():
             self.pfunc("reach maximum generation...")
-            self.report()
             return
         else:
-            self.pfunc("Have not converged...")
+            self.pfunc("not converged yet...")
 
         # - run
         # --- initial population
-        if cur_gen == 0:
+        if self.cur_gen == 0:
             self.pfunc("\n\n===== Initial Population Calculation =====")
             while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
                 # calculate structures from init population
@@ -301,17 +296,17 @@ class GeneticAlgorithemEngine():
         if (
             # nunrelaxed_gen == 0
             #nrelaxed_gen == unrelaxed_gen == self.population_size
-            num_unrelaxed_gen < self.population_size
+            self.num_unrelaxed_gen < self.population_size
             # TODO: check whether worker can accept new jobs
         ):
             # TODO: can be aggressive, reproduce when relaxed structures are available
-            self.pfunc("not enough unrelaxed candidates for generation %d and try to reproduce..." %cur_gen)
-            self.pfunc("number before reproduction: {}".format(self.worker.get_number_of_running_jobs() + num_relaxed_gen))
+            self.pfunc("not enough unrelaxed candidates for generation %d and try to reproduce..." %self.cur_gen)
+            self.pfunc("number before reproduction: {}".format(self.worker.get_number_of_running_jobs() + self.num_relaxed_gen))
             count, failed = 0, 0
             #if hasattr(self.pairing, "minfrac"):
             #    previous_minfrac = self.pairing.minfrac
             while (
-                self.worker.get_number_of_running_jobs() + num_relaxed_gen < self.population_size
+                self.worker.get_number_of_running_jobs() + self.num_relaxed_gen < self.population_size
             ):
                 #if failed >= 10:
                 #    if hasattr(self.pairing, "minfrac"):
@@ -399,16 +394,25 @@ class GeneticAlgorithemEngine():
 
         return
     
+    def is_converged(self):
+        """ check whether the search is converged
+        """
+        max_gen = self.conv_dict["generation"]
+        if self.cur_gen > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
+            return True
+        else:
+            return False
+    
     def report(self):
-        self.pfunc('restart the database...')
+        self.pfunc("restart the database...")
         self.__restart()
-        results = pathlib.Path.cwd() / 'results'
+        results = pathlib.Path.cwd()/"results"
         if not results.exists():
             results.mkdir()
 
         # - write structures
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
-        write(results / 'all_candidates.xyz', all_relaxed_candidates)
+        write(results/"all_candidates.xyz", all_relaxed_candidates)
 
         # - plot population evolution
         data = []
@@ -418,7 +422,7 @@ class GeneticAlgorithemEngine():
             #print('generation ', i)
             energies = [
                 atoms.get_potential_energy() for atoms in all_relaxed_candidates 
-                    if atoms.info['key_value_pairs']['generation']==i
+                    if atoms.info["key_value_pairs"]["generation"]==i
             ]
             self.pfunc(energies)
             data.append([i, energies])
@@ -431,7 +435,7 @@ class GeneticAlgorithemEngine():
         ax.set_title(
             "Population Evolution", 
             fontsize=20, 
-            fontweight='bold'
+            fontweight="bold"
         )
 
         for i, energies in data:
@@ -442,73 +446,44 @@ class GeneticAlgorithemEngine():
         return
 
     def refine(
-        self, 
-        number=50, # minimum number of structures selected
-        aediff=0.05 # maximum atomic energy difference to the putative global minimum
+        self, ref_worker
     ):
         """ refine structures with DFT (VASP)
             the number of structures is determined by the rule
         """
-        self.pfunc('restart the database...')
+        self.pfunc("restart the database...")
         self.__restart()
+
+        # - get all candidates
         results = pathlib.Path.cwd() / "results"
         if not results.exists():
             results.mkdir()
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
         sorted_candidates = sorted(
-            all_relaxed_candidates, key=lambda atoms:atoms.info['key_value_pairs']['raw_score'],
+            all_relaxed_candidates, key=lambda atoms:atoms.info["key_value_pairs"]["raw_score"],
             reverse=True
         )
         nframes = len(sorted_candidates)
+
+        # - selection
         energies = np.array([a.get_potential_energy() for a in sorted_candidates])
         natoms_array = np.array([len(a) for a in sorted_candidates]) # TODO: change this to the number of explored atoms
         atomic_energies = energies / natoms_array
         min_ae = atomic_energies[0] # minimum atomic energy
 
-        for i in range(len(atomic_energies)):
-            if atomic_energies[i] >= min_ae + aediff:
-                new_number = i
-                self.pfunc(f"There are {new_number} structures in the range.")
-                break
-        else:
-            self.pfunc("All structures are in the energy range.")
-        number = np.min([number, new_number])
+        selected_frames = sorted_candidates
+        nselected = len(selected_frames)
+        self.pfunc(f"Find {nselected} frames for refinement...")
 
-        self.pfunc(f"Select {number} structures out of {nframes}...")
-        mosted = sorted_candidates[:number]
-        #for atoms in mosted:
-        #    self.pfunc(atoms.info['confid'], 'raw_score: ', atoms.info['key_value_pairs']['raw_score'])
-        self.pfunc(f"energy range: {mosted[0].get_potential_energy()}  {mosted[-1].get_potential_energy()}")
-        saved_xyz = results / (Path.cwd().name + f"-accurate-{number}.xyz")
-        write(saved_xyz, mosted)
+        # - computation
+        ref_worker.directory = results/"refine"
+        ref_worker.run(selected_frames)
 
-        """
-        from GDPy.ga.make_all_vasp import create_by_ase
-        for atoms in mosted:
-            dname = pathlib.Path.cwd() / 'accurate' / ('cand{0}'.format(atoms.info['confid']))
-            create_by_ase(
-                atoms, self.ga_dict["postprocess"]["incar"],
-                dname
-            )
-        """
-        self.pfunc("create refinement directory...")
-        from GDPy.utils.data import vasp_creator, vasp_collector
-        incar_template = self.ga_dict["postprocess"]["incar"]
-        # prefix = Path.cwd() / "accurate"
-        prefix = Path("/mnt/scratch2/users/40247882/oxides/eann-main/train-all/m25r/ga-Pt322-fp")
-        if not prefix.exists():
-            prefix.mkdir()
-        else:
-            self.pfunc("skip accurate...")
-
-        vasp_creator.create_files(
-            prefix,
-            "/users/40247882/repository/GDPy/GDPy/utils/data/vasp_calculator.py",
-            incar_template,
-            saved_xyz,
-            #to_submit = False
-            to_submit = True
-        )
+        # NOTE: need last structure or entire trajectory?
+        ref_worker.inspect()
+        new_frames = ref_worker.retrieve()
+        if new_frames:
+            write(results/"refine"/"refined_candidates.xyz", new_frames, append=True)
 
         return
     
