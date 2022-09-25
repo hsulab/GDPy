@@ -184,12 +184,12 @@ def main():
         "worker", help="run a worker"
     )
     parser_worker.add_argument(
-        "params",
-        help="json/yaml file that stores parameters for a worker"
+        "STRUCTURE",
+        help="a structure file that stores one or more structures"
     )
     parser_worker.add_argument(
-        "-s", "--structure",
-        help="a structure file that stores one or more structures"
+        "-d", "--directory", default=Path.cwd(),
+        help="working directory"
     )
 
     # --- task interface
@@ -343,7 +343,7 @@ def main():
         run_driver(args.params, args.structure, args.directory, potter)
     elif args.subcommand == "worker":
         from GDPy.computation.worker import run_worker
-        run_worker(args.params, args.structure, potter)
+        run_worker(args.STRUCTURE, args.directory, potter)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run)

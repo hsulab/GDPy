@@ -101,7 +101,7 @@ class DriverBasedWorker(AbstractWorker):
             # TODO: set group name randomly?
             if self.batchsize > 1:
                 group_directory = self.directory / f"g{i}" # contain one or more structures
-            else:
+            else: # batchsize == 1
                 group_directory = self.directory / wdirs[0]
                 wdirs = ["./"]
             # - set specific params
@@ -130,14 +130,17 @@ class DriverBasedWorker(AbstractWorker):
                 cur_params = {}
                 cur_params["driver"] = self.driver.as_dict()
                 cur_params["potential"] = self.potter.as_dict()
-                cur_params["wdirs"] = wdirs
-                with open(group_directory/"driver.yaml", "w") as fopen:
+
+                with open(group_directory/"worker.yaml", "w") as fopen:
                     yaml.dump(cur_params, fopen)
+
+                for cur_atoms, cur_wdir in zip(cur_frames, wdirs):
+                    cur_atoms.info["wdir"] = str(cur_wdir)
 
                 write(group_directory/"frames.xyz", cur_frames)
 
-                scheduler.user_commands = "gdp driver {} -s {}".format(
-                    (group_directory/"driver.yaml").name, 
+                scheduler.user_commands = "gdp -p {} worker {}".format(
+                    (group_directory/"worker.yaml").name, 
                     (group_directory/"frames.xyz").name
                 )
                 scheduler.write()
