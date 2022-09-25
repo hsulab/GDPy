@@ -5,17 +5,24 @@ import copy
 import pathlib
 
 from GDPy.selector.abstract import ConvergenceSelector, ComposedSelector
+from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.traj import BoltzmannMinimaSelection
 from GDPy.selector.descriptor import DescriptorBasedSelector
 from GDPy.selector.uncertainty import DeviationSelector
 
 def create_selector(input_list: list, directory=pathlib.Path.cwd(), pot_worker=None):
     selectors = []
+
+    if not input_list:
+        selectors.append(InvariantSelector())
+
     for s in input_list:
         params = copy.deepcopy(s)
         method = params.pop("method", None)
         if method == "convergence":
             selectors.append(ConvergenceSelector(**params))
+        elif method == "boltzmann":
+            selectors.append(BoltzmannMinimaSelection(**params))
         elif method == "deviation":
             selectors.append(DeviationSelector(**params, pot_worker=pot_worker))
         elif method == "descriptor":
