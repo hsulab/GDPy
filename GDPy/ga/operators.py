@@ -60,7 +60,8 @@ from ase.ga.particle_mutations import (
     RandomMutation, RandomPermutation, COM2surfPermutation, Poor2richPermutation, 
     Rich2poorPermutation, SymmetricSubstitute, RandomSubstitute
 )
-from ase.ga.soft_mutation import SoftMutation
+from ase.ga.standardmutations import StrainMutation
+from ase.ga.soft_mutation import SoftMutation, BondElectroNegativityModel
 
 # --- standard
 RattleMutation_params = dict(
@@ -78,6 +79,19 @@ PermutationMutation_params = dict(
 MirrorMutation_params = dict(
     blmin=None, n_top=None, reflect=False, 
     rng=np.random, verbose=False
+)
+
+# --- bulk
+StrainMutation_params = dict(
+    blmin=None, cellbounds=None, stddev=0.7,
+    number_of_variable_cell_vectors=3, use_tags=False,
+    rng=np.random, verbose=False
+)
+SoftMutation_params = dict(
+    blmin=None, bounds=[0.5, 2.0],
+    calculator=BondElectroNegativityModel, rcut=10.,
+    used_modes_file="used_modes.json", use_tags=False,
+    verbose=False
 )
 
 # --- particles
