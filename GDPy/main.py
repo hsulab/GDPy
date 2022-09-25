@@ -346,7 +346,7 @@ def main():
         run_worker(args.params, args.structure, potter)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
-        run_task(args.params, potter, args.run)
+        run_task(args.params, potter, referee, args.run)
     elif args.subcommand == "valid":
         from .validator.validation import run_validation
         run_validation(args.INPUTS, potter)
