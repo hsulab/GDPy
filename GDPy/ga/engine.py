@@ -126,7 +126,6 @@ class GeneticAlgorithemEngine():
         self.prop_dict = ga_dict["property"]
         target = self.prop_dict.get("target", "energy")
         self.prop_dict["target"] = target
-        self.pfunc(f"\nTarget of Global Optimisation is {target}")
 
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
@@ -220,6 +219,14 @@ class GeneticAlgorithemEngine():
     def run(self):
         """ main procedure
         """
+        self.pfunc("\n\n===== Genetic Algorithm =====")
+        target = self.prop_dict["target"]
+        self.pfunc(f"\nTarget of Global Optimisation is {target}")
+
+        # - generator info
+        self.pfunc("\n\n===== register generator =====")
+        self.pfunc(self.generator)
+
         # TODO: check database existence and generation number to determine restart
         if not self.db_name.exists():
             self.pfunc("----- create a new database -----")
@@ -229,23 +236,18 @@ class GeneticAlgorithemEngine():
             self.__initialise()
         else:
             self.pfunc("restart the database...")
-            # balh
+            # blah
             self.__restart()
 
-        # mutation and comparassion operators
+        # --- mutation and comparassion operators
         self.pfunc("\n\n===== register operators =====")
         self._register_operators()
 
-        self.pfunc("\n\n===== register population =====")
-        # TODO: population settings
-        self.form_population()
-
-        # check current generation number
+        # --- check current generation number
         self.pfunc("\n\n===== Generation Info =====")
 
         cur_gen = self.da.get_generation_number()
         self.pfunc(f"current generation number: {cur_gen}")
-        max_gen = self.conv_dict["generation"]
 
         # output a few info
         unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %cur_gen))
@@ -258,12 +260,17 @@ class GeneticAlgorithemEngine():
         relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
         num_relaxed_gen = len(relaxed_confids)
 
+        # check if this is the end of the current generation
+        end_of_gen = (num_relaxed_gen == num_unrelaxed_gen)
+
         self.pfunc(f"number of relaxed in current generation: {num_relaxed_gen}")
         self.pfunc(sorted(relaxed_confids))
         self.pfunc(f"number of unrelaxed in current generation: {num_unrelaxed_gen}")
         self.pfunc(sorted(unrelaxed_confids))
+        self.pfunc(f"end of current generation: {end_of_gen}")
 
         # --- check generation
+        max_gen = self.conv_dict["generation"]
         if cur_gen > max_gen and (num_relaxed_gen == num_unrelaxed_gen):
         #if cur_gen > max_gen:
             self.pfunc("reach maximum generation...")
@@ -284,6 +291,12 @@ class GeneticAlgorithemEngine():
                 _ = self.worker.run([atoms]) # retrieve later
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
 
+        # --- update population
+        self.pfunc("\n\n===== update population =====")
+        # TODO: population settings
+        self._prepare_population(end_of_gen)
+
+        # ---
         self.pfunc("\n\n===== Optimisation and Reproduction =====")
         if (
             # nunrelaxed_gen == 0
@@ -382,7 +395,7 @@ class GeneticAlgorithemEngine():
         self.__initialise()
 
         # set bond list minimum
-        self.generator._print_blmin(self.blmin)
+        #self.generator._print_blmin(self.blmin)
 
         return
     
@@ -558,6 +571,12 @@ class GeneticAlgorithemEngine():
             params["n_top"] = self.n_to_optimize
         if "blmin" in params.keys():
             params["blmin"] = self.blmin
+        if "number_of_variable_cell_vectors" in params.keys():
+            params["number_of_variable_cell_vectors"] = self.generator.number_of_variable_cell_vectors
+        if "cellbounds" in params.keys():
+            params["cellbounds"] = self.generator.cell_bounds
+        if "test_dist_to_slab" in params.keys():
+            params["test_dist_to_slab"] = self.generator.test_dist_to_slab
         if "use_tags" in params.keys():
             params["use_tags"] = self.use_tags
         if isinstance(kwargs, dict):
@@ -574,32 +593,13 @@ class GeneticAlgorithemEngine():
 
         # --- mutations
         mutations, probs = [], []
-        mutation_list = op_dict.get("mutation", None)
+        mutation_list = op_dict.get("mutation", [])
         #self.pfunc(mutation_list)
-        if isinstance(mutation_list, list):
-            for mut_settings in mutation_list:
-                mut, params, kwargs = self.__get_operator(
-                    operators, mut_settings, "RattleMutation"
-                )
-                if "n_top" in params.keys():
-                    params["n_top"] = self.n_to_optimize
-                if "blmin" in params.keys():
-                    params["blmin"] = self.blmin
-                if "use_tags" in params.keys():
-                    params["use_tags"] = self.use_tags
-                # NOTE: check this mutation whether valid for this system
-                if kwargs is None:
-                    prob = 1.0
-                else:
-                    prob = kwargs.pop("prob", 1.0)
-                probs.append(prob)
-                if isinstance(kwargs, dict):
-                    params.update(**kwargs)
-                mutations.append(mut(**params))
-        else:
-            # NOTE: default only has one RattleMutation
+        if not isinstance(mutation_list, list):
+            mutation_list = [mutation_list]
+        for mut_settings in mutation_list:
             mut, params, kwargs = self.__get_operator(
-                operators, None, "RattleMutation"
+                operators, mut_settings, "RattleMutation"
             )
             if "n_top" in params.keys():
                 params["n_top"] = self.n_to_optimize
@@ -607,6 +607,11 @@ class GeneticAlgorithemEngine():
                 params["blmin"] = self.blmin
             if "use_tags" in params.keys():
                 params["use_tags"] = self.use_tags
+            if "cellbounds" in params.keys():
+                params["cellbounds"] = self.generator.cell_bounds
+            if "number_of_variable_cell_vectors" in params.keys():
+                params["number_of_variable_cell_vectors"] = self.generator.number_of_variable_cell_vectors
+            # NOTE: check this mutation whether valid for this system
             if kwargs is None:
                 prob = 1.0
             else:
@@ -688,7 +693,7 @@ class GeneticAlgorithemEngine():
 
         return
 
-    def form_population(self):
+    def _prepare_population(self, end_of_gen=False):
         """"""
         # set current population
         # usually, it should be the same as the initial size
@@ -701,8 +706,23 @@ class GeneticAlgorithemEngine():
             comparator = self.comparing
         )
 
-        # self.pfunc out population info
-        #frames = self.population.get_current_population()
+        # - operations at the end of each generation
+        if end_of_gen:
+            self.pfunc("\n----- End of Generation -----\n")
+            cur_pop = self.population.get_current_population()
+            #find_strain = False
+            #from ase.ga.standardmutations import StrainMutation
+            for mut in self.mutations.oplist:
+                #if issubclass(mut, StrainMutation):
+                #    find_strain = True
+                #    mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
+                #    self.pfunc(f"StrainMutation Scaling Volume: {mut.scaling_volume}")
+                if hasattr(mut, "update_scaling_volume"):
+                    mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
+                    self.pfunc(f"{mut.__class__.__name__} Scaling Volume: {mut.scaling_volume}")
+            if hasattr(self.pairing, "update_scaling_volume"):
+                self.pairing.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
+                self.pfunc(f"{self.pairing.__class__.__name__} Scaling Volume: {self.pairing.scaling_volume}")
         #self.pfunc('current population size: ', len(frames))
         #for atoms in frames:
         #    n_paired = atoms.info.get('n_paired', None)
@@ -755,7 +775,22 @@ class GeneticAlgorithemEngine():
         # evaluate based on target property
         target = self.prop_dict["target"]
         if target == "energy":
-            atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
+            energy = atoms.get_potential_energy()
+            forces = atoms.get_forces()
+            atoms.info["key_value_pairs"]["raw_score"] = -energy
+            from ase.build import niggli_reduce
+            from ase.calculators.singlepoint import SinglePointCalculator
+            if self.generator.cell_bounds:
+                stress = atoms.get_stress()
+                niggli_reduce(atoms)
+                if self.generator.cell_bounds.is_within_bounds(atoms.get_cell()):
+                    calc = SinglePointCalculator(
+                        atoms, energy=energy, forces=forces, stress=stress
+                    )
+                    atoms.calc = calc
+                    atoms.info["key_value_pairs"]["raw_score"] = -energy
+                else:
+                    atoms.info["key_value_pairs"]["raw_score"] = -1e8
         elif target == "barrier":
             pass
         else:
