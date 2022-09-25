@@ -87,9 +87,6 @@ class AbstractWorker(abc.ABC):
             pass
         self._directory = directory_
 
-        # NOTE: create a database
-        self._database = TinyDB(self.directory/".metadata.json", indent=2)
-
         return
     
     @property
@@ -196,7 +193,6 @@ class AbstractWorker(abc.ABC):
     
     def retrieve(self, *args, **kwargs):
         """"""
-        #self._initialise(*args, **kwargs)
         self.inspect(*args, **kwargs)
         self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
 
@@ -225,6 +221,7 @@ class AbstractWorker(abc.ABC):
 
     def _get_running_jobs(self):
         """"""
+        self._initialise()
         running_jobs = self.database.search(
             Query().queued.exists() & (~Query().finished.exists())
         )
@@ -234,6 +231,7 @@ class AbstractWorker(abc.ABC):
 
     def _get_finished_jobs(self):
         """"""
+        self._initialise()
         finished_jobs = self.database.search(
             Query().queued.exists() & (Query().finished.exists())
         )
@@ -243,6 +241,7 @@ class AbstractWorker(abc.ABC):
     
     def _get_retrieved_jobs(self):
         """"""
+        self._initialise()
         retrieved_jobs = self.database.search(
             Query().queued.exists() & (Query().finished.exists()) &
             Query().retrieved.exists()
@@ -253,6 +252,7 @@ class AbstractWorker(abc.ABC):
     
     def _get_unretrieved_jobs(self):
         """"""
+        self._initialise()
         unretrieved_jobs = self.database.search(
             (Query().queued.exists() & Query().finished.exists()) &
             (~Query().retrieved.exists())
@@ -263,6 +263,7 @@ class AbstractWorker(abc.ABC):
     
     def get_number_of_running_jobs(self):
         """"""
+        self._initialise()
         running_jobs = self._get_running_jobs()
 
         return len(running_jobs)
