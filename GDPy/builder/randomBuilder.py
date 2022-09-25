@@ -73,7 +73,7 @@ class RandomGenerator(StructureGenerator):
         splits = params.get("splits", None) # to repeat cell
 
         volume = params.get("volume", None)
-        cell_bounds = {}
+        cell_bounds = None
 
         number_of_variable_cell_vectors =0
         if system_type == "bulk":
@@ -89,6 +89,7 @@ class RandomGenerator(StructureGenerator):
             if not volume:
                 volume = 10.*len(atom_numbers) # AA^3
             # --- cell bounds
+            cell_bounds = {}
             angles, lengths = ["phi", "chi", "psi"], ["a", "b", "c"]
             for k in angles:
                 cell_bounds[k] = region.get(k, [15, 165])
