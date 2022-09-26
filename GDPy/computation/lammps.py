@@ -536,6 +536,7 @@ class Lammps(FileIOCalculator):
         if potential == "reax/c":
             assert self.atom_style == "charge", "reax/c should have charge atom_style"
             content += "pair_style  {}\n".format(self.pair_style)
+            content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
             content += "neighbor        0.0 bin\n"
             content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
         elif potential == "eann":
