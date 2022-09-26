@@ -26,6 +26,12 @@ NNMatComparator_params = dict(
     d=0.2, elements=None, mic=False
 )
 
+OFPComparator_params = dict(
+    n_top=None, dE=1, cos_dist_max=0.005,
+    rcut=20, binwidth=0.05, sigma=0.02, nsigma=4,
+    pbc=True, maxdims=None, recalculate=False
+)
+
 # --- crossover
 # particle_crossovers: CutSpliceCrossover
 # cutandsplicepairing: CutAndSplicePairing
