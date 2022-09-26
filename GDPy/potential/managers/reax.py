@@ -1,38 +1,47 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+from pathlib import Path
+
 from GDPy.potential.manager import AbstractPotentialManager
 
 class ReaxManager(AbstractPotentialManager):
 
     name = "reax"
-    implemented_backends = ['lammps']
+    implemented_backends = ["lammps"]
 
-    def __init__(self, backend: str, models: str, type_map: dict):
+    valid_combinations = [
+        ["lammps", "ase"],
+        ["lammps", "lammps"]
+    ]
+
+    def __init__(self, *args, **kwargs):
         """"""
-        self.model = models
-        self.type_map = type_map
 
         return
 
-    def generate_calculator(self):
-        """ generate calculator with various backends
-        """
-        if self.backend == 'lammps':
-            # return reax pair related content
-            content = "units           real\n"
-            content += "atom_style      charge\n"
-            content += "\n"
-            content += "neighbor            1.0 bin\n" # for npt, ghost atom issue
-            content += "neigh_modify     every 10 delay 0 check no\n"
-            content += 'pair_style  reax/c NULL\n'
-            content += 'pair_coeff  * * %s %s\n' %(self.model, ' '.join(list(self.type_map.keys())))
-            content += "fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-            calc = content
-        else:
-            pass
+    def register_calculator(self, calc_params, *agrs, **kwargs):
+        """"""
+        super().register_calculator(calc_params, *agrs, **kwargs)
 
-        return calc
+        command = calc_params.pop("command", None)
+        directory = calc_params.pop("directory", Path.cwd())
+
+        if self.calc_backend == "lammps":
+            from GDPy.computation.lammps import Lammps
+            pair_style = calc_params.get("pair_style", None)
+            if pair_style:
+                calc = Lammps(
+                    command=command, directory=directory, **calc_params
+                )
+                # - update several params
+                calc.set(units="real")
+                calc.set(atom_style="charge")
+            else:
+                calc = None
+        self.calc = calc
+
+        return
 
 
 if __name__ == "__main__":
