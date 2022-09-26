@@ -60,10 +60,12 @@ class PotentialRegister():
             if pot_name.endswith(".py"):
                 #manager = inspect.getsourcefile(pot_name)
                 pot_def_path = pathlib.Path(pot_name).resolve()
-                sys.path.append(pot_def_path.parent)
+                sys.path.append(str(pot_def_path.parent))
                 pot_name = pot_def_path.name[:-3]
                 manager = importlib.import_module(pot_name)
                 pot_cls = getattr(manager, pot_name.capitalize()+"Manager")
+                # NOTE: for as_dict, name should be absolute path
+                pot_cls.name = str(pot_def_path)
 
         if pot_cls:
             potential = pot_cls(*args, **kwargs)
