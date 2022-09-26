@@ -17,7 +17,7 @@ class NequipManager(AbstractPotentialManager):
 
     valid_combinations = [
         ["ase", "ase"], # calculator, dynamics
-        ["lammps", "lammps"],
+        ["lammps", "ase"],
         ["lammps", "lammps"]
     ]
     
