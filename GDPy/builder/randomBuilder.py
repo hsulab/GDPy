@@ -97,10 +97,11 @@ class RandomGenerator(StructureGenerator):
                 cell_bounds[k] = region.get(k, [2, 60])
             cell_bounds = CellBounds(cell_bounds)
             # --- splits
-            splits_ = {}
-            for r, p in zip(splits["repeats"], splits["probs"]):
-                splits_[tuple(r)] = p
-            splits = splits_
+            if splits:
+                splits_ = {}
+                for r, p in zip(splits["repeats"], splits["probs"]):
+                    splits_[tuple(r)] = p
+                splits = splits_
 
             # --- two parameters
             test_dist_to_slab = False
