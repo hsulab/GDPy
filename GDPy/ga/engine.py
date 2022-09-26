@@ -763,11 +763,11 @@ class GeneticAlgorithemEngine():
             if self.generator.cell_bounds:
                 stress = atoms.get_stress()
                 niggli_reduce(atoms)
+                calc = SinglePointCalculator(
+                    atoms, energy=energy, forces=forces, stress=stress
+                )
+                atoms.calc = calc
                 if self.generator.cell_bounds.is_within_bounds(atoms.get_cell()):
-                    calc = SinglePointCalculator(
-                        atoms, energy=energy, forces=forces, stress=stress
-                    )
-                    atoms.calc = calc
                     atoms.info["key_value_pairs"]["raw_score"] = -energy
                 else:
                     atoms.info["key_value_pairs"]["raw_score"] = -1e8
