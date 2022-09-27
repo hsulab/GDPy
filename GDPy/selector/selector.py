@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 from typing import Union, List
 
 import numpy as np
@@ -20,8 +21,7 @@ from GDPy import config
 class AbstractSelector(abc.ABC):
 
     default_parameters = dict(
-        selection_ratio = 0.2,
-        selection_number = 16
+        number = [4, 0.2] # number & ratio
     )
 
     prefix = "structure"
@@ -33,9 +33,14 @@ class AbstractSelector(abc.ABC):
     def __init__(self, directory=Path.cwd(), *args, **kwargs) -> None:
         """"""
         self.directory = directory
-
-        self.selection_ratio = self.default_parameters.get("selection_ratio", 0.2)
-        self.selection_number = self.default_parameters.get("selection_number", 16)
+        
+        self.parameters = copy.deepcopy(self.default_parameters)
+        for k in self.parameters:
+            if k in kwargs.keys():
+                self.parameters[k] = kwargs[k]
+        
+        if "random_seed" in self.parameters:
+            self.set_rng(seed=self.parameters["random_seed"])
 
         self.njobs = config.NJOBS
 
@@ -49,13 +54,40 @@ class AbstractSelector(abc.ABC):
     def directory(self, directory_):
         self._directory = Path(directory_)
         return 
+    
+    def set(self, *args, **kwargs):
+        """"""
+        for k, v in kwargs.items():
+            if k in self.parameters:
+                self.parameters[k] = v
+
+        return
+
+    def __getattr__(self, key):
+        """ Corresponding getattribute-function 
+        """
+        if key != "parameters" and key in self.parameters:
+            return self.parameters[key]
+        return object.__getattribute__(self, key)
+
+    def set_rng(self, seed=None):
+        """"""
+        # - assign random seeds
+        if seed is None:
+            self.rng = np.random.default_rng()
+        elif isinstance(seed, int):
+            self.rng = np.random.default_rng(seed)
+
+        return
 
     @abc.abstractmethod
-    def select(self, *args, **kargs):
+    def select(self, index_map=None, ret_indices: bool=False, *args, **kargs):
         """"""
         if self.logger is not None:
             self.pfunc = self.logger.info
         self.pfunc(f"@@@{self.__class__.__name__}")
+
+        # - check if finished
 
         return
 
@@ -63,18 +95,16 @@ class AbstractSelector(abc.ABC):
         """ nframes - number of frames
             sometimes maybe zero
         """
-        ratio = self.selection_ratio
-        number = self.selection_number
-
-        number_info = self.selec_dict.get("number", [None,ratio])
+        default_number, default_ratio = self.default_parameters["number"]
+        number_info = self.parameters["number"]
         if isinstance(number_info, int):
-            number_info = [number_info, ratio]
+            num_fixed, num_percent = number_info, default_ratio
         elif isinstance(number_info, float):
-            number_info = [number, number_info]
+            num_fixed, num_percent = default_number, number_info
         else:
             assert len(number_info) == 2, "Cant parse number for selection..."
+            num_fixed, num_percent = number_info
         
-        num_fixed, num_percent = number_info
         if num_fixed is not None:
             if num_fixed > nframes:
                 num_fixed = int(nframes*num_percent)
@@ -82,6 +112,15 @@ class AbstractSelector(abc.ABC):
             num_fixed = int(nframes*num_percent)
 
         return num_fixed
+    
+    def as_dict(self):
+        """"""
+        params = dict(
+            name = self.__class__.__name__
+        )
+        params.update(**copy.deepcopy(self.parameters))
+
+        return params
 
 class ComposedSelector(AbstractSelector):
     
