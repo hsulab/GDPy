@@ -123,9 +123,9 @@ class DescriptorBasedSelector(AbstractSelector):
             selected_indices = self._select_indices(frames)
         else:
             self.pfunc("use cached...")
-            data = np.loadtxt(info_fpath)
+            data = np.loadtxt(info_fpath).tolist()
             if data:
-                selected_indices = [int(s) for s in data[:, 0]]
+                selected_indices = [int(row[0]) for row in data]
             else:
                 selected_indices = []
         self.pfunc(f"nframes {len(frames)} -> nselected {len(selected_indices)}")
