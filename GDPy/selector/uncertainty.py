@@ -10,7 +10,7 @@ from pathlib import Path
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.selector.abstract import AbstractSelector
+from GDPy.selector.selector import AbstractSelector
 
 
 class DeviationSelector(AbstractSelector):

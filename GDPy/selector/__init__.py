@@ -4,7 +4,7 @@
 import copy
 import pathlib
 
-from GDPy.selector.abstract import ConvergenceSelector, ComposedSelector
+from GDPy.selector.selector import ConvergenceSelector, ComposedSelector
 from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.traj import BoltzmannMinimaSelection
 from GDPy.selector.descriptor import DescriptorBasedSelector

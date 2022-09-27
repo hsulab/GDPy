@@ -9,7 +9,7 @@ import numpy as np
 
 from ase import Atoms
 
-from GDPy.selector.abstract import AbstractSelector
+from GDPy.selector.selector import AbstractSelector
 
 
 class InvariantSelector(AbstractSelector):

@@ -11,7 +11,7 @@ from ase.io import read, write
 
 from dscribe.descriptors import SOAP
 
-from GDPy.selector.abstract import AbstractSelector
+from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.cur import cur_selection
 
 
