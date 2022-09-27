@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 from pathlib import Path
 from typing import List
 
@@ -27,7 +28,7 @@ from GDPy.selector.cur import cur_selection
 
 class DescriptorBasedSelector(AbstractSelector):
 
-    name = "descriptor"
+    name = "dscribe"
     selection_criteria = "geometry"
 
     """
@@ -51,26 +52,25 @@ class DescriptorBasedSelector(AbstractSelector):
     """
 
     default_parameters = dict(
-        selection_ratio = 0.2,
-        selection_number = 16
+        random_seed = None,
+        descriptor = None,
+        criteria = dict(
+            method = "cur",
+            zeta = "-1",
+            strategy = "descent"
+        ),
+        number = [4, 0.2]
     )
-
-    njobs = 1
 
     verbose = False
 
     def __init__(
         self, 
-        descriptor,
-        criteria,
         directory = Path.cwd(),
         *args, **kwargs
     ):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
-
-        self.desc_dict = descriptor
-        self.selec_dict = criteria
 
         self.pfunc("selector uses njobs ", self.njobs)
 
@@ -92,14 +92,14 @@ class DescriptorBasedSelector(AbstractSelector):
         #    print('finished calculating features...')
 
         self.pfunc("start calculating features...")
-        desc_params = self.desc_dict.copy()
+        desc_params = copy.deepcopy(self.descriptor)
         desc_name = desc_params.pop("name", None)
 
         features = None
         if desc_name == "soap":
             soap = SOAP(**desc_params)
             ndim = soap.get_number_of_features()
-            self.pfunc(f"descriptor dimension: {ndim}")
+            self.pfunc(f"soap descriptor dimension: {ndim}")
             features = soap.create(frames, n_jobs=self.njobs)
         else:
             raise RuntimeError(f"Unknown descriptor {desc_name}.")
@@ -115,66 +115,76 @@ class DescriptorBasedSelector(AbstractSelector):
 
     def select(self, frames, index_map=None, ret_indices: bool=False, *args, **kwargs) -> List[Atoms]:
         """"""
-        super().select(*args, **kwargs)
-        if len(frames) == 0:
-            return []
+        super().select(index_map, ret_indices, *args, **kwargs)
 
-        features = self.calc_desc(frames)
+        info_fpath = self.directory/(self.name+"-info.txt")
+        if not (info_fpath).exists():
+            self.pfunc("run selection...")
+            selected_indices = self._select_indices(frames)
+        else:
+            self.pfunc("use cached...")
+            data = np.loadtxt(info_fpath)
+            if data:
+                selected_indices = [int(s) for s in data[:, 0]]
+            else:
+                selected_indices = []
+        self.pfunc(f"nframes {len(frames)} -> nselected {len(selected_indices)}")
 
-        selected_indices = self._select_indices(features)
         # map selected indices
         if index_map is not None:
             selected_indices = [index_map[s] for s in selected_indices]
-        # if manually_selected is not None:
-        #    selected.extend(manually_selected)
-
-        self.pfunc(f"nframes {len(frames)} -> nselected {len(selected_indices)}")
 
         if not ret_indices:
             selected_frames = [frames[i] for i in selected_indices]
-            if True: # TODO: check if output data
-                write(self.directory/("-".join([self.prefix,self.name,"selection"])+".xyz"), selected_frames)
-
-            if True: # TODO: check if output data
-                np.save(self.directory/("-".join([self.prefix,self.name,"indices"])+".npy"), selected_indices)
-
             return selected_frames
         else:
             return selected_indices
 
-    def _select_indices(self, features):
+    def _select_indices(self, frames, *args, **kwargs):
         """ number can be in any forms below
             [num_fixed, num_percent]
         """
-        nframes = features.shape[0]
-        number = self._parse_selection_number(nframes)
+        nframes = len(frames)
+        num_fixed = self._parse_selection_number(nframes)
 
-        # cur decomposition
-        if nframes == 1:
-            selected = [0]
+        # NOTE: currently, only CUR is supported
+        # TODO: farthest sampling, clustering ...
+        if num_fixed > 0:
+            features = self.calc_desc(frames)
+
+            # cur decomposition
+            if nframes == 1:
+                selected_indices = [0]
+            else:
+                cur_scores, selected_indices = cur_selection(
+                    features, num_fixed,
+                    self.criteria["zeta"], self.criteria["strategy"],
+                    rng = self.rng
+                )
         else:
-            cur_scores, selected = cur_selection(
-                features, number,
-                self.selec_dict["zeta"], self.selec_dict["strategy"]
-            )
+            cur_scores, selected_indices = [], []
 
-        # TODO: if output
-        if self.verbose:
-            content = '# idx cur sel\n'
-            for idx, cur_score in enumerate(cur_scores):
-                stat = "F"
-                if idx in selected:
-                    stat = "T"
-                content += "{:>12d}  {:>12.8f}  {:>2s}\n".format(idx, cur_score, stat)
-            with open((self.directory / "cur_scores.txt"), "w") as writer:
-               writer.write(content)
-        #np.save((prefix+"indices.npy"), selected)
+        # - output
+        data = []
+        for i, s in enumerate(selected_indices):
+            atoms = frames[s]
+            confid = atoms.info.get("confid", -1)
+            natoms = len(atoms)
+            ae = atoms.get_potential_energy() / natoms
+            maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            score = cur_scores[i]
+            data.append([s, confid, natoms, ae, maxforce, score])
+        np.savetxt(
+            self.directory/(self.name+"-info.txt"), data, 
+            fmt="%8d  %8d  %8d  %12.4f  %12.4f  %12.4f",
+            #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
+            header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}".format(
+                *"index confid natoms AtomicEnergy MaxForce  CurScore".split()
+            ),
+            footer=f"random_seed {self.random_seed}"
+        )
 
-        #selected_frames = []
-        # for idx, sidx in enumerate(selected):
-        #    selected_frames.append(frames[int(sidx)])
-
-        return selected
+        return selected_indices
 
 
 if __name__ == "__main__":
