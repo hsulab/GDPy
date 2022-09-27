@@ -17,7 +17,7 @@ def descriptor_svd(at_descs, num, do_vectors="vh"):
 
     return svds(A, k=num, return_singular_vectors=do_vectors) # sparse SVD
 
-def cur_selection(features, num, zeta=2, strategy="descent"):
+def cur_selection(features, num, zeta=2, strategy="descent", rng=np.random):
     """ input should be [nframes,nfeatures]
     """
     # column vectors of descriptors
@@ -37,7 +37,7 @@ def cur_selection(features, num, zeta=2, strategy="descent"):
 
     if strategy == "stochastic":
         selected = sorted(
-            np.random.choice(range(nframes), size=num, replace=False, p=c_scores)
+            rng.choice(range(nframes), size=num, replace=False, p=c_scores)
         )
     elif strategy == "descent":
         selected = sorted(np.argsort(c_scores)[-num:])
