@@ -12,43 +12,73 @@ from ase import Atoms
 from GDPy.selector.selector import AbstractSelector
 
 
+""" References
+    [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
+        De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
+        npj Comput. Mater. 2019, 5, 99.
+    [2] Mahoney, M. W.; Drineas, P. 
+        CUR Matrix Decompositions for Improved Data Analysis. 
+        Proc. Natl. Acad. Sci. USA 2009, 106, 697–702.
+"""
+
+
 class BoltzmannMinimaSelection(AbstractSelector):
 
+    name = "BoltzMinima"
+
     default_parameters = dict(
+        random_seed = None,
         fmax = 0.05, # eV
         boltzmann = 3, # kT, eV
+        ae_cut = None, # eV
         number = [4, 0.2]
     )
 
     def __init__(self, directory=Path.cwd(), *args, **kwargs):
         """"""
-        self.directory = directory
-
-        for k in self.default_parameters:
-            if k in kwargs.keys():
-                self.default_parameters[k] = kwargs[k]
-
-        self.fmax = self.default_parameters["fmax"] # eV
-        self.boltzmann = self.default_parameters["boltzmann"]
+        super().__init__(directory, *args, **kwargs)
 
         return
     
     def select(self, frames, index_map=None, ret_indices: bool=False, *args, **kwargs) -> List[Atoms]:
         """"""
         super().select(*args,**kwargs)
+        
+        info_fpath = self.directory/(self.name+"-info.txt")
+        if not (info_fpath).exists():
+            self.pfunc("run selection...")
+            selected_indices = self._select_indices(frames)
+        else:
+            self.pfunc("use cached...")
+            data = np.loadtxt(info_fpath)
+            if data:
+                selected_indices = [int(s) for s in data[:, 0]]
+            else:
+                selected_indices = []
+
+        # map selected indices
+        if index_map is not None:
+            selected_indices = [index_map[s] for s in selected_indices]
+
+        if not ret_indices:
+            selected_frames = [frames[i] for i in selected_indices]
+            return selected_frames
+        else:
+            return selected_indices
+    
+    def _select_indices(self, frames, *args, **kwargs) -> List[int]:
+        """"""
         # - find minima
-        #print("nframes: ", len(frames))
         converged_indices = []
         for i, atoms in enumerate(frames): 
-            # check energy if too large then skip
-            confid = atoms.info["confid"]
-            # cur_energy = atoms.get_potential_energy()
-            # if np.fabs(cur_energy - min_energy) > self.ENERGY_DIFFERENCE:
-            #     print("Skip high-energy structure...")
-            #     continue
+            # - check if energy is too large
+            #   compare to a fixed value or TODO: minimum energy
+            cur_energy = atoms.get_potential_energy()
+            if self.ae_cut:
+                if np.fabs(cur_energy - len(atoms)*self.ae_cut) > 0.:
+                    continue
             # LAMMPS or LASP has no forces for fixed atoms
             maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
-            #print(maxforce, self.fmax)
             if maxforce < self.fmax:
                 converged_indices.append(i)
         
@@ -64,24 +94,36 @@ class BoltzmannMinimaSelection(AbstractSelector):
                 converged_energies = [frames[i].get_potential_energy() for i in converged_indices]
                 #print("converged_energies: ", converged_energies)
                 selected_indices = self._boltzmann_select(
+                    self.boltzmann,
                     converged_energies, converged_indices, num_fixed
                 )
             else:
                 selected_indices = converged_indices[:num_fixed]
         else:
             selected_indices = []
+        
+        # - output files
+        data = []
+        for s in selected_indices:
+            atoms = frames[s]
+            confid = atoms.info.get("confid", -1)
+            natoms = len(atoms)
+            ae = atoms.get_potential_energy() / natoms
+            maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            data.append([s, confid, natoms, ae, maxforce])
+        np.savetxt(
+            self.directory/(self.name+"-info.txt"), data, 
+            fmt="%8d  %8d  %8d  %12.4f  %12.4f",
+            #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
+            header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}".format(
+                *"index confid natoms AtomicEnergy MaxForce".split()
+            ),
+            footer=f"random_seed {self.random_seed}"
+        )
 
-        # map selected indices
-        if index_map is not None:
-            selected_indices = [index_map[s] for s in selected_indices]
+        return selected_indices
 
-        if not ret_indices:
-            selected_frames = [frames[i] for i in selected_indices]
-            return selected_frames
-        else:
-            return selected_indices
-
-    def _boltzmann_select(self, props, input_indices, num_minima):
+    def _boltzmann_select(self, boltz, props, input_indices, num_minima):
         """"""
         # compute desired probabilities for flattened histogram
         histo = np.histogram(props, bins=10) # hits, bin_edges
@@ -94,8 +136,8 @@ class BoltzmannMinimaSelection(AbstractSelector):
                 p = 1.0/histo[0][bin_i]
             else:
                 p = 0.0
-            if self.boltzmann > 0.0:
-                p *= np.exp(-(H-min_prop)/self.boltzmann)
+            if boltz > 0.0:
+                p *= np.exp(-(H-min_prop)/boltz)
             config_prob.append(p)
         
         assert len(config_prob) == len(props)
@@ -109,7 +151,7 @@ class BoltzmannMinimaSelection(AbstractSelector):
             config_prob = np.array(config_prob)
             config_prob /= np.sum(config_prob)
             cumul_prob = np.cumsum(config_prob)
-            rv = np.random.uniform()
+            rv = self.rng.uniform()
             config_i = np.searchsorted(cumul_prob, rv)
             #print(converged_trajectories[config_i][0])
             selected_indices.append(input_indices[config_i])
@@ -124,23 +166,6 @@ class BoltzmannMinimaSelection(AbstractSelector):
             
         return selected_indices
 
-    def _parse_selection_number(self, nframes):
-        """ nframes - number of frames
-            sometimes maybe zero
-        """
-        number_info = self.default_parameters["number"]
-        if isinstance(number_info, int):
-            num_fixed, num_percent = number_info, 0.2
-        elif isinstance(number_info, float):
-            num_fixed, num_percent = 16, number_info
-        else:
-            assert len(number_info) == 2, "Cant parse number for selection..."
-            num_fixed, num_percent = number_info
-        
-        if num_fixed is not None:
-            if num_fixed > nframes:
-                num_fixed = int(nframes*num_percent)
-        else:
-            num_fixed = int(nframes*num_percent)
 
-        return num_fixed
+if __name__ == "__main__":
+    pass
