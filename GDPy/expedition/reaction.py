@@ -45,8 +45,16 @@ class ReactionExplorer(AbstractExpedition):
 
         return actions
     
-    def _single_create(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """"""
+        # - generator
+        generator = actions["generator"]
+        self.logger.info(generator.__class__.__name__)
+        frames = generator.run(kwargs.get("ran_size", 1))
+        self.logger.info(f"number of initial structures: {len(frames)}")
+        from GDPy.builder.direct import DirectGenerator
+        actions["generator"] = DirectGenerator(frames, res_dpath/"init")
+
         # - action
         # NOTE: create a separate calculation folder
         calc_dir_path = res_dpath / "create" / self.creation_params["opt_dname"]
@@ -57,13 +65,13 @@ class ReactionExplorer(AbstractExpedition):
 
         is_finished = True
         for icand, atoms in enumerate(frames):
-            print(f"--- candidate {icand} ---")
+            self.logger.info(f"--- candidate {icand} ---")
             actions["reaction"].directory = calc_dir_path / (f"cand{icand}")
             actions["reaction"].run(atoms, self.pot_worker.potter.calc)
         
         return is_finished
     
-    def _single_collect(self, res_dpath, frames, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, data, *args, **kwargs):
         """"""
         traj_period = self.collection_params["traj_period"]
 
@@ -121,30 +129,15 @@ class ReactionExplorer(AbstractExpedition):
                 write(collect_dpath/"approx_TSs.xyz", approx_TSs)
                 write(collect_dpath/"approx_FSs.xyz", approx_FSs)
                 write(collect_dpath/"optraj_frames.xyz", optraj_frames)
-
-        # - select
-        selector = actions["selector"]
-        if selector:
-            # -- create dir
-            select_dpath = self._make_step_dir(res_dpath, "select")
-                
-            selector.directory = select_dpath
-
-            candidate_group = dict(
-                TS = approx_TSs,
-                FS = approx_FSs,
-                optraj = optraj_frames
-            )
-            for prefix, cur_frames in candidate_group.items():
-                # TODO: add info to selected frames
-                # TODO: select based on minima (Trajectory-based Boltzmann)
-                print(f"--- Selection Method {selector.name} for {prefix} ---")
-                #print("ncandidates: ", len(cur_frames))
-                # NOTE: there is an index map between traj_indices and selected_indices
-                selector.prefix = prefix
-                cur_frames = selector.select(cur_frames)
-                #print("nselected: ", len(cur_frames))
-                #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
+        
+        # - pass data
+        data.update(
+            **{
+                "pot_frames_TS": approx_TSs,
+                "pot_frames_FS": approx_FSs,
+                "pot_frames_optraj": optraj_frames,
+            }
+        )
 
         return True
 
