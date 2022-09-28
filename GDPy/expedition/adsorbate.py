@@ -39,7 +39,7 @@ class AdsorbateEvolution(AbstractExpedition):
 
         return actions
 
-    def _single_create(self, res_dpath, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """
         """
         generator = actions["generator"]
@@ -70,7 +70,7 @@ class AdsorbateEvolution(AbstractExpedition):
 
         return is_finished
     
-    def _single_collect(self, res_dpath, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, data, *args, **kwargs):
         """"""
         generator = actions["generator"]
         self.logger.info(generator.__class__.__name__)
@@ -97,13 +97,13 @@ class AdsorbateEvolution(AbstractExpedition):
             is_collected = False
         else:
             is_collected = True
-
-        is_selected = True
+        
+        # - pass data
         if is_collected:
             merged_traj_frames = read(self.step_dpath/"traj_frames.xyz", ":")
-            is_selected = self._single_select(res_dpath, merged_traj_frames, actions)
+            data["pot_frames"] = merged_traj_frames
 
-        return (is_collected and is_selected)
+        return is_collected
 
 
 if __name__ == "__main__":
