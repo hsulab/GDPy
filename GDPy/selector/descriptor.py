@@ -113,33 +113,6 @@ class DescriptorBasedSelector(AbstractSelector):
 
         return features
 
-    def select(self, frames, index_map=None, ret_indices: bool=False, *args, **kwargs) -> List[Atoms]:
-        """"""
-        super().select(index_map, ret_indices, *args, **kwargs)
-
-        info_fpath = self.directory/(self.name+"-info.txt")
-        if not (info_fpath).exists():
-            self.pfunc("run selection...")
-            selected_indices = self._select_indices(frames)
-        else:
-            self.pfunc("use cached...")
-            data = np.loadtxt(info_fpath).tolist()
-            if data:
-                selected_indices = [int(row[0]) for row in data]
-            else:
-                selected_indices = []
-        self.pfunc(f"nframes {len(frames)} -> nselected {len(selected_indices)}")
-
-        # map selected indices
-        if index_map is not None:
-            selected_indices = [index_map[s] for s in selected_indices]
-
-        if not ret_indices:
-            selected_frames = [frames[i] for i in selected_indices]
-            return selected_frames
-        else:
-            return selected_indices
-
     def _select_indices(self, frames, *args, **kwargs):
         """ number can be in any forms below
             [num_fixed, num_percent]
@@ -168,21 +141,26 @@ class DescriptorBasedSelector(AbstractSelector):
         data = []
         for i, s in enumerate(selected_indices):
             atoms = frames[s]
+            # - add info
+            selection = atoms.info.get("selection","")
+            atoms.info["selection"] = selection+f"->{self.name}"
+            # - gather info
             confid = atoms.info.get("confid", -1)
             natoms = len(atoms)
             ae = atoms.get_potential_energy() / natoms
             maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             score = cur_scores[i]
             data.append([s, confid, natoms, ae, maxforce, score])
-        np.savetxt(
-            self.directory/(self.name+"-info.txt"), data, 
-            fmt="%8d  %8d  %8d  %12.4f  %12.4f  %12.4f",
-            #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
-            header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}".format(
-                *"index confid natoms AtomicEnergy MaxForce  CurScore".split()
-            ),
-            footer=f"random_seed {self.random_seed}"
-        )
+        if data:
+            np.savetxt(
+                self.info_fpath, data, 
+                fmt="%8d  %8d  %8d  %12.4f  %12.4f  %12.4f",
+                #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
+                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}".format(
+                    *"index confid natoms AtomicEnergy MaxForce  CurScore".split()
+                ),
+                footer=f"random_seed {self.random_seed}"
+            )
 
         return selected_indices
 

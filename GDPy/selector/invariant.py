@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 from typing import List
 from pathlib import Path
-import copy
 
 import numpy as np
 
@@ -24,21 +24,34 @@ class InvariantSelector(AbstractSelector):
 
         return
     
-    def select(self, frames, index_map=None, ret_indices: bool=False, *args, **kargs) -> List[Atoms]:
+    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
         """"""
-        super().select(*args, **kargs)
-
         selected_indices = list(range(len(frames)))
 
-        # map selected indices
-        if index_map is not None:
-            selected_indices = [index_map[s] for s in selected_indices]
-        
-        if not ret_indices:
-            selected_frames = [frames[i] for i in selected_indices]
-            return selected_frames
-        else:
-            return selected_indices
+        # - output
+        data = []
+        for s in selected_indices:
+            atoms = frames[s]
+            # - add info
+            selection = atoms.info.get("selection","")
+            atoms.info["selection"] = selection+f"->{self.name}"
+            # - gather info
+            confid = atoms.info.get("confid", -1)
+            natoms = len(atoms)
+            ae = atoms.get_potential_energy() / natoms
+            maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            data.append([s, confid, natoms, ae, maxforce])
+        if data:
+            np.savetxt(
+                self.info_fpath, data, 
+                fmt="%8d  %8d  %8d  %12.4f  %12.4f",
+                #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
+                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}".format(
+                    *"index confid natoms AtomicEnergy MaxForce".split()
+                )
+            )
+
+        return selected_indices
 
 
 if __name__ == "__main__":
