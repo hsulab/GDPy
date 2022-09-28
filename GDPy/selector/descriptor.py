@@ -72,8 +72,6 @@ class DescriptorBasedSelector(AbstractSelector):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
 
-        self.pfunc("selector uses njobs ", self.njobs)
-
         return
 
     def calc_desc(self, frames):
@@ -144,8 +142,14 @@ class DescriptorBasedSelector(AbstractSelector):
             # - gather info
             confid = atoms.info.get("confid", -1)
             natoms = len(atoms)
-            ae = atoms.get_potential_energy() / natoms
-            maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            try:
+                ae = atoms.get_potential_energy() / natoms
+            except:
+                ae = np.NaN
+            try:
+                maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            except:
+                maxforce = np.NaN
             score = cur_scores[i]
             data.append([s, confid, natoms, ae, maxforce, score])
         if data:
