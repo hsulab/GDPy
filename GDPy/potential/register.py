@@ -115,7 +115,13 @@ def create_potter(config_file=None):
         from GDPy.computation.worker.drive import DriverBasedWorker
         run_worker = DriverBasedWorker(potter, driver, potter.scheduler)
     
-    return (run_worker if not train_worker else train_worker)
+    # - final worker
+    worker = (run_worker if not train_worker else train_worker)
+
+    batchsize = params.get("batchsize", 1)
+    worker.batchsize = batchsize
+    
+    return worker
 
 if __name__ == "__main__":
     pass
