@@ -142,7 +142,7 @@ class NequipManager(AbstractPotentialManager):
             saved_calc_params = copy.deepcopy(calc_params)
             # NOTE: self.calc will be the last one
             self.register_calculator(calc_params)
-            self.calc.directory = Path.cwd()/"c{i}".format(i)
+            self.calc.directory = Path.cwd()/f"c{i}"
             committee.append(self.calc)
         # NOTE: do not share calculator...
         self.register_calculator(saved_calc_params) # use last model
