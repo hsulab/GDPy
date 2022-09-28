@@ -11,7 +11,7 @@ from joblib import Parallel, delayed
 import matplotlib as mpl
 mpl.use("Agg") #silent mode
 from matplotlib import pyplot as plt
-plt.style.use("presentation")
+#plt.style.use("presentation")
 
 # Handles isomorphism for bonds
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")

@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg') #silent mode
 import matplotlib.pyplot as plt
-plt.style.use("presentation")
+#plt.style.use("presentation")
 
 from ase import Atoms
 from ase.io import read, write

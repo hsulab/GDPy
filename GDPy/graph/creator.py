@@ -11,7 +11,7 @@ from typing import List
 import matplotlib as mpl
 mpl.use("Agg") #silent mode
 from matplotlib import pyplot as plt
-plt.style.use("presentation")
+#plt.style.use("presentation")
 
 from ase import Atoms
 from ase.io import read, write
