@@ -92,7 +92,7 @@ class EvolutionaryExpedition(AbstractExpedition):
 
         return actions
 
-    def _single_create(self, res_dpath, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """ generator + driver + propagator
         """
         # - prepare input
@@ -119,7 +119,7 @@ class EvolutionaryExpedition(AbstractExpedition):
         command_worker.directory = self.step_dpath
         command_worker.run()
 
-        command_worker.inspect()
+        command_worker.inspect() # TODO: add convergence check?
         if command_worker.get_number_of_running_jobs() > 0:
             is_finished = False
         else:
@@ -127,7 +127,7 @@ class EvolutionaryExpedition(AbstractExpedition):
         
         return is_finished
 
-    def _single_collect(self, res_dpath, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, data, *args, **kwargs):
         """"""
         traj_period = self.collection_params["traj_period"]
         self.logger.info(f"traj_period: {traj_period}")
@@ -174,32 +174,17 @@ class EvolutionaryExpedition(AbstractExpedition):
         with CustomTimer(name=f"collect-trajectories"):
             cur_traj_frames = read_trajectories(
                 driver, traj_dirs, 
-                traj_period, traj_fpath, traj_ind_fpath
+                traj_period, traj_fpath, traj_ind_fpath,
+                include_first=False, include_last=True
             )
         merged_traj_frames.extend(cur_traj_frames)
 
-        # - select
-        selector = actions["selector"]
-        if selector:
-            # -- create dir
-            select_dpath = self._make_step_dir(res_dpath, "select")
-            # -- perform selections
-            cur_frames = merged_traj_frames
-            # TODO: add info to selected frames
-            # TODO: select based on minima (Trajectory-based Boltzmann)
-            self.logger.info(f"--- Selection Method {selector.name}---")
-            selector.prefix = "traj"
-            selector.logger = self.logger
-            selector.directory = select_dpath
-            #print("ncandidates: ", len(cur_frames))
-            # NOTE: there is an index map between traj_indices and selected_indices
-            cur_frames = selector.select(cur_frames)
-            #print("nselected: ", len(cur_frames))
-            #write(sorted_path/f"{selector.name}-selected-{isele}.xyz", cur_frames)
-        else:
-            self.logger.info("No selector available...")
+        # - pass data
+        data["pot_frames"] = merged_traj_frames
+
+        is_collected = True
         
-        return True # is_collected
+        return is_collected
     
 
 if __name__ == "__main__":
