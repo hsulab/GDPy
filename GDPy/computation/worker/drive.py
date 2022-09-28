@@ -93,9 +93,10 @@ class DriverBasedWorker(AbstractWorker):
                     break
             if confids:
                 wdirs = [f"cand{ia}" for ia in confids]
+                self.logger.info(f"Use attached confids...")
             else:
                 wdirs = [f"cand{ia}" for ia in global_indices]
-            self.logger.info(f"Use confids as {wdirs}")
+                self.logger.info(f"Use ordered confids...")
 
             # - prepare scheduler
             # TODO: set group name randomly?
@@ -145,7 +146,7 @@ class DriverBasedWorker(AbstractWorker):
                 )
                 scheduler.write()
                 if self._submit:
-                    self.logger.info(f"{group_directory.name}: {scheduler.submit()}")
+                    self.logger.info(f"{group_directory.name} JOBID: {scheduler.submit()}")
                 else:
                     self.logger.info(f"{group_directory.name} waits to submit.")
             else:
@@ -202,7 +203,9 @@ class DriverBasedWorker(AbstractWorker):
                     results.extend(traj_frames)
 
         if results:
-            self.logger.info(f"new_frames: {len(results)} {results[0].get_potential_energy()}")
+            self.logger.info(
+                f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
+            )
 
         return results
 
