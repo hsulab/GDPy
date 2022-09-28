@@ -115,6 +115,12 @@ class AbstractSelector(abc.ABC):
                 selected_indices = []
         self.pfunc(f"{self.name} nframes {len(frames)} -> nselected {len(selected_indices)}")
 
+        # - add info
+        for i, s in enumerate(selected_indices):
+            atoms = frames[s]
+            selection = atoms.info.get("selection","")
+            atoms.info["selection"] = selection+f"->{self.name}"
+
         # - map selected indices
         if index_map is not None:
             selected_indices = [index_map[s] for s in selected_indices]

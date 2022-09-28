@@ -80,9 +80,6 @@ class BoltzmannMinimaSelection(AbstractSelector):
         data = []
         for s in selected_indices:
             atoms = frames[s]
-            # - add info
-            selection = atoms.info.get("selection","")
-            atoms.info["selection"] = selection+f"->{self.name}"
             # - gather info
             confid = atoms.info.get("confid", -1)
             natoms = len(atoms)
