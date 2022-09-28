@@ -365,20 +365,34 @@ class AbstractExpedition(ABC):
         """ some codes run explorations
         """
         is_selected = True
-        self.logger.info(f"--- Selection ---")
         # - select
-        selector = actions["selector"]
+        selector = actions["selector"] # NOTE: default is invariant
         if selector:
-            select_dpath = self._make_step_dir(res_dpath, "select")
+            # - find frames...
+            valid_keys = []
+            for k in data.keys():
+                if k.startswith("pot_frames_"):
+                    valid_keys.append(k)
+            if not valid_keys:
+                valid_keys.append("pot_frames")
+            
+            # - run selection
+            for k in valid_keys:
+                tag_name = k.split("_")[-1]
+                if tag_name == "frames":
+                    tag_name = "mixed"
 
-            selector.directory = select_dpath
-            selector.logger = self.logger
+                print(f"----- Selection {selector.name} for {tag_name} -----")
+                cur_dpath = res_dpath/"select"/tag_name
+                if not cur_dpath.exists():
+                    cur_dpath.mkdir()
+                selector.directory = cur_dpath
+                selector.logger = self.logger
 
-            # TODO: check whether select is finished...
-            frames = data["pot_frames"]
-            selected_frames = selector.select(frames)
-            data["selected_frames"] = selected_frames
-            write(select_dpath/"selected_frames.xyz", selected_frames)
+                frames = data[k]
+                selected_frames = selector.select(frames)
+                data["selected_frames_"+tag_name] = selected_frames
+                write(cur_dpath/"selected_frames.xyz", selected_frames)
         else:
             self.logger.info("No selector available...")
 
