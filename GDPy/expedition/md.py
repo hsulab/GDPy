@@ -131,7 +131,7 @@ class MDBasedExpedition(AbstractExpedition):
 
         return actions
     
-    def _single_create(self, res_dpath, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """"""
         generator = actions["generator"]
         self.logger.info(generator.__class__.__name__)
@@ -167,7 +167,7 @@ class MDBasedExpedition(AbstractExpedition):
 
         return is_finished
     
-    def _single_collect(self, res_dpath, actions, *args, **kwargs):
+    def _single_collect(self, res_dpath, actions, data, *args, **kwargs):
         """"""
         generator = actions["generator"]
         self.logger.info(generator.__class__.__name__)
@@ -207,10 +207,10 @@ class MDBasedExpedition(AbstractExpedition):
             merged_traj_frames.extend(traj_frames)
         self.logger.info(f"total nframes: {len(merged_traj_frames)}")
 
-        # - select
-        is_selected = self._single_select(res_dpath, merged_traj_frames, actions)
+        # - pass data
+        data["pot_frames"] = merged_traj_frames
 
-        return (is_collected and is_selected)
+        return is_collected
     
 
 if __name__ == "__main__":
