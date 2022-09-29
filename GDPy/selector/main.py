@@ -6,7 +6,7 @@ from pathlib import Path
 from ase.io import read, write
 
 from GDPy.utils.command import parse_input_file
-from GDPy.selector.abstract import DeviationSelector, Selector
+#from GDPy.selector.abstract import DeviationSelector, Selector
 
 def selection_main(protocols, stru_fpath, input_fpath, potential, n_jobs=1):
     """"""

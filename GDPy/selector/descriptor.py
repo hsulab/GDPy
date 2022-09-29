@@ -28,28 +28,12 @@ from GDPy.selector.cur import cur_selection
 
 class DescriptorBasedSelector(AbstractSelector):
 
-    name = "dscribe"
-    selection_criteria = "geometry"
+    """
+    Attributes:
+        name: selector name
+    """
 
-    """
-    {
-    "soap":
-        {
-            "species" : ["O", "Pt"],
-            "rcut" : 6.0,
-            "nmax" : 12,
-            "lmax" : 8,
-            "sigma" : 0.3,
-            "average" : "inner",
-            "periodic" : true
-        },
-    "selection":
-        {
-            "zeta": -1,
-            "strategy": "descent"
-        }
-    }
-    """
+    name = "dscribe"
 
     default_parameters = dict(
         random_seed = None,
