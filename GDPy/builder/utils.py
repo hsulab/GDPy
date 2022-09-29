@@ -13,10 +13,6 @@ from ase.io import read, write
 from ase.build import make_supercell
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 
-from .calculator.dp import DP
-
-from .md.nosehoover import NoseHoover
-
 
 def pertubate_stucture(cwd, atoms, amplitude, num=100): 
     # draw seed from numpy random generator
@@ -57,20 +53,25 @@ def per_main():
 def sort_atoms(atoms):
     # sort atoms by symbols and z-positions especially for supercells 
     numbers = atoms.numbers 
+    xposes = atoms.positions[:,0].tolist()
+    yposes = atoms.positions[:,1].tolist()
     zposes = atoms.positions[:,2].tolist()
-    sorted_indices = np.lexsort((zposes,numbers))
+    sorted_indices = np.lexsort((xposes,yposes,zposes,numbers))
     atoms = atoms[sorted_indices]
 
     return atoms
 
-init_stru = './opts/Pt3O4_opt.xyz'
-atoms = read(init_stru)
-atoms = make_supercell(atoms, 2.0*np.eye(3)) # (2x2x2) cell
-atoms = sort_atoms(atoms)
-print(atoms.cell)
+def other_utils():
+    #init_stru = './opts/Pt3O4_opt.xyz'
+    #atoms = read(init_stru)
+    #atoms = make_supercell(atoms, 2.0*np.eye(3)) # (2x2x2) cell
+    #atoms = sort_atoms(atoms)
+    #print(atoms.cell)
+    #write('Pt32.data', atoms, format='lammps-data')
+    
+    atoms = sort_atoms(read("/users/40247882/repository/GDPy/examples/task/mc/gcmd/substrate.xyz"))
+    write("/users/40247882/repository/GDPy/examples/task/mc/gcmd/substrate-sorted.xyz", atoms)
 
-write('Pt32.data', atoms, format='lammps-data')
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
