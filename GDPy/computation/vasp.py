@@ -8,6 +8,7 @@ import copy
 import json
 import argparse
 import subprocess 
+import warnings
 from typing import Union, List, NoReturn
 from collections import Counter
 
@@ -212,14 +213,19 @@ class VaspDriver(AbstractDriver):
         vasprun = self.directory / "vasprun.xml"
 
         # - read structures
-        traj_frames_ = read(vasprun, ":")
-        traj_frames = []
+        try:
+            traj_frames_ = read(vasprun, ":")
+            traj_frames = []
 
-        # - sort frames
-        sort, resort = read_sort(self.directory)
-        for sorted_atoms in traj_frames_:
-            input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
-            traj_frames.append(input_atoms)
+            # - sort frames
+            sort, resort = read_sort(self.directory)
+            for sorted_atoms in traj_frames_:
+                input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
+                traj_frames.append(input_atoms)
+        except:
+            atoms = Atoms()
+            atoms.info["error"] = str(self.directory)
+            traj_frames = [atoms]
 
         return traj_frames
 

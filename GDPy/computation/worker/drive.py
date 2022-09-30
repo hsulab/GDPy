@@ -185,22 +185,32 @@ class DriverBasedWorker(AbstractWorker):
                 if not read_traj:
                     new_atoms = driver.read_converged()
                     new_atoms.info["confid"] = confid
-                    results.append(new_atoms)
+                    # - check error
+                    error_info = new_atoms.get("error", None)
+                    if error_info:
+                        self.logger.info(f"Found failed calculation at {error_info}...")
+                    else:
+                        results.append(new_atoms)
                 else:
                     traj_frames = driver.read_trajectory(add_step_info=True)
                     for a in traj_frames:
                         a.info["confid"] = confid
-                    # NOTE: remove first or last frames since they are always the same?
-                    n_trajframes = len(traj_frames)
-                    first, last = 0, n_trajframes-1
-                    cur_indices = list(range(0,len(traj_frames),traj_period))
-                    if include_last:
-                        if last not in cur_indices:
-                            cur_indices.append(last)
-                    if not include_first:
-                        cur_indices = cur_indices[1:]
-                    traj_frames = [traj_frames[i] for i in cur_indices]
-                    results.extend(traj_frames)
+                    # - check error
+                    error_info = traj_frames[0].get("error", None)
+                    if error_info:
+                        self.logger.info(f"Found failed calculation at {error_info}...")
+                    else:
+                        # NOTE: remove first or last frames since they are always the same?
+                        n_trajframes = len(traj_frames)
+                        first, last = 0, n_trajframes-1
+                        cur_indices = list(range(0,len(traj_frames),traj_period))
+                        if include_last:
+                            if last not in cur_indices:
+                                cur_indices.append(last)
+                        if not include_first:
+                            cur_indices = cur_indices[1:]
+                        traj_frames = [traj_frames[i] for i in cur_indices]
+                        results.extend(traj_frames)
 
         if results:
             self.logger.info(
