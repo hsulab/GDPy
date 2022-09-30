@@ -186,7 +186,7 @@ class DriverBasedWorker(AbstractWorker):
                     new_atoms = driver.read_converged()
                     new_atoms.info["confid"] = confid
                     # - check error
-                    error_info = new_atoms.get("error", None)
+                    error_info = new_atoms.info.get("error", None)
                     if error_info:
                         self.logger.info(f"Found failed calculation at {error_info}...")
                     else:
@@ -196,7 +196,7 @@ class DriverBasedWorker(AbstractWorker):
                     for a in traj_frames:
                         a.info["confid"] = confid
                     # - check error
-                    error_info = traj_frames[0].get("error", None)
+                    error_info = traj_frames[0].info.get("error", None)
                     if error_info:
                         self.logger.info(f"Found failed calculation at {error_info}...")
                     else:
