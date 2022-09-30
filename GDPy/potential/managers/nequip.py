@@ -35,8 +35,6 @@ class NequipManager(AbstractPotentialManager):
         directory = calc_params.pop("directory", Path.cwd())
         atypes = calc_params.pop("type_list", [])
 
-        models = calc_params.get("file", None)
-
         type_map = {}
         for i, a in enumerate(atypes):
             type_map[a] = i
@@ -44,18 +42,26 @@ class NequipManager(AbstractPotentialManager):
         if self.calc_backend == "ase":
             # return ase calculator
             from nequip.ase import NequIPCalculator
-            calc = NequIPCalculator.from_deployed_model(
-                model_path=models
-            )
+            models = calc_params.get("file", None)
+            if models:
+                calc = NequIPCalculator.from_deployed_model(
+                    model_path=models
+                )
+            else:
+                calc = None
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
             pair_style = calc_params.get("pair_style", None)
-            if pair_style:
+            pair_coeff = calc_params.get("pair_coeff", None)
+            if pair_style and pair_coeff:
                 calc = Lammps(
                     command=command, directory=directory, **calc_params
                 )
                 # - update several params
-                calc.set(newton="off")
+                if pair_style == "nequip":
+                    calc.set(**dict(newton="off"))
+                elif pair_style == "allegro":
+                    calc.set(**dict(newton="on"))
             else:
                 calc = None
         
@@ -137,7 +143,7 @@ class NequipManager(AbstractPotentialManager):
             if self.calc_backend == "ase":
                 calc_params["file"] = m
             elif self.calc_backend == "lammps":
-                calc_params["pair_style"] = "nequip"
+                #calc_params["pair_style"] = "nequip"
                 calc_params["pair_coeff"] = "* * {}".format(m)
             saved_calc_params = copy.deepcopy(calc_params)
             # NOTE: self.calc will be the last one
