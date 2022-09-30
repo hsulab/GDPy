@@ -268,7 +268,7 @@ class AseDriver(AbstractDriver):
         
         return driver, run_params
 
-    def run(self, atoms_, *args, **kwargs):
+    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
         """ run the driver
             parameters of calculator will not change since
             it still performs single-point calculation
