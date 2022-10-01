@@ -10,6 +10,8 @@ import abc
 import copy
 from typing import Union, List, NoReturn
 
+import numpy as np
+
 from GDPy.scheduler.factory import create_scheduler
 
 
@@ -133,6 +135,12 @@ class AbstractPotentialManager(abc.ABC):
         self.train_size = train_params.get("size", 1)
         self.train_dataset = train_params.get("dataset", None)
 
+        # - for the train-valid split
+        self.train_split_ratio = train_params.get("split_ratio", 0.9)
+        # TODO: manager also needs a rng to handle random?
+        self.train_split_seed = train_params.get("split_seed", np.random.randint(0,10000))
+
+        # - for the task
         scheduelr_params = train_params.get("scheduler", {}) 
         self.train_scheduler = create_scheduler(scheduelr_params)
 
