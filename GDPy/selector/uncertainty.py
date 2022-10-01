@@ -99,6 +99,8 @@ class DeviationSelector(AbstractSelector):
                 committee = getattr(self.pot_worker.potter, "committee", None)
                 if committee:
                     self.pfunc("Estimate uncertainty by committee...")
+                    for i, c in enumerate(self.pot_worker.potter.committee):
+                        c.directory = self.directory/f"c{i}"
                     frames = self.pot_worker.potter.estimate_uncertainty(frames)
                     write(self.directory/"frames_devi.xyz", frames)
                     energy_deviations = [a.info[self.energy_tag] for a in frames] # TODO: max_devi_e is the max atomic en devi
