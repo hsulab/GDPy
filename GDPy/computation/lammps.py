@@ -328,7 +328,7 @@ class Lammps(FileIOCalculator):
         newton = None,
         pair_style = None,
         pair_coeff = None,
-        neighbor = None,
+        neighbor = "0.0 bin",
         neigh_modify = None,
         mass = "* 1.0",
         dump_period = 1,
@@ -537,7 +537,6 @@ class Lammps(FileIOCalculator):
             assert self.atom_style == "charge", "reax/c should have charge atom_style"
             content += "pair_style  {}\n".format(self.pair_style)
             content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
-            content += "neighbor        0.0 bin\n"
             content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
         elif potential == "eann":
             pot_data = self.pair_style.strip().split()[1:]
@@ -558,14 +557,17 @@ class Lammps(FileIOCalculator):
             else:
                 pair_coeff = self.pair_coeff
             content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
-            content += "neighbor        0.0 bin\n"
         elif potential == "deepmd":
-            content += "pair_style  {}\n".format(self.pair_style)
-            content += "neighbor        0.0 bin\n"
+            content += "pair_style  {} out_freq {}\n".format(self.pair_style, self.dump_period)
         else:
             content += "pair_style {}\n".format(self.pair_style)
             content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
-            content += "neighbor        0.0 bin\n"
+        content += "\n"
+
+        # - neighbor
+        content += "neighbor        {}\n".format(self.neighbor)
+        if self.neigh_modify:
+            content += "neigh_modify        {}\n".format(self.neigh_modify)
         content += "\n"
 
         # - constraint
