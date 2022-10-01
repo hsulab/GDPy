@@ -144,6 +144,8 @@ class DeepmdManager(AbstractPotentialManager):
         valid_set_dir = train_dir/"valid"
         if not valid_set_dir.exists():
             valid_set_dir.mkdir()
+        
+        cum_batchsizes = 0 # number of batchsizes for training
         for name, frames in groups.items():
             # --- NOTE: need convert forces to force
             frames_ = copy.deepcopy(frames) 
@@ -156,13 +158,18 @@ class DeepmdManager(AbstractPotentialManager):
                     pass
                 finally:
                     atoms.calc = None
-            # --- split train and valid
+            # --- get train and valid numbers
             nframes = len(frames_)
             n_train = int(nframes*self.train_split_ratio)
-            n_valid = int(nframes - n_train)
-            if n_valid == 0:
-                n_train = nframes - 1 # min_valid == 1
-                n_valid = 1
+            n_train_batchsize = int(np.floor(n_train/self.train_batchsize["train"]))
+            n_valid = int(nframes - n_train_batchsize*self.train_batchsize["train"])
+            if n_valid <= 0:
+                n_train_batchsize -= 1
+                n_train = n_train_batchsize * self.train_batchsize["train"]
+                n_valid = int(nframes - n_train)
+            cum_batchsizes += n_train_batchsize
+            
+            # --- split train and valid
             train_indices = np.random.choice(nframes, n_train, replace=False).tolist()
             valid_indices = [x for x in range(nframes) if x not in train_indices]
             train_frames = [frames_[x] for x in train_indices]
@@ -208,11 +215,30 @@ class DeepmdManager(AbstractPotentialManager):
 
         train_config["training"]["seed"] = np.random.randint(0,10000)
 
+        # --- calc numb_steps
+        save_freq = train_config["training"]["save_freq"]
+        n_checkpoints = int(np.ceil(cum_batchsizes*self.train_epochs/save_freq))
+        numb_steps = n_checkpoints*save_freq
+
+        train_config["training"]["numb_steps"] = numb_steps
+
         # - write
         with open(train_dir/"config.json", "w") as fopen:
             json.dump(train_config, fopen, indent=2)
 
         return
+    
+    def get_batchsize(self, train_config: dict) -> dict:
+        """"""
+        train_batchsize = train_config["training"]["training_data"]["batch_size"]
+        valid_batchsize = train_config["training"]["validation_data"]["batch_size"]
+
+        batchsize = dict(
+            train = train_batchsize,
+            valid = valid_batchsize
+        )
+
+        return batchsize
 
     def freeze(self, train_dir=Path.cwd()):
         """ freeze model and return a new calculator
