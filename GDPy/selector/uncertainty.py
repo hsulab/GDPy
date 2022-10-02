@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 from typing import Union, List
 
 import numpy as np
@@ -18,13 +19,17 @@ class DeviationSelector(AbstractSelector):
     name = "devi"
 
     default_parameters = dict(
-        properties = dict(
-            atomic_energy = "max_devi_e",
-            force = "max_devi_f"
-        ),
+        #properties = dict(
+        #    atomic_energy = "max_devi_e",
+        #    force = "max_devi_f"
+        #),
+        #criteria = dict(
+        #    atomic_energy = [0.01, 0.25],
+        #    force = [0.05, 0.25]
+        #)
         criteria = dict(
-            atomic_energy = [0.01, 0.25],
-            force = [0.05, 0.25]
+            max_devi_e = [0.01, 0.25], # atomic_energy
+            max_devi_f = [0.05, 0.50], # force
         )
     )
 
@@ -36,84 +41,64 @@ class DeviationSelector(AbstractSelector):
     ):
         super().__init__(directory, *args, **kwargs)
 
-        self.__parse_criteria()
+        self._parse_criteria()
 
         self.directory = directory
 
         self.pot_worker = pot_worker
 
-        # TODO: select on properties not only on fixed name (energy, forces)
-        # if not set properly, will try to call calculator
-        self.energy_tag = self.properties["atomic_energy"]
-        self.force_tag = self.properties["force"]
-
         return
     
-    def __parse_criteria(self):
+    def _parse_criteria(self):
         """"""
-        use_ae, use_force = True, True
-
-        emin, emax = self.criteria["atomic_energy"]
-        fmin, fmax = self.criteria["force"]
-
-        if emin is None and emax is None:
-            use_ae = False
-        if emin is None:
-            self.criteria["atomic_energy"][0] = -np.inf
-        if emax is None:
-            self.criteria["atomic_energy"][1] = np.inf
-
-        if fmin is None and fmax is None:
-            use_force = False
-        if fmin is None:
-            self.criteria["force"][0] = -np.inf
-        if fmax is None:
-            self.criteria["force"][1] = np.inf
-
-        emin, emax = self.criteria["atomic_energy"]
-        fmin, fmax = self.criteria["force"]
-
-        if (emin > emax):
-            raise RuntimeError("emax should be larger than emin...")
-        if (fmin > fmax):
-            raise RuntimeError("fmax should be larger than fmin...")
+        criteria = dict()
+        criteria_ = copy.deepcopy(self.criteria)
+        for prop_name, bounds in criteria_.items():
+            bounds_ = copy.deepcopy(bounds)
+            if bounds_[0] is None:
+                bounds_[0] = -np.inf
+            if bounds_[1] is None:
+                bounds_[1] = np.inf
+            assert bounds_[0] < bounds_[1], f"{prop_name} has invalid bounds..."
+            criteria[prop_name] = bounds_
         
-        if not (use_ae or use_force):
-            raise RuntimeError("neither energy nor force criteria is set...")
-        
-        self.use_ae = use_ae
-        self.use_force = use_force
+        self.set(criteria=criteria)
 
         return
     
     def _select_indices(self, frames, *args, **kwargs) -> List[int]:
         """
         """
-        try:
-            self.pfunc("Read uncertainty from frames' info...")
-            energy_deviations = [a.info[self.energy_tag] for a in frames] # TODO: max_devi_e is the max atomic en devi
-            force_deviations = [a.info[self.force_tag] for a in frames] # TODO: may not exist
-            selected_indices = self._sift_deviations(energy_deviations, force_deviations)
-        except KeyError:
-            if self.pot_worker:
-                committee = getattr(self.pot_worker.potter, "committee", None)
-                if committee:
-                    self.pfunc("Estimate uncertainty by committee...")
-                    for i, c in enumerate(self.pot_worker.potter.committee):
-                        c.directory = self.directory/f"c{i}"
-                    frames = self.pot_worker.potter.estimate_uncertainty(frames)
-                    write(self.directory/"frames_devi.xyz", frames)
-                    energy_deviations = [a.info[self.energy_tag] for a in frames] # TODO: max_devi_e is the max atomic en devi
-                    force_deviations = [a.info[self.force_tag] for a in frames] # TODO: may not exist
-                    selected_indices = self._sift_deviations(energy_deviations, force_deviations)
+        nframes = len(frames)
+
+        deviations = {}
+        for prop_name in self.criteria.keys():
+            try:
+                devi = [a.info[prop_name] for a in frames]
+            except KeyError:
+                # try to use committee
+                if self.pot_worker:
+                    committee = getattr(self.pot_worker.potter, "committee", None)
+                    if committee:
+                        self.pfunc("Estimate uncertainty by committee...")
+                        # TODO: check if such committee supports prop_name
+                        for i, c in enumerate(self.pot_worker.potter.committee):
+                            c.directory = self.directory/f"c{i}"
+                        frames = self.pot_worker.potter.estimate_uncertainty(frames)
+                        write(self.directory/"frames_devi.xyz", frames)
+                        try:
+                            devi = [a.info[prop_name] for a in frames]
+                        except:
+                            self.pfunc(f"Cant evaluate deviation of {prop_name}...")
+                            devi = [np.NaN]*len(frames)
+                    else:
+                        devi = [np.NaN]*len(frames)
                 else:
-                    self.pfunc("Could not estimate uncertainty...")
-                    energy_deviations, force_deviations = [np.NaN]*len(frames), [np.NaN]*len(frames)
-                    selected_indices = list(range(len(frames)))
-            else:
-                self.pfunc("Could not find deviations of target properties...")
-                energy_deviations, force_deviations = [np.NaN]*len(frames), [np.NaN]*len(frames)
-                selected_indices = list(range(len(frames)))
+                    devi = [np.NaN]*len(frames)
+            finally:
+                deviations[prop_name] = devi
+        
+        selected_indices = self._sift_deviations(deviations, nframes)
         
         # - output
         data = []
@@ -122,42 +107,36 @@ class DeviationSelector(AbstractSelector):
             # - gather info
             confid = atoms.info.get("confid", -1)
             natoms = len(atoms)
-            ae = atoms.get_potential_energy() / natoms
+            en = atoms.get_potential_energy()
+            ae = en / natoms
             maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
-            devi_e, devi_f = energy_deviations[i], force_deviations[i]
-            data.append([s, confid, natoms, ae, maxforce, devi_e, devi_f])
+            cur_data = [s, confid, natoms, en, ae, maxforce]
+            devis = [atoms.info[prop_name] for prop_name in self.criteria.keys()]
+            cur_data.extend(devis)
+            data.append(cur_data)
         if data:
+            ncols = len(data[0])
+            col_names = [s+" " for s in self.criteria.keys()]
             np.savetxt(
                 self.info_fpath, data, 
-                fmt="%8d  %8d  %8d  %12.4f  %12.4f  %12.4f  %12.4f",
-                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
-                    *"index confid natoms AtomicEnergy MaxForce DeviAE DeviF".split()
+                fmt="%8d  %8d  %8d  "+"%12.4f  "*(ncols-3),
+                header=("{:>6s}  {:>8s}  {:>8s}  "+"{:>12s}  "*(ncols-3)).format(
+                    *("index confid natoms TotalEnergy AtomicEnergy MaxForce ".split()), *col_names
                 ),
                 #footer=f"random_seed {self.random_seed}"
             )
 
         return selected_indices
     
-    def _sift_deviations(self, energy_deviations, force_deviations):
+    def _sift_deviations(self, deviations: dict, nframes: int):
         """"""
-        if force_deviations is not None:
-            assert len(energy_deviations) == len(force_deviations), "shapes of energy and force deviations are inconsistent"
-        else:
-            force_deviations = np.empty(len(energy_deviations))
-            force_deviations[:] = np.NaN
-
-        emin, emax = self.criteria["atomic_energy"]
-        fmin, fmax = self.criteria["force"]
-        
         # NOTE: deterministic selection
         selected_indices = []
-        for idx, (en_devi, force_devi) in enumerate(zip(energy_deviations, force_deviations)):
-            if self.use_ae:
-                if emin < en_devi < emax:
-                    selected_indices.append(idx)
-                    continue
-            if self.use_force:
-                if fmin < force_devi < fmax:
+        for idx in range(nframes):
+            for prop_name, devi in deviations.items():
+                cur_devi = devi[idx]
+                pmin, pmax = self.criteria[prop_name]
+                if pmin < cur_devi < pmax:
                     selected_indices.append(idx)
                     continue
 
