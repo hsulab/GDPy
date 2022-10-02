@@ -8,8 +8,11 @@ import numpy as np
 
 from tinydb import Query
 
+from joblib import Parallel, delayed
+
 from ase.io import read, write
 
+from GDPy import config
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
 from GDPy.computation.worker.worker import AbstractWorker
@@ -38,6 +41,8 @@ class DriverBasedWorker(AbstractWorker):
         self.scheduler = scheduler_
         if directory_:
             self.directory = directory_
+        
+        self.n_jobs = config.NJOBS
 
         return
     
@@ -179,43 +184,55 @@ class DriverBasedWorker(AbstractWorker):
         
         driver = self.driver
         with CustomTimer(name="read-results", func=self.logger.info):
-            for wdir in unretrived_wdirs:
-                driver.directory = wdir
-                confid = int(wdir.name.strip("cand"))
-                if not read_traj:
-                    new_atoms = driver.read_converged()
-                    new_atoms.info["confid"] = confid
-                    # - check error
-                    error_info = new_atoms.info.get("error", None)
-                    if error_info:
-                        self.logger.info(f"Found failed calculation at {error_info}...")
-                    else:
-                        results.append(new_atoms)
+            # NOTE: works for vasp, ...
+            results_ = Parallel(n_jobs=self.n_jobs)(
+                delayed(self._iread_results)(driver, wdir, read_traj, traj_period, include_first, include_last) 
+                for wdir in unretrived_wdirs
+            )
+
+            for frames in results_:
+                # - sift error structures
+                error_info = frames[0].info.get("error", None)
+                if error_info:
+                    self.logger.info(f"Found failed calculation at {error_info}...")
                 else:
-                    traj_frames = driver.read_trajectory(add_step_info=True)
-                    for a in traj_frames:
-                        a.info["confid"] = confid
-                    # - check error
-                    error_info = traj_frames[0].info.get("error", None)
-                    if error_info:
-                        self.logger.info(f"Found failed calculation at {error_info}...")
-                    else:
-                        # NOTE: remove first or last frames since they are always the same?
-                        n_trajframes = len(traj_frames)
-                        first, last = 0, n_trajframes-1
-                        cur_indices = list(range(0,len(traj_frames),traj_period))
-                        if include_last:
-                            if last not in cur_indices:
-                                cur_indices.append(last)
-                        if not include_first:
-                            cur_indices = cur_indices[1:]
-                        traj_frames = [traj_frames[i] for i in cur_indices]
-                        results.extend(traj_frames)
+                    results.extend(frames)
 
         if results:
             self.logger.info(
                 f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
             )
+
+        return results
+    
+    @staticmethod
+    def _iread_results(
+        driver, wdir, 
+        read_traj=False, traj_period=1, 
+        include_first=True, include_last=True
+    ):
+        """"""
+        driver.directory = wdir
+        confid = int(wdir.name.strip("cand"))
+        if not read_traj:
+            new_atoms = driver.read_converged()
+            new_atoms.info["confid"] = confid
+            results = [new_atoms]
+        else:
+            traj_frames = driver.read_trajectory(add_step_info=True)
+            for a in traj_frames:
+                a.info["confid"] = confid
+            # NOTE: remove first or last frames since they are always the same?
+            n_trajframes = len(traj_frames)
+            first, last = 0, n_trajframes-1
+            cur_indices = list(range(0,len(traj_frames),traj_period))
+            if include_last:
+                if last not in cur_indices:
+                    cur_indices.append(last)
+            if not include_first:
+                cur_indices = cur_indices[1:]
+            traj_frames = [traj_frames[i] for i in cur_indices]
+            results = traj_frames
 
         return results
 
