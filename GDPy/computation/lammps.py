@@ -474,7 +474,8 @@ class Lammps(FileIOCalculator):
 
         for pot_eng, atoms in zip(pot_energies, traj_frames):
             forces = atoms.get_forces()
-            forces = unitconvert.convert(forces, "force", self.units, "ASE")
+            # NOTE: forces have already been converted in ase read, so velocities are
+            #forces = unitconvert.convert(forces, "force", self.units, "ASE")
             sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
             atoms.calc = sp_calc
         
