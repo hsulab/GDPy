@@ -42,5 +42,33 @@ def create_selector(input_list: list, directory=pathlib.Path.cwd(), pot_worker=N
 
     return selector
 
+def run_selection(param_file, structure, directory=pathlib.Path.cwd(), potter=None):
+    """"""
+    directory = pathlib.Path(directory)
+    if not directory.exists():
+        directory.mkdir(parents=True, exist_ok=False)
+
+    from GDPy.utils.command import parse_input_file
+    params = parse_input_file(param_file)
+
+    selector = create_selector(
+        params["selection"], directory=directory, pot_worker=potter
+    )
+
+   # - read structures
+    from GDPy.builder import create_generator
+    generator = create_generator(structure)
+    frames = generator.run()
+    nframes = len(frames)
+    print("nframes: ", nframes)
+
+    # -
+    selected_frames = selector.select(frames)
+
+    from ase.io import read, write
+    write(directory/"selected_frames.xyz", selected_frames)
+
+    return
+
 if __name__ == "__main__":
     pass

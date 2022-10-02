@@ -197,17 +197,12 @@ def main():
         "CONFIG", help="selection configuration file"
     )
     parser_select.add_argument(
-        "-f", "--structure_file", required=True, 
-        nargs="*", action="extend",
-        help="structure filepath (in xyz format)"
+        "-s", "--structure", required=True, 
+        help="structure generator"
     )
     parser_select.add_argument(
-        "-m", "--mode", required=True, nargs="*",
-        help="selection mode"
-    )
-    parser_select.add_argument(
-        '-n', '--number', default=100, type=int,
-        help='number of structures selected'
+        "-d", "--directory", default=Path.cwd(),
+        help="working directory"
     )
 
     # graph utils
@@ -306,6 +301,9 @@ def main():
             pm.freeze_ensemble()
         elif args.mode == "create":
             pm.create_ensemble()
+    elif args.subcommand == "select":
+        from GDPy.selector import run_selection
+        run_selection(args.CONFIG, args.structure, args.directory, potter)
     elif args.subcommand == "explore":
         from GDPy.expedition import run_expedition
         run_expedition(potter, referee, args.EXPEDITION)
@@ -330,9 +328,6 @@ def main():
     elif args.subcommand == "valid":
         from .validator.validation import run_validation
         run_validation(args.INPUTS, potter)
-    elif args.subcommand == "select":
-        from GDPy.selector.main import selection_main
-        selection_main(args.mode, args.structure_file, args.CONFIG, pot_config, args.n_jobs)
     elif args.subcommand == "graph":
         from GDPy.graph.graph_main import graph_main
         graph_main(args.n_jobs, args.CONFIG, args.structure_file, args.indices, args.mode)
