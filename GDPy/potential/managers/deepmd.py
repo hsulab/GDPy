@@ -84,11 +84,16 @@ class DeepmdManager(AbstractPotentialManager):
             #content += "pair_style      deepmd %s out_freq ${THERMO_FREQ} out_file model_devi.out\n" \
             #    %(' '.join([m for m in self.models]))
 
-            pair_style = calc_params.get("pair_style", None)
+            pair_style = calc_params.pop("pair_style", None)
+            pair_coeff = calc_params.pop("pair_coeff", "* *")
             if pair_style:
                 pair_style_name = pair_style.split()[0]
                 assert pair_style_name == "deepmd", "Incorrect pair_style for deepmd..."
-                calc = Lammps(command=command, directory=directory, **calc_params)
+                calc = Lammps(
+                    command=command, directory=directory, 
+                    pair_style=pair_style, pair_coeff=pair_coeff,
+                    **calc_params
+                )
                 # - update several params
                 calc.units = "metal"
                 calc.atom_style = "atomic"

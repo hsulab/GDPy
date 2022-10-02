@@ -559,6 +559,7 @@ class Lammps(FileIOCalculator):
             content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
         elif potential == "deepmd":
             content += "pair_style  {} out_freq {}\n".format(self.pair_style, self.dump_period)
+            content += "pair_coeff  {}\n".format(self.pair_coeff)
         else:
             content += "pair_style {}\n".format(self.pair_style)
             content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
