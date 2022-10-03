@@ -1,39 +1,61 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from importlib.resources import path
-import re
-import subprocess
-import json
+import copy
 import pathlib
+import subprocess
+from typing import NoReturn, Union, List
 
-from collections import OrderedDict
+from abc import ABC, abstractmethod
 
-from abc import ABC
-from abc import abstractmethod
-from typing import NoReturn
-
-from GDPy.utils.command import parse_input_file
 
 class AbstractScheduler(ABC):
 
-    PREFIX = None
-    SUFFIX = None
-    SHELL = None
-    SUBMIT_COMMAND = None
+    """The abstract scheduler that implements common functions.
 
-    default_parameters = {}
-    parameters = {}
+    A scheduler deals with the lifecycle of a job in the queue.
 
-    _script = None
+    Attributes:
+        name: The name of the scheduler.
+        PREFIX: A string starts at each option line.
+        SUFFIX: The suffix of a job script.
+        SHELL: The first line of a script.
+        SUBMIT_COMMAND: The command used to submit jobs.
+        ENQUIRE_COMMAND: The command used to check job status.
+        default_parameters: Default parameters.
+        parameters: Current stored parameters.
+        _script: The path of the job script.
+        environs: Environment settings for a job.
+        user_commands: Custom commands for a job.
+        running_status: The tags that a job may have in the queue.
+    """
 
-    environs = None
-    user_commands = None
+    name: str = "abstract"
 
-    status = []
+    PREFIX: str = None
+    SUFFIX: str = None
+    SHELL: str = None
+    SUBMIT_COMMAND: str = None
+    ENQUIRE_COMMAND: str = None
+
+    default_parameters: dict = {}
+    parameters: dict = {}
+
+    _script: Union[str,pathlib.Path] = None
+
+    environs: str = None
+    user_commands: str = None
+
+    running_status: List[str] = []
 
     def __init__(self, *args, **kwargs):
-        """"""
+        """ Init an abstract scheduler.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        """
         # - update params
         self.environs = kwargs.pop("environs", "")
         self.user_commands = kwargs.pop("user_commands", "")
@@ -48,7 +70,8 @@ class AbstractScheduler(ABC):
         return
 
     @property
-    def script(self):
+    def script(self) -> Union[str,pathlib.Path]:
+        """Store the path of the job script."""
 
         return self._script
     
@@ -58,10 +81,15 @@ class AbstractScheduler(ABC):
         return 
 
     def _get_default_parameters(self):
-        return self.default_parameters.copy()
+        return copy.deepcopy(self.default_parameters)
 
-    def set(self, **kwargs) -> dict:
-        """"""
+    def set(self, **kwargs) -> NoReturn:
+        """Set parameters.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        """
         #changed_parameters = {}
         for key, value in kwargs.items():
             oldvalue = self.parameters.get(key)
@@ -72,22 +100,15 @@ class AbstractScheduler(ABC):
 
         return
 
-    def write_script(self):
-        pass
-
-    def register_mode(self, *args):
-        return
-
-    def write(self):
-        """"""
+    def write(self) -> NoReturn:
+        """Write self to the path of the job script."""
         with open(self.script, "w") as fopen:
             fopen.write(str(self))
 
         return
 
     def submit(self) -> str:
-        """submit job using specific machine command"""
-        # submit job
+        """Submit job using specific scheduler command and return job id."""
         command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
         proc = subprocess.Popen(
             command, shell=True, cwd=self.script.parent,
@@ -102,204 +123,17 @@ class AbstractScheduler(ABC):
         job_id = output.strip().split()[-1]
 
         return job_id
-
-class LocalScheduler(AbstractScheduler):
-
-    name = "local"
-
-    def submit(self):
-
-        return
     
+    @abstractmethod
     def is_finished(self) -> bool:
+        """Check whether the job is finished.
 
-        return True
+        The job is the one performed in the current job script path.
 
-
-class SlurmScheduler(AbstractScheduler):
-
-    """
-    machine parameters
-    module and environment
-    executables
-    """
-
-    name = "slurm"
-
-    PREFIX = "#SBATCH"
-    SUFFIX = ".slurm"
-    SHELL = "#!/bin/bash -l"
-
-    SUBMIT_COMMAND = "sbatch"
-    ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.60j %.4t %.12M %.12L %.5D %.4C\""
-
-    # full name starts with --
-    full_keywords = [ 
-        "job-name",
-        "partition",
-        "time",
-        "nodes",
-        "ntasks",
-        "cpus-per-task",
-        "mem-per-cpu",
-        "gres",
-        "output",
-        "error"
-    ]
-
-    # compability for different machine
-    # not all keywords are necessary
-    default_parameters = {
-        "job-name": "slurmJob",
-        "account": None,
-        "partition": None,
-        "time": None,
-        # - CPU
-        "nodes": None,
-        "ntasks": None,
-        "tasks-per-node": None,
-        "cpus-per-task": None,
-        "mem-per-cpu": None, #"4G"
-        #"output": "slurm.o%j",
-        #"error": "slurm.e%j"
-        # - GPU
-        "gres": None,
-        "mem-per-gpu": None # "32G"
-    }
-
-    status = ["R", "Q", "PD", "CG"]
-    running_status = ["R", "Q", "PD"]
-
-    def __str__(self):
-        """job script"""
-        # - slurm params
-        content = self.SHELL + "\n"
-        for key, value in self.parameters.items():
-            if value:
-                content += "{} --{}={}\n".format(self.PREFIX, key, value)
-            #else:
-            #    raise ValueError("Keyword *%s* not properly set." %key)
-        
-        if self.environs:
-            content += "\n\n"
-            content += self.environs
-        
-        if self.user_commands:
-            content += "\n\n"
-            content += self.user_commands
-
-        return content
-
-    def update(self, input_params):
-        """update machine parameters"""
-        machine_dict = parse_input_file(input_params) # dict, json, yaml
-
-        if isinstance(machine_dict, dict):
-            # TODO: set kwargs instead of overwrite
-            # self.machine_dict = machine_dict
-            self.machine_dict.update(**machine_dict)
-        elif input_params.suffix == self.SUFFIX:
-            self._read(input_params)
-
-        return
-
-    def _read(self, slurm_file):
-        """ read slurm file and update machine params
-            for now, only support keywords start from --
         """
-        # read file
-        with open(slurm_file, "r") as fopen:
-            lines = fopen.readlines()
-        
-        # find keywords
-        sbatch_lines, command_lines = [], []
-        for line in lines[1:]: # the first line should #!
-            if line.strip():
-                if re.match(self.PREFIX, line):
-                    sbatch_lines.append(line)
-                else:
-                    command_lines.append(line)
-        
-        # update params with sbatch lines
-        for line in sbatch_lines:
-            sbatch_data = line.strip().split()[1] # pattern: #SBATCH --option=value 
-            key, value = sbatch_data.strip().split("=")
-            if key.startswith("--"):
-                key = key.strip("--")
-                self.machine_dict[key] = value
-            elif key.startswith("-"):
-                raise NotImplementedError("Not support abbrev keyword %s" %key)
-            else:
-                raise ValueError("Wrong format keyword %s" %key)
-        
-        # TODO: module lines
-        # TODO: environs start with export
-        # TODO: python lines start with conda
-        
-        # update user commands
-        self.user_commands = "".join(command_lines)
 
         return
 
-    def is_finished(self) -> bool:
-        """"""
-        # - run enquire
-        p = subprocess.Popen(
-            [self.ENQUIRE_COMMAND],
-            shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            close_fds=True, universal_newlines=True
-        )
-        fout = p.stdout
-        lines = fout.readlines()
-
-        # - run over results
-        finished = False
-        for line in lines[1:]: # skipe first info line
-            data = line.strip().split()
-            jobid, name, status = data[0], data[2], data[3]
-            #if name.startswith(self.prefix) and status in self.running_status:
-            #    indices = re.match(self.prefix+"*", name).span()
-            #    if indices is not None:
-            #        confid = int(name[indices[1]:])
-            #    confids.append(int(confid))
-            if name == self.parameters["job-name"]:
-                finished = False
-                break
-        else:
-            finished = True
-
-        return finished
-
-
-class PbsScheduler(AbstractScheduler):
-
-    name = "pbs"
-
-    PREFIX = "#$"
-    SUFFIX = ".slurm"
-    SHELL = "#!/bin/bash -l"
-
-    def __init__(self, *args, **kwargs):
-
-        return
-
-    def parse_params(self):
-
-        return
-
-    def __str__(self):
-        content = "#!/bin/bash -l\n"
-        content += "#$ -N %s\n" %Path(directory).name
-        content += "#$ -l h_rt=24:00:00\n"
-        content += "#$ -l mem=1G\n"
-        content += "#$ -pe mpi %s\n"  %ncpus
-        content += "#$ -cwd \n"
-        content += "#$ -P Gold\n"
-        content += "#$ -A QUB_chem\n"
-        content += "\n"
-        content += "gerun /home/mmm0586/apps/vasp/installed/5.4.1-TS/vasp_std 2>&1 > vasp.out\n"
-
-        return content
 
 if __name__ == "__main__":
     pass
