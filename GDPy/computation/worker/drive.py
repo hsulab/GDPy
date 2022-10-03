@@ -88,20 +88,25 @@ class DriverBasedWorker(AbstractWorker):
             # - prepare structures and dirnames
             global_indices = range(s,e)
             cur_frames = frames[s:e]
-            confids = []
+            confids = [] # [(confid,dynstep), ..., ()]
             for x in cur_frames:
                 confid = x.info.get("confid", None)
                 if confid:
-                    confids.append(confid)
+                    dynstep = x.info.get("step", "")
+                    if dynstep:
+                        dynstep = f"_step{dynstep}"
+                    confids.append((confid,dynstep))
                 else:
                     confids = []
                     break
             if confids:
-                wdirs = [f"cand{ia}" for ia in confids]
+                wdirs = ["cand{}{}".format(*ia) for ia in confids]
                 self.logger.info(f"Use attached confids...")
             else:
                 wdirs = [f"cand{ia}" for ia in global_indices]
                 self.logger.info(f"Use ordered confids...")
+            # - check whether each structure has a unique wdir
+            assert len(set(confids)) == len(cur_frames), f"Found duplicated wdirs {len(set(confids))} vs. {len(cur_frames)}..."
 
             # - prepare scheduler
             # TODO: set group name randomly?
