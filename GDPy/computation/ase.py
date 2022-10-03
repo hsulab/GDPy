@@ -301,10 +301,15 @@ class AseDriver(AbstractDriver):
         """
         traj_frames = read(self.directory/"traj.xyz", index=":")
 
-        if add_step_info and self.task == "md":
-            data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
-            timesteps = data[:, 0] # ps
-            steps = timesteps*1000/self.init_params["timestep"]
+        if add_step_info:
+            if self.task == "md":
+                data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
+                timesteps = data[:, 0] # ps
+                steps = timesteps*1000/self.init_params["timestep"]
+            elif self.task == "min":
+                data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+                steps = [int(s) for s in data[:, 1]]
+            assert len(steps) == len(traj_frames), "Number of steps and number of frames are inconsistent..."
             for step, atoms in zip(steps, traj_frames):
                 atoms.info["step"] = int(step)
 
