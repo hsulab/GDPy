@@ -10,9 +10,6 @@ class LocalScheduler(AbstractScheduler):
 
     """Local scheduler.
 
-    Attributes:
-        name: scheduler name
-
     """
 
     name: str = "local"

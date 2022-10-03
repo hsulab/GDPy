@@ -16,36 +16,42 @@ class AbstractScheduler(ABC):
     A scheduler deals with the lifecycle of a job in the queue.
 
     Attributes:
-        name: The name of the scheduler.
-        PREFIX: A string starts at each option line.
-        SUFFIX: The suffix of a job script.
-        SHELL: The first line of a script.
-        SUBMIT_COMMAND: The command used to submit jobs.
-        ENQUIRE_COMMAND: The command used to check job status.
-        default_parameters: Default parameters.
-        parameters: Current stored parameters.
-        _script: The path of the job script.
-        environs: Environment settings for a job.
-        user_commands: Custom commands for a job.
-        running_status: The tags that a job may have in the queue.
     """
 
+    #: The name of the scheduler.
     name: str = "abstract"
 
+    #: A string starts at each option line.
     PREFIX: str = None
+
+    #: The suffix of a job script.
     SUFFIX: str = None
+
+    #: The first line of a script.
     SHELL: str = None
+
+    #: The command used to submit jobs.
     SUBMIT_COMMAND: str = None
+
+    #: The command used to check job status.
     ENQUIRE_COMMAND: str = None
 
+    #: Default parameters.
     default_parameters: dict = {}
+
+    #: Current stored parameters.
     parameters: dict = {}
 
+    #: _script: The path of the job script.
     _script: Union[str,pathlib.Path] = None
 
+    #: Environment settings for a job.
     environs: str = None
+
+    #: Custom commands for a job.
     user_commands: str = None
 
+    #: The tags that a job may have in the queue.
     running_status: List[str] = []
 
     def __init__(self, *args, **kwargs):
