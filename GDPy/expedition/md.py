@@ -193,6 +193,8 @@ class MDBasedExpedition(AbstractExpedition):
                 read_traj=True, traj_period=traj_period, include_first=False
             )
             if new_frames:
+                for atoms in new_frames:
+                    atoms.info["worker"] = f"w{iw}"
                 write(traj_fpath, new_frames, append=True)
             if len(worker._get_unretrieved_jobs()) > 0:
                 is_collected = False
