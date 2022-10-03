@@ -25,17 +25,20 @@ from GDPy.utils.command import CustomTimer
 
 
 class EvolutionaryExpedition(AbstractExpedition):
-    # NOTE: population-based exploration
 
-    """
-    Quasi-Random Structure Search
-        ASE-GA, USPEX, AIRSS
-    Algorithms
-        Monte Carlo
-        Basin Hopping, Simulated Annealing, Minima Hopping
-        Evolutionary/Genetic Algorithm
-    Steps
-        create -> collect -> select -> calc -> harvest
+    """Quasi-Random Structure Search.
+
+    Current method is the genetic algorithm implemented in ASE. The general workflow
+    is (create -> collect -> select -> calc -> harvest). Other methods may utilise
+    this workflow as well, nanmely, Monte Carlo, Basin Hopping, Simulated Annealing, 
+    and Minima Hopping.
+
+    NOTE: 
+        This is only for the population-based exploration now.
+
+    TODO:
+        * support USPEX and AIRSS
+
     """
 
     # select params
@@ -155,9 +158,7 @@ class EvolutionaryExpedition(AbstractExpedition):
         write(self.step_dpath/"converged_frames.xyz", converged_frames)
 
         # - create collect dir
-        driver = actions["worker"].driver
-
-        tmp_folder = res_dpath / "create" / self.creation_params["opt_dname"] 
+        tmp_folder = create_path / self.creation_params["opt_dname"] 
 
         traj_dirs = []
         for i, atoms in enumerate(converged_frames):
@@ -167,17 +168,22 @@ class EvolutionaryExpedition(AbstractExpedition):
             traj_dirs.append(traj_dir)
         
         # - act, retrieve trajectory frames
-        merged_traj_frames = []
+        worker = actions["worker"]
+        worker.logger = self.logger
 
-        traj_fpath = self.step_dpath / f"traj_frames.xyz"
-        traj_ind_fpath = self.step_dpath / f"traj_indices.npy"
-        with CustomTimer(name=f"collect-trajectories"):
-            cur_traj_frames = read_trajectories(
-                driver, traj_dirs, 
-                traj_period, traj_fpath, traj_ind_fpath,
-                include_first=False, include_last=True
+        traj_fpath = self.step_dpath / "traj_frames.xyz"
+
+        if not traj_fpath.exists():
+            self.logger.info("Used worker to read trajs...")
+            assert worker.batchsize == 1, "Worker must have a batchsize of one."
+            merged_traj_frames = worker._read_results(
+                traj_dirs, read_traj=True, 
+                traj_period=traj_period, include_first=False, include_last=True
             )
-        merged_traj_frames.extend(cur_traj_frames)
+            write(traj_fpath, merged_traj_frames)
+        else:
+            self.logger.info("Used cached traj_frames...")
+            merged_traj_frames = read(traj_fpath, ":")
 
         # - pass data
         data["pot_frames"] = merged_traj_frames
