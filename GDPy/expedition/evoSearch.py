@@ -14,7 +14,7 @@ from ase.io import read, write
 
 from GDPy.expedition.abstract import AbstractExpedition
 
-from GDPy.scheduler.factory import create_scheduler
+from GDPy.scheduler import create_scheduler
 from GDPy.selector.traj import BoltzmannMinimaSelection
 
 from GDPy.computation.utils import read_trajectories
