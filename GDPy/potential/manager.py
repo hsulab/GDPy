@@ -12,7 +12,7 @@ from typing import Union, List, NoReturn
 
 import numpy as np
 
-from GDPy.scheduler.factory import create_scheduler
+from GDPy.scheduler import create_scheduler
 
 
 class AbstractPotentialManager(abc.ABC):

@@ -7,7 +7,6 @@ from pathlib import Path
 import yaml
 
 from GDPy.potential.manager import AbstractPotentialManager
-from GDPy.scheduler.factory import create_scheduler
 
 
 class EannManager(AbstractPotentialManager):
@@ -98,20 +97,7 @@ class EannManager(AbstractPotentialManager):
     
     def register_trainer(self, train_params_: dict):
         """"""
-        train_params = copy.deepcopy(train_params_)
-        self.train_config = train_params.get("config", None)
-
-        self.train_size = train_params.get("size", 1)
-        self.train_dataset = train_params.get("dataset", None)
-
-        scheduelr_params = train_params.get("scheduler", {}) 
-        self.train_scheduler = create_scheduler(scheduelr_params)
-
-        train_command = train_params.get("train", None)
-        self.train_command = train_command
-
-        freeze_command = train_params.get("freeze", None)
-        self.freeze_command = freeze_command
+        super().register_trainer(train_params_)
 
         return
 
