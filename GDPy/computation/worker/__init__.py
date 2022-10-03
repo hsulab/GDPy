@@ -3,6 +3,8 @@
 
 import pathlib
 
+import numpy as np
+
 from ase.io import read, write
 
 from GDPy.computation.worker.worker import AbstractWorker
@@ -31,10 +33,12 @@ def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME
     worker.directory = directory
 
     if worker.scheduler.name == "local":
+        # - simple driver
         wdirs = []
         for i in range(nframes):
             wdir = frames[i].info.get("wdir", f"cand{i}")
             wdirs.append(wdir)
+        assert len(wdirs) == len(set(wdirs)), "Have duplicated structure names (wdir)..."
 
         # - run dynamics
         new_frames = []
@@ -45,17 +49,22 @@ def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME
                 worker.driver.directory = directory / wdir
                 new_atoms = worker.driver.run(atoms)
                 new_frames.append(new_atoms)
-    
-        # - report
-        energies = [a.get_potential_energy() for a in new_frames]
-        print(energies)
     else:
+        # - interacts with scheduler
         worker.run(frames)
         worker.inspect()
         #if len(worker._get_unretrieved_jobs()) > 0:
         new_frames = worker.retrieve()
-        if new_frames:
-            write(worker.directory/"new_frames.xyz", new_frames, append=True)
+
+    # - report
+    if new_frames:
+        energies = [a.get_potential_energy() for a in new_frames]
+        content = f"nframes: {len(new_frames)}\n"
+        content += "statistics of total energies: min {:>12.4f} max {:>12.4f} avg {:>12.4f}".format(
+            np.min(energies), np.max(energies), np.average(energies)
+        )
+        print(content)
+        write(worker.directory/"new_frames.xyz", new_frames, append=True)
 
     return
 
