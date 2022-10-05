@@ -19,6 +19,11 @@ def main():
         prog="gdp", 
         description="GDPy: Generating Deep Potential with Python"
     )
+
+    parser.add_argument(
+        "-d", "--directory", default=Path.cwd(),
+        help="working directory"
+    )
     
     # the workflow tracker
     parser.add_argument(
@@ -38,9 +43,9 @@ def main():
     
     # subcommands in the entire workflow 
     subparsers = parser.add_subparsers(
-        title='available subcommands', 
-        dest='subcommand', 
-        help='sub-command help'
+        title="available subcommands", 
+        dest="subcommand", 
+        help="sub-command help"
     )
 
     # single calculation creator (VASP for now)
@@ -77,14 +82,14 @@ def main():
         help="submit the job after creating input files"
     )
     
-    # automatic training
+    # - automatic training
     parser_train = subparsers.add_parser(
-        'train', help='automatic training with an iterative process'
+        "train", help="automatic training utilities"
     )
-    parser_train.add_argument(
-        'INPUTS',
-        help='a directory with input json files'
-    )
+    #parser_train.add_argument(
+    #    'INPUTS',
+    #    help='a directory with input json files'
+    #)
 
     # automatic training
     parser_model = subparsers.add_parser(
@@ -170,10 +175,6 @@ def main():
         "STRUCTURE",
         help="a structure file that stores one or more structures"
     )
-    parser_worker.add_argument(
-        "-d", "--directory", default=Path.cwd(),
-        help="working directory"
-    )
 
     # --- task interface
     parser_task = subparsers.add_parser(
@@ -199,10 +200,6 @@ def main():
     parser_select.add_argument(
         "-s", "--structure", required=True, 
         help="structure generator"
-    )
-    parser_select.add_argument(
-        "-d", "--directory", default=Path.cwd(),
-        help="working directory"
     )
 
     # graph utils
@@ -232,15 +229,6 @@ def main():
         'valid', help='validate properties with trained model'
     )
     parser_validation.add_argument(
-        'INPUTS',
-        help='input json file with calculation parameters'
-    )
-
-    # utilities
-    parser_utility = subparsers.add_parser(
-        'util', help='use ase calculator interface in command line'
-    )
-    parser_utility.add_argument(
         'INPUTS',
         help='input json file with calculation parameters'
     )
@@ -292,8 +280,8 @@ def main():
         from GDPy.utils.vasp.main import vasp_main
         vasp_main(args.STRUCTURE, args.CHOICE, args.indices, args.input, args.aindices, args.nosort, args.sub)
     elif args.subcommand == "train":
-        from .trainer.iterative_train import iterative_train
-        iterative_train(args.INPUTS)
+        from GDPy.trainer import run_trainer
+        run_trainer(potter, args.directory)
     elif args.subcommand == "model":
         from .potential.manager import create_manager
         pm = create_manager(args.INPUTS)
