@@ -9,16 +9,22 @@
 - [License](#license)
 
 # Overview
-Documentation: https://gdpyx.readthedocs.io  
+## Introduction
+**Documentation**: https://gdpyx.readthedocs.io  
 
-Generating Deep Learning Potential with Python (GDPy/GDP¥) is a bundle of codes for machine learning interatomic potential (MLIP) developments, especially for its application in heterogeneous catalysis.
+GDPy stands for Generating Deep Potential with Python (GDPy/GDP¥), including a set of tools and Python modules to automate the structure exploration and the training for machine learning interatomic potentials (MLIPs).
 
-It mainly includes methods for structure exploration and a unified interface to various MLIPs. The target system can be metal oxides, supported clusters, and solid-liquid interfaces.
+It mainly focuses on the applications in heterogeneous catalysis. The target systems are metal oxides, supported clusters, and solid-liquid interfaces.
 
-# Features
+## Features
 - A unified interface to various MLIPs.
 - Versatile exploration algorithms to construct a general dataset.
 - Automation workflows for dataset construction and MLIP training.
+
+## Architecture
+<p align="center">
+  <img src="./assets/workflow.png" width="740" height="400">
+</p>
 
 # Modules
 ## Driver/Worker
