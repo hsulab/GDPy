@@ -3,10 +3,11 @@
 
 import copy
 from pathlib import Path
-from typing import Union
+from typing import Union, List, NoReturn
 
 import numpy as np
 
+from ase import Atoms
 from ase.io import read, write
 
 from GDPy.selector.selector import AbstractSelector
@@ -14,17 +15,16 @@ from GDPy.selector.selector import AbstractSelector
 
 class ComposedSelector(AbstractSelector):
     
-    """ perform a list of selections on input frames
+    """Perform several selections consecutively.
     """
 
     name = "composed"
-    verbose = True
 
     default_parameters = dict(
         selectors = []
     )
 
-    def __init__(self, selectors, directory=Path.cwd(), *args, **kwargs):
+    def __init__(self, selectors: List[AbstractSelector], directory="./", *args, **kwargs):
         """"""
         super().__init__(directory, *args, **kwargs)
 
@@ -38,10 +38,12 @@ class ComposedSelector(AbstractSelector):
 
         return
     
-    def _check_convergence(self):
-        """ check if there is a convergence selector
-            if so, selections will be performed on converged ones and 
-            others separately
+    def _check_convergence(self) -> NoReturn:
+        """Check if there is a convergence selector.
+
+        If it has, selections will be performed on converged ones and 
+        others separately.
+
         """
         conv_i = None
         selectors_ = self.selectors
@@ -64,7 +66,6 @@ class ComposedSelector(AbstractSelector):
     
     @directory.setter
     def directory(self, directory_: Union[str,Path]):
-        """"""
         self._directory = directory_
         self.info_fpath = self._directory/self._fname
         for s in self.selectors:
@@ -72,8 +73,8 @@ class ComposedSelector(AbstractSelector):
 
         return
     
-    def _select_indices(self, frames, *args, **kwargs):
-        """"""
+    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+        """Return selected indices."""
         # - initial index stuff
         nframes = len(frames)
         cur_index_map = list(range(nframes))

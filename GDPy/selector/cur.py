@@ -5,9 +5,8 @@ import numpy as np
 from scipy.sparse.linalg import LinearOperator, svds
 
 
-def descriptor_svd(at_descs, num, do_vectors="vh"):
-    """ sparse SVD
-    """
+def descriptor_svd(at_descs, num: int, do_vectors="vh"):
+    """Perfrom a sparse SVD."""
     def mv(v):
         return np.dot(at_descs, v)
     def rmv(v):
@@ -17,8 +16,16 @@ def descriptor_svd(at_descs, num, do_vectors="vh"):
 
     return svds(A, k=num, return_singular_vectors=do_vectors) # sparse SVD
 
-def cur_selection(features, num, zeta=2, strategy="descent", rng=np.random):
-    """ input should be [nframes,nfeatures]
+def cur_selection(features, num: int, zeta: float=2, strategy: str="descent", rng=np.random):
+    """Performa a CUR selection.
+
+    Args:
+        features: A (nframes,nfeatures) shaped arrray.
+        num: Selected number.
+        zeta: Exponential coefficient.
+        strategy: Selection strategy, either stochastic or descent.
+        rng: Random generator.
+
     """
     # column vectors of descriptors
     assert features.ndim == 2

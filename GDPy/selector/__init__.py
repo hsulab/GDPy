@@ -3,7 +3,11 @@
 
 import copy
 import pathlib
+from typing import Union, List, NoReturn
 
+from GDPy.computation.worker.worker import AbstractWorker
+
+from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.traj import BoltzmannMinimaSelection
 from GDPy.selector.descriptor import DescriptorBasedSelector
@@ -11,7 +15,21 @@ from GDPy.selector.uncertainty import DeviationSelector
 from GDPy.selector.composition import ComposedSelector
 from GDPy.selector.convergence import ConvergenceSelector
 
-def create_selector(input_list: list, directory=pathlib.Path.cwd(), pot_worker=None):
+def create_selector(
+    input_list: List[dict], directory: Union[str,pathlib.Path]=pathlib.Path.cwd(), 
+    pot_worker: AbstractWorker=None
+) -> AbstractSelector:
+    """Create a selector based on arguments.
+
+    Args:
+        input_list: A list of each selector's parameters.
+        directory: Working directory.
+        pot_worker: A worker for potential computations.
+    
+    Returns:
+        An instance of the AbstractSelector.
+
+    """
     selectors = []
 
     if not input_list:
@@ -42,8 +60,12 @@ def create_selector(input_list: list, directory=pathlib.Path.cwd(), pot_worker=N
 
     return selector
 
-def run_selection(param_file, structure, directory=pathlib.Path.cwd(), potter=None):
-    """"""
+def run_selection(
+    param_file: Union[str,pathlib.Path], structure: Union[str,dict], 
+    directory: Union[str,pathlib.Path]="./", potter: AbstractWorker=None
+) -> NoReturn:
+    """Run selection with input selector and input structures.
+    """
     directory = pathlib.Path(directory)
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=False)

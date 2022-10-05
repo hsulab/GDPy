@@ -13,7 +13,7 @@ from GDPy.selector.selector import AbstractSelector
 
 class ConvergenceSelector(AbstractSelector):
 
-    """ find geometrically converged frames
+    """Select geometrically converged frames.
     """
 
     name = "convergence"
@@ -22,14 +22,14 @@ class ConvergenceSelector(AbstractSelector):
         fmax = 0.05 # eV/AA
     )
 
-    def __init__(self, directory=Path.cwd(), *args, **kwargs):
+    def __init__(self, directory="./", *args, **kwargs):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
 
         return
     
     def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
-        """"""
+        """Returen selected indices."""
         # NOTE: input atoms should have constraints attached
         selected_indices = []
         for i, atoms in enumerate(frames):

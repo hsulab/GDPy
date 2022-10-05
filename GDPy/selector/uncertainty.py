@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import Union, List
+from typing import Union, List, NoReturn
 
 import numpy as np
 
@@ -12,45 +12,39 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.selector.selector import AbstractSelector
+from GDPy.computation.worker.worker import AbstractWorker
 
 
 class DeviationSelector(AbstractSelector):
 
+    """Selection based on property uncertainty.
+
+    Note:
+        The property values should be stored in atoms.info.
+
+    """
+
     name = "devi"
 
     default_parameters = dict(
-        #properties = dict(
-        #    atomic_energy = "max_devi_e",
-        #    force = "max_devi_f"
-        #),
-        #criteria = dict(
-        #    atomic_energy = [0.01, 0.25],
-        #    force = [0.05, 0.25]
-        #)
         criteria = dict(
             max_devi_e = [0.01, 0.25], # atomic_energy
             max_devi_f = [0.05, 0.50], # force
         )
     )
 
-    def __init__(
-        self,
-        directory = Path.cwd(),
-        pot_worker = None, # to access committee
-        *args, **kwargs
-    ):
+    def __init__(self, directory="./", pot_worker: AbstractWorker=None, *args, **kwargs):
         super().__init__(directory, *args, **kwargs)
 
         self._parse_criteria()
 
-        self.directory = directory
-
+        #: A worker for potential computations.
         self.pot_worker = pot_worker
 
         return
     
-    def _parse_criteria(self):
-        """"""
+    def _parse_criteria(self) -> NoReturn:
+        """Check property bounds."""
         criteria = dict()
         criteria_ = copy.deepcopy(self.criteria)
         for prop_name, bounds in criteria_.items():
@@ -66,9 +60,8 @@ class DeviationSelector(AbstractSelector):
 
         return
     
-    def _select_indices(self, frames, *args, **kwargs) -> List[int]:
-        """
-        """
+    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+        """Calculate property uncertainties and select indices."""
         nframes = len(frames)
 
         deviations = {}
@@ -129,7 +122,7 @@ class DeviationSelector(AbstractSelector):
         return selected_indices
     
     def _sift_deviations(self, deviations: dict, nframes: int):
-        """"""
+        """Return indices of structures with allowed property values."""
         # NOTE: deterministic selection
         selected_indices = []
         for idx in range(nframes):

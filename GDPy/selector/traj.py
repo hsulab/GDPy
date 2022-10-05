@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List
-from pathlib import Path
 import copy
+from pathlib import Path
+from typing import Union, List
 
 import numpy as np
 
@@ -12,13 +12,16 @@ from ase import Atoms
 from GDPy.selector.selector import AbstractSelector
 
 
-""" References
+"""Select converged minima based on Boltzmann distribution.
+
+References:
     [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
         De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
         npj Comput. Mater. 2019, 5, 99.
     [2] Mahoney, M. W.; Drineas, P. 
         CUR Matrix Decompositions for Improved Data Analysis. 
         Proc. Natl. Acad. Sci. USA 2009, 106, 697–702.
+
 """
 
 
@@ -34,14 +37,14 @@ class BoltzmannMinimaSelection(AbstractSelector):
         number = [4, 0.2]
     )
 
-    def __init__(self, directory=Path.cwd(), *args, **kwargs):
+    def __init__(self, directory: Union[str,Path]="./", *args, **kwargs):
         """"""
         super().__init__(directory, *args, **kwargs)
 
         return
     
-    def _select_indices(self, frames, *args, **kwargs) -> List[int]:
-        """"""
+    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+        """Returen selected indices."""
         # - find minima
         converged_indices = []
         for i, atoms in enumerate(frames): 
@@ -99,8 +102,8 @@ class BoltzmannMinimaSelection(AbstractSelector):
 
         return selected_indices
 
-    def _boltzmann_select(self, boltz, props, input_indices, num_minima):
-        """"""
+    def _boltzmann_select(self, boltz: int, props: List[float], input_indices: List[int], num_minima: int):
+        """Selected indices based on Boltzmann distribution."""
         # compute desired probabilities for flattened histogram
         histo = np.histogram(props, bins=10) # hits, bin_edges
         min_prop = np.min(props)

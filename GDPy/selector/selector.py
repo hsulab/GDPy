@@ -4,7 +4,7 @@
 import abc 
 import copy
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, Callable, NoReturn
 
 import numpy as np
 
@@ -13,27 +13,41 @@ from ase import Atoms
 from GDPy import config
 
 
-""" Various Selection Protocols
+"""Define an AbstractSelector that is the base class of any selector.
 """
 
 
 class AbstractSelector(abc.ABC):
 
-    name = "abstract"
+    """The base class of any selector."""
 
-    default_parameters = dict(
+    #: Selector name.
+    name: str = "abstract"
+
+    #: Default parameters.
+    default_parameters: dict = dict(
         number = [4, 0.2] # number & ratio
     )
 
-    _directory = None
-    _fname = "info.txt"
+    #: Working directory.
+    _directory: Path = None
 
-    logger = None
-    _pfunc = print
-    indent = 0
+    #: Output file name.
+    _fname: str = "info.txt"
 
-    def __init__(self, directory=Path.cwd(), *args, **kwargs) -> None:
-        """"""
+    logger = None #: Logger instance.
+    _pfunc: Callable = print #: Function for outputs.
+    indent: int = 0 #: Indent of outputs.
+
+    def __init__(self, directory=Path.cwd(), *args, **kwargs) -> NoReturn:
+        """Create a selector.
+
+        Args:
+            directory: Working directory.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        """
         self.parameters = copy.deepcopy(self.default_parameters)
         for k in self.parameters:
             if k in kwargs.keys():
@@ -45,16 +59,23 @@ class AbstractSelector(abc.ABC):
         if "random_seed" in self.parameters:
             self.set_rng(seed=self.parameters["random_seed"])
 
+        #: Number of parallel jobs for joblib.
         self.njobs = config.NJOBS
 
         return
 
     @property
-    def directory(self):
+    def directory(self) -> Path:
+        """Working directory.
+
+        Note:
+            When setting directory, info_fpath would be set as well.
+
+        """
         return self._directory
     
     @directory.setter
-    def directory(self, directory_):
+    def directory(self, directory_) -> NoReturn:
         self._directory = Path(directory_)
         self.info_fpath = self._directory/self._fname
 
@@ -62,6 +83,7 @@ class AbstractSelector(abc.ABC):
     
     @property
     def fname(self):
+        """"""
         return self._fname
     
     @fname.setter
@@ -96,8 +118,25 @@ class AbstractSelector(abc.ABC):
 
         return
 
-    def select(self, frames: List[Atoms], index_map=None, ret_indices: bool=False, *args, **kargs):
-        """"""
+    def select(
+        self, frames: List[Atoms], index_map: List[int]=None, 
+        ret_indices: bool=False, *args, **kargs
+    ) -> Union[List[Atoms],List[int]]:
+        """Seelect frames.
+
+        Based on used selction protocol
+
+        Args:
+            frames: A list of ase.Atoms.
+            index_map: Global indices of frames.
+            ret_indices: Whether return selected indices or frames.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        
+        Returns:
+            List[Atoms] or List[int]: selected results
+
+        """
         if self.logger is not None:
             self._pfunc = self.logger.info
         self.pfunc(f"@@@{self.__class__.__name__}")
@@ -133,13 +172,16 @@ class AbstractSelector(abc.ABC):
 
     @abc.abstractmethod
     def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
-        """"""
+        """Select structures and return selected indices."""
 
         return
 
-    def _parse_selection_number(self, nframes):
-        """ nframes - number of frames
-            sometimes maybe zero
+    def _parse_selection_number(self, nframes: int) -> int:
+        """Compute number of selection based on the input number.
+
+        Args:
+            nframes: Number of input frames, sometimes maybe zero.
+
         """
         default_number, default_ratio = self.default_parameters["number"]
         number_info = self.parameters["number"]
@@ -160,14 +202,14 @@ class AbstractSelector(abc.ABC):
         return num_fixed
     
     def pfunc(self, content, *args, **kwargs):
-        """"""
+        """Write outputs to file."""
         content = self.indent*" " + content
         self._pfunc(content)
 
         return
     
-    def as_dict(self):
-        """"""
+    def as_dict(self) -> dict:
+        """Return a dict of selector parameters."""
         params = dict(
             name = self.__class__.__name__
         )

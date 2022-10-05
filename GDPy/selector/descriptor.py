@@ -16,21 +16,22 @@ from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.cur import cur_selection
 
 
-""" References
+"""Selector using descriptors.
+
+References:
     [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
         De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
         npj Comput. Mater. 2019, 5, 99.
     [2] Mahoney, M. W.; Drineas, P. 
         CUR Matrix Decompositions for Improved Data Analysis. 
         Proc. Natl. Acad. Sci. USA 2009, 106, 697–702.
+
 """
 
 
 class DescriptorBasedSelector(AbstractSelector):
 
-    """
-    Attributes:
-        name: selector name
+    """Selector using descriptors.
     """
 
     name = "dscribe"
@@ -46,20 +47,16 @@ class DescriptorBasedSelector(AbstractSelector):
         number = [4, 0.2]
     )
 
-    verbose = False
+    verbose = False #: output verbosity
 
-    def __init__(
-        self, 
-        directory = Path.cwd(),
-        *args, **kwargs
-    ):
+    def __init__(self, directory="./", *args, **kwargs):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
 
         return
 
-    def calc_desc(self, frames):
-        """"""
+    def calc_desc(self, frames: List[Atoms]):
+        """Calculate descriptors."""
         # calculate descriptor to select minimum dataset
 
         features_path = self.directory / "features.npy"
@@ -95,10 +92,8 @@ class DescriptorBasedSelector(AbstractSelector):
 
         return features
 
-    def _select_indices(self, frames, *args, **kwargs):
-        """ number can be in any forms below
-            [num_fixed, num_percent]
-        """
+    def _select_indices(self, frames: List[Atoms], *args, **kwargs):
+        """Return selected indices."""
         nframes = len(frames)
         num_fixed = self._parse_selection_number(nframes)
 

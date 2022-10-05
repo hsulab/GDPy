@@ -14,6 +14,9 @@ from GDPy.selector.selector import AbstractSelector
 
 class InvariantSelector(AbstractSelector):
 
+    """Perform an invariant selection.
+    """
+
     name = "invariant"
 
     default_parameters = dict()
@@ -25,7 +28,7 @@ class InvariantSelector(AbstractSelector):
         return
     
     def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
-        """"""
+        """Return selected indices."""
         selected_indices = list(range(len(frames)))
 
         # - output
