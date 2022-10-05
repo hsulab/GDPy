@@ -106,7 +106,7 @@ class DriverBasedWorker(AbstractWorker):
                 wdirs = [f"cand{ia}" for ia in global_indices]
                 self.logger.info(f"Use ordered confids...")
             # - check whether each structure has a unique wdir
-            assert len(set(confids)) == len(cur_frames), f"Found duplicated wdirs {len(set(confids))} vs. {len(cur_frames)}..."
+            assert len(set(wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(confids))} vs. {len(cur_frames)}..."
 
             # - prepare scheduler
             # TODO: set group name randomly?
@@ -218,15 +218,18 @@ class DriverBasedWorker(AbstractWorker):
     ):
         """"""
         driver.directory = wdir
-        confid = int(wdir.name.strip("cand"))
+        # NOTE: name convention, cand1112_field1112_field1112
+        confid = int(wdir.name.strip("cand").split("_")[0])
         if not read_traj:
             new_atoms = driver.read_converged()
             new_atoms.info["confid"] = confid
+            new_atoms.info["wdir"] = str(wdir.name)
             results = [new_atoms]
         else:
             traj_frames = driver.read_trajectory(add_step_info=True)
             for a in traj_frames:
                 a.info["confid"] = confid
+                a.info["wdir"] = str(wdir.name)
             # NOTE: remove first or last frames since they are always the same?
             n_trajframes = len(traj_frames)
             first, last = 0, n_trajframes-1
