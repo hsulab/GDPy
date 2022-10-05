@@ -9,7 +9,7 @@ from GDPy.builder.builder import StructureGenerator
 from GDPy.builder.randomBuilder import RandomGenerator
 from GDPy.builder.adsorbate import AdsorbateGraphGenerator
 
-supported_filetypes = [".xyz", ".arc"]
+supported_filetypes = [".xyz", ".xsd", ".arc"]
 
 def create_generator(params) -> StructureGenerator:
     """"""
@@ -17,10 +17,9 @@ def create_generator(params) -> StructureGenerator:
     if isinstance(params, str):
         suffix = params[-4:]
         if suffix in supported_filetypes:
-            from ase.io import read, write
             params = dict(
                 method = "direct",
-                frames = read(params, ":")
+                frames = params
             )
         else:
             params = dict(
