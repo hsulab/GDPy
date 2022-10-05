@@ -382,7 +382,7 @@ class AbstractExpedition(ABC):
                 if tag_name == "frames":
                     tag_name = "mixed"
 
-                print(f"----- Selection {selector.name} for {tag_name} -----")
+                self.logger.info(f"----- Selection {selector.name} for {tag_name} -----")
                 cur_dpath = res_dpath/"select"/tag_name
                 if not cur_dpath.exists():
                     cur_dpath.mkdir()
@@ -392,7 +392,9 @@ class AbstractExpedition(ABC):
                 frames = data[k]
                 selected_frames = selector.select(frames)
                 data["selected_frames_"+tag_name] = selected_frames
-                write(cur_dpath/"selected_frames.xyz", selected_frames)
+                if not cur_dpath.exists():
+                    self.logger.info("save structures to xyz file...")
+                    write(cur_dpath/"selected_frames.xyz", selected_frames)
         else:
             self.logger.info("No selector available...")
 
