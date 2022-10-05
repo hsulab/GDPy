@@ -168,7 +168,11 @@ class MDBasedExpedition(AbstractExpedition):
         return is_finished
     
     def _single_collect(self, res_dpath, actions, data, *args, **kwargs):
-        """"""
+        """collect md trajectories...
+
+        NOTE: There is an unknown bug for worker confids...
+
+        """
         generator = actions["generator"]
         self.logger.info(generator.__class__.__name__)
         frames = generator.run(kwargs.get("ran_size", 1))
@@ -195,6 +199,7 @@ class MDBasedExpedition(AbstractExpedition):
             if new_frames:
                 for atoms in new_frames:
                     atoms.info["worker"] = f"w{iw}"
+                    atoms.info["step"] = str(atoms.info["step"])+"_"+f"w{iw}"
                 write(traj_fpath, new_frames, append=True)
             if len(worker._get_unretrieved_jobs()) > 0:
                 is_collected = False
@@ -208,6 +213,8 @@ class MDBasedExpedition(AbstractExpedition):
             traj_frames = read(traj_fpath, ":")
             merged_traj_frames.extend(traj_frames)
         self.logger.info(f"total nframes: {len(merged_traj_frames)}")
+
+        #self.ref_worker._submit = False # TEST
 
         # - pass data
         data["pot_frames"] = merged_traj_frames
