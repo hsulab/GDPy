@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import uuid
+import pathlib
+import time
+from typing import Tuple, List, NoReturn
 import yaml
 
 import numpy as np
@@ -10,12 +13,14 @@ from tinydb import Query
 
 from joblib import Parallel, delayed
 
+from ase import Atoms
 from ase.io import read, write
 
 from GDPy import config
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
 from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.builder.builder import StructureGenerator
 
 from GDPy.utils.command import CustomTimer
 
@@ -58,8 +63,8 @@ class DriverBasedWorker(AbstractWorker):
         self._driver = driver_
         return
 
-    def _split_groups(self, nframes):
-        """"""
+    def _split_groups(self, nframes: int) -> Tuple[List[int],List[int]]:
+        """Split nframes into groups."""
         # - split frames
         ngroups = int(np.floor(1.*nframes/self.batchsize))
         group_indices = [0]
@@ -73,28 +78,39 @@ class DriverBasedWorker(AbstractWorker):
 
         return (starts, ends)
     
-    def run(self, frames=None, *args, **kwargs):
-        """ split frames into groups
-            return latest results
+    def run(self, generator=None, *args, **kwargs) -> NoReturn:
+        """Split frames into groups and submit jobs.
         """
         super().run(*args, **kwargs)
         scheduler = self.scheduler
+
+        frames, frames_fpath = [], None
+        if isinstance(generator, StructureGenerator):
+            frames = generator.run()
+            frames_fpath = getattr(generator, "fpath")
+        else:
+            assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
+            frames = generator
         
-        starts, ends = self._split_groups(len(frames))
+        nframes = len(frames)
+        starts, ends = self._split_groups(nframes)
 
         # - parse job info
         job_info = []
         for i, (s,e) in enumerate(zip(starts,ends)):
             # - prepare structures and dirnames
             global_indices = range(s,e)
-            cur_frames = frames[s:e]
+            # NOTE: get a list even if it only has one structure
+            cur_frames = [frames[x] for x in global_indices]
             confids = [] # [(confid,dynstep), ..., ()]
             for x in cur_frames:
                 confid = x.info.get("confid", None)
                 if confid:
-                    dynstep = x.info.get("step", "")
-                    if dynstep:
+                    dynstep = x.info.get("step", None) # step maybe 0
+                    if dynstep is not None:
                         dynstep = f"_step{dynstep}"
+                    else:
+                        dynstep = ""
                     confids.append((confid,dynstep))
                 else:
                     confids = []
@@ -116,14 +132,14 @@ class DriverBasedWorker(AbstractWorker):
                 group_directory = self.directory / wdirs[0]
                 wdirs = ["./"]
             # - set specific params
-            job_info.append([group_directory, cur_frames, wdirs])
+            job_info.append([group_directory, global_indices, cur_frames, wdirs])
         
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
 
         # - run
-        for group_directory, cur_frames, wdirs in job_info:
+        for group_directory, global_indices, cur_frames, wdirs in job_info:
             #if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
             #    continue
             if group_directory.name in queued_names:
@@ -135,9 +151,10 @@ class DriverBasedWorker(AbstractWorker):
             scheduler.script = group_directory/"run-driver.script" 
 
             # - create or check the working directory
-            group_directory.mkdir()
 
             if scheduler.name != "local":
+                group_directory.mkdir()
+
                 cur_params = {}
                 cur_params["driver"] = self.driver.as_dict()
                 cur_params["potential"] = self.potter.as_dict()
@@ -148,33 +165,61 @@ class DriverBasedWorker(AbstractWorker):
                 for cur_atoms, cur_wdir in zip(cur_frames, wdirs):
                     cur_atoms.info["wdir"] = str(cur_wdir)
 
-                write(group_directory/"frames.xyz", cur_frames)
+                if frames_fpath:
+                    frames_info = dict(
+                        method = "direct",
+                        frames = str(frames_fpath),
+                        indices = list(global_indices)
+                    )
+                    with open(group_directory/"frames.yaml", "w") as fopen:
+                        yaml.dump(frames_info, fopen)
 
-                scheduler.user_commands = "gdp -p {} worker {}".format(
-                    (group_directory/"worker.yaml").name, 
-                    (group_directory/"frames.xyz").name
-                )
+                    scheduler.user_commands = "gdp -p {} worker {}\n".format(
+                        (group_directory/"worker.yaml").name, 
+                        (group_directory/"frames.yaml").name
+                    )
+                else:
+                    write(
+                        group_directory/"frames.xyz", cur_frames, 
+                        columns=["symbols", "positions", "move_mask"]
+                    )
+
+                    scheduler.user_commands = "gdp -p {} worker {}\n".format(
+                        (group_directory/"worker.yaml").name, 
+                        (group_directory/"frames.xyz").name
+                    )
                 scheduler.write()
                 if self._submit:
                     self.logger.info(f"{group_directory.name} JOBID: {scheduler.submit()}")
                 else:
                     self.logger.info(f"{group_directory.name} waits to submit.")
             else:
-                for wdir, atoms in zip(wdirs,cur_frames):
-                    self.driver.directory = group_directory/wdir
-                    self.logger.info(f"{job_name} {self.driver.directory.name} is running...")
-                    self.driver.reset()
-                    self.driver.run(atoms)
+                if self.batchsize == 1:
+                    group_directory = pathlib.Path.cwd()
+                else:
+                    group_directory.mkdir()
+                with CustomTimer(name="run-driver", func=self.logger.info):
+                    for wdir, atoms in zip(wdirs,cur_frames):
+                        self.driver.directory = group_directory/wdir
+                        self.logger.info(
+                            f"{time.asctime( time.localtime(time.time()) )} {job_name} {self.driver.directory.name} is running..."
+                        )
+                        self.driver.reset()
+                        self.driver.run(atoms)
             self.database.insert(dict(gdir=job_name, queued=True))
         
         return 
-
+    
     def _read_results(
-        self, gdirs, 
-        read_traj=False, traj_period=1, 
-        include_first=True, include_last=True
-    ):
-        """ wdirs - candidate dir with computation files
+        self, gdirs: List[pathlib.Path], 
+        read_traj: bool=False, traj_period: int=1, 
+        include_first: bool=True, include_last: bool=True
+    ) -> List[Atoms]:
+        """Read results from calculation directories.
+
+        Args:
+            gdirs: A group of directories.
+
         """
         unretrived_wdirs = []
         for group_directory in gdirs:
@@ -213,10 +258,15 @@ class DriverBasedWorker(AbstractWorker):
     @staticmethod
     def _iread_results(
         driver, wdir, 
-        read_traj=False, traj_period=1, 
-        include_first=True, include_last=True
-    ):
-        """"""
+        read_traj: bool=False, traj_period: int=1, 
+        include_first: bool=True, include_last: bool=True
+    ) -> List[List[Atoms]]:
+        """Extract results from a single directory.
+
+        Args:
+            wdir: Working directory.
+
+        """
         driver.directory = wdir
         # NOTE: name convention, cand1112_field1112_field1112
         confid = int(wdir.name.strip("cand").split("_")[0])

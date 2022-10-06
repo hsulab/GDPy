@@ -115,7 +115,7 @@ class AbstractWorker(abc.ABC):
     
     def _init_database(self):
         """"""
-        self.database = TinyDB(self.directory/".metadata.json", indent=2)
+        self.database = TinyDB(self.directory/"_jobs.json", indent=2)
 
         return
     
