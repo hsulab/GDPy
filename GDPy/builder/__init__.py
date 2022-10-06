@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
+from typing import Union
 
 from GDPy.builder.direct import DirectGenerator
 from GDPy.builder.species import FormulaBasedGenerator
@@ -10,8 +11,9 @@ from GDPy.builder.randomBuilder import RandomGenerator
 from GDPy.builder.adsorbate import AdsorbateGraphGenerator
 
 supported_filetypes = [".xyz", ".xsd", ".arc"]
+supproted_configtypes = ["json", "yaml"]
 
-def create_generator(params) -> StructureGenerator:
+def create_generator(params: Union[str, dict]) -> StructureGenerator:
     """"""
     # - parse string
     if isinstance(params, str):
@@ -21,6 +23,9 @@ def create_generator(params) -> StructureGenerator:
                 method = "direct",
                 frames = params
             )
+        elif suffix in supproted_configtypes:
+            from GDPy.utils.command import parse_input_file
+            params = parse_input_file(params)
         else:
             params = dict(
                 method = "formula",

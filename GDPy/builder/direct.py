@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import Union, List
+from typing import Optional, Union, List
 
 
 from ase import Atoms
@@ -117,12 +117,19 @@ class DirectGenerator(StructureGenerator):
     """This generator directly returns structures that it stores.
     """
 
-    #: stored structures.
-    _frames: List[Atoms] = []
+    #: Stored structures.
+    _frames: Optional[List[Atoms]] = None
+
+    #: The file path of stored structures.
+    _fpath: Optional[Union[str,pathlib.Path]] = None
+
+    #: Selected structure indices.
+    _indices: Union[str,List[int]] = None
 
     def __init__(
         self, frames: Union[str,pathlib.Path,List[Atoms]], 
-        directory: Union[str,pathlib.Path]="./", *args, **kwargs
+        indices: Union[str,List[int]] = None, directory: Union[str,pathlib.Path]="./", 
+        *args, **kwargs
     ):
         """Create a direct generator.
 
@@ -133,28 +140,71 @@ class DirectGenerator(StructureGenerator):
         """
         super().__init__(directory, *args, **kwargs)
 
-        frames_ = frames
-        if isinstance(frames_, (str,pathlib.Path)):
-            if frames_.endswith(".xsd"):
-                frames_ = read_xsd2(frames_)
-            else:
-                frames_ = read(frames_, ":")
-        # check whether its a single Atoms
-        if isinstance(frames_, Atoms):
-            frames_ = [frames_]
+        if isinstance(frames, (str,pathlib.Path)):
+            self._fpath = pathlib.Path(frames).resolve()
+        else:
+            assert isinstance(frames, all(isinstance(x,Atoms) for x in frames)), "Input should be a list of atoms."
+            self._frames = frames
 
-        self._frames = frames_
+        self._indices = indices
 
         return
     
-    @property
-    def frames(self) -> List[Atoms]:
-        """Return stored structures."""
-        return self._frames
+    #@property
+    #def frames(self) -> List[Atoms]:
+    #    """Return stored structures."""
+    #    return self._frames
     
-    def run(self, *args, **kwargs) -> List[Atoms]:
-        """Return stored structures."""
-        return self.frames
+    @property
+    def fpath(self) -> Union[str,pathlib.Path]:
+        """Return the file path of stored structures."""
+        return self._fpath
+    
+    @property
+    def indices(self) -> Union[str,List[int]]:
+        """Return selected indices."""
+        return self._indices
+    
+    def run(self, indices: Union[str,List[int]]=[], *args, **kwargs) -> List[Atoms]:
+        """Return stored structures.
+
+        Args:
+            indices: Selected frames.
+
+        """
+        # - check indices
+        if indices:
+            indices_ = indices
+        else:
+            indices_ = self.indices
+
+        assert (bool(self._frames) ^ bool(self.fpath)), "Cant have frames and fpath at the same time."
+
+        # - read frames if it is a path
+        if self.fpath:
+            # NOTE: custom read_xsd can retrieve stored constraints
+            fpath_ = str(self.fpath)
+            if fpath_.endswith(".xsd"):
+                frames_ = read_xsd2(fpath_)
+            else:
+                frames_ = read(fpath_, ":")
+
+            # - check whether its a single Atoms object
+            if isinstance(frames_, Atoms):
+                frames_ = [frames_]
+        else:
+            if self._frames:
+                frames_ = self._frames
+            else:
+                # NOTE: should go to here
+                pass
+
+        # - get structures
+        if indices_:
+            ret_frames = [frames_[i] for i in indices_]
+        else:
+            ret_frames = frames_
+        return ret_frames
 
 
 if __name__ == "__main__":
