@@ -151,13 +151,14 @@ class DriverBasedWorker(AbstractWorker):
             scheduler.script = group_directory/"run-driver.script" 
 
             # - create or check the working directory
-
             if scheduler.name != "local":
+                # - use queue scheduler
                 group_directory.mkdir()
 
                 cur_params = {}
                 cur_params["driver"] = self.driver.as_dict()
                 cur_params["potential"] = self.potter.as_dict()
+                cur_params["batchsize"] = len(cur_frames)
 
                 with open(group_directory/"worker.yaml", "w") as fopen:
                     yaml.dump(cur_params, fopen)
@@ -194,10 +195,12 @@ class DriverBasedWorker(AbstractWorker):
                 else:
                     self.logger.info(f"{group_directory.name} waits to submit.")
             else:
-                if self.batchsize == 1:
-                    group_directory = pathlib.Path.cwd()
-                else:
-                    group_directory.mkdir()
+                # - use local scheduler
+                #if self.batchsize == 1:
+                #    group_directory = pathlib.Path.cwd()
+                #else:
+                #    group_directory.mkdir()
+                group_directory = pathlib.Path.cwd()
                 with CustomTimer(name="run-driver", func=self.logger.info):
                     for wdir, atoms in zip(wdirs,cur_frames):
                         self.driver.directory = group_directory/wdir
