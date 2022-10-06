@@ -17,15 +17,26 @@ from GDPy.expedition.abstract import AbstractExpedition
 from GDPy.computation.utils import create_single_point_calculator
 from GDPy.builder.constraints import parse_constraint_info
 
-""" Online Expedition
-    add configurations and train MLIPs on-the-fly during
-    the dynamics
+"""Online Expedition.
+
+Add configurations and train MLIPs on-the-fly during the dynamics.
+
 """
 
 class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
-    """ Explore a single system with an on-the-fly trained MLIP
-        Jiayan Xu, Xiao-Ming Cao, P.Hu J. Chem. Theory Comput. 2021, 17, 7, 4465–4476
+    """Explore a single system with an on-the-fly trained MLIP.
+
+    Todo:
+        * Check structure RMSE for an early stopping.
+        * Benchmark structures after each block.
+
+    References:
+        [Xu2021] Jiayan Xu, Xiao-Ming Cao, P.Hu J. Chem. Theory Comput. 2021, 17, 7, 4465–4476.
+    
+    .. _[Xu2021]:
+        https://pubs.acs.org/doi/full/10.1021/acs.jctc.1c00261
+
     """
 
     name = "expedition"
@@ -38,7 +49,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
     )
 
     def run(self, working_directory):
-        """"""
+        """Run exploration."""
         nexps = len(self.explorations.keys())
         # TODO: explore many times?
         assert nexps == 1, "Online expedition only supports one at a time."
@@ -48,8 +59,10 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         return
 
     def _prior_create(self, input_params: dict, *args, **kwargs) -> dict:
-        """"""
+        """Prepare actions used through explorations."""
         actions = super()._prior_create(input_params, *args, **kwargs)
+
+        self.pot_worker.logger = self.logger
 
         # TODO: check if potential is available
         driver_params = input_params["create"]["driver"]
@@ -62,8 +75,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         return actions
     
     def _irun(self, exp_name: str, exp_directory: Union[str,Path]) -> NoReturn:
-        """ create expedition tasks and gather results
-        """
+        """Create expedition tasks and gather results."""
         # - a few info
         exp_dict = self.explorations[exp_name]
         included_systems = exp_dict.get("systems", None)
@@ -109,16 +121,20 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 else:
                     raise RuntimeError("Either prepared init model or init dataset should be provided.")
 
+            # --- update cons text
+            # TODO: need a unified interface here...
+            actions["driver"].run_params.update(constraint=cons_text)
+
             # - run
             self.step_dpath = self._make_step_dir(res_dpath, "create")
-            self._single_create(res_dpath, actions)
+            self._single_create(res_dpath, actions, ran_size=self.init_systems[slabel].get("size", 1))
 
         return
 
     def _single_create(self, res_dpath, actions, *args, **kwargs):
-        """"""
+        """Run simulation."""
         generator = actions["generator"]
-        frames = generator.run()
+        frames = generator.run(kwargs.get("ran_size", 1))
         assert len(frames) == 1, "Online expedition only supports one structure."
 
         # - create dirs
@@ -178,8 +194,6 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             # - NOTE: run a block, dyn, without bias (plumed)
             # - NOTE: overwrite existed data
             driver.directory = tmp_folder / ("b"+str(i))
-            # TODO !!! if restart, how about this part? !!!
-            #          it's ok for deterministic selection but ...
             atoms = driver.run(atoms, read_exists=True, **block_run_params)
             # --- unchecked frames, and some may be labelled
             traj_fpath = collect_dpath/f"traj-b{i}.xyz"
@@ -212,9 +226,15 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             # - train and use new driver
             if traj_frames: # selected ones
                 self.logger.info(f"Found {len(traj_frames)} structures need label...")
-                is_calculated = self._single_label(label_dpath, traj_frames)
+                is_calculated = self._single_label(label_dpath, traj_frames, block_step=i)
                 if is_calculated: # (label_dpath/"calculated.xyz").exists() == True
-                    train_frames = read(label_dpath/"calculated.xyz", ":")
+                    # - find all structures in the database
+                    train_frames = []
+                    for xyz_fpath in label_dpath.glob("*.xyz"):
+                        xyz_frames = read(xyz_fpath, ":")
+                        if xyz_frames:
+                            train_frames.extend(xyz_frames)
+                            self.logger.info(f"Find dataset {str(xyz_fpath)} with nframes {len(xyz_frames)}...")
                     is_trained = self._single_train(train_dpath, train_frames, block_step=i)
                     if is_trained:
                         driver = self.pot_worker.potter.create_driver(driver_params)
@@ -230,7 +250,10 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         return 
 
     def _single_collect(self, res_dpath, frames, actions, block_step=0,*args, **kwargs):
-        """ check whether a group of structues should be labelled
+        """Collect results.
+        
+        Check whether a group of structues should be labelled
+        
         """
         #for atoms in frames:
         #    print(atoms.calc.results)
@@ -256,30 +279,36 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         frames_to_label = selector.select(frames)
         # TODO: check if selected frames have already been lablled
         # TODO: use database?
-        write(res_dpath/"candidates.xyz", frames_to_label, append=True)
+        write(res_dpath/f"candidates-b{block_step}.xyz", frames_to_label, append=True)
 
         self.logger.info(f"SELECTION: {select_dpath.name}")
         self.logger.info("confids: {}".format(" ".join([str(a.info["confid"]) for a in frames_to_label])))
 
         return frames_to_label
     
-    def _single_label(self, res_dpath, traj_frames, *args, **kwargs):
-        """"""
+    def _single_label(self, res_dpath, traj_frames, block_step=0, *args, **kwargs):
+        """Label candidates."""
         # - label structures
         #self.ref_worker._submit = False
+        label_path = res_dpath/("l"+str(block_step))
+        label_path.mkdir(exist_ok=True)
+        self.ref_worker.directory = label_path
+
+        self.ref_worker.batchsize = len(traj_frames) # TODO: custom settings?
         self.ref_worker.run(traj_frames)
         # TODO: wait here
         is_calculated = True
         calibrated_frames = self.ref_worker.retrieve()
         if calibrated_frames:
-            write(res_dpath/"calculated.xyz", calibrated_frames, append=True)
+            #write(res_dpath/"calculated.xyz", calibrated_frames, append=True)
+            write(res_dpath/f"calculated-b{block_step}.xyz", calibrated_frames)
         if self.ref_worker.get_number_of_running_jobs() > 0:
             is_calculated = False
 
         return is_calculated
     
     def _single_train(self, wdir, frames, block_step=0, *args, **kwargs):
-        """"""
+        """Train and freeze potentials."""
         # - find train dirs
         #tdirs = []
         #for p in wdir.iterdir():
