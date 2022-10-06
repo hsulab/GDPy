@@ -276,19 +276,9 @@ def main():
         referee = create_potter(ref_config) # register calculator, and scheduler if exists
 
     # - use subcommands
-    if args.subcommand == "vasp":
-        from GDPy.utils.vasp.main import vasp_main
-        vasp_main(args.STRUCTURE, args.CHOICE, args.indices, args.input, args.aindices, args.nosort, args.sub)
-    elif args.subcommand == "train":
+    if args.subcommand == "train":
         from GDPy.trainer import run_trainer
         run_trainer(potter, args.directory)
-    elif args.subcommand == "model":
-        from .potential.manager import create_manager
-        pm = create_manager(args.INPUTS)
-        if args.mode == "freeze":
-            pm.freeze_ensemble()
-        elif args.mode == "create":
-            pm.create_ensemble()
     elif args.subcommand == "select":
         from GDPy.selector import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
