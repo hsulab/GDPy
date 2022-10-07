@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import uuid
 import pathlib
 import time
@@ -24,16 +25,35 @@ from GDPy.builder.builder import StructureGenerator
 
 from GDPy.utils.command import CustomTimer
 
+def get_file_md5(f):
+    import hashlib
+    m = hashlib.md5()
+    while True:
+        # if not using binary
+        #data = f.read(1024).encode('utf-8')
+        data = f.read(1024) # read in block
+        if not data:
+            break
+        m.update(data)
+    return m.hexdigest()
+
 
 class DriverBasedWorker(AbstractWorker):
 
-    """ job lifetime
-        queued (running) -> finished -> retrieved
+    """Monitor driver-based jobs.
+
+    Lifetime: queued (running) -> finished -> retrieved
+
+    Note:
+        The database stores each unique job ID and its working directory.
+
     """
 
     batchsize = 1 # how many structures performed in one job
 
     _driver = None
+
+    _exec_mode = "queue"
 
     def __init__(self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs):
         """"""
@@ -78,12 +98,11 @@ class DriverBasedWorker(AbstractWorker):
 
         return (starts, ends)
     
-    def run(self, generator=None, *args, **kwargs) -> NoReturn:
-        """Split frames into groups and submit jobs.
-        """
-        super().run(*args, **kwargs)
-        scheduler = self.scheduler
+    def _preprocess(self, generator, *args, **kwargs):
+        """"""
+        # - find frames in the database
 
+        # - get frames
         frames, frames_fpath = [], None
         if isinstance(generator, StructureGenerator):
             frames = generator.run()
@@ -91,130 +110,286 @@ class DriverBasedWorker(AbstractWorker):
         else:
             assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
             frames = generator
-        
+        frames = copy.deepcopy(frames)
+
+        # - process data
         nframes = len(frames)
         starts, ends = self._split_groups(nframes)
 
-        # - parse job info
-        job_info = []
+        job_info = {
+            "dataset": None,
+            "groups": []
+        }
         for i, (s,e) in enumerate(zip(starts,ends)):
             # - prepare structures and dirnames
             global_indices = range(s,e)
             # NOTE: get a list even if it only has one structure
             cur_frames = [frames[x] for x in global_indices]
-            confids = [] # [(confid,dynstep), ..., ()]
-            for x in cur_frames:
-                confid = x.info.get("confid", None)
-                if confid:
-                    dynstep = x.info.get("step", None) # step maybe 0
-                    if dynstep is not None:
-                        dynstep = f"_step{dynstep}"
+            wdirs = [] # [(confid,dynstep), ..., ()]
+            for icand, x in zip(global_indices,cur_frames):
+                wdir = x.info.get("wdir", None)
+                if wdir is None:
+                    confid = x.info.get("confid", None)
+                    if confid:
+                        dynstep = x.info.get("step", None) # step maybe 0
+                        if dynstep is not None:
+                            dynstep = f"_step{dynstep}"
+                        else:
+                            dynstep = ""
+                        wdir = "cand{}{}".format(confid,dynstep)
                     else:
-                        dynstep = ""
-                    confids.append((confid,dynstep))
-                else:
-                    confids = []
-                    break
-            if confids:
-                wdirs = ["cand{}{}".format(*ia) for ia in confids]
-                self.logger.info(f"Use attached confids...")
-            else:
-                wdirs = [f"cand{ia}" for ia in global_indices]
-                self.logger.info(f"Use ordered confids...")
+                        wdir = f"cand{icand}"
+                x.info["group"] = i
+                x.info["wdir"] = wdir
+                wdirs.append(wdir)
             # - check whether each structure has a unique wdir
-            assert len(set(wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(confids))} vs. {len(cur_frames)}..."
+            assert len(set(wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(cur_frames)}..."
 
-            # - prepare scheduler
-            # TODO: set group name randomly?
-            if self.batchsize > 1:
-                group_directory = self.directory / f"g{i}" # contain one or more structures
-            else: # batchsize == 1
-                group_directory = self.directory / wdirs[0]
-                wdirs = ["./"]
             # - set specific params
-            job_info.append([group_directory, global_indices, cur_frames, wdirs])
+            job_info["groups"].append([global_indices, wdirs])
+
+        processed_dpath = self.directory/"_data"
+        processed_dpath.mkdir(exist_ok=True)
+
+        # - check differences of input structures
+        write(
+            processed_dpath/"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"]
+        )
+        with open(processed_dpath/"_frames.xyz", "rb") as fopen:
+            cur_md5 = get_file_md5(fopen)
+        stored_fname = f"{cur_md5}.xyz"
+
+        job_info["dataset"] = str((processed_dpath/stored_fname).resolve())
         
+        if (processed_dpath/stored_fname).exists():
+            self.logger.debug(f"Found file with md5 {cur_md5}")
+        else:
+            write(
+                processed_dpath/stored_fname, frames, columns=["symbols", "positions", "move_mask"]
+            )
+        # - remove temp data
+        (processed_dpath/"_frames.xyz").unlink()
+
+        return job_info
+    
+    def run(self, generator=None, *args, **kwargs) -> NoReturn:
+        """Split frames into groups and submit jobs.
+        """
+        super().run(*args, **kwargs)
+
+        # - pre
+        job_info = self._preprocess(generator)
+
+        # - check if jobs were submitted
+
+        # - run
+        if self.scheduler.name == "local":
+            func = self._local_run
+        else:
+            func = self._queue_run
+        
+        _ = func(job_info)
+
+        return 
+    
+    def _queue_run(self, job_info, *args, **kwargs) -> NoReturn:
+        """"""
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+        queued_frames = [q["md5"] for q in queued_jobs]
 
-        # - run
-        for group_directory, global_indices, cur_frames, wdirs in job_info:
+        dataset = job_info["dataset"]
+        cur_md5 = pathlib.Path(dataset).name.split(".")[0]
+        groups = job_info["groups"]
+
+        frames = read(dataset, ":")
+
+        # - use shared worker parameters
+        cur_params = {}
+        cur_params["driver"] = self.driver.as_dict()
+        cur_params["potential"] = self.potter.as_dict()
+        cur_params["batchsize"] = self.batchsize
+
+        with open(self.directory/"worker.yaml", "w") as fopen:
+            yaml.dump(cur_params, fopen)
+
+        for ig, (global_indices, wdirs) in enumerate(groups):
+            # - check if already submitted
             #if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
             #    continue
-            if group_directory.name in queued_names:
+            group_name = f"group-{ig}"
+            #if group_directory.name in queued_names:
+            if group_name in queued_names and cur_md5 in queued_frames:
+                self.logger.info(f"{group_name} was submitted.")
                 continue
+            group_directory = self.directory
 
             # - update scheduler
-            job_name = str(uuid.uuid1()) + "-" + group_directory.name
-            scheduler.set(**{"job-name": job_name})
-            scheduler.script = group_directory/"run-driver.script" 
+            # NOTE: set job name
+            #job_name = str(uuid.uuid1()) + "-" + group_directory.name
+            uid = str(uuid.uuid1())
+            job_name = uid + "-" + group_name
 
-            # - create or check the working directory
-            if scheduler.name != "local":
-                # - use queue scheduler
-                group_directory.mkdir()
+            self.scheduler.set(**{"job-name": job_name})
+            self.scheduler.script = group_directory/f"g{ig}_run-driver.script" 
 
-                cur_params = {}
-                cur_params["driver"] = self.driver.as_dict()
-                cur_params["potential"] = self.potter.as_dict()
-                cur_params["batchsize"] = len(cur_frames)
+            # NOTE: pot file, stru file, job script
+            # - use queue scheduler
+            group_directory.mkdir(exist_ok=True)
 
-                with open(group_directory/"worker.yaml", "w") as fopen:
-                    yaml.dump(cur_params, fopen)
+            #with open(group_directory/f"g{ig}_worker.yaml", "w") as fopen:
+            #    yaml.dump(cur_params, fopen)
 
-                for cur_atoms, cur_wdir in zip(cur_frames, wdirs):
-                    cur_atoms.info["wdir"] = str(cur_wdir)
+            cur_frames = [frames[x] for x in global_indices]
+            for cur_atoms, cur_wdir in zip(cur_frames, wdirs):
+                cur_atoms.info["wdir"] = str(cur_wdir)
 
-                if frames_fpath:
-                    frames_info = dict(
-                        method = "direct",
-                        frames = str(frames_fpath),
-                        indices = list(global_indices)
-                    )
-                    with open(group_directory/"frames.yaml", "w") as fopen:
-                        yaml.dump(frames_info, fopen)
+            frames_info = dict(
+                method = "direct",
+                frames = str(dataset),
+                indices = list(global_indices)
+            )
+            with open(group_directory/f"g{ig}_frames.yaml", "w") as fopen:
+                yaml.dump(frames_info, fopen)
 
-                    scheduler.user_commands = "gdp -p {} worker {}\n".format(
-                        (group_directory/"worker.yaml").name, 
-                        (group_directory/"frames.yaml").name
-                    )
-                else:
-                    write(
-                        group_directory/"frames.xyz", cur_frames, 
-                        columns=["symbols", "positions", "move_mask"]
-                    )
+            self.scheduler.user_commands = "gdp -p {} driver {}\n".format(
+                (group_directory/f"worker.yaml").name, 
+                (group_directory/f"g{ig}_frames.yaml").name
+            )
 
-                    scheduler.user_commands = "gdp -p {} worker {}\n".format(
-                        (group_directory/"worker.yaml").name, 
-                        (group_directory/"frames.xyz").name
-                    )
-                scheduler.write()
-                if self._submit:
-                    self.logger.info(f"{group_directory.name} JOBID: {scheduler.submit()}")
-                else:
-                    self.logger.info(f"{group_directory.name} waits to submit.")
+            #write(
+            #    group_directory/"frames.xyz", cur_frames, 
+            #    columns=["symbols", "positions", "move_mask"]
+            #)
+
+            #self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
+            #    (group_directory/f"{ig}_worker.yaml").name, 
+            #    (group_directory/f"{ig}_frames.xyz").name
+            #)
+            self.scheduler.write()
+            if self._submit:
+                self.logger.info(f"{group_directory.name} JOBID: {self.scheduler.submit()}")
             else:
-                # - use local scheduler
-                #if self.batchsize == 1:
-                #    group_directory = pathlib.Path.cwd()
-                #else:
-                #    group_directory.mkdir()
-                group_directory = pathlib.Path.cwd()
-                with CustomTimer(name="run-driver", func=self.logger.info):
-                    for wdir, atoms in zip(wdirs,cur_frames):
-                        self.driver.directory = group_directory/wdir
-                        self.logger.info(
-                            f"{time.asctime( time.localtime(time.time()) )} {job_name} {self.driver.directory.name} is running..."
+                self.logger.info(f"{group_directory.name} waits to submit.")
+
+            self.database.insert(
+                dict(
+                    uid = uid,
+                    md5 = cur_md5, # dataset md5
+                    gdir=job_name, 
+                    group_number=ig, 
+                    wdir_names=wdirs, 
+                    queued=True
+                )
+            )
+
+        return
+    
+    def _local_run(self, job_info, *args, **kwargs) -> NoReturn:
+        """"""
+        dataset = job_info["dataset"]
+        cur_md5 = pathlib.Path(dataset).name.split(".")[0]
+        groups = job_info["groups"]
+
+        frames = read(dataset, ":")
+
+        for ig, (global_indices, wdirs) in enumerate(groups):
+            group_name = f"group-{ig}"
+            uid = str(uuid.uuid1())
+
+            # - use local scheduler
+            cur_frames = [frames[x] for x in global_indices]
+
+            #group_directory = self.directory
+            with CustomTimer(name="run-driver", func=self.logger.info):
+                for wdir, atoms in zip(wdirs,cur_frames):
+                    self.driver.directory = self.directory/wdir
+                    job_name = uid+str(wdir)
+                    self.logger.info(
+                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                    )
+                    doc_id = self.database.insert(
+                        dict(
+                            uid = uid,
+                            md5 = cur_md5,
+                            gdir=job_name, 
+                            group_number=ig, 
+                            wdir_names=wdirs, 
+                            local=True,
+                            queued=True
                         )
-                        self.driver.reset()
-                        self.driver.run(atoms)
-            self.database.insert(dict(gdir=job_name, queued=True))
-        
-        return 
+                    )
+                    self.driver.reset()
+                    self.driver.run(atoms)
+                
+            #self.database.update({"finished": True}, doc_ids=[doc_id])
+
+        return
+
+    def inspect(self, *args, **kwargs):
+        """ check if any job were finished
+        """
+        self._initialise(*args, **kwargs)
+        self.logger.info(f"@@@{self.__class__.__name__}+inspect")
+
+        scheduler = self.scheduler
+
+        running_jobs = self._get_running_jobs()
+        for job_name in running_jobs:
+            #group_directory = self.directory / job_name[self.UUIDLEN+1:]
+            #group_directory = self.directory / "_works"
+            group_directory = self.directory
+            doc_data = self.database.get(Query().gdir == job_name)
+            group_number = doc_data["group_number"]
+
+            scheduler.set(**{"job-name": job_name})
+            scheduler.script = group_directory/f"g{group_number}-run-driver.script" 
+            #print("xxx", scheduler.script)
+            #print(pathlib.Path.cwd())
+
+            info_name = job_name[self.UUIDLEN+1:]
+            if scheduler.is_finished():
+                self.logger.info(f"{info_name} is finished...")
+                doc_data = self.database.get(Query().gdir == job_name)
+                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+            else:
+                self.logger.info(f"{info_name} is running...")
+
+        return
+    
+    def retrieve(self, *args, **kwargs):
+        """"""
+        self.inspect(*args, **kwargs)
+        self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
+
+        gdirs, results = [], []
+
+        # - check status and get latest results
+        unretrieved_wdirs = []
+        unretrieved_jobs = self._get_unretrieved_jobs()
+        for job_name in unretrieved_jobs:
+            # NOTE: sometimes prefix has number so confid may be striped
+            #group_directory = self.directory / job_name[self.UUIDLEN+1:]
+            #group_directory = self.directory / "_works"
+            group_directory = self.directory
+            doc_data = self.database.get(Query().gdir == job_name)
+            unretrieved_wdirs.extend(
+                group_directory/w for w in doc_data["wdir_names"]
+            )
+
+        if unretrieved_wdirs:
+            unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
+            results = self._read_results(unretrieved_wdirs, *args, **kwargs)
+
+        for job_name in unretrieved_jobs:
+            doc_data = self.database.get(Query().gdir == job_name)
+            self.database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+
+        return results
     
     def _read_results(
-        self, gdirs: List[pathlib.Path], 
+        self, unretrieved_wdirs: List[pathlib.Path], 
         read_traj: bool=False, traj_period: int=1, 
         include_first: bool=True, include_last: bool=True
     ) -> List[Atoms]:
@@ -224,14 +399,6 @@ class DriverBasedWorker(AbstractWorker):
             gdirs: A group of directories.
 
         """
-        unretrived_wdirs = []
-        for group_directory in gdirs:
-            if self.batchsize > 1:
-                wdirs = [x.name for x in group_directory.glob("cand*")]
-            else:
-                wdirs = ["./"]
-            unretrived_wdirs.extend([group_directory/x for x in wdirs])
-
         # - get results
         results = []
         
@@ -240,7 +407,7 @@ class DriverBasedWorker(AbstractWorker):
             # NOTE: works for vasp, ...
             results_ = Parallel(n_jobs=self.n_jobs)(
                 delayed(self._iread_results)(driver, wdir, read_traj, traj_period, include_first, include_last) 
-                for wdir in unretrived_wdirs
+                for wdir in unretrieved_wdirs
             )
 
             for frames in results_:

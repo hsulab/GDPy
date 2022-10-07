@@ -168,12 +168,24 @@ def main():
     )
 
     # --- worker interface
+    parser_driver = subparsers.add_parser(
+        "driver", help="run a driver (local worker)"
+    )
+    parser_driver.add_argument(
+        "STRUCTURE",
+        help="a structure file that stores one or more structures"
+    )
+
     parser_worker = subparsers.add_parser(
         "worker", help="run a worker"
     )
     parser_worker.add_argument(
         "STRUCTURE",
         help="a structure file that stores one or more structures"
+    )
+    parser_worker.add_argument(
+        "--local", action="store_false", 
+        help="whether to perform local execution"
     )
 
     # --- task interface
@@ -297,9 +309,12 @@ def main():
     elif args.subcommand == 'semi':
         from .trainer.manual_train import manual_train
         manual_train(args.INPUTS, args.iter, args.stage)
+    elif args.subcommand == "driver":
+        from GDPy.computation.worker import run_driver
+        run_driver(args.STRUCTURE, args.directory, potter)
     elif args.subcommand == "worker":
         from GDPy.computation.worker import run_worker
-        run_worker(args.STRUCTURE, args.directory, potter)
+        run_worker(args.STRUCTURE, args.directory, args.local, potter)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run)
