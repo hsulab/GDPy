@@ -43,7 +43,7 @@ class AbstractWorker(abc.ABC):
 
     _submit = True
 
-    worker_status = dict(queued=[], finished=[])
+    _exec_mode = "queue"
 
     def __init__(self, params, directory_=None) -> None:
         """
@@ -100,6 +100,9 @@ class AbstractWorker(abc.ABC):
         assert isinstance(scheduler_, AbstractScheduler), ""
         self._scheduler = scheduler_
 
+        # - update mode
+        #if self._scheduler.name == "local"
+
         return
     
     @property
@@ -115,7 +118,9 @@ class AbstractWorker(abc.ABC):
     
     def _init_database(self):
         """"""
-        self.database = TinyDB(self.directory/"_jobs.json", indent=2)
+        self.database = TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        )
 
         return
     
