@@ -15,13 +15,36 @@ from GDPy.utils.command import CustomTimer
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
+def run_driver(structure: str, directory="./", worker=None):
+    """"""
+    directory = pathlib.Path(directory)
 
-def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME, worker=None):
+    # - read structures
+    from GDPy.builder import create_generator
+    generator = create_generator(structure)
+    frames = generator.run()
+    #nframes = len(frames)
+    #print("nframes: ", nframes)
+
+    wdirs = []
+    for i, atoms in enumerate(frames):
+        wdir = atoms.info.get("wdir", f"cand{i}")
+        wdirs.append(wdir)
+    
+    driver = worker.driver
+    for wdir, atoms in zip(wdirs, frames):
+        driver.reset()
+        driver.directory = directory/wdir
+        driver.run(atoms, read_exists=True, extra_info=None)
+
+    return
+
+
+def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME, local_exec=False, worker=None):
     """"""
     # - read structures
     from GDPy.builder import create_generator
     generator = create_generator(structure)
-    print(generator)
     frames = generator.run()
     nframes = len(frames)
     print("nframes: ", nframes)
@@ -32,9 +55,10 @@ def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME
 
     # - find input frames
     worker.directory = directory
+    print(directory)
 
     worker.run(generator)
-    worker.inspect()
+    #worker.inspect()
     #if len(worker._get_unretrieved_jobs()) > 0:
     new_frames = worker.retrieve()
 
@@ -46,7 +70,7 @@ def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME
             np.min(energies), np.max(energies), np.average(energies)
         )
         print(content)
-        write(worker.directory/"new_frames.xyz", new_frames, append=True)
+        #write(worker.directory/"new_frames.xyz", new_frames, append=True)
 
     return
 
