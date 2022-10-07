@@ -130,13 +130,15 @@ class AbstractPotentialManager(abc.ABC):
     def register_trainer(self, train_params_: dict):
         """"""
         train_params = copy.deepcopy(train_params_)
+
         self.train_config = train_params.get("config", None)
 
         self.train_size = train_params.get("size", 1)
-        self.train_dataset = train_params.get("dataset", None)
-
         # - training
         self.train_epochs = train_params.get("epochs", 500)
+
+        # - parse the dataset
+        self.train_dataset = train_params.get("dataset", None)
 
         # - for the train-valid split
         self.train_split_ratio = train_params.get("split_ratio", 0.9)
