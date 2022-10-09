@@ -1,0 +1,499 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>expedition package &mdash; GDPy 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="main module" href="main.html" />
+    <link rel="prev" title="config module" href="config.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> GDPy
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../expeditions/index.html">Expeditions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">expedition package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-expedition.abstract">expedition.abstract module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-expedition.adsorbate">expedition.adsorbate module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-expedition.evoSearch">expedition.evoSearch module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-expedition.md">expedition.md module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-expedition.reaction">expedition.reaction module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-expedition">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html">potential package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reaction.html">reaction package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html">trainer package</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">GDPy</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
+        
+      <li>expedition package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/modules/expedition.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="expedition-package">
+<h1>expedition package<a class="headerlink" href="#expedition-package" title="Permalink to this heading">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-expedition.abstract">
+<span id="expedition-abstract-module"></span><h2>expedition.abstract module<a class="headerlink" href="#module-expedition.abstract" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">expedition.abstract.</span></span><span class="sig-name descname"><span class="pre">AbstractExpedition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">main_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">referee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.abstract.AbstractExpedition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.calculation_params">
+<span class="sig-name descname"><span class="pre">calculation_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.calculation_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.collection_params">
+<span class="sig-name descname"><span class="pre">collection_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'resdir_name':</span> <span class="pre">'sorted',</span> <span class="pre">'selection_tags':</span> <span class="pre">['final'],</span> <span class="pre">'traj_period':</span> <span class="pre">1}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.collection_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.creation_params">
+<span class="sig-name descname"><span class="pre">creation_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'calc_dir_name':</span> <span class="pre">'tmp_folder'}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.creation_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.general_params">
+<span class="sig-name descname"><span class="pre">general_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'ignore_exists':</span> <span class="pre">False}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.general_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.label_params">
+<span class="sig-name descname"><span class="pre">label_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'check_parity':</span> <span class="pre">False}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.label_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'expedition'</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.parameters">
+<span class="sig-name descname"><span class="pre">parameters</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.parameters" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.parse_specorder">
+<span class="sig-name descname"><span class="pre">parse_specorder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">composition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.abstract.AbstractExpedition.parse_specorder" title="Permalink to this definition">¶</a></dt>
+<dd><p>determine species order from current structure
+since many systems with different compositions
+may be explored at the same time</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.restart">
+<span class="sig-name descname"><span class="pre">restart</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.restart" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">working_directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.abstract.AbstractExpedition.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>create for all explorations</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.type_list">
+<span class="sig-name descname"><span class="pre">type_list</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.type_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.abstract.AbstractExpedition.type_map">
+<span class="sig-name descname"><span class="pre">type_map</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#expedition.abstract.AbstractExpedition.type_map" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-expedition.adsorbate">
+<span id="expedition-adsorbate-module"></span><h2>expedition.adsorbate module<a class="headerlink" href="#module-expedition.adsorbate" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="expedition.adsorbate.AdsorbateEvolution">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">expedition.adsorbate.</span></span><span class="sig-name descname"><span class="pre">AdsorbateEvolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">main_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">referee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.adsorbate.AdsorbateEvolution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractExpedition</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.adsorbate.AdsorbateEvolution.collection_params">
+<span class="sig-name descname"><span class="pre">collection_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'selection_tags':</span> <span class="pre">['converged',</span> <span class="pre">'traj'],</span> <span class="pre">'traj_period':</span> <span class="pre">1}</span></em><a class="headerlink" href="#expedition.adsorbate.AdsorbateEvolution.collection_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.adsorbate.AdsorbateEvolution.creation_params">
+<span class="sig-name descname"><span class="pre">creation_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'opt_dname':</span> <span class="pre">'tmp_folder',</span> <span class="pre">'opt_fname':</span> <span class="pre">'opt-ads.xyz',</span> <span class="pre">'struc_prefix':</span> <span class="pre">'cand'}</span></em><a class="headerlink" href="#expedition.adsorbate.AdsorbateEvolution.creation_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.adsorbate.AdsorbateEvolution.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'ads'</span></em><a class="headerlink" href="#expedition.adsorbate.AdsorbateEvolution.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.adsorbate.AdsorbateEvolution.parameters">
+<span class="sig-name descname"><span class="pre">parameters</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#expedition.adsorbate.AdsorbateEvolution.parameters" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-expedition.evoSearch">
+<span id="expedition-evosearch-module"></span><h2>expedition.evoSearch module<a class="headerlink" href="#module-expedition.evoSearch" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="expedition.evoSearch.EvolutionaryExpedition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">expedition.evoSearch.</span></span><span class="sig-name descname"><span class="pre">EvolutionaryExpedition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">main_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">referee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.evoSearch.EvolutionaryExpedition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractExpedition</span></code></p>
+<p>Quasi-Random Structure Search.</p>
+<p>Current method is the genetic algorithm implemented in ASE. The general workflow
+is (create -&gt; collect -&gt; select -&gt; calc -&gt; harvest). Other methods may utilise
+this workflow as well, nanmely, Monte Carlo, Basin Hopping, Simulated Annealing,
+and Minima Hopping.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is only for the population-based exploration now.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.evoSearch.EvolutionaryExpedition.collection_params">
+<span class="sig-name descname"><span class="pre">collection_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'boltz':</span> <span class="pre">{'boltzmann':</span> <span class="pre">3.0,</span> <span class="pre">'fmax':</span> <span class="pre">0.5,</span> <span class="pre">'number':</span> <span class="pre">[16,</span> <span class="pre">0.2]},</span> <span class="pre">'selection_tags':</span> <span class="pre">['converged',</span> <span class="pre">'traj'],</span> <span class="pre">'traj_period':</span> <span class="pre">1}</span></em><a class="headerlink" href="#expedition.evoSearch.EvolutionaryExpedition.collection_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.evoSearch.EvolutionaryExpedition.creation_params">
+<span class="sig-name descname"><span class="pre">creation_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'opt_dname':</span> <span class="pre">'tmp_folder',</span> <span class="pre">'opt_fname':</span> <span class="pre">'opt-ads.xyz',</span> <span class="pre">'struc_prefix':</span> <span class="pre">'cand'}</span></em><a class="headerlink" href="#expedition.evoSearch.EvolutionaryExpedition.creation_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.evoSearch.EvolutionaryExpedition.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'evo'</span></em><a class="headerlink" href="#expedition.evoSearch.EvolutionaryExpedition.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-expedition.md">
+<span id="expedition-md-module"></span><h2>expedition.md module<a class="headerlink" href="#module-expedition.md" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="expedition.md.MDBasedExpedition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">expedition.md.</span></span><span class="sig-name descname"><span class="pre">MDBasedExpedition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">main_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">referee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.md.MDBasedExpedition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractExpedition</span></code></p>
+<dl class="simple">
+<dt>Exploration Strategies</dt><dd><p>brute-force molecular dynamics
+biased molecular dynamics</p>
+</dd>
+<dt>Initial Systems</dt><dd><p>initial structures must be manually prepared</p>
+</dd>
+<dt>Units</dt><dd><p>fs, eV, eV/AA</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDBasedExpedition.collection_params">
+<span class="sig-name descname"><span class="pre">collection_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'selection_tags':</span> <span class="pre">['converged',</span> <span class="pre">'traj']}</span></em><a class="headerlink" href="#expedition.md.MDBasedExpedition.collection_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDBasedExpedition.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'MD'</span></em><a class="headerlink" href="#expedition.md.MDBasedExpedition.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="expedition.md.MDParams">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">expedition.md.</span></span><span class="sig-name descname"><span class="pre">MDParams</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">task</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'md'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">md_style</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'nvt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dump_period</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pres</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-</span> <span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Tdamp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Pdamp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">500</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.md.MDParams" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.Pdamp">
+<span class="sig-name descname"><span class="pre">Pdamp</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">500</span></em><a class="headerlink" href="#expedition.md.MDParams.Pdamp" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.Tdamp">
+<span class="sig-name descname"><span class="pre">Tdamp</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">100</span></em><a class="headerlink" href="#expedition.md.MDParams.Tdamp" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.dump_period">
+<span class="sig-name descname"><span class="pre">dump_period</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#expedition.md.MDParams.dump_period" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.md_style">
+<span class="sig-name descname"><span class="pre">md_style</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'nvt'</span></em><a class="headerlink" href="#expedition.md.MDParams.md_style" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.pres">
+<span class="sig-name descname"><span class="pre">pres</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">-1</span></em><a class="headerlink" href="#expedition.md.MDParams.pres" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.steps">
+<span class="sig-name descname"><span class="pre">steps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#expedition.md.MDParams.steps" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.task">
+<span class="sig-name descname"><span class="pre">task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'md'</span></em><a class="headerlink" href="#expedition.md.MDParams.task" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.temp">
+<span class="sig-name descname"><span class="pre">temp</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">300</span></em><a class="headerlink" href="#expedition.md.MDParams.temp" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.md.MDParams.timestep">
+<span class="sig-name descname"><span class="pre">timestep</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#expedition.md.MDParams.timestep" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="expedition.md.create_dataclass_from_dict">
+<span class="sig-prename descclassname"><span class="pre">expedition.md.</span></span><span class="sig-name descname"><span class="pre">create_dataclass_from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dcls</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dataclass</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">dataclass</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#expedition.md.create_dataclass_from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>create a series of dcls instances</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-expedition.reaction">
+<span id="expedition-reaction-module"></span><h2>expedition.reaction module<a class="headerlink" href="#module-expedition.reaction" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="expedition.reaction.ReactionExplorer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">expedition.reaction.</span></span><span class="sig-name descname"><span class="pre">ReactionExplorer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">main_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">referee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.reaction.ReactionExplorer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractExpedition</span></code></p>
+<p>currently, use AFIR to search reaction pairs</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.reaction.ReactionExplorer.collection_params">
+<span class="sig-name descname"><span class="pre">collection_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'selection_tags':</span> <span class="pre">['TS',</span> <span class="pre">'FS',</span> <span class="pre">'optraj'],</span> <span class="pre">'traj_period':</span> <span class="pre">1}</span></em><a class="headerlink" href="#expedition.reaction.ReactionExplorer.collection_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.reaction.ReactionExplorer.creation_params">
+<span class="sig-name descname"><span class="pre">creation_params</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'opt_dname':</span> <span class="pre">'tmp_folder',</span> <span class="pre">'struc_prefix':</span> <span class="pre">'cand'}</span></em><a class="headerlink" href="#expedition.reaction.ReactionExplorer.creation_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="expedition.reaction.ReactionExplorer.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'rxn'</span></em><a class="headerlink" href="#expedition.reaction.ReactionExplorer.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-expedition">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-expedition" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="expedition.run_expedition">
+<span class="sig-prename descclassname"><span class="pre">expedition.</span></span><span class="sig-name descname"><span class="pre">run_expedition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">potter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">referee</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exp_json</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#expedition.run_expedition" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="main.html" class="btn btn-neutral float-right" title="main module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="config.html" class="btn btn-neutral float-left" title="config module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2022, Jiayan Xu
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

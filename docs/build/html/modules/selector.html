@@ -1,0 +1,588 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>selector package &mdash; GDPy 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="trainer package" href="trainer.html" />
+    <link rel="prev" title="scheduler package" href="scheduler.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> GDPy
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../expeditions/index.html">Expeditions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html">potential package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reaction.html">reaction package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">selector package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.composition">selector.composition module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.convergence">selector.convergence module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.cur">selector.cur module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.descriptor">selector.descriptor module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.graph">selector.graph module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.invariant">selector.invariant module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.selector">selector.selector module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.traj">selector.traj module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector.uncertainty">selector.uncertainty module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-selector">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html">trainer package</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">GDPy</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
+        
+      <li>selector package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/modules/selector.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="selector-package">
+<h1>selector package<a class="headerlink" href="#selector-package" title="Permalink to this heading">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-selector.composition">
+<span id="selector-composition-module"></span><h2>selector.composition module<a class="headerlink" href="#module-selector.composition" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.composition.ComposedSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.composition.</span></span><span class="sig-name descname"><span class="pre">ComposedSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">selectors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">AbstractSelector</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.composition.ComposedSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<p>Perform several selections consecutively.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.composition.ComposedSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'selectors':</span> <span class="pre">[]}</span></em><a class="headerlink" href="#selector.composition.ComposedSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="selector.composition.ComposedSelector.directory">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><a class="headerlink" href="#selector.composition.ComposedSelector.directory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Working directory.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When setting directory, info_fpath would be set as well.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.composition.ComposedSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'composed'</span></em><a class="headerlink" href="#selector.composition.ComposedSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.convergence">
+<span id="selector-convergence-module"></span><h2>selector.convergence module<a class="headerlink" href="#module-selector.convergence" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.convergence.ConvergenceSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.convergence.</span></span><span class="sig-name descname"><span class="pre">ConvergenceSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.convergence.ConvergenceSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<p>Select geometrically converged frames.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.convergence.ConvergenceSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'fmax':</span> <span class="pre">0.05}</span></em><a class="headerlink" href="#selector.convergence.ConvergenceSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.convergence.ConvergenceSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'convergence'</span></em><a class="headerlink" href="#selector.convergence.ConvergenceSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.cur">
+<span id="selector-cur-module"></span><h2>selector.cur module<a class="headerlink" href="#module-selector.cur" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="selector.cur.cur_selection">
+<span class="sig-prename descclassname"><span class="pre">selector.cur.</span></span><span class="sig-name descname"><span class="pre">cur_selection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num:</span> <span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zeta:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'descent'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng=&lt;module</span> <span class="pre">'numpy.random'</span> <span class="pre">from</span> <span class="pre">'/Users/jyxu/miniconda3/envs/aiida/lib/python3.7/site-packages/numpy/random/__init__.py'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.cur.cur_selection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performa a CUR selection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – A (nframes,nfeatures) shaped arrray.</p></li>
+<li><p><strong>num</strong> – Selected number.</p></li>
+<li><p><strong>zeta</strong> – Exponential coefficient.</p></li>
+<li><p><strong>strategy</strong> – Selection strategy, either stochastic or descent.</p></li>
+<li><p><strong>rng</strong> – Random generator.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="selector.cur.descriptor_svd">
+<span class="sig-prename descclassname"><span class="pre">selector.cur.</span></span><span class="sig-name descname"><span class="pre">descriptor_svd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">at_descs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'vh'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.cur.descriptor_svd" title="Permalink to this definition">¶</a></dt>
+<dd><p>Perfrom a sparse SVD.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.descriptor">
+<span id="selector-descriptor-module"></span><h2>selector.descriptor module<a class="headerlink" href="#module-selector.descriptor" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.descriptor.DescriptorBasedSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.descriptor.</span></span><span class="sig-name descname"><span class="pre">DescriptorBasedSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.descriptor.DescriptorBasedSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<p>Selector using descriptors.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="selector.descriptor.DescriptorBasedSelector.calc_desc">
+<span class="sig-name descname"><span class="pre">calc_desc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.descriptor.DescriptorBasedSelector.calc_desc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate descriptors.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.descriptor.DescriptorBasedSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'criteria':</span> <span class="pre">{'method':</span> <span class="pre">'cur',</span> <span class="pre">'strategy':</span> <span class="pre">'descent',</span> <span class="pre">'zeta':</span> <span class="pre">'-1'},</span> <span class="pre">'descriptor':</span> <span class="pre">None,</span> <span class="pre">'number':</span> <span class="pre">[4,</span> <span class="pre">0.2],</span> <span class="pre">'random_seed':</span> <span class="pre">None}</span></em><a class="headerlink" href="#selector.descriptor.DescriptorBasedSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.descriptor.DescriptorBasedSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'dscribe'</span></em><a class="headerlink" href="#selector.descriptor.DescriptorBasedSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.descriptor.DescriptorBasedSelector.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#selector.descriptor.DescriptorBasedSelector.verbose" title="Permalink to this definition">¶</a></dt>
+<dd><p>output verbosity</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.graph">
+<span id="selector-graph-module"></span><h2>selector.graph module<a class="headerlink" href="#module-selector.graph" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.graph.GraphSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.graph.</span></span><span class="sig-name descname"><span class="pre">GraphSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.graph.GraphSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.graph.GraphSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#selector.graph.GraphSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.graph.GraphSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'graph'</span></em><a class="headerlink" href="#selector.graph.GraphSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.invariant">
+<span id="selector-invariant-module"></span><h2>selector.invariant module<a class="headerlink" href="#module-selector.invariant" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.invariant.InvariantSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.invariant.</span></span><span class="sig-name descname"><span class="pre">InvariantSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.invariant.InvariantSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<p>Perform an invariant selection.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.invariant.InvariantSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#selector.invariant.InvariantSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.invariant.InvariantSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'invariant'</span></em><a class="headerlink" href="#selector.invariant.InvariantSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.selector">
+<span id="selector-selector-module"></span><h2>selector.selector module<a class="headerlink" href="#module-selector.selector" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.selector.</span></span><span class="sig-name descname"><span class="pre">AbstractSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('/Users/jyxu/Documents/SomeCodes/GDPy/docs')</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.selector.AbstractSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>The base class of any selector.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.as_dict">
+<span class="sig-name descname"><span class="pre">as_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#selector.selector.AbstractSelector.as_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a dict of selector parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'number':</span> <span class="pre">[4,</span> <span class="pre">0.2]}</span></em><a class="headerlink" href="#selector.selector.AbstractSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.directory">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Path</span></em><a class="headerlink" href="#selector.selector.AbstractSelector.directory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Working directory.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When setting directory, info_fpath would be set as well.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.fname">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fname</span></span><a class="headerlink" href="#selector.selector.AbstractSelector.fname" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.indent">
+<span class="sig-name descname"><span class="pre">indent</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#selector.selector.AbstractSelector.indent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indent of outputs.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#selector.selector.AbstractSelector.logger" title="Permalink to this definition">¶</a></dt>
+<dd><p>Logger instance.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'abstract'</span></em><a class="headerlink" href="#selector.selector.AbstractSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.njobs">
+<span class="sig-name descname"><span class="pre">njobs</span></span><a class="headerlink" href="#selector.selector.AbstractSelector.njobs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Number of parallel jobs for joblib.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.pfunc">
+<span class="sig-name descname"><span class="pre">pfunc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">content</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.selector.AbstractSelector.pfunc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write outputs to file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.select">
+<span class="sig-name descname"><span class="pre">select</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_map</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ret_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#selector.selector.AbstractSelector.select" title="Permalink to this definition">¶</a></dt>
+<dd><p>Seelect frames.</p>
+<p>Based on used selction protocol</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>frames</strong> – A list of ase.Atoms.</p></li>
+<li><p><strong>index_map</strong> – Global indices of frames.</p></li>
+<li><p><strong>ret_indices</strong> – Whether return selected indices or frames.</p></li>
+<li><p><strong>*args</strong> – Variable length argument list.</p></li>
+<li><p><strong>**kwargs</strong> – Arbitrary keyword arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>selected results</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>List[Atoms] or List[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.selector.AbstractSelector.set" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="selector.selector.AbstractSelector.set_rng">
+<span class="sig-name descname"><span class="pre">set_rng</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.selector.AbstractSelector.set_rng" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.traj">
+<span id="selector-traj-module"></span><h2>selector.traj module<a class="headerlink" href="#module-selector.traj" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.traj.BoltzmannMinimaSelection">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.traj.</span></span><span class="sig-name descname"><span class="pre">BoltzmannMinimaSelection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.traj.BoltzmannMinimaSelection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.traj.BoltzmannMinimaSelection.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'ae_cut':</span> <span class="pre">None,</span> <span class="pre">'boltzmann':</span> <span class="pre">3,</span> <span class="pre">'fmax':</span> <span class="pre">0.05,</span> <span class="pre">'number':</span> <span class="pre">[4,</span> <span class="pre">0.2],</span> <span class="pre">'random_seed':</span> <span class="pre">None}</span></em><a class="headerlink" href="#selector.traj.BoltzmannMinimaSelection.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.traj.BoltzmannMinimaSelection.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'BoltzMinima'</span></em><a class="headerlink" href="#selector.traj.BoltzmannMinimaSelection.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector.uncertainty">
+<span id="selector-uncertainty-module"></span><h2>selector.uncertainty module<a class="headerlink" href="#module-selector.uncertainty" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="selector.uncertainty.DeviationSelector">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">selector.uncertainty.</span></span><span class="sig-name descname"><span class="pre">DeviationSelector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pot_worker</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">AbstractWorker</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#selector.uncertainty.DeviationSelector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSelector</span></code></p>
+<p>Selection based on property uncertainty.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The property values should be stored in atoms.info.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.uncertainty.DeviationSelector.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'criteria':</span> <span class="pre">{'max_devi_e':</span> <span class="pre">[0.01,</span> <span class="pre">0.25],</span> <span class="pre">'max_devi_f':</span> <span class="pre">[0.05,</span> <span class="pre">0.5]}}</span></em><a class="headerlink" href="#selector.uncertainty.DeviationSelector.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.uncertainty.DeviationSelector.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'devi'</span></em><a class="headerlink" href="#selector.uncertainty.DeviationSelector.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Selector name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="selector.uncertainty.DeviationSelector.pot_worker">
+<span class="sig-name descname"><span class="pre">pot_worker</span></span><a class="headerlink" href="#selector.uncertainty.DeviationSelector.pot_worker" title="Permalink to this definition">¶</a></dt>
+<dd><p>A worker for potential computations.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-selector">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-selector" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="selector.create_selector">
+<span class="sig-prename descclassname"><span class="pre">selector.</span></span><span class="sig-name descname"><span class="pre">create_selector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PosixPath('/Users/jyxu/Documents/SomeCodes/GDPy/docs')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pot_worker</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">AbstractWorker</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">AbstractSelector</span></span></span><a class="headerlink" href="#selector.create_selector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a selector based on arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_list</strong> – A list of each selector’s parameters.</p></li>
+<li><p><strong>directory</strong> – Working directory.</p></li>
+<li><p><strong>pot_worker</strong> – A worker for potential computations.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>An instance of the AbstractSelector.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="selector.run_selection">
+<span class="sig-prename descclassname"><span class="pre">selector.</span></span><span class="sig-name descname"><span class="pre">run_selection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">param_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">structure</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">AbstractWorker</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#selector.run_selection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run selection with input selector and input structures.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="trainer.html" class="btn btn-neutral float-right" title="trainer package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="scheduler.html" class="btn btn-neutral float-left" title="scheduler package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2022, Jiayan Xu
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

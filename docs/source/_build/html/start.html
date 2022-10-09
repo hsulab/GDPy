@@ -1,0 +1,472 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Getting Started &mdash; GDPy 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Computations" href="computations/index.html" />
+    <link rel="prev" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> GDPy
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting Started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#units">Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#potential">Potential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#driver">Driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#scheduler">Scheduler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#worker">Worker</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extensions/index.html">Extensions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/modules.html">GDPy APIs</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">GDPy</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Getting Started</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/start.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="getting-started">
+<h1>Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this heading">¶</a></h1>
+<p>Here, we would introduce several basic components of GDPy, namely <strong>potential</strong>,
+<strong>driver</strong>, <strong>worker</strong>. <strong>Worker</strong> is the basic unit that performs any
+computation, which contains a <code class="docutils literal notranslate"><span class="pre">AbstractPotentialManager</span></code> and a <code class="docutils literal notranslate"><span class="pre">Scheduler</span></code>.</p>
+<div class="section" id="units">
+<h2>Units<a class="headerlink" href="#units" title="Permalink to this heading">¶</a></h2>
+<p>We use the following units through all input files:</p>
+<p>Time <code class="docutils literal notranslate"><span class="pre">fs</span></code>, Length <code class="docutils literal notranslate"><span class="pre">AA</span></code>, Energy <code class="docutils literal notranslate"><span class="pre">eV</span></code>, Force <code class="docutils literal notranslate"><span class="pre">eV/AA</span></code>.</p>
+</div>
+<div class="section" id="potential">
+<h2>Potential<a class="headerlink" href="#potential" title="Permalink to this heading">¶</a></h2>
+<p>We have supported several MLIP formulations based on an <code class="docutils literal notranslate"><span class="pre">AbstractPotentialManager</span></code>
+class to access <strong>driver</strong>, <strong>expedition</strong>, and <strong>training</strong> through workflows.
+The MLIP calculations are performed by <strong>ase</strong> <code class="docutils literal notranslate"><span class="pre">calculators</span></code> using either
+<strong>python</strong> built-in codes (PyTorch, TensorFlow) or File-IO based external codes
+(e.g. <strong>lammps</strong>).</p>
+<p>The example below shows how to define a <strong>potential</strong> in a <strong>yaml</strong> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># -- ase interface</span>
+<span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span> <span class="c1"># name of the potential</span>
+    <span class="nt">params</span><span class="p">:</span> <span class="c1"># potential-specifc params</span>
+        <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">ase</span> <span class="c1"># ase or lammps</span>
+        <span class="nt">file</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./deployed_model.pth</span>
+
+<span class="c1"># -- lammps interface</span>
+<span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span>
+    <span class="nt">params</span><span class="p">:</span>
+        <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lammps</span>
+        <span class="nt">command</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lmp_cat -in in.lammps 2&gt;&amp;1 &gt; lmp.out</span>
+        <span class="nt">pair_style</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span>
+        <span class="nt">pair_coeff</span><span class="p">:</span> <span class="s">&quot;*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">./deployed_model.pth&quot;</span>
+</pre></div>
+</div>
+<p><strong>Suported MLIPs:</strong></p>
+<p>We have already implemented interfaces to the potentials below:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 37%" />
+<col style="width: 18%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Representation</p></th>
+<th class="head"><p>Backend</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference external" href="https://github.com/zhangylch/EANN">eann</a></p></td>
+<td><p>(Recursive) Embedded Atom</p></td>
+<td><p>Python, LAMMPS</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/deepmodeling/deepmd-kit">deepmd</a></p></td>
+<td><p>Deep Descriptor</p></td>
+<td><p>Python, LAMMPS</p></td>
+<td><p>Only potential model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="http://www.lasphub.com/#/lasp/laspHome">lasp</a></p></td>
+<td><p>Atom-Centred Symmetry Function</p></td>
+<td><p>LASP, LAMMPS</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/mir-group/nequip">nequip</a></p></td>
+<td><p>E(3)-Equivalent Message Passing</p></td>
+<td><p>Python, LAMMPS</p></td>
+<td><p>Allegro is supported as well.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>GDPy does not implement any MLIP but offers a unified interface.
+Therefore, certain MLIP could not be utilised before
+corresponding required packages are installed correctly.</p>
+</div>
+<p><strong>Other Potentials:</strong></p>
+<p>Some potentials besides MLIPs are supported. Force fields or semi-empirical
+potentials are used for pre-sampling to build an initial dataset. <em>Ab-initio</em>
+methods are used to label structures with target properties (e.g. total energy,
+forces, and stresses).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 37%" />
+<col style="width: 18%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Backend</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>reax</p></td>
+<td><p>Reactive Force Field</p></td>
+<td><p>LAMMPS</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>xtb</p></td>
+<td><p>Tight Binding</p></td>
+<td><p>xtb</p></td>
+<td><p>Under development.</p></td>
+</tr>
+<tr class="row-even"><td><p>vasp</p></td>
+<td><p>Density Functional Theory</p></td>
+<td><p>VASP</p></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="driver">
+<h2>Driver<a class="headerlink" href="#driver" title="Permalink to this heading">¶</a></h2>
+<p>After potential is defined, we need to further specify what simulation would be
+perfomed in the <strong>driver</strong> section. A driver (<code class="docutils literal notranslate"><span class="pre">AbstractDriver</span></code>) is the basic
+unit with an attacthed <strong>ase</strong> <code class="docutils literal notranslate"><span class="pre">calculators</span></code> for basic dynamics tasks, namely,
+minimisation, molecular dynamics and transition-state search. Through a driver,
+we can reuse the input file to perform the same simulation with several different
+backends.</p>
+<p>The example below shows how to define a <strong>driver</strong> in a <strong>yaml</strong> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">driver</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">external</span> <span class="c1"># this means using the same backend as the calc</span>
+    <span class="nt">task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">md</span> <span class="c1"># molecular dynamics (md) or minimisation (min)</span>
+    <span class="nt">init</span><span class="p">:</span>
+        <span class="nt">md_style</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nvt</span> <span class="c1"># thermostat NVT</span>
+        <span class="nt">temp</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">600</span> <span class="c1"># temperature, Kelvin</span>
+        <span class="nt">timestep</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1.0</span> <span class="c1"># fs</span>
+    <span class="nt">run</span><span class="p">:</span>
+        <span class="nt">steps</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">100</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="computations/index.html#driver-examples"><span class="std std-ref">Driver</span></a> section for more details.</p>
+</div>
+<div class="section" id="scheduler">
+<h2>Scheduler<a class="headerlink" href="#scheduler" title="Permalink to this heading">¶</a></h2>
+<p>With <strong>potential</strong> and <strong>driver</strong> defined, we can run simulations on local
+machines (directly in the command line). However, simulations, under most
+circumstances, would be really heavy even by MLIPs (image a 10 ns molecular
+dynamics). The simulations would ideally be dispatched to high performace clusters
+(HPCs).</p>
+<p>The example below shows how to define a <strong>scheduler</strong> in a <strong>yaml</strong> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">scheduler</span><span class="p">:</span>
+    <span class="c1"># -- currently, we only have slurm :(</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">slurm</span>
+    <span class="c1"># -- scheduler script parameters</span>
+    <span class="nt">partition</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">k2-hipri</span>
+    <span class="nt">ntasks</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span>
+    <span class="nt">time</span><span class="p">:</span> <span class="s">&quot;0:10:00&quot;</span>
+    <span class="c1"># -- environment settings</span>
+    <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;source</span><span class="nv"> </span><span class="s">~/envs/source_eann.sh\nconda</span><span class="nv"> </span><span class="s">activate</span><span class="nv"> </span><span class="s">catorch2\n&quot;</span>
+    <span class="c1"># -- users&#39; commands</span>
+    <span class="c1"># user_commands: # automatically set by tasks</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="worker">
+<h2>Worker<a class="headerlink" href="#worker" title="Permalink to this heading">¶</a></h2>
+<p><strong>Worker</strong> that combines the above components is what we use throughout various
+workflows to deal with computations.</p>
+<p>The example below shows how to define a <strong>worker</strong> in a <strong>yaml</strong> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span> <span class="c1"># name of the potential</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">ase</span> <span class="c1"># ase or lammps</span>
+    <span class="nt">params</span><span class="p">:</span> <span class="c1"># potential-specifc params</span>
+        <span class="nt">file</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./deployed_model.pth</span>
+<span class="nt">driver</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">external</span>
+    <span class="nt">task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">md</span> <span class="c1"># molecular dynamics (md) or minimisation (min)</span>
+    <span class="nt">init</span><span class="p">:</span>
+        <span class="nt">md_style</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nvt</span> <span class="c1"># thermostat NVT</span>
+        <span class="nt">temp</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">600</span> <span class="c1"># temperature, Kelvin</span>
+        <span class="nt">timestep</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1.0</span> <span class="c1"># fs</span>
+    <span class="nt">run</span><span class="p">:</span>
+        <span class="nt">steps</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="nt">scheduler</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">slurm</span>
+    <span class="nt">partition</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">k2-hipri</span>
+    <span class="nt">ntasks</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span>
+    <span class="nt">time</span><span class="p">:</span> <span class="s">&quot;0:10:00&quot;</span>
+    <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;source</span><span class="nv"> </span><span class="s">~/envs/source_eann.sh\nconda</span><span class="nv"> </span><span class="s">activate</span><span class="nv"> </span><span class="s">catorch2\n&quot;</span>
+</pre></div>
+</div>
+<p>to run a <strong>nvt</strong> simulation with given structures by <strong>nequip</strong> on a <strong>slurm</strong>
+machine</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># -- submit jobs...</span>
+<span class="c1">#    one structure for one job</span>
+$ gdp -p ./worker.yaml worker ./frames.xyz
+nframes:  <span class="m">2</span>
+@@@DriverBasedWorker+run
+Use attached confids...
+Use attached confids...
+cand100 JOBID: <span class="m">10206151</span>
+cand96 JOBID: <span class="m">10206152</span>
+@@@DriverBasedWorker+inspect
+cand100 is running...
+cand96 is running...
+@@@DriverBasedWorker+inspect
+cand100 is running...
+cand96 is running...
+@@@DriverBasedWorker+retrieve
+
+<span class="c1"># -- wait a few minutes...</span>
+<span class="c1">#    if jobs are not finished, run the command would retrieve nothing</span>
+$ gdp -p ./worker.yaml worker ./frames.xyz
+nframes:  <span class="m">2</span>
+@@@DriverBasedWorker+run
+Use attached confids...
+Use attached confids...
+@@@DriverBasedWorker+inspect
+cand100 is running...
+cand96 is running...
+@@@DriverBasedWorker+inspect
+cand100 is running...
+cand96 is running...
+@@@DriverBasedWorker+retrieve
+
+<span class="c1"># -- retrieve results...</span>
+$ gdp -p ./worker.yaml worker ./frames.xyz
+nframes:  <span class="m">2</span>
+@@@DriverBasedWorker+run
+Use attached confids...
+Use attached confids...
+@@@DriverBasedWorker+inspect
+cand100 is finished...
+cand96 is finished...
+@@@DriverBasedWorker+inspect
+@@@DriverBasedWorker+retrieve
+*** read-results time:   <span class="m">0</span>.0280 ***
+new_frames: <span class="m">2</span> energy of the first: -92.219757
+nframes: <span class="m">2</span>
+statistics of total energies: min    -108.5682 max     -92.2198 avg    -100.3940
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If <strong>scheduler</strong> is not set in the <strong>yaml</strong> file, the default
+<code class="docutils literal notranslate"><span class="pre">LocalScheduler</span></code> would be used. In other words, the simulations would be
+directly run in the command line.</p>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="computations/index.html" class="btn btn-neutral float-right" title="Computations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2022, Jiayan Xu
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
