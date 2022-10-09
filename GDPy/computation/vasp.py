@@ -22,19 +22,19 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.computation.utils import create_single_point_calculator
 from GDPy.computation.driver import AbstractDriver
 
-"""wrap ase-vasp into a few utilities
-"""
+"""Driver for VASP."""
 
 
 # vasp utils
 def read_sort(directory):
     """Create the sorting and resorting list from ase-sort.dat.
+
     If the ase-sort.dat file does not exist, the sorting is redone.
+
     """
     sortfile = directory / 'ase-sort.dat'
     if os.path.isfile(sortfile):
@@ -65,12 +65,12 @@ class VaspDriver(AbstractDriver):
         },
         "md": {
             "md_style": "nvt",
-            "velocity_seed": 1112,
+            #"velocity_seed": 1112,
             "timestep": 1.0, # fs
             "temp": 300, # K
-            "Tdamp": 100, # fs
-            "pres": 1.0, # atm
-            "Pdamp": 100
+            #"Tdamp": 100, # fs
+            #"pres": 1.0, # atm
+            #"Pdamp": 100
         },
         "freq": dict(
             nsw = 1,
@@ -86,43 +86,70 @@ class VaspDriver(AbstractDriver):
             "steps": 0
         },
         "md": {
-            "steps:": 0
+            "steps": 0
         }
     }
 
     param_mapping = {
         "min_style": "ibrion",
+        "md_style": "smass",
+        "timestep": "potim",
+        "temp": "tebeg", # teend
+        # nblock
         "fmax": "ediffg",
         "steps": "nsw"
     }
 
     # - system depandant params
-    syswise_keys = [
-       "system", "kpts"
-    ]
+    syswise_keys: List[str] = ["system", "kpts"]
 
     def _parse_params(self, params_: dict) -> NoReturn:
+        """Parse different tasks, and prepare init and run params."""
         super()._parse_params(params_)
 
-        # - update task
-        if self.init_params["ibrion"] == "bfgs":
-            self.init_params["ibrion"] = 1
-        elif self.init_params["ibrion"] == "cg":
-            self.init_params["ibrion"] = 2
+        # - update min
+        if self.task == "min":
+            if self.init_params["ibrion"] == "bfgs":
+                self.init_params["ibrion"] = 1
+            elif self.init_params["ibrion"] == "cg":
+                self.init_params["ibrion"] = 2
+            
+            # TODO: convergence tolerance for force and energy?
+            self.run_params["ediffg"] *= -1.
+        
+        # - update md
+        if self.task == "md":
+            self.init_params["ibrion"] = 0
+            self.init_params["isif"] = 0
+            md_style = self.init_params["smass"]
+            if isinstance(md_style, str):
+                if md_style == "nve":
+                    pass
+                elif md_style == "nvt":
+                    #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
+                    self.init_params["smass"] = 0.
+                    self.init_params["teend"] = self.init_params["tebeg"]
+                else:
+                    raise NotImplementedError(f"{md_style} is not supported yet.")
+            else:
+                if md_style >= 0:
+                    #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
+                    self.init_params["teend"] = self.init_params["tebeg"]
+                else:
+                    raise NotImplementedError(f"SMASS {md_style} is not supported yet.")
 
         # - special settings
         self.run_params = self.__set_special_params(self.run_params)
 
         return 
     
-    def __set_special_params(self, params):
-        """"""
-        params["ediffg"] *= -1.
+    def __set_special_params(self, params: dict) -> dict:
+        """Set several connected parameters."""
 
         return params
     
-    def run(self, atoms_, read_exists=True, extra_info=None, *args, **kwargs):
-        """"""
+    def run(self, atoms_: Atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
+        """Run the simulation."""
         atoms = atoms_.copy()
 
         # - backup old params
@@ -193,7 +220,11 @@ class VaspDriver(AbstractDriver):
         return new_atoms
     
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
-        """"""
+        """Read trajectory in the current working directory.
+
+        If the calculation failed, an empty atoms with errof info would be returned.
+
+        """
         vasprun = self.directory / "vasprun.xml"
 
         # - read structures
