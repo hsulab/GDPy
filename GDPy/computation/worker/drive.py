@@ -231,8 +231,12 @@ class DriverBasedWorker(AbstractWorker):
             uid = str(uuid.uuid1())
             job_name = uid + "-" + group_name
 
+            # - names of input files
+            jobscript_fname = f"run-{uid}.script"
+            structure_fname = f"frames-{uid}.yaml"
+
             self.scheduler.set(**{"job-name": job_name})
-            self.scheduler.script = group_directory/f"g{ig}_run-driver.script" 
+            self.scheduler.script = group_directory/jobscript_fname
 
             # NOTE: pot file, stru file, job script
             # - use queue scheduler
@@ -250,23 +254,14 @@ class DriverBasedWorker(AbstractWorker):
                 frames = str(dataset),
                 indices = list(global_indices)
             )
-            with open(group_directory/f"g{ig}_frames.yaml", "w") as fopen:
+            with open(group_directory/structure_fname, "w") as fopen:
                 yaml.dump(frames_info, fopen)
 
             self.scheduler.user_commands = "gdp -p {} driver {}\n".format(
                 (group_directory/f"worker.yaml").name, 
-                (group_directory/f"g{ig}_frames.yaml").name
+                (group_directory/structure_fname).name
             )
 
-            #write(
-            #    group_directory/"frames.xyz", cur_frames, 
-            #    columns=["symbols", "positions", "move_mask"]
-            #)
-
-            #self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
-            #    (group_directory/f"{ig}_worker.yaml").name, 
-            #    (group_directory/f"{ig}_frames.xyz").name
-            #)
             self.scheduler.write()
             if self._submit:
                 self.logger.info(f"{group_directory.name} JOBID: {self.scheduler.submit()}")
