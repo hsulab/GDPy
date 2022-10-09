@@ -264,8 +264,8 @@ class AbstractExpedition(ABC):
 
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
-            generator, cons_text = self._read_structure(slabel)
-            actions["generator"] = generator
+            # TODO: parse constraint in the structure reader?
+            init_frames, cons_text = self._read_structure(slabel)
 
             # --- update cons text
             # TODO: need a unified interface here...
@@ -277,19 +277,19 @@ class AbstractExpedition(ABC):
                         driver.run_params.update(constraint=cons_text)
                 else:
                     actions["driver"].run_params.update(constraint=cons_text)
-            
+
             # - prepare data shared by different stages
             data = dict(
-                pot_frames = [], ref_frames = []
+                init_frames = init_frames, # input candidates
+                pot_frames = [], # created structures
+                ref_frames = [] # structures need label
             )
             
             # - run exploration
             status = "create"
             self.logger.info(f"\n\n===== current status: {status}  =====")
             self.step_dpath = self._make_step_dir(res_dpath, status)
-            is_created = self._single_create(
-                res_dpath, actions, data, ran_size=self.init_systems[slabel].get("size", 1)
-            )
+            is_created = self._single_create(res_dpath, actions, data)
             if not is_created:
                 self.logger.info("Creation is not finished...")
                 continue
@@ -391,10 +391,13 @@ class AbstractExpedition(ABC):
 
                 frames = data[k]
                 selected_frames = selector.select(frames)
-                data["selected_frames_"+tag_name] = selected_frames
-                if not cur_dpath.exists():
-                    self.logger.info("save structures to xyz file...")
-                    write(cur_dpath/"selected_frames.xyz", selected_frames)
+                if selected_frames:
+                    data["selected_frames_"+tag_name] = selected_frames
+                    if not cur_dpath.exists():
+                        self.logger.info("save structures to xyz file...")
+                        write(cur_dpath/"selected_frames.xyz", selected_frames)
+                else:
+                    self.logger.info(f"No candidates were found for {tag_name}.")
         else:
             self.logger.info("No selector available...")
 
@@ -419,33 +422,46 @@ class AbstractExpedition(ABC):
         self.logger.info("reading initial structures...")
         
         # - read structures
+        from GDPy.builder import create_generator
         # the expedition can start with different initial configurations
         init_frame_path = self.step_dpath / "init.xyz" 
         if init_frame_path.exists():
             self.logger.info("read cached structure file...")
-            from GDPy.builder.direct import DirectGenerator
-            frames = read(init_frame_path, ":")
-            generator = DirectGenerator(frames, self.step_dpath)
+            #from GDPy.builder.direct import DirectGenerator
+            #generator = DirectGenerator(init_frame_path)
+            gen_params = init_frame_path
         else:
             self.logger.info("try to use generator...")
             stru_path = system_dict.get("structure", None)
             gen_params = system_dict.get("generator", None)
-            if (stru_path is None and gen_params is not None): 
-                from GDPy.builder import create_generator
-                generator = create_generator(gen_params)
-                generator.directory = self.step_dpath
+            if (stru_path is not None and gen_params is None): 
+                #from GDPy.builder import create_generator
+                #generator = create_generator(gen_params)
+                #generator.directory = self.step_dpath
                 #frames = generator.run(system_dict.get("size", 1))
-            elif (stru_path is not None and gen_params is None):
-                indices = system_dict.get("index", ":")
-                frames = read(stru_path, indices)
-                from GDPy.builder.direct import DirectGenerator
-                generator = DirectGenerator(frames, self.step_dpath)
+                gen_params = Path(stru_path).resolve()
+            elif (stru_path is None and gen_params is not None):
+                #indices = system_dict.get("index", ":")
+                #from GDPy.builder.direct import DirectGenerator
+                #generator = DirectGenerator(stru_path, indices)
+                #generator = DirectGenerator(stru_path)
+                gen_params = gen_params
             else:
                 raise RuntimeError("Use either structure or generation...")
+        generator = create_generator(gen_params)
+        generator.directory = self.step_dpath
+
+        init_frames = generator.run(
+            ran_size=self.init_systems[slabel].get("size", 1)
+        )
+        if not init_frame_path.exists():
+            write(
+                init_frame_path, init_frames, columns=["symbols", "positions", "move_mask"]
+            )
         
         sys_cons_text = system_dict.get("constraint", None) # some action may need constraint info
 
-        return generator, sys_cons_text
+        return init_frames, sys_cons_text
     
     def _single_label(self, res_dpath, actions, data, *args, **kwargs):
         """"""
@@ -468,7 +484,7 @@ class AbstractExpedition(ABC):
             if tag_name == "frames":
                 tag_name = "mixed"
             fp_path = res_dpath/"label"/tag_name
-            self.logger.info(f"{tag_name} {len(frames)}")
+            self.logger.info(f"tag: {tag_name} nframes: {len(frames)}")
             self._prepare_calc_dir(
                 res_dpath.name, fp_path, frames
             )
@@ -487,8 +503,7 @@ class AbstractExpedition(ABC):
         # - update some specific params of worker
         worker = self.ref_worker
         worker.logger = self.logger
-        worker._submit = True
-        #worker.prefix = "_".join([slabel,"Worker"])
+        worker._submit = False
         worker.batchsize = nframes_in
 
         # - try to run and submit jobs
