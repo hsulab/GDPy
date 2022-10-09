@@ -3,12 +3,9 @@
 
 import os
 import copy
-import time
-import json
 import shutil
 from pathlib import Path
-import warnings
-import importlib
+from typing import NoReturn, List
 
 import numpy as np
 
@@ -27,12 +24,8 @@ from GDPy.md.md_utils import force_temperature
 from GDPy.builder.constraints import parse_constraint_info
 
 
-""" TODO:
-        add uncertainty quatification
-"""
-
-def retrieve_and_save_deviation(atoms, devi_fpath):
-    """"""
+def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
+    """Read model deviation and add results to atoms.info if the file exists."""
     results = copy.deepcopy(atoms.calc.results)
     devi_results = [(k,v) for k,v in results.items() if "devi" in k]
     if devi_results:
@@ -48,8 +41,8 @@ def retrieve_and_save_deviation(atoms, devi_fpath):
 
     return
 
-def save_trajectory(atoms, log_fpath):
-    """"""
+def save_trajectory(atoms, log_fpath) -> NoReturn:
+    """Save simulation trajectory,"""
     write(log_fpath, atoms, append=True)
 
     return
@@ -104,7 +97,8 @@ class AseDriver(AbstractDriver):
     log_fname = "dyn.log"
     traj_fname = "dyn.traj"
 
-    saved_cards = [traj_fname]
+    #: List of output files would be saved when restart.
+    saved_cards: List[str] = [traj_fname]
 
     def __init__(
         self, calc=None, params: dict={}, directory="./"
@@ -118,8 +112,7 @@ class AseDriver(AbstractDriver):
         return
     
     def _parse_params(self, params):
-        """ init dynamics object
-        """
+        """Parse different tasks, and prepare init and run params."""
         super()._parse_params(params)
 
         self.driver_cls, self.filter_cls = None, None
@@ -153,23 +146,21 @@ class AseDriver(AbstractDriver):
 
         return
     
-    def update_params(self, **kwargs):
-
-        return
-    
     @property
     def log_fpath(self):
+        """File path of the simulation log."""
 
         return self._log_fpath
     
     @property
     def traj_fpath(self):
+        """File path of the simulation trajectory."""
 
         return self._traj_fpath
     
     @AbstractDriver.directory.setter
     def directory(self, directory_):
-        """"""
+        """Set log and traj path regarding to the working directory."""
         # - main and calc
         super(AseDriver, AseDriver).directory.__set__(self, directory_)
 
@@ -180,7 +171,7 @@ class AseDriver(AbstractDriver):
         return 
     
     def _create_dynamics(self, atoms, *args, **kwargs):
-        """"""
+        """Create the correct class of this simulation with running parameters."""
         # - set special keywords
         atoms.calc = self.calc
 
@@ -269,9 +260,15 @@ class AseDriver(AbstractDriver):
         return driver, run_params
 
     def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
-        """ run the driver
-            parameters of calculator will not change since
-            it still performs single-point calculation
+        """Run the driver.
+
+        Additional output files would be generated, namely a xyz-trajectory and
+        a deviation file if the calculator could estimate uncertainty.
+
+        Note:
+            Calculator's parameters will not change since it still performs 
+            single-point calculations as the simulation goes.
+
         """
         #atoms = Atoms(
         #    symbols=copy.deepcopy(atoms_.get_chemical_symbols()),
@@ -297,8 +294,7 @@ class AseDriver(AbstractDriver):
         return atoms
     
     def read_trajectory(self, add_step_info=True, *args, **kwargs):
-        """ read trajectory in the current working directory
-        """
+        """Read trajectory in the current working directory."""
         traj_frames = read(self.directory/"traj.xyz", index=":")
 
         if add_step_info:

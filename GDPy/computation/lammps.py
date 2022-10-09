@@ -1,6 +1,5 @@
-"""An ASE calculator interface.
-
-"""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import os
 import copy
@@ -37,17 +36,19 @@ from GDPy.builder.constraints import parse_constraint_info
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
 
-    inputstructure_filename = "stru.data"
-    trajectory_filename = "traj.dump"
-    input_fname = "in.lammps"
-    log_filename = "log.lammps"
-    deviation_filename = "model_devi.out"
+    """File names."""
 
+    inputstructure_filename: str = "stru.data"
+    trajectory_filename: str = "traj.dump"
+    input_fname: str = "in.lammps"
+    log_filename: str = "log.lammps"
+    deviation_filename: str = "model_devi.out"
 
+#: Instance.
 ASELMPCONFIG = AseLammpsSettings()
 
 def parse_type_list(atoms):
-    """parse type list for read and write structure of lammps"""
+    """Parse the type list based on input atoms."""
     # elements
     type_list = list(set(atoms.get_chemical_symbols()))
     type_list.sort() # by alphabet
@@ -55,7 +56,7 @@ def parse_type_list(atoms):
     return type_list
 
 def parse_thermo_data(logfile_path) -> dict:
-    """"""
+    """Read energy ... results from log.lammps file."""
     # - read thermo data
     # better move to calculator class
     with open(logfile_path, "r") as fopen:
@@ -89,8 +90,10 @@ def parse_thermo_data(logfile_path) -> dict:
 
 class LmpDriver(AbstractDriver):
 
-    """ use lammps to perform dynamics
-        minimisation and/or molecular dynamics
+    """Use lammps to perform dynamics.
+    
+    Minimisation and/or molecular dynamics.
+
     """
 
     name = "lammps"
@@ -98,8 +101,6 @@ class LmpDriver(AbstractDriver):
     delete = []
     keyword: Optional[str] = None
     special_keywords = {}
-
-    saved_cards = [ASELMPCONFIG.trajectory_filename]
 
     # - defaults
     default_task = "min"
@@ -138,8 +139,11 @@ class LmpDriver(AbstractDriver):
         "steps": "maxiter"
     }
 
-    def _parse_params(self, params):
-        """"""
+    #: List of output files would be saved when restart.
+    saved_cards: List[str] = [ASELMPCONFIG.trajectory_filename]
+
+    def _parse_params(self, params: dict):
+        """Set several connected parameters."""
         super()._parse_params(params)
 
         # - update task
@@ -150,8 +154,8 @@ class LmpDriver(AbstractDriver):
 
         return 
     
-    def __set_special_params(self, params):
-        """"""
+    def __set_special_params(self, params: dict) -> dict:
+        """Set several connected parameters."""
         maxiter = params.get("maxiter", None)
         if maxiter is not None:
             params["maxeval"] = 2*maxiter
@@ -159,7 +163,13 @@ class LmpDriver(AbstractDriver):
         return params
     
     def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, **kwargs):
-        """"""
+        """Run the driver.
+
+        If the converged results were found in the current working directory,
+        the simulation would not be performed again. Otherwise, the results would 
+        be read.
+
+        """
         atoms = atoms_.copy()
 
         # - backup old params
@@ -222,79 +232,9 @@ class LmpDriver(AbstractDriver):
             atoms.calc = calc_old
 
         return new_atoms
-
-    def minimise(self, atoms, read_exists: bool = True, read_backup: bool = False, repeat=1, extra_info=None, **kwargs) -> Atoms:
-        """ return a new atoms with singlepoint calc
-            input atoms wont be changed
-        """
-        # TODO: add verbose
-        print(f"\nStart minimisation maximum try {repeat} times...")
-        for i in range(repeat):
-            print("attempt ", i)
-            min_atoms = self.run(atoms, read_exists=read_exists, **kwargs)
-            min_results = self.__read_min_results(self.directory / "log.lammps")
-            min_results += self.cached_loop_time
-            print(min_results)
-            # add few information
-            if extra_info is not None:
-                min_atoms.info.update(extra_info)
-            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
-            if maxforce <= kwargs["fmax"]:
-                break
-            else:
-                atoms = min_atoms
-                print("backup old data...")
-                for card in self.saved_cards:
-                    card_path = self.directory / card
-                    bak_fmt = ("bak.{:d}."+card)
-                    idx = 0
-                    while True:
-                        bak_card = bak_fmt.format(idx)
-                        if not Path(bak_card).exists():
-                            saved_card_path = self.directory / bak_card
-                            shutil.copy(card_path, saved_card_path)
-                            break
-                        else:
-                            idx += 1
-        else:
-            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
-        
-        # gather trajectories
-        if read_backup:
-            backups = find_backups(self.directory, self.saved_cards[0])
-            frames = read(
-                backups[0], ":", "lammps-dump-text", 
-                specorder=self.calc.type_list, units=self.calc.units
-            )
-            for bak in backups[1:]:
-                frames.extend(
-                    read(
-                        bak, ":", "lammps-dump-text", 
-                        specorder=self.calc.type_list, units=self.calc.units
-                    )[1:]
-                )
-        
-            write(self.directory/"merged_traj.xyz", frames)
-        
-        return min_atoms
-
-    def __read_min_results(self, fpath):
-        # read energy
-        with open(fpath, "r") as fopen:
-            lines = fopen.readlines()
-        for idx, line in enumerate(lines):
-            if line.startswith("Minimization stats:"):
-                stat_idx = idx
-                break
-        else:
-            raise ValueError('error in lammps minimization.')
-        stat_content = "".join(lines[stat_idx:stat_idx+9])
-
-        return stat_content
     
     def read_trajectory(self, type_list=None, add_step_info=True, *args, **kwargs) -> List[Atoms]:
-        """ lammps dump file has no element info
-        """
+        """Read trajectory in the current working directory."""
         if type_list is not None:
             self.calc.type_list = type_list
 
@@ -303,20 +243,17 @@ class LmpDriver(AbstractDriver):
 
 class Lammps(FileIOCalculator):
 
-    name = "Lammps"
-    supported_pairstyles = ["deepmd", "eann", "reax/c"]
-    implemented_properties = ["energy", "forces", "stress"]
+    #: Calculator name.
+    name: str = "Lammps"
 
-    # only for energy and forces, eV and eV/AA
-    CONVERTOR = {
-        "metal": 1.0,
-        "real": units.kcal / units.mol
-    }
+    #: Implemented properties.
+    implemented_properties: List[str] = ["energy", "forces", "stress"]
 
-    command = "lmp 2>&1 > lmp.out"
+    #: LAMMPS command.
+    command: str = "lmp 2>&1 > lmp.out"
 
-    # NOTE: here all params are in ase unit
-    default_parameters = dict(
+    #: Default calculator parameters, NOTE which have ase units.
+    default_parameters: dict = dict(
         # ase params
         constraint = None, # index of atoms, start from 0
         task = "min",
@@ -350,10 +287,14 @@ class Lammps(FileIOCalculator):
         min_modify = "integrator verlet tmax 4"
     )
 
-    type_list = None
+    #: Symbol to integer.
+    type_list: List[str] = None
 
-    cached_traj_frames = None
-    cached_loop_time = None
+    #: Cached trajectory of the previous simulation.
+    cached_traj_frames: List[Atoms] = None
+
+    #: Cached wall time of the previous simulation.
+    cached_loop_time: str = None
 
     def __init__(
         self, 
@@ -373,14 +314,14 @@ class Lammps(FileIOCalculator):
         return
     
     def __getattr__(self, key):
-        """ Corresponding getattribute-function 
-        """
+        """Corresponding getattribute-function."""
         if key != "parameters" and key in self.parameters:
             return self.parameters[key]
         return object.__getattribute__(self, key)
     
-    def calculate(self, atoms=None, properties=['energy'],
-            system_changes=all_changes):
+    def calculate(self, atoms=None, properties=["energy"],
+            system_changes=all_changes): 
+        """Run calculation."""
         # check specorder
         self.type_list = parse_type_list(atoms)
 
@@ -389,7 +330,8 @@ class Lammps(FileIOCalculator):
 
         return
     
-    def write_input(self, atoms, properties=None, system_changes=None):
+    def write_input(self, atoms, properties=None, system_changes=None) -> NoReturn:
+        """Write input file and input structure."""
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
         # - check velocities
@@ -411,8 +353,7 @@ class Lammps(FileIOCalculator):
         return
     
     def _is_finished(self):
-        """ check whether the simulation is finished
-        """
+        """Check whether the simulation is finished and return wall time."""
         is_finished, wall_time = False, "not finished"
         log_filepath = Path(os.path.join(self.directory, ASELMPCONFIG.log_filename))
 
@@ -434,7 +375,7 @@ class Lammps(FileIOCalculator):
         return is_finished, wall_time
     
     def read_results(self):
-        """"""
+        """ASE read results."""
         # obtain results
         self.results = {}
 
@@ -454,7 +395,7 @@ class Lammps(FileIOCalculator):
         return
 
     def _read_trajectory(self, add_step_info: bool=True) -> List[Atoms]:
-        """"""
+        """Read the trajectory and its corresponding thermodynamics data."""
         # NOTE: always use dynamics calc
         # - read trajectory that contains positions and forces
         _directory_path = Path(self.directory)
@@ -505,7 +446,7 @@ class Lammps(FileIOCalculator):
         return traj_frames
     
     def _write_input(self, atoms) -> NoReturn:
-        """"""
+        """Write input file in.lammps"""
         # - write in.lammps
         content = ""
         content += "units           %s\n" %self.units

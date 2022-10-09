@@ -11,23 +11,61 @@ from collections.abc import Iterable
 import numpy as np
 
 from ase import Atoms
-from ase.io import read, write
 
-from GDPy.utils.command import CustomTimer
+#: Parameter keys used to init a minimisation task.
+MIN_INIT_KEYS: List[str] = ["min_style", "min_modify", "dump_period"]
+
+#: Parameter keys used to run a minimisation task.
+MIN_RUN_KEYS: List[str] = ["steps", "fmax"]
+
+#: Parameter keys used to init a molecular-dynamics task.
+MD_INIT_KEYS: List[str] = [
+    "md_style", "velocity_seed", "timestep", "temp", "Tdamp", 
+    "press", "Pdamp", "dump_period"
+]
+
+#: Parameter keys used to run a molecular-dynamics task.
+MD_RUN_KEYS: List[str] = ["steps"]
 
 
 class AbstractDriver(abc.ABC):
 
-    delete = []
+    #: Driver's name.
+    name: str = "abstract"
+
+    #: Deleted keywords.
+    delete: list = []
+
+    #: Keyword.
     keyword: Optional[str] = None
-    special_keywords = {}
 
-    syswise_keys = []
+    #: Special keywords.
+    special_keywords: dict = {}
 
-    pot_params = None
+    #: Systemwise parameter keys.
+    syswise_keys: list = []
 
-    def __init__(self, calc, params, directory=pathlib.Path.cwd(), *args, **kwargs):
+    #: Default init parameters.
+    default_init_params: dict = dict()
 
+    #: Default run parameters.
+    default_run_params: dict = dict()
+
+    #: Map input key names to the actual names used in the backend.
+    param_mapping: dict = dict()
+
+    #: Parameters for PotentialManager.
+    pot_params: dict = None
+
+    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+        """Init a driver.
+
+        Args:
+            calc: The ase calculator.
+            params: Driver parameters.
+            directory: Working directory.
+
+        """
         self.calc = calc
         self.calc.reset()
 
@@ -39,24 +77,31 @@ class AbstractDriver(abc.ABC):
     
     @property
     @abc.abstractmethod
-    def default_task(self):
+    def default_task(self) -> str:
+        """Default simulation task."""
 
         return
 
     @property
     @abc.abstractmethod
-    def supported_tasks(self):
+    def supported_tasks(self) -> List[str]:
+        """Supported simulation tasks"""
 
         return
     
     @property
     def directory(self):
+        """Set working directory of this driver.
+
+        Note:
+            The attached calculator's directory would be set as well.
+        
+        """
 
         return self._directory
     
     @directory.setter
     def directory(self, directory_):
-        """"""
         self._directory = pathlib.Path(directory_)
         self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
 
@@ -64,8 +109,10 @@ class AbstractDriver(abc.ABC):
     
     @abc.abstractmethod
     def _parse_params(self, params_: dict) -> NoReturn:
-        """ parse different tasks, and prepare init and run params
-            for each task, different behaviours should be realised in specific object
+        """Parse different tasks, and prepare init and run params.
+
+        For each task, different behaviours should be realised in specific object.
+
         """
         params = copy.deepcopy(params_)
 
@@ -92,8 +139,7 @@ class AbstractDriver(abc.ABC):
         return 
     
     def _map_params(self, params):
-        """ map params, avoid conflicts
-        """
+        """Map params, avoid conflicts."""
         if hasattr(self, "param_mapping"):
             params_ = {}
             for key, value in params.items():
@@ -107,9 +153,7 @@ class AbstractDriver(abc.ABC):
         return params_
     
     def get(self, key):
-        """ get param value from init/run params
-            by a mapped key name
-        """
+        """Get param value from init/run params by a mapped key name."""
         parameters = copy.deepcopy(self.init_params)
         parameters.update(copy.deepcopy(self.run_params))
 
@@ -121,22 +165,21 @@ class AbstractDriver(abc.ABC):
 
         return value
     
-    def reset(self):
-        """ remove results stored in dynamics calculator
-        """
+    def reset(self) -> NoReturn:
+        """Remove results stored in dynamics calculator."""
         self.calc.reset()
 
         return
 
-    def delete_keywords(self, kwargs):
-        """removes list of keywords (delete) from kwargs"""
+    def delete_keywords(self, kwargs) -> NoReturn:
+        """Removes list of keywords (delete) from kwargs."""
         for d in self.delete:
             kwargs.pop(d, None)
 
         return
 
-    def set_keywords(self, kwargs):
-        # TODO: rewrite this method
+    def set_keywords(self, kwargs) -> NoReturn:
+        """Set list of keywords from kwargs."""
         args = kwargs.pop(self.keyword, [])
         if isinstance(args, str):
             args = [args]
@@ -153,30 +196,37 @@ class AbstractDriver(abc.ABC):
         return
 
     @abc.abstractmethod
-    def run(self, atoms, **kwargs):
-        """ whether return atoms or the entire trajectory
-            copy input atoms, and return a new atoms
-        """
+    def run(self, atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
+        """Return the last frame of the simulation.
 
-        return 
+        Copy input atoms, and return a new atoms. Check whether the simulation is
+        finished and retrieve stored results. If necessary, extra information could 
+        be added to the atoms.info
+
+        """
+        new_atoms = copy.deepcopy(atoms)
+
+        return new_atoms
 
     @abc.abstractmethod
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
-        """ read trajectory in the current working directory
+        """Read trajectory in the current working directory.
         """
 
         return
     
     def read_converged(self, *args, **kwargs) -> Atoms:
-        """ read last frame of the trajectory
-            should better be converged
+        """Read last frame of the trajectory.
+
+        It would be better if the structure were checked to be converged.
+
         """
         traj_frames = self.read_trajectory(*args, **kwargs)
 
         return traj_frames[-1]
     
-    def as_dict(self):
-        """"""
+    def as_dict(self) -> dict:
+        """Return parameters of this driver."""
         params = dict(
             backend = self.name,
             task = self.task,
@@ -185,49 +235,6 @@ class AbstractDriver(abc.ABC):
         )
 
         return params
-
-
-def read_trajectories(
-    action, tmp_folder, traj_period,
-    traj_frames_path, traj_indices_path,
-    opt_frames_path
-):
-    """ read trajectories from several directories
-        each dir is named by candx
-    """
-    # - act, retrieve trajectory frames
-    # TODO: more general interface not limited to dynamics
-    if not traj_frames_path.exists():
-        traj_indices = [] # use traj indices to mark selected traj frames
-        all_traj_frames = []
-        optimised_frames = read(opt_frames_path, ":")
-        # TODO: change this to joblib
-        for atoms in optimised_frames:
-            # --- read confid and parse corresponding trajectory
-            confid = atoms.info["confid"]
-            action.set_output_path(tmp_folder/("cand"+str(confid)))
-            traj_frames = action._read_trajectory(atoms, label_steps=True)
-            # --- generate indices
-            # NOTE: last one should be always included since it may be converged structure
-            cur_nframes = len(all_traj_frames)
-            cur_indices = list(range(0,len(traj_frames)-1,traj_period)) + [len(traj_frames)-1]
-            cur_indices = [c+cur_nframes for c in cur_indices]
-            # --- add frames
-            traj_indices.extend(cur_indices)
-            all_traj_frames.extend(traj_frames)
-        np.save(traj_indices_path, traj_indices)
-        write(traj_frames_path, all_traj_frames)
-    else:
-        all_traj_frames = read(traj_frames_path, ":")
-    print("ntrajframes: ", len(all_traj_frames))
-            
-    if traj_indices_path.exists():
-        traj_indices = np.load(traj_indices_path)
-        all_traj_frames = [all_traj_frames[i] for i in traj_indices]
-        #print(traj_indices)
-    print("ntrajframes: ", len(all_traj_frames), f" by {traj_period} traj_period")
-
-    return all_traj_frames
 
 
 if __name__ == "__main__":

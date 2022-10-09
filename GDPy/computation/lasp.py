@@ -11,7 +11,6 @@ from typing import List
 
 import numpy as np
 
-
 from ase import Atoms
 from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
@@ -21,15 +20,16 @@ from GDPy.computation.driver import AbstractDriver
 from GDPy.builder.constraints import parse_constraint_info
 
 
-"""
-output files by lasp NVE-MD
-    allfor.arc  allkeys.log  allstr.arc  firststep.restart
+"""Driver and calculator of LaspNN.
+
+Output files by LASP NVE-MD are 
+    allfor.arc  allkeys.log  allstr.arc  firststep.restart 
     md.arc  md.restart  vel.arc
+
 """
 
 def read_laspset(train_structures):
-    """ read lasp TrainStr.txt and TrainFor.txt
-    """
+    """Read LASP TrainStr.txt and TrainFor.txt files."""
     train_structures = Path(train_structures)
     frames = []
 
@@ -103,12 +103,9 @@ def read_laspset(train_structures):
 
 class LaspDriver(AbstractDriver):
 
-    """ local optimisation
-    """
+    """Driver for LASP."""
 
     name = "lasp"
-
-    saved_cards = ["allstr.arc", "allfor.arc"]
 
     # - defaults
     default_task = "min"
@@ -160,14 +157,17 @@ class LaspDriver(AbstractDriver):
         "velocity_seed": "Ranseed"
     }
 
-    def _parse_params(self, params):
-        """"""
+    #: List of output files would be saved when restart.
+    saved_cards = ["allstr.arc", "allfor.arc"]
+
+    def _parse_params(self, params: dict):
+        """Set several connected parameters."""
         super()._parse_params(params)
 
         return 
 
-    def __set_special_params(self, params):
-        """"""
+    def __set_special_params(self, params: dict) -> dict:
+        """Set several connected parameters."""
         if self.task == "md":
             total_time = params.get("MD.ttotal", None)
             if total_time is None:
@@ -182,9 +182,8 @@ class LaspDriver(AbstractDriver):
 
         return params
 
-    def run(self, atoms_, read_exists=True, *args, **kwargs):
-        """
-        """
+    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
+        """Run the driver."""
         atoms = atoms_.copy()
 
         # - backup calc params
@@ -241,68 +240,25 @@ class LaspDriver(AbstractDriver):
             atoms.calc = calc_old
 
         return new_atoms
-
-    def minimise(self, atoms, repeat=1, extra_info=None, **kwargs) -> Atoms:
-        """ return a new atoms with singlepoint calc
-            input atoms wont be changed
-        """
-        # TODO: add verbose
-        print(f"\nStart minimisation maximum try {repeat} times...")
-        for i in range(repeat):
-            print("attempt ", i)
-            min_atoms = self.run(atoms, **kwargs)
-            min_results = self.__read_min_results(self.directory / "lasp.out")
-            print(min_results)
-            # add few information
-            if extra_info is not None:
-                min_atoms.info.update(extra_info)
-            maxforce = np.max(np.fabs(min_atoms.get_forces(apply_constraint=True)))
-            if maxforce <= kwargs["fmax"]:
-                break
-            else:
-                atoms = min_atoms
-                print("backup old data...")
-                for card in self.saved_cards:
-                    card_path = self.directory / card
-                    bak_fmt = ("bak.{:d}."+card)
-                    idx = 0
-                    while True:
-                        bak_card = bak_fmt.format(idx)
-                        if not Path(bak_card).exists():
-                            saved_card_path = self.directory / bak_card
-                            shutil.copy(card_path, saved_card_path)
-                            break
-                        else:
-                            idx += 1
-        else:
-            warnings.warn(f"Not converged after {repeat} minimisations, and save the last atoms...", UserWarning)
-
-        return min_atoms
-    
-    def __read_min_results(self, fpath):
-        # read lasp.out get opt info
-        with open(fpath, "r") as fopen:
-            lines = fopen.readlines()
-        opt_indices = []
-        for i, line in enumerate(lines):
-            if line.strip().startswith("Allopt"):
-                opt_indices.append(i)
-        final_step_info = lines[opt_indices[-2]+2:opt_indices[-1]-1]
-        min_results = "".join(final_step_info)
-
-        return min_results
     
     def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
+        """Read trajectory in the current working directory."""
         return self.calc._read_trajectory(add_step_info)
 
 
 class LaspNN(FileIOCalculator):
 
-    name = "LaspNN"
-    implemented_properties = ["energy", "forces"]
+    #: Calculator name.
+    name: str = "LaspNN"
+
+    #: Implemented properties.
+    implemented_properties: List[str] = ["energy", "forces"]
     # implemented_propertoes = ["energy", "forces", "stress"]
+
+    #: LASP command.
     command = "lasp"
 
+    #: Default calculator parameters, NOTE which have ase units.
     default_parameters = {
         # built-in parameters
         "potential": "NN",
@@ -334,6 +290,11 @@ class LaspNN(FileIOCalculator):
     }
 
     def __init__(self, *args, label="LASP", **kwargs):
+        """Init calculator.
+
+        The potential path would be resolved.
+
+        """
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
 
         # NOTE: need resolved pot path
@@ -346,11 +307,13 @@ class LaspNN(FileIOCalculator):
         return
     
     def calculate(self, *args, **kwargs):
+        """Perform the calculation."""
         FileIOCalculator.calculate(self, *args, **kwargs)
 
         return
     
     def write_input(self, atoms, properties=None, system_changes=None):
+        """Write LASP inputs."""
         # create calc dir
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
@@ -437,7 +400,7 @@ class LaspNN(FileIOCalculator):
         return
     
     def read_results(self):
-        """read LASP results"""
+        """Read LASP results."""
         # have to read last structure
         traj_frames = self._read_trajectory()
 
@@ -450,7 +413,7 @@ class LaspNN(FileIOCalculator):
         return
     
     def _is_converged(self) -> bool:
-        """"""
+        """Check whether LASP simulation is converged."""
         converged = False
         lasp_out = Path(os.path.join(self.directory, "lasp.out" ))
         if lasp_out.exists():
@@ -461,8 +424,8 @@ class LaspNN(FileIOCalculator):
 
         return converged
     
-    def _read_trajectory(self, add_step_info=True) -> List[Atoms]:
-        """"""
+    def _read_trajectory(self, add_step_info: bool=True) -> List[Atoms]:
+        """Read simulation trajectory."""
         traj_frames = read(os.path.join(self.directory, "allstr.arc"), ":", format="dmol-arc")
         natoms = len(traj_frames[-1])
 
