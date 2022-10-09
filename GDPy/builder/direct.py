@@ -143,7 +143,7 @@ class DirectGenerator(StructureGenerator):
         if isinstance(frames, (str,pathlib.Path)):
             self._fpath = pathlib.Path(frames).resolve()
         else:
-            assert isinstance(frames, all(isinstance(x,Atoms) for x in frames)), "Input should be a list of atoms."
+            assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
             self._frames = frames
 
         self._indices = indices

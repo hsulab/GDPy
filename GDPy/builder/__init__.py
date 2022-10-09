@@ -16,7 +16,8 @@ supproted_configtypes = ["json", "yaml"]
 def create_generator(params: Union[str, dict]) -> StructureGenerator:
     """"""
     # - parse string
-    if isinstance(params, str):
+    if isinstance(params, (str,Path)):
+        params = str(params)
         suffix = params[-4:]
         if suffix in supported_filetypes:
             params = dict(
