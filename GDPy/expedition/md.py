@@ -133,12 +133,7 @@ class MDBasedExpedition(AbstractExpedition):
     
     def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """"""
-        generator = actions["generator"]
-        self.logger.info(generator.__class__.__name__)
-        frames = generator.run(kwargs.get("ran_size", 1))
-        self.logger.info(f"number of initial structures: {len(frames)}")
-        from GDPy.builder.direct import DirectGenerator
-        actions["generator"] = DirectGenerator(frames, res_dpath/"init")
+        frames = data["init_frames"]
 
         # - run over systems
         drivers = actions["driver"]
@@ -173,9 +168,7 @@ class MDBasedExpedition(AbstractExpedition):
         NOTE: There is an unknown bug for worker confids...
 
         """
-        generator = actions["generator"]
-        self.logger.info(generator.__class__.__name__)
-        frames = generator.run(kwargs.get("ran_size", 1))
+        frames = data["init_frames"]
         self.logger.info(f"number of initial structures: {len(frames)}")
 
         traj_period = self.collection_params["traj_period"]
@@ -200,6 +193,8 @@ class MDBasedExpedition(AbstractExpedition):
                 for atoms in new_frames:
                     atoms.info["worker"] = f"w{iw}"
                     atoms.info["step"] = str(atoms.info["step"])+"_"+f"w{iw}"
+                    confid, step = atoms.info["confid"], atoms.info["step"]
+                    atoms.info["wdir"] = f"cand{confid}_step{step}"
                 write(traj_fpath, new_frames, append=True)
             if len(worker._get_unretrieved_jobs()) > 0:
                 is_collected = False

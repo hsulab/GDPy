@@ -48,12 +48,8 @@ class ReactionExplorer(AbstractExpedition):
     def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """"""
         # - generator
-        generator = actions["generator"]
-        self.logger.info(generator.__class__.__name__)
-        frames = generator.run(kwargs.get("ran_size", 1))
+        frames = data["init_frames"]
         self.logger.info(f"number of initial structures: {len(frames)}")
-        from GDPy.builder.direct import DirectGenerator
-        actions["generator"] = DirectGenerator(frames, res_dpath/"init")
 
         # - action
         # NOTE: create a separate calculation folder
