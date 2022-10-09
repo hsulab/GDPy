@@ -265,7 +265,7 @@ class AbstractExpedition(ABC):
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
             # TODO: parse constraint in the structure reader?
-            init_frames, cons_text = self._read_structure(slabel)
+            init_frames, cons_text = self._read_structure(slabel, actions)
 
             # --- update cons text
             # TODO: need a unified interface here...
@@ -410,7 +410,7 @@ class AbstractExpedition(ABC):
 
         return
     
-    def _read_structure(self, slabel):
+    def _read_structure(self, slabel, actions: dict):
         """ read initial structures of a single system
             or generate structures from initial configurations
         """
@@ -450,6 +450,10 @@ class AbstractExpedition(ABC):
                 raise RuntimeError("Use either structure or generation...")
         generator = create_generator(gen_params)
         generator.directory = self.step_dpath
+
+        # NOTE: population-based method (GA) needs a generator as a dict in its
+        #       input file...
+        actions["generator"] = generator
 
         init_frames = generator.run(
             ran_size=self.init_systems[slabel].get("size", 1)
@@ -503,7 +507,7 @@ class AbstractExpedition(ABC):
         # - update some specific params of worker
         worker = self.ref_worker
         worker.logger = self.logger
-        worker._submit = False
+        #worker._submit = False
         worker.batchsize = nframes_in
 
         # - try to run and submit jobs
