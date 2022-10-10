@@ -98,8 +98,10 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
-            generator, cons_text = self._read_structure(slabel)
-            actions["generator"] = generator
+            init_frames, cons_text = self._read_structure(slabel, actions)
+            data = dict(
+                init_frames = init_frames
+            )
 
             # - check driver
             if actions["driver"]:
@@ -109,9 +111,9 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 init_data = self.collection_params["init_data"]
                 if init_data is not None:
                     self.logger.info("\n\n--- Start Initial Model ---")
-                    init_frames = read(init_data, ":")
-                    self.logger.info(f"Train calculator on inital dataset, {len(init_frames)}...")
-                    is_trained = self._single_train(self.step_dpath, init_frames)
+                    init_train_frames = read(init_data, ":")
+                    self.logger.info(f"Train calculator on inital dataset, {len(init_train_frames)}...")
+                    is_trained = self._single_train(self.step_dpath, init_train_frames)
                     if is_trained:
                         actions["driver"] = self.pot_worker.potter.create_driver(exp_dict["create"]["driver"])
                         #print("committee: ", self.pot_worker.potter.committee)
@@ -127,14 +129,16 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
             # - run
             self.step_dpath = self._make_step_dir(res_dpath, "create")
-            self._single_create(res_dpath, actions, ran_size=self.init_systems[slabel].get("size", 1))
+            self._single_create(res_dpath, actions, data)
+
+        # - report
+        self.logger.info("FINISHED...")
 
         return
 
-    def _single_create(self, res_dpath, actions, *args, **kwargs):
+    def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """Run simulation."""
-        generator = actions["generator"]
-        frames = generator.run(kwargs.get("ran_size", 1))
+        frames = data["init_frames"]
         assert len(frames) == 1, "Online expedition only supports one structure."
 
         # - create dirs
