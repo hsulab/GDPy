@@ -71,14 +71,13 @@ class DeviationSelector(AbstractSelector):
             except KeyError:
                 # try to use committee
                 if self.pot_worker:
-                    committee = getattr(self.pot_worker.potter, "committee", None)
-                    if committee:
-                        self.pfunc("Estimate uncertainty by committee...")
+                    estimator = getattr(self.pot_worker.potter, "_estimator", None)
+                    if estimator:
+                        self.pfunc("Estimate uncertainty by an external calculator...")
                         # TODO: check if such committee supports prop_name
-                        for i, c in enumerate(self.pot_worker.potter.committee):
-                            c.directory = self.directory/f"c{i}"
-                        frames = self.pot_worker.potter.estimate_uncertainty(frames)
-                        write(self.directory/"frames_devi.xyz", frames)
+                        estimator.directory = self.directory
+                        frames = estimator.estimate(frames)
+                        write(self.directory/"frames_devi.xyz", frames, append=True)
                         try:
                             devi = [a.info[prop_name] for a in frames]
                         except:
@@ -90,6 +89,16 @@ class DeviationSelector(AbstractSelector):
                     devi = [np.NaN]*len(frames)
             finally:
                 deviations[prop_name] = devi
+        
+        # - check if have deviation
+        deviations_ = dict()
+        for prop_name, devi in deviations.items():
+            if np.all(np.isnan(devi)):
+                self.pfunc(f"{prop_name} has no deviations.")
+                # assign values that makes it no selection
+                devi = [np.average(self.criteria[prop_name])]*len(devi)
+            deviations_[prop_name] = devi
+        deviations = deviations_
         
         selected_indices = self._sift_deviations(deviations, nframes)
         
@@ -104,7 +113,8 @@ class DeviationSelector(AbstractSelector):
             ae = en / natoms
             maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             cur_data = [s, confid, natoms, en, ae, maxforce]
-            devis = [atoms.info[prop_name] for prop_name in self.criteria.keys()]
+            #devis = [atoms.info[prop_name] for prop_name in self.criteria.keys()]
+            devis = [deviations[prop_name][s] for prop_name in self.criteria.keys()]
             cur_data.extend(devis)
             data.append(cur_data)
         if data:
