@@ -89,9 +89,18 @@ def create_potter(config_file=None):
         potential_params = params
     manager = PotentialRegister()
     name = potential_params.get("name", None)
+
+    # --- specific potential
     potter = manager.create_potential(pot_name=name)
     potter.register_calculator(potential_params.get("params", {}))
     potter.version = potential_params.get("version", "unknown")
+
+    # --- uncertainty estimator
+    est_params = potential_params.get("uncertainty", None)
+    est_register = getattr(potter, "register_uncertainty_estimator", None)
+    if est_params and est_register:
+        #print("create estimator!!!!")
+        potter.register_uncertainty_estimator(est_params)
 
     # - scheduler for training the potential
     train_params = potential_params.get("trainer", {})
