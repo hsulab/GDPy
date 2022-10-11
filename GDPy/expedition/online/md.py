@@ -98,7 +98,21 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
-            init_frames, cons_text = self._read_structure(slabel, actions)
+            cons_text = self._read_structure(slabel, actions)
+
+            init_frame_path = self.step_dpath / "init.xyz" 
+            generator = actions["generator"]
+            init_frames = generator.run(
+                ran_size=self.init_systems[slabel].get("size", 1)
+            )
+            if not init_frame_path.exists():
+                write(
+                    init_frame_path, init_frames, columns=["symbols", "positions", "move_mask"]
+                )
+            else:
+                # TODO: assert current init_frames is the same as the cached one
+                pass
+
             data = dict(
                 init_frames = init_frames
             )

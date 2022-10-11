@@ -205,6 +205,15 @@ class DirectGenerator(StructureGenerator):
         else:
             ret_frames = frames_
         return ret_frames
+    
+    def as_dict(self) -> dict:
+        """Return generator parameters"""
+        params = dict(
+            frames = self._fpath, # TODO: if not exists, and only have _frames
+            indices = self.indices
+        )
+
+        return params
 
 
 if __name__ == "__main__":

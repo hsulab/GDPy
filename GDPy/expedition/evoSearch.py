@@ -102,6 +102,8 @@ class EvolutionaryExpedition(AbstractExpedition):
         params = copy.deepcopy(actions["task"])
 
         # TODO: check generator should not be a direct one
+        from GDPy.builder.direct import DirectGenerator
+        assert not isinstance(actions["generator"], DirectGenerator), "Generator for EvoSearch should not be direct."
         params["system"] = actions["generator"].as_dict()
         
         import yaml

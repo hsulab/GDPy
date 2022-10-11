@@ -265,7 +265,20 @@ class AbstractExpedition(ABC):
             # - read substrate
             self.step_dpath = self._make_step_dir(res_dpath, "init")
             # TODO: parse constraint in the structure reader?
-            init_frames, cons_text = self._read_structure(slabel, actions)
+            cons_text = self._read_structure(slabel, actions)
+
+            init_frame_path = self.step_dpath / "init.xyz" 
+            generator = actions["generator"]
+            init_frames = generator.run(
+                ran_size=self.init_systems[slabel].get("size", 1)
+            )
+            if not init_frame_path.exists():
+                write(
+                    init_frame_path, init_frames, columns=["symbols", "positions", "move_mask"]
+                )
+            else:
+                # TODO: assert current init_frames is the same as the cached one
+                pass
 
             # --- update cons text
             # TODO: need a unified interface here...
@@ -424,48 +437,38 @@ class AbstractExpedition(ABC):
         # - read structures
         from GDPy.builder import create_generator
         # the expedition can start with different initial configurations
-        init_frame_path = self.step_dpath / "init.xyz" 
-        if init_frame_path.exists():
-            self.logger.info("read cached structure file...")
+        #if init_frame_path.exists():
+        #    self.logger.info("read cached structure file...")
+        #    #from GDPy.builder.direct import DirectGenerator
+        #    #generator = DirectGenerator(init_frame_path)
+        #    gen_params = init_frame_path
+        self.logger.info("try to use generator...")
+        stru_path = system_dict.get("structure", None)
+        gen_params = system_dict.get("generator", None)
+        if (stru_path is not None and gen_params is None): 
+            #from GDPy.builder import create_generator
+            #generator = create_generator(gen_params)
+            #generator.directory = self.step_dpath
+            #frames = generator.run(system_dict.get("size", 1))
+            gen_params = Path(stru_path).resolve()
+        elif (stru_path is None and gen_params is not None):
+            #indices = system_dict.get("index", ":")
             #from GDPy.builder.direct import DirectGenerator
-            #generator = DirectGenerator(init_frame_path)
-            gen_params = init_frame_path
+            #generator = DirectGenerator(stru_path, indices)
+            #generator = DirectGenerator(stru_path)
+            gen_params = gen_params
         else:
-            self.logger.info("try to use generator...")
-            stru_path = system_dict.get("structure", None)
-            gen_params = system_dict.get("generator", None)
-            if (stru_path is not None and gen_params is None): 
-                #from GDPy.builder import create_generator
-                #generator = create_generator(gen_params)
-                #generator.directory = self.step_dpath
-                #frames = generator.run(system_dict.get("size", 1))
-                gen_params = Path(stru_path).resolve()
-            elif (stru_path is None and gen_params is not None):
-                #indices = system_dict.get("index", ":")
-                #from GDPy.builder.direct import DirectGenerator
-                #generator = DirectGenerator(stru_path, indices)
-                #generator = DirectGenerator(stru_path)
-                gen_params = gen_params
-            else:
-                raise RuntimeError("Use either structure or generation...")
+            raise RuntimeError("Use either structure or generation...")
         generator = create_generator(gen_params)
         generator.directory = self.step_dpath
 
         # NOTE: population-based method (GA) needs a generator as a dict in its
         #       input file...
         actions["generator"] = generator
-
-        init_frames = generator.run(
-            ran_size=self.init_systems[slabel].get("size", 1)
-        )
-        if not init_frame_path.exists():
-            write(
-                init_frame_path, init_frames, columns=["symbols", "positions", "move_mask"]
-            )
         
         sys_cons_text = system_dict.get("constraint", None) # some action may need constraint info
 
-        return init_frames, sys_cons_text
+        return sys_cons_text
     
     def _single_label(self, res_dpath, actions, data, *args, **kwargs):
         """"""
