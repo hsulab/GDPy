@@ -410,6 +410,7 @@ class AbstractExpedition(ABC):
                         self.logger.info("save structures to xyz file...")
                         write(cur_dpath/"selected_frames.xyz", selected_frames)
                 else:
+                    data["selected_frames_"+tag_name] = []
                     self.logger.info(f"No candidates were found for {tag_name}.")
         else:
             self.logger.info("No selector available...")
@@ -491,10 +492,12 @@ class AbstractExpedition(ABC):
             if tag_name == "frames":
                 tag_name = "mixed"
             fp_path = res_dpath/"label"/tag_name
-            self.logger.info(f"tag: {tag_name} nframes: {len(frames)}")
-            self._prepare_calc_dir(
-                res_dpath.name, fp_path, frames
-            )
+            nframes = len(frames)
+            self.logger.info(f"tag: {tag_name} nframes: {nframes}")
+            if nframes > 0:
+                self._prepare_calc_dir(
+                    res_dpath.name, fp_path, frames
+                )
 
         return
     
@@ -504,6 +507,17 @@ class AbstractExpedition(ABC):
         """ prepare calculation dir
             currently, only vasp is supported
         """
+        # NOTE: convert into atoms' calculator into spc
+        #       some torch/tensorflow caclulators cant be pickled when copy
+        from ase.calculators.singlepoint import SinglePointCalculator
+        for atoms in frames_in:
+            results = dict(
+                energy = atoms.get_potential_energy(),
+                forces = atoms.get_forces().copy()
+            )
+            calc = SinglePointCalculator(atoms, **results)
+            atoms.calc = calc
+
         # - check target calculation structures
         nframes_in = len(frames_in)
 
