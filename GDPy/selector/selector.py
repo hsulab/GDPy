@@ -32,6 +32,9 @@ class AbstractSelector(abc.ABC):
     #: Working directory.
     _directory: Path = None
 
+    #: Distinguish structures when using ComposedSelector.
+    prefix: str = "selection"
+
     #: Output file name.
     _fname: str = "info.txt"
 
@@ -150,8 +153,8 @@ class AbstractSelector(abc.ABC):
             data = np.loadtxt(self.info_fpath)
             if len(data.shape) == 1:
                 data = data[np.newaxis,:]
-            data = data.tolist()
-            if data:
+            if not np.all(np.isnan(data.flatten())):
+                data = data.tolist()
                 selected_indices = [int(row[0]) for row in data]
             else:
                 selected_indices = []

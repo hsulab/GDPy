@@ -56,6 +56,13 @@ class ConvergenceSelector(AbstractSelector):
                     *"index confid natoms AtomicEnergy MaxForce".split()
                 )
             )
+        else:
+            np.savetxt(
+                self.info_fpath, [[np.NaN]]*5,
+                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}".format(
+                    *"index confid natoms AtomicEnergy MaxForce".split()
+                )
+            )
 
         return selected_indices
 

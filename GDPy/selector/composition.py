@@ -89,7 +89,7 @@ class ComposedSelector(AbstractSelector):
             converged_indices = selector.select(frames, ret_indices=True)
             traj_indices = [m for m in cur_index_map if m not in converged_indices] # means not converged
             frame_index_groups = dict(
-                converged = converged_indices,
+                convergence = converged_indices,
                 traj = traj_indices
             )
             # -- converged
@@ -119,6 +119,7 @@ class ComposedSelector(AbstractSelector):
             self.pfunc(f"  ncandidates: {ncandidates}")
             for isele, selector in enumerate(self.selectors):
                 self.pfunc(f"  @{selector.name}-s{isele}")
+                selector.prefix = sys_name # to distinguish output files
                 selector.fname = f"{sys_name}-{selector.name}-info-s{isele}.txt"
                 selector.indent = 4
                 # - map indices

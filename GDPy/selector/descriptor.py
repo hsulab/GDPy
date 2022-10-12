@@ -142,6 +142,14 @@ class DescriptorBasedSelector(AbstractSelector):
                 ),
                 footer=f"random_seed {self.random_seed}"
             )
+        else:
+            np.savetxt(
+                self.info_fpath, [[np.NaN]*6],
+                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}".format(
+                    *"index confid natoms AtomicEnergy MaxForce  CurScore".split()
+                ),
+                footer=f"random_seed {self.random_seed}"
+            )
 
         return selected_indices
 

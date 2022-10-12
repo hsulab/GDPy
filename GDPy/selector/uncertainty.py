@@ -14,6 +14,8 @@ from ase.io import read, write
 from GDPy.selector.selector import AbstractSelector
 from GDPy.computation.worker.worker import AbstractWorker
 
+from GDPy.utils.command import CustomTimer
+
 
 class DeviationSelector(AbstractSelector):
 
@@ -76,10 +78,16 @@ class DeviationSelector(AbstractSelector):
                         self.pfunc("Estimate uncertainty by an external calculator...")
                         # TODO: check if such committee supports prop_name
                         estimator.directory = self.directory
-                        frames = estimator.estimate(frames)
-                        write(self.directory/"frames_devi.xyz", frames, append=True)
+                        devi_frames_fpath = self.directory/f"{self.prefix}-frames_devi.xyz"
+                        if (devi_frames_fpath).exists():
+                            devi_frames = read(devi_frames_fpath, ":")
+                            assert nframes == len(devi_frames), "Cached frames are incorrect."
+                        else:
+                            with CustomTimer(name="estimate-uncertainty", func=self.pfunc):
+                                devi_frames = estimator.estimate(frames)
+                            write(devi_frames_fpath, devi_frames)
                         try:
-                            devi = [a.info[prop_name] for a in frames]
+                            devi = [a.info[prop_name] for a in devi_frames]
                         except:
                             self.pfunc(f"Cant evaluate deviation of {prop_name}...")
                             devi = [np.NaN]*len(frames)
@@ -117,9 +125,10 @@ class DeviationSelector(AbstractSelector):
             devis = [deviations[prop_name][s] for prop_name in self.criteria.keys()]
             cur_data.extend(devis)
             data.append(cur_data)
+
+        col_names = [s+" " for s in self.criteria.keys()]
         if data:
             ncols = len(data[0])
-            col_names = [s+" " for s in self.criteria.keys()]
             np.savetxt(
                 self.info_fpath, data, 
                 fmt="%8d  %8d  %8d  "+"%12.4f  "*(ncols-3),
@@ -127,6 +136,15 @@ class DeviationSelector(AbstractSelector):
                     *("index confid natoms TotalEnergy AtomicEnergy MaxForce ".split()), *col_names
                 ),
                 #footer=f"random_seed {self.random_seed}"
+            )
+        else:
+            ncols = len(col_names) + 6
+            np.savetxt(
+                self.info_fpath, [[np.NaN]*ncols],
+                #fmt="%8d  %8d  %8d  "+"%12.4f  "*(ncols-3),
+                header=("{:>6s}  {:>8s}  {:>8s}  "+"{:>12s}  "*(ncols-3)).format(
+                    *("index confid natoms TotalEnergy AtomicEnergy MaxForce ".split()), *col_names
+                ),
             )
 
         return selected_indices
