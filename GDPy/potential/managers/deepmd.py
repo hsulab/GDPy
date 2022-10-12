@@ -9,6 +9,8 @@ import json
 
 import numpy as np
 
+from ase.calculators.calculator import Calculator
+
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.utils.command import run_command
 from GDPy.trainer.train_potential import find_systems, generate_random_seed
@@ -26,40 +28,22 @@ class DeepmdManager(AbstractPotentialManager):
         ["lammps", "lammps"]
     ]
 
+    #: Used for estimating uncertainty.
+    _estimator = None
+
     def __init__(self, *args, **kwargs):
         """"""
-        self.committee = None
 
         return
     
-    def _parse_models(self):
-        """"""
-        if isinstance(self.models, str):
-            pot_path = Path(self.models)
-            pot_dir, pot_pattern = pot_path.parent, pot_path.name
-            models = []
-            for pot in pot_dir.glob(pot_pattern):
-                models.append(str(pot/'graph.pb'))
-            self.models = models
-        else:
-            for m in self.models:
-                if not Path(m).exists():
-                    raise ValueError('Model %s does not exist.' %m)
+    def _create_calculator(self, calc_params: dict) -> Calculator:
+        """Create an ase calculator.
 
-        return
-    
-    def _check_uncertainty_support(self):
-        """"""
-        self.uncertainty = False
-        if len(self.models) > 1:
-            self.uncertainty = True
-
-        return
-    
-    def register_calculator(self, calc_params, *args, **kwargs):
-        """ generate calculator with various backends
+        Todo:
+            In fact, uncertainty estimation has various backends as well.
+        
         """
-        super().register_calculator(calc_params)
+        calc_params = copy.deepcopy(calc_params)
 
         # - some shared params
         command = calc_params.pop("command", None)
@@ -69,26 +53,36 @@ class DeepmdManager(AbstractPotentialManager):
         type_map = {}
         for i, a in enumerate(type_list):
             type_map[a] = i
+        
+        # --- model files
+        model_ = calc_params.get("model", [])
+        if not isinstance(model_, list):
+            model_ = [model_]
+
+        models = []
+        for m in model_:
+            m = Path(m).resolve()
+            if not m.exists():
+                raise FileNotFoundError(f"Cant find model file {str(m)}")
+            models.append(str(m))
 
         # - create specific calculator
         if self.calc_backend == "ase":
             # return ase calculator
             from deepmd.calculator import DP
-            model = calc_params.get("model", None)
-            if model and type_map:
-                calc = DP(model=model, type_dict=type_map)
+            if models and type_map:
+                calc = DP(model=models[0], type_dict=type_map)
             else:
                 calc = None
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
-            #content += "pair_style      deepmd %s out_freq ${THERMO_FREQ} out_file model_devi.out\n" \
-            #    %(' '.join([m for m in self.models]))
+            if models:
+                pair_style = "deepmd {}".format(" ".join(models))
+                pair_coeff = calc_params.pop("pair_coeff", "* *")
 
-            pair_style = calc_params.pop("pair_style", None)
-            pair_coeff = calc_params.pop("pair_coeff", "* *")
-            if pair_style:
                 pair_style_name = pair_style.split()[0]
-                assert pair_style_name == "deepmd", "Incorrect pair_style for deepmd..."
+                assert pair_style_name == "deepmd", "Incorrect pair_style for lammps deepmd..."
+
                 calc = Lammps(
                     command=command, directory=directory, 
                     pair_style=pair_style, pair_coeff=pair_coeff,
@@ -99,8 +93,27 @@ class DeepmdManager(AbstractPotentialManager):
                 calc.atom_style = "atomic"
             else:
                 calc = None
+
+        return calc
+
+    def register_calculator(self, calc_params, *args, **kwargs):
+        """ generate calculator with various backends
+        """
+        super().register_calculator(calc_params)
         
-        self.calc = calc
+        self.calc = self._create_calculator(self.calc_params)
+
+        return
+    
+    def register_uncertainty_estimator(self, est_params_: dict):
+        """Create an extra uncertainty estimator.
+
+        This can be used when the current calculator is not capable of 
+        estimating uncertainty.
+        
+        """
+        from GDPy.computation.uncertainty import create_estimator
+        self._estimator = create_estimator(est_params_, self.calc_params, self._create_calculator)
 
         return
     
@@ -261,31 +274,31 @@ class DeepmdManager(AbstractPotentialManager):
         models = []
         for p in mdirs:
             models.append(str(p/"graph.pb"))
+        models.sort()
         
-        if self.calc_backend == "ase":
-            committee = []
-            for i, m in enumerate(models):
-                calc_params = copy.deepcopy(self.calc_params)
-                calc_params.update(backend=self.calc_backend)
-                calc_params["file"] = m
-                saved_calc_params = copy.deepcopy(calc_params)
-                self.register_calculator(calc_params)
-                self.calc.directory = Path.cwd()/f"c{i}"
-                committee.append(self.calc)
-            # NOTE: do not share calculator...
-            self.register_calculator(saved_calc_params)
-            if len(committee) > 1:
-                self.committee = committee
-        elif self.calc_backend == "lammps":
-            calc_params = copy.deepcopy(self.calc_params)
-            calc_params.update(backend=self.calc_backend)
-            # - set out_freq and out_file in lammps
-            calc_params["pair_style"] = "deepmd {}".format(" ".join(models))
-            saved_calc_params = copy.deepcopy(calc_params)
-            self.register_calculator(calc_params)
-            # NOTE: do not share calculator...
-            if len(models) > 1:
-                self.committee = [self.register_calculator(saved_calc_params)]
+        # --- update current calculator
+        # NOTE: We dont need update calc_backend here...
+        calc_params = copy.deepcopy(self.calc_params)
+        #if self.calc_backend == "ase":
+        #    for i, m in enumerate(models):
+        #        calc_params = copy.deepcopy(self.calc_params)
+        #        calc_params.update(backend=self.calc_backend)
+        #        calc_params["model"] = m
+        #        saved_calc_params = copy.deepcopy(calc_params)
+        #        self.register_calculator(calc_params)
+        #        self.calc.directory = Path.cwd()/f"c{i}"
+        #    # NOTE: do not share calculator...
+        #    self.register_calculator(saved_calc_params)
+        #elif self.calc_backend == "lammps":
+        #    calc_params.update(backend=self.calc_backend)
+        #    # - set out_freq and out_file in lammps
+        #    saved_calc_params = copy.deepcopy(calc_params)
+        calc_params["model"] = models
+        #self.register_calculator(calc_params)
+        self.calc = self._create_calculator(calc_params)
+
+        # --- update current estimator
+        # TODO: ...
 
         return
 
