@@ -157,6 +157,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
         # - create dirs
         collect_dpath = self._make_step_dir(res_dpath, f"collect")
+        select_dpath = self._make_step_dir(res_dpath, f"select")
         label_dpath = self._make_step_dir(res_dpath, f"label")
         train_dpath = self._make_step_dir(res_dpath, f"train")
 
@@ -198,6 +199,10 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             start_block = 0
         self.logger.info(f"start_block: {start_block}")
 
+        # --- parse constraint
+        constraint = block_run_params.get("constraint", None)
+        mobile_indices, frozen_indices = parse_constraint_info(atoms, constraint, ret_text=False)
+
         # --- add init data to total dataset
         if start_block == 0:
             init_data = self.collection_params["init_data"]
@@ -205,27 +210,37 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 init_frames = read(init_data, ":")
                 write(label_dpath/"calculated.xyz", init_frames)
                 self.logger.info(f"ADD init dataset, {len(init_frames)}...")
+        
+        data = dict(
+            pot_frames = [], # potential-calculated traj frames
+            selected_frames = [] # selected traj frames
+        )
 
         # - run dynamics
         for i in range(start_block,nblocks):
             self.logger.info(f"\n\n----- block {i:8d} -----")
             # - NOTE: run a block, dyn, without bias (plumed)
             # - NOTE: overwrite existed data
+            # - TODO: Use worker here...
             driver.directory = tmp_folder / ("b"+str(i))
             atoms = driver.run(atoms, read_exists=True, **block_run_params)
+
+            # --- checkpoint
+            # TODO: save checkpoint?
+            #       current structure, current potential
+            atoms.info["block"] = i
+            write(check_point, atoms, columns=["symbols", "positions", "move_mask"])
+
+            # - collect
             # --- unchecked frames, and some may be labelled
-            traj_fpath = collect_dpath/f"traj-b{i}.xyz"
-            if not traj_fpath.exists():
-                traj_frames = driver.read_trajectory()
-                write(traj_fpath, traj_frames)
-            else:
-                traj_frames = read(traj_fpath, ":")
+            self._single_collect(res_dpath, actions, data, block_step=i)
+            
+            # --- output MD information
+            traj_frames = data["pot_frames"]
             confids = range(i*block_steps,(i+1)*block_steps+1,dump_period) # NOTE: include last
             for a, confid in zip(traj_frames,confids):
                 a.info["confid"] = confid
                 # add constraint TODO: move this part to driver?
-                constraint = block_run_params.get("constraint", None)
-                mobile_indices, frozen_indices = parse_constraint_info(atoms, constraint, ret_text=False)
                 if frozen_indices:
                     a.set_constraint(FixAtoms(indices=frozen_indices))
                 # NOTE: ase does not remove com 3 dof while lammps does
@@ -233,88 +248,88 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                     f"step: {confid:>8d} temp: {a.get_temperature():>12.4f} " + 
                     f"ke: {a.get_kinetic_energy():>12.4f} pe: {a.get_potential_energy():>12.4f}"
                 )
-            # - collect, select, label
-            self.logger.info(f"num_traj_frames: {len(traj_frames)}")
-            traj_frames = self._single_collect(collect_dpath, traj_frames, actions, block_step=i)
-            # - checkpoint
-            # TODO: save checkpoint?
-            #       current structure, current potential
-            atoms.info["block"] = i
-            write(check_point, atoms)
+
+            # - select
+            self._single_select(res_dpath, actions, data, block_step=i)
+
             # - train and use new driver
-            if traj_frames: # selected ones
-                self.logger.info(f"Found {len(traj_frames)} structures need label...")
-                is_calculated = self._single_label(label_dpath, traj_frames, block_step=i)
-                if is_calculated: # (label_dpath/"calculated.xyz").exists() == True
-                    # - find all structures in the database
-                    train_frames = []
-                    for xyz_fpath in label_dpath.glob("*.xyz"):
-                        xyz_frames = read(xyz_fpath, ":")
-                        if xyz_frames:
-                            train_frames.extend(xyz_frames)
-                            self.logger.info(f"Find dataset {str(xyz_fpath)} with nframes {len(xyz_frames)}...")
-                    is_trained = self._single_train(train_dpath, train_frames, block_step=i)
-                    if is_trained:
-                        driver = self.pot_worker.potter.create_driver(driver_params)
-                    else:
-                        self.logger.info("break, wait for training...")
-                        break
+            is_calculated = self._single_label(res_dpath, actions, data, block_step=i)
+            if is_calculated: # (label_dpath/"calculated.xyz").exists() == True
+                is_trained = self._single_train(res_dpath, actions, data, block_step=i)
+                if is_trained:
+                    driver = self.pot_worker.potter.create_driver(driver_params)
                 else:
-                    self.logger.info("break, wait for labelling...")
+                    self.logger.info("break, wait for training...")
                     break
             else:
-                self.logger.info("No candidates to calculate...")
+                self.logger.info("break, wait for labelling...")
+                break
 
         return 
 
-    def _single_collect(self, res_dpath, frames, actions, block_step=0,*args, **kwargs):
+    def _single_collect(self, res_dpath, actions, data, block_step=0,*args, **kwargs) -> None:
         """Collect results.
         
         Check whether a group of structues should be labelled
         
         """
-        #for atoms in frames:
-        #    print(atoms.calc.results)
+        collect_dpath = res_dpath / "collect"
+        driver = actions["driver"]
+
+        # --- unchecked frames, and some may be labelled
+        traj_fpath = collect_dpath/f"traj-b{block_step}.xyz"
+        if not traj_fpath.exists():
+            traj_frames = driver.read_trajectory()
+            write(traj_fpath, traj_frames)
+        # NOTE: To make atoms.info has a same order, we always read the outpufile,
+        #       which is important for md5 check in the worker.
+        traj_frames = read(traj_fpath, ":")
+
+        data["pot_frames"] = traj_frames # potential-calculated frames
+
+        return 
+    
+    def _single_select(self, res_dpath, actions, data, block_step=0, *args, **kwargs):
+        """Select frames."""
+        select_dpath = res_dpath/"select"
+        frames = data["pot_frames"]
 
         # NOTE: frames = traj_frames + labelled_frames
         selector = actions["selector"]
         selector.prefix = "traj"
 
-        #sdirs = []
-        #for p in res_dpath.iterdir():
-        #    if p.is_dir():
-        #        sdirs.append(p)
-        #sdirs = sorted(sdirs, key=lambda x:int(x.name[1:]))
-        #if sdirs:
-        #    number = int(sdirs[-1].name[1:])
-        #    select_dpath = res_dpath / ("s"+str(number+1))
-        #else:
-        #    select_dpath = res_dpath / "s0"
-        select_dpath = res_dpath/("s"+str(block_step))
-        select_dpath.mkdir(exist_ok=True)
-        selector.directory = select_dpath
+        cur_select_dpath = select_dpath/("s"+str(block_step))
+        cur_select_dpath.mkdir(exist_ok=True)
+        selector.directory = cur_select_dpath
 
         frames_to_label = selector.select(frames)
-        # TODO: check if selected frames have already been lablled
-        # TODO: use database?
-        write(res_dpath/f"candidates-b{block_step}.xyz", frames_to_label, append=True)
 
         self.logger.info(f"SELECTION: {select_dpath.name}")
         self.logger.info("confids: {}".format(" ".join([str(a.info["confid"]) for a in frames_to_label])))
 
-        return frames_to_label
+        data["selected_frames"] = frames_to_label
+        #write(res_dpath/f"candidates-b{block_step}.xyz", frames_to_label, append=True)
+
+        return
     
-    def _single_label(self, res_dpath, traj_frames, block_step=0, *args, **kwargs):
+    def _single_label(self, res_dpath, actions, data, block_step=0, *args, **kwargs):
         """Label candidates."""
+        selected_frames = data["selected_frames"]
+        nselected = len(selected_frames)
+        self.logger.info(f"Found {nselected} structures need label...")
+        if nselected == 0:
+            return True
+
         # - label structures
         #self.ref_worker._submit = False
-        label_path = res_dpath/("l"+str(block_step))
+        label_path = res_dpath/"label"/("l"+str(block_step))
         label_path.mkdir(exist_ok=True)
         self.ref_worker.directory = label_path
 
-        self.ref_worker.batchsize = len(traj_frames) # TODO: custom settings?
-        self.ref_worker.run(traj_frames)
-        # TODO: wait here
+        self.ref_worker.batchsize = len(selected_frames) # TODO: custom settings?
+        self.ref_worker.run(selected_frames)
+
+        # NOTE: wait here
         is_calculated = True
         calibrated_frames = self.ref_worker.retrieve()
         if calibrated_frames:
@@ -325,29 +340,26 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
         return is_calculated
     
-    def _single_train(self, wdir, frames, block_step=0, *args, **kwargs):
+    def _single_train(self, res_dpath, actions, data, block_step=0, *args, **kwargs):
         """Train and freeze potentials."""
-        # - find train dirs
-        #tdirs = []
-        #for p in wdir.iterdir():
-        #    if p.is_dir():
-        #        tdirs.append(p)
-        #tdirs = sorted(tdirs, key=lambda x:int(x.name[1:]))
+        # - find all structures in the database
+        label_dpath = res_dpath/"label"
+        train_frames = []
+        for xyz_fpath in label_dpath.glob("*.xyz"):
+            xyz_frames = read(xyz_fpath, ":")
+            if xyz_frames:
+                train_frames.extend(xyz_frames)
+                self.logger.info(f"Find dataset {str(xyz_fpath)} with nframes {len(xyz_frames)}...")
 
-        # TODO: check if finished? if not, use previous train dir
-        #if tdirs:
-        #    number = int(tdirs[-1].name[1:])
-        #    cur_tdir = wdir / ("t"+str(number+1))
-        #else:
-        #    cur_tdir = wdir / "t0"
-        cur_tdir = wdir / ("t"+str(block_step))
+        # - train
+        cur_tdir = res_dpath/"train"/("t"+str(block_step))
 
         # - train potentials
         self.logger.info(f"TRAIN at {cur_tdir.name}, {self.pot_worker.potter.train_size} models...")
-        self.logger.info(f"dataset size (nframes): {len(frames)}")
+        self.logger.info(f"dataset size (nframes): {len(train_frames)}")
         #self.pot_worker._submit = False
         self.pot_worker.directory = cur_tdir
-        _ = self.pot_worker.run(frames, size=self.pot_worker.potter.train_size)
+        _ = self.pot_worker.run(train_frames, size=self.pot_worker.potter.train_size)
         
         # - check if training is finished
         is_trained = True
