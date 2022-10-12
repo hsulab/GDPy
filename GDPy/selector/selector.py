@@ -147,7 +147,10 @@ class AbstractSelector(abc.ABC):
             selected_indices = self._select_indices(frames)
         else:
             self.pfunc("use cached...")
-            data = np.loadtxt(self.info_fpath).tolist()
+            data = np.loadtxt(self.info_fpath)
+            if len(data.shape) == 1:
+                data = data[np.newaxis,:]
+            data = data.tolist()
             if data:
                 selected_indices = [int(row[0]) for row in data]
             else:

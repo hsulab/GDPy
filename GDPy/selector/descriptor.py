@@ -104,7 +104,7 @@ class DescriptorBasedSelector(AbstractSelector):
 
             # cur decomposition
             if nframes == 1:
-                selected_indices = [0]
+                cur_scores, selected_indices = [np.NaN], [0]
             else:
                 cur_scores, selected_indices = cur_selection(
                     features, num_fixed,
@@ -131,6 +131,7 @@ class DescriptorBasedSelector(AbstractSelector):
                 maxforce = np.NaN
             score = cur_scores[i]
             data.append([s, confid, natoms, ae, maxforce, score])
+
         if data:
             np.savetxt(
                 self.info_fpath, data, 
