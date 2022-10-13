@@ -1,0 +1,34 @@
+#batchsize: 2
+# - potential
+potential:
+  name: nequip
+  params:
+    backend: lammps
+    directory: "LmpMin-worker"
+    command: mpirun -n 4 lmp_cat -in in.lammps 2>&1 > lmp.out
+    type_list:
+      - C
+      - O
+      - Pt
+    flavour: allegro
+    model: ./deployed_model.pth
+# - driver
+driver:  
+  backend: lammps # should be compatible with calculator
+  # === nvt
+  task: md
+  init:
+    md_style: nvt
+    velocity_seed: 0127
+    temp: 300
+    Tdamp: 100
+  run:
+    steps: 20
+    constraint: "lowest 4"
+# - scheduler
+scheduler:
+  backend: slurm
+  partition: k2-hipri
+  ntasks: 2
+  time: "00:05:00"
+  environs: "source ~/envs/source_eann.sh\nconda activate catorch2"

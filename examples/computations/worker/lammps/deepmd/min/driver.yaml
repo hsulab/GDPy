@@ -1,0 +1,20 @@
+potential:
+  name: deepmd
+  params:
+    backend: lammps
+    command: "lmp -in in.lammps 2>&1 > lmp.out"
+    type_list: ["Cu"] # NOTE: should be the same in the trainer config
+    model: ../graph.pb
+driver:  
+  backend: external
+  # === nvt
+  task: min
+  run:
+    steps: 50
+    fmax: 0.05
+scheduler:
+  backend: slurm
+  partition: k2-hipri
+  ntasks: 2
+  time: "00:03:00"
+  environs: "conda activate deepmd\n"

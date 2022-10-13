@@ -1,0 +1,28 @@
+batchsize: 2
+# - potential
+potential:
+  name: reax
+  params:
+    backend: lammps
+    command: mpirun -n 2 lmp_cat -in in.lammps 2>&1 > lmp.out
+    model: ./ffield.reax.PtNiCHO
+# - driver
+driver:  
+  backend: lammps # should be compatible with calculator
+  # === nvt
+  task: md
+  init:
+    md_style: nvt
+    velocity_seed: 1223
+    temp: 300
+    Tdamp: 100
+  run:
+    steps: 20
+    constraint: "lowest 4"
+# - scheduler
+scheduler:
+  backend: slurm
+  partition: k2-hipri
+  ntasks: 2
+  time: "00:03:00"
+  environs: "source ~/envs/source_eann.sh\nconda activate catorch2"
