@@ -8,14 +8,14 @@ def run_expedition(potter, referee, exp_json):
     # - create exploration
     exp_dict = parse_input_file(exp_json)
 
-    method = exp_dict.get("method", "MD")
-    if method == "MD":
+    method = exp_dict.get("method", "md")
+    if method == "md":
         from .md import MDBasedExpedition as exp_cls
     elif method == "evo":
         from .evoSearch import EvolutionaryExpedition as exp_cls
-    elif method == "adsorbate": # ads
+    elif method == "ads": # ads
         from .adsorbate import AdsorbateEvolution as exp_cls
-    elif method == "reaction": # rxn
+    elif method == "rxn": # rxn
         from .reaction import ReactionExplorer as exp_cls
     elif method == "otf":
         from .online.md import OnlineDynamicsBasedExpedition as exp_cls
