@@ -91,6 +91,7 @@
 <p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="potentials/index.html">Potentials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
@@ -98,7 +99,7 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="extensions/index.html">Extensions</a></li>
-<li class="toctree-l1"><a class="reference internal" href="modules/modules.html">GDPy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/modules.html">GDPy APIs</a></li>
 </ul>
 
             
@@ -167,9 +168,12 @@
 <h1>GDPy Documentation<a class="headerlink" href="#gdpy-documentation" title="Permalink to this heading">¶</a></h1>
 <p>GDPy stands for <strong>Generating Deep Potential with Python</strong>, including
 a set of tools and Python modules to automate the structure exploration
-and the model training for <strong>machine learning interatomic potential</strong> (MLIP).
+and the model training for <strong>machine learning interatomic potentials</strong> (MLIPs).
 It is developed and maintained by <a class="reference external" href="https://scholar.google.com/citations?user=ue5SBQMAAAAJ&amp;hl=en">Jiayan Xu</a> under supervision of Prof. <a class="reference external" href="https://scholar.google.com/citations?user=GNuXfeQAAAAJ&amp;hl=en">P. Hu</a>
 at Queen’s University Belfast.</p>
+<div class="figure align-center">
+<a class="reference internal image-reference" href="_images/logo.png"><img alt="GPDy LOGO" src="_images/logo.png" style="width: 400px;" /></a>
+</div>
 <div class="section" id="supported-potentials">
 <h2>Supported <strong>Potentials</strong><a class="headerlink" href="#supported-potentials" title="Permalink to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">eann</span></code>, <code class="docutils literal notranslate"><span class="pre">deepmd</span></code>, <code class="docutils literal notranslate"><span class="pre">lasp</span></code>, <code class="docutils literal notranslate"><span class="pre">nequip</span></code> / <code class="docutils literal notranslate"><span class="pre">allegro</span></code></p>
@@ -183,6 +187,7 @@ at Queen’s University Belfast.</p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="about.html#features">Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="about.html#overview">Overview</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
@@ -205,13 +210,25 @@ at Queen’s University Belfast.</p>
 <li class="toctree-l2"><a class="reference internal" href="start.html#worker">Worker</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="computations/index.html#driver">Driver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="potentials/index.html">Potentials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="potentials/index.html#formulations">Formulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potentials/index.html#simulation">Simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potentials/index.html#training">Training</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="computations/index.html#potential">Potential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computations/index.html#driver">Driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computations/index.html#worker">Worker</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="expeditions/index.html#define-a-system">Define a System</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expeditions/index.html#list-of-expeditions">List of Expeditions</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="tutorials/index.html#build-a-potential-for-cu-with-global-search">Build a Potential for Cu with Global Search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/index.html#list-of-tutorials">List of Tutorials</a></li>
 </ul>
 </li>
 </ul>
@@ -223,8 +240,9 @@ at Queen’s University Belfast.</p>
 <li class="toctree-l2"><a class="reference internal" href="extensions/index.html#custom-potential">Custom Potential</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="modules/modules.html">GDPy</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="modules/modules.html">GDPy APIs</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="modules/builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/config.html">config module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/main.html">main module</a></li>

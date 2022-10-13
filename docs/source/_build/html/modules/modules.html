@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>GDPy &mdash; GDPy 0.0.1 documentation</title>
+  <title>GDPy APIs &mdash; GDPy 0.0.1 documentation</title>
   
 
   
@@ -92,6 +92,7 @@
 <p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../potentials/index.html">Potentials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../expeditions/index.html">Expeditions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
@@ -99,8 +100,9 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">GDPy</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">GDPy APIs</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
@@ -156,7 +158,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-      <li>GDPy</li>
+      <li>GDPy APIs</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -175,32 +177,59 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="gdpy">
-<h1>GDPy<a class="headerlink" href="#gdpy" title="Permalink to this heading">¶</a></h1>
+  <div class="section" id="gdpy-apis">
+<h1>GDPy APIs<a class="headerlink" href="#gdpy-apis" title="Permalink to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="builder.html">builder package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="builder.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-adsorbate-module">builder.adsorbate module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-builder-module">builder.builder module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-constraints-module">builder.constraints module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-direct-module">builder.direct module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-randombuilder-module">builder.randomBuilder module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-region-module">builder.region module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-species-module">builder.species module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#builder-utils-module">builder.utils module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="builder.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.adsorbate">builder.adsorbate module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.builder">builder.builder module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.constraints">builder.constraints module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.direct">builder.direct module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.randomBuilder">builder.randomBuilder module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.region">builder.region module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.species">builder.species module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder.utils">builder.utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builder.html#module-builder">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="computation.html">computation package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#subpackages">Subpackages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="computation.worker.html">computation.worker package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html#module-computation.worker.command">computation.worker.command module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html#module-computation.worker.drive">computation.worker.drive module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html#module-computation.worker.train">computation.worker.train module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html#module-computation.worker.worker">computation.worker.worker module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html#module-computation.worker">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#computation-morse-module">computation.Morse module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation.ase">computation.ase module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#computation-dp-module">computation.dp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation.driver">computation.driver module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation.lammps">computation.lammps module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation.lasp">computation.lasp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#computation-opt-morse-module">computation.opt_morse module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#computation-plumed-module">computation.plumed module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation.utils">computation.utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation.vasp">computation.vasp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html#module-computation">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="config.html">config module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="expedition.html">expedition package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="expedition.html#expedition-abstract-module">expedition.abstract module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="expedition.html#expedition-adsorbate-module">expedition.adsorbate module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="expedition.html#expedition-evosearch-module">expedition.evoSearch module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="expedition.html#expedition-md-module">expedition.md module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="expedition.html#expedition-reaction-module">expedition.reaction module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-expedition.abstract">expedition.abstract module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-expedition.adsorbate">expedition.adsorbate module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-expedition.evoSearch">expedition.evoSearch module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-expedition.md">expedition.md module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-expedition.reaction">expedition.reaction module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html#module-expedition">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="main.html">main module</a></li>
@@ -208,59 +237,59 @@
 <li class="toctree-l2"><a class="reference internal" href="potential.html#subpackages">Subpackages</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="potential.managers.html">potential.managers package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="potential.managers.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#potential-managers-deepmd-module">potential.managers.deepmd module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#potential-managers-eann-module">potential.managers.eann module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#potential-managers-lasp-module">potential.managers.lasp module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#potential-managers-nequip-module">potential.managers.nequip module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#potential-managers-reax-module">potential.managers.reax module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#potential-managers-vasp-module">potential.managers.vasp module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-contents">Module contents</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers.deepmd">potential.managers.deepmd module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers.eann">potential.managers.eann module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers.lasp">potential.managers.lasp module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers.nequip">potential.managers.nequip module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers.reax">potential.managers.reax module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers.vasp">potential.managers.vasp module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="potential.managers.html#module-potential.managers">Module contents</a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="potential.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.html#potential-manager-module">potential.manager module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.html#potential-register-module">potential.register module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html#module-potential.manager">potential.manager module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html#module-potential.register">potential.register module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html#module-potential">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="reaction.html">reaction package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="reaction.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reaction.html#reaction-afir-module">reaction.AFIR module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reaction.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reaction.html#module-reaction.AFIR">reaction.AFIR module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reaction.html#module-reaction">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="scheduler.html">scheduler package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="scheduler.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scheduler.html#scheduler-local-module">scheduler.local module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scheduler.html#scheduler-pbs-module">scheduler.pbs module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scheduler.html#scheduler-scheduler-module">scheduler.scheduler module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scheduler.html#scheduler-slurm-module">scheduler.slurm module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scheduler.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html#module-scheduler.local">scheduler.local module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html#module-scheduler.pbs">scheduler.pbs module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html#module-scheduler.scheduler">scheduler.scheduler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html#module-scheduler.slurm">scheduler.slurm module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html#module-scheduler">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="selector.html">selector package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="selector.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-composition-module">selector.composition module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-convergence-module">selector.convergence module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-cur-module">selector.cur module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-descriptor-module">selector.descriptor module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-graph-module">selector.graph module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-invariant-module">selector.invariant module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-selector-module">selector.selector module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-traj-module">selector.traj module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#selector-uncertainty-module">selector.uncertainty module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="selector.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.composition">selector.composition module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.convergence">selector.convergence module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.cur">selector.cur module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.descriptor">selector.descriptor module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.graph">selector.graph module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.invariant">selector.invariant module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.selector">selector.selector module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.traj">selector.traj module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector.uncertainty">selector.uncertainty module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html#module-selector">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="trainer.html">trainer package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="trainer.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trainer.html#trainer-evaluate-potential-module">trainer.evaluate_potential module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html#module-trainer.evaluate_potential">trainer.evaluate_potential module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="trainer.html#trainer-iterative-train-module">trainer.iterative_train module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="trainer.html#trainer-manual-train-module">trainer.manual_train module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trainer.html#trainer-train-potential-module">trainer.train_potential module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trainer.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html#module-trainer.train_potential">trainer.train_potential module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html#module-trainer">Module contents</a></li>
 </ul>
 </li>
 </ul>

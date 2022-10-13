@@ -39,7 +39,7 @@
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Computations" href="computations/index.html" />
+    <link rel="next" title="Potentials" href="potentials/index.html" />
     <link rel="prev" title="Installation" href="installation.html" /> 
 </head>
 
@@ -99,6 +99,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#worker">Worker</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="potentials/index.html">Potentials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
@@ -184,110 +185,18 @@ computation, which contains a <code class="docutils literal notranslate"><span c
 <div class="section" id="potential">
 <h2>Potential<a class="headerlink" href="#potential" title="Permalink to this heading">¶</a></h2>
 <p>We have supported several MLIP formulations based on an <code class="docutils literal notranslate"><span class="pre">AbstractPotentialManager</span></code>
-class to access <strong>driver</strong>, <strong>expedition</strong>, and <strong>training</strong> through workflows.
-The MLIP calculations are performed by <strong>ase</strong> <code class="docutils literal notranslate"><span class="pre">calculators</span></code> using either
-<strong>python</strong> built-in codes (PyTorch, TensorFlow) or File-IO based external codes
-(e.g. <strong>lammps</strong>).</p>
-<p>The example below shows how to define a <strong>potential</strong> in a <strong>yaml</strong> file:</p>
+class to access <strong>driver</strong>, <strong>expedition</strong>, and <strong>training</strong> through workflows.</p>
+<p>The example below shows how to define a <strong>deepmd</strong> potential using the <strong>ase</strong> backend
+in a <strong>yaml</strong> file:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># -- ase interface</span>
 <span class="nt">potential</span><span class="p">:</span>
-    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span> <span class="c1"># name of the potential</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">deepmd</span> <span class="c1"># name of the potential</span>
     <span class="nt">params</span><span class="p">:</span> <span class="c1"># potential-specifc params</span>
         <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">ase</span> <span class="c1"># ase or lammps</span>
-        <span class="nt">file</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./deployed_model.pth</span>
-
-<span class="c1"># -- lammps interface</span>
-<span class="nt">potential</span><span class="p">:</span>
-    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span>
-    <span class="nt">params</span><span class="p">:</span>
-        <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lammps</span>
-        <span class="nt">command</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lmp_cat -in in.lammps 2&gt;&amp;1 &gt; lmp.out</span>
-        <span class="nt">pair_style</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span>
-        <span class="nt">pair_coeff</span><span class="p">:</span> <span class="s">&quot;*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">./deployed_model.pth&quot;</span>
+        <span class="nt">model</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./graph.pb</span>
 </pre></div>
 </div>
-<p><strong>Suported MLIPs:</strong></p>
-<p>We have already implemented interfaces to the potentials below:</p>
-<table class="docutils align-default">
-<colgroup>
-<col style="width: 13%" />
-<col style="width: 37%" />
-<col style="width: 18%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Name</p></th>
-<th class="head"><p>Representation</p></th>
-<th class="head"><p>Backend</p></th>
-<th class="head"><p>Notes</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><a class="reference external" href="https://github.com/zhangylch/EANN">eann</a></p></td>
-<td><p>(Recursive) Embedded Atom</p></td>
-<td><p>Python, LAMMPS</p></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/deepmodeling/deepmd-kit">deepmd</a></p></td>
-<td><p>Deep Descriptor</p></td>
-<td><p>Python, LAMMPS</p></td>
-<td><p>Only potential model.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference external" href="http://www.lasphub.com/#/lasp/laspHome">lasp</a></p></td>
-<td><p>Atom-Centred Symmetry Function</p></td>
-<td><p>LASP, LAMMPS</p></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/mir-group/nequip">nequip</a></p></td>
-<td><p>E(3)-Equivalent Message Passing</p></td>
-<td><p>Python, LAMMPS</p></td>
-<td><p>Allegro is supported as well.</p></td>
-</tr>
-</tbody>
-</table>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>GDPy does not implement any MLIP but offers a unified interface.
-Therefore, certain MLIP could not be utilised before
-corresponding required packages are installed correctly.</p>
-</div>
-<p><strong>Other Potentials:</strong></p>
-<p>Some potentials besides MLIPs are supported. Force fields or semi-empirical
-potentials are used for pre-sampling to build an initial dataset. <em>Ab-initio</em>
-methods are used to label structures with target properties (e.g. total energy,
-forces, and stresses).</p>
-<table class="docutils align-default">
-<colgroup>
-<col style="width: 13%" />
-<col style="width: 37%" />
-<col style="width: 18%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Name</p></th>
-<th class="head"><p>Description</p></th>
-<th class="head"><p>Backend</p></th>
-<th class="head"><p>Notes</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>reax</p></td>
-<td><p>Reactive Force Field</p></td>
-<td><p>LAMMPS</p></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><p>xtb</p></td>
-<td><p>Tight Binding</p></td>
-<td><p>xtb</p></td>
-<td><p>Under development.</p></td>
-</tr>
-<tr class="row-even"><td><p>vasp</p></td>
-<td><p>Density Functional Theory</p></td>
-<td><p>VASP</p></td>
-<td></td>
-</tr>
-</tbody>
-</table>
+<p>See <a class="reference internal" href="potentials/index.html#potential-examples"><span class="std std-ref">Potentials</span></a> section for more details.</p>
 </div>
 <div class="section" id="driver">
 <h2>Driver<a class="headerlink" href="#driver" title="Permalink to this heading">¶</a></h2>
@@ -339,10 +248,10 @@ dynamics). The simulations would ideally be dispatched to high performace cluste
 workflows to deal with computations.</p>
 <p>The example below shows how to define a <strong>worker</strong> in a <strong>yaml</strong> file:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
-    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span> <span class="c1"># name of the potential</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">deepmd</span> <span class="c1"># name of the potential</span>
     <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">ase</span> <span class="c1"># ase or lammps</span>
     <span class="nt">params</span><span class="p">:</span> <span class="c1"># potential-specifc params</span>
-        <span class="nt">file</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./deployed_model.pth</span>
+        <span class="nt">model</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./graph.pb</span>
 <span class="nt">driver</span><span class="p">:</span>
     <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">external</span>
     <span class="nt">task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">md</span> <span class="c1"># molecular dynamics (md) or minimisation (min)</span>
@@ -428,7 +337,7 @@ directly run in the command line.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="computations/index.html" class="btn btn-neutral float-right" title="Computations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="potentials/index.html" class="btn btn-neutral float-right" title="Potentials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

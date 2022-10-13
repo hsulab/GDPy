@@ -1,7 +1,15 @@
 Tutorials
 =========
 
-Build a Potential for Cu with Global Search
--------------------------------------------
+We have listed several tutorials to demonstrate how to build a potential for a 
+very specific chemical system.
 
-Here, we use EMT-GA to explore structures of Cu bulks.
+
+List of Tutorials
+-----------------
+
+.. toctree::
+   :maxdepth: 2
+
+   copper.rst
+   water.rst

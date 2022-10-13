@@ -99,8 +99,9 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
@@ -110,9 +111,9 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#potential-manager-module">potential.manager module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#potential-register-module">potential.register module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-potential.manager">potential.manager module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-potential.register">potential.register module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-potential">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="reaction.html">reaction package</a></li>
@@ -166,7 +167,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">GDPy</a> &raquo;</li>
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
         
       <li>potential package</li>
     
@@ -195,13 +196,13 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="potential.managers.html">potential.managers package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#potential-managers-deepmd-module">potential.managers.deepmd module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#potential-managers-eann-module">potential.managers.eann module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#potential-managers-lasp-module">potential.managers.lasp module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#potential-managers-nequip-module">potential.managers.nequip module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#potential-managers-reax-module">potential.managers.reax module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#potential-managers-vasp-module">potential.managers.vasp module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.deepmd">potential.managers.deepmd module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.eann">potential.managers.eann module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.lasp">potential.managers.lasp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.nequip">potential.managers.nequip module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.reax">potential.managers.reax module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.vasp">potential.managers.vasp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -210,14 +211,120 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
 </div>
-<div class="section" id="potential-manager-module">
-<h2>potential.manager module<a class="headerlink" href="#potential-manager-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-potential.manager">
+<span id="potential-manager-module"></span><h2>potential.manager module<a class="headerlink" href="#module-potential.manager" title="Permalink to this heading">¶</a></h2>
+<p>Potential Manager
+deals with various machine learning potentials</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">potential.manager.</span></span><span class="sig-name descname"><span class="pre">AbstractPotentialManager</span></span><a class="headerlink" href="#potential.manager.AbstractPotentialManager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Create various potential instances</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.as_dict">
+<span class="sig-name descname"><span class="pre">as_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.as_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.calc">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">calc</span></span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.calc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.create_driver">
+<span class="sig-name descname"><span class="pre">create_driver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dyn_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.create_driver" title="Permalink to this definition">¶</a></dt>
+<dd><p>create a worker for dynamics
+default the dynamics backend will be the same as calc
+however, ase-based dynamics can be used for all calculators</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.create_worker">
+<span class="sig-name descname"><span class="pre">create_worker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">driver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.create_worker" title="Permalink to this definition">¶</a></dt>
+<dd><p>a machine operates calculations submitted to queue</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.get_batchsize">
+<span class="sig-name descname"><span class="pre">get_batchsize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.get_batchsize" title="Permalink to this definition">¶</a></dt>
+<dd><p>get batchsize for train and valid set</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.implemented_backends">
+<span class="sig-name descname"><span class="pre">implemented_backends</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#potential.manager.AbstractPotentialManager.implemented_backends" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'potential'</span></em><a class="headerlink" href="#potential.manager.AbstractPotentialManager.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_calculator">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">register_calculator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc_params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">agrs</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_calculator" title="Permalink to this definition">¶</a></dt>
+<dd><p>register calculator</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_scheduler">
+<span class="sig-name descname"><span class="pre">register_scheduler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params_</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_scheduler" title="Permalink to this definition">¶</a></dt>
+<dd><p>register machine used to submit jobs</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_trainer">
+<span class="sig-name descname"><span class="pre">register_trainer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_params_</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_trainer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.scheduler">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">scheduler</span></span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.scheduler" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.valid_combinations">
+<span class="sig-name descname"><span class="pre">valid_combinations</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#potential.manager.AbstractPotentialManager.valid_combinations" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.version">
+<span class="sig-name descname"><span class="pre">version</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'m00'</span></em><a class="headerlink" href="#potential.manager.AbstractPotentialManager.version" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="potential-register-module">
-<h2>potential.register module<a class="headerlink" href="#potential-register-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-potential.register">
+<span id="potential-register-module"></span><h2>potential.register module<a class="headerlink" href="#module-potential.register" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="potential.register.PotentialRegister">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">potential.register.</span></span><span class="sig-name descname"><span class="pre">PotentialRegister</span></span><a class="headerlink" href="#potential.register.PotentialRegister" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.register.PotentialRegister.create_potential">
+<span class="sig-name descname"><span class="pre">create_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pot_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.register.PotentialRegister.create_potential" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.register.PotentialRegister.register_potential">
+<span class="sig-name descname"><span class="pre">register_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pot_cls</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">TManager</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pot_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.register.PotentialRegister.register_potential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register a custom potential manager class</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="potential.register.create_potter">
+<span class="sig-prename descclassname"><span class="pre">potential.register.</span></span><span class="sig-name descname"><span class="pre">create_potter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.register.create_potter" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-potential">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-potential" title="Permalink to this heading">¶</a></h2>
+<p>potential wrappers
+general potential format: deepmd, eann, lasp, vasp
+dynamics backend: ase, lammps, lasp, vasp</p>
 </div>
 </div>
 

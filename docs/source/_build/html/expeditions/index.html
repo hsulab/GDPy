@@ -39,7 +39,7 @@
     <link rel="author" title="About these documents" href="../about.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
+    <link rel="next" title="Explore with Molecular Dynamics" href="md.html" />
     <link rel="prev" title="Computations" href="../computations/index.html" /> 
 </head>
 
@@ -92,8 +92,19 @@
 <p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../potentials/index.html">Potentials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Expeditions</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Expeditions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#define-a-system">Define a System</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#list-of-expeditions">List of Expeditions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="md.html">Explore with Molecular Dynamics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="population.html">Explore with Global Optimisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="adsorbate.html">Explore Adsorbate Configurations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="reaction.html">Explore Chemical Reactions</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
@@ -166,6 +177,61 @@
             
   <div class="section" id="expeditions">
 <h1>Expeditions<a class="headerlink" href="#expeditions" title="Permalink to this heading">¶</a></h1>
+<p>This section introduces expeditions implemented in GDPy. In general, each expedition
+includes four stages, namely create, collect, select, and label. As usual, we offer
+a unified input file to access different explorations by setting the <strong>method</strong>
+and its corresponding <strong>create</strong> procedure.</p>
+<p>The code structure is</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">explorations</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">sys</span> <span class="ow">in</span> <span class="n">systems</span><span class="p">:</span>
+        <span class="n">create</span><span class="p">()</span>   <span class="c1"># run simulation</span>
+        <span class="n">collect</span><span class="p">()</span>  <span class="c1"># collect results</span>
+        <span class="n">select</span><span class="p">()</span>   <span class="c1"># select structures</span>
+        <span class="n">label</span><span class="p">()</span>    <span class="c1"># label candidates</span>
+</pre></div>
+</div>
+<p>The input file structure is</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">database</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./set</span>
+<span class="nt">method</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">MD</span> <span class="c1"># options are md, evo, ads, rxn</span>
+<span class="nt">systems</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span> <span class="c1"># a dict of system definitions</span>
+<span class="nt">explorations</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span> <span class="c1"># a dict of expedition definitions</span>
+    <span class="c1"># for each exploration</span>
+    <span class="nt">exp</span><span class="p">:</span>
+        <span class="nt">systems</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span>
+        <span class="nt">create</span><span class="p">:</span>
+            <span class="l l-Scalar l-Scalar-Plain">...</span>
+        <span class="nt">collect</span><span class="p">:</span>
+            <span class="l l-Scalar l-Scalar-Plain">...</span>
+        <span class="nt">select</span><span class="p">:</span>
+            <span class="l l-Scalar l-Scalar-Plain">...</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span>
+</pre></div>
+</div>
+<p>The related command is</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># gdp -h for more info</span>
+$ gdp -h
+
+<span class="c1"># run explorations defined in exp.yaml with potential as pot.yaml and</span>
+<span class="c1">#   with selected candidates labelled by ref.yaml</span>
+$ gdp -p ./pot.yaml -r ./ref.yaml explore ./exp.yaml
+</pre></div>
+</div>
+<div class="section" id="define-a-system">
+<h2>Define a System<a class="headerlink" href="#define-a-system" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="list-of-expeditions">
+<h2>List of Expeditions<a class="headerlink" href="#list-of-expeditions" title="Permalink to this heading">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="md.html">Explore with Molecular Dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population.html">Explore with Global Optimisation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="adsorbate.html">Explore Adsorbate Configurations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reaction.html">Explore Chemical Reactions</a></li>
+</ul>
+</div>
+</div>
 </div>
 
 
@@ -176,7 +242,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../tutorials/index.html" class="btn btn-neutral float-right" title="Tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="md.html" class="btn btn-neutral float-right" title="Explore with Molecular Dynamics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="../computations/index.html" class="btn btn-neutral float-left" title="Computations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

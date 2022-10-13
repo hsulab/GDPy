@@ -99,16 +99,17 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.html">potential package</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">reaction package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#reaction-afir-module">reaction.AFIR module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-reaction.AFIR">reaction.AFIR module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-reaction">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
@@ -161,7 +162,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">GDPy</a> &raquo;</li>
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
         
       <li>reaction package</li>
     
@@ -187,11 +188,162 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
 </div>
-<div class="section" id="reaction-afir-module">
-<h2>reaction.AFIR module<a class="headerlink" href="#reaction-afir-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-reaction.AFIR">
+<span id="reaction-afir-module"></span><h2>reaction.AFIR module<a class="headerlink" href="#module-reaction.AFIR" title="Permalink to this heading">¶</a></h2>
+<p>Artificial force induced reaction (AFIR)</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">reaction.AFIR.</span></span><span class="sig-name descname"><span class="pre">AFIR</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fragments</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graph_creator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BFGS</span></code></p>
+<p>integrate with graph calculation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.calc_pairs">
+<span class="sig-name descname"><span class="pre">calc_pairs</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR.calc_pairs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.converged">
+<span class="sig-name descname"><span class="pre">converged</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR.converged" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.has_reaction">
+<span class="sig-name descname"><span class="pre">has_reaction</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#reaction.AFIR.AFIR.has_reaction" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.log">
+<span class="sig-name descname"><span class="pre">log</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">forces</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR.log" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR.step" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.update_positions">
+<span class="sig-name descname"><span class="pre">update_positions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR.update_positions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIR.update_positions_by_graph">
+<span class="sig-name descname"><span class="pre">update_positions_by_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIR.update_positions_by_graph" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIRSearch">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">reaction.AFIR.</span></span><span class="sig-name descname"><span class="pre">AFIRSearch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('/Users/jyxu/Documents/SomeCodes/GDPy/results')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ginit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gintv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dyn_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graph_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.AFIRSearch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>TODO: transform this into a dynamics object?
+reaction event search</p>
+<blockquote>
+<div><p>in: one single structure
+out: a bunch of opt trajs + a pseudo pathway</p>
+</div></blockquote>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIRSearch.constraint">
+<span class="sig-name descname"><span class="pre">constraint</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#reaction.AFIR.AFIRSearch.constraint" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIRSearch.irun">
+<span class="sig-name descname"><span class="pre">irun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">init_atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fres_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frag</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#reaction.AFIR.AFIRSearch.irun" title="Permalink to this definition">¶</a></dt>
+<dd><p>run single fragment combination
+output summary is in data.out</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIRSearch.nfragments_to_reaction">
+<span class="sig-name descname"><span class="pre">nfragments_to_reaction</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#reaction.AFIR.AFIRSearch.nfragments_to_reaction" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIRSearch.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">check_exists</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#reaction.AFIR.AFIRSearch.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>run all fragment pairs in one single structure
+output summary is in main.out</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.AFIRSearch.run_NEB">
+<span class="sig-name descname"><span class="pre">run_NEB</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#reaction.AFIR.AFIRSearch.run_NEB" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">reaction.AFIR.</span></span><span class="sig-name descname"><span class="pre">Adsorbate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbols:</span> <span class="pre">List[str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices:</span> <span class="pre">List[int]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts:</span> <span class="pre">List[List]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positions:</span> <span class="pre">List[List]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.Adsorbate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate.cop">
+<span class="sig-name descname"><span class="pre">cop</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#reaction.AFIR.Adsorbate.cop" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate.indices">
+<span class="sig-name descname"><span class="pre">indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#reaction.AFIR.Adsorbate.indices" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'adsorbate'</span></em><a class="headerlink" href="#reaction.AFIR.Adsorbate.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate.positions">
+<span class="sig-name descname"><span class="pre">positions</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#reaction.AFIR.Adsorbate.positions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate.shifts">
+<span class="sig-name descname"><span class="pre">shifts</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#reaction.AFIR.Adsorbate.shifts" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="reaction.AFIR.Adsorbate.symbols">
+<span class="sig-name descname"><span class="pre">symbols</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#reaction.AFIR.Adsorbate.symbols" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="reaction.AFIR.force_function">
+<span class="sig-prename descclassname"><span class="pre">reaction.AFIR.</span></span><span class="sig-name descname"><span class="pre">force_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">positions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covalent_radii</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair_shifts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.force_function" title="Permalink to this definition">¶</a></dt>
+<dd><p>AFIR function</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="reaction.AFIR.grid_iterator">
+<span class="sig-prename descclassname"><span class="pre">reaction.AFIR.</span></span><span class="sig-name descname"><span class="pre">grid_iterator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#reaction.AFIR.grid_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Yield all of the coordinates in a 3D grid as tuples</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>grid</strong> (<em>tuple</em><em>[</em><em>int</em><em>] or </em><em>int</em>) – The grid dimension(s) to
+iterate over (x or (x, y, z))</p>
+</dd>
+<dt class="field-even">Yields</dt>
+<dd class="field-even"><p><em>tuple</em> – (x, y, z) coordinates</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="reaction.AFIR.partition_fragments">
+<span class="sig-prename descclassname"><span class="pre">reaction.AFIR.</span></span><span class="sig-name descname"><span class="pre">partition_fragments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">creator</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_species</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#reaction.AFIR.Adsorbate" title="reaction.AFIR.Adsorbate"><span class="pre">Adsorbate</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#reaction.AFIR.partition_fragments" title="Permalink to this definition">¶</a></dt>
+<dd><p>generate fragments from a single component
+use graph to find adsorbates and group them into fragments</p>
+</dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-reaction">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-reaction" title="Permalink to this heading">¶</a></h2>
+<p>This submodule is for exploring, sampling,
+and performing (chemical) reactions with
+various advanced algorithms.</p>
 </div>
 </div>
 

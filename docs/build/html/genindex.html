@@ -90,6 +90,7 @@
 <p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="potentials/index.html">Potentials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
@@ -208,17 +209,19 @@
 </li>
       <li><a href="modules/expedition.html#expedition.adsorbate.AdsorbateEvolution">AdsorbateEvolution (class in expedition.adsorbate)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/builder.html#builder.adsorbate.AdsorbateGraphGenerator">AdsorbateGraphGenerator (class in builder.adsorbate)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/reaction.html#reaction.AFIR.AFIR">AFIR (class in reaction.AFIR)</a>
 </li>
       <li><a href="modules/reaction.html#reaction.AFIR.AFIRSearch">AFIRSearch (class in reaction.AFIR)</a>
 </li>
-      <li><a href="modules/builder.html#builder.randomBuilder.RandomGenerator.as_dict">as_dict() (builder.randomBuilder.RandomGenerator method)</a>
+      <li><a href="modules/builder.html#builder.direct.DirectGenerator.as_dict">as_dict() (builder.direct.DirectGenerator method)</a>
 
       <ul>
+        <li><a href="modules/builder.html#builder.randomBuilder.RandomGenerator.as_dict">(builder.randomBuilder.RandomGenerator method)</a>
+</li>
         <li><a href="modules/computation.html#computation.driver.AbstractDriver.as_dict">(computation.driver.AbstractDriver method)</a>
 </li>
         <li><a href="modules/potential.html#potential.manager.AbstractPotentialManager.as_dict">(potential.manager.AbstractPotentialManager method)</a>
@@ -369,6 +372,8 @@
       </ul></li>
       <li><a href="modules/computation.worker.html#computation.worker.command.CommandWorker">CommandWorker (class in computation.worker.command)</a>
 </li>
+      <li><a href="modules/computation.uncertainty.html#computation.uncertainty.committee.CommitteeUncertaintyEstimator">CommitteeUncertaintyEstimator (class in computation.uncertainty.committee)</a>
+</li>
       <li><a href="modules/builder.html#builder.adsorbate.AdsorbateGraphGenerator.compare_graphs">compare_graphs() (builder.adsorbate.AdsorbateGraphGenerator method)</a>
 </li>
       <li><a href="modules/selector.html#selector.composition.ComposedSelector">ComposedSelector (class in selector.composition)</a>
@@ -408,8 +413,22 @@
         <li><a href="modules/computation.html#module-computation.lasp">module</a>
 </li>
       </ul></li>
+      <li>
+    computation.uncertainty
+
+      <ul>
+        <li><a href="modules/computation.uncertainty.html#module-computation.uncertainty">module</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    computation.uncertainty.committee
+
+      <ul>
+        <li><a href="modules/computation.uncertainty.html#module-computation.uncertainty.committee">module</a>
+</li>
+      </ul></li>
       <li>
     computation.utils
 
@@ -481,6 +500,8 @@
       <li><a href="modules/expedition.html#expedition.md.create_dataclass_from_dict">create_dataclass_from_dict() (in module expedition.md)</a>
 </li>
       <li><a href="modules/potential.html#potential.manager.AbstractPotentialManager.create_driver">create_driver() (potential.manager.AbstractPotentialManager method)</a>
+</li>
+      <li><a href="modules/computation.uncertainty.html#computation.uncertainty.create_estimator">create_estimator() (in module computation.uncertainty)</a>
 </li>
       <li><a href="modules/builder.html#builder.create_generator">create_generator() (in module builder)</a>
 </li>
@@ -611,6 +632,8 @@
 </li>
         <li><a href="modules/computation.html#computation.driver.AbstractDriver.directory">(computation.driver.AbstractDriver property)</a>
 </li>
+        <li><a href="modules/computation.uncertainty.html#computation.uncertainty.committee.CommitteeUncertaintyEstimator.directory">(computation.uncertainty.committee.CommitteeUncertaintyEstimator property)</a>
+</li>
         <li><a href="modules/computation.worker.html#computation.worker.worker.AbstractWorker.directory">(computation.worker.worker.AbstractWorker property)</a>
 </li>
         <li><a href="modules/selector.html#selector.composition.ComposedSelector.directory">(selector.composition.ComposedSelector property)</a>
@@ -642,6 +665,8 @@
       </ul></li>
       <li><a href="modules/scheduler.html#scheduler.scheduler.AbstractScheduler.environs">environs (scheduler.scheduler.AbstractScheduler attribute)</a>
 </li>
+      <li><a href="modules/computation.uncertainty.html#computation.uncertainty.committee.CommitteeUncertaintyEstimator.estimate">estimate() (computation.uncertainty.committee.CommitteeUncertaintyEstimator method)</a>
+</li>
       <li><a href="modules/builder.html#builder.region.estimate_chemical_potential">estimate_chemical_potential() (in module builder.region)</a>
 </li>
       <li><a href="modules/potential.managers.html#potential.managers.nequip.NequipManager.estimate_uncertainty">estimate_uncertainty() (potential.managers.nequip.NequipManager method)</a>
@@ -652,6 +677,8 @@
 </li>
       <li><a href="modules/builder.html#builder.adsorbate.AdsorbateGraphGenerator.exchange_adsorbate">exchange_adsorbate() (builder.adsorbate.AdsorbateGraphGenerator method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     expedition
 
@@ -659,8 +686,6 @@
         <li><a href="modules/expedition.html#module-expedition">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     expedition.abstract
 
@@ -946,6 +971,10 @@
         <li><a href="modules/computation.html#module-computation.lammps">computation.lammps</a>
 </li>
         <li><a href="modules/computation.html#module-computation.lasp">computation.lasp</a>
+</li>
+        <li><a href="modules/computation.uncertainty.html#module-computation.uncertainty">computation.uncertainty</a>
+</li>
+        <li><a href="modules/computation.uncertainty.html#module-computation.uncertainty.committee">computation.uncertainty.committee</a>
 </li>
         <li><a href="modules/computation.html#module-computation.utils">computation.utils</a>
 </li>
@@ -1266,6 +1295,8 @@
         <li><a href="modules/scheduler.html#scheduler.slurm.SlurmScheduler.PREFIX">(scheduler.slurm.SlurmScheduler attribute)</a>
 </li>
       </ul></li>
+      <li><a href="modules/selector.html#selector.selector.AbstractSelector.prefix">prefix (selector.selector.AbstractSelector attribute)</a>
+</li>
       <li><a href="modules/expedition.html#expedition.md.MDParams.pres">pres (expedition.md.MDParams attribute)</a>
 </li>
   </ul></td>
@@ -1366,6 +1397,8 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/potential.managers.html#potential.managers.deepmd.DeepmdManager.register_uncertainty_estimator">register_uncertainty_estimator() (potential.managers.deepmd.DeepmdManager method)</a>
+</li>
       <li><a href="modules/builder.html#builder.region.ReducedRegion.reservoir">reservoir (builder.region.ReducedRegion property)</a>
 </li>
       <li><a href="modules/builder.html#builder.region.Reservoir">Reservoir (class in builder.region)</a>

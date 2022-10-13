@@ -1,0 +1,972 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>computation package &mdash; GDPy 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="computation.worker package" href="computation.worker.html" />
+    <link rel="prev" title="builder package" href="builder.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> GDPy
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../potentials/index.html">Potentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../expeditions/index.html">Expeditions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">computation package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#subpackages">Subpackages</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="computation.worker.html">computation.worker package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#computation-morse-module">computation.Morse module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation.ase">computation.ase module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#computation-dp-module">computation.dp module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation.driver">computation.driver module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation.lammps">computation.lammps module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation.lasp">computation.lasp module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#computation-opt-morse-module">computation.opt_morse module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#computation-plumed-module">computation.plumed module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation.utils">computation.utils module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation.vasp">computation.vasp module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-computation">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html">potential package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reaction.html">reaction package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html">trainer package</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">GDPy</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
+        
+      <li>computation package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/modules/computation.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="computation-package">
+<h1>computation package<a class="headerlink" href="#computation-package" title="Permalink to this heading">¶</a></h1>
+<div class="section" id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this heading">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="computation.worker.html">computation.worker package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="computation.worker.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.worker.html#module-computation.worker.command">computation.worker.command module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.worker.html#module-computation.worker.drive">computation.worker.drive module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.worker.html#module-computation.worker.train">computation.worker.train module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.worker.html#module-computation.worker.worker">computation.worker.worker module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.worker.html#module-computation.worker">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="computation-morse-module">
+<h2>computation.Morse module<a class="headerlink" href="#computation-morse-module" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-computation.ase">
+<span id="computation-ase-module"></span><h2>computation.ase module<a class="headerlink" href="#module-computation.ase" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.ase.AseDriver">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.ase.</span></span><span class="sig-name descname"><span class="pre">AseDriver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.ase.AseDriver" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractDriver</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.default_init_params">
+<span class="sig-name descname"><span class="pre">default_init_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'Pdamp':</span> <span class="pre">100,</span> <span class="pre">'Tdamp':</span> <span class="pre">100,</span> <span class="pre">'dump_period':</span> <span class="pre">1,</span> <span class="pre">'md_style':</span> <span class="pre">'nvt',</span> <span class="pre">'press':</span> <span class="pre">1.0,</span> <span class="pre">'temp':</span> <span class="pre">300,</span> <span class="pre">'timestep':</span> <span class="pre">1.0,</span> <span class="pre">'velocity_seed':</span> <span class="pre">None},</span> <span class="pre">'min':</span> <span class="pre">{'dump_period':</span> <span class="pre">1,</span> <span class="pre">'min_modify':</span> <span class="pre">'integrator</span> <span class="pre">verlet</span> <span class="pre">tmax</span> <span class="pre">4',</span> <span class="pre">'min_style':</span> <span class="pre">'bfgs'}}</span></em><a class="headerlink" href="#computation.ase.AseDriver.default_init_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default init parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.default_run_params">
+<span class="sig-name descname"><span class="pre">default_run_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'steps':</span> <span class="pre">0},</span> <span class="pre">'min':</span> <span class="pre">{'fmax':</span> <span class="pre">0.05,</span> <span class="pre">'steps':</span> <span class="pre">0},</span> <span class="pre">'ts':</span> <span class="pre">{}}</span></em><a class="headerlink" href="#computation.ase.AseDriver.default_run_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default run parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.default_task">
+<span class="sig-name descname"><span class="pre">default_task</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'min'</span></em><a class="headerlink" href="#computation.ase.AseDriver.default_task" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.directory">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><a class="headerlink" href="#computation.ase.AseDriver.directory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set working directory of this driver.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The attached calculator’s directory would be set as well.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.log_fname">
+<span class="sig-name descname"><span class="pre">log_fname</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'dyn.log'</span></em><a class="headerlink" href="#computation.ase.AseDriver.log_fname" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.log_fpath">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">log_fpath</span></span><a class="headerlink" href="#computation.ase.AseDriver.log_fpath" title="Permalink to this definition">¶</a></dt>
+<dd><p>File path of the simulation log.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'ase'</span></em><a class="headerlink" href="#computation.ase.AseDriver.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Driver’s name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.param_mapping">
+<span class="sig-name descname"><span class="pre">param_mapping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'Pdamp':</span> <span class="pre">'taup',</span> <span class="pre">'Tdamp':</span> <span class="pre">'taut',</span> <span class="pre">'dump_period':</span> <span class="pre">'loginterval',</span> <span class="pre">'pres':</span> <span class="pre">'pressure',</span> <span class="pre">'temp':</span> <span class="pre">'temperature_K'}</span></em><a class="headerlink" href="#computation.ase.AseDriver.param_mapping" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map input key names to the actual names used in the backend.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.read_trajectory">
+<span class="sig-name descname"><span class="pre">read_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">add_step_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.ase.AseDriver.read_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read trajectory in the current working directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read_exists</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.ase.AseDriver.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the driver.</p>
+<p>Additional output files would be generated, namely a xyz-trajectory and
+a deviation file if the calculator could estimate uncertainty.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Calculator’s parameters will not change since it still performs
+single-point calculations as the simulation goes.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.saved_cards">
+<span class="sig-name descname"><span class="pre">saved_cards</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['dyn.traj']</span></em><a class="headerlink" href="#computation.ase.AseDriver.saved_cards" title="Permalink to this definition">¶</a></dt>
+<dd><p>List of output files would be saved when restart.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.supported_tasks">
+<span class="sig-name descname"><span class="pre">supported_tasks</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['min',</span> <span class="pre">'ts',</span> <span class="pre">'md']</span></em><a class="headerlink" href="#computation.ase.AseDriver.supported_tasks" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.traj_fname">
+<span class="sig-name descname"><span class="pre">traj_fname</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'dyn.traj'</span></em><a class="headerlink" href="#computation.ase.AseDriver.traj_fname" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="computation.ase.AseDriver.traj_fpath">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">traj_fpath</span></span><a class="headerlink" href="#computation.ase.AseDriver.traj_fpath" title="Permalink to this definition">¶</a></dt>
+<dd><p>File path of the simulation trajectory.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.ase.retrieve_and_save_deviation">
+<span class="sig-prename descclassname"><span class="pre">computation.ase.</span></span><span class="sig-name descname"><span class="pre">retrieve_and_save_deviation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">devi_fpath</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#computation.ase.retrieve_and_save_deviation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read model deviation and add results to atoms.info if the file exists.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.ase.save_trajectory">
+<span class="sig-prename descclassname"><span class="pre">computation.ase.</span></span><span class="sig-name descname"><span class="pre">save_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_fpath</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#computation.ase.save_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save simulation trajectory,</p>
+</dd></dl>
+
+</div>
+<div class="section" id="computation-dp-module">
+<h2>computation.dp module<a class="headerlink" href="#computation-dp-module" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-computation.driver">
+<span id="computation-driver-module"></span><h2>computation.driver module<a class="headerlink" href="#module-computation.driver" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.driver.</span></span><span class="sig-name descname"><span class="pre">AbstractDriver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.driver.AbstractDriver" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.as_dict">
+<span class="sig-name descname"><span class="pre">as_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.as_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return parameters of this driver.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.default_init_params">
+<span class="sig-name descname"><span class="pre">default_init_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.default_init_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default init parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.default_run_params">
+<span class="sig-name descname"><span class="pre">default_run_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.default_run_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default run parameters.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.default_task">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.default_task" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default simulation task.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.delete">
+<span class="sig-name descname"><span class="pre">delete</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.delete" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deleted keywords.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.delete_keywords">
+<span class="sig-name descname"><span class="pre">delete_keywords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.delete_keywords" title="Permalink to this definition">¶</a></dt>
+<dd><p>Removes list of keywords (delete) from kwargs.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.directory">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><a class="headerlink" href="#computation.driver.AbstractDriver.directory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set working directory of this driver.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The attached calculator’s directory would be set as well.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.driver.AbstractDriver.get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get param value from init/run params by a mapped key name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.keyword">
+<span class="sig-name descname"><span class="pre">keyword</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.keyword" title="Permalink to this definition">¶</a></dt>
+<dd><p>Keyword.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'abstract'</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Driver’s name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.param_mapping">
+<span class="sig-name descname"><span class="pre">param_mapping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.param_mapping" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map input key names to the actual names used in the backend.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.pot_params">
+<span class="sig-name descname"><span class="pre">pot_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.pot_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parameters for PotentialManager.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.read_converged">
+<span class="sig-name descname"><span class="pre">read_converged</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Atoms</span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.read_converged" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read last frame of the trajectory.</p>
+<p>It would be better if the structure were checked to be converged.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.read_trajectory">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.read_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read trajectory in the current working directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove results stored in dynamics calculator.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.run">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read_exists</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Atoms</span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the last frame of the simulation.</p>
+<p>Copy input atoms, and return a new atoms. Check whether the simulation is
+finished and retrieve stored results. If necessary, extra information could
+be added to the atoms.info</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.set_keywords">
+<span class="sig-name descname"><span class="pre">set_keywords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#computation.driver.AbstractDriver.set_keywords" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set list of keywords from kwargs.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.special_keywords">
+<span class="sig-name descname"><span class="pre">special_keywords</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.special_keywords" title="Permalink to this definition">¶</a></dt>
+<dd><p>Special keywords.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.supported_tasks">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">supported_tasks</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#computation.driver.AbstractDriver.supported_tasks" title="Permalink to this definition">¶</a></dt>
+<dd><p>Supported simulation tasks</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.driver.AbstractDriver.syswise_keys">
+<span class="sig-name descname"><span class="pre">syswise_keys</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#computation.driver.AbstractDriver.syswise_keys" title="Permalink to this definition">¶</a></dt>
+<dd><p>Systemwise parameter keys.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="computation.driver.MD_INIT_KEYS">
+<span class="sig-prename descclassname"><span class="pre">computation.driver.</span></span><span class="sig-name descname"><span class="pre">MD_INIT_KEYS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['md_style',</span> <span class="pre">'velocity_seed',</span> <span class="pre">'timestep',</span> <span class="pre">'temp',</span> <span class="pre">'Tdamp',</span> <span class="pre">'press',</span> <span class="pre">'Pdamp',</span> <span class="pre">'dump_period']</span></em><a class="headerlink" href="#computation.driver.MD_INIT_KEYS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parameter keys used to init a molecular-dynamics task.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="computation.driver.MD_RUN_KEYS">
+<span class="sig-prename descclassname"><span class="pre">computation.driver.</span></span><span class="sig-name descname"><span class="pre">MD_RUN_KEYS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['steps']</span></em><a class="headerlink" href="#computation.driver.MD_RUN_KEYS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parameter keys used to run a molecular-dynamics task.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="computation.driver.MIN_INIT_KEYS">
+<span class="sig-prename descclassname"><span class="pre">computation.driver.</span></span><span class="sig-name descname"><span class="pre">MIN_INIT_KEYS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['min_style',</span> <span class="pre">'min_modify',</span> <span class="pre">'dump_period']</span></em><a class="headerlink" href="#computation.driver.MIN_INIT_KEYS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parameter keys used to init a minimisation task.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="computation.driver.MIN_RUN_KEYS">
+<span class="sig-prename descclassname"><span class="pre">computation.driver.</span></span><span class="sig-name descname"><span class="pre">MIN_RUN_KEYS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['steps',</span> <span class="pre">'fmax']</span></em><a class="headerlink" href="#computation.driver.MIN_RUN_KEYS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parameter keys used to run a minimisation task.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-computation.lammps">
+<span id="computation-lammps-module"></span><h2>computation.lammps module<a class="headerlink" href="#module-computation.lammps" title="Permalink to this heading">¶</a></h2>
+<dl class="py data">
+<dt class="sig sig-object py" id="computation.lammps.ASELMPCONFIG">
+<span class="sig-prename descclassname"><span class="pre">computation.lammps.</span></span><span class="sig-name descname"><span class="pre">ASELMPCONFIG</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;computation.lammps.AseLammpsSettings</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#computation.lammps.ASELMPCONFIG" title="Permalink to this definition">¶</a></dt>
+<dd><p>Instance.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.lammps.AseLammpsSettings">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.lammps.</span></span><span class="sig-name descname"><span class="pre">AseLammpsSettings</span></span><a class="headerlink" href="#computation.lammps.AseLammpsSettings" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>File names.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.AseLammpsSettings.deviation_filename">
+<span class="sig-name descname"><span class="pre">deviation_filename</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'model_devi.out'</span></em><a class="headerlink" href="#computation.lammps.AseLammpsSettings.deviation_filename" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.AseLammpsSettings.input_fname">
+<span class="sig-name descname"><span class="pre">input_fname</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'in.lammps'</span></em><a class="headerlink" href="#computation.lammps.AseLammpsSettings.input_fname" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.AseLammpsSettings.inputstructure_filename">
+<span class="sig-name descname"><span class="pre">inputstructure_filename</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stru.data'</span></em><a class="headerlink" href="#computation.lammps.AseLammpsSettings.inputstructure_filename" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.AseLammpsSettings.log_filename">
+<span class="sig-name descname"><span class="pre">log_filename</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'log.lammps'</span></em><a class="headerlink" href="#computation.lammps.AseLammpsSettings.log_filename" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.AseLammpsSettings.trajectory_filename">
+<span class="sig-name descname"><span class="pre">trajectory_filename</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'traj.dump'</span></em><a class="headerlink" href="#computation.lammps.AseLammpsSettings.trajectory_filename" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.lammps.Lammps">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.lammps.</span></span><span class="sig-name descname"><span class="pre">Lammps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">command</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Lammps'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lammps.Lammps" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">FileIOCalculator</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.cached_loop_time">
+<span class="sig-name descname"><span class="pre">cached_loop_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#computation.lammps.Lammps.cached_loop_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Cached wall time of the previous simulation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.cached_traj_frames">
+<span class="sig-name descname"><span class="pre">cached_traj_frames</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#computation.lammps.Lammps.cached_traj_frames" title="Permalink to this definition">¶</a></dt>
+<dd><p>Cached trajectory of the previous simulation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.calculate">
+<span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">properties</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['energy']</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system_changes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['positions',</span> <span class="pre">'numbers',</span> <span class="pre">'cell',</span> <span class="pre">'pbc',</span> <span class="pre">'initial_charges',</span> <span class="pre">'initial_magmoms']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lammps.Lammps.calculate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run calculation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.command">
+<span class="sig-name descname"><span class="pre">command</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'lmp</span> <span class="pre">2&gt;&amp;1</span> <span class="pre">&gt;</span> <span class="pre">lmp.out'</span></em><a class="headerlink" href="#computation.lammps.Lammps.command" title="Permalink to this definition">¶</a></dt>
+<dd><p>LAMMPS command.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'Pdamp':</span> <span class="pre">100,</span> <span class="pre">'Tdamp':</span> <span class="pre">100,</span> <span class="pre">'atom_style':</span> <span class="pre">'atomic',</span> <span class="pre">'boundary':</span> <span class="pre">'p</span> <span class="pre">p</span> <span class="pre">p',</span> <span class="pre">'constraint':</span> <span class="pre">None,</span> <span class="pre">'dump_period':</span> <span class="pre">1,</span> <span class="pre">'etol':</span> <span class="pre">0.0,</span> <span class="pre">'ftol':</span> <span class="pre">0.05,</span> <span class="pre">'mass':</span> <span class="pre">'*</span> <span class="pre">1.0',</span> <span class="pre">'maxeval':</span> <span class="pre">0,</span> <span class="pre">'maxiter':</span> <span class="pre">0,</span> <span class="pre">'md_steps':</span> <span class="pre">0,</span> <span class="pre">'md_style':</span> <span class="pre">'nvt',</span> <span class="pre">'min_modify':</span> <span class="pre">'integrator</span> <span class="pre">verlet</span> <span class="pre">tmax</span> <span class="pre">4',</span> <span class="pre">'min_style':</span> <span class="pre">'fire',</span> <span class="pre">'neigh_modify':</span> <span class="pre">None,</span> <span class="pre">'neighbor':</span> <span class="pre">'0.0</span> <span class="pre">bin',</span> <span class="pre">'newton':</span> <span class="pre">None,</span> <span class="pre">'pair_coeff':</span> <span class="pre">None,</span> <span class="pre">'pair_style':</span> <span class="pre">None,</span> <span class="pre">'pres':</span> <span class="pre">1.0,</span> <span class="pre">'processors':</span> <span class="pre">'*</span> <span class="pre">*</span> <span class="pre">1',</span> <span class="pre">'task':</span> <span class="pre">'min',</span> <span class="pre">'temp':</span> <span class="pre">300,</span> <span class="pre">'timestep':</span> <span class="pre">1.0,</span> <span class="pre">'units':</span> <span class="pre">'metal',</span> <span class="pre">'velocity_seed':</span> <span class="pre">None}</span></em><a class="headerlink" href="#computation.lammps.Lammps.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default calculator parameters, NOTE which have ase units.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.implemented_properties">
+<span class="sig-name descname"><span class="pre">implemented_properties</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['energy',</span> <span class="pre">'forces',</span> <span class="pre">'stress']</span></em><a class="headerlink" href="#computation.lammps.Lammps.implemented_properties" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implemented properties.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Lammps'</span></em><a class="headerlink" href="#computation.lammps.Lammps.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculator name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.read_results">
+<span class="sig-name descname"><span class="pre">read_results</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#computation.lammps.Lammps.read_results" title="Permalink to this definition">¶</a></dt>
+<dd><p>ASE read results.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.type_list">
+<span class="sig-name descname"><span class="pre">type_list</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#computation.lammps.Lammps.type_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol to integer.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lammps.Lammps.write_input">
+<span class="sig-name descname"><span class="pre">write_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">properties</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system_changes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#computation.lammps.Lammps.write_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write input file and input structure.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.lammps.</span></span><span class="sig-name descname"><span class="pre">LmpDriver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lammps.LmpDriver" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractDriver</span></code></p>
+<p>Use lammps to perform dynamics.</p>
+<p>Minimisation and/or molecular dynamics.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.default_init_params">
+<span class="sig-name descname"><span class="pre">default_init_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'Pdamp':</span> <span class="pre">100,</span> <span class="pre">'Tdamp':</span> <span class="pre">100,</span> <span class="pre">'md_style':</span> <span class="pre">'nvt',</span> <span class="pre">'pres':</span> <span class="pre">1.0,</span> <span class="pre">'temp':</span> <span class="pre">300,</span> <span class="pre">'timestep':</span> <span class="pre">1.0,</span> <span class="pre">'velocity_seed':</span> <span class="pre">None},</span> <span class="pre">'min':</span> <span class="pre">{'min_modify':</span> <span class="pre">'integrator</span> <span class="pre">verlet</span> <span class="pre">tmax</span> <span class="pre">4',</span> <span class="pre">'min_style':</span> <span class="pre">'fire'}}</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.default_init_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default init parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.default_run_params">
+<span class="sig-name descname"><span class="pre">default_run_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'maxiter':</span> <span class="pre">0},</span> <span class="pre">'min':</span> <span class="pre">{'etol':</span> <span class="pre">0.0,</span> <span class="pre">'ftol':</span> <span class="pre">0.05,</span> <span class="pre">'maxeval':</span> <span class="pre">0,</span> <span class="pre">'maxiter':</span> <span class="pre">0}}</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.default_run_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default run parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.default_task">
+<span class="sig-name descname"><span class="pre">default_task</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'min'</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.default_task" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.delete">
+<span class="sig-name descname"><span class="pre">delete</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.delete" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deleted keywords.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.keyword">
+<span class="sig-name descname"><span class="pre">keyword</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.keyword" title="Permalink to this definition">¶</a></dt>
+<dd><p>Keyword.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'lammps'</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Driver’s name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.param_mapping">
+<span class="sig-name descname"><span class="pre">param_mapping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'fmax':</span> <span class="pre">'ftol',</span> <span class="pre">'steps':</span> <span class="pre">'maxiter'}</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.param_mapping" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map input key names to the actual names used in the backend.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.read_trajectory">
+<span class="sig-name descname"><span class="pre">read_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_step_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#computation.lammps.LmpDriver.read_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read trajectory in the current working directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read_exists</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lammps.LmpDriver.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the driver.</p>
+<p>If the converged results were found in the current working directory,
+the simulation would not be performed again. Otherwise, the results would
+be read.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.saved_cards">
+<span class="sig-name descname"><span class="pre">saved_cards</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['traj.dump']</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.saved_cards" title="Permalink to this definition">¶</a></dt>
+<dd><p>List of output files would be saved when restart.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.special_keywords">
+<span class="sig-name descname"><span class="pre">special_keywords</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.special_keywords" title="Permalink to this definition">¶</a></dt>
+<dd><p>Special keywords.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lammps.LmpDriver.supported_tasks">
+<span class="sig-name descname"><span class="pre">supported_tasks</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['min',</span> <span class="pre">'md']</span></em><a class="headerlink" href="#computation.lammps.LmpDriver.supported_tasks" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.lammps.parse_thermo_data">
+<span class="sig-prename descclassname"><span class="pre">computation.lammps.</span></span><span class="sig-name descname"><span class="pre">parse_thermo_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logfile_path</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#computation.lammps.parse_thermo_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read energy … results from log.lammps file.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.lammps.parse_type_list">
+<span class="sig-prename descclassname"><span class="pre">computation.lammps.</span></span><span class="sig-name descname"><span class="pre">parse_type_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lammps.parse_type_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parse the type list based on input atoms.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-computation.lasp">
+<span id="computation-lasp-module"></span><h2>computation.lasp module<a class="headerlink" href="#module-computation.lasp" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.lasp.</span></span><span class="sig-name descname"><span class="pre">LaspDriver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lasp.LaspDriver" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractDriver</span></code></p>
+<p>Driver for LASP.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.default_init_params">
+<span class="sig-name descname"><span class="pre">default_init_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'Pdamp':</span> <span class="pre">100,</span> <span class="pre">'Tdamp':</span> <span class="pre">100,</span> <span class="pre">'dump_period':</span> <span class="pre">1,</span> <span class="pre">'md_style':</span> <span class="pre">'nvt',</span> <span class="pre">'pres':</span> <span class="pre">1.0,</span> <span class="pre">'temp':</span> <span class="pre">300,</span> <span class="pre">'timestep':</span> <span class="pre">1.0,</span> <span class="pre">'velocity_seed':</span> <span class="pre">None},</span> <span class="pre">'min':</span> <span class="pre">{'dump_period':</span> <span class="pre">1,</span> <span class="pre">'explore_type':</span> <span class="pre">'ssw',</span> <span class="pre">'min_style':</span> <span class="pre">1}}</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.default_init_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default init parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.default_run_params">
+<span class="sig-name descname"><span class="pre">default_run_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'SSW.MaxOptstep':</span> <span class="pre">0},</span> <span class="pre">'min':</span> <span class="pre">{'SSW.MaxOptstep':</span> <span class="pre">0,</span> <span class="pre">'SSW.ftol':</span> <span class="pre">0.05}}</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.default_run_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default run parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.default_task">
+<span class="sig-name descname"><span class="pre">default_task</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'min'</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.default_task" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'lasp'</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Driver’s name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.param_mapping">
+<span class="sig-name descname"><span class="pre">param_mapping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'Pdamp':</span> <span class="pre">'MD.prmass',</span> <span class="pre">'Tdamp':</span> <span class="pre">'nhmass',</span> <span class="pre">'dump_period':</span> <span class="pre">'MD.print_freq',</span> <span class="pre">'fmax':</span> <span class="pre">'SSW.ftol',</span> <span class="pre">'md_style':</span> <span class="pre">'explore_type',</span> <span class="pre">'min_style':</span> <span class="pre">'SSW.SSWsteps',</span> <span class="pre">'pres':</span> <span class="pre">'MD.target_P',</span> <span class="pre">'steps':</span> <span class="pre">'SSW.MaxOptstep',</span> <span class="pre">'temp':</span> <span class="pre">'MD.target_T',</span> <span class="pre">'timestep':</span> <span class="pre">'MD.dt',</span> <span class="pre">'velocity_seed':</span> <span class="pre">'Ranseed'}</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.param_mapping" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map input key names to the actual names used in the backend.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.read_trajectory">
+<span class="sig-name descname"><span class="pre">read_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">add_step_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#computation.lasp.LaspDriver.read_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read trajectory in the current working directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read_exists</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Atoms</span></span></span><a class="headerlink" href="#computation.lasp.LaspDriver.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the driver.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.saved_cards">
+<span class="sig-name descname"><span class="pre">saved_cards</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['allstr.arc',</span> <span class="pre">'allfor.arc']</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.saved_cards" title="Permalink to this definition">¶</a></dt>
+<dd><p>List of output files would be saved when restart.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspDriver.supported_tasks">
+<span class="sig-name descname"><span class="pre">supported_tasks</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['min',</span> <span class="pre">'md']</span></em><a class="headerlink" href="#computation.lasp.LaspDriver.supported_tasks" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.lasp.</span></span><span class="sig-name descname"><span class="pre">LaspNN</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LASP'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lasp.LaspNN" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">FileIOCalculator</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.calculate">
+<span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lasp.LaspNN.calculate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Perform the calculation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.command">
+<span class="sig-name descname"><span class="pre">command</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'lasp'</span></em><a class="headerlink" href="#computation.lasp.LaspNN.command" title="Permalink to this definition">¶</a></dt>
+<dd><p>LASP command.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'MD.dt':</span> <span class="pre">1.0,</span> <span class="pre">'MD.equit':</span> <span class="pre">0,</span> <span class="pre">'MD.initial_T':</span> <span class="pre">None,</span> <span class="pre">'MD.nhmass':</span> <span class="pre">1000,</span> <span class="pre">'MD.print_freq':</span> <span class="pre">10,</span> <span class="pre">'MD.print_strfreq':</span> <span class="pre">10,</span> <span class="pre">'MD.prmass':</span> <span class="pre">1000,</span> <span class="pre">'MD.realmass':</span> <span class="pre">'.true.',</span> <span class="pre">'MD.target_P':</span> <span class="pre">300,</span> <span class="pre">'MD.target_T':</span> <span class="pre">300,</span> <span class="pre">'MD.ttotal':</span> <span class="pre">0,</span> <span class="pre">'Ranseed':</span> <span class="pre">None,</span> <span class="pre">'SSW.Bfgs_maxstepsize':</span> <span class="pre">0.2,</span> <span class="pre">'SSW.MaxOptstep':</span> <span class="pre">0,</span> <span class="pre">'SSW.SSWsteps':</span> <span class="pre">0,</span> <span class="pre">'SSW.ftol':</span> <span class="pre">0.05,</span> <span class="pre">'SSW.internal_LJ':</span> <span class="pre">True,</span> <span class="pre">'SSW.output':</span> <span class="pre">'T',</span> <span class="pre">'SSW.printevery':</span> <span class="pre">'T',</span> <span class="pre">'constraint':</span> <span class="pre">None,</span> <span class="pre">'explore_type':</span> <span class="pre">'ssw',</span> <span class="pre">'potential':</span> <span class="pre">'NN'}</span></em><a class="headerlink" href="#computation.lasp.LaspNN.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default calculator parameters, NOTE which have ase units.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.implemented_properties">
+<span class="sig-name descname"><span class="pre">implemented_properties</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['energy',</span> <span class="pre">'forces']</span></em><a class="headerlink" href="#computation.lasp.LaspNN.implemented_properties" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implemented properties.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'LaspNN'</span></em><a class="headerlink" href="#computation.lasp.LaspNN.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculator name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.read_results">
+<span class="sig-name descname"><span class="pre">read_results</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#computation.lasp.LaspNN.read_results" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read LASP results.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.lasp.LaspNN.write_input">
+<span class="sig-name descname"><span class="pre">write_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">properties</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system_changes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lasp.LaspNN.write_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write LASP inputs.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.lasp.read_laspset">
+<span class="sig-prename descclassname"><span class="pre">computation.lasp.</span></span><span class="sig-name descname"><span class="pre">read_laspset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_structures</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.lasp.read_laspset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read LASP TrainStr.txt and TrainFor.txt files.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="computation-opt-morse-module">
+<h2>computation.opt_morse module<a class="headerlink" href="#computation-opt-morse-module" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="computation-plumed-module">
+<h2>computation.plumed module<a class="headerlink" href="#computation-plumed-module" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-computation.utils">
+<span id="computation-utils-module"></span><h2>computation.utils module<a class="headerlink" href="#module-computation.utils" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.utils.create_single_point_calculator">
+<span class="sig-prename descclassname"><span class="pre">computation.utils.</span></span><span class="sig-name descname"><span class="pre">create_single_point_calculator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_sorted</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resort</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calc_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.utils.create_single_point_calculator" title="Permalink to this definition">¶</a></dt>
+<dd><p>create a spc to store calc results
+since some atoms may share a calculator</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.utils.get_composition_from_atoms">
+<span class="sig-prename descclassname"><span class="pre">computation.utils.</span></span><span class="sig-name descname"><span class="pre">get_composition_from_atoms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.utils.get_composition_from_atoms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.utils.parse_type_list">
+<span class="sig-prename descclassname"><span class="pre">computation.utils.</span></span><span class="sig-name descname"><span class="pre">parse_type_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.utils.parse_type_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>parse type list for read and write structure of lammps</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.utils.read_trajectories">
+<span class="sig-prename descclassname"><span class="pre">computation.utils.</span></span><span class="sig-name descname"><span class="pre">read_trajectories</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">driver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">traj_dirs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">traj_period</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">traj_fpath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">traj_ind_fpath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_first</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_last</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.utils.read_trajectories" title="Permalink to this definition">¶</a></dt>
+<dd><p>read trajectories from several directories</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-computation.vasp">
+<span id="computation-vasp-module"></span><h2>computation.vasp module<a class="headerlink" href="#module-computation.vasp" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.vasp.</span></span><span class="sig-name descname"><span class="pre">VaspDriver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.vasp.VaspDriver" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractDriver</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.default_init_params">
+<span class="sig-name descname"><span class="pre">default_init_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'freq':</span> <span class="pre">{'ibrion':</span> <span class="pre">5,</span> <span class="pre">'nfree':</span> <span class="pre">2,</span> <span class="pre">'nsw':</span> <span class="pre">1,</span> <span class="pre">'potim':</span> <span class="pre">0.015},</span> <span class="pre">'md':</span> <span class="pre">{'md_style':</span> <span class="pre">'nvt',</span> <span class="pre">'temp':</span> <span class="pre">300,</span> <span class="pre">'timestep':</span> <span class="pre">1.0},</span> <span class="pre">'min':</span> <span class="pre">{'min_style':</span> <span class="pre">'bfgs'}}</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.default_init_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default init parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.default_run_params">
+<span class="sig-name descname"><span class="pre">default_run_params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'md':</span> <span class="pre">{'steps':</span> <span class="pre">0},</span> <span class="pre">'min':</span> <span class="pre">{'fmax':</span> <span class="pre">0.05,</span> <span class="pre">'steps':</span> <span class="pre">0}}</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.default_run_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default run parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.default_task">
+<span class="sig-name descname"><span class="pre">default_task</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'min'</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.default_task" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'vasp'</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Driver’s name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.param_mapping">
+<span class="sig-name descname"><span class="pre">param_mapping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'fmax':</span> <span class="pre">'ediffg',</span> <span class="pre">'md_style':</span> <span class="pre">'smass',</span> <span class="pre">'min_style':</span> <span class="pre">'ibrion',</span> <span class="pre">'steps':</span> <span class="pre">'nsw',</span> <span class="pre">'temp':</span> <span class="pre">'tebeg',</span> <span class="pre">'timestep':</span> <span class="pre">'potim'}</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.param_mapping" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map input key names to the actual names used in the backend.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.read_trajectory">
+<span class="sig-name descname"><span class="pre">read_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#computation.vasp.VaspDriver.read_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read trajectory in the current working directory.</p>
+<p>If the calculation failed, an empty atoms with errof info would be returned.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read_exists</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.vasp.VaspDriver.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the simulation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.supported_tasks">
+<span class="sig-name descname"><span class="pre">supported_tasks</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['min',</span> <span class="pre">'md',</span> <span class="pre">'freq']</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.supported_tasks" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="computation.vasp.VaspDriver.syswise_keys">
+<span class="sig-name descname"><span class="pre">syswise_keys</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['system',</span> <span class="pre">'kpts']</span></em><a class="headerlink" href="#computation.vasp.VaspDriver.syswise_keys" title="Permalink to this definition">¶</a></dt>
+<dd><p>Systemwise parameter keys.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="computation.vasp.read_sort">
+<span class="sig-prename descclassname"><span class="pre">computation.vasp.</span></span><span class="sig-name descname"><span class="pre">read_sort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.vasp.read_sort" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create the sorting and resorting list from ase-sort.dat.</p>
+<p>If the ase-sort.dat file does not exist, the sorting is redone.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-computation">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-computation" title="Permalink to this heading">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="computation.worker.html" class="btn btn-neutral float-right" title="computation.worker package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="builder.html" class="btn btn-neutral float-left" title="builder package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2022, Jiayan Xu
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

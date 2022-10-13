@@ -8,12 +8,18 @@ GDPy Documentation
 
 GDPy stands for **Generating Deep Potential with Python**, including
 a set of tools and Python modules to automate the structure exploration 
-and the model training for **machine learning interatomic potential** (MLIP). 
+and the model training for **machine learning interatomic potentials** (MLIPs). 
 It is developed and maintained by `Jiayan Xu`_ under supervision of Prof. `P. Hu`_
 at Queen's University Belfast.
 
 .. _Jiayan Xu: https://scholar.google.com/citations?user=ue5SBQMAAAAJ&hl=en
 .. _P. Hu: https://scholar.google.com/citations?user=GNuXfeQAAAAJ&hl=en
+
+.. figure:: ../../assets/logo.png
+    :alt: GPDy LOGO
+    :width: 400
+    :align: center
+
 
 Supported **Potentials**
 ------------------------
@@ -38,6 +44,7 @@ Supported **Expeditions**
    :caption: User Guides:
 
    start
+   potentials/index
    computations/index
    expeditions/index
    tutorials/index

@@ -99,8 +99,9 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
@@ -108,11 +109,11 @@
 <li class="toctree-l2"><a class="reference internal" href="reaction.html">reaction package</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">scheduler package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scheduler-local-module">scheduler.local module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scheduler-pbs-module">scheduler.pbs module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scheduler-scheduler-module">scheduler.scheduler module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scheduler-slurm-module">scheduler.slurm module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scheduler.local">scheduler.local module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scheduler.pbs">scheduler.pbs module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scheduler.scheduler">scheduler.scheduler module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scheduler.slurm">scheduler.slurm module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scheduler">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
@@ -164,7 +165,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">GDPy</a> &raquo;</li>
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
         
       <li>scheduler package</li>
     
@@ -190,20 +191,305 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
 </div>
-<div class="section" id="scheduler-local-module">
-<h2>scheduler.local module<a class="headerlink" href="#scheduler-local-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-scheduler.local">
+<span id="scheduler-local-module"></span><h2>scheduler.local module<a class="headerlink" href="#module-scheduler.local" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="scheduler.local.LocalScheduler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">scheduler.local.</span></span><span class="sig-name descname"><span class="pre">LocalScheduler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scheduler.local.LocalScheduler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractScheduler</span></code></p>
+<p>Local scheduler.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.local.LocalScheduler.is_finished">
+<span class="sig-name descname"><span class="pre">is_finished</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#scheduler.local.LocalScheduler.is_finished" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if the job were finished.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Always return true.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.local.LocalScheduler.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'local'</span></em><a class="headerlink" href="#scheduler.local.LocalScheduler.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>The name of the scheduler.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.local.LocalScheduler.submit">
+<span class="sig-name descname"><span class="pre">submit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#scheduler.local.LocalScheduler.submit" title="Permalink to this definition">¶</a></dt>
+<dd><p>No submit is performed.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scheduler-pbs-module">
-<h2>scheduler.pbs module<a class="headerlink" href="#scheduler-pbs-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-scheduler.pbs">
+<span id="scheduler-pbs-module"></span><h2>scheduler.pbs module<a class="headerlink" href="#module-scheduler.pbs" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">scheduler.pbs.</span></span><span class="sig-name descname"><span class="pre">PbsScheduler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scheduler.pbs.PbsScheduler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractScheduler</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.ENQUIRE_COMMAND">
+<span class="sig-name descname"><span class="pre">ENQUIRE_COMMAND</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'qstat'</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.ENQUIRE_COMMAND" title="Permalink to this definition">¶</a></dt>
+<dd><p>The command used to check job status.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.PREFIX">
+<span class="sig-name descname"><span class="pre">PREFIX</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'#'</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.PREFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>A string starts at each option line.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.SHELL">
+<span class="sig-name descname"><span class="pre">SHELL</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'#!/bin/bash</span> <span class="pre">-l'</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.SHELL" title="Permalink to this definition">¶</a></dt>
+<dd><p>The first line of a script.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.SUBMIT_COMMAND">
+<span class="sig-name descname"><span class="pre">SUBMIT_COMMAND</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'qsub'</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.SUBMIT_COMMAND" title="Permalink to this definition">¶</a></dt>
+<dd><p>The command used to submit jobs.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.SUFFIX">
+<span class="sig-name descname"><span class="pre">SUFFIX</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'.pbs'</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.SUFFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>The suffix of a job script.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.is_finished">
+<span class="sig-name descname"><span class="pre">is_finished</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#scheduler.pbs.PbsScheduler.is_finished" title="Permalink to this definition">¶</a></dt>
+<dd><p>Not implemented yet.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'pbs'</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>The name of the scheduler.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.pbs.PbsScheduler.running_status">
+<span class="sig-name descname"><span class="pre">running_status</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['R',</span> <span class="pre">'Q',</span> <span class="pre">'PD',</span> <span class="pre">'CG']</span></em><a class="headerlink" href="#scheduler.pbs.PbsScheduler.running_status" title="Permalink to this definition">¶</a></dt>
+<dd><p>The tags that a job may have in the queue.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scheduler-scheduler-module">
-<h2>scheduler.scheduler module<a class="headerlink" href="#scheduler-scheduler-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-scheduler.scheduler">
+<span id="scheduler-scheduler-module"></span><h2>scheduler.scheduler module<a class="headerlink" href="#module-scheduler.scheduler" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">scheduler.scheduler.</span></span><span class="sig-name descname"><span class="pre">AbstractScheduler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>The abstract scheduler that implements common functions.</p>
+<p>A scheduler deals with the lifecycle of a job in the queue.</p>
+<p>Attributes:</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.ENQUIRE_COMMAND">
+<span class="sig-name descname"><span class="pre">ENQUIRE_COMMAND</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.ENQUIRE_COMMAND" title="Permalink to this definition">¶</a></dt>
+<dd><p>The command used to check job status.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.PREFIX">
+<span class="sig-name descname"><span class="pre">PREFIX</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.PREFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>A string starts at each option line.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.SHELL">
+<span class="sig-name descname"><span class="pre">SHELL</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.SHELL" title="Permalink to this definition">¶</a></dt>
+<dd><p>The first line of a script.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.SUBMIT_COMMAND">
+<span class="sig-name descname"><span class="pre">SUBMIT_COMMAND</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.SUBMIT_COMMAND" title="Permalink to this definition">¶</a></dt>
+<dd><p>The command used to submit jobs.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.SUFFIX">
+<span class="sig-name descname"><span class="pre">SUFFIX</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.SUFFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>The suffix of a job script.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.environs">
+<span class="sig-name descname"><span class="pre">environs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.environs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Environment settings for a job.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.is_finished">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_finished</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.is_finished" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check whether the job is finished.</p>
+<p>The job is the one performed in the current job script path.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'abstract'</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>The name of the scheduler.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.parameters">
+<span class="sig-name descname"><span class="pre">parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Current stored parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.running_status">
+<span class="sig-name descname"><span class="pre">running_status</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.running_status" title="Permalink to this definition">¶</a></dt>
+<dd><p>The tags that a job may have in the queue.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.script">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">script</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.script" title="Permalink to this definition">¶</a></dt>
+<dd><p>Store the path of the job script.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.set" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>**kwargs</strong> – Arbitrary keyword arguments.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.submit">
+<span class="sig-name descname"><span class="pre">submit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.submit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Submit job using specific scheduler command and return job id.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.user_commands">
+<span class="sig-name descname"><span class="pre">user_commands</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.user_commands" title="Permalink to this definition">¶</a></dt>
+<dd><p>Custom commands for a job.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.scheduler.AbstractScheduler.write">
+<span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">NoReturn</span></span></span><a class="headerlink" href="#scheduler.scheduler.AbstractScheduler.write" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write self to the path of the job script.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scheduler-slurm-module">
-<h2>scheduler.slurm module<a class="headerlink" href="#scheduler-slurm-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-scheduler.slurm">
+<span id="scheduler-slurm-module"></span><h2>scheduler.slurm module<a class="headerlink" href="#module-scheduler.slurm" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">scheduler.slurm.</span></span><span class="sig-name descname"><span class="pre">SlurmScheduler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scheduler.slurm.SlurmScheduler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractScheduler</span></code></p>
+<p>Slurm scheduler.</p>
+<p>A slurm scheduler.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.ENQUIRE_COMMAND">
+<span class="sig-name descname"><span class="pre">ENQUIRE_COMMAND</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'`which</span> <span class="pre">squeue`</span> <span class="pre">-u</span> <span class="pre">`whoami`</span> <span class="pre">--format=&quot;%.12i</span> <span class="pre">%.12P</span> <span class="pre">%.60j</span> <span class="pre">%.4t</span> <span class="pre">%.12M</span> <span class="pre">%.12L</span> <span class="pre">%.5D</span> <span class="pre">%.4C&quot;'</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.ENQUIRE_COMMAND" title="Permalink to this definition">¶</a></dt>
+<dd><p>The command used to check job status.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.PREFIX">
+<span class="sig-name descname"><span class="pre">PREFIX</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'#SBATCH'</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.PREFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>A string starts at each option line.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.SHELL">
+<span class="sig-name descname"><span class="pre">SHELL</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'#!/bin/bash</span> <span class="pre">-l'</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.SHELL" title="Permalink to this definition">¶</a></dt>
+<dd><p>The first line of a script.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.SUBMIT_COMMAND">
+<span class="sig-name descname"><span class="pre">SUBMIT_COMMAND</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sbatch'</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.SUBMIT_COMMAND" title="Permalink to this definition">¶</a></dt>
+<dd><p>The command used to submit jobs.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.SUFFIX">
+<span class="sig-name descname"><span class="pre">SUFFIX</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'.slurm'</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.SUFFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>The suffix of a job script.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.default_parameters">
+<span class="sig-name descname"><span class="pre">default_parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'account':</span> <span class="pre">None,</span> <span class="pre">'cpus-per-task':</span> <span class="pre">None,</span> <span class="pre">'gres':</span> <span class="pre">None,</span> <span class="pre">'job-name':</span> <span class="pre">'slurmJob',</span> <span class="pre">'mem-per-cpu':</span> <span class="pre">None,</span> <span class="pre">'mem-per-gpu':</span> <span class="pre">None,</span> <span class="pre">'nodes':</span> <span class="pre">None,</span> <span class="pre">'ntasks':</span> <span class="pre">None,</span> <span class="pre">'partition':</span> <span class="pre">None,</span> <span class="pre">'tasks-per-node':</span> <span class="pre">None,</span> <span class="pre">'time':</span> <span class="pre">None}</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.default_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default parameters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.is_finished">
+<span class="sig-name descname"><span class="pre">is_finished</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.is_finished" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if the job were finished.</p>
+<p>Currently, we only check whether the job name has been found in the queue.
+If found, we assume the job is still running. Otherwise, it may have already
+finished.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Whether the jobs is finished. True for finished, False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'slurm'</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>The name of the scheduler.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="scheduler.slurm.SlurmScheduler.running_status">
+<span class="sig-name descname"><span class="pre">running_status</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['R',</span> <span class="pre">'Q',</span> <span class="pre">'PD',</span> <span class="pre">'CG']</span></em><a class="headerlink" href="#scheduler.slurm.SlurmScheduler.running_status" title="Permalink to this definition">¶</a></dt>
+<dd><p>The tags that a job may have in the queue.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-scheduler">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-scheduler" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="scheduler.create_scheduler">
+<span class="sig-prename descclassname"><span class="pre">scheduler.</span></span><span class="sig-name descname"><span class="pre">create_scheduler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params_</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">{}</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">AbstractScheduler</span></span></span><a class="headerlink" href="#scheduler.create_scheduler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a scheduler.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>params</strong> – Scheduler initialisation parameters.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A scheduler.</p>
+</dd>
+</dl>
+</dd></dl>
+
 </div>
 </div>
 

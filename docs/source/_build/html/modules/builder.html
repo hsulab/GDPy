@@ -39,8 +39,8 @@
     <link rel="author" title="About these documents" href="../about.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="config module" href="config.html" />
-    <link rel="prev" title="GDPy" href="modules.html" /> 
+    <link rel="next" title="computation package" href="computation.html" />
+    <link rel="prev" title="GDPy APIs" href="modules.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -99,20 +99,21 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">builder package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-adsorbate-module">builder.adsorbate module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-builder-module">builder.builder module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-constraints-module">builder.constraints module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-direct-module">builder.direct module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-randombuilder-module">builder.randomBuilder module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-region-module">builder.region module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-species-module">builder.species module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#builder-utils-module">builder.utils module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.adsorbate">builder.adsorbate module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.builder">builder.builder module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.constraints">builder.constraints module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.direct">builder.direct module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.randomBuilder">builder.randomBuilder module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.region">builder.region module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.species">builder.species module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder.utils">builder.utils module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-builder">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
@@ -168,7 +169,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">GDPy</a> &raquo;</li>
+          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
         
       <li>builder package</li>
     
@@ -194,32 +195,326 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
 </div>
-<div class="section" id="builder-adsorbate-module">
-<h2>builder.adsorbate module<a class="headerlink" href="#builder-adsorbate-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.adsorbate">
+<span id="builder-adsorbate-module"></span><h2>builder.adsorbate module<a class="headerlink" href="#module-builder.adsorbate" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.adsorbate.AdsorbateGraphGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.adsorbate.</span></span><span class="sig-name descname"><span class="pre">AdsorbateGraphGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">substrate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">composition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graph</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('/Users/jyxu/Documents/SomeCodes/GDPy')</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.adsorbate.AdsorbateGraphGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StructureGenerator</span></code></p>
+<p>generate initial configurations with
+different adsorbates basedo on graphs</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.adsorbate.AdsorbateGraphGenerator.add_adsorbate">
+<span class="sig-name descname"><span class="pre">add_adsorbate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distance_to_site</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.adsorbate.AdsorbateGraphGenerator.add_adsorbate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.adsorbate.AdsorbateGraphGenerator.compare_graphs">
+<span class="sig-name descname"><span class="pre">compare_graphs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graph_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">selected_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.adsorbate.AdsorbateGraphGenerator.compare_graphs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.adsorbate.AdsorbateGraphGenerator.del_adsorbate">
+<span class="sig-name descname"><span class="pre">del_adsorbate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.adsorbate.AdsorbateGraphGenerator.del_adsorbate" title="Permalink to this definition">¶</a></dt>
+<dd><p>delete valid adsorbates and
+check graph differences</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.adsorbate.AdsorbateGraphGenerator.exchange_adsorbate">
+<span class="sig-name descname"><span class="pre">exchange_adsorbate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_species</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">selected_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.adsorbate.AdsorbateGraphGenerator.exchange_adsorbate" title="Permalink to this definition">¶</a></dt>
+<dd><p>change an adsorbate to another species</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.adsorbate.AdsorbateGraphGenerator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#builder.adsorbate.AdsorbateGraphGenerator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="builder-builder-module">
-<h2>builder.builder module<a class="headerlink" href="#builder-builder-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.builder">
+<span id="builder-builder-module"></span><h2>builder.builder module<a class="headerlink" href="#module-builder.builder" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.builder.StructureGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.builder.</span></span><span class="sig-name descname"><span class="pre">StructureGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.builder.StructureGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<dl class="py property">
+<dt class="sig sig-object py" id="builder.builder.StructureGenerator.directory">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><a class="headerlink" href="#builder.builder.StructureGenerator.directory" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.builder.StructureGenerator.run">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#builder.builder.StructureGenerator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="builder-constraints-module">
-<h2>builder.constraints module<a class="headerlink" href="#builder-constraints-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.constraints">
+<span id="builder-constraints-module"></span><h2>builder.constraints module<a class="headerlink" href="#module-builder.constraints" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.constraints.convert_indices">
+<span class="sig-prename descclassname"><span class="pre">builder.constraints.</span></span><span class="sig-name descname"><span class="pre">convert_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lmp'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.constraints.convert_indices" title="Permalink to this definition">¶</a></dt>
+<dd><p>parse indices for reading xyz by ase, get start for counting
+constrained indices followed by lammps convention
+“2:4 3:8”
+convert [1,2,3,6,7,8] to “1:3 6:8”
+lammps convention starts from 1 and includes end
+—
+input can be either py or lmp
+output for indices is in py since it can be used to access atoms
+output for text is in lmp since it can be used in lammps or sth</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.constraints.parse_constraint_info">
+<span class="sig-prename descclassname"><span class="pre">builder.constraints.</span></span><span class="sig-name descname"><span class="pre">parse_constraint_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cons_text</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ignore_ase_constraints</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ret_text</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#builder.constraints.parse_constraint_info" title="Permalink to this definition">¶</a></dt>
+<dd><p>constraint info can be any forms below,
+and transformed into indices that start from 1
+“2:5 8” means 2,3,4,5,8 (default uses lmp convention)
+“py 0:5 9” means 1,2,3,4,5,10
+“lmp 1:4 8” means 1,2,3,4,8
+“lowest 10” means 10 atoms with smallest z-positions
+“zpos 4.5” means all atoms with zpositions smaller than 4.5</p>
+<p>return lammps format text or python format list</p>
+</dd></dl>
+
 </div>
-<div class="section" id="builder-direct-module">
-<h2>builder.direct module<a class="headerlink" href="#builder-direct-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.direct">
+<span id="builder-direct-module"></span><h2>builder.direct module<a class="headerlink" href="#module-builder.direct" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.direct.DirectGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.direct.</span></span><span class="sig-name descname"><span class="pre">DirectGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.direct.DirectGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StructureGenerator</span></code></p>
+<p>This generator directly returns structures that it stores.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="builder.direct.DirectGenerator.fpath">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fpath</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#builder.direct.DirectGenerator.fpath" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the file path of stored structures.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="builder.direct.DirectGenerator.indices">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#builder.direct.DirectGenerator.indices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return selected indices.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.direct.DirectGenerator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#builder.direct.DirectGenerator.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return stored structures.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>indices</strong> – Selected frames.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.direct.read_xsd2">
+<span class="sig-prename descclassname"><span class="pre">builder.direct.</span></span><span class="sig-name descname"><span class="pre">read_xsd2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fd</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Atoms</span></span></span><a class="headerlink" href="#builder.direct.read_xsd2" title="Permalink to this definition">¶</a></dt>
+<dd><p>read xsd file by Material Studio</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>support reading constraints…</p>
 </div>
-<div class="section" id="builder-randombuilder-module">
-<h2>builder.randomBuilder module<a class="headerlink" href="#builder-randombuilder-module" title="Permalink to this heading">¶</a></h2>
+</dd></dl>
+
 </div>
-<div class="section" id="builder-region-module">
-<h2>builder.region module<a class="headerlink" href="#builder-region-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.randomBuilder">
+<span id="builder-randombuilder-module"></span><h2>builder.randomBuilder module<a class="headerlink" href="#module-builder.randomBuilder" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.randomBuilder.RandomGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.randomBuilder.</span></span><span class="sig-name descname"><span class="pre">RandomGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('/Users/jyxu/Documents/SomeCodes/GDPy')</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.randomBuilder.RandomGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StructureGenerator</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="builder.randomBuilder.RandomGenerator.MAX_FAILED">
+<span class="sig-name descname"><span class="pre">MAX_FAILED</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#builder.randomBuilder.RandomGenerator.MAX_FAILED" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="builder.randomBuilder.RandomGenerator.MAX_RANDOM_TRY">
+<span class="sig-name descname"><span class="pre">MAX_RANDOM_TRY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">100</span></em><a class="headerlink" href="#builder.randomBuilder.RandomGenerator.MAX_RANDOM_TRY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.randomBuilder.RandomGenerator.as_dict">
+<span class="sig-name descname"><span class="pre">as_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#builder.randomBuilder.RandomGenerator.as_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.randomBuilder.RandomGenerator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ran_size</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#builder.randomBuilder.RandomGenerator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="builder.randomBuilder.RandomGenerator.supported_systems">
+<span class="sig-name descname"><span class="pre">supported_systems</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['bulk',</span> <span class="pre">'cluster',</span> <span class="pre">'surface']</span></em><a class="headerlink" href="#builder.randomBuilder.RandomGenerator.supported_systems" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="builder-species-module">
-<h2>builder.species module<a class="headerlink" href="#builder-species-module" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.region">
+<span id="builder-region-module"></span><h2>builder.region module<a class="headerlink" href="#module-builder.region" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.region.</span></span><span class="sig-name descname"><span class="pre">ReducedRegion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reservoir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">caxis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">covalent_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[0.8,</span> <span class="pre">2.0]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_movedisp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_rotation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.region.ReducedRegion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>spherical or cubic box</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion.MAX_NUM_PER_SPECIES">
+<span class="sig-name descname"><span class="pre">MAX_NUM_PER_SPECIES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10000</span></em><a class="headerlink" href="#builder.region.ReducedRegion.MAX_NUM_PER_SPECIES" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion.MAX_RANDOM_ATTEMPS">
+<span class="sig-name descname"><span class="pre">MAX_RANDOM_ATTEMPS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1000</span></em><a class="headerlink" href="#builder.region.ReducedRegion.MAX_RANDOM_ATTEMPS" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion.calc_acc_volume">
+<span class="sig-name descname"><span class="pre">calc_acc_volume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#builder.region.ReducedRegion.calc_acc_volume" title="Permalink to this definition">¶</a></dt>
+<dd><p>calculate acceptable volume</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion.check_overlap_neighbour">
+<span class="sig-name descname"><span class="pre">check_overlap_neighbour</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chemical_symbols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_indices</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.region.ReducedRegion.check_overlap_neighbour" title="Permalink to this definition">¶</a></dt>
+<dd><p>use neighbour list to check newly added atom is neither too close or too
+far from other atoms</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion.random_position_neighbour">
+<span class="sig-name descname"><span class="pre">random_position_neighbour</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_atoms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">operation</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.region.ReducedRegion.random_position_neighbour" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="builder.region.ReducedRegion.reservoir">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reservoir</span></span><a class="headerlink" href="#builder.region.ReducedRegion.reservoir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.region.Reservoir">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.region.</span></span><span class="sig-name descname"><span class="pre">Reservoir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">species</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pressure</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.region.Reservoir" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.region.Reservoir.compute_thermo_wavelength">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">compute_thermo_wavelength</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.region.Reservoir.compute_thermo_wavelength" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.region.estimate_chemical_potential">
+<span class="sig-prename descclassname"><span class="pre">builder.region.</span></span><span class="sig-name descname"><span class="pre">estimate_chemical_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pressure</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total_energy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zpe</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dU</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dS</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coef</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#builder.region.estimate_chemical_potential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Estimate Chemical Potential</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">O2</span> <span class="n">by</span> <span class="n">ReaxFF</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">molecular</span> <span class="n">energy</span> <span class="o">-</span><span class="mf">5.588</span> <span class="n">atomic</span> <span class="n">energy</span> <span class="o">-</span><span class="mf">0.109</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">O2</span> <span class="n">by</span> <span class="n">vdW</span><span class="o">-</span><span class="n">DF</span> <span class="n">spin</span><span class="o">-</span><span class="n">polarised</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">molecular</span> <span class="n">energy</span> <span class="o">-</span><span class="mf">9.196</span> <span class="n">atomic</span> <span class="n">energy</span> <span class="o">-</span><span class="mf">1.491</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">ZPE</span> <span class="mf">0.09714</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">dU</span> <span class="mf">8.683</span> <span class="n">kJ</span><span class="o">/</span><span class="n">mol</span> <span class="p">(</span><span class="n">exp</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">entropy</span><span class="o">@</span><span class="mf">298.15</span><span class="n">K</span> <span class="mf">205.147</span> <span class="n">J</span><span class="o">/</span><span class="n">mol</span> <span class="p">(</span><span class="n">exp</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">For</span> <span class="n">two</span> <span class="n">reservoirs</span><span class="p">,</span> <span class="n">O</span> <span class="ow">and</span> <span class="n">Pt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Pt</span> <span class="o">+</span> <span class="n">O2</span> <span class="o">-&gt;</span> <span class="n">aPtO2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mu_Pt</span> <span class="o">=</span> <span class="n">E_aPtO2</span> <span class="o">-</span> <span class="n">G_O2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">FreeEnergy</span> <span class="o">=</span> <span class="n">E_DFT</span> <span class="o">+</span> <span class="n">ZPE</span> <span class="o">+</span> <span class="n">U</span><span class="p">(</span><span class="n">T</span><span class="p">)</span> <span class="o">+</span> <span class="n">TS</span> <span class="o">+</span> <span class="n">pV</span>
+</pre></div>
 </div>
-<div class="section" id="builder-utils-module">
-<h2>builder.utils module<a class="headerlink" href="#builder-utils-module" title="Permalink to this heading">¶</a></h2>
+<p class="rubric">References</p>
+<p>Thermodynamic Data  <a class="reference external" href="https://janaf.nist.gov">https://janaf.nist.gov</a></p>
+</dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this heading">¶</a></h2>
+<div class="section" id="module-builder.species">
+<span id="builder-species-module"></span><h2>builder.species module<a class="headerlink" href="#module-builder.species" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="builder.species.FormulaBasedGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">FormulaBasedGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chemical_formula</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.FormulaBasedGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StructureGenerator</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="builder.species.FormulaBasedGenerator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#builder.species.FormulaBasedGenerator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.species.build_species">
+<span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">build_species</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">species</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.build_species" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.species.calc_water_num">
+<span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">calc_water_num</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">volume</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.calc_water_num" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate number of water molecules at 298.15K with given volume
+(AA^3)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.species.check_overlap_neighbour">
+<span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">check_overlap_neighbour</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chemical_symbols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_indices</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.check_overlap_neighbour" title="Permalink to this definition">¶</a></dt>
+<dd><p>use neighbour list to check newly added atom is neither too close or too
+far from other atoms</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.species.ideal_gas_insertin">
+<span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">ideal_gas_insertin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pressure</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volume</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.ideal_gas_insertin" title="Permalink to this definition">¶</a></dt>
+<dd><p>pV = nRT</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.species.random_position_neighbour">
+<span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">random_position_neighbour</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_atoms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">operation</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.random_position_neighbour" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.species.test_nvt">
+<span class="sig-prename descclassname"><span class="pre">builder.species.</span></span><span class="sig-name descname"><span class="pre">test_nvt</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#builder.species.test_nvt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-builder.utils">
+<span id="builder-utils-module"></span><h2>builder.utils module<a class="headerlink" href="#module-builder.utils" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.utils.other_utils">
+<span class="sig-prename descclassname"><span class="pre">builder.utils.</span></span><span class="sig-name descname"><span class="pre">other_utils</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#builder.utils.other_utils" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.utils.per_main">
+<span class="sig-prename descclassname"><span class="pre">builder.utils.</span></span><span class="sig-name descname"><span class="pre">per_main</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#builder.utils.per_main" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.utils.pertubate_stucture">
+<span class="sig-prename descclassname"><span class="pre">builder.utils.</span></span><span class="sig-name descname"><span class="pre">pertubate_stucture</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cwd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">amplitude</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.utils.pertubate_stucture" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.utils.sort_atoms">
+<span class="sig-prename descclassname"><span class="pre">builder.utils.</span></span><span class="sig-name descname"><span class="pre">sort_atoms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#builder.utils.sort_atoms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-builder">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-builder" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="builder.create_generator">
+<span class="sig-prename descclassname"><span class="pre">builder.</span></span><span class="sig-name descname"><span class="pre">create_generator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">StructureGenerator</span></span></span><a class="headerlink" href="#builder.create_generator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
 </div>
 
@@ -231,10 +526,10 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="config.html" class="btn btn-neutral float-right" title="config module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="computation.html" class="btn btn-neutral float-right" title="computation package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="modules.html" class="btn btn-neutral float-left" title="GDPy" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="modules.html" class="btn btn-neutral float-left" title="GDPy APIs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

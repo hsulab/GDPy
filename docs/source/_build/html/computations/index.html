@@ -40,7 +40,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Expeditions" href="../expeditions/index.html" />
-    <link rel="prev" title="Getting Started" href="../start.html" /> 
+    <link rel="prev" title="Potentials" href="../potentials/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -92,8 +92,17 @@
 <p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../potentials/index.html">Potentials</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Computations</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#driver">Driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#potential">Potential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#driver">Driver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#constraints">Constraints</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#minimisation">Minimisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#molecular-dynamics">Molecular Dynamics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#transition-state-search">Transition-State Search</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#worker">Worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../expeditions/index.html">Expeditions</a></li>
@@ -169,8 +178,153 @@
             
   <div class="section" id="computations">
 <h1>Computations<a class="headerlink" href="#computations" title="Permalink to this heading">¶</a></h1>
+<p>This section gives more details how to run basic simulations with different potentials
+using a unified input file, which is generally made up of three components. We
+need to define what potential to use in the <strong>potential</strong> section, what simulation to run
+in the <strong>driver</strong> section, and finally what <strong>scheduler</strong> to delegate if necessary.</p>
+<p>An example input file (<cite>pot.yaml</cite>) is organised as follows:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span> <span class="c1"># define the backend, the model path and the specific parameters</span>
+<span class="nt">driver</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span> <span class="c1"># define the init and the run parameters of a simulation</span>
+<span class="nt">scheduler</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span> <span class="c1"># define a scheduler</span>
+</pre></div>
+</div>
+<p>The related commands are</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># gdp -h for more info</span>
+$ gdp -h
+
+<span class="c1"># - results would be written to current directory</span>
+<span class="c1"># --- run simulations on local nodes</span>
+$ gdp -p ./pot.yaml driver ./structures.xyz
+
+<span class="c1"># --- run simulations on local nodes or submitted to job queues</span>
+$ gdp -p ./pot.yaml worker ./structures.xyz
+
+<span class="c1"># - if -d option is used, results would be written to it</span>
+$ gdp -d xxx -p ./pot.yaml worker ./structures.xyz
+</pre></div>
+</div>
+<div class="section" id="potential">
+<h2>Potential<a class="headerlink" href="#potential" title="Permalink to this heading">¶</a></h2>
+<p>Potential is the engine to drive any simulation. See <a class="reference internal" href="../potentials/index.html#potential-examples"><span class="std std-ref">Potentials</span></a>
+section for more details on how to define a potential.</p>
+</div>
 <div class="section" id="driver">
 <span id="driver-examples"></span><h2>Driver<a class="headerlink" href="#driver" title="Permalink to this heading">¶</a></h2>
+<p>The driver supports <strong>minisation</strong>, <strong>molecular dynamics</strong>, and <strong>transition state search</strong>.
+For the <strong>driver</strong> section, <cite>backend</cite>, <cite>task</cite>, <cite>init</cite>, and <cite>run</cite> should be specified
+for each simulation. If an <cite>external</cite> backend is used, the minimisation would use
+the same backend defined in the <strong>potential</strong> section if it is valid.</p>
+<p>An example input file (<cite>pot.yaml</cite>) is</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">driver</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">external</span> <span class="c1"># options are external, ase, lammps, and lasp</span>
+    <span class="nt">task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">min</span>         <span class="c1"># options are min, md, and ts</span>
+    <span class="nt">init</span><span class="p">:</span>
+        <span class="l l-Scalar l-Scalar-Plain">...</span>           <span class="c1"># initialisation parameters</span>
+    <span class="nt">run</span><span class="p">:</span>
+        <span class="l l-Scalar l-Scalar-Plain">...</span>           <span class="c1"># running parameters</span>
+</pre></div>
+</div>
+<div class="section" id="constraints">
+<h3>Constraints<a class="headerlink" href="#constraints" title="Permalink to this heading">¶</a></h3>
+<p>Constraints are of great help when simulating some systems, for instance, surfaces.
+There are two ways to fix atoms in structures. The constraints could be either stored
+in the structure file (e.g. move_mask of xyz and FractionalXYZ of xsd) or specified
+in <cite>run: constraints</cite>. If the latter one is used, the file-attached constraints would
+be overridden.</p>
+<p>Constraints can be specified as:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. similiar to lammps group definition by atom ids</span>
+<span class="nt">run</span><span class="p">:</span>
+    <span class="c1"># fix atoms with indices 1,2,3,4, 6,7,8, starting from 1</span>
+    <span class="nt">constraints</span><span class="p">:</span> <span class="s">&quot;1:4</span><span class="nv"> </span><span class="s">6:8&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="minimisation">
+<h3>Minimisation<a class="headerlink" href="#minimisation" title="Permalink to this heading">¶</a></h3>
+<p>To drive a minisation, the minimal parameetrs are <cite>steps</cite> and <cite>fmax</cite>. Specific
+minisation algorithm can be defined in <cite>init: min_style: …</cite>. The default <cite>min_style</cite>
+is <cite>BFGS</cite> for the <cite>ase</cite> backend while <cite>fire</cite> for the <cite>lammps</cite> backend.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">driver</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">external</span>
+    <span class="nt">task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">min</span>
+    <span class="nt">init</span><span class="p">:</span>
+        <span class="nt">min_style</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">bfgs</span>
+    <span class="nt">run</span><span class="p">:</span>
+        <span class="nt">steps</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">200</span> <span class="c1"># number of steps</span>
+        <span class="nt">fmax</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0.05</span> <span class="c1"># unit eV/AA, convergence criteria for atomic forces</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="molecular-dynamics">
+<h3>Molecular Dynamics<a class="headerlink" href="#molecular-dynamics" title="Permalink to this heading">¶</a></h3>
+<p>To driver a molecular dynamics, thermostat and related parameters need to set in
+<cite>init: …</cite>. Three thermostats are supported both by <cite>ase</cite> and <cite>lammps</cite>,
+which are nve, nvt and npt.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">driver</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">external</span>
+    <span class="nt">task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">md</span>
+    <span class="nt">init</span><span class="p">:</span>
+        <span class="c1"># 1. NVE</span>
+        <span class="nt">md_style</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nve</span> <span class="c1"># options are nve, nvt, and npt</span>
+        <span class="nt">timestep</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2.0</span> <span class="c1"># fs, verlet integration timestep</span>
+        <span class="c1"># 2. NVT</span>
+        <span class="c1">#md_style: nvt # options are nve, nvt, and npt</span>
+        <span class="c1">#timestep: 2.0 # fs, verlet integration timestep</span>
+        <span class="c1">#temp: 300     # Kelvin, temperature</span>
+        <span class="c1">#Tdamp: 100    # fs, temperature control frequency</span>
+        <span class="c1"># 3. NPT</span>
+        <span class="c1">#md_style: nvt # options are nve, nvt, and npt</span>
+        <span class="c1">#timestep: 2.0 # fs, verlet integration timestep</span>
+        <span class="c1">#temp: 300     # Kelvin, temperature</span>
+        <span class="c1">#Tdamp: 100    # fs, Heatbath frequency</span>
+        <span class="c1">#pres: 1.0     # atm, equilibrium pressure</span>
+        <span class="c1">#Pdamp: 100    # fs, pressure control frequency</span>
+    <span class="nt">run</span><span class="p">:</span>
+        <span class="nt">steps</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">200</span> <span class="c1"># number of steps</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="transition-state-search">
+<h3>Transition-State Search<a class="headerlink" href="#transition-state-search" title="Permalink to this heading">¶</a></h3>
+<p>We are working on the interface to methods of <a class="reference external" href="https://github.com/zadorlab/sella">Sella</a> using the <cite>ase</cite> backend
+and NEB using the <cite>lammps</cite> backend.</p>
+</div>
+</div>
+<div class="section" id="worker">
+<h2>Worker<a class="headerlink" href="#worker" title="Permalink to this heading">¶</a></h2>
+<p>If the <strong>scheduler</strong> section is defined in the input file (<cite>pot.yaml</cite>), a worker
+would be created to delegate simulations to the queue. Instead of using server
+database, we implement a light-weight file-based database using <a class="reference external" href="https://tinydb.readthedocs.io">TinyDB</a> to manage jobs.</p>
+<p>Currently, we only support the <strong>slurm</strong> scheduler. The definition is</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">scheduler</span><span class="p">:</span>
+    <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">slurm</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span>
+    <span class="c1"># SLURM-PARAMETERS</span>
+    <span class="nt">ntasks</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">...</span>
+    <span class="nt">time</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">...</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span>
+    <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;conda</span><span class="nv"> </span><span class="s">activte</span><span class="nv"> </span><span class="s">py37&quot;</span> <span class="c1"># working environment setting</span>
+    <span class="nt">user_commands</span><span class="p">:</span> <span class="s">&quot;&quot;</span> <span class="c1"># would be automatically set by tasks</span>
+</pre></div>
+</div>
+<p>An additional keyword <strong>batchsize</strong> can be set in the input file as</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">batchsize</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="nt">potential</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="nt">driver</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="nt">scheduler</span><span class="p">:</span>
+    <span class="l l-Scalar l-Scalar-Plain">...</span>
+</pre></div>
+</div>
+<p>which would split the input structures into groups that run as separate jobs.
+For example, two jobs would be submitted if we set a <strong>batchsize</strong> of 3 and have
+5 input structures. The first job would have 3 structures and the second one would
+have 2 structures. The default <strong>batchsize</strong> is 1 that one structure would occupy
+one job.</p>
 </div>
 </div>
 
@@ -185,7 +339,7 @@
         <a href="../expeditions/index.html" class="btn btn-neutral float-right" title="Expeditions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../start.html" class="btn btn-neutral float-left" title="Getting Started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../potentials/index.html" class="btn btn-neutral float-left" title="Potentials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
