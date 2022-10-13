@@ -8,6 +8,8 @@ import copy
 from pathlib import Path
 from typing import NoReturn, Union
 
+import numpy as np
+
 from ase.io import read, write
 from ase.constraints import FixAtoms
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -114,7 +116,10 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 pass
 
             data = dict(
-                init_frames = init_frames
+                init_frames = init_frames, # initial structure
+                pot_frames = [], # potential-calculated traj frames
+                selected_frames = [], # selected traj frames
+                calibrated_frames = [] # reference calculated frames
             )
 
             # - check driver
@@ -211,11 +216,6 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                 write(label_dpath/"calculated.xyz", init_frames)
                 self.logger.info(f"ADD init dataset, {len(init_frames)}...")
         
-        data = dict(
-            pot_frames = [], # potential-calculated traj frames
-            selected_frames = [] # selected traj frames
-        )
-
         # - run dynamics
         for i in range(start_block,nblocks):
             self.logger.info(f"\n\n----- block {i:8d} -----")
@@ -248,19 +248,27 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
                     f"step: {confid:>8d} temp: {a.get_temperature():>12.4f} " + 
                     f"ke: {a.get_kinetic_energy():>12.4f} pe: {a.get_potential_energy():>12.4f}"
                 )
+            
+            # --- calculate RMSD for an early stopping or restart from the initial structure.
+            rms_dis = np.sqrt(np.sum(np.square(traj_frames[0].positions-traj_frames[-1].positions)))
+            self.logger.info(f"Root Mean Square of Displacement (RMSE) is {rms_dis:>12.4f}.")
 
             # - select
             self._single_select(res_dpath, actions, data, block_step=i)
 
-            # - train and use new driver
+            # - update potential
             is_calculated = self._single_label(res_dpath, actions, data, block_step=i)
             if is_calculated: # (label_dpath/"calculated.xyz").exists() == True
+                # --- benchmark before learning
+                self._single_benchmark(res_dpath, actions, data, block_step=i)
+                # --- train
                 is_trained = self._single_train(res_dpath, actions, data, block_step=i)
                 if is_trained:
                     driver = self.pot_worker.potter.create_driver(driver_params)
                 else:
                     self.logger.info("break, wait for training...")
                     break
+                # --- benchmark after learning
             else:
                 self.logger.info("break, wait for labelling...")
                 break
@@ -312,8 +320,12 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
 
         return
     
-    def _single_label(self, res_dpath, actions, data, block_step=0, *args, **kwargs):
-        """Label candidates."""
+    def _single_label(self, res_dpath, actions, data, block_step=0, *args, **kwargs) -> bool:
+        """Label candidates.
+
+        A file with calculated structures would be written to label path.
+        
+        """
         selected_frames = data["selected_frames"]
         nselected = len(selected_frames)
         self.logger.info(f"Found {nselected} structures need label...")
@@ -334,7 +346,8 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
         calibrated_frames = self.ref_worker.retrieve()
         if calibrated_frames:
             #write(res_dpath/"calculated.xyz", calibrated_frames, append=True)
-            write(res_dpath/f"calculated-b{block_step}.xyz", calibrated_frames)
+            write(res_dpath/"label"/f"calculated-b{block_step}.xyz", calibrated_frames)
+            data["calibrated_frames"] = calibrated_frames
         if self.ref_worker.get_number_of_running_jobs() > 0:
             is_calculated = False
 
@@ -350,6 +363,7 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             if xyz_frames:
                 train_frames.extend(xyz_frames)
                 self.logger.info(f"Find dataset {str(xyz_fpath)} with nframes {len(xyz_frames)}...")
+        # TODO: benchmark train frames
 
         # - train
         cur_tdir = res_dpath/"train"/("t"+str(block_step))
@@ -372,6 +386,47 @@ class OnlineDynamicsBasedExpedition(AbstractExpedition):
             self.pot_worker.potter.freeze(cur_tdir)
 
         return is_trained
+
+    def _single_benchmark(self, res_dpath, actions, data, block_step=0, *args, **kwargs):
+        """Benchmark potential at i-block with reference structures at i-block.
+        """
+        selected_frames = data["selected_frames"]
+        calibrated_frames = data["calibrated_frames"]
+        if not calibrated_frames: # if empty
+            calibrated_frames = read(res_dpath/"label"/f"calculated-b{block_step}.xyz", ":")
+            data["calibrated_frames"] = calibrated_frames
+        nframes = len(selected_frames)
+        assert nframes == len(calibrated_frames), "Number of frames must be equal."
+
+        # - stat
+        from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+        # --- energy
+        pot_energies = [a.get_potential_energy() for a in selected_frames]
+        ref_energies = [a.get_potential_energy() for a in calibrated_frames]
+
+        mae = mean_absolute_error(ref_energies, pot_energies)
+        rmse = mean_squared_error(ref_energies, pot_energies, squared=False)
+        self.logger.info(f"Total Energy MAE: {mae:>12.4f} RMSE: {rmse:>12.4f}")
+
+        # --- forces
+        chemical_symbols = selected_frames[0].get_chemical_symbols()
+        type_list = list(set(chemical_symbols))
+        pot_force_map = {k: [] for k in type_list}
+        ref_force_map = {k: [] for k in type_list}
+        for i in range(nframes):
+            pot_forces = selected_frames[i].get_forces().copy().tolist()
+            ref_forces = calibrated_frames[i].get_forces().copy().tolist()
+            for sym, pot_fxyz, ref_fxyz in zip(chemical_symbols, pot_forces, ref_forces):
+                pot_force_map[sym].extend(pot_fxyz)
+                ref_force_map[sym].extend(ref_fxyz)
+
+        for sym in type_list:
+            mae = mean_absolute_error(ref_force_map[sym], pot_force_map[sym])
+            rmse = mean_squared_error(ref_force_map[sym], pot_force_map[sym], squared=False)
+            self.logger.info(f"{sym:>4s} Force MAE: {mae:>12.4f} RMSE: {rmse:>12.4f}")
+
+        return
 
 
 if __name__ == "__main__":
