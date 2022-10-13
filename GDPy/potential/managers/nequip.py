@@ -39,25 +39,41 @@ class NequipManager(AbstractPotentialManager):
         for i, a in enumerate(atypes):
             type_map[a] = i
 
+        # --- model files
+        model_ = calc_params.get("model", [])
+        if not isinstance(model_, list):
+            model_ = [model_]
+
+        models = []
+        for m in model_:
+            m = Path(m).resolve()
+            if not m.exists():
+                raise FileNotFoundError(f"Cant find model file {str(m)}")
+            models.append(str(m))
+
         if self.calc_backend == "ase":
             # return ase calculator
             from nequip.ase import NequIPCalculator
-            models = calc_params.get("file", None)
             if models:
                 calc = NequIPCalculator.from_deployed_model(
-                    model_path=models
+                    model_path=models[0]
                 )
             else:
                 calc = None
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
-            pair_style = calc_params.get("pair_style", None)
-            pair_coeff = calc_params.get("pair_coeff", None)
+            flavour = calc_params.pop("flavour", "nequip") # nequip or allegro
+            pair_style = "{}".format(flavour)
+            pair_coeff = "* * {}".format(models[0])
             if pair_style and pair_coeff:
                 calc = Lammps(
-                    command=command, directory=directory, **calc_params
+                    command=command, directory=directory, 
+                    pair_style=pair_style, pair_coeff=pair_coeff,
+                    **calc_params
                 )
                 # - update several params
+                calc.units = "metal"
+                calc.atom_style = "atomic"
                 if pair_style == "nequip":
                     calc.set(**dict(newton="off"))
                 elif pair_style == "allegro":

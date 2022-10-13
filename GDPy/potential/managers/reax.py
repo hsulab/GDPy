@@ -27,12 +27,18 @@ class ReaxManager(AbstractPotentialManager):
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", Path.cwd())
 
+        model = calc_params.get("model", None)
+        model = str(Path(model).resolve())
+
         if self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
-            pair_style = calc_params.get("pair_style", None)
-            if pair_style:
+            if model:
+                pair_style = "reax/c NULL"
+                pair_coeff = f"* * {model}"
                 calc = Lammps(
-                    command=command, directory=directory, **calc_params
+                    command=command, directory=directory, 
+                    pair_style=pair_style, pair_coeff=pair_coeff,
+                    **calc_params
                 )
                 # - update several params
                 calc.set(units="real")

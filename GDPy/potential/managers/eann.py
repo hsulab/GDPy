@@ -26,30 +26,6 @@ class EannManager(AbstractPotentialManager):
 
         return
     
-    def __parse_models(self):
-        """"""
-        if isinstance(self.models, str):
-            pot_path = Path(self.models)
-            pot_dir, pot_pattern = pot_path.parent, pot_path.name
-            models = []
-            for pot in pot_dir.glob(pot_pattern):
-                models.append(str(pot))
-            self.models = models
-        else:
-            for m in self.models:
-                if not Path(m).exists():
-                    raise ValueError('Model %s does not exist.' %m)
-
-        return
-    
-    def __check_uncertainty_support(self):
-        """"""
-        self.uncertainty = False
-        if len(self.models) > 1:
-            self.uncertainty = True
-
-        return
-    
     def register_calculator(self, calc_params, *args, **kwargs):
         """"""
         super().register_calculator(calc_params)
@@ -58,17 +34,26 @@ class EannManager(AbstractPotentialManager):
         directory = calc_params.pop("directory", Path.cwd())
         atypes = calc_params.pop("type_list", [])
 
-        models = calc_params.pop("file", None)
-        pair_style = calc_params.get("pair_style", None)
-
         type_map = {}
         for i, a in enumerate(atypes):
             type_map[a] = i
 
+        # --- model files
+        model_ = calc_params.get("model", [])
+        if not isinstance(model_, list):
+            model_ = [model_]
+
+        models = []
+        for m in model_:
+            m = Path(m).resolve()
+            if not m.exists():
+                raise FileNotFoundError(f"Cant find model file {str(m)}")
+            models.append(str(m))
+
         if self.calc_backend == "ase":
             # return ase calculator
             from eann.interface.ase.calculator import Eann
-            if models:
+            if models and type_map:
                 calc = Eann(
                     model=models, type_map=type_map,
                     command = command, directory=directory
@@ -77,17 +62,23 @@ class EannManager(AbstractPotentialManager):
                 calc = None
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
-            if pair_style:
-                calc = Lammps(command=command, directory=directory, **calc_params)
+            if models:
+                pair_style = "eann {}".format(" ".join(models))
+                # NOTE: need to specify precision
+                pair_coeff = calc_params.pop("pair_coeff", "double * *")
 
-                # TODO: assert unit and atom_style
-                #content = "units           metal\n"
-                #content += "atom_style      atomic\n"
-                #content = "neighbor        0.0 bin\n"
-                #content += "pair_style      eann %s \n" \
-                #    %(' '.join([m for m in models]))
-                #content += "pair_coeff * * double %s" %(" ".join(atypes))
-                #calc = content
+                pair_style_name = pair_style.split()[0]
+                assert pair_style_name == "eann", "Incorrect pair_style for lammps deepmd..."
+
+                calc = Lammps(
+                    command=command, directory=directory, 
+                    pair_style=pair_style, pair_coeff=pair_coeff,
+                    **calc_params
+                )
+
+                # - update several params
+                calc.units = "metal"
+                calc.atom_style = "atomic"
             else:
                 calc = None
         
