@@ -1,0 +1,16 @@
+potential:
+  name: lasp
+  params:
+    backend: lasp
+    command: "mpirun -n 2 lasp"
+    type_list: ["C", "O", "Pt"]
+    model: ./PtCHO.pot
+driver:
+  backend: lasp
+  task: min
+  init:
+    min_style: 1
+    dump_period: 2
+  run:
+    steps: 5
+    constraint: "lowest 4"
