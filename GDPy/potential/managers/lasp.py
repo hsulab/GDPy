@@ -28,17 +28,38 @@ class LaspManager(AbstractPotentialManager):
 
         self.calc_params["pot_name"] = self.name
 
-        # NOTE: need resolved pot path
+        command = calc_params.pop("command", None)
+        directory = calc_params.pop("directory", Path.cwd())
+        atypes = calc_params.pop("type_list", [])
+
+        # --- model files
+        model_ = calc_params.get("model", [])
+        if not isinstance(model_, list):
+            model_ = [model_]
+
+        models = []
+        for m in model_:
+            m = Path(m).resolve()
+            if not m.exists():
+                raise FileNotFoundError(f"Cant find model file {str(m)}")
+            models.append(str(m))
+        
         pot = {}
-        pot_ = calc_params.get("pot")
-        for k, v in pot_.items():
-            pot[k] = str(Path(v).resolve())
-        self.calc_params["pot"] = pot
+        if len(models) == len(atypes):
+            for t, m in zip(atypes,models):
+                pot[t] = m
+        else:
+            # use first model for all types
+            for t in atypes:
+                pot[t] = models[0]
 
         self.calc = None
         if self.calc_backend == "lasp":
             from GDPy.computation.lasp import LaspNN
-            self.calc = LaspNN(**self.calc_params)
+            self.calc = LaspNN(
+                command=command, directory=directory, pot=pot,
+                **calc_params
+            )
         elif self.calc_backend == "lammps":
             # TODO: add lammps calculator
             pass
