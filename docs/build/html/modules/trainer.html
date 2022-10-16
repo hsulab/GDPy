@@ -99,7 +99,7 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
@@ -110,11 +110,6 @@
 <li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">trainer package</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-trainer.evaluate_potential">trainer.evaluate_potential module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#trainer-iterative-train-module">trainer.iterative_train module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#trainer-manual-train-module">trainer.manual_train module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-trainer.train_potential">trainer.train_potential module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-trainer">Module contents</a></li>
 </ul>
 </li>
@@ -165,7 +160,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
+          <li><a href="modules.html">GDPy</a> &raquo;</li>
         
       <li>trainer package</li>
     
@@ -188,78 +183,6 @@
             
   <div class="section" id="trainer-package">
 <h1>trainer package<a class="headerlink" href="#trainer-package" title="Permalink to this heading">¶</a></h1>
-<div class="section" id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
-</div>
-<div class="section" id="module-trainer.evaluate_potential">
-<span id="trainer-evaluate-potential-module"></span><h2>trainer.evaluate_potential module<a class="headerlink" href="#module-trainer.evaluate_potential" title="Permalink to this heading">¶</a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.check_convergence">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">check_convergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.check_convergence" title="Permalink to this definition">¶</a></dt>
-<dd><p>check if the training is finished</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.evaluate_all">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">evaluate_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_dirs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.evaluate_all" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.freeze_ensemble">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">freeze_ensemble</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.freeze_ensemble" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.freeze_model">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">freeze_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.freeze_model" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.read_properties">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">read_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.read_properties" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.rms_dict">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">rms_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_ref</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_pred</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.rms_dict" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes two datasets of the same shape and returns a dictionary containing RMS error data</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.evaluate_potential.run_command">
-<span class="sig-prename descclassname"><span class="pre">trainer.evaluate_potential.</span></span><span class="sig-name descname"><span class="pre">run_command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">command</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">comment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.evaluate_potential.run_command" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</div>
-<div class="section" id="trainer-iterative-train-module">
-<h2>trainer.iterative_train module<a class="headerlink" href="#trainer-iterative-train-module" title="Permalink to this heading">¶</a></h2>
-</div>
-<div class="section" id="trainer-manual-train-module">
-<h2>trainer.manual_train module<a class="headerlink" href="#trainer-manual-train-module" title="Permalink to this heading">¶</a></h2>
-</div>
-<div class="section" id="module-trainer.train_potential">
-<span id="trainer-train-potential-module"></span><h2>trainer.train_potential module<a class="headerlink" href="#module-trainer.train_potential" title="Permalink to this heading">¶</a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.train_potential.find_systems">
-<span class="sig-prename descclassname"><span class="pre">trainer.train_potential.</span></span><span class="sig-name descname"><span class="pre">find_systems</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw_data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.train_potential.find_systems" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.train_potential.frames2dataset">
-<span class="sig-prename descclassname"><span class="pre">trainer.train_potential.</span></span><span class="sig-name descname"><span class="pre">frames2dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.train_potential.frames2dataset" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.train_potential.generate_random_seed">
-<span class="sig-prename descclassname"><span class="pre">trainer.train_potential.</span></span><span class="sig-name descname"><span class="pre">generate_random_seed</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#trainer.train_potential.generate_random_seed" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="trainer.train_potential.read_dptrain_json">
-<span class="sig-prename descclassname"><span class="pre">trainer.train_potential.</span></span><span class="sig-name descname"><span class="pre">read_dptrain_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">iter_directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_database</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#trainer.train_potential.read_dptrain_json" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</div>
 <div class="section" id="module-trainer">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-trainer" title="Permalink to this heading">¶</a></h2>
 <dl class="py function">

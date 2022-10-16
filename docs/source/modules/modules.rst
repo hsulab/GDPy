@@ -1,5 +1,5 @@
-GDPy APIs
-=========
+GDPy
+====
 
 .. toctree::
    :maxdepth: 4

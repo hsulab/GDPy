@@ -100,7 +100,7 @@
 <p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy APIs</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="computation.html">computation package</a><ul class="current">
 <li class="toctree-l3 current"><a class="reference internal" href="computation.html#subpackages">Subpackages</a><ul class="current">
@@ -177,7 +177,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">GDPy APIs</a> &raquo;</li>
+          <li><a href="modules.html">GDPy</a> &raquo;</li>
         
           <li><a href="computation.html">computation package</a> &raquo;</li>
         
@@ -293,31 +293,10 @@ potter + scheduler</p>
 </div>
 <div class="section" id="module-computation.worker.worker">
 <span id="computation-worker-worker-module"></span><h2>computation.worker.worker module<a class="headerlink" href="#module-computation.worker.worker" title="Permalink to this heading">¶</a></h2>
-<p>worker = driver + scheduler
-A worker that manages a series of dynamics tasks
-worker needs a scheduler to dertermine whether run by serial
-or on cluster</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="computation.worker.worker.AbstractWorker">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">computation.worker.worker.</span></span><span class="sig-name descname"><span class="pre">AbstractWorker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#computation.worker.worker.AbstractWorker" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
-<ul class="simple">
-<li><p>components</p></li>
-</ul>
-<dl class="simple">
-<dt>single-frame methods</dt><dd><p>Monte Carlo</p>
-</dd>
-<dt>population methods</dt><dd><p>GA = (generator + propagator) + driver + scheduler</p>
-</dd>
-</dl>
-<ul class="simple">
-<li><dl class="simple">
-<dt>machines</dt><dd><p>moniter
-job</p>
-</dd>
-</dl>
-</li>
-</ul>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="computation.worker.worker.AbstractWorker.UUIDLEN">
 <span class="sig-name descname"><span class="pre">UUIDLEN</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">36</span></em><a class="headerlink" href="#computation.worker.worker.AbstractWorker.UUIDLEN" title="Permalink to this definition">¶</a></dt>

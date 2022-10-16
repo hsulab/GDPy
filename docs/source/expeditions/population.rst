@@ -1,3 +1,0 @@
-Explore with Global Optimisation
---------------------------------
-

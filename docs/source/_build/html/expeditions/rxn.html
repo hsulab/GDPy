@@ -1,0 +1,320 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Explore Chemical Reactions &mdash; GDPy 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
+    <link rel="prev" title="Explore Adsorbate Configurations" href="ads.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> GDPy
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../potentials/index.html">Potentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Expeditions</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="index.html#define-a-system">Define a System</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html#list-of-expeditions">List of Expeditions</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="md.html">Explore with Molecular Dynamics (MD)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="evo.html">Explore with Global Optimisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="ads.html">Explore Adsorbate Configurations</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Explore Chemical Reactions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#systems">systems</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#create">create</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#collect">collect</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#select">select</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/modules.html">GDPy</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">GDPy</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="index.html">Expeditions</a> &raquo;</li>
+        
+      <li>Explore Chemical Reactions</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/expeditions/rxn.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="explore-chemical-reactions">
+<h1>Explore Chemical Reactions<a class="headerlink" href="#explore-chemical-reactions" title="Permalink to this heading">¶</a></h1>
+<p>In this section, we demonstrate how to define an expedition using reaction exploration
+in <cite>exp.yaml</cite>. Here, we define an expedition called <strong>exp</strong> and all
+results would be save in the directory <strong>exp</strong> under where we run the <cite>explore</cite>
+command, and a log file <cite>rxn.out</cite> in <strong>exp</strong> can be found as well.</p>
+<p>The reaction exploration method is the Artificial Force Induced Reaction (AFIR).</p>
+<div class="section" id="systems">
+<h2>systems<a class="headerlink" href="#systems" title="Permalink to this heading">¶</a></h2>
+<p>Standard <strong>structure</strong> definition is enough for this expedition. However, we need to
+make sure that possible reactants can be found in these initial structures.</p>
+</div>
+<div class="section" id="create">
+<h2>create<a class="headerlink" href="#create" title="Permalink to this heading">¶</a></h2>
+<p>The setting is different from other expeditions since we are still trying to merge
+AFIR into the <strong>driver</strong> object. Currently, we need to set parameters for the keyword
+<strong>AFIR</strong>.</p>
+<ul class="simple">
+<li><p>target_pairs: Reactants.</p></li>
+<li><p>gmax, ginit, gintv: AFIR bias parameters.</p></li>
+<li><p>graph_params: Use to generate molecular graph to check whether a reaction happens.</p></li>
+<li><p>dyn_params: fmax and steps for minimisation.</p></li>
+</ul>
+</div>
+<div class="section" id="collect">
+<h2>collect<a class="headerlink" href="#collect" title="Permalink to this heading">¶</a></h2>
+<p><strong>traj_period</strong> is used to further select structures from minimisation trajectories.
+The structures in computation results would be split into three groups, namely
+transition states (TSs), final states (FSs), and trajectories (Traj).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The TSs from AFIR trajectories is just the structure with the highest energy among
+the trajectory rather than the exact ones.</p>
+</div>
+</div>
+<div class="section" id="select">
+<h2>select<a class="headerlink" href="#select" title="Permalink to this heading">¶</a></h2>
+<p>The selection would be performed on TS, FS and Traj separately.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">exp</span><span class="p">:</span>
+  <span class="nt">systems</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;reaction&quot;</span><span class="p p-Indicator">]</span>
+  <span class="nt">create</span><span class="p">:</span>
+    <span class="nt">AFIR</span><span class="p">:</span> <span class="c1"># input structures should be optimised</span>
+      <span class="nt">target_pairs</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;O&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;CO&quot;</span><span class="p p-Indicator">]</span>
+      <span class="nt">gmax</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2.5</span>
+      <span class="nt">ginit</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0.5</span>
+      <span class="nt">gintv</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0.1</span>
+      <span class="c1">#seed</span>
+      <span class="nt">graph_params</span><span class="p">:</span>
+        <span class="c1"># - graph</span>
+        <span class="nt">pbc_grid</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span> <span class="nv">1</span><span class="p p-Indicator">,</span> <span class="nv">0</span><span class="p p-Indicator">]</span>
+        <span class="nt">graph_radius</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0</span>
+        <span class="c1"># - neigh</span>
+        <span class="nt">covalent_ratio</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1.1</span>
+        <span class="nt">skin</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0.00</span>
+        <span class="c1"># - site</span>
+        <span class="nt">adsorbate_elements</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;C&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;O&quot;</span><span class="p p-Indicator">]</span>
+      <span class="nt">dyn_params</span><span class="p">:</span>
+        <span class="nt">fmax</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0.10</span> <span class="c1"># eV/AA</span>
+        <span class="nt">steps</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">200</span>
+  <span class="nt">collect</span><span class="p">:</span>
+    <span class="nt">traj_period</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">20</span>
+  <span class="nt">select</span><span class="p">:</span>
+    <span class="p p-Indicator">-</span> <span class="nt">method</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">deviation</span> <span class="c1"># selection based on model deviation</span>
+      <span class="nt">criteria</span><span class="p">:</span>
+        <span class="nt">max_devi_e</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="nv">0.05</span><span class="p p-Indicator">,</span> <span class="nv">0.25</span><span class="p p-Indicator">]</span>
+    <span class="p p-Indicator">-</span> <span class="nt">method</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">descriptor</span>
+      <span class="nt">descriptor</span><span class="p">:</span>
+        <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">soap</span>
+        <span class="nt">species</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;C&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;O&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;Pt&quot;</span><span class="p p-Indicator">]</span>
+        <span class="nt">rcut </span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">6.0</span>
+        <span class="nt">nmax </span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">12</span>
+        <span class="nt">lmax </span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">8</span>
+        <span class="nt">sigma </span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">0.3</span>
+        <span class="nt">average </span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">inner</span>
+        <span class="nt">periodic </span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+      <span class="nt">criteria</span><span class="p">:</span>
+        <span class="nt">method</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">cur</span>
+        <span class="nt">zeta</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">-1</span>
+        <span class="nt">strategy</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">descent</span>
+      <span class="nt">number</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span> <span class="nv">0.2</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../tutorials/index.html" class="btn btn-neutral float-right" title="Tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="ads.html" class="btn btn-neutral float-left" title="Explore Adsorbate Configurations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2022, Jiayan Xu
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
