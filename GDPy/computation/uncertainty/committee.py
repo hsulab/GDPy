@@ -21,6 +21,7 @@ class CommitteeUncertaintyEstimator():
     def __init__(self, calculators, properties=None) -> None:
         """Require a list of calculators and target properties."""
         self.committee = calculators
+        self._directory = pathlib.Path(self._directory)
 
         return
     
@@ -34,14 +35,15 @@ class CommitteeUncertaintyEstimator():
     def directory(self, directory_):
         """"""
         self._directory = pathlib.Path(directory_).resolve()
-        for i, c in enumerate(self.committee):
-            c.directory = str(self.directory/f"c{i}")
 
         return 
 
     def estimate(self, frames: List[Atoms]) -> List[Atoms]:
         """Use committee to estimate uncertainty
         """
+        for i, c in enumerate(self.committee):
+            c.directory = str(self.directory/f"c{i}")
+
         # max_devi_e, max_devi_f
         # TODO: directory where estimate?
         for atoms in frames:
