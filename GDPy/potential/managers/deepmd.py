@@ -12,8 +12,6 @@ import numpy as np
 from ase.calculators.calculator import Calculator
 
 from GDPy.potential.manager import AbstractPotentialManager
-from GDPy.utils.command import run_command
-from GDPy.trainer.train_potential import find_systems, generate_random_seed
 
 
 class DeepmdManager(AbstractPotentialManager):
