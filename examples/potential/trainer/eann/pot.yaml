@@ -1,0 +1,30 @@
+potential:
+  name: eann
+  params:
+    backend: lammps
+    command: lmp_cat -in in.lammps 2>&1 > lmp.out
+  trainer: 
+    config: ./config.yaml
+    size: 2 # number of models in a committee
+    epochs: 200
+    dataset:
+      - ../set/Cu4-Cu4/
+      - ../set/Cu8-Cu8/
+    train: "python -u /users/40247882/repository/EANN/eann --config ./config.yaml train 2>&1 > train.out"
+    freeze: "python -u /users/40247882/repository/EANN/eann --config ./config.yaml freeze EANN.pth -o eann_latest_ 2>&1 > freeze.out"
+    scheduler:
+      # - gpu
+      backend: slurm
+      partition: k2-gpu
+      time: "00:30:00"
+      ntasks: 1
+      cpus-per-task: 12
+      mem-per-cpu: 4G
+      gres: gpu:v100:1
+      environs: "conda activate catorch2\n"
+scheduler:
+  backend: slurm
+  partition: k2-hipri
+  ntasks: 2
+  time: "00:03:00"
+  environs: "source ~/envs/source_eann.sh\nconda activate catorch2"

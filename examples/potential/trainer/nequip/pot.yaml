@@ -1,0 +1,30 @@
+potential:
+  name: nequip
+  params:
+    backend: lammps
+    command: lmp_cat -in in.lammps 2>&1 > lmp.out
+  trainer: 
+    config: ./config.yaml
+    size: 2 # number of models in a committee
+    epochs: 200
+    dataset:
+      - ../set/Cu4-Cu4/
+      - ../set/Cu8-Cu8/
+    train: "nequip-train config.yaml 2>&1 > train.out"
+    freeze: "nequip-deploy build --train-dir ./auto ./deployed_model.pth 2>&1 > freeze.out"
+    scheduler:
+      # - gpu
+      backend: slurm
+      partition: k2-gpu
+      time: "01:00:00"
+      ntasks: 1
+      cpus-per-task: 12
+      mem-per-cpu: 4G
+      gres: gpu:v100:1
+      environs: "conda activate catorch2\n"
+scheduler:
+  backend: slurm
+  partition: k2-hipri
+  ntasks: 2
+  time: "00:03:00"
+  environs: "source ~/envs/source_eann.sh\nconda activate catorch2"

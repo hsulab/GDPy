@@ -1,0 +1,42 @@
+representation: 
+  atomtype: ["Cu"]
+  neigh_atoms: 150
+  cutoff: 6.0
+  nwave: 8
+  norbit: 64
+  nipsin: 3
+task: 
+  start_table: 1
+  table_coor: 0
+  table_init: 0
+training: 
+  epoch: 2000
+  patience_epoch: 50
+  print_epoch: 10
+  print_batch: 50
+  start_lr: 1.0e-3
+  end_lr: 1.0e-6
+  decay_factor: 0.95
+  re_ceff: 0.0
+  batchsize: 32 # only for neigh calc
+  queue_size: 128
+  e_ceff: 1.0
+  init_f: 5.0
+  final_f: 0.5
+network: 
+  nl: [256, 128, 64, 32]
+  nblock: 1
+  dropout_p: [0.0, 0.0, 0.0, 0.0]
+  activate: "Softplus"
+  table_bn: false
+  # TODO: move oc to rep?
+  oc_loop: 0
+  oc_nl: [32, 16]
+  oc_nblock: 1
+  oc_dropout_p: [0.0, 0.0]
+  oc_activate": "Softplus"
+  oc_table_bn": false
+dataset: 
+  style: "auto"
+  systems: []
+  batchsizes: []

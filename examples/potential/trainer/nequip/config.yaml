@@ -1,0 +1,93 @@
+# general
+root: results/copper
+run_name: minimal
+seed: 123
+dataset_seed: 456
+append: true
+# default_dtype: float32
+
+# network
+r_max: 6.0                                                                        # cutoff radius in length units, here Angstrom, this is an important hyperparamter to scan
+num_layers: 4                                                                     # number of interaction blocks, we find 3-5 to work best
+l_max: 2
+parity: true
+num_features: 32
+nonlinearity_type: gate                                                           # may be 'gate' or 'norm', 'gate' is recommended
+
+# radial network basis
+num_basis: 8
+# BesselBasis_trainable: true
+# PolynomialCutoff_p: 6
+
+# radial network
+invariant_layers: 2                                                               # number of radial layers, usually 1-3 works best, smaller is faster
+invariant_neurons: 64                                                             # number of hidden neurons in radial function, smaller is faster
+avg_num_neighbors: auto                                                           # number of neighbors to divide by, null => no normalization, auto computes it based on dataset 
+use_sc: true                                                                      # use self-connection or not, usually gives big improvement
+
+# data set
+# the keys used need to be stated at least once in key_mapping, npz_fixed_field_keys or npz_keys
+# key_mapping is used to map the key in the npz file to the NequIP default values (see data/_key.py)
+# all arrays are expected to have the shape of (nframe, natom, ?) except the fixed fields
+# note that if your data set uses pbc, you need to also pass an array that maps to the nequip "pbc" key
+dataset: ase                                                                       # type of data set, can be npz or a
+dataset_file_name: ./dataset.xyz
+#key_mapping:
+#  species: atomic_numbers                                                                # atomic species, integers
+#  energy: total_energy                                                                  # total potential eneriges to train to
+#  forces: forces                                                                        # atomic forces to train to
+#  pos: pos                                                                           # raw atomic positions
+#  Lattice: cell
+#  pbc: pbc
+ase_args:
+  format: extxyz
+#include_keys: 
+#  - user_label
+#key_mapping:
+#  user_label: label0
+
+# A list of atomic types to be found in the data. The NequIP types will be named with the chemical symbols, and inputs with the correct atomic numbers will be mapped to the corresponding types.
+chemical_symbols:
+  - Cu
+
+# logging
+wandb: false
+# verbose: debug
+
+verbose: info                                                                      # the same as python logging, e.g. warning, info, debug, error; case insensitive
+log_batch_freq: 10                                                                 # batch frequency, how often to print training errors withinin the same epoch
+log_epoch_freq: 1                                                                  # epoch frequency, how often to print 
+save_checkpoint_freq: -1                                                           # frequency to save the intermediate checkpoint. no saving of intermediate checkpoints when the value is not positive.
+save_ema_checkpoint_freq: -1                                                       # frequency to save the intermediate ema checkpoint. no saving of intermediate checkpoints when the value is not positive.
+
+# training
+n_train: 100
+n_val: 50
+
+learning_rate: 0.005
+
+batch_size: 4
+validation_batch_size: 16                                                          # batch size for evaluating the model during validation. This does not affect the training results, but using the highest value possible (<=n_val) without running out of memory will speed up your training.
+
+max_epochs: 500
+
+use_ema: true                                                                      # if true, use exponential moving average on weights for val/test, usually helps a lot with training, in particular for energy errors
+ema_decay: 0.99                                                                    # ema weight, typically set to 0.99 or 0.999
+ema_use_num_updates: true                                                          # whether to use number of updates when computing averages
+
+# early stopping based on metrics values.
+early_stopping_patiences:                                                          # stop early if a metric value stopped decreasing for n epochs
+  validation_loss: 50
+
+early_stopping_lower_bounds:                                                       # stop early if a metric value is lower than the bound
+  LR: 1.0e-5
+
+# loss function
+loss_coeffs:
+  total_energy:
+  - 1.0
+  - PerAtomMSELoss
+  forces: 1.0
+
+# optimizer
+optimizer_name: Adam
