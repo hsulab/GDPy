@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from ase.calculators.calculator import Calculator
+
 from GDPy.potential.manager import AbstractPotentialManager
 
 
@@ -26,9 +28,14 @@ class EannManager(AbstractPotentialManager):
 
         return
     
-    def register_calculator(self, calc_params, *args, **kwargs):
-        """"""
-        super().register_calculator(calc_params)
+    def _create_calculator(self, calc_params: dict) -> Calculator:
+        """Create an ase calculator.
+
+        Todo:
+            In fact, uncertainty estimation has various backends as well.
+        
+        """
+        calc_params = copy.deepcopy(calc_params)
 
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", Path.cwd())
@@ -81,8 +88,14 @@ class EannManager(AbstractPotentialManager):
                 calc.atom_style = "atomic"
             else:
                 calc = None
-        
-        self.calc = calc
+
+        return calc
+    
+    def register_calculator(self, calc_params, *args, **kwargs):
+        """"""
+        super().register_calculator(calc_params)
+
+        self.calc = self._create_calculator(self.calc_params)
 
         return
     
@@ -128,6 +141,9 @@ class EannManager(AbstractPotentialManager):
 
         train_config = copy.deepcopy(self.train_config)
         train_config.update(dataset=dataset_config)
+
+        train_config["training"]["epoch"] = self.train_epochs
+
         with open(train_dir/"config.yaml", "w") as fopen:
             yaml.safe_dump(train_config, fopen, indent=2)
 
@@ -144,6 +160,8 @@ class EannManager(AbstractPotentialManager):
         """ freeze model and return a new calculator
             that may have a committee for uncertainty
         """
+        super().freeze(train_dir)
+
         # - find subdirs
         train_dir = Path(train_dir)
         mdirs = []
@@ -152,21 +170,29 @@ class EannManager(AbstractPotentialManager):
                 mdirs.append(p.resolve())
         assert len(mdirs) == self.train_size, "Number of models does not equal model size..."
 
-        # - find models
-        calc_params = copy.deepcopy(self.calc_params)
-        calc_params.update(backend=self.calc_backend)
-        if self.calc_backend == "ase":
-            models = []
-            for p in mdirs:
+        # - find models and form committee
+        models = []
+        for p in mdirs:
+            if self.calc_backend == "ase":
                 models.append(str(p/"eann_latest_py_DOUBLE.pt"))
-            calc_params["file"] = models
-        elif self.calc_backend == "lammps":
-            models = []
-            for p in mdirs:
+            elif self.calc_backend == "lammps":
                 models.append(str(p/"eann_latest_lmp_DOUBLE.pt"))
-            calc_params["pair_style"] = "eann {}".format(" ".join(models))
-        #print("models: ", models)
-        self.register_calculator(calc_params)
+        models.sort()
+
+        # - update current calculator
+        calc_params = copy.deepcopy(self.calc_params)
+        calc_params["model"] = models
+ 
+        self.calc = self._create_calculator(calc_params)
+
+        # --- update current estimator
+        # TODO: eann has interal committee in ase and lammps
+        est_params = dict(
+            committee = dict(
+                models = models
+            )
+        )
+        self.register_uncertainty_estimator(est_params)
 
         return
 

@@ -262,6 +262,8 @@ class DeepmdManager(AbstractPotentialManager):
         """ freeze model and return a new calculator
             that may have a committee for uncertainty
         """
+        super().freeze(train_dir)
+
         # - find subdirs
         train_dir = Path(train_dir)
         mdirs = []
@@ -298,7 +300,13 @@ class DeepmdManager(AbstractPotentialManager):
         self.calc = self._create_calculator(calc_params)
 
         # --- update current estimator
-        # TODO: ...
+        # TODO: deepmd has interal committee in lammps
+        est_params = dict(
+            committee = dict(
+                models = models
+            )
+        )
+        self.register_uncertainty_estimator(est_params)
 
         return
 
