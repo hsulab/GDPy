@@ -29,6 +29,8 @@ class AbstractPotentialManager(abc.ABC):
     _calc = None
     _scheduler = None
 
+    _estimator = None
+
     def __init__(self):
         """
         """
@@ -67,14 +69,28 @@ class AbstractPotentialManager(abc.ABC):
 
         return
 
+    def register_uncertainty_estimator(self, est_params_: dict):
+        """Create an extra uncertainty estimator.
+
+        This can be used when the current calculator is not capable of 
+        estimating uncertainty.
+        
+        """
+        from GDPy.computation.uncertainty import create_estimator
+        self._estimator = create_estimator(est_params_, self.calc_params, self._create_calculator)
+
+        return
+
     def create_driver(
         self, 
         dyn_params: dict = {},
         *args, **kwargs
     ):
-        """ create a worker for dynamics
-            default the dynamics backend will be the same as calc
-            however, ase-based dynamics can be used for all calculators
+        """Create a driver for dynamics.
+
+        Default the dynamics backend will be the same as calc. However, 
+        ase-based dynamics can be used for all calculators.
+
         """
         if not hasattr(self, "calc") or self.calc is None:
             raise AttributeError("Cant create driver before a calculator has been properly registered.")
@@ -115,18 +131,6 @@ class AbstractPotentialManager(abc.ABC):
 
         return
 
-    def create_worker(self, driver, scheduler, *args, **kwargs):
-        """ a machine operates calculations submitted to queue
-        """
-        # TODO: check driver is consistent with this potential
-
-        from GDPy.computation.worker.worker import DriverBasedWorker
-        worker = DriverBasedWorker(driver, scheduler)
-
-        # TODO: check if scheduler resource satisfies driver's command
-
-        return worker
-
     def register_trainer(self, train_params_: dict):
         """"""
         train_params = copy.deepcopy(train_params_)
@@ -134,6 +138,7 @@ class AbstractPotentialManager(abc.ABC):
         self.train_config = train_params.get("config", None)
 
         self.train_size = train_params.get("size", 1)
+
         # - training
         self.train_epochs = train_params.get("epochs", 500)
 
@@ -162,6 +167,13 @@ class AbstractPotentialManager(abc.ABC):
     def get_batchsize(self, *args, **kwargs):
         """ get batchsize for train and valid set
         """
+
+        return
+    
+    def freeze(self, train_dir="./"):
+        """Update current calculator and estimator."""
+        if not hasattr(self, "calc"):
+            raise AttributeError("Cant freeze before a calculator has been properly registered.")
 
         return
     
