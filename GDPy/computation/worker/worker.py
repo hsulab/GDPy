@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-""" worker = driver + scheduler
-    A worker that manages a series of dynamics tasks
-    worker needs a scheduler to dertermine whether run by serial
-    or on cluster
-"""
-
 import abc
 import uuid
 import copy
@@ -20,17 +14,18 @@ from GDPy.potential.register import PotentialRegister
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 
+"""worker = driver + scheduler.
+
+A worker that manages a series of dynamics tasks
+worker needs a scheduler to dertermine whether run by serial
+or on cluster.
+
+"""
+
+
 class AbstractWorker(abc.ABC):
 
-    """ - components
-        single-frame methods
-            Monte Carlo
-        population methods
-            GA = (generator + propagator) + driver + scheduler
-        - machines
-            moniter
-            job
-    """
+    """"""
 
     UUIDLEN = 36 # length of uuid
 

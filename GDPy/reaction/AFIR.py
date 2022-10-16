@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Artificial force induced reaction (AFIR)
+"""Artificial force induced reaction (AFIR)
 """
 
 import time
@@ -94,6 +93,7 @@ def grid_iterator(grid):
 
     Yields:
         tuple: (x, y, z) coordinates
+
     """
     if isinstance(grid, int): # Expand to 3D grid
         grid = (grid, grid, grid)
@@ -104,8 +104,10 @@ def grid_iterator(grid):
                 yield (x, y, z)
 
 def partition_fragments(creator, atoms, target_species=None) -> List[Adsorbate]:
-    """ generate fragments from a single component
-        use graph to find adsorbates and group them into fragments
+    """Generate fragments from a single component.
+    
+    Use graph to find adsorbates and group them into fragments.
+
     """
     creator.generate_graph(atoms)
 
@@ -152,8 +154,7 @@ def force_function(
     pair_shifts, # in cartesian, AA
     gamma=2.5
 ):
-    """ AFIR function
-    """
+    """AFIR function."""
     bias = 0.0
     # collision coef
     r0 = 3.8164 # Ar-Ar LJ
@@ -182,7 +183,7 @@ def force_function(
 
 class AFIR(BFGS):
 
-    """ integrate with graph calculation
+    """Integrate with graph calculation.
     """
 
     has_reaction = False
@@ -402,10 +403,14 @@ class AFIR(BFGS):
 
 class AFIRSearch():
 
-    """ TODO: transform this into a dynamics object?
-        reaction event search 
-            in: one single structure 
-            out: a bunch of opt trajs + a pseudo pathway
+    """Reaction event search.
+
+    Input is one single structure, and output is a bunch of opt trajs plus
+    a pseudo pathway.
+
+    Todo: 
+        transform this into a dynamics object?
+
     """
 
     nfragments_to_reaction = 2
@@ -462,8 +467,10 @@ class AFIRSearch():
         return
 
     def run(self, atoms, calc, check_exists=True) -> NoReturn:
-        """ run all fragment pairs in one single structure
-            output summary is in main.out
+        """Run all fragment pairs in one single structure.
+
+        Output summary is in main.out.
+
         """
         # --- check if exists
         if (self.directory/"main.out").exists():
@@ -539,8 +546,10 @@ class AFIRSearch():
         return
 
     def irun(self, init_atoms, fres_path, calc, frag) -> List[Atoms]:
-        """ run single fragment combination
-            output summary is in data.out
+        """Run single fragment combination.
+
+        Output summary is in data.out
+
         """
         # --- some params
         gmax = self.gmax
