@@ -47,62 +47,28 @@ def main():
         dest="subcommand", 
         help="sub-command help"
     )
-
-    # single calculation creator (VASP for now)
-    parser_vasp = subparsers.add_parser(
-        "vasp", help="utils to create and analyse vasp calculation"
-    )
-    parser_vasp.add_argument(
-        "CHOICE", choices=["create", "freq", "data", "work"],
-        help = "choices performed with vasp"
-    )
-    parser_vasp.add_argument(
-        "STRUCTURE",
-        help="structure file in any format (better xsd)"
-    )
-    parser_vasp.add_argument(
-        "-in", "--input", default=None,
-        help="template incar file or a json/yaml configuration file"
-    )
-    parser_vasp.add_argument(
-        "-fi", "--indices", default=None,
-        help="frame indices to read for each vasp directory"
-    )
-    parser_vasp.add_argument(
-        # "-c", "--copt", action='store_true',
-        "-ai", "--aindices", type=int, nargs="*",
-        help="atom indices for constrain or freq, python convention"
-    )
-    parser_vasp.add_argument(
-        "-ns", "--nosort", action="store_false",
-        help="sort atoms by elemental numbers and z-positions"
-    )
-    parser_vasp.add_argument(
-        "--sub", action="store_true",
-        help="submit the job after creating input files"
-    )
     
     # - automatic training
-    parser_train = subparsers.add_parser(
-        "train", help="automatic training utilities"
-    )
+    #parser_train = subparsers.add_parser(
+    #    "train", help="automatic training utilities"
+    #)
     #parser_train.add_argument(
     #    'INPUTS',
     #    help='a directory with input json files'
     #)
 
     # automatic training
-    parser_model = subparsers.add_parser(
-        "model", help="model operations"
-    )
-    parser_model.add_argument(
-        "INPUTS",
-        help="a directory with input json files"
-    )
-    parser_model.add_argument(
-        "-m", "--mode",
-        help="[create/freeze] models"
-    )
+    #parser_model = subparsers.add_parser(
+    #    "model", help="model operations"
+    #)
+    #parser_model.add_argument(
+    #    "INPUTS",
+    #    help="a directory with input json files"
+    #)
+    #parser_model.add_argument(
+    #    "-m", "--mode",
+    #    help="[create/freeze] models"
+    #)
 
     # explore
     parser_explore = subparsers.add_parser(
@@ -118,54 +84,52 @@ def main():
     )
 
     # ----- data analysis -----
-    parser_data = subparsers.add_parser(
-        "data", help="data analysis subcommand"
-    )
-
-    parser_data.add_argument(
-        "DATA", help = "general data setting file"
-    )
-
-    parser_data.add_argument(
-        "-c", "--choice", default="dryrun",
-        choices = ["dryrun", "stat", "calc", "compress"],
-        help = "choose data analysis mode"
-    )
+    #parser_data = subparsers.add_parser(
+    #    "data", help="data analysis subcommand"
+    #)
+    #parser_data.add_argument(
+    #    "DATA", help = "general data setting file"
+    #)
+    #parser_data.add_argument(
+    #    "-c", "--choice", default="dryrun",
+    #    choices = ["dryrun", "stat", "calc", "compress"],
+    #    help = "choose data analysis mode"
+    #)
     
-    # general options for reading structures
-    parser_data.add_argument(
-        "-s", "--system", default = None,
-        help = "system info file"
-    )
-    parser_data.add_argument(
-        "-n", "--name", default = "ALL",
-        help = "system name"
-    )
-    parser_data.add_argument(
-        "-p", "--pattern", default = "*.xyz",
-        help = "xyz search pattern"
-    )
+    ## general options for reading structures
+    #parser_data.add_argument(
+    #    "-s", "--system", default = None,
+    #    help = "system info file"
+    #)
+    #parser_data.add_argument(
+    #    "-n", "--name", default = "ALL",
+    #    help = "system name"
+    #)
+    #parser_data.add_argument(
+    #    "-p", "--pattern", default = "*.xyz",
+    #    help = "xyz search pattern"
+    #)
 
-    parser_data.add_argument(
-        "-m", "--mode", default=None,
-        help = "data analysis mode"
-    )
+    #parser_data.add_argument(
+    #    "-m", "--mode", default=None,
+    #    help = "data analysis mode"
+    #)
 
-    parser_data.add_argument(
-        "-num", "--number", 
-        default = -1, type=int,
-        help = "number of selection"
-    )
-    parser_data.add_argument(
-        "-etol", "--energy_tolerance", 
-        default = 0.020, type = float,
-        help = "energy tolerance per atom"
-    )
-    parser_data.add_argument(
-        "-es", "--energy_shift", 
-        default = 0.0, type = float,
-        help = "add energy correction for each structure"
-    )
+    #parser_data.add_argument(
+    #    "-num", "--number", 
+    #    default = -1, type=int,
+    #    help = "number of selection"
+    #)
+    #parser_data.add_argument(
+    #    "-etol", "--energy_tolerance", 
+    #    default = 0.020, type = float,
+    #    help = "energy tolerance per atom"
+    #)
+    #parser_data.add_argument(
+    #    "-es", "--energy_shift", 
+    #    default = 0.0, type = float,
+    #    help = "add energy correction for each structure"
+    #)
 
     # --- worker interface
     parser_driver = subparsers.add_parser(
@@ -237,30 +201,13 @@ def main():
     )
 
     # validation
-    parser_validation = subparsers.add_parser(
-        'valid', help='validate properties with trained model'
-    )
-    parser_validation.add_argument(
-        'INPUTS',
-        help='input json file with calculation parameters'
-    )
-
-    # semi-auto training
-    parser_semi = subparsers.add_parser(
-        'semi', help='perform each training step manually'
-    )
-    parser_semi.add_argument(
-        'INPUTS',
-        help='a directory with input json files'
-    )
-    parser_semi.add_argument(
-        '-i', '--iter',
-        help='iteration'
-    )
-    parser_semi.add_argument(
-        '-s', '--stage',
-        help='stage'
-    )
+    #parser_validation = subparsers.add_parser(
+    #    'valid', help='validate properties with trained model'
+    #)
+    #parser_validation.add_argument(
+    #    'INPUTS',
+    #    help='input json file with calculation parameters'
+    #)
     
     # === execute 
     args = parser.parse_args()
@@ -306,9 +253,6 @@ def main():
             args.name, args.pattern,
             args.number, args.energy_tolerance, args.energy_shift
         )
-    elif args.subcommand == 'semi':
-        from .trainer.manual_train import manual_train
-        manual_train(args.INPUTS, args.iter, args.stage)
     elif args.subcommand == "driver":
         from GDPy.computation.worker import run_driver
         run_driver(args.STRUCTURE, args.directory, potter)
