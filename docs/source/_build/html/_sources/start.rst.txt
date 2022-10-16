@@ -1,20 +1,17 @@
 Getting Started
 ===============
-
 Here, we would introduce several basic components of GDPy, namely **potential**, 
 **driver**, **worker**. **Worker** is the basic unit that performs any 
 computation, which contains a ``AbstractPotentialManager`` and a ``Scheduler``.
 
 Units
 -----
-
 We use the following units through all input files:
 
 Time ``fs``, Length ``AA``, Energy ``eV``, Force ``eV/AA``.
 
 Potential
 ---------
-
 We have supported several MLIP formulations based on an ``AbstractPotentialManager`` 
 class to access **driver**, **expedition**, and **training** through workflows. 
 
@@ -35,7 +32,6 @@ See :ref:`Potential Examples` section for more details.
 
 Driver
 ------
-
 After potential is defined, we need to further specify what simulation would be 
 perfomed in the **driver** section. A driver (``AbstractDriver``) is the basic 
 unit with an attacthed **ase** ``calculators`` for basic dynamics tasks, namely, 
@@ -61,10 +57,9 @@ See :ref:`Driver Examples` section for more details.
 
 Scheduler
 ---------
-
 With **potential** and **driver** defined, we can run simulations on local 
 machines (directly in the command line). However, simulations, under most 
-circumstances, would be really heavy even by MLIPs (image a 10 ns molecular 
+circumstances, would be really heavy even by MLIPs (imagine a 10 ns molecular 
 dynamics). The simulations would ideally be dispatched to high performace clusters
 (HPCs).
 
@@ -86,7 +81,6 @@ The example below shows how to define a **scheduler** in a **yaml** file:
 
 Worker
 ------
-
 **Worker** that combines the above components is what we use throughout various 
 workflows to deal with computations. 
 
@@ -115,7 +109,7 @@ The example below shows how to define a **worker** in a **yaml** file:
         time: "0:10:00"
         environs: "source ~/envs/source_eann.sh\nconda activate catorch2\n"
 
-to run a **nvt** simulation with given structures by **nequip** on a **slurm** 
+to run a **nvt** simulation with given structures by **deepmd** on a **slurm** 
 machine
 
 .. code-block:: shell

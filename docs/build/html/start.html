@@ -224,7 +224,7 @@ backends.</p>
 <h2>Scheduler<a class="headerlink" href="#scheduler" title="Permalink to this heading">¶</a></h2>
 <p>With <strong>potential</strong> and <strong>driver</strong> defined, we can run simulations on local
 machines (directly in the command line). However, simulations, under most
-circumstances, would be really heavy even by MLIPs (image a 10 ns molecular
+circumstances, would be really heavy even by MLIPs (imagine a 10 ns molecular
 dynamics). The simulations would ideally be dispatched to high performace clusters
 (HPCs).</p>
 <p>The example below shows how to define a <strong>scheduler</strong> in a <strong>yaml</strong> file:</p>
@@ -269,7 +269,7 @@ workflows to deal with computations.</p>
     <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;source</span><span class="nv"> </span><span class="s">~/envs/source_eann.sh\nconda</span><span class="nv"> </span><span class="s">activate</span><span class="nv"> </span><span class="s">catorch2\n&quot;</span>
 </pre></div>
 </div>
-<p>to run a <strong>nvt</strong> simulation with given structures by <strong>nequip</strong> on a <strong>slurm</strong>
+<p>to run a <strong>nvt</strong> simulation with given structures by <strong>deepmd</strong> on a <strong>slurm</strong>
 machine</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># -- submit jobs...</span>
 <span class="c1">#    one structure for one job</span>
