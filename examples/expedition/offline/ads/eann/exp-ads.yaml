@@ -1,0 +1,65 @@
+dataset: ./
+type_list: ["C", "H", "O", "Pt"] # this creates type_map
+method: ads
+systems:
+  s1CO+O:
+    prefix: Pt111s33ads
+    generator:
+      method: adsorbate
+      substrate: ./surfaces.xyz
+      composition:
+        - species: O
+          action: add
+          distance_to_site: 1.5
+          site: 3 # site preference
+      graph:
+        # - graph
+        pbc_grid: [2, 2, 0]
+        graph_radius: 2
+        # - neigh
+        covalent_ratio: 1.1
+        skin: 0.25
+        adsorbate_elements: ["C", "O"]
+        coordination_numbers: [3]
+        site_radius: 3
+        check_site_unique: true # TODO: move this to graph init?
+    indices: ":2"
+    composition: {"C": 2, "O": 2, "Pt": 36}
+    constraint: "lowest 18"
+    kpts: [4, 4, 1]
+explorations:
+  gads:
+    systems: ["s1CO+O"]
+    create:
+      driver:
+        backend: external
+        task: min
+        init:
+          dump_period: 8
+        run:
+          steps: 12
+    collect:
+      traj_period: 2
+    select: # list of selection procedures
+      - method: convergence
+        fmax: 0.05 # eV/AA
+      - method: deviation
+        criteria:
+          max_devi_e: [0.01, 0.25]
+          max_devi_f: [0.05, 0.25]
+      - method: descriptor
+        random_seed: 1112
+        descriptor: 
+          name: soap
+          species: ["C", "H", "O", "Pt"]
+          rcut : 6.0
+          nmax : 12
+          lmax : 8
+          sigma : 0.3
+          average : inner
+          periodic : true
+        criteria:
+          method: cur
+          zeta: -1
+          strategy: descent
+        number: [4, 0.2]

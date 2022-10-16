@@ -1,0 +1,31 @@
+task: ga
+database: mydb.db
+population:
+  init_size: 50
+  pmut: 0.8 # prob of mutation
+property:
+  target: energy # (total) energy, barrier
+  evaluation: # TODO: some utilities
+convergence:
+  generation: 20
+operators: # here, define a bunch of operators
+  comparator:
+    name: OFPComparator
+    kwargs: 
+      dE: 1.0
+      cos_dist_max: 0.001
+      rcut: 10.
+  crossover:
+    #name: CutSpliceCrossover # cluster
+    name: CutAndSplicePairing
+    kwargs:
+      p1: 1.
+      p2: 0.
+      minfrac: 0.15
+  mutation:
+    - name: StrainMutation
+      kwargs:
+        prob: 1.0
+    - name: SoftMutation
+      kwargs:
+        prob: 1.0

@@ -1,0 +1,16 @@
+potential:
+  name: nequip
+  params:
+    backend: lammps
+    command: "mpirun -n 2 /mnt/scratch2/chemistry-apps/dkb01416/lammps/developed/lammps-stable_29Oct2020/build-new/lmp_mpi -in in.lammps 2>&1 > lmp.out"
+    type_list:
+      - C
+      - Pd
+    flavour: allegro 
+    model: "/mnt/scratch2/users/40266371/scf/PdC/MD/allegro/deployed_model.pth"
+#scheduler:
+#  backend: slurm
+#  partition: k2-hipri
+#  ntasks: 2
+#  time: "00:01:00"
+#  environs: "source ~/envs/source_eann.sh\nconda activate catorch2"

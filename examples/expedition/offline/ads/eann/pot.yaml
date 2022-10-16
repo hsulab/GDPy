@@ -1,0 +1,17 @@
+potential:
+  name: eann
+  params:
+    backend: lammps
+    command: "mpirun -n 2 lmp_cat -in in.lammps 2>&1 > lmp.out"
+    directory: "LmpMin-worker"
+    type_list:
+      - C
+      - O
+      - Pt
+    model: /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/ensemble/model-5/eann_latest_lmp_DOUBLE.pt /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m10/ensemble/model-0/eann_1380_lmp_DOUBLE.pt
+#scheduler:
+#  backend: slurm
+#  partition: k2-hipri
+#  ntasks: 2
+#  time: "00:03:00"
+#  environs: "source ~/envs/source_eann.sh\nconda activate catorch2"

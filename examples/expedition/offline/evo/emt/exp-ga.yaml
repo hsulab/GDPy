@@ -1,0 +1,113 @@
+dataset: ./set/
+method: evo
+type_list: ["Cu"]
+systems:
+  Cu4:
+    prefix: Cu4
+    generator:
+      type: bulk
+      composition: {"Cu": 4}
+      covalent_ratio: 0.5
+      volume: 40
+      cell: []
+      region:
+        phi: [35, 145]
+        chi: [35, 145]
+        psi: [35, 145]
+        a: [3, 50]
+        b: [3, 50]
+        c: [3, 50]
+    composition: {"Cu": 4} # TODO: auto infer
+    kpts: 30
+  Cu8:
+    prefix: Cu8
+    generator:
+      type: bulk
+      composition: {"Cu": 8}
+      covalent_ratio: 0.5
+      volume: 80
+      cell: []
+      region:
+        phi: [35, 145]
+        chi: [35, 145]
+        psi: [35, 145]
+        a: [3, 50]
+        b: [3, 50]
+        c: [3, 50]
+      splits: # repeat-prob
+        repeats: [[2],[1]]
+        probs: [3,1]
+    composition: {"Cu": 8} # TODO: auto infer
+    kpts: 30
+  Cu12:
+    prefix: Cu12
+    generator:
+      type: bulk
+      composition: {"Cu": 12}
+      covalent_ratio: 0.5
+      volume: 120
+      cell: []
+      region:
+        phi: [35, 145]
+        chi: [35, 145]
+        psi: [35, 145]
+        a: [3, 50]
+        b: [3, 50]
+        c: [3, 50]
+      splits: # repeat-prob
+        repeats: [[2],[1]]
+        probs: [3,1]
+    composition: {"Cu": 12} # TODO: auto infer
+    kpts: 30
+  Cu24:
+    prefix: Cu24
+    generator:
+      type: bulk
+      composition: {"Cu": 24}
+      covalent_ratio: 0.5
+      volume: 240
+      cell: []
+      region:
+        phi: [35, 145]
+        chi: [35, 145]
+        psi: [35, 145]
+        a: [3, 50]
+        b: [3, 50]
+        c: [3, 50]
+      splits: # repeat-prob
+        repeats: [[2],[1]]
+        probs: [3,1]
+    composition: {"Cu": 24} # TODO: auto infer
+    kpts: 30
+explorations:
+  bulk:
+    systems: ["Cu4", "Cu8", "Cu12", "Cu24"]
+    create:
+      task: ./ga.yaml
+      scheduler: ./scheduler.yaml
+    collect:
+      traj_period: 10
+      boltz:
+        random_seed: 1112
+        fmax: 0.05
+        boltzmann: 3
+        number: [256, 0.2] # 128 from 1000 (20*50)
+    select:
+      - method: convergence
+        fmax: 0.05
+      - method: descriptor
+        random_seed: 1112
+        descriptor: 
+          name: soap
+          species: ["Cu"]
+          rcut : 6.0
+          nmax : 12
+          lmax : 8
+          sigma : 0.3
+          average : inner
+          periodic : true
+        criteria:
+          method: cur
+          zeta: -1
+          strategy: descent
+        number: [256, 1.0] 

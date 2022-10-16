@@ -1,0 +1,16 @@
+#batchsize: 2
+# - potential
+potential:
+  name: ./emt.py
+  params:
+    backend: ase
+# - driver
+driver:  
+  backend: external
+  # === nvt
+  task: min
+  init:
+    min_style: ExpCellFilter
+  run:
+    steps: 200
+    fmax: 0.05

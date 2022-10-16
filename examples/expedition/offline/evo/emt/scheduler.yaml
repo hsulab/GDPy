@@ -1,0 +1,7 @@
+# - scheduler
+backend: slurm
+partition: k2-medpri
+ntasks: 1
+time: "12:00:00"
+environs: "source ~/envs/source_eann.sh\nconda activate catorch2"
+user_commands: "for i in `seq 25`\ndo\n  gdp -p ./worker.yaml task ./task.yaml\ndone"

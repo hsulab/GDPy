@@ -1,0 +1,48 @@
+dataset: ./set/
+type_list: ["C", "Pd"] # this creates type_map
+systems:
+  PdC: 
+    prefix: PdC
+    structure: ./PdC.xyz
+    composition: {"C": 4, "Pd": 4}
+    kpts: 30
+    #constraint: "lowest 4"
+explorations:
+  bulk:
+    systems: ["PdC"]
+    create:
+      driver:
+        backend: external
+        task: md # md
+        init:
+          md_style: nvt
+          temp: [150, 300, 600] # broadcast params
+          Tdamp: 100 # fs
+          timestep: 2 # fs
+          dump_period: 4
+        run:
+          steps: 12
+    collect:
+      traj_period: 2
+    select: # list of selection procedures
+      - method: deviation # selection based on model deviation
+        random_seed: 1112
+        criteria:
+          max_devi_e: [0.01, 0.25]
+          max_devi_f: [0.05, 0.25]
+      - method: descriptor
+        random_seed: 1112
+        descriptor: 
+          name: soap
+          species: ["C", "Pd"]
+          rcut : 6.0
+          nmax : 12
+          lmax : 8
+          sigma : 0.3
+          average : inner
+          periodic : true
+        criteria:
+          method: cur
+          zeta: -1
+          strategy: descent
+        number: [2, 0.2] # TODO: auto? percent?

@@ -1,0 +1,55 @@
+dataset: ./set
+method: rxn # only have AFIR now
+type_list: ["C", "O", "Pt"] # this creates type_map
+systems:
+  s2CO+O:
+    prefix: Pt111s33rxn # used for database path
+    structure: /mnt/scratch2/users/40247882/pbe-oxides/eann-main/m09/explorations/Pt111s33_3CO+O/graph-adsorbates/s2CO+O/sorted/converged-descriptor-selected-1.xyz
+    index: ":3"
+    composition: {"C": 2, "O": 3, "Pt": 36}
+    constraint: "lowest 18"
+    kpts: [4, 4, 1]
+explorations:
+  srxn:
+    systems: ["s2CO+O"]
+    create: 
+      AFIR: # input structures should be optimised
+        target_pairs: ["O", "CO"]
+        gmax: 2.5
+        ginit: 0.5
+        gintv: 0.1
+        #seed
+        graph_params:
+          # - graph
+          pbc_grid: [1, 1, 0]
+          graph_radius: 0
+          # - neigh
+          covalent_ratio: 1.1
+          skin: 0.00
+          # - site
+          adsorbate_elements: ["C", "O"]
+        dyn_params:
+          fmax: 0.10
+          steps: 200
+    collect:
+      traj_period: 20 # every 10*dyn_dump_period steps plus last step
+    select:
+      - method: deviation
+        criteria:
+          max_devi_e: [0.05, 0.25]
+          max_devi_f: [null, null]
+      - method: descriptor
+        descriptor:
+          name: soap
+          species: ["C", "O", "Pt"]
+          rcut : 6.0
+          nmax : 12
+          lmax : 8
+          sigma : 0.3
+          average : inner
+          periodic : true
+        criteria:
+          method: cur
+          zeta: -1
+          strategy: descent
+        number: [4, 0.2]
