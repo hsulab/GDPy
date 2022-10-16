@@ -173,13 +173,14 @@
   <div class="section" id="potentials">
 <span id="potential-examples"></span><h1>Potentials<a class="headerlink" href="#potentials" title="Permalink to this heading">¶</a></h1>
 <p>We can define a <strong>potential</strong> in a unified input file (<cite>pot.yaml</cite>) for later
-simulation and training. The MLIP calculations are performed by <strong>ase</strong> <code class="docutils literal notranslate"><span class="pre">calculators</span></code> using either
-<strong>python</strong> built-in codes (PyTorch, TensorFlow) or File-IO based external codes
-(e.g. <strong>lammps</strong>).</p>
+simulation and training. The MLIP calculations are performed by <strong>ase</strong> <code class="docutils literal notranslate"><span class="pre">calculators</span></code>
+using either <strong>python</strong> built-in codes (PyTorch, TensorFlow) or File-IO based
+external codes (e.g. <strong>lammps</strong>).</p>
 <div class="section" id="formulations">
 <h2>Formulations<a class="headerlink" href="#formulations" title="Permalink to this heading">¶</a></h2>
-<p><strong>Suported MLIPs:</strong></p>
 <p>We have already implemented interfaces to the potentials below:</p>
+<p><strong>Suported MLIPs:</strong></p>
+<p>MLIPs are the major concern.</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 13%" />
@@ -263,12 +264,32 @@ forces, and stresses).</p>
 </div>
 <div class="section" id="simulation">
 <h2>Simulation<a class="headerlink" href="#simulation" title="Permalink to this heading">¶</a></h2>
-<p>The example below shows how to define a <strong>potential</strong> in a <strong>yaml</strong> file:</p>
+<p>We should define the potential before running any simulation.</p>
+<p>The related commands are</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># gdp -h for more info</span>
+$ gdp -h
+
+<span class="c1"># - results would be written to current directory</span>
+<span class="c1"># --- run simulations on local nodes</span>
+$ gdp -p ./pot.yaml driver ./structures.xyz
+
+<span class="c1"># --- run simulations on local nodes or submitted to job queues</span>
+$ gdp -p ./pot.yaml worker ./structures.xyz
+
+<span class="c1"># - if -d option is used, results would be written to it</span>
+$ gdp -d xxx -p ./pot.yaml worker ./structures.xyz
+</pre></div>
+</div>
+<p>For most potentials, <strong>type_list</strong> and <strong>model</strong> are two required parameters that
+are used by different backends. If the <strong>lammps</strong> backend is used, <strong>command</strong>
+must be set to specify how to run <em>lammps</em>. The example below shows how to define
+a <strong>potential</strong> (eann, deepmd, nequip, reax) in a <strong>yaml</strong> file (<cite>pot.yaml</cite>):</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># -- ase interface</span>
 <span class="nt">potential</span><span class="p">:</span>
     <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">deepmd</span> <span class="c1"># name of the potential</span>
     <span class="nt">params</span><span class="p">:</span> <span class="c1"># potential-specifc params</span>
         <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">ase</span> <span class="c1"># ase or lammps</span>
+        <span class="nt">type_list</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;C&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;H&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;O&quot;</span><span class="p p-Indicator">]</span>
         <span class="nt">model</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./graph.pb</span>
 
 <span class="c1"># -- lammps interface</span>
@@ -277,12 +298,127 @@ forces, and stresses).</p>
     <span class="nt">params</span><span class="p">:</span>
         <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lammps</span>
         <span class="nt">command</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lmp -in in.lammps 2&gt;&amp;1 &gt; lmp.out</span>
+        <span class="nt">type_list</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;C&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;H&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;O&quot;</span><span class="p p-Indicator">]</span>
         <span class="nt">model</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./graph.pb</span>
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Allegro can be accessed through the <strong>nequip</strong> potential but with an extra
+parameter <strong>flavour: allegro</strong> in the <strong>params</strong> section.</p>
+</div>
+<p>For <strong>vasp</strong>, the input can be much different as:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">vasp</span>
+    <span class="nt">params</span><span class="p">:</span>
+        <span class="c1"># NOTE: below paths should be absolute/resolved</span>
+        <span class="nt">pp_path</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">_YOUR-PSEUDOPOTENTIAL-PATH_</span>
+        <span class="nt">vdw_path</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">_YOUR-VDWKERNEL-PATH_</span>
+        <span class="nt">incar</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">_YOUR-INCAR-PATH_</span>
+        <span class="c1"># - system depandent</span>
+        <span class="nt">kpts</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span> <span class="nv">1</span><span class="p p-Indicator">,</span> <span class="nv">1</span><span class="p p-Indicator">]</span> <span class="c1"># kpoints, mesh [1,1,1] or spacing 30 AA^-1</span>
+        <span class="c1"># - run vasp</span>
+        <span class="nt">commad</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">mpirun -n 32 vasp_std 2&gt;&amp;1 &gt; vasp.out</span>
+</pre></div>
+</div>
+<p>After setting a <strong>driver</strong> in the input file (<cite>pot.yaml</cite>), we can run simulations
+with the defined potential. See <a class="reference internal" href="../computations/index.html#driver-examples"><span class="std std-ref">Driver</span></a> section for more details.</p>
 </div>
 <div class="section" id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading">¶</a></h2>
+<p>See <a class="reference external" href="https://github.com/hsulab/GDPy/tree/main/examples/potential/trainer">Trainer_Examples</a> in the GDPy repository for prepared input files.</p>
+<p>The related command is:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># train models in directory xxx</span>
+$ gdp -d xxx -p ./pot.yaml train
+</pre></div>
+</div>
+<p>To use the training interface, we need to define several parameters in the <strong>trainer</strong>
+section. The dataset would be automatically converted into required format. Some
+training parameters that are the same for different potentials can be set here
+and would be mapped to the corresponding one in the training configuration file:</p>
+<ul class="simple">
+<li><p>config:     configuration file for the training</p></li>
+<li><p>size:       number of models trained at the same time</p></li>
+<li><p>epochs:     number of training epcohs</p></li>
+<li><p>dataset:    a list of directories containing xyz files</p></li>
+<li><p>train:      train command</p></li>
+<li><p>freeze:     freeze command</p></li>
+<li><p>scheduler:  job setting</p></li>
+</ul>
+<p>For <strong>deepmd</strong>,</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">deepmd</span>
+    <span class="nt">trainer</span><span class="p">:</span>
+        <span class="nt">config</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./config.json</span>
+        <span class="nt">size</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+        <span class="nt">epochs</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">500</span>
+        <span class="nt">dataset</span><span class="p">:</span>
+            <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">../set/Cu4-Cu4/</span>
+            <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">../set/Cu8-Cu8/</span>
+        <span class="nt">train</span><span class="p">:</span> <span class="s">&quot;dp</span><span class="nv"> </span><span class="s">train</span><span class="nv"> </span><span class="s">config.json</span><span class="nv"> </span><span class="s">2&gt;&amp;1</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">train.out&quot;</span>
+        <span class="nt">freeze</span><span class="p">:</span> <span class="s">&quot;dp</span><span class="nv"> </span><span class="s">freeze</span><span class="nv"> </span><span class="s">-o</span><span class="nv"> </span><span class="s">graph.pb</span><span class="nv"> </span><span class="s">2&gt;&amp;1</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">freeze.out&quot;</span>
+        <span class="nt">scheduler</span><span class="p">:</span>
+            <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">slurm</span>
+            <span class="nt">partition</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">k2-gpu</span>
+            <span class="nt">time</span><span class="p">:</span> <span class="s">&quot;00:30:00&quot;</span>
+            <span class="nt">ntasks</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span>
+            <span class="nt">cpus-per-task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">12</span>
+            <span class="nt">mem-per-cpu</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">4G</span>
+            <span class="nt">gres</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">gpu:v100:1</span>
+            <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;conda</span><span class="nv"> </span><span class="s">activate</span><span class="nv"> </span><span class="s">deepmd\n&quot;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Deepmd has <strong>numb_steps</strong> instead of epochs. Therefore, <strong>numb_steps</strong> would be
+set as <strong>epochs</strong> times number of batchsizes depends on the dataset.</p>
+</div>
+<p>For <strong>nequip</strong> and <strong>allegro</strong>,</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">nequip</span>
+    <span class="nt">trainer</span><span class="p">:</span>
+        <span class="nt">config</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./config.yaml</span>
+        <span class="nt">size</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+        <span class="nt">epochs</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">500</span>
+        <span class="nt">dataset</span><span class="p">:</span>
+            <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">../set/Cu4-Cu4/</span>
+            <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">../set/Cu8-Cu8/</span>
+        <span class="nt">train</span><span class="p">:</span> <span class="s">&quot;nequip-train</span><span class="nv"> </span><span class="s">config.yaml</span><span class="nv"> </span><span class="s">2&gt;&amp;1</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">train.out&quot;</span>
+        <span class="nt">freeze</span><span class="p">:</span> <span class="s">&quot;nequip-deploy</span><span class="nv"> </span><span class="s">build</span><span class="nv"> </span><span class="s">--train-dir</span><span class="nv"> </span><span class="s">./auto</span><span class="nv"> </span><span class="s">./deployed_model.pth</span><span class="nv"> </span><span class="s">2&gt;&amp;1</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">freeze.out&quot;</span>
+        <span class="nt">scheduler</span><span class="p">:</span>
+            <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">slurm</span>
+            <span class="nt">partition</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">k2-gpu</span>
+            <span class="nt">time</span><span class="p">:</span> <span class="s">&quot;00:30:00&quot;</span>
+            <span class="nt">ntasks</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span>
+            <span class="nt">cpus-per-task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">12</span>
+            <span class="nt">mem-per-cpu</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">4G</span>
+            <span class="nt">gres</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">gpu:v100:1</span>
+            <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;conda</span><span class="nv"> </span><span class="s">activate</span><span class="nv"> </span><span class="s">catorch2\n&quot;</span>
+</pre></div>
+</div>
+<p>For <strong>eann</strong>,</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">potential</span><span class="p">:</span>
+    <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">eann</span>
+    <span class="nt">trainer</span><span class="p">:</span>
+        <span class="nt">config</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">./config.yaml</span>
+        <span class="nt">size</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+        <span class="nt">epochs</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">500</span>
+        <span class="nt">dataset</span><span class="p">:</span>
+            <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">../set/Cu4-Cu4/</span>
+            <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">../set/Cu8-Cu8/</span>
+        <span class="nt">train</span><span class="p">:</span> <span class="s">&quot;eann</span><span class="nv"> </span><span class="s">--config</span><span class="nv"> </span><span class="s">./config.yaml</span><span class="nv"> </span><span class="s">train</span><span class="nv"> </span><span class="s">2&gt;&amp;1</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">train.out&quot;</span>
+        <span class="nt">freeze</span><span class="p">:</span> <span class="s">&quot;eann</span><span class="nv"> </span><span class="s">--config</span><span class="nv"> </span><span class="s">./config.yaml</span><span class="nv"> </span><span class="s">freeze</span><span class="nv"> </span><span class="s">EANN.pth</span><span class="nv"> </span><span class="s">-o</span><span class="nv"> </span><span class="s">eann_latest_</span><span class="nv"> </span><span class="s">2&gt;&amp;1</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">freeze.out&quot;</span>
+        <span class="nt">scheduler</span><span class="p">:</span>
+            <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">slurm</span>
+            <span class="nt">partition</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">k2-gpu</span>
+            <span class="nt">time</span><span class="p">:</span> <span class="s">&quot;00:30:00&quot;</span>
+            <span class="nt">ntasks</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span>
+            <span class="nt">cpus-per-task</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">12</span>
+            <span class="nt">mem-per-cpu</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">4G</span>
+            <span class="nt">gres</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">gpu:v100:1</span>
+            <span class="nt">environs</span><span class="p">:</span> <span class="s">&quot;conda</span><span class="nv"> </span><span class="s">activate</span><span class="nv"> </span><span class="s">catorch2\n&quot;</span>
+</pre></div>
+</div>
 </div>
 </div>
 

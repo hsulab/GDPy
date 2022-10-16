@@ -234,15 +234,15 @@ deals with various machine learning potentials</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.create_driver">
 <span class="sig-name descname"><span class="pre">create_driver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dyn_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.create_driver" title="Permalink to this definition">¶</a></dt>
-<dd><p>create a worker for dynamics
-default the dynamics backend will be the same as calc
-however, ase-based dynamics can be used for all calculators</p>
+<dd><p>Create a driver for dynamics.</p>
+<p>Default the dynamics backend will be the same as calc. However,
+ase-based dynamics can be used for all calculators.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.create_worker">
-<span class="sig-name descname"><span class="pre">create_worker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">driver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.create_worker" title="Permalink to this definition">¶</a></dt>
-<dd><p>a machine operates calculations submitted to queue</p>
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.freeze">
+<span class="sig-name descname"><span class="pre">freeze</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.freeze" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update current calculator and estimator.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -277,6 +277,14 @@ however, ase-based dynamics can be used for all calculators</p>
 <dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_trainer">
 <span class="sig-name descname"><span class="pre">register_trainer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_params_</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_trainer" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_uncertainty_estimator">
+<span class="sig-name descname"><span class="pre">register_uncertainty_estimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">est_params_</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_uncertainty_estimator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create an extra uncertainty estimator.</p>
+<p>This can be used when the current calculator is not capable of
+estimating uncertainty.</p>
+</dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.scheduler">

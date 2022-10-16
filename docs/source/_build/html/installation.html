@@ -98,6 +98,7 @@
 <p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="potentials/index.html">Potentials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="computations/index.html">Computations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="expeditions/index.html">Expeditions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
@@ -203,8 +204,10 @@
 $ conda install ase dscribe joblib networkx tinydb pyyaml -c conda-forge
 <span class="c1"># download repository</span>
 $ git clone https://github.com/hsulab/GDPy.git
+<span class="c1"># add package to python path</span>
+$ <span class="nb">export</span> <span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PYTHONPATH</span>:_YOUR-GDPY-PATH_
 <span class="c1"># add executable to path</span>
-$ <span class="nb">export</span> <span class="nv">PATH</span><span class="o">=</span><span class="nv">$PATH</span>:./GDPy/bin/gdp
+$ <span class="nb">export</span> <span class="nv">PATH</span><span class="o">=</span><span class="nv">$PATH</span>:_YOUR-GDPY-PATH_/bin/gdp
 </pre></div>
 </div>
 </div>

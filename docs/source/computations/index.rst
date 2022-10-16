@@ -5,6 +5,9 @@ This section gives more details how to run basic simulations with different pote
 using a unified input file, which is generally made up of three components. We 
 need to define what potential to use in the **potential** section, what simulation to run 
 in the **driver** section, and finally what **scheduler** to delegate if necessary. 
+See Worker_Examples_ in the GDPy repository for prepared input files.
+
+.. _Worker_Examples: https://github.com/hsulab/GDPy/tree/main/examples/computations/worker
 
 An example input file (`pot.yaml`) is organised as follows: 
 

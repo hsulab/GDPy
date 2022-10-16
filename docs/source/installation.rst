@@ -41,8 +41,10 @@ Use conda to install necessary packages and add executable **gdp** to PATH.
     $ conda install ase dscribe joblib networkx tinydb pyyaml -c conda-forge
     # download repository
     $ git clone https://github.com/hsulab/GDPy.git
+    # add package to python path
+    $ export PYTHONPATH=$PYTHONPATH:_YOUR-GDPY-PATH_
     # add executable to path
-    $ export PATH=$PATH:./GDPy/bin/gdp
+    $ export PATH=$PATH:_YOUR-GDPY-PATH_/bin/gdp
 
 From Conda
 ----------
