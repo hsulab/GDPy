@@ -45,7 +45,7 @@ or File-IO based external codes (e.g. **lammps**).
 | [eann](https://github.com/zhangylch/EANN)            | (Rescursive) Embedded Atom Descriptor | NN/PyTorch   | ASE/Python, ASE/LAMMPS |
 | [deepmd](https://github.com/deepmodeling/deepmd-kit) | Deep Potential Descriptors            | NN/Tensorflow| ASE/Python, ASE/LAMMPS | 
 | [lasp](http://www.lasphub.com/#/lasp/laspHome)       | Atom-Centered Symmetry Functions      | NN/LASP      | ASE/LASP               |
-| [nequip](https://github.com/mir-group/nequip)        | E(3)-Equivalent Message Passing       | NN/LASP      | ASE/LASP               |
+| [nequip](https://github.com/mir-group/nequip)        | E(3)-Equivalent Message Passing       | NN/PyTorch   | ASE/Python, ASE/LAMMPS |
 
 *NOTE: We use a modified eann package to train and utilise.*
 
