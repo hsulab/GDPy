@@ -494,6 +494,10 @@ class AbstractExpedition(ABC):
             fp_path = res_dpath/"label"/tag_name
             nframes = len(frames)
             self.logger.info(f"tag: {tag_name} nframes: {nframes}")
+            # NOTE: remove existed wdir info
+            #       since previous calculations may add them
+            for a in frames:
+                _ = a.info.pop("wdir", None)
             if nframes > 0:
                 self._prepare_calc_dir(
                     res_dpath.name, fp_path, frames
