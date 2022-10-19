@@ -49,13 +49,9 @@ def main():
     )
     
     # - automatic training
-    #parser_train = subparsers.add_parser(
-    #    "train", help="automatic training utilities"
-    #)
-    #parser_train.add_argument(
-    #    'INPUTS',
-    #    help='a directory with input json files'
-    #)
+    parser_train = subparsers.add_parser(
+        "train", help="automatic training utilities"
+    )
 
     # automatic training
     #parser_model = subparsers.add_parser(
