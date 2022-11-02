@@ -44,6 +44,9 @@ class LaspManager(AbstractPotentialManager):
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
         
+        # update to resolved paths
+        self.calc_params["model"] = models
+        
         pot = {}
         if len(models) == len(atypes):
             for t, m in zip(atypes,models):
