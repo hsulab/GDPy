@@ -23,6 +23,8 @@ from ase.ga.population import Population
 
 from ase.ga.offspring_creator import OperationSelector
 
+from GDPy.ga.population import AbstractPopulationManager
+
 """
 TODO: search variational composition
 
@@ -103,14 +105,8 @@ class GeneticAlgorithemEngine():
         self.db_name = pathlib.Path(ga_dict["database"])
 
         # --- population ---
-        self.population_size = self.ga_dict["population"]["init_size"]
-        self.pop_init_seed = self.ga_dict["population"].get("init_seed", None)
-        self.pop_tot_size = self.ga_dict["population"].get("tot_size", self.population_size)
-        self.pop_ran_size = self.ga_dict["population"].get("ran_size", 0)
-        assert self.population_size == self.pop_tot_size, "tot_size should equal pop_size"
-        assert self.pop_ran_size < self.population_size, "ran_size should be smaller than pop_size"
-
-        self.pmut = self.ga_dict["population"].get("pmut", 0.5)
+        self.pop_manager = AbstractPopulationManager(ga_dict["population"])
+        self.pop_manager.pfunc = self.logger.info
 
         # --- property ---
         self.prop_dict = ga_dict["property"]
@@ -285,54 +281,34 @@ class GeneticAlgorithemEngine():
                 # NOTE: provide unified interface to mlp and dft
                 _ = self.worker.run([atoms]) # retrieve later
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
+        else:
+            # --- update population
+            self.pfunc("\n\n===== Update Population =====")
+            # TODO: population settings
+            #self._prepare_population(end_of_gen)
+            if end_of_gen:
+                # - create the population used for crossover and mutation
+                current_population = Population(
+                    data_connection = self.da,
+                    population_size = self.pop_manager.gen_size,
+                    comparator = self.comparing
+                )
+                # - 
+                self.pop_manager._update_generation_settings(current_population, self.mutations, self.pairing)
+                # - 
+                current_candidates = self.pop_manager._prepare_current_population(
+                    cur_gen=self.cur_gen, database=self.da, population=current_population, 
+                    generator=self.generator, pairing=self.pairing, mutations=self.mutations
+                )
 
-        # --- update population
-        self.pfunc("\n\n===== update population =====")
-        # TODO: population settings
-        self._prepare_population(end_of_gen)
-
-        # ---
-        self.pfunc("\n\n===== Optimisation and Reproduction =====")
-        if (
-            # nunrelaxed_gen == 0
-            #nrelaxed_gen == unrelaxed_gen == self.population_size
-            self.num_unrelaxed_gen < self.population_size
-            # TODO: check whether worker can accept new jobs
-        ):
-            # TODO: can be aggressive, reproduce when relaxed structures are available
-            self.pfunc("not enough unrelaxed candidates for generation %d and try to reproduce..." %self.cur_gen)
-            self.pfunc("number before reproduction: {}".format(self.worker.get_number_of_running_jobs() + self.num_relaxed_gen))
-            count, failed = 0, 0
-            #if hasattr(self.pairing, "minfrac"):
-            #    previous_minfrac = self.pairing.minfrac
-            while (
-                self.worker.get_number_of_running_jobs() + self.num_relaxed_gen < self.population_size
-            ):
-                #if failed >= 10:
-                #    if hasattr(self.pairing, "minfrac"):
-                #        self.pairing.minfrac = 0
-                #        print("switch minfrac to zero...")
-                #    else:
-                #        print("too many failures...")
-                #        break
-                self.pfunc(f"\n\n ----- try to reproduce, count {count}, failed {failed} -----")
-                atoms = self._reproduce()
-                if atoms:
-                    # run opt
+                self.pfunc("\n\n===== Optimisation =====")
+                # TODO: send candidates directly to worker that respects the batchsize
+                for atoms in current_candidates:
                     self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                     _ = self.worker.run([atoms]) # retrieve later
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
-                    count += 1
-                else:
-                    failed += 1
             else:
-                self.pfunc(f"{count} candidates were reproduced in this run...")
-                self.pfunc("enough jobs are running for the current generation...")
-            #if hasattr(self.pairing, "minfrac"):
-            #    self.pairing.minfrac = previous_minfrac 
-            #    self.pfunc(f"switch minfrac to {self.pairing.minfrac}...")
-        else:
-            self.pfunc("Enough candidates or not finished relaxing current generation...")
+                self.pfunc("Current generation has not finished...")
 
         # --- check if there were finished jobs
         self.worker.inspect()
@@ -602,7 +578,7 @@ class GeneticAlgorithemEngine():
             mutations.append(mut(**params))
 
         self.pfunc("--- mutations ---")
-        self.pfunc(f"mutation probability: {self.pmut}")
+        #self.pfunc(f"mutation probability: {self.pmut}")
         for mut, prob in zip(mutations, probs):
             self.pfunc(f"Use mutation {mut.descriptor} with prob {prob}.")
         self.mutations = OperationSelector(probs, mutations, rng=np.random)
@@ -620,127 +596,22 @@ class GeneticAlgorithemEngine():
             stoichiometry = self.generator.atom_numbers_to_optimise
         )
 
-        self.pfunc("\n\n===== Initial Population Creation =====")
-        # read seed structures
-        if self.pop_init_seed is not None:
-            self.pfunc("----- try to add seed structures -----")
-            seed_frames = read(self.pop_init_seed, ":")
-            seed_size = len(seed_frames)
-            assert (seed_size > 0 and seed_size <= self.population_size), "number of seeds is invalid"
-            # NOTE: check force convergence and only add converged structures
-            # check atom permutation
-            for i, atoms in enumerate(seed_frames):
-                # TODO: check atom order
-                atoms.info["data"] = {}
-                atoms.info["key_value_pairs"] = {}
-                atoms.info["key_value_pairs"]["origin"] = "seed {}".format(i)
-                atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
-                # TODO: check geometric convergence
-                if True: # force converged
-                    self.pfunc(f"  add converged seed {i}")
-                    da.add_relaxed_candidate(atoms)
-                else:
-                    # run opt
-                    pass
-        else:
-            seed_size = 0
-
-        # generate the starting population
-        self.pfunc("start to create initial population")
-        starting_population = self.generator.run(self.population_size - seed_size)
-        #self.pfunc("start: ", starting_population)
-        self.pfunc(f"finished creating initial population...")
+        starting_population = self.pop_manager._prepare_initial_population(generator=self.generator)
 
         self.pfunc(f"save population {len(starting_population)} to database")
         for a in starting_population:
             da.add_unrelaxed_candidate(a)
         
         # TODO: change this to the DB interface
-        self.pfunc("save population size {0} into database...".format(self.population_size))
+        self.pfunc("save population size {0} into database...".format(self.pop_manager.gen_size))
         row = da.c.get(1)
         new_data = row["data"].copy()
-        new_data['population_size'] = self.population_size
+        new_data["population_size"] = self.pop_manager.gen_size
         da.c.update(1, data=new_data)
 
         self.da = DataConnection(self.db_name)
 
         return
-    
-    def add_seed_structures(self, spath):
-        """ add structures into database
-            can be done during any time in global optimisation
-        """
-
-        return
-
-    def _prepare_population(self, end_of_gen=False):
-        """"""
-        # set current population
-        # usually, it should be the same as the initial size
-        # but for variat composition search, a large init size can be useful
-
-        # create the population
-        self.population = Population(
-            data_connection = self.da,
-            population_size = self.population_size,
-            comparator = self.comparing
-        )
-
-        # - operations at the end of each generation
-        if end_of_gen:
-            self.pfunc("\n----- End of Generation -----\n")
-            cur_pop = self.population.get_current_population()
-            #find_strain = False
-            #from ase.ga.standardmutations import StrainMutation
-            for mut in self.mutations.oplist:
-                #if issubclass(mut, StrainMutation):
-                #    find_strain = True
-                #    mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-                #    self.pfunc(f"StrainMutation Scaling Volume: {mut.scaling_volume}")
-                if hasattr(mut, "update_scaling_volume"):
-                    mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-                    self.pfunc(f"{mut.__class__.__name__} Scaling Volume: {mut.scaling_volume}")
-            if hasattr(self.pairing, "update_scaling_volume"):
-                self.pairing.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-                self.pfunc(f"{self.pairing.__class__.__name__} Scaling Volume: {self.pairing.scaling_volume}")
-        #self.pfunc('current population size: ', len(frames))
-        #for atoms in frames:
-        #    n_paired = atoms.info.get('n_paired', None)
-        #    looks_like = atoms.info.get('looks_like', None)
-        #    self.pfunc(atoms.info['confid'], ' -> ', n_paired, ' -> ', looks_like)
-
-        return
-    
-    def _reproduce(self):
-        """generate an offspring"""
-        # Submit new candidates until enough are running
-        a3 = None
-        for i in range(self.MAX_REPROC_TRY):
-            # try 10 times
-            parents = self.population.get_two_candidates()
-            a3, desc = self.pairing.get_new_individual(parents) # NOTE: this also adds key_value_pairs to a.info
-            if a3 is not None:
-                self.da.add_unrelaxed_candidate(
-                    a3, description=desc # here, desc is used to add "pairing": 1 to database
-                ) # if mutation happens, it will not be relaxed
-
-                mut_desc = ""
-                if random() < self.pmut:
-                    a3_mut, mut_desc = self.mutations.get_new_individual([a3])
-                    #self.pfunc("a3_mut: ", a3_mut.info)
-                    #self.pfunc("mut_desc: ", mut_desc)
-                    if a3_mut is not None:
-                        self.da.add_unrelaxed_step(a3_mut, mut_desc)
-                        a3 = a3_mut
-                self.pfunc(f"  generate offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
-                break
-            else:
-                mut_desc = ""
-                self.pfunc(f"  failed generating offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
-        else:
-            self.pfunc("cannot generate offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
-
-        return a3
     
     def evaluate_candidate(self, atoms):
         """ TODO: evaluate candidate based on raw score
