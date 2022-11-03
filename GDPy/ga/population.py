@@ -130,11 +130,12 @@ class AbstractPopulationManager():
         paired_structures = []
         for i in range(self.gen_rep_size):
             atoms = self._reproduce(database, population, pairing, mutations)
-            paired_structures.append(atoms)
-            self.pfunc("  --> confid %d" %(atoms.info["confid"]))
+            if atoms is not None:
+                paired_structures.append(atoms)
+                self.pfunc("  --> confid %d" %(atoms.info["confid"]))
         if len(paired_structures) < self.gen_rep_size:
             self.pfunc("There is not enough reproduced (paired) structures.")
-            self.pfunc(f"Only {len(paired_structures)} are reproduces. The rest would be generated randomly.")
+            self.pfunc(f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly.")
             cur_ran_size = self.gen_size - len(paired_structures)
         else:
             cur_ran_size = self.gen_ran_size
@@ -142,23 +143,22 @@ class AbstractPopulationManager():
         # - random
         random_structures = []
         for i in range(cur_ran_size):
-            atoms = generator.run(ran_size=1)[0]
-            #database.add_unrelaxed_candidate(
-            #    atoms, description=" random"
-            #)
-            self.pfunc("  reproduce randomly ")
-            atoms.info["key_value_pairs"] = {}
-            atoms.info["data"] = {}
-            confid = database.c.write(atoms, origin="RandomCandidateUnrelaxed",
-                relaxed=0, extinct=0, generation=cur_gen, 
-                key_value_pairs=atoms.info["key_value_pairs"], 
-                data=atoms.info["data"]
-            )
-            database.c.update(confid, gaid=confid)
-            atoms.info["confid"] = confid
+            frames = generator.run(ran_size=1)
+            if frames:
+                atoms = frames[0]
+                self.pfunc("  reproduce randomly ")
+                atoms.info["key_value_pairs"] = {}
+                atoms.info["data"] = {}
+                confid = database.c.write(atoms, origin="RandomCandidateUnrelaxed",
+                    relaxed=0, extinct=0, generation=cur_gen, 
+                    key_value_pairs=atoms.info["key_value_pairs"], 
+                    data=atoms.info["data"]
+                )
+                database.c.update(confid, gaid=confid)
+                atoms.info["confid"] = confid
 
-            self.pfunc("  --> confid %d" %(atoms.info["confid"]))
-            random_structures.append(atoms)
+                self.pfunc("  --> confid %d" %(atoms.info["confid"]))
+                random_structures.append(atoms)
         
         current_candidates.extend(paired_structures)
         current_candidates.extend(random_structures)
