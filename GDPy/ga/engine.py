@@ -271,6 +271,23 @@ class GeneticAlgorithemEngine():
             self.pfunc("not converged yet...")
 
         # - run
+        self.pfunc("\n\n===== Population Info =====")
+        #content = "For generation == 0 (initial population),"
+        #content += "{:>8s}  {:>8s}  {:>8s}\n".format("Random", "Seed", "Total")
+        #content += "{:>8d}  {:>8d}  {:>8d}\n".format(
+        #    self.pop_manager.gen_rep_size, self.pop_manager.gen_ran_size,
+        #)
+        content = "For generation > 0,\n"
+        content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format(
+            "Reprod", "Random", "Mutate", "Total"
+        )
+        content += "{:>8d}  {:>8d}  {:>8d}  {:>8d}\n".format(
+            self.pop_manager.gen_rep_size, self.pop_manager.gen_ran_size,
+            self.pop_manager.gen_mut_size, self.pop_manager.gen_size
+        )
+        content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
+        self.pfunc(content)
+
         # --- initial population
         if self.cur_gen == 0:
             self.pfunc("\n\n===== Initial Population Calculation =====")

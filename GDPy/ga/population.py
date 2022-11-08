@@ -53,7 +53,13 @@ class AbstractPopulationManager():
         assert isinstance(self.gen_size, int), "size of generaton needs to be an integer."
 
         self.gen_ran_size = gen_params.get("random", 0)
-        self.gen_rep_size = gen_params.get("reproduce", self.gen_size-self.gen_ran_size)
+        self.gen_ran_max_try = gen_params.get("max_random_try", self.gen_ran_size*10)
+
+        self.gen_rep_size = gen_params.get("reprod", self.gen_size-self.gen_ran_size)
+        self.gen_rep_max_try = gen_params.get("max_reprod_try", self.gen_rep_size*10)
+
+        self.gen_mut_size = gen_params.get("mutate", self.gen_size-self.gen_ran_size-self.gen_rep_size)
+        self.gen_mut_max_try = gen_params.get("max_mutate_try", self.gen_mut_size*10)
 
         # - init params
         init_params = params.get(
@@ -66,9 +72,10 @@ class AbstractPopulationManager():
         self.init_seed_file = init_params.get("seed_file", None)
 
         # - check if params were valid
-        assert (self.gen_rep_size+self.gen_ran_size) == self.gen_size, "In each generation, the sum of each component does not equal the total size."
+        assert (self.gen_rep_size+self.gen_ran_size+self.gen_mut_size) == self.gen_size, "In each generation, the sum of each component does not equal the total size."
         assert self.gen_ran_size <= self.gen_size, "In each generation, the random size should not be larger than the total size."
-        assert self.gen_rep_size <= self.gen_size, "In each generation, the reproduction size should not be larger than the total size."
+        assert self.gen_rep_size <= self.gen_size, "In each generation, the reprod size should not be larger than the total size."
+        assert self.gen_mut_size <= self.gen_size, "In each generation, the mutate size should not be larger than the total size."
 
         # - mutation
         self.pmut = params.get("pmut", 0.5)
@@ -89,6 +96,8 @@ class AbstractPopulationManager():
             seed_frames = read(self.init_seed_file, ":")
             seed_size = len(seed_frames)
             assert (seed_size > 0 and seed_size <= self.init_size), "The number of seed structures is invalid."
+        else:
+            seed_size = 0
 
         # TODO: check force convergence and only add converged structures
         # TODO: check atom permutation
@@ -113,6 +122,9 @@ class AbstractPopulationManager():
 
         self.pfunc(f"finished creating initial population...")
 
+        #self.init_seed_size = seed_size
+        #self.init_ran_size = len(random_frames)
+
         return starting_population
 
     def _prepare_current_population(
@@ -126,23 +138,29 @@ class AbstractPopulationManager():
         """
         current_candidates = []
 
-        # - reproduction
+        # - reproduction and then mutation
         paired_structures = []
-        for i in range(self.gen_rep_size):
+        for i in range(self.gen_rep_max_try):
             atoms = self._reproduce(database, population, pairing, mutations)
             if atoms is not None:
                 paired_structures.append(atoms)
-                self.pfunc("  --> confid %d" %(atoms.info["confid"]))
+                self.pfunc("  --> confid %d\n" %(atoms.info["confid"]))
+            if len(paired_structures) == self.gen_rep_size:
+                break
+        else:
+            self.pfunc(f"There is not enough paired structures after {self.gen_rep_max_try} attempts.")
+        current_candidates.extend(paired_structures)
+
         if len(paired_structures) < self.gen_rep_size:
             self.pfunc("There is not enough reproduced (paired) structures.")
             self.pfunc(f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly.")
-            cur_ran_size = self.gen_size - len(paired_structures)
+            cur_ran_size = self.gen_size - len(paired_structures) - self.gen_mut_size
         else:
             cur_ran_size = self.gen_ran_size
 
         # - random
         random_structures = []
-        for i in range(cur_ran_size):
+        for i in range(self.gen_ran_max_try):
             frames = generator.run(ran_size=1)
             if frames:
                 atoms = frames[0]
@@ -157,13 +175,40 @@ class AbstractPopulationManager():
                 database.c.update(confid, gaid=confid)
                 atoms.info["confid"] = confid
 
-                self.pfunc("  --> confid %d" %(atoms.info["confid"]))
+                self.pfunc("  --> confid %d\n" %(atoms.info["confid"]))
                 random_structures.append(atoms)
-        
-        current_candidates.extend(paired_structures)
+            if len(random_structures) == cur_ran_size:
+                break
+        else:
+            self.pfunc(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
         current_candidates.extend(random_structures)
 
-        assert len(current_candidates) == self.gen_size, "Not enough candidates for the next generation."
+        if len(current_candidates) < (self.gen_rep_size+self.gen_ran_size):
+            self.pfunc("There is not enough reproduced+random structures.")
+            self.pfunc(f"Only {len(current_candidates)} are generated. The rest would be generated by mutations.")
+            cur_mut_size = self.gen_size - len(current_candidates)
+        else:
+            cur_mut_size = self.gen_mut_size
+        
+        # - mutate
+        mutated_structures = []
+        for i in range(self.gen_mut_max_try):
+            atoms = population.get_one_candidate(with_history=True)
+            a3, desc = mutations.get_new_individual([atoms])
+            if atoms is not None:
+                database.add_unrelaxed_step(a3, desc)
+                self.pfunc("  Mutate cand{} by {}".format(atoms.info["confid"], desc))
+                self.pfunc("  --> confid %d\n" %(a3.info["confid"]))
+                mutated_structures.append(a3)
+            if len(mutated_structures) == cur_mut_size:
+                break
+        else:
+            self.pfunc(f"There is not enough mutated structures after {self.gen_mut_max_try} attempts.")
+        current_candidates.extend(mutated_structures)
+
+        if len(current_candidates) != self.gen_size:
+            self.pfunc("Not enough candidates for the next generation.")
+            raise RuntimeError("Not enough candidates for the next generation.")
 
         return current_candidates
     
