@@ -111,9 +111,30 @@ class DriverBasedWorker(AbstractWorker):
             assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
             frames = generator
         frames = copy.deepcopy(frames)
+        nframes = len(frames)
+
+        # - check wdir
+        # NOTE: get a list even if it only has one structure
+        wdirs = [] # [(confid,dynstep), ..., ()]
+        for icand, x in enumerate(frames):
+            wdir = x.info.get("wdir", None)
+            if wdir is None:
+                confid = x.info.get("confid", None)
+                if confid:
+                    dynstep = x.info.get("step", None) # step maybe 0
+                    if dynstep is not None:
+                        dynstep = f"_step{dynstep}"
+                    else:
+                        dynstep = ""
+                    wdir = "cand{}{}".format(confid,dynstep)
+                else:
+                    wdir = f"cand{icand}"
+            x.info["wdir"] = wdir
+            wdirs.append(wdir)
+        # - check whether each structure has a unique wdir
+        assert len(set(wdirs)) == nframes, f"Found duplicated wdirs {len(set(wdirs))} vs. {nframes}..."
 
         # - process data
-        nframes = len(frames)
         starts, ends = self._split_groups(nframes)
 
         job_info = {
@@ -125,28 +146,14 @@ class DriverBasedWorker(AbstractWorker):
             global_indices = range(s,e)
             # NOTE: get a list even if it only has one structure
             cur_frames = [frames[x] for x in global_indices]
-            wdirs = [] # [(confid,dynstep), ..., ()]
-            for icand, x in zip(global_indices,cur_frames):
-                wdir = x.info.get("wdir", None)
-                if wdir is None:
-                    confid = x.info.get("confid", None)
-                    if confid:
-                        dynstep = x.info.get("step", None) # step maybe 0
-                        if dynstep is not None:
-                            dynstep = f"_step{dynstep}"
-                        else:
-                            dynstep = ""
-                        wdir = "cand{}{}".format(confid,dynstep)
-                    else:
-                        wdir = f"cand{icand}"
+            cur_wdirs = [wdirs[x] for x in global_indices]
+            for x in cur_frames:
                 x.info["group"] = i
-                x.info["wdir"] = wdir
-                wdirs.append(wdir)
             # - check whether each structure has a unique wdir
-            assert len(set(wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(cur_frames)}..."
+            assert len(set(cur_wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(cur_frames)} for group {i}..."
 
             # - set specific params
-            job_info["groups"].append([global_indices, wdirs])
+            job_info["groups"].append([global_indices, cur_wdirs])
 
         processed_dpath = self.directory/"_data"
         processed_dpath.mkdir(exist_ok=True)
