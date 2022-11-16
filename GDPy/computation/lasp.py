@@ -28,6 +28,14 @@ Output files by LASP NVE-MD are
 
 """
 
+class LaspEnergyError(Exception):
+    """Error due to the failure of LASP energy.
+
+    """
+
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+
 def read_laspset(train_structures):
     """Read LASP TrainStr.txt and TrainFor.txt files."""
     train_structures = Path(train_structures)
@@ -442,7 +450,15 @@ class LaspNN(FileIOCalculator):
                 if line.strip().startswith("For"):
                     step = int(line.split()[1])
                     traj_steps.append(step)
-                    energy = float(line.split()[3])
+                    # NOTE: need check if energy is a number
+                    #       some ill structure may result in large energy of ******
+                    energy_data = line.split()[3]
+                    try:
+                        energy = float(energy_data)
+                    except ValueError:
+                        energy = np.inf
+                        msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(self.directory)
+                        warnings.warn(msg, UserWarning)
                     traj_energies.append(energy)
                     # stress
                     line = fopen.readline()
@@ -451,7 +467,12 @@ class LaspNN(FileIOCalculator):
                     forces = []
                     for j in range(natoms):
                         line = fopen.readline()
-                        forces.append(line.split())
+                        force_data = line.strip().split()
+                        if len(force_data) == 3: # expect three numbers
+                            pass
+                        else: # too large forces make out become ******
+                            force_data = [np.inf]*3
+                        forces.append(force_data)
                     forces = np.array(forces, dtype=float)
                     traj_forces.append(forces)
                 if line.strip() == "":
