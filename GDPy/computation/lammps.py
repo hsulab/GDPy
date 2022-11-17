@@ -61,24 +61,30 @@ def parse_thermo_data(logfile_path) -> dict:
     # better move to calculator class
     with open(logfile_path, "r") as fopen:
         lines = fopen.readlines()
+    
+    found_error = False
     start_idx, end_idx = None, None
     for idx, line in enumerate(lines):
+        # - get the line index at the start of the thermo infomation
         if line.startswith("Step"):
             start_idx = idx
-        # TODO: if not finish?
+        # - NOTE: find line index at the end
+        if line.startswith("ERROR: "):
+            found_error = True
+            end_idx = idx
         if line.startswith("Loop time"):
             end_idx = idx
         if start_idx is not None and end_idx is not None:
             break
     else:
-        raise ValueError("error in lammps output.")
-    #loop_time = lines[end_idx].strip().split()[3]
-    loop_time = lines[end_idx]
+        raise RuntimeError(f"Error in lammps output of {str(logfile_path)}.")
+    end_info = lines[end_idx] # either loop time or error
+
     # -- parse index of PotEng
     # TODO: save timestep info?
     thermo_keywords = lines[start_idx].strip().split()
     if "PotEng" not in thermo_keywords:
-        raise ValueError("cant find PotEng in lammps output.")
+        raise RuntimeError(f"Cant find PotEng in lammps output of {str(logfile_path)}.")
     thermo_data = lines[start_idx+1:end_idx]
     thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
     #print(thermo_data)
@@ -86,7 +92,7 @@ def parse_thermo_data(logfile_path) -> dict:
     for i, k in enumerate(thermo_keywords):
         thermo_dict[k] = thermo_data[i]
 
-    return thermo_dict, loop_time
+    return thermo_dict, end_info
 
 class LmpDriver(AbstractDriver):
 
@@ -199,18 +205,18 @@ class LmpDriver(AbstractDriver):
         try:
             # NOTE: some calculation can overwrite existed data
             if read_exists:
-                converged, wall_time = atoms.calc._is_finished()
+                converged, end_info = atoms.calc._is_finished()
                 if converged:
-                    print(f"found finished dynamics {self.directory.name} with wall time {wall_time}.")
+                    print(f"Found finished simulation {self.directory.name} with info {end_info}.")
                     atoms.calc.type_list = parse_type_list(atoms)
                     atoms.calc.read_results()
                 else:
                     # NOTE: restart calculation!!!
                     _  = atoms.get_forces()
-                    converged, wall_time = atoms.calc._is_finished()
+                    converged, end_info = atoms.calc._is_finished()
             else:
                 _  = atoms.get_forces()
-                converged, wall_time = atoms.calc._is_finished()
+                converged, end_info = atoms.calc._is_finished()
         except OSError:
             converged = False
         #else:
@@ -218,9 +224,8 @@ class LmpDriver(AbstractDriver):
 
         # NOTE: always use dynamics calc
         # TODO: should change positions and other properties for input atoms?
-        assert converged and atoms.calc.cached_traj_frames is not None, "failed to read results in lammps"
+        assert converged and atoms.calc.cached_traj_frames is not None, "Failed to read results in lammps."
         new_atoms = atoms.calc.cached_traj_frames[-1]
-        self.cached_loop_time = atoms.calc.cached_loop_time
 
         if extra_info is not None:
             new_atoms.info.update(**extra_info)
@@ -293,9 +298,6 @@ class Lammps(FileIOCalculator):
     #: Cached trajectory of the previous simulation.
     cached_traj_frames: List[Atoms] = None
 
-    #: Cached wall time of the previous simulation.
-    cached_loop_time: str = None
-
     def __init__(
         self, 
         command = None, 
@@ -353,26 +355,36 @@ class Lammps(FileIOCalculator):
         return
     
     def _is_finished(self):
-        """Check whether the simulation is finished and return wall time."""
-        is_finished, wall_time = False, "not finished"
+        """Check whether the simulation finished or failed. 
+
+        Return wall time if the simulation finished.
+
+        """
+
+        is_finished, end_info = False, "not finished"
         log_filepath = Path(os.path.join(self.directory, ASELMPCONFIG.log_filename))
 
         if log_filepath.exists():
+            ERR_FLAG = "ERROR: "
             END_FLAG = "Total wall time:"
             with open(log_filepath, "r") as fopen:
                 lines = fopen.readlines()
         
             for line in lines:
+                if line.strip().startswith(ERR_FLAG):
+                    is_finished = True
+                    end_info = " ".join(line.strip().split()[1:])
+                    break
                 if line.strip().startswith(END_FLAG):
                     is_finished = True
-                    wall_time = line.strip().split()[-1]
+                    end_info = " ".join(line.strip().split()[1:])
                     break
             else:
                 is_finished = False
         else:
             is_finished = False
 
-        return is_finished, wall_time
+        return is_finished, end_info 
     
     def read_results(self):
         """ASE read results."""
@@ -405,13 +417,21 @@ class Lammps(FileIOCalculator):
             #specorder=self.type_list, # NOTE: elements are written to dump file
             units=self.units
         )
+        nframes_traj = len(traj_frames)
+
         # - read thermo data
-        thermo_dict, loop_time = parse_thermo_data(_directory_path / ASELMPCONFIG.log_filename)
-        self.cached_loop_time = loop_time
+        thermo_dict, end_info = parse_thermo_data(_directory_path / ASELMPCONFIG.log_filename)
 
         # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        pot_energies = [unitconvert.convert(p, "energy", self.units, "ASE") for p in thermo_dict["PotEng"][:len(traj_frames)]]
-        assert len(pot_energies) == len(traj_frames), "number of pot energies and frames is inconsistent."
+        #       if there were any error, 
+        pot_energies = [unitconvert.convert(p, "energy", self.units, "ASE") for p in thermo_dict["PotEng"]]
+        nframes_thermo = len(pot_energies)
+        nframes = min([nframes_traj, nframes_thermo])
+
+        # TODO: check whether steps in thermo and traj are consistent
+        pot_energies = pot_energies[:nframes]
+        traj_frames = traj_frames[:nframes]
+        assert len(pot_energies) == len(traj_frames), f"Number of pot energies and frames are inconsistent at {str(self.directory)}."
 
         for pot_eng, atoms in zip(pot_energies, traj_frames):
             forces = atoms.get_forces()
