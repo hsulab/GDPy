@@ -103,10 +103,11 @@ class DriverBasedWorker(AbstractWorker):
         # - find frames in the database
 
         # - get frames
-        frames, frames_fpath = [], None
+        #frames, frames_fpath = [], None
+        frames = []
         if isinstance(generator, StructureGenerator):
+            #frames_fpath = getattr(generator, "fpath")
             frames = generator.run()
-            frames_fpath = getattr(generator, "fpath")
         else:
             assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
             frames = generator
