@@ -101,7 +101,7 @@ class VaspDriver(AbstractDriver):
     }
 
     # - system depandant params
-    syswise_keys: List[str] = ["system", "kpts"]
+    syswise_keys: List[str] = ["system", "kpts", "kspacing"]
 
     def _parse_params(self, params_: dict) -> NoReturn:
         """Parse different tasks, and prepare init and run params."""
