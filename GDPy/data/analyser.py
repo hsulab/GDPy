@@ -103,7 +103,6 @@ def parse_constraint_info(cons_info):
 
     return
 
-
 class DatasetSystems():
 
     """ PlainTextDatasetSystem
@@ -263,7 +262,6 @@ class DatasetSystems():
         content += "===== End DataSystems =====\n"
 
         return content
-
 
 class DataOperator():
 

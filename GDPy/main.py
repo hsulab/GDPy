@@ -80,52 +80,48 @@ def main():
     )
 
     # ----- data analysis -----
-    #parser_data = subparsers.add_parser(
-    #    "data", help="data analysis subcommand"
-    #)
-    #parser_data.add_argument(
-    #    "DATA", help = "general data setting file"
-    #)
-    #parser_data.add_argument(
-    #    "-c", "--choice", default="dryrun",
-    #    choices = ["dryrun", "stat", "calc", "compress"],
-    #    help = "choose data analysis mode"
-    #)
-    
-    ## general options for reading structures
-    #parser_data.add_argument(
-    #    "-s", "--system", default = None,
-    #    help = "system info file"
-    #)
-    #parser_data.add_argument(
-    #    "-n", "--name", default = "ALL",
-    #    help = "system name"
-    #)
-    #parser_data.add_argument(
-    #    "-p", "--pattern", default = "*.xyz",
-    #    help = "xyz search pattern"
-    #)
-
-    #parser_data.add_argument(
-    #    "-m", "--mode", default=None,
-    #    help = "data analysis mode"
-    #)
-
-    #parser_data.add_argument(
-    #    "-num", "--number", 
-    #    default = -1, type=int,
-    #    help = "number of selection"
-    #)
-    #parser_data.add_argument(
-    #    "-etol", "--energy_tolerance", 
-    #    default = 0.020, type = float,
-    #    help = "energy tolerance per atom"
-    #)
-    #parser_data.add_argument(
-    #    "-es", "--energy_shift", 
-    #    default = 0.0, type = float,
-    #    help = "add energy correction for each structure"
-    #)
+    parser_data = subparsers.add_parser(
+        "data", help="data analysis"
+    )
+    parser_data.add_argument(
+        "DATA", help = "data configuration file (json/yaml)"
+    )
+    parser_data.add_argument(
+        "-r", "--run", default=None,
+        help = "configuration for specific operation (json/yaml)"
+    )
+    parser_data.add_argument(
+        "-c", "--choice", default="dryrun",
+        choices = ["dryrun", "stat", "calc", "compress"],
+        help = "choose data analysis mode"
+    )
+    parser_data.add_argument(
+        "-n", "--name", default = "ALL",
+        help = "system name"
+    )
+    parser_data.add_argument(
+        "-p", "--pattern", default = "*.xyz",
+        help = "xyz search pattern"
+    )
+    parser_data.add_argument(
+        "-m", "--mode", default=None,
+        help = "data analysis mode"
+    )
+    parser_data.add_argument(
+        "-num", "--number", 
+        default = -1, type=int,
+        help = "number of selection"
+    )
+    parser_data.add_argument(
+        "-etol", "--energy_tolerance", 
+        default = 0.020, type = float,
+        help = "energy tolerance per atom"
+    )
+    parser_data.add_argument(
+        "-es", "--energy_shift", 
+        default = 0.0, type = float,
+        help = "add energy correction for each structure"
+    )
 
     # --- worker interface
     parser_driver = subparsers.add_parser(
@@ -249,11 +245,13 @@ def main():
         from GDPy.expedition import run_expedition
         run_expedition(potter, referee, args.EXPEDITION)
     elif args.subcommand == "data":
-        from GDPy.data.main import data_main
+        from GDPy.data import data_main
         data_main(
             args.DATA,
-            potter, args.choice, args.mode,
-            args.system,
+            potter, referee,
+            args.run,
+            #
+            args.choice, args.mode,
             args.name, args.pattern,
             args.number, args.energy_tolerance, args.energy_shift
         )
