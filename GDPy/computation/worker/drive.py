@@ -229,7 +229,7 @@ class DriverBasedWorker(AbstractWorker):
             group_name = f"group-{ig}"
             #if group_directory.name in queued_names:
             if group_name in queued_names and cur_md5 in queued_frames:
-                self.logger.info(f"{group_name} was submitted.")
+                self.logger.info(f"{group_name} at {self.directory.name} was submitted.")
                 continue
             group_directory = self.directory
 

@@ -183,11 +183,11 @@ class AbstractWorker(abc.ABC):
 
             info_name = job_name[self.UUIDLEN+1:]
             if scheduler.is_finished():
-                self.logger.info(f"{info_name} is finished...")
+                self.logger.info(f"{info_name} at {self.directory.name} is finished...")
                 doc_data = self.database.get(Query().gdir == job_name)
                 self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
             else:
-                self.logger.info(f"{info_name} is running...")
+                self.logger.info(f"{info_name} at {self.directory.name} is running...")
 
         return
     
