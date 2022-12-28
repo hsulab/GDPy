@@ -84,7 +84,7 @@ def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME
     #    print(content)
     #    #write(worker.directory/"new_frames.xyz", new_frames, append=True)
     if o_fname is not None:
-        worker.inspect()
+        worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
             ret_frames = worker.retrieve()
             write(directory/o_fname, ret_frames)
