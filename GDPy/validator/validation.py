@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import warnings
 import pathlib
 from pathlib import Path
 from typing import NoReturn, List, Union
@@ -29,6 +30,8 @@ from abc import abstractmethod
 from GDPy.potential.register import PotentialRegister
 from GDPy.utils.command import parse_input_file
 
+from GDPy.validator.validator import AbstractValidator
+
 """
 Various properties to be validated
 
@@ -46,38 +49,6 @@ Diffusion Coefficient
 
 Adsorption, Reaction, ...
 """
-
-
-class AbstractValidator(ABC):
-
-    #def __init__(self, *args, **kwargs):
-    #    """"""
-    #    
-    #    return
-
-    def __init__(self, task_outpath: str, task_params: dict, pot_worker=None):
-        """
-        """
-        self.task_outpath = Path(task_outpath)
-        self.task_params = task_params
-
-        self.pm = pot_worker.potter
-        self.calc = self.pm.calc
-
-        return
-    
-    def __parse_outputs(self, input_dict: dict) -> NoReturn:
-        """ parse and create ouput folders and files
-        """
-        self.output_path = pathlib.Path(input_dict.get("output", "miaow"))
-        if not self.output_path.exists():
-            self.output_path.mkdir(parents=True)
-
-        return
-
-    @abstractmethod
-    def run(self, *args, **kwargs):
-        return
 
 
 class MinimaValidator(AbstractValidator):
@@ -576,7 +547,7 @@ class SinglePointValidator(AbstractValidator):
         return
 
 def run_validation(
-    input_json: Union[str, pathlib.Path],
+    directory: Union[str, pathlib.Path], input_json: Union[str, pathlib.Path],
     pot_manager
 ):
     """ This is a factory to deal with various validations...
@@ -587,8 +558,9 @@ def run_validation(
     # run over validations
     valid_dict = parse_input_file(input_json)
 
-    output_path = valid_dict.get("output", "./valid-out")
-    output_path = Path(output_path)
+    wdir = pathlib.Path(directory)
+    if wdir.exists():
+        warnings.warn("Validation wdir exists.", UserWarning)
 
     tasks = valid_dict.get("tasks", {})
     if len(tasks) == 0:
@@ -596,12 +568,15 @@ def run_validation(
     
     for task_name, task_params in tasks.items():
         print(f"=== Run Validation Task {task_name} ===")
-        task_outpath = output_path / task_name
+        task_outpath = wdir/task_name
         if not task_outpath.exists():
             task_outpath.mkdir(parents=True)
         method = task_params.get("method", "minima")
         # test surface related energies
-        if method == "minima":
+        if method == "dimer":
+            from GDPy.validator.dimer import DimerValidator
+            rv = DimerValidator(task_outpath, task_params, pm)
+        elif method == "minima":
             rv = MinimaValidator(task_outpath, task_params, pm)
         elif method == "reaction":
             rv = ReactionValidator(task_outpath, task_params, pm)
