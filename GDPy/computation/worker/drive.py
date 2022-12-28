@@ -270,6 +270,7 @@ class DriverBasedWorker(AbstractWorker):
                 (group_directory/structure_fname).name
             )
 
+            # TODO: check whether params for scheduler is changed
             self.scheduler.write()
             if self._submit:
                 self.logger.info(f"{group_directory.name} JOBID: {self.scheduler.submit()}")
@@ -330,32 +331,51 @@ class DriverBasedWorker(AbstractWorker):
 
         return
 
-    def inspect(self, *args, **kwargs):
-        """ check if any job were finished
+    def inspect(self, resubmit=False, *args, **kwargs):
+        """Check if any job were finished correctly not due to time limit.
+
+        Args:
+            resubmit: Check whether submit unfinished jobs.
+
         """
         self._initialise(*args, **kwargs)
         self.logger.info(f"@@@{self.__class__.__name__}+inspect")
 
-        scheduler = self.scheduler
-
         running_jobs = self._get_running_jobs()
+        #unretrieved_jobs = self._get_unretrieved_jobs()
         for job_name in running_jobs:
             #group_directory = self.directory / job_name[self.UUIDLEN+1:]
             #group_directory = self.directory / "_works"
             group_directory = self.directory
             doc_data = self.database.get(Query().gdir == job_name)
-            group_number = doc_data["group_number"]
+            uid = doc_data["uid"]
 
-            scheduler.set(**{"job-name": job_name})
-            scheduler.script = group_directory/f"g{group_number}-run-driver.script" 
-            #print("xxx", scheduler.script)
-            #print(pathlib.Path.cwd())
+            self.scheduler.set(**{"job-name": job_name})
+            self.scheduler.script = group_directory/f"run-{uid}.script" 
 
+            # -- check whether the jobs if running
             info_name = job_name[self.UUIDLEN+1:]
-            if scheduler.is_finished():
-                self.logger.info(f"{info_name} is finished...")
-                doc_data = self.database.get(Query().gdir == job_name)
-                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+            if self.scheduler.is_finished(): # if it is still in the queue
+                # -- valid if the task finished correctlt not due to time-limit
+                is_finished = False
+                wdir_names = doc_data["wdir_names"]
+                for x in wdir_names:
+                    if not (group_directory/x).exists():
+                        break
+                else:
+                    # TODO: all subtasks seem to finish...
+                    is_finished = True
+                if is_finished:
+                    # -- finished correctly
+                    self.logger.info(f"{info_name} is finished...")
+                    doc_data = self.database.get(Query().gdir == job_name)
+                    self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                else:
+                    # NOTE: no need to remove unfinished structures
+                    #       since the driver would check it
+                    if resubmit:
+                        self.scheduler.submit()
+                        self.logger.info(f"{info_name} is re-submitted.")
             else:
                 self.logger.info(f"{info_name} is running...")
 
