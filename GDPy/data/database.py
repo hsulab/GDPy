@@ -262,9 +262,20 @@ class StructureDatabase:
             res_path.mkdir()
 
         for sys in self.systems:
+            # -- update basic info for the worker
             nframes_in = len(sys.frames)
             worker.directory = out_path/sys.name
             worker.batchsize = nframes_in
+
+            # -- check outputs
+            frames_out_path = res_path/(sys.name+".xyz")
+            nframes_saved = 0
+            if frames_out_path.exists():
+                frames_saved = read(frames_out_path, ":")
+                nframes_saved = len(frames_saved)
+            if nframes_saved == nframes_in: # TODO: check if frames are consistent?
+                self.logger.info(f"!! {sys.name} has been saved.")
+                continue
 
             # --- update some specific params, e.g., kpts.
             for k in worker.driver.syswise_keys:
@@ -274,9 +285,9 @@ class StructureDatabase:
             worker.run(sys.frames)
 
             # --- retrieve results
-            worker.inspect()
+            worker.inspect(resubmit=True)
             if worker.get_number_of_running_jobs() == 0:
-                ret_frames = worker.retrieve()
+                ret_frames = worker.retrieve() # TODO: option for re-collect results?
                 nframes_ret = len(ret_frames)
                 if nframes_in == nframes_ret:
                     self.logger.info(f"{sys.name} finished and writes structures.")
