@@ -576,6 +576,9 @@ def run_validation(
         if method == "dimer":
             from GDPy.validator.dimer import DimerValidator
             rv = DimerValidator(task_outpath, task_params, pm)
+        elif method == "rdf":
+            from GDPy.validator.rdf import RdfValidator
+            rv = RdfValidator(task_outpath, task_params, pm)
         elif method == "minima":
             rv = MinimaValidator(task_outpath, task_params, pm)
         elif method == "reaction":
