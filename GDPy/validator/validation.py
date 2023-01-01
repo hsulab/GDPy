@@ -19,10 +19,8 @@ from ase.io import read, write
 from ase.calculators import calculator
 
 import ase.optimize
-from ase.optimize import BFGS
 from ase.constraints import FixAtoms
 from ase.constraints import UnitCellFilter
-from ase.neb import NEB
 
 from abc import ABC
 from abc import abstractmethod
@@ -263,148 +261,6 @@ class MinimaValidator(AbstractValidator):
 
         return
 
-
-class ReactionValidator(AbstractValidator):
-
-    def __init__(self, task_outpath: str, task_params: dict, pot_worker=None):
-        """ reaction formula
-            how to postprocess
-        """
-        super().__init__(task_outpath, task_params, pot_worker)
-
-        # create workers
-        self.drivers = {}
-        for dyn_method, dyn_dict in task_params["dynamics"].items():
-            param_dict = dyn_dict.copy()
-            param_dict.update(dict(method=dyn_method))
-            cur_driver = self.pm.create_driver(
-                dyn_params = param_dict
-            )
-            self.drivers.update({dyn_method: cur_driver})
-
-        return
-    
-    def _irun(self, p, ipath):
-        """"""
-        # create cur out
-        if not ipath.exists():
-            ipath.mkdir()
-
-        # read dft values
-        frames = read(p, ":")
-        #print(frames)
-        nframes = len(frames)
-        names = [a.info.get("name", None) for a in frames]
-
-        # check is and fs
-        en_is, en_fs = frames[0].get_potential_energy(), frames[-1].get_potential_energy()
-        print(en_is, en_fs)
-
-        opt_worker = self.drivers["opt"]
-        opt_worker.directory = ipath / "IS"
-        initial = opt_worker.run(frames[0].copy()) 
-        opt_worker.directory = ipath / "FS"
-        final = opt_worker.run(frames[-1].copy()) 
-
-        en_is, en_fs = initial.get_potential_energy(), final.get_potential_energy()
-        print(en_is, en_fs)
-
-        # check ts
-        print("check ts")
-        for i, n in enumerate(names):
-            # NOTE: have multiple TSs along one pathway?
-            if n == "TS":
-                transition = frames[i]
-                en_ts = transition.get_potential_energy()
-                print(en_ts)
-                ts_worker = self.drivers["ts"]
-                ts_worker.directory = ipath / "TS"
-                new_transition = ts_worker.run(transition.copy()) 
-                en_ts = new_transition.get_potential_energy()
-                print(en_ts)
-
-        # neb pathway
-        neb_params = self.task_params["neb"]
-        nimages = self.task_params["neb"]["nimages"]
-        print("nimages: ", nimages)
-        if nframes == 2:
-            images = [initial]
-            images += [initial.copy() for i in range(nimages-2)]
-            images.append(final)
-        else:
-            print("nimages -> nframes: ", nframes)
-            images = frames.copy()
-
-        # set calculator
-        self.calc.reset()
-        for atoms in images:
-            atoms.calc = self.calc
-
-        print("start NEB calculation...")
-        neb = NEB(
-            images, 
-            allow_shared_calculator=True,
-            climb = neb_params.get("climb", False),
-            k = neb_params.get("k", 0.1)
-            # dynamic_relaxation = False
-        )
-        neb.interpolate(apply_constraint=True) # interpolate configurations
-            
-        traj_path = str((ipath / "neb.traj").absolute())
-        qn = BFGS(neb, logfile="-", trajectory=traj_path)
-
-        steps = self.task_params["neb"]["steps"]
-        fmax = self.task_params["neb"]["fmax"]
-        qn.run(steps=steps, fmax=fmax)
-
-        # recheck energy
-        opt_images = read(traj_path, "-%s:" %nimages)
-        energies, en_stdvars = [], []
-        for a in opt_images:
-            self.calc.reset()
-            a.calc = self.calc
-            energies.append(a.get_potential_energy())
-            en_stdvars.append(a.info.get("en_stdvar", 0.0))
-        energies = np.array(energies)
-        energies = energies - energies[0]
-        print(energies)
-
-        # - calc reaction coordinate and energies
-        from ase.geometry import find_mic
-        differences = np.zeros(len(opt_images))
-        init_pos = opt_images[0].get_positions()
-        for i in range(1,nimages):
-            a = opt_images[i]
-            vector = a.get_positions() - init_pos
-            vmin, vlen = find_mic(vector, a.get_cell())
-            differences[i] = np.linalg.norm(vlen)
-        # save results to file
-        neb_data_path = ipath / "neb.dat"
-        content = ""
-        for i in range(nimages):
-            content += "{:4d}  {:10.6f}  {:10.6f}  {:10.6f}\n".format(
-                i, differences[i], energies[i], en_stdvars[i]
-            )
-        with open(neb_data_path, "w") as fopen:
-            fopen.write(content)
-
-        return
-    
-    def run(self):
-        """
-        """
-        # --- NEB calculation ---
-        for i, p in enumerate(self.task_params["pathways"]):
-            print(f"===== pathway {i} =====")
-            self._irun(p, self.task_outpath / ("p"+str(i)))
-
-        return
-    
-    def analyse(self):
-
-        return
-
-
 class RunCalculation():
 
     def __init__(self):
@@ -581,7 +437,8 @@ def run_validation(
             rv = RdfValidator(task_outpath, task_params, pm)
         elif method == "minima":
             rv = MinimaValidator(task_outpath, task_params, pm)
-        elif method == "reaction":
+        elif method == "rxn":
+            from GDPy.validator.rxn import ReactionValidator
             rv = ReactionValidator(task_outpath, task_params, pm)
         elif method == "bulk":
             rv = SinglePointValidator(task_outpath, task_params, pm)
