@@ -59,6 +59,14 @@ class AbstractValidator(abc.ABC):
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
+        # - screen
+        if not self.logger.hasHandlers():
+            ch = logging.StreamHandler()
+            ch.setLevel(log_level)
+            #ch.setFormatter(formatter)
+            self.logger.addHandler(ch)
+
+        # - file
         working_directory = self.directory
         log_fpath = working_directory / (self.__class__.__name__+".out")
 
@@ -66,15 +74,8 @@ class AbstractValidator(abc.ABC):
             fh = logging.FileHandler(filename=log_fpath, mode="a")
         else:
             fh = logging.FileHandler(filename=log_fpath, mode="w")
-
         fh.setLevel(log_level)
         #fh.setFormatter(formatter)
-
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-
-        self.logger.addHandler(ch)
         self.logger.addHandler(fh)
 
         return
