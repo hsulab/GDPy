@@ -17,6 +17,8 @@ import ase.constraints
 from ase.constraints import FixAtoms
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 
+from ase.calculators.singlepoint import SinglePointCalculator
+
 from GDPy.computation.driver import AbstractDriver
 
 from GDPy.md.md_utils import force_temperature
@@ -42,8 +44,22 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
     return
 
 def save_trajectory(atoms, log_fpath) -> NoReturn:
-    """Save simulation trajectory,"""
-    write(log_fpath, atoms, append=True)
+    """Create a clean atoms from the input and save simulation trajectory."""
+    atoms_ = Atoms(
+        symbols=atoms.get_chemical_symbols(),
+        positions=atoms.get_positions().copy(),
+        cell=atoms.get_cell().copy(),
+        pbc=copy.deepcopy(atoms.get_pbc())
+    )
+
+    results = dict(
+        energy = atoms.get_potential_energy(),
+        forces = copy.deepcopy(atoms.get_forces())
+    )
+    spc = SinglePointCalculator(atoms, **results)
+    atoms_.calc = spc
+
+    write(log_fpath, atoms_, append=True)
 
     return
 
