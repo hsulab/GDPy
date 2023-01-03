@@ -200,14 +200,14 @@ def main():
         help="structure filepath (in xyz format)"
     )
 
-    # validation
-    #parser_validation = subparsers.add_parser(
-    #    'valid', help='validate properties with trained model'
-    #)
-    #parser_validation.add_argument(
-    #    'INPUTS',
-    #    help='input json file with calculation parameters'
-    #)
+    # --- validation
+    parser_validation = subparsers.add_parser(
+        "valid", help="validate properties with trained models"
+    )
+    parser_validation.add_argument(
+        "INPUTS",
+        help="input json/yaml file with calculation parameters"
+    )
     
     # === execute 
     args = parser.parse_args()
@@ -265,8 +265,8 @@ def main():
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run)
     elif args.subcommand == "valid":
-        from .validator.validation import run_validation
-        run_validation(args.INPUTS, potter)
+        from GDPy.validator import run_validation
+        run_validation(args.directory, args.INPUTS, potter)
     elif args.subcommand == "graph":
         from GDPy.graph.graph_main import graph_main
         graph_main(args.n_jobs, args.CONFIG, args.structure_file, args.indices, args.mode)
