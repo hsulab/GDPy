@@ -71,6 +71,7 @@ class AbstractDriver(abc.ABC):
 
         self._directory = pathlib.Path(directory)
 
+        self._org_params = copy.deepcopy(params)
         self._parse_params(params)
 
         return
@@ -228,11 +229,11 @@ class AbstractDriver(abc.ABC):
     def as_dict(self) -> dict:
         """Return parameters of this driver."""
         params = dict(
-            backend = self.name,
-            task = self.task,
-            init = copy.deepcopy(self.init_params),
-            run = copy.deepcopy(self.run_params)
+            backend = self.name
         )
+        # NOTE: we use original params otherwise internal param names would be 
+        #       written out and make things confusing
+        params.update(self._org_params)
 
         return params
 
