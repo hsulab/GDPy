@@ -45,7 +45,7 @@ def create_generator(params: Union[str, dict]) -> StructureGenerator:
     elif method == "random":
         generator = RandomGenerator(params)
     elif method == "adsorbate":
-        generator = AdsorbateGraphGenerator(**params)
+        generator = AdsorbateGraphGenerator(params)
     else:
         raise RuntimeError("Unknown generator params...")
 
