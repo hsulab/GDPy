@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 import pickle
 
+from typing import List
+
 import numpy as np
 
 from joblib import Parallel, delayed
@@ -16,12 +18,9 @@ from ase.io import read, write
 
 from GDPy.utils.command import parse_input_file
 
-from GDPy.graph.creator import StruGraphCreator, SiteGraphCreator
-from GDPy.graph.utils import (
-    unique_chem_envs, compare_chem_envs, para_unique_chem_envs, new_para_unique_chem_envs,
-    newnew_para_unique_chem_envs, block_para_unique_chem_envs, pool_para_unique_chem_envs,
-    new_pool_para_unique_chem_envs
-)
+from GDPy.graph.creator import StruGraphCreator
+from GDPy.graph.sites import SiteGraphCreator
+from GDPy.graph.utils import unique_chem_envs, compare_chem_envs
 from GDPy.graph.para import paragroup_unique_chem_envs
 from GDPy.graph.utils import plot_graph, unpack_node_name
 
@@ -200,11 +199,12 @@ def create_structure_graphs(input_dict, idx, atoms, selected_indices=None):
     stru_creator = StruGraphCreator(
         **input_dict
     )
-    _ = stru_creator.generate_graph(atoms)
-    if selected_indices is None:
-        chem_envs = stru_creator.extract_chem_envs()
-    else:
-        chem_envs = stru_creator.extract_selected_chem_envs(selected_indices=selected_indices)
+    _ = stru_creator.generate_graph(atoms, selected_indices)
+    #if selected_indices is None:
+    #    chem_envs = stru_creator.extract_chem_envs(atoms)
+    #else:
+    #    chem_envs = stru_creator.extract_selected_chem_envs(selected_indices=selected_indices)
+    chem_envs = stru_creator.extract_chem_envs(atoms)
 
     print(f"check frame {idx}")
     print("number of adsorbate graphs: ", len(chem_envs))
@@ -212,11 +212,12 @@ def create_structure_graphs(input_dict, idx, atoms, selected_indices=None):
     return chem_envs
 
 
-def add_adsorbate(input_dict, idx, atoms, ads, distance_to_site=1.5, check_unique=False):
-    """
-    """
+def add_adsorbate(input_dict, idx, atoms, ads, distance_to_site=1.5, check_unique=False, pfunc=print):
+    """Insert adsorbate into the graph."""
     #print(f"====== create sites {i} =====")
-    print("check_unique in sites: ", check_unique)
+    pfunc("check_unique in sites: ", check_unique)
+    print(input_dict)
+
     site_creator = SiteGraphCreator(**input_dict)
     sites = site_creator.convert_atoms(atoms, check_unique=check_unique) # TODO: custom?
 
@@ -229,12 +230,12 @@ def add_adsorbate(input_dict, idx, atoms, ads, distance_to_site=1.5, check_uniqu
         if check_unique:
             sg = [sg[0]]
         for s in sg: 
-            new_atoms = s.adsorb(ads, site_creator.ads_indices, distance_to_site=distance_to_site)
+            new_atoms = s.adsorb(ads, site_creator.graph_creator.ads_indices, distance_to_site=distance_to_site)
             if not isinstance(new_atoms, Atoms):
                 noccupied += 1
                 #print(s, "!!! site may be already occupied!!!", new_atoms)
             else:
-                new_atoms.info["cycle"] = s.cycle
+                new_atoms.info["cycle"] = s.site_indices
                 new_atoms.arrays["order"] = np.array(range(len(new_atoms)))
                 created_frames.append(new_atoms)
 
@@ -244,73 +245,9 @@ def add_adsorbate(input_dict, idx, atoms, ads, distance_to_site=1.5, check_uniqu
     content += "nsites: %d\n" %sum([len(s) for s in sites])
     content += "noccupied: %d\n" %noccupied
     content += "\n\n"
-    print(content)
+    pfunc(content)
     
     return created_frames
-
-def del_adsorbate(graph_params, atoms, ads_chem_sym):
-    """"""
-    stru_creator = StruGraphCreator(
-        **graph_params
-    )
-
-    created_frames = []
-
-    _ = stru_creator.generate_graph(atoms)
-    chem_envs = stru_creator.extract_chem_envs()
-    print("delete adsorbate number of chem envs: ", len(chem_envs))
-    for g in chem_envs:
-        for (u, d) in g.nodes.data():
-            if d["central_ads"]:
-                chem_sym, idx, offset = unpack_node_name(u)
-                if chem_sym == ads_chem_sym:
-                    new_atoms = atoms.copy()
-                    del new_atoms[idx]
-                    created_frames.append(new_atoms)
-                    break
-        else:
-            # no valid adsorbate for this structure
-            pass
-
-    return created_frames
-
-def exchange_adsorbate(graph_params, atoms, ads_chem_sym, target_species, selected_indices=None):
-    """"""
-    print("exchange indices ", selected_indices)
-
-    stru_creator = StruGraphCreator(
-        **graph_params
-    )
-
-    created_frames = []
-
-    _ = stru_creator.generate_graph(atoms)
-    if selected_indices is None:
-        chem_envs = stru_creator.extract_chem_envs()
-    else:
-        chem_envs = stru_creator.extract_selected_chem_envs(selected_indices=selected_indices)
-    print("exchange adsorbate number of chem envs: ", len(chem_envs))
-    for g in chem_envs:
-        for (u, d) in g.nodes.data():
-            if d["central_ads"]:
-                chem_sym, idx, offset = unpack_node_name(u)
-                if chem_sym == ads_chem_sym:
-                    #print(ads_chem_sym)
-                    new_atoms = atoms.copy()
-                    new_atoms[idx].symbol = target_species
-                    created_frames.append(new_atoms)
-                    break
-        else:
-            # no valid adsorbate for this structure
-            pass
-
-    return created_frames
-
-def extract_unique_structures(chem_groups):
-    """ parallel
-    """
-
-    return
 
 def graph_main(n_jobs, graph_input_file, stru_path, indices, choice):
     """ sift unique adsorbate structures

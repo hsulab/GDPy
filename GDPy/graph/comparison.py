@@ -2,19 +2,176 @@
 # -*- coding: utf-8 -*-
 
 import time
-import networkx as nx
-import multiprocessing
-import concurrent.futures
 import pickle
-
+from typing import List
 from pathlib import Path
+
+import networkx as nx
 
 from joblib import Parallel, delayed
 
-from ase.io import read, write
+"""Some methods to compare graph.
+"""
 
-from GDPy.graph.utils import unique_chem_envs, compare_chem_envs, plot_graph
+#: Handles isomorphism for bonds.
+bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
 
+#: Handles isomorphism for atoms with regards to perodic boundary conditions.
+ads_match = nx.algorithms.isomorphism.categorical_node_match(["index", "ads"], [-1, False]) 
+
+# - serial algorithms
+def get_unique_environments_based_on_bonds(chem_envs: List[nx.Graph]) -> List[int]:
+    """Find unique environments based on graph edges.
+
+    This method compares one graph with another.
+
+    Args:
+        chem_envs: List of graph representation of an atom.
+
+    Returns:
+        Indices of unique graphs.
+    
+    """
+
+    nsites = len(chem_envs)
+
+    unique_indices = [0]
+    for i in range(1,nsites):
+        #print("u: ", unique_indices)
+        for j in unique_indices:
+            env_i, env_j = chem_envs[i], chem_envs[j]
+            #print(i, env_i, j, env_j)
+            #if nx.algorithms.isomorphism.is_isomorphic(env_i, env_j, edge_match=bond_match, node_match=ads_match):
+            if nx.algorithms.isomorphism.is_isomorphic(env_i, env_j, edge_match=bond_match):
+                #print(f"{i} == {j}")
+                break
+        else:
+            unique_indices.append(i)
+
+    return unique_indices
+
+def get_unique_environments_based_on_nodes_and_edges(chem_envs):
+    """Unique adsorbates. Get unique adsorbate chemical environment.
+    
+    Removes duplicate adsorbates which occur when PBCs detect the same 
+    adsorbate in two places. Each adsorbate graph has its atomic index checked 
+    to detect when PBC has created duplicates.
+
+    Args:
+        chem_env_groups (list[networkx.Graph]): Adsorbate/environment graphs
+
+    Returns:
+        list[networkx.Graph]: The unique adsorbate graphs
+
+    """
+    # Keep track of known unique adsorbate graphs
+    unique = []
+    for env in chem_envs:
+        for unique_env in unique:
+            if nx.algorithms.isomorphism.is_isomorphic(
+                env, unique_env, edge_match=bond_match, node_match=ads_match
+            ):
+                break
+        else: # Was unique
+            unique.append(env)
+
+    return unique
+
+def compare_chem_envs(chem_envs1, chem_envs2):
+    """Compares two sets of chemical environments to see if they are the same
+    in chemical identity.  Useful for detecting if two sets of adsorbates are
+    in the same configurations.
+
+    Args:
+        chem_envs1 (list[networkx.Graph]): A list of chemical environments, 
+                                           including duplicate adsorbates
+        chem_envs2 (list[networkx.Graph]): A list of chemical environments, 
+                                           including duplicate adsorbates
+
+    Returns:
+        bool: Is there a matching graph (site / adsorbate) for each graph?
+
+    """
+    # Do they have the same number of adsorbates?
+    if len(chem_envs1) != len(chem_envs2):
+        return False
+
+    envs_copy = chem_envs2[:] # Make copy of list
+
+    # Check if chem_envs1 matches chem_envs2 by removing from envs_copy
+    for env1 in chem_envs1: 
+        for env2 in envs_copy:
+            if nx.algorithms.isomorphism.is_isomorphic(env1, env2, edge_match=bond_match):
+                # Remove this from envs_copy and move onto next env in chem_envs1
+                envs_copy.remove(env2)
+                break
+
+    # Everything should have been removed from envs_copy if everything had a match
+    if len(envs_copy) > 0:
+        return False
+
+    return True
+
+def unique_chem_envs(chem_envs_groups, metadata=None, verbose=False):
+    """Given a list of chemical environments, find the unique
+    environments and keep track of metadata if required.
+
+    This function exists largely to help with unique site detection
+    but its performance will scale badly with extremely large numbers
+    of chemical environments to check.  This can be split into parallel
+    jobs.
+
+    Args:
+        chem_env_groups (list[list[networkx.Graph]]): 
+            Chemical environments to compare against each other
+        metadata (list[object]): 
+            Corresponding metadata to keep with each chemical environment
+
+    Returns:
+        list[list[list[networkx.Graph]]]: A list of unique chemical environments 
+                                          with their duplicates
+        list[list[object]]: A matching list of metadata
+    """
+    # print("*** org algo for chem_env cmp***")
+    # Error checking, this should never really happen
+    #print("chem_envs: ", chem_envs_groups)
+    if len(chem_envs_groups) == 0:
+        return [[],[]]
+
+    # We have metadata to manage
+    if metadata is not None:
+        if len(chem_envs_groups) != len(metadata):
+            raise ValueError("Metadata must be the same length as\
+                              the number of chem_envs_groups")
+    
+    # No metadata to keep track of
+    if metadata is None:
+        metadata = [None] * len(chem_envs_groups)
+
+    # Keep track of known unique environments
+    unique = []
+
+    for index, env in enumerate(chem_envs_groups):
+        #st = time.time()
+        for index2, (unique_indices, unique_env) in enumerate(unique):
+            if verbose:
+                print("Checking for uniqueness {:05d}/{:05d} {:05d}/{:05d}".format(index+1, len(chem_envs_groups), index2, len(unique)), end='\r')
+            if compare_chem_envs(env, unique_env):
+                unique_indices.append(index)
+                break
+        else: # Was unique
+            if verbose:
+                print("")
+            unique.append(([index], env))
+        #et = time.time()
+        #print("used time ", et-st, " for ", index, " for ", len(unique))
+    
+    # Zip trick to split into two lists to return
+    # unique_envs, unique_groups
+    # unique_groups = [[index,metadata],[]]
+    return zip(*[(env, [metadata[index] for index in indices]) for (indices, env) in unique])
+
+# - an algorithm for parallel comparison of graph groups
 def new_unique_chem_envs(extra_info, chem_envs_groups, env_indices, verbose=False):
     """"""
     if verbose:
@@ -151,6 +308,7 @@ def paragroup_unique_chem_envs(chem_envs_groups, metadata=None, directory=Path.c
     nframes = len(chem_envs_groups)
 
     directory = Path(directory)
+    saved_name = "extra_info.pkl"
     saved_info = directory / "extra_info.pkl"
     if saved_info.exists():
         with open(saved_info, "rb") as fopen:
@@ -218,7 +376,7 @@ def paragroup_unique_chem_envs(chem_envs_groups, metadata=None, directory=Path.c
                 
             if (icount+1) % 50 == 0:
                 print("save temp comparasion info...")
-                with open(saved_info.name+"-"+str(icount+1), "wb") as fopen:
+                with open(directory/(saved_name+"-"+str(icount+1)), "wb") as fopen:
                     pickle.dump(extra_info, fopen)
             
         #unique = new_unique_chem_envs(extra_info, chem_envs_groups, env_indices)
@@ -238,34 +396,4 @@ def paragroup_unique_chem_envs(chem_envs_groups, metadata=None, directory=Path.c
     return unique_envs, unique_groups
 
 if __name__ == "__main__":
-    #p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t400/chemenvs-222.pkl"
-    #p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t20/chemenvs.pkl"
-    #p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t100/chemenvs.pkl"
-    p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t400/chemenvs.pkl"
-    with open(p, "rb") as fopen:
-        chem_groups = pickle.load(fopen)
-    
-    #p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t20/cands-20.xyz"
-    #p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t100/cands-100.xyz"
-    p = "/mnt/scratch2/users/40247882/oxides/graph/NewTest/Pt111/s44a/ParaCmpTest/t400/cands-400.xyz"
-    frames = read(p, ":")
-    nframes = len(frames)
-
-    st = time.time()
-    unique_envs, unique_groups = paragroup_unique_chem_envs(chem_groups, list(enumerate(frames)), 16)
-    et = time.time()
-
-    print("tot time: ", et-st)
-
-    unique_data = []
-    for i, x in enumerate(unique_groups):
-        data = ["ug"+str(i)]
-        data.extend([a[0] for a in x])
-        unique_data.append(data)
-    content = "# unique, indices\n"
-    content += f"# ncandidates {nframes}\n"
-    for d in unique_data:
-        content += ("{:<8s}  "+"{:<8d}  "*(len(d)-1)+"\n").format(*d)
-
-    with open(Path.cwd() / "unique-g.txt", "w") as fopen:
-        fopen.write(content)
+    ...
