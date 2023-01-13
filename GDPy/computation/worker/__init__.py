@@ -18,10 +18,13 @@ DEFAULT_MAIN_DIRNAME = "MyWorker"
 def run_driver(structure: str, directory="./", worker=None, o_fname=None):
     """"""
     directory = pathlib.Path(directory)
+    if not directory.exists():
+        directory.mkdir()
 
     # - read structures
     from GDPy.builder import create_generator
     generator = create_generator(structure)
+    generator.directory = directory/"init"
     frames = generator.run()
     #nframes = len(frames)
     #print("nframes: ", nframes)

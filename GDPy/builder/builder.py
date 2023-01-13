@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import abc
-from typing import List
+from typing import List, Callable
 
 import pathlib
 
@@ -11,11 +11,16 @@ from ase import Atoms
 
 class StructureGenerator(abc.ABC):
 
-    _directory = pathlib.Path.cwd()
+    _directory = pathlib.Path.cwd() #: Working directory.
+
+    logger = None #: Logger instance.
+    pfunc: Callable = print #: Function for outputs.
 
     def __init__(self, directory, *args, **kwargs):
         """"""
         self.directory = directory
+        if not self.directory.exists():
+            self.directory.mkdir()
 
         return
 
@@ -28,11 +33,17 @@ class StructureGenerator(abc.ABC):
     def directory(self, directory_):
         """"""
         self._directory = pathlib.Path(directory_)
+        if not self._directory.exists():
+            self._directory.mkdir()
 
         return
     
     @abc.abstractmethod
     def run(self, *args, **kwargs) -> List[Atoms]:
+        """Generate structures based on rules."""
+        if self.logger is not None:
+            self._pfunc = self.logger.info
+        self.pfunc(f"@@@{self.__class__.__name__}")
 
         return
     
