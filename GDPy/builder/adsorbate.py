@@ -42,14 +42,28 @@ def make_clean_atoms(atoms_, results=None):
 
     return atoms
 
-def single_create_structure_graph(graph_params: dict, spec_params: dict, atoms: Atoms):
-    """Create structure graph and get selected chemical environments."""
+def single_create_structure_graph(graph_params: dict, spec_params: dict, atoms: Atoms) -> List[nx.Graph]:
+    """Create structure graph and get selected chemical environments.
+
+    Find atoms with selected chemical symbols or in the defined region.
+
+    Args:
+        graph_params: Parameters for the graph representation.
+        spec_params: Selected criteria.
+        atoms: Input structure.
+
+    Returns:
+        A list of graphs that represent the chemical environments of selected atoms.
+
+    """
     stru_creator = StruGraphCreator(**graph_params)
 
     # - check if spec_indices are all species
-    species = spec_params["species"]
+    selected_species = spec_params["selected_species"]
+    #print(selected_species)
 
     chemical_symbols = atoms.get_chemical_symbols()
+    #print(chemical_symbols)
 
     spec_indices = spec_params.get("spec_indices", None)
     if spec_indices is None:
@@ -57,14 +71,14 @@ def single_create_structure_graph(graph_params: dict, spec_params: dict, atoms: 
         if region is None:
             ads_indices = [] # selected indices
             for i, sym in enumerate(chemical_symbols):
-                if sym == species:
+                if sym in selected_species:
                     ads_indices.append(i)
         else:
             ads_indices = []
             #print(region)
             (ox, oy, oz, xl, yl, zl, xh, yh, zh) = region
             for i, a in enumerate(atoms):
-                if a.symbol == species:
+                if a.symbol in selected_species:
                     pos = a.position
                     if (
                         (ox+xl <= pos[0] <= ox+xh) and
@@ -378,14 +392,14 @@ class AdsorbateGraphGenerator(StructureGenerator):
         action = params.pop("action", "insert") # [insert, remove, exchange]
         if action == "insert":
             self.pfunc("---run insert---")
-            species = params.get("species", None)
-
+            # -- parameters for finding adsorption sites
             site_params = copy.deepcopy(params["site_params"])
 
+            # -- parameters for site graph
             graph_params = copy.deepcopy(self.graph_params) # to create site graph
             adsorbate_elements = copy.deepcopy(params.get("adsorbate_elements", []))
             #adsorbate_elements.append(params.get("adsorbate_elemnt", species)) # TODO: not an atom?
-            graph_params.update( # parameters for site graph
+            graph_params.update( 
                 dict(
                     adsorbate_elements = adsorbate_elements,
                     #coordination_numbers = params.get("coordination_numbers"),
@@ -393,7 +407,22 @@ class AdsorbateGraphGenerator(StructureGenerator):
                     #check_site_unique = params.get("check_site_unique", True)
                 )
             )
-            created_frames = self._insert_adsorbate(frames, species, graph_params, site_params)
+
+            # -- parameters for species used for comparison
+            species = params.get("species", None) # to insert
+            selected_species = copy.deepcopy(params.get("adsorbate_elements", []))
+            selected_species.append(species)
+            selected_species = list(set(selected_species))
+            spec_params = dict(
+                species = species,
+                selected_species = selected_species,
+                spec_indices = params.get("adsorbate_indices", None),
+                region = params.get("region", None)
+            )
+
+            created_frames = self._insert_adsorbate(
+                frames, graph_params, spec_params, site_params
+            )
 
         elif action == "remove":
             # - params for graph creator
@@ -403,8 +432,10 @@ class AdsorbateGraphGenerator(StructureGenerator):
             graph_params.update(adsorbate_elements=adsorbate_elements)
 
             # - find species to remove
+            species = params.get("species")
             spec_params = dict(
-                species = params.get("species"),
+                species = species,
+                selected_species = [species],
                 spec_indices = params.get("adsorbate_indices", None),
                 region = params.get("region", None)
             )
@@ -420,9 +451,12 @@ class AdsorbateGraphGenerator(StructureGenerator):
             graph_params.update(adsorbate_elements=adsorbate_elements)
 
             # - find species to exchange
+            species = params.get("species") # host species
+            target = params.get("target") # parasite species
             spec_params = dict(
-                species = params.get("species"), # host species
-                target = params.get("target"), # parasite species
+                species = species,
+                target = target,
+                selected_species = [species, target],
                 spec_indices = params.get("adsorbate_indices", None),
                 region = params.get("region", None)
             )
@@ -442,7 +476,7 @@ class AdsorbateGraphGenerator(StructureGenerator):
 
         return created_frames
 
-    def _insert_adsorbate(self, frames: List[Atoms], species: str, graph_params: dict, site_params: dict):
+    def _insert_adsorbate(self, frames: List[Atoms], graph_params: dict, spec_params: dict, site_params: dict):
         """Insert adsorbate into the graph.
 
         Args:
@@ -451,6 +485,7 @@ class AdsorbateGraphGenerator(StructureGenerator):
             disatnce_to_site: Distance between site COP and adsorabte COP.
         
         """
+        species = spec_params.get("species", None)
         self.pfunc(f"start to insert adsorbate {species}.")
 
         # - build adsorbate (single atom or molecule)
@@ -465,14 +500,14 @@ class AdsorbateGraphGenerator(StructureGenerator):
                 ) for idx, a in enumerate(frames)
             )
             #print(ads_frames)
+        ret_frames = []
+        for frames in ret:
+            ret_frames.extend(frames)
 
         # NOTE: It is unnecessary to compare among substrates if the spectator
         #       adsorbates are not the same as the inserted one. Otherwise, 
         #       comparasion should be performed.
-
-        created_frames = []
-        for frames in ret:
-            created_frames.extend(frames)
+        created_frames = self._compare_structures(ret_frames, graph_params, spec_params)
 
         return created_frames
     
@@ -516,56 +551,9 @@ class AdsorbateGraphGenerator(StructureGenerator):
             )
         # not unique across substrates
         write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
-        #graphs = ret
-        #print(graphs[0])
-        #unique_indices = get_unique_environments_based_on_bonds(graphs)
-        #created_frames = [ret_frames[i] for i in unique_indices]
 
-        # - check if the ret is empty
-        #   it happens when all species are removed...
-        ret_envs = []
-        for x in ret:
-            ret_envs.extend(x)
-
-        if ret_envs:
-            ret_env_groups = ret
-            self.pfunc("Typical Chemical Environment "+str(ret_envs[0]))
-            with CustomTimer(name="check-uniqueness"):
-                # compare chem envs
-                #unique_envs, unique_groups = unique_chem_envs(
-                #    chem_groups, list(enumerate(frames))
-                #)
-                unique_envs, unique_groups = paragroup_unique_chem_envs(
-                    ret_env_groups, list(enumerate(ret_frames)), directory=self.directory, 
-                    #n_jobs=self.njobs
-                    n_jobs=1
-                )
-                #self.pfunc("number of unique groups: ", len(unique_groups))
-
-            # - get unique structures
-            created_frames = [] # graphly unique
-            for x in unique_groups:
-                created_frames.append(x[0][1])
-            ncandidates = len(created_frames)
-
-            # -- unique info
-            unique_data = []
-            for i, x in enumerate(unique_groups):
-                data = ["ug"+str(i)]
-                data.extend([a[0] for a in x])
-                unique_data.append(data)
-            content = "# unique, indices\n"
-            content += f"# ncandidates {ncandidates}\n"
-            for d in unique_data:
-                content += ("{:<8s}  "+"{:<8d}  "*(len(d)-1)+"\n").format(*d)
-
-            unique_info_path = self.directory / f"unique-info-{self.op_num}.txt"
-            with open(unique_info_path, "w") as fopen:
-                fopen.write(content)
-        else:
-            self.pfunc("ALL species are removed...")
-            created_frames = ret_frames
-            ncandidates = len(created_frames)
+        # - get unique structures among substrates
+        created_frames = self._compare_structures(ret_frames, graph_params, spec_params)
 
         return created_frames
     
@@ -591,21 +579,29 @@ class AdsorbateGraphGenerator(StructureGenerator):
                 ret_envs.extend(envs)
                 ret_frames.extend(frames)
                 self.pfunc(f"number of sites {nenvs} to exchange for substrate {subid}.")
+        # not unique across substrates
+        write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
 
         # - compare the graph of chemical environments in the structure
         #   NOTE: if Zn atoms were to exchange with Cr, the chem envs of 
         #         the rest Zn atoms are used to compare the structure difference.
         #         TODO: consider Cr as well?
+        created_frames = self._compare_structures(ret_frames, graph_params, spec_params)
+
+        return created_frames
+    
+    def _compare_structures(self, ret_frames: List[Atoms], graph_params, spec_params):
+        """"""
         with CustomTimer(name="create-graphs", func=self.pfunc):
             ret = Parallel(n_jobs=self.njobs)(
                 delayed(single_create_structure_graph)(graph_params, spec_params, a)
                 for a in ret_frames
             )
         # not unique across substrates
-        write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
+        #write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
 
         # - check if the ret is empty
-        #   it happens when all species are removed...
+        #   it happens when all species are removed/exchanged...
         ret_envs = []
         for x in ret:
             ret_envs.extend(x)
@@ -646,36 +642,12 @@ class AdsorbateGraphGenerator(StructureGenerator):
             with open(unique_info_path, "w") as fopen:
                 fopen.write(content)
         else:
-            self.pfunc("ALL species are exchanged...")
+            self.pfunc("Cant find valid species...")
             created_frames = ret_frames
             ncandidates = len(created_frames)
 
         return created_frames
 
-    def compare_graphs(self, frames, graph_params, selected_indices=None):
-        """"""
-        # TODO: change this into a selector
-        # calculate chem envs
-        print("graph: ", graph_params)
-
-        with CustomTimer(name="comparasion"):
-            chem_groups = Parallel(n_jobs=self.njobs)(
-                delayed(create_structure_graphs)(graph_params, idx, a, s) for idx, (a, s) in enumerate(zip(frames,selected_indices))
-            )
-
-            with CustomTimer(name="unique"):
-                # compare chem envs
-                #unique_envs, unique_groups = unique_chem_envs(
-                #    chem_groups, list(enumerate(frames))
-                #)
-                unique_envs, unique_groups = paragroup_unique_chem_envs(
-                    chem_groups, list(enumerate(frames)), directory=self.directory, n_jobs=self.njobs
-                )
-
-                self.pfunc("number of unique groups: ", len(unique_groups))
-
-        return unique_groups
-
 
 if __name__ == "__main__":
-    pass
+    ...
