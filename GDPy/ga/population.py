@@ -29,8 +29,8 @@ class AbstractPopulationManager():
                 seed_file: ./seed.xyz # seed structures for the initial population
             gen: # for the following generations
                 size: 20 # number of structures in each generation
-                reproduce: 0.5 # crossover + mutate
-                random: 0.5
+                reproduce: 20 # crossover + mutate
+                random: 0
 
     """
 
@@ -180,7 +180,8 @@ class AbstractPopulationManager():
             if len(random_structures) == cur_ran_size:
                 break
         else:
-            self.pfunc(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
+            if self.gen_ran_size > 0: # NOTE: no break when random size is 0
+                self.pfunc(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
         current_candidates.extend(random_structures)
 
         if len(current_candidates) < (self.gen_rep_size+self.gen_ran_size):
@@ -203,7 +204,8 @@ class AbstractPopulationManager():
             if len(mutated_structures) == cur_mut_size:
                 break
         else:
-            self.pfunc(f"There is not enough mutated structures after {self.gen_mut_max_try} attempts.")
+            if self.gen_mut_size > 0: # NOTE: no break when random size is 0
+                self.pfunc(f"There is not enough mutated structures after {self.gen_mut_max_try} attempts.")
         current_candidates.extend(mutated_structures)
 
         if len(current_candidates) != self.gen_size:
