@@ -535,8 +535,9 @@ class Lammps(FileIOCalculator):
 
         # - constraint
         mobile_text, frozen_text = parse_constraint_info(atoms, self.constraint)
-        content += "group mobile id %s\n" %mobile_text
-        content += "\n"
+        if mobile_text: # NOTE: sometimes all atoms are fixed
+            content += "group mobile id %s\n" %mobile_text
+            content += "\n"
         if frozen_text: # not empty string
             # content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
             content += "group frozen id %s\n" %frozen_text
