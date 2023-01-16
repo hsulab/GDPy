@@ -201,12 +201,29 @@ class GeneticAlgorithemEngine():
         #    print(row['data'])
 
         return
+    
+    def run(self, worker, steps=None):
+        """Run the GA procedure several steps.
 
-    def run(self, worker):
+        Default setting would run the algorithm many times until its convergence. 
+        This is useful for running optimisations with serial worker.
+
+        """
+        conv_gen_num = self.conv_dict["generation"]
+
+        if steps is None:
+            steps = conv_gen_num
+
+        for istep in range(steps):
+            self._irun(worker, istep)
+
+        return
+
+    def _irun(self, worker, istep: int):
         """ main procedure
         """
         # - search target
-        self.pfunc("\n\n===== Genetic Algorithm =====")
+        self.pfunc(f"\n\n===== Genetic Algorithm at Step {istep} =====")
         target = self.prop_dict["target"]
         self.pfunc(f"\nTarget of Global Optimisation is {target}")
 

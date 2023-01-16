@@ -14,7 +14,7 @@ def run_task(params, pot_worker=None, ref_worker=None, run=1):
     if task == "ga":
         from GDPy.ga.engine import GeneticAlgorithemEngine
         ga = GeneticAlgorithemEngine(params)
-        ga.run(pot_worker)
+        ga.run(pot_worker, run)
         if ga.is_converged():
             ga.report()
             if ref_worker:
