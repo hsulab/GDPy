@@ -78,109 +78,6 @@ class RunCalculation():
         return np.array(data[:,0]), np.array(data[:,1])
 
 
-class SinglePointValidator(AbstractValidator):
-
-    """
-    calculate energies on each structures and save them to file
-    """
-
-    def __init__(self, task_outpath: str, task_params: dict, pot_manager=None):
-        """
-        """
-        self.task_outpath = Path(task_outpath)
-        self.task_params = task_params
-        self.pm = pot_manager
-
-        self.calc = pot_manager.calc
-        
-        self.structure_paths = self.task_params.get("structures", None)
-
-        return
-
-    def run(self):
-        """
-        lattice constant
-        equation of state
-        """
-        for stru_path in self.structure_paths:
-            # set output file name
-            stru_path = Path(stru_path)
-            stru_name = stru_path.stem
-            fname = self.task_outpath / (stru_name + "-valid.dat")
-            pname = self.task_outpath / (stru_name + "-valid.png")
-
-            print(stru_path)
-
-            # run dp calculation
-            frames = read(stru_path, ":")
-            natoms_array = [len(a) for a in frames]
-            volumes = [a.get_volume() for a in frames]
-            dft_energies = [a.get_potential_energy() for a in frames]
-
-            mlp_energies = []
-            self.calc.reset()
-            for a in frames:
-                a.calc = self.calc
-                mlp_energies.append(a.get_potential_energy())
-
-            # save to data file
-            data = np.array([natoms_array, volumes, dft_energies, mlp_energies]).T
-            np.savetxt(fname, data, fmt="%12.4f", header="natoms Prop DFT MLP")
-
-            self.plot_dimer(
-                "Bulk EOS", volumes, 
-                {
-                    "DFT": dft_energies, 
-                    "MLP": mlp_energies
-                },
-                pname
-            )
-
-        return
-
-    @staticmethod
-    def plot_dimer(task_name, distances, energies: dict, pname):
-        """"""
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
-        ax.set_title(
-            task_name,
-            fontsize=20, 
-            fontweight='bold'
-        )
-    
-        ax.set_xlabel('Distance [Å]', fontsize=16)
-        ax.set_ylabel('Energyr [eV]', fontsize=16)
-
-        for name, en in energies.items():
-            ax.scatter(distances, en, label=name)
-        ax.legend()
-
-        plt.savefig(pname)
-
-        return
-
-    def analyse(self):        
-        # plot
-        """
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16,12))
-        plt.suptitle(
-            #"Birch-Murnaghan (Constant-Volume Optimisation)"
-            "Energy-Volume Curve"
-        )
-    
-        ax.set_xlabel("Volume [Å^3/atom]")
-        ax.set_ylabel("Energy [eV/atom]")
-
-        ax.scatter(volumes/natoms_array, dft_energies/natoms_array, marker="*", label="DFT")
-        ax.scatter(volumes/natoms_array, mlp_energies/natoms_array, marker="x", label="MLP")
-
-        ax.legend()
-
-        plt.savefig('bm.png')
-        """
-
-        return
-
 def run_validation(
     directory: Union[str, pathlib.Path], input_json: Union[str, pathlib.Path],
     pot_manager
@@ -214,14 +111,19 @@ def run_validation(
         elif method == "rdf":
             from GDPy.validator.rdf import RdfValidator
             rv = RdfValidator(task_outpath, task_params, pm)
+        elif method == "singlepoint":
+            from GDPy.validator.singlepoint import SinglePointValidator
+            rv = SinglePointValidator(task_outpath, task_params, pm)
         elif method == "minima":
             from GDPy.validator.minima import MinimaValidator
             rv = MinimaValidator(task_outpath, task_params, pm)
         elif method == "rxn":
             from GDPy.validator.rxn import ReactionValidator
             rv = ReactionValidator(task_outpath, task_params, pm)
-        elif method == "bulk":
-            rv = SinglePointValidator(task_outpath, task_params, pm)
+        #elif method == "bulk":
+        #    rv = SinglePointValidator(task_outpath, task_params, pm)
+        else:
+            raise NotImplementedError(f"Validation {method} is not supported.")
         rv.run()
         #rv.analyse()
 
