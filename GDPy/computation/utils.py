@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
+
 import numpy as np
 
+from ase import Atoms
 from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -10,6 +13,20 @@ from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.potential.register import PotentialRegister
 from GDPy.utils.command import parse_input_file
 
+
+def make_clean_atoms(atoms_: Atoms, results: dict=None):
+    """Create a clean atoms from the input."""
+    atoms = Atoms(
+        symbols=atoms_.get_chemical_symbols(),
+        positions=atoms_.get_positions().copy(),
+        cell=atoms_.get_cell().copy(),
+        pbc=copy.deepcopy(atoms_.get_pbc())
+    )
+    if results is not None:
+        spc = SinglePointCalculator(atoms, **results)
+        atoms.calc = spc
+
+    return atoms
 
 def create_single_point_calculator(atoms_sorted, resort, calc_name):
     """ create a spc to store calc results
