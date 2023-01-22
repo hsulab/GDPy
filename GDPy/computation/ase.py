@@ -5,7 +5,7 @@ import os
 import copy
 import shutil
 from pathlib import Path
-from typing import NoReturn, List
+from typing import NoReturn, List, Tuple
 
 import numpy as np
 
@@ -15,11 +15,13 @@ from ase import units
 from ase.io import read, write
 import ase.constraints
 from ase.constraints import FixAtoms
+from ase.optimize.optimize import Dynamics
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.computation.driver import AbstractDriver
+from GDPy.computation.bias import create_bias_list
 
 from GDPy.md.md_utils import force_temperature
 
@@ -186,7 +188,7 @@ class AseDriver(AbstractDriver):
 
         return 
     
-    def _create_dynamics(self, atoms, *args, **kwargs):
+    def _create_dynamics(self, atoms, *args, **kwargs) -> Tuple[Dynamics,dict]:
         """Create the correct class of this simulation with running parameters."""
         # - set special keywords
         atoms.calc = self.calc
@@ -342,6 +344,110 @@ class AseDriver(AbstractDriver):
                     atoms.info[k] = data[j,i]
 
         return traj_frames
+
+
+class BiasedAseDriver(AseDriver):
+
+    """Run dynamics with external forces (bias).
+    """
+
+    def __init__(
+        self, calc=None, params: dict={}, directory="./",
+        *args, **kwargs
+    ):
+        """"""
+        super().__init__(calc, params, directory)
+
+        # - check bias
+        self.bias = self._parse_bias(params["bias"])
+
+        return
+    
+    def _parse_bias(self, params_list: List[dict]):
+        """"""
+        bias_list = create_bias_list(params_list)
+
+        return bias_list
+
+    def run(self, atoms_, *args, **kwargs):
+        """Run the driver with bias."""
+        atoms = copy.deepcopy(atoms_)
+        dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+
+        # NOTE: traj file not stores properties (energy, forces) properly
+        dynamics.attach(
+            save_trajectory, interval=self.init_params["loginterval"],
+            atoms=atoms, log_fpath=self.directory/"traj.xyz"
+        )
+        # NOTE: retrieve deviation info
+        dynamics.attach(
+            retrieve_and_save_deviation, interval=self.init_params["loginterval"], 
+            atoms=atoms, devi_fpath=self.directory/"model_devi-ase.dat"
+        )
+
+        # - set bias to atoms
+        for bias in self.bias:
+            bias.attach_atoms(atoms)
+
+        # - set steps
+        dynamics.max_steps = run_params["steps"]
+        dynamics.fmax = run_params["fmax"]
+
+        # - mimic the behaviour of ase dynamics irun
+        natoms = len(atoms)
+
+        for _ in self._irun(atoms, dynamics):
+            ...
+
+        return
+    
+    def _irun(self, atoms, dynamics):
+        """Mimic the behaviour of ase dynamics irun."""
+        print("xxx")
+        # -- compute original forces
+        cur_forces = atoms.get_forces(apply_constraint=True).copy()
+        ext_forces = np.zeros((len(atoms),3)) + np.inf
+        cur_forces += ext_forces # avoid convergence at 0 step
+
+        yield False
+
+        if dynamics.nsteps == 0: # log first step
+            dynamics.log(forces=cur_forces)
+            dynamics.call_observers()
+
+        while (
+            not dynamics.converged(forces=cur_forces) and 
+            dynamics.nsteps < dynamics.max_steps
+        ):
+            # -- compute original forces
+            cur_forces = atoms.get_forces(apply_constraint=True).copy()
+
+            # -- compute external forces
+            ext_forces = self._compute_external_forces(atoms)
+            #print(ext_forces)
+            cur_forces += ext_forces
+
+            # -- run step
+            dynamics.step(f=cur_forces)
+            dynamics.nsteps += 1
+
+            yield False
+
+            # log the step
+            dynamics.log(forces=cur_forces)
+            dynamics.call_observers()
+        
+        yield dynamics.converged(forces=cur_forces)
+    
+    def _compute_external_forces(self, atoms):
+        """Compute external forces based on bias params."""
+        # TODO: replace this with a bias mixer
+        natoms = len(atoms)
+        ext_forces = np.zeros((natoms,3))
+        for cur_bias in self.bias:
+            ext_forces += cur_bias.compute()
+
+        return ext_forces
 
 
 if __name__ == "__main__":

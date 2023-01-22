@@ -104,11 +104,16 @@ class AbstractPotentialManager(abc.ABC):
         if [self.calc_backend, dynamics] not in self.valid_combinations:
             raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
         
+        # - check bias params
+        bias_params = self.dyn_params.get("bias", None)
+        
         # create dynamics
         calc = self.calc
 
         if dynamics == "ase":
             from GDPy.computation.ase import AseDriver as driver_cls
+            if bias_params is not None:
+                from GDPy.computation.ase import BiasedAseDriver as driver_cls
         elif dynamics == "lammps":
             from GDPy.computation.lammps import LmpDriver as driver_cls
         elif dynamics == "lasp":
