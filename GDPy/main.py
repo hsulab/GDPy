@@ -164,6 +164,10 @@ def main():
         "--run", default=1, type=int,
         help="running options"
     )
+    parser_task.add_argument(
+        "--report", action="store_true", # TODO: analysis config file
+        help="report options"
+    )
 
     # selection
     parser_select = subparsers.add_parser(
@@ -263,7 +267,7 @@ def main():
         run_worker(args.STRUCTURE, args.directory, args.local, potter, args.output)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
-        run_task(args.params, potter, referee, args.run)
+        run_task(args.params, potter, referee, args.run, args.report)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
         run_validation(args.directory, args.INPUTS, potter)

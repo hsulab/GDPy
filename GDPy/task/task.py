@@ -3,7 +3,10 @@
 
 from GDPy.utils.command import parse_input_file
 
-def run_task(params, pot_worker=None, ref_worker=None, run=1):
+"""
+"""
+
+def run_task(params, pot_worker=None, ref_worker=None, run=1, report=1):
     """ task = worker + workflow
         GA - population
         MC - TODO: a single driver?
@@ -19,12 +22,21 @@ def run_task(params, pot_worker=None, ref_worker=None, run=1):
             ga.report()
             if ref_worker:
                 ga.refine(ref_worker)
+        else:
+            if report:
+                ga.report()
     elif task == "mc":
         from GDPy.mc.gcmc import GCMC
         gcmc = GCMC(**params)
         gcmc.run(pot_worker, run)
+        # TODO: add report functions to MC simulations
+    elif task == "rxn":
+        from GDPy.reaction.afir import AFIRSearch
+        rxn = AFIRSearch(**params)
+        rxn.run(pot_worker)
+        ...
     else:
-        raise RuntimeError(f"Cant find task {task}")
+        raise NotImplementedError(f"Cant find task {task}")
 
     return
 
