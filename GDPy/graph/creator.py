@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import List
+from typing import List, Mapping
+from itertools import chain
 
 import numpy as np
 import networkx as nx
@@ -11,7 +12,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.neighborlist import natural_cutoffs, NeighborList
 
-from GDPy.graph.utils import node_symbol, bond_symbol, unpack_node_name
+from GDPy.graph.utils import grid_iterator, node_symbol, bond_symbol, unpack_node_name
 
 """Create the graph representation of a structure based on its neighbour list.
 """
@@ -48,25 +49,6 @@ class NeighGraphCreator():
         self.bothways = bothways
 
         return
-
-    @staticmethod
-    def grid_iterator(grid):
-        """Yield all of the coordinates in a 3D grid as tuples
-
-        Args:
-            grid (tuple[int] or int): The grid dimension(s) to
-                                      iterate over (x or (x, y, z))
-
-        Yields:
-            tuple: (x, y, z) coordinates
-        """
-        if isinstance(grid, int): # Expand to 3D grid
-            grid = (grid, grid, grid)
-
-        for x in range(-grid[0], grid[0]+1):
-            for y in range(-grid[1], grid[1]+1):
-                for z in range(-grid[2], grid[2]+1):
-                    yield (x, y, z)
     
     def build_neighlist(self, atoms, bothways=True):
         # NOTE: for debug only
@@ -271,7 +253,7 @@ class StruGraphCreator():
         # - add all atoms to graph
         natoms = len(atoms)
         for i in range(natoms):
-            for x, y, z in self.neigh_creator.grid_iterator(grid):
+            for x, y, z in grid_iterator(grid):
                 self.add_atoms_node(graph, atoms[i].symbol, i, (x, y, z))   
 
         # - create a neighbour list
@@ -280,7 +262,7 @@ class StruGraphCreator():
     
         # - add all edges to graph
         for centre_idx in range(natoms):
-            for x, y, z in self.neigh_creator.grid_iterator(grid):
+            for x, y, z in grid_iterator(grid):
                 nei_indices, offsets = nl.get_neighbors(centre_idx)
                 for nei_idx, offset in zip(nei_indices, offsets):
                     ox, oy, oz = offset
@@ -375,6 +357,142 @@ class StruGraphCreator():
         #chem_envs.sort(key=lambda x: len(x.edges()))
 
         return chem_envs.copy()
+
+
+def find_product(atoms: Atoms, reactants: List[List[int]], grid=[1,1,0], radii_multi=1.0, skin=0.0) -> List[List[int]]:
+    """Find if there were a product from input reactants."""
+    valid_indices = list(chain.from_iterable(reactants))
+
+    # - create local graph
+    covalent_radii = natural_cutoffs(atoms, radii_multi)
+    nl = NeighborList(
+        covalent_radii, 
+        skin = skin, sorted=False,
+        self_interaction=False, 
+        bothways=True
+    )
+    nl.update(atoms)
+
+    #print([covalent_radii[i] for i in valid_indices])
+
+    graph = nx.Graph()
+    
+    #grid = [1,1,0] # for surface
+    # -- add nodes
+    for centre_idx in valid_indices:
+        for x, y, z in grid_iterator(grid):
+            graph.add_node(
+                node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
+                index=centre_idx
+            )
+
+    # -- add edges
+    for centre_idx in valid_indices:
+        for x, y, z in grid_iterator(grid):
+            nei_indices, nei_offsets = nl.get_neighbors(centre_idx)
+            for nei_idx, offset in zip(nei_indices, nei_offsets):
+                if nei_idx in valid_indices:
+                    # NOTE: check if neighbour is in the grid space
+                    #       this is not the case when cutoff is too large
+                    ox, oy, oz = offset
+                    if not (-grid[0] <= ox + x <= grid[0]):
+                        continue
+                    if not (-grid[1] <= oy + y <= grid[1]):
+                        continue
+                    if not (-grid[2] <= oz + z <= grid[2]):
+                        continue
+                    # ---
+                    graph.add_edge(
+                        node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
+                        node_symbol(atoms[nei_idx].symbol, nei_idx, (x+ox,y+oy,z+oz))
+                    )
+                else:
+                    ...
+    
+    #plot_graph(graph, "xxx.png")
+
+    # - find products
+    reax_nodes = [node_symbol(atoms[i].symbol, i, (0,0,0)) for i in valid_indices]
+    reax_graphs = nx.subgraph(graph, reax_nodes)
+
+    prod_graphs = [reax_graphs.subgraph(c) for c in nx.connected_components(reax_graphs)]
+
+    products = [[unpack_node_name(u)[1] for u in g.nodes()] for g in prod_graphs]
+
+    return products
+
+from ase.formula import Formula
+def find_molecules(atoms: Atoms, valid_indices: List[int], grid=[1,1,0], radii_multi=1.0, skin=0.0) -> Mapping[str,List[List[int]]]:
+    """Find if there were a product from input reactants."""
+    #valid_indices = list(chain.from_iterable(reactants))
+
+    # - create local graph
+    covalent_radii = natural_cutoffs(atoms, radii_multi)
+    nl = NeighborList(
+        covalent_radii, 
+        skin = skin, sorted=False,
+        self_interaction=False, 
+        bothways=True
+    )
+    nl.update(atoms)
+
+    #print([covalent_radii[i] for i in valid_indices])
+
+    graph = nx.Graph()
+    
+    #grid = [1,1,0] # for surface
+    # -- add nodes
+    for centre_idx in valid_indices:
+        for x, y, z in grid_iterator(grid):
+            graph.add_node(
+                node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
+                index=centre_idx
+            )
+
+    # -- add edges
+    for centre_idx in valid_indices:
+        for x, y, z in grid_iterator(grid):
+            nei_indices, nei_offsets = nl.get_neighbors(centre_idx)
+            for nei_idx, offset in zip(nei_indices, nei_offsets):
+                if nei_idx in valid_indices:
+                    # NOTE: check if neighbour is in the grid space
+                    #       this is not the case when cutoff is too large
+                    ox, oy, oz = offset
+                    if not (-grid[0] <= ox + x <= grid[0]):
+                        continue
+                    if not (-grid[1] <= oy + y <= grid[1]):
+                        continue
+                    if not (-grid[2] <= oz + z <= grid[2]):
+                        continue
+                    # ---
+                    graph.add_edge(
+                        node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
+                        node_symbol(atoms[nei_idx].symbol, nei_idx, (x+ox,y+oy,z+oz))
+                    )
+                else:
+                    ...
+    
+    #plot_graph(graph, "xxx.png")
+
+    # - find products
+    reax_nodes = [node_symbol(atoms[i].symbol, i, (0,0,0)) for i in valid_indices]
+    reax_graphs = nx.subgraph(graph, reax_nodes)
+
+    prod_graphs = [reax_graphs.subgraph(c) for c in nx.connected_components(reax_graphs)]
+
+    products = [[unpack_node_name(u)[1] for u in g.nodes()] for g in prod_graphs]
+
+    # - get formula
+    fragments = {}
+    for atomic_indices in products:
+        symbols = [atoms[i].symbol for i in atomic_indices]
+        formula = Formula.from_list(symbols).format("hill")
+        if formula in fragments:
+            fragments[formula].append(atomic_indices)
+        else:
+            fragments[formula] = [atomic_indices]
+
+    return fragments 
 
 
 if __name__ == "__main__":

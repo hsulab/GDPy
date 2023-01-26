@@ -15,6 +15,8 @@ from ase import Atoms
 from ase.constraints import constrained_indices
 from ase.calculators.singlepoint import SinglePointCalculator
 
+from GDPy.builder.group import create_an_intersect_group
+
 from GDPy.graph.creator import StruGraphCreator
 from GDPy.graph.comparison import bond_match, get_unique_environments_based_on_bonds
 from GDPy.graph.utils import node_symbol, unpack_node_name, show_nodes
@@ -237,49 +239,63 @@ class SingleAdsorptionSite(object):
 
     def adsorb(
         self, 
-        adsorbate, # single atom or a molecule
+        adsorbate_, # single atom or a molecule
         other_ads_indices, # indices of other adsorbate
-        distance_to_site=1.5, check_H_bond=False
+        distance_to_site=1.5, 
+        check_H_bond=False
     ):
         """"""
-        # --- prepare and add adsorbate
-        atoms = self.atoms.copy()
-        ads_copy = adsorbate.copy()
-        ads_copy.rotate([0, 0, 1], self.normal, center=[0,0,0])
-        #print(self.position,self.position+ (self.normal*height), self.normal)
-        ads_copy.translate(self.position + (self.normal*distance_to_site))
+        # - prepare and add adsorbate
+        substrate = self.atoms.copy()
+        adsorbate = adsorbate_.copy()
 
-        atoms.extend(ads_copy)
+        # -- first translate to origin
+        com = adsorbate.get_center_of_mass()
+        adsorbate.translate(np.zeros(3)-com)
 
-        # --- check indices of adsorbed species
-        index_to_check = range(len(atoms)-len(ads_copy), len(atoms))
+        # -- for single atom or linear molecule
+        #adsorbate.rotate([0, 0, 1], self.normal, center=[0,0,0])
+        #adsorbate.translate(self.position + (self.normal*distance_to_site))
+
+        # -- for planar molecules such as CO2
+        adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
+        adsorbate.translate(self.position + (self.normal*distance_to_site))
+
+        # -- for complex molecules
+
+        # -- add adsorbate to substrate
+        substrate.extend(adsorbate)
+
+        # - check indices of adsorbed species
+        natoms, natoms_ads = len(substrate), len(adsorbate)
+        index_to_check = range(natoms-natoms_ads, natoms)
         index_to_check_noH = [] # indices of to-put adsorbate
         for ads_t in index_to_check:
-            if atoms[ads_t].symbol != 'H':
+            if substrate[ads_t].symbol != "H":
                 index_to_check_noH.append(ads_t)
 
         ads_atoms_check = [] # indices of other adsorbates
         for ads_t in other_ads_indices:
-            if atoms[ads_t].symbol != 'H':
+            if substrate[ads_t].symbol != "H":
                 ads_atoms_check.append(ads_t)
         #print(index_to_check, index_to_check_noH)
 
-        # --- check distances between adsorbates
+        # - check distances between adsorbates
         all_ads_indices = other_ads_indices.copy()
-        for ad in range(len(atoms)-len(ads_copy), len(atoms)):
+        for ad in range(natoms-natoms_ads, natoms):
             all_ads_indices.append(ad)
         #print(ads_atoms)
 
         dist = float("inf")
         if len(other_ads_indices) != 0:
             for index in index_to_check_noH:
-                dists = atoms.get_distances(index, ads_atoms_check, mic=True)
+                dists = substrate.get_distances(index, ads_atoms_check, mic=True)
                 dist = min(dist, dists.min())
             # TODO: check is_occupied
             if dist < self.MIN_INTERADSORBATE_DISTANCE:
                 atoms = dist
         
-        return atoms 
+        return substrate
 
 
 def generate_normals(
@@ -449,9 +465,12 @@ def find_valid_indices(atoms, species: None, spec_indices=None, region=None):
 
 class SiteFinder(StruGraphCreator):
 
-    """ procedure
-        1. detect surface atoms
-        2. find site with different orders (coordination number)
+    """Find adsorption sites on surface.
+
+    The procedure includes several steps: 1. Detect surface atoms. 2. Find site 
+    with different orders (coordination number). This supports both single and 
+    multi-dentate sites.
+
     """
 
     surface_normal = 0.65
@@ -506,12 +525,10 @@ class SiteFinder(StruGraphCreator):
         nl = self.neigh_creator.build_neighlist(atoms, bothways=True)
         nl.update(atoms)
 
+        # TODO: surface region group command?
         # - find atoms that are on surface and possibly form adsorption sites...
         # NOTE: make sure to manually set the normals for 2-D materials, 
         #       all atoms should have a normal pointing up, as all atoms are surface atoms
-        #normals, surface_mask = self.generate_normals(
-        #    surface_normal=self.surface_normal, ads_indices=self.ads_indices, normalize_final=True
-        #)
         normals, surface_mask = generate_normals(
             atoms, nl, surface_mask, 
             self.ads_indices, mask_elements=[],
@@ -525,88 +542,154 @@ class SiteFinder(StruGraphCreator):
 
         # - find all valid adsorption sites
         site_groups = []
-        for cur_params in site_params:
-            # -- some basic params
-            cn = cur_params.get("cn") # coordination number
-            cur_site_radius = cur_params.get("radius", self._site_radius)
-            print("coordination number: ", cn)
-            # -- find possible atoms to form the site
-            print("graph: ", graph)
-            cur_species = cur_params.get("species", None)
-            site_indices = cur_params.get("site_indices", None)
-            region = cur_params.get("region", None)
-            cur_surf_mask = find_valid_indices(
-                atoms, cur_species, spec_indices=site_indices, region=region
-            )
-            # -- create sites
-            found_sites = self._generate_site(
-                atoms, graph, nl,
-                cur_surf_mask, surface_mask, normals, coordination=cn
-            )
+        for cur_site_params in site_params:
+            print(cur_site_params)
+            cur_params_list = self._broadcast_site_params(cur_site_params)
+            print(cur_params_list)
 
-            # generate site graph
-            for s in found_sites:
-                s.graph = self.process_site(
-                    atoms, graph, nl, s.site_indices, cur_site_radius
+            nanchors = len(cur_params_list)
+
+            if nanchors == 1:
+                print("Singledentate sites...")
+                cur_params = cur_params_list[0]
+                sites =self._generate_single_site(
+                    cur_params, atoms, graph, nl, surface_mask, normals
                 )
-
-            # -- get sites with unique environments
-            #print("\n\nfound sites: ", len(found_sites))
-            #for s in found_sites:
-            #    print(s, s.graph)
-            site_graphs = [s.graph for s in found_sites]
-            unique_indices = get_unique_environments_based_on_bonds(site_graphs)
-            #print(unique_indices)
-            unique_sites = [found_sites[i] for i in unique_indices]
-
-            #if check_unique:
-            #    site_envs = [None] * len(found_sites)
-            #    for i, site in enumerate(found_sites):
-            #        site_envs[i] = [site.graph]
-            #        # print("new_site: ", new_site)
-
-            #    unique_envs, unique_sites = unique_chem_envs(site_envs, found_sites)
-            #    new_unique_sites = [None] * len(unique_sites)
-            #    for i, site_group in enumerate(unique_sites):
-            #        xposes = [s.position[0] for s in site_group]
-            #        yposes = [s.position[1] for s in site_group]
-            #        zposes = [s.position[2] for s in site_group]
-            #        sorted_indices = np.lexsort((xposes,yposes,zposes))
-            #        new_unique_sites[i] = [site_group[s_idx] for s_idx in sorted_indices] 
-            #    unique_sites = new_unique_sites
-            #else:
-            #    unique_sites = [[s] for s in found_sites]
-
-            #print("\n\nunique sites: ", len(unique_sites))
-            #for s in unique_sites:
-            #    print(s)
-            #all_sites.extend(unique_sites)
-            site_groups.append(unique_sites)
-        
-        # unique again
-        # TODO: why unique again?
-        #if len(cn_values) > 1:
-        #    found_sites = [s[0] for s in all_sites]
-        #    if check_unique:
-        #        site_envs = [None] * len(found_sites)
-        #        for i, site in enumerate(found_sites):
-        #            site_envs[i] = [site.graph]
-        #            # print("new_site: ", new_site)
-
-        #        unique_envs, unique_sites = unique_chem_envs(site_envs, found_sites)
-        #        new_unique_sites = [None] * len(unique_sites)
-        #        for i, site_group in enumerate(unique_sites):
-        #            xposes = [s.position[0] for s in site_group]
-        #            yposes = [s.position[1] for s in site_group]
-        #            zposes = [s.position[2] for s in site_group]
-        #            sorted_indices = np.lexsort((xposes,yposes,zposes))
-        #            new_unique_sites[i] = [site_group[s_idx] for s_idx in sorted_indices] 
-        #        unique_sites = new_unique_sites
-        #    else:
-        #        unique_sites = [[s] for s in found_sites]
-        #    all_sites = unique_sites
+                ...
+            else:
+                print("Multidentate sites...")
+                for cur_params in cur_params_list:
+                    ...
+            
+            site_groups.append(sites)
 
         return site_groups
+    
+    def _generate_single_site(
+        self, params: dict, atoms: Atoms, graph, nl, surface_mask, normals
+    ):
+        """Generate single-multidentate site."""
+        # -- some basic params
+        cn = params.get("cn") # coordination number
+        cur_site_radius = params.get("radius", self._site_radius)
+        print("coordination number: ", cn)
+
+        # -- find possible atoms to form the site
+        print("graph: ", graph)
+        #cur_species = params.get("species", None)
+        #site_indices = params.get("site_indices", None)
+        #region = params.get("region", None)
+        #cur_surf_mask = find_valid_indices(
+        #    atoms, cur_species, spec_indices=site_indices, region=region
+        #)
+        natoms = len(atoms)
+        group_commands = params.get(
+            "group", 
+            # default: return indices of all atoms
+            ["id {}".format(" ".join([str(i) for i in range(1,natoms+1)]))] # start from 1
+        )
+        valid_indices = create_an_intersect_group(atoms, group_commands)
+
+        # -- create sites
+        found_sites = self._generate_site(
+            atoms, graph, nl,
+            valid_indices, surface_mask, normals, coordination=cn
+        )
+
+        # - generate site graph TODO: move this to site object?
+        for s in found_sites:
+            s.graph = self.process_site(
+                atoms, graph, nl, s.site_indices, cur_site_radius
+            )
+
+        # -- get sites with unique environments
+        #print("\n\nfound sites: ", len(found_sites))
+        #for s in found_sites:
+        #    print(s, s.graph)
+        site_graphs = [s.graph for s in found_sites]
+        unique_indices = get_unique_environments_based_on_bonds(site_graphs)
+        #print(unique_indices)
+        unique_sites = [found_sites[i] for i in unique_indices]
+        
+        # TODO: sort sites by positions?
+        print(f"DEBUG: {len(found_sites)} -> {len(unique_sites)}")
+
+        return unique_sites
+    
+    def _broadcast_site_params(self, params: dict) -> List[dict]:
+        """"""
+        # params need to broadcast
+        keys = ["cn", "radius", "group", "distance"]
+        nums = []
+        for key in keys:
+            cur_num = 1
+            if key == "cn": # int
+                # coordination number of the site
+                value = params.get(key, 1)
+                if isinstance(value, list):
+                    cur_num = len(value)
+            elif key == "radius": # int
+                value = params.get(key, 3)
+                if isinstance(value, list):
+                    cur_num = len(value)
+                    num = cur_num
+            elif key == "group": # List[str]
+                # NOTE: this param is not broadcastable
+                #value = params.get(key, None)
+                #if isinstance(value, list): # all atoms
+                #    cur_num = len(value)
+                #    num = cur_num
+                ...
+            elif key == "distance": # float
+                value = params.get(key, 1.5)
+                if isinstance(value, list):
+                    cur_num = len(value)
+                    num = cur_num
+            else:
+                ...
+            nums.append(cur_num)
+
+        # number of sites for a single adsorption
+        num = max(nums) # consider a single-dentate site as default if num == 1 
+        for key, cur_num in zip(keys, nums):
+            assert (cur_num == 1 or cur_num == num), f"Parameter {key} size is inconsistent."
+        
+        # - create new parameters
+        params_list = []
+        for i in range(num):
+            cur_params = dict()
+            for key in keys:
+                if key == "cn":
+                    # coordination number of the site
+                    value = params.get(key, 1)
+                    if isinstance(value, list):
+                        cur_params[key] = value[i]
+                    else:
+                        cur_params[key] = value
+                elif key == "radius":
+                    value = params.get(key, 3)
+                    if isinstance(value, list):
+                        cur_params[key] = value[i]
+                    else:
+                        cur_params[key] = value
+                elif key == "group":
+                    # NOTE: this param is not broadcastable
+                    value = params.get(key, None)
+                    #if isinstance(value, list): # all atoms
+                    #    cur_num = len(value)
+                    #    num = cur_num
+                    cur_params[key] = value
+                elif key == "distance":
+                    value = params.get(key, 1.5)
+                    if isinstance(value, list):
+                        cur_params[key] = value[i]
+                    else:
+                        cur_params[key] = value
+                else:
+                    ...
+            params_list.append(cur_params)
+
+        return params_list
  
     def _generate_site(
         self, 
@@ -752,36 +835,6 @@ class SiteFinder(StruGraphCreator):
         full.remove_node("X")
 
         return site_graph
-
-    # choose best sites to add adsorbate
-    def check_valid_adsorb_site(self, unique_sites):
-        """ choose a best site to adsorb in each unique site group
-        """
-        center = self.atoms.get_center_of_mass()
-        for index, sites in enumerate(unique_sites):
-            new = atoms.copy()
-            best_site = sites[0]
-
-            # NOTE: choose site is nearest to the COM
-            for site in sites[1:]:
-                if np.linalg.norm(site.position - center) < np.linalg.norm(best_site.position - center):
-                    best_site = site
-            #print(best_site.adsorb(new, ads, adsorbate_atoms),args.min_dist)
-            ### this check is to ensure, that sites really close are not populated
-            if best_site.adsorb(new, ads, adsorbate_atoms) >= args.min_dist:
-                found_count += 1
-                ### if hydrogen bonds exist then use this loop to populate these structures
-                #H_bond_movie = orient_H_bond(new)
-                H_bond_movie = []
-                #print(H_bond_movie[:])
-                if len(H_bond_movie) > 0:
-                    for i in H_bond_movie:
-                        movie.append(i)
-                else:
-                    movie.append(new)
-                all_unique.append(site)
-        
-        return
 
 
 if __name__ == "__main__":

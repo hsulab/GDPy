@@ -42,7 +42,7 @@ class AdsorbateEvolution(AbstractExpedition):
     def _single_create(self, res_dpath, actions, data, *args, **kwargs):
         """
         """
-        frames = data["pot_frames"]
+        frames = data["init_frames"]
         self.logger.info(f"number of initial structures: {len(frames)}")
 
         driver = actions["driver"]
@@ -68,7 +68,7 @@ class AdsorbateEvolution(AbstractExpedition):
     
     def _single_collect(self, res_dpath, actions, data, *args, **kwargs):
         """"""
-        frames = data["pot_frames"]
+        frames = data["init_frames"]
         self.logger.info(f"number of initial structures: {len(frames)}")
 
         traj_period = self.collection_params["traj_period"]
