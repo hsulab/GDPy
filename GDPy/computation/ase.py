@@ -399,11 +399,10 @@ class BiasedAseDriver(AseDriver):
         for _ in self._irun(atoms, dynamics):
             ...
 
-        return
+        return atoms
     
     def _irun(self, atoms, dynamics):
         """Mimic the behaviour of ase dynamics irun."""
-        print("xxx")
         # -- compute original forces
         cur_forces = atoms.get_forces(apply_constraint=True).copy()
         ext_forces = np.zeros((len(atoms),3)) + np.inf
