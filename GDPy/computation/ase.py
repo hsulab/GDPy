@@ -94,12 +94,12 @@ class AseDriver(AbstractDriver):
 
     default_run_params = {
         "min": dict(
-            steps= 0,
+            steps= -1, # for spc, steps=0 would fail to step dynamics.max_steps in ase 3.22.1
             fmax = 0.05
         ),
         "ts": {},
         "md": dict(
-            steps = 0
+            steps = -1
         )
     }
 
