@@ -5,6 +5,7 @@ import copy
 import logging
 import pathlib
 import time
+import pickle
 
 from typing import NoReturn, List, Mapping
 
@@ -19,6 +20,8 @@ from ase.formula import Formula
 from GDPy.builder import create_generator
 from GDPy.builder.group import create_a_group, create_a_molecule_group
 
+from GDPy.computation.driver import AbstractDriver
+from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.computation.utils import make_clean_atoms
 
 from GDPy.graph.creator import find_product, find_molecules
@@ -48,10 +51,12 @@ def find_target_fragments(atoms, target_commands: List[str]) -> Mapping[str,List
     return fragments
 
 
+PATHWAY_FNAME = "pseudo_path.xyz"
+
 class AFIRSearch():
 
     _directory = None
-    _restart = False
+    is_restart = False
 
 
     def __init__(
@@ -138,7 +143,7 @@ class AFIRSearch():
         working_directory = self.directory
         log_fpath = working_directory / (self.__class__.__name__+".out")
 
-        if self._restart:
+        if self.is_restart:
             fh = logging.FileHandler(filename=log_fpath, mode="a")
         else:
             fh = logging.FileHandler(filename=log_fpath, mode="w")
@@ -148,9 +153,20 @@ class AFIRSearch():
 
         return
     
+    def _restart(self):
+        """Restart search.
+
+        TODO: Check whether parameters (afir, atoms, worker) has been changed.
+        
+        """
+
+
+        return
+    
     def run(self, worker, atoms_=None) -> NoReturn:
         """"""
         self.logger.info("START AFIR SEARCH")
+        # TODO: check restart
 
         if self.generator is not None:
             # - get initial structures from the generator
@@ -173,7 +189,16 @@ class AFIRSearch():
         # - TODO: check molecules in the initial state?
 
         # - find possible reaction pairs
-        fragments = find_target_fragments(atoms, self.target)
+        frag_fpath = self.directory/"fragments.pkl"
+        # TODO: assure the pair order is the same when restart
+        if not frag_fpath.exists():
+            fragments = find_target_fragments(atoms, self.target)
+            with open(frag_fpath, "wb") as fopen:
+                pickle.dump(fragments, fopen)
+        else:
+            with open(frag_fpath, "rb") as fopen:
+                fragments = pickle.load(fopen)
+
         # TODO: assert molecules in one group are the same type?
         content = "Found Target Fragments: \n"
         for k, v in fragments.items():
@@ -183,7 +208,14 @@ class AFIRSearch():
         frag_list = []
         for k, v in fragments.items():
             frag_list.append(v)
-        possible_pairs = list(product(*frag_list))
+        
+        ntypes = len(frag_list)
+        comb = combinations(range(ntypes), 2)
+
+        possible_pairs = []
+        for i, j in comb:
+            f1, f2 = frag_list[i], frag_list[j]
+            possible_pairs.extend(list(product(f1,f2)))
 
         # - prepare afir bias
         # TODO: retain bias in the driver?
@@ -193,14 +225,26 @@ class AFIRSearch():
             groups = None
         )
 
-        with open(self.directory/"rxn.dat", "w") as fopen:
-            fopen.write(
-                ("{:<8s}  "*2+"{:<12s}  "*6+"{:<12s}  "+"\n").format(
-                    "#Pair", "nframes", "ene_is", "frc_is",
-                    "ene_ts", "frc_ts", "ene_fs", "frc_fs",
-                    "is_reacted"
+        rxn_fpath = self.directory/"rxn.dat"
+        if not rxn_fpath.exists():
+            with open(rxn_fpath, "w") as fopen:
+                fopen.write(
+                    ("{:<8s}  "*2+"{:<12s}  "*6+"{:<12s}  "+"\n").format(
+                        "#Pair", "nframes", "ene_is", "frc_is",
+                        "ene_ts", "frc_ts", "ene_fs", "frc_fs",
+                        "is_reacted"
+                    )
                 )
-            )
+        else:
+            rxn_data = []
+            with open(rxn_fpath, "r") as fopen:
+                lines = fopen.readlines()
+                for line in lines:
+                    rxn_data.append(line.strip().split())
+            nfinished = len(rxn_data) - 1
+            self.logger.info("".join(lines))
+            self.logger.info(f"finished pairs: {nfinished}")
+            possible_pairs = possible_pairs[nfinished:]
 
         # - run each pair
         for i, pair in enumerate(possible_pairs):
@@ -293,7 +337,7 @@ class AFIRSearch():
             ngamma += 1
         
         # - sort results
-        write(directory_/"pseudo_path.xyz", path_frames)
+        write(directory_/PATHWAY_FNAME, path_frames)
 
         nframes = len(path_frames)
         energies = [a.get_potential_energy() for a in path_frames]
@@ -336,6 +380,53 @@ class AFIRSearch():
         end_atoms = make_clean_atoms(end_atoms_, results)
 
         return end_atoms
+    
+    def report(self, worker: DriverBasedWorker, *args, **kwargs) -> Mapping[str,List[Atoms]]:
+        """Report results."""
+        # NOTE: convention cand0 - pair0 - gamma0 - step0
+        # - need driver to read trajectories
+        driver = worker.driver
+
+        # - read rxn data
+        rxn_data = []
+        with open(self.directory/"rxn.dat", "r") as fopen:
+            lines = fopen.readlines()[1:]
+            for line in lines:
+                rxn_data.append(line.strip().split())
+        pairs = [x[0] for x in rxn_data] # TODO: only collect is_reacted?
+
+        # - run over pairs
+        ret = dict(
+            pathways = [], # List[List[Atoms]] NOTE: IS are all the same...
+            trajs = [] # List[List[List[Atoms]]] NOTE: first structures are all the same...
+        )
+        #print(pairs)
+        for p in pairs:
+            pair_wdir = self.directory/p
+            # -- find gammas and fs
+            path_frames = read(pair_wdir/PATHWAY_FNAME, ":")
+            ret["pathways"].append(path_frames) # add results
+            nframes_path = len(path_frames)
+            if (pair_wdir/"fs").exists():
+                # both have is and fs
+                gamma_wdirs = [f"g{i}" for i in range(nframes_path-2)]
+                gamma_wdirs.append("fs")
+            else:
+                # only have is
+                gamma_wdirs = [f"g{i}" for i in range(nframes_path-1)]
+            #print(pair_wdir, gamma_wdirs)
+            gamma_trajectories = []
+            for g in gamma_wdirs:
+                #print(g)
+                driver.directory = pair_wdir/g
+                traj_frames = driver.read_trajectory()
+                gamma_trajectories.append(traj_frames)
+                #print(traj_frames)
+            ret["trajs"].append(gamma_trajectories)
+        
+        # - results
+
+        return ret
 
 
 if __name__ == "__main__":
