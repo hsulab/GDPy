@@ -27,7 +27,7 @@ class Group():
 def create_a_molecule_group(atoms: Atoms, group_command: str, use_tags=True) -> List[List[int]]:
     """Find molecules in the structure."""
     args = group_command.strip().split()
-    assert args[0] in ["tag", "molecule"], f"{args[0]} is not implemented."
+    #assert args[0] in ["tag", "molecule"], f"{args[0]} is not implemented."
 
     if args[0] in ["tags", "molecule"]:
         groups = []

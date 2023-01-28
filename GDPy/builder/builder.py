@@ -42,7 +42,7 @@ class StructureGenerator(abc.ABC):
     def run(self, *args, **kwargs) -> List[Atoms]:
         """Generate structures based on rules."""
         if self.logger is not None:
-            self._pfunc = self.logger.info
+            self.pfunc = self.logger.info
         self.pfunc(f"@@@{self.__class__.__name__}")
 
         return
