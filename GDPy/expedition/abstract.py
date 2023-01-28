@@ -458,6 +458,7 @@ class AbstractExpedition(ABC):
             raise RuntimeError("Use either structure or generation...")
         generator = create_generator(gen_params)
         generator.directory = self.step_dpath
+        generator.logger = self.logger
 
         # NOTE: population-based method (GA) needs a generator as a dict in its
         #       input file...
