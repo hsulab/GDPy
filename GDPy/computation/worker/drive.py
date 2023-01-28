@@ -5,7 +5,7 @@ import copy
 import uuid
 import pathlib
 import time
-from typing import Tuple, List, NoReturn
+from typing import Tuple, List, NoReturn, Union
 import yaml
 
 import numpy as np
@@ -415,7 +415,7 @@ class DriverBasedWorker(AbstractWorker):
         self, unretrieved_wdirs: List[pathlib.Path], 
         read_traj: bool=False, traj_period: int=1, 
         include_first: bool=True, include_last: bool=True
-    ) -> List[Atoms]:
+    ) -> Union[List[Atoms],List[List[Atoms]]]:
         """Read results from calculation directories.
 
         Args:
@@ -433,18 +433,33 @@ class DriverBasedWorker(AbstractWorker):
                 for wdir in unretrieved_wdirs
             )
 
-            for frames in results_:
-                # - sift error structures
-                error_info = frames[0].info.get("error", None)
-                if error_info:
-                    self.logger.info(f"Found failed calculation at {error_info}...")
-                else:
-                    results.extend(frames)
+            if not read_traj: # read spc results, each dir has one structure
+                for frames in results_:
+                    # - sift error structures
+                    error_info = frames[0].info.get("error", None)
+                    if error_info:
+                        self.logger.info(f"Found failed calculation at {error_info}...")
+                    else:
+                        results.extend(frames)
 
-        if results:
-            self.logger.info(
-                f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
-            )
+                if results:
+                    self.logger.info(
+                        f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
+                    )
+
+            else:
+                for traj_frames in results_:
+                    # - sift error structures
+                    error_info = traj_frames[0].info.get("error", None)
+                    if error_info:
+                        self.logger.info(f"Found failed calculation at {error_info}...")
+                    else:
+                        results.append(traj_frames)
+
+                if results:
+                    self.logger.info(
+                        f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}"
+                    )
 
         return results
     
@@ -453,7 +468,7 @@ class DriverBasedWorker(AbstractWorker):
         driver, wdir, 
         read_traj: bool=False, traj_period: int=1, 
         include_first: bool=True, include_last: bool=True
-    ) -> List[List[Atoms]]:
+    ) -> List[Atoms]:
         """Extract results from a single directory.
 
         Args:

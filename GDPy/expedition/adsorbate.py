@@ -81,11 +81,17 @@ class AdsorbateEvolution(AbstractExpedition):
         worker.driver = driver
         worker.batchsize = len(frames)
         
-        # TODO: save converged frames (last frame of each trajectory?)
-        traj_frames = worker.retrieve(
+        # - read and save trajectories
+        trajectories = worker.retrieve(
             read_traj=True, traj_period=traj_period, include_first=True
         )
-        write(self.step_dpath/"traj_frames.xyz", traj_frames, append=True)
+
+        #traj_frames, conv_frames = [], []
+        for traj_frames in trajectories:
+            # NOTE: the last frame of the trajectory, better converged...
+            write(self.step_dpath/"conv_frames.xyz", traj_frames[-1], append=True)
+            # NOTE: minimisation trajectories...
+            write(self.step_dpath/"traj_frames.xyz", traj_frames[:-1], append=True)
 
         if len(worker._get_unretrieved_jobs()) > 0:
             is_collected = False
@@ -94,8 +100,11 @@ class AdsorbateEvolution(AbstractExpedition):
         
         # - pass data
         if is_collected:
+            # TODO: sort results?
+            merged_conv_frames = read(self.step_dpath/"conv_frames.xyz", ":")
             merged_traj_frames = read(self.step_dpath/"traj_frames.xyz", ":")
-            data["pot_frames"] = merged_traj_frames
+            data["pot_frames_traj"] = merged_traj_frames
+            data["pot_frames_conv"] = merged_conv_frames
 
         return is_collected
 
