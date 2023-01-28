@@ -108,13 +108,16 @@ def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: li
     distance_to_site = 1.5 # Ang
 
     site_creator = SiteFinder(**graph_params)
+    site_creator.pfunc = pfunc
     site_groups = site_creator.find(atoms, site_params)
 
     created_frames = []
     for i, sites in enumerate(site_groups):
         noccupied = 0
         for s in sites: 
-            new_atoms = s.adsorb(ads, site_creator.ads_indices, distance_to_site=distance_to_site)
+            new_atoms = s.adsorb(
+                ads, site_creator.ads_indices, distance_to_site=distance_to_site
+            )
             if not isinstance(new_atoms, Atoms):
                 noccupied += 1
                 #print(s, "!!! site may be already occupied!!!", new_atoms)
@@ -350,15 +353,22 @@ class AdsorbateGraphGenerator(StructureGenerator):
         """"""
         super().run(*args, **kwargs) # for the logger...
 
-        ads_frames = self.substrates
-        for i, params in enumerate(self.operations):
-            self.pfunc(f"===== Operation {i} =====")
-            self.op_num = i # serial number of the operation
-            ads_frames = self._irun(ads_frames, params, *args, **kwargs)
+        # TODO: better check cached results
+        if not (self.directory/"enumerated-last.xyz").exists():
+            ads_frames = self.substrates
+            for i, params in enumerate(self.operations):
+                self.pfunc(f"===== Operation {i} =====")
+                self.op_num = i # serial number of the operation
+                if not (self.directory/f"enumerated-{i}.xyz").exists():
+                    ads_frames = self._irun(ads_frames, params, *args, **kwargs)
+                else:
+                    self.pfunc(f"Use cached results of operation {i}.")
+                    ads_frames = read(self.directory/f"enumerated-{i}.xyz", ":")
 
-        write(self.directory/"enumerated-last.xyz", ads_frames)
-
-        exit()
+            write(self.directory/"enumerated-last.xyz", ads_frames)
+        else:
+            self.pfunc("Use cached results.")
+            ads_frames = read(self.directory/"enumerated-last.xyz", ":")
 
         return ads_frames
     
@@ -410,12 +420,9 @@ class AdsorbateGraphGenerator(StructureGenerator):
 
             # -- parameters for species used for comparison
             species = params.get("species", None) # to insert
-            selected_species = copy.deepcopy(params.get("adsorbate_elements", []))
-            selected_species.append(species)
-            selected_species = list(set(selected_species))
             spec_params = dict(
                 species = species,
-                selected_species = selected_species,
+                selected_species = [],
                 spec_indices = params.get("adsorbate_indices", None),
                 region = params.get("region", None)
             )
@@ -489,16 +496,37 @@ class AdsorbateGraphGenerator(StructureGenerator):
         self.pfunc(f"start to insert adsorbate {species}.")
 
         # - build adsorbate (single atom or molecule)
-        adsorbate = build_species(species)
+        #   and update selected_species
+        if isinstance(species, str):
+            # simple species
+            adsorbate = build_species(species)
+        else: # dict
+            adsorbate = read(species["adsorbate"]) # only one structure
+        symbols = list(set(adsorbate.get_chemical_symbols()))
+
+        selected_species = copy.deepcopy(graph_params.get("adsorbate_elements", []))
+        selected_species.extend(symbols)
+        selected_species = list(set(selected_species))
+
+        spec_params = copy.deepcopy(spec_params)
+        spec_params["selected_species"] = selected_species
 
         # - get structures with inserted species
         with CustomTimer(name="insert-adsorbate", func=self.pfunc):
-            ret = Parallel(n_jobs=self.njobs)(
+            #ret = Parallel(n_jobs=self.njobs)(
+            ret = Parallel(n_jobs=1)(
                 delayed(single_insert_adsorbate)(
                     graph_params, idx, a, adsorbate, site_params,
                     pfunc=self.pfunc
                 ) for idx, a in enumerate(frames)
             )
+            #ret = []
+            #for idx, a in enumerate(frames):
+            #    ret.append(
+            #        single_insert_adsorbate(
+            #            graph_params, idx, a, adsorbate, site_params, pfunc=self.pfunc
+            #        )
+            #    )
             #print(ads_frames)
         ret_frames = []
         for frames in ret:
