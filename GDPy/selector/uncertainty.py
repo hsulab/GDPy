@@ -159,7 +159,7 @@ class DeviationSelector(AbstractSelector):
                 pmin, pmax = self.criteria[prop_name]
                 if pmin < cur_devi < pmax:
                     selected_indices.append(idx)
-                    continue
+                    break
 
         return selected_indices
     
