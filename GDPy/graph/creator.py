@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import pathlib
 from typing import List, Mapping
 from itertools import chain
 
@@ -86,6 +87,9 @@ class StruGraphCreator():
 
     surface_mask = None
 
+    _directory = "./"
+    pfunc = print
+
     def __init__(
         self, adsorbate_elements: list,
         pbc_grid: List[int]=[2,2,0], graph_radius: int=2, 
@@ -120,6 +124,20 @@ class StruGraphCreator():
         #    pbc_grid=pbc_grid, *args, **kwargs
         #)
         self.neigh_creator = NeighGraphCreator(**neigh_params)
+
+        return
+
+    @property
+    def directory(self):
+
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory_):
+        """"""
+        self._directory = pathlib.Path(directory_)
+        if not self._directory.exists():
+            self._directory.mkdir()
 
         return
     
