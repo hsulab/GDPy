@@ -21,6 +21,7 @@ from GDPy import config
 from GDPy.utils.command import CustomTimer
 
 from GDPy.selector import create_selector
+from GDPy.computation.worker.drive import DriverBasedWorker
 
 
 """ abstract class for expedition methods
@@ -74,7 +75,7 @@ class AbstractExpedition(ABC):
     type_map = {}
     type_list = []
 
-    def __init__(self, main_dict, potter, referee=None):
+    def __init__(self, main_dict, potter: DriverBasedWorker, referee: DriverBasedWorker=None):
         """"""
         self._register_type_map(main_dict) # obtain type_list or type_map
 
@@ -235,10 +236,23 @@ class AbstractExpedition(ABC):
         # - select
         select_params = input_params.get("select", None)
         if select_params is not None:
-            selector = create_selector(select_params, directory=Path.cwd(), pot_worker=self.pot_worker)
+            # NOTE: three types of params are allowed
+            #       1. a list of selectors for all type of candidates
+            #       2. Mapping[str,List[selector]] key for one type of candidates
+            #          conv - local minima, traj - trajectories
+            #          default - for other not specificed candidate group
+            #       3.
+            selections = {}
+            if isinstance(select_params, list):
+                selector = create_selector(select_params, directory=Path.cwd(), pot_worker=self.pot_worker)
+                selections["default"] = selector
+            else: # Mapping
+                assert isinstance(select_params, dict), "Parameters for select should either be a list or a dict."
+                for k, v in select_params.items():
+                    selections[k] = create_selector(v, directory=Path.cwd(), pot_worker=self.pot_worker)
         else:
-            selector = None
-        actions["selector"] = selector
+            selections = None
+        actions["selector"] = selections
 
         # - label
 
@@ -371,12 +385,15 @@ class AbstractExpedition(ABC):
         return
 
     def _single_select(self, res_dpath, actions, data, *args, **kwargs):
-        """ some codes run explorations
+        """Select representative structures from candidates for further processing.
+
+        Different selection protocols can be set for different type of structures.
+
         """
         is_selected = True
         # - select
-        selector = actions["selector"] # NOTE: default is invariant
-        if selector:
+        selections = actions["selector"] # NOTE: default is invariant
+        if selections:
             # - find frames...
             valid_keys = []
             for k in data.keys():
@@ -385,21 +402,32 @@ class AbstractExpedition(ABC):
             if not valid_keys:
                 valid_keys.append("pot_frames")
             
+            # - check if have specifc selectors
+            default_selector = selections.get("default", None)
+            
             # - run selection
             for k in valid_keys:
                 tag_name = k.split("_")[-1]
                 if tag_name == "frames":
                     tag_name = "mixed"
 
-                self.logger.info(f"----- Selection {selector.name} for {tag_name} -----")
+                current_selector = selections.get(tag_name, None)
+                if current_selector is None:
+                    current_selector = default_selector
+                if current_selector is None:
+                    self.logger.info(f"----- No Selection for {tag_name} -----")
+                else:
+                    self.logger.info(f"----- Selection {current_selector.name} for {tag_name} -----")
+
                 cur_dpath = res_dpath/"select"/tag_name
                 if not cur_dpath.exists():
                     cur_dpath.mkdir()
-                selector.directory = cur_dpath
-                selector.logger = self.logger
+                current_selector.directory = cur_dpath
+                current_selector.logger = self.logger
 
                 frames = data[k]
-                selected_frames = selector.select(frames)
+                # BUG: input frames are inconsitent due to source info?
+                selected_frames = current_selector.select(frames)
                 if selected_frames:
                     data["selected_frames_"+tag_name] = selected_frames
                     if not cur_dpath.exists():
@@ -539,10 +567,11 @@ class AbstractExpedition(ABC):
         worker.run(frames_in)
 
         # - try to harvest
-        worker.inspect()
+        worker.inspect(resubmit=True) # BUG: input frames are inconsitent due to source info?
         if worker.get_number_of_running_jobs() > 0:
             self.logger.info("jobs are running...")
         else:
+            # TODO: write structues when all are finished, not append
             calculated_fpath = worker.directory/"calculated.xyz"
             new_frames = worker.retrieve()
             if new_frames:
