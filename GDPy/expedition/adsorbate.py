@@ -97,12 +97,20 @@ class AdsorbateEvolution(AbstractExpedition):
             is_collected = False
         else:
             is_collected = True
+            # NOTE: sort local minima with energies
+            merged_conv_frames = read(self.step_dpath/"conv_frames.xyz", ":")
+            #energies = [a.get_potential_energy() for a in merged_conv_frames]
+            merged_conv_frames = sorted(merged_conv_frames, key=lambda a: a.get_potential_energy())
+            write(self.step_dpath/"conv_frames.xyz", merged_conv_frames)
         
         # - pass data
         if is_collected:
-            # TODO: sort results?
             merged_conv_frames = read(self.step_dpath/"conv_frames.xyz", ":")
             merged_traj_frames = read(self.step_dpath/"traj_frames.xyz", ":")
+
+            self.logger.info(f"nconv: {len(merged_conv_frames)}")
+            self.logger.info(f"ntraj: {len(merged_traj_frames)}")
+
             data["pot_frames_traj"] = merged_traj_frames
             data["pot_frames_conv"] = merged_conv_frames
 
