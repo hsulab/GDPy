@@ -19,7 +19,7 @@ from GDPy.builder.group import create_an_intersect_group
 
 from GDPy.graph.creator import StruGraphCreator
 from GDPy.graph.comparison import bond_match, get_unique_environments_based_on_bonds
-from GDPy.graph.utils import node_symbol, unpack_node_name, show_nodes
+from GDPy.graph.utils import node_symbol, unpack_node_name, show_nodes, plot_graph
 
 
 def make_clean_atoms(atoms_, results=None):
@@ -261,28 +261,27 @@ class SingleAdsorptionSite(object):
             ads_params: Adsorption-related parameters.
 
         """
-        # - prepare and add adsorbate
-        substrate = self.atoms.copy()
-
-        # -- first translate to origin
-        adsorbate = adsorbate_.copy()
-        com = adsorbate.get_center_of_mass()
-        adsorbate.translate(np.zeros(3)-com)
-
-        # -- find indices of adsorbates
+        # - find indices of adsorbates
         #    NOTE: not check distance to hydrogens since 
         #          since the distances are usually very small
-        natoms, natoms_ads = len(substrate), len(adsorbate)
-        inserted_ads_indices = [i+natoms for i in range(natoms_ads) if adsorbate[i].symbol != "H"]
+        natoms, natoms_ads = len(self.atoms), len(adsorbate_)
+        inserted_ads_indices = [i+natoms for i in range(natoms_ads) if adsorbate_[i].symbol != "H"]
 
         # adsorbates that are already in the substrate
-        local_ads_indices = [i for i in other_ads_indices if substrate[i].symbol != "H"]
+        local_ads_indices = [i for i in other_ads_indices if self.atoms[i].symbol != "H"]
 
-        # - parse parameters
+        # - start to adsorb
         ads_frames = []
         for cur_params in ads_params:
+            # -- params
             mode = cur_params.get("mode", "atop")
             distance_to_site = cur_params.get("distance", 1.5)
+            # -- prepare and add adsorbate
+            substrate = self.atoms.copy()
+            adsorbate = adsorbate_.copy()
+            com = adsorbate.get_center_of_mass()
+            adsorbate.translate(np.zeros(3)-com) # first translate to origin
+            # -- 
             if mode == "atop":
                 # -- for single atom or linear molecule
                 adsorbate.rotate([0, 0, 1], self.normal, center=[0,0,0])
@@ -305,9 +304,6 @@ class SingleAdsorptionSite(object):
             else:
                 raise NotImplementedError(f"Adsorption mode {mode} is not supported.")
 
-            # --- check indices of adsorbed species
-
-
             # - check distances between adsorbates
             dist = float("inf")
             if len(local_ads_indices) != 0:
@@ -316,9 +312,9 @@ class SingleAdsorptionSite(object):
                     dist = min(dist, dists.min())
                 # TODO: check is_occupied
                 if dist < self.MIN_INTERADSORBATE_DISTANCE:
-                    atoms = dist
-            
-            ads_frames.append(substrate)
+                    substrate = None
+            if substrate is not None: 
+                ads_frames.append(substrate)
         
         return ads_frames
     
@@ -582,7 +578,7 @@ class SiteFinder(StruGraphCreator):
             if nanchors == 1:
                 self.pfunc("Singledentate sites...")
                 cur_params = cur_params_list[0]
-                sites =self._generate_single_site(
+                sites = self._generate_single_site(
                     cur_params, atoms, graph, nl, surface_mask, normals
                 )
                 ...
@@ -633,19 +629,23 @@ class SiteFinder(StruGraphCreator):
                 atoms, graph, nl, s.site_indices, cur_site_radius
             )
         #print(found_sites)
-
-        # -- get sites with unique environments
-        #print("\n\nfound sites: ", len(found_sites))
-        #for s in found_sites:
-        #    print(s, s.graph)
-        site_graphs = [s.graph for s in found_sites]
-        unique_indices = get_unique_environments_based_on_bonds(site_graphs)
-        #print(unique_indices)
-        #print(unique_indices)
-        unique_sites = [found_sites[i] for i in unique_indices]
         
-        # TODO: sort sites by positions?
-        self.pfunc(f"DEBUG: {len(found_sites)} -> {len(unique_sites)}")
+        if found_sites:
+            # -- get sites with unique environments
+            #print("\n\nfound sites: ", len(found_sites))
+            #for s in found_sites:
+            #    print(s, s.graph)
+            site_graphs = [s.graph for s in found_sites]
+            unique_indices = get_unique_environments_based_on_bonds(site_graphs)
+            #print(unique_indices)
+            #print(unique_indices)
+            unique_sites = [found_sites[i] for i in unique_indices]
+        
+            # TODO: sort sites by positions?
+            self.pfunc(f"DEBUG: {len(found_sites)} -> {len(unique_sites)}")
+        else:
+            unique_sites = []
+            self.pfunc("DEBUG: No sites are found.")
 
         return unique_sites
     
@@ -750,6 +750,7 @@ class SiteFinder(StruGraphCreator):
                    break
            else: # All were valid
                 valid.append(list(cycle))
+        self.pfunc(f"DEBUG: {valid}")
 
         #print(valid)
         sites = []
@@ -772,10 +773,10 @@ class SiteFinder(StruGraphCreator):
             #print("centre: ", centre_node)
             local_graph = nx.ego_graph(
                 site_graph, centre_node, 
-                radius=2, center=True, # 2 is surf_surf_dis
+                radius=self.DIS_SURF2SURF, center=True, # 2 is surf_surf_dis
                 distance="dist"
             ) # go over framework
-            #plot_graph(local_graph, "local.png")
+            #plot_graph(local_graph, f"local-{coordination}.png")
 
             site_node_names = [] # List[List[str]]
             if coordination == 3:
@@ -784,24 +785,25 @@ class SiteFinder(StruGraphCreator):
                 site_node_names = [x for x in all_cliques if len(x)==3]
             # TODO: add CN4 site that is a square
             else:
-                conn_nodes = []
-                for u, d in local_graph.degree:
-                    if d == coordination-1:
-                        conn_nodes.append(u)
-                new_site_graph = nx.subgraph(graph, conn_nodes)
-                #plot_graph(new_site_graph, "sg-%s.png" %("-".join(str(c) for c in cycle)))
-                new_site_graphs = [new_site_graph.subgraph(c) for c in nx.connected_components(new_site_graph)]
+                # NOTE: for very small unit cell, 
+                #       nodes maybe connected by their neighbour images
+                #       e.g. bridge sites on p(2x2)-Pt(111)
+                nodes_comb = combinations(local_graph.nodes, coordination)
+                new_site_graphs = []
+                for node_names in nodes_comb:
+                    if coordination == 2:
+                        # check they are connected
+                        if graph.has_edge(node_names[0],node_names[1]):
+                            new_site_graphs.append(nx.subgraph(graph, node_names))
+                    else:
+                        # top site
+                        new_site_graphs.append(nx.subgraph(graph, node_names))
 
                 # *** check if node number is valid
-                if len(new_site_graphs) == 1:
-                    if len(new_site_graphs[0]) == coordination:
-                        site_node_names = [list(new_site_graphs[0]).copy()]
-                else:
-                    for g in new_site_graphs:
-                        if len(g) == coordination:
-                            names = list(g).copy()
-                            names.append(centre_node)
-                            site_node_names.append(names)
+                for g in new_site_graphs:
+                    node_names = list(g.nodes())
+                    assert len(node_names) == coordination, "The site order is incorrect."
+                    site_node_names.append(node_names)
 
             # --- create site object ---
             #self.pfunc(site_node_names)

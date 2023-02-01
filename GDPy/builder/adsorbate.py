@@ -114,20 +114,14 @@ def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: li
     created_frames = []
     for i, (sites, params) in enumerate(zip(site_groups,site_params)):
         ads_params = params.get("ads", [{}])
-        noccupied = 0
+        cur_frames = []
         for s in sites: 
             ads_frames = s.adsorb(
                 ads, site_creator.ads_indices, ads_params
             )
-            #if not isinstance(new_atoms, Atoms):
-            #    noccupied += 1
-            #    #print(s, "!!! site may be already occupied!!!", new_atoms)
-            #else:
-            #    #new_atoms.info["cycle"] = s.site_indices
-            #    #new_atoms.arrays["order"] = np.array(range(len(new_atoms)))
-            #    created_frames.append(ads_frames)
-            created_frames.extend(ads_frames)
-        pfunc(f"group {i} unique sites {len(sites)} with {noccupied} occupied for substrate {idx}.")
+            cur_frames.extend(ads_frames)
+        created_frames.extend(cur_frames)
+        pfunc(f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}.")
     
     return created_frames
 
