@@ -291,7 +291,7 @@ class DriverBasedWorker(AbstractWorker):
         return
     
     def _local_run(self, job_info, *args, **kwargs) -> NoReturn:
-        """"""
+        """Run calculations locally."""
         dataset = job_info["dataset"]
         cur_md5 = pathlib.Path(dataset).name.split(".")[0]
         groups = job_info["groups"]
@@ -299,30 +299,35 @@ class DriverBasedWorker(AbstractWorker):
         frames = read(dataset, ":")
 
         for ig, (global_indices, wdirs) in enumerate(groups):
+            # - set job name
             group_name = f"group-{ig}"
             uid = str(uuid.uuid1())
+            job_name = uid + "-" + group_name
+
+            # -- store job info
+            doc_id = self.database.insert(
+                dict(
+                    uid = uid,
+                    md5 = cur_md5,
+                    gdir=job_name, 
+                    group_number=ig, 
+                    wdir_names=wdirs, 
+                    local=True,
+                    queued=True
+                )
+            )
 
             # - use local scheduler
             cur_frames = [frames[x] for x in global_indices]
 
             #group_directory = self.directory
+            # - run calculations
             with CustomTimer(name="run-driver", func=self.logger.info):
                 for wdir, atoms in zip(wdirs,cur_frames):
                     self.driver.directory = self.directory/wdir
-                    job_name = uid+str(wdir)
+                    #job_name = uid+str(wdir)
                     self.logger.info(
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                    )
-                    doc_id = self.database.insert(
-                        dict(
-                            uid = uid,
-                            md5 = cur_md5,
-                            gdir=job_name, 
-                            group_number=ig, 
-                            wdir_names=wdirs, 
-                            local=True,
-                            queued=True
-                        )
                     )
                     self.driver.reset()
                     self.driver.run(atoms)
