@@ -105,7 +105,7 @@ class SingleAdsorptionSite(object):
 
         order = len(self.site_indices)
         
-        self.position, self.normal = self._compute_position(
+        self.position, self.normal, self.tangent = self._compute_position(
             atoms, nl, normals, node_names, order, site_indices, surf_indices
         )
 
@@ -202,7 +202,16 @@ class SingleAdsorptionSite(object):
             normal += normals[index] * (1/neighbors)
         normal = normalize(normal)
 
-        return average, normal
+        # - generate site tangent
+        tangent = np.zeros(3)
+        if order == 1:
+            ...
+        elif order == 2:
+            tangent = site_positions[1] - site_positions[0]
+        else:
+            ...
+
+        return average, normal, tangent
     
     def is_occupied(self, ads_elemnts):
         """"""
@@ -241,61 +250,82 @@ class SingleAdsorptionSite(object):
         self, 
         adsorbate_, # single atom or a molecule
         other_ads_indices, # indices of other adsorbate
-        distance_to_site=1.5, 
+        ads_params: List[dict],
         check_H_bond=False
-    ):
-        """"""
+    ) -> List[Atoms]:
+        """Adsorb atoms/molecule on the substrate.
+
+        Several adsorption modes are supported.
+
+        Args:
+            ads_params: Adsorption-related parameters.
+
+        """
         # - prepare and add adsorbate
         substrate = self.atoms.copy()
-        adsorbate = adsorbate_.copy()
 
         # -- first translate to origin
+        adsorbate = adsorbate_.copy()
         com = adsorbate.get_center_of_mass()
         adsorbate.translate(np.zeros(3)-com)
 
-        # -- for single atom or linear molecule
-        adsorbate.rotate([0, 0, 1], self.normal, center=[0,0,0])
-        adsorbate.translate(self.position + (self.normal*distance_to_site))
-
-        # -- for planar molecules such as CO2
-        #adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
-        #adsorbate.translate(self.position + (self.normal*distance_to_site))
-
-        # -- for complex molecules
-
-        # -- add adsorbate to substrate
-        substrate.extend(adsorbate)
-
-        # - check indices of adsorbed species
+        # -- find indices of adsorbates
+        #    NOTE: not check distance to hydrogens since 
+        #          since the distances are usually very small
         natoms, natoms_ads = len(substrate), len(adsorbate)
-        index_to_check = range(natoms-natoms_ads, natoms)
-        index_to_check_noH = [] # indices of to-put adsorbate
-        for ads_t in index_to_check:
-            if substrate[ads_t].symbol != "H":
-                index_to_check_noH.append(ads_t)
+        inserted_ads_indices = [i+natoms for i in range(natoms_ads) if adsorbate[i].symbol != "H"]
 
-        ads_atoms_check = [] # indices of other adsorbates
-        for ads_t in other_ads_indices:
-            if substrate[ads_t].symbol != "H":
-                ads_atoms_check.append(ads_t)
-        #print(index_to_check, index_to_check_noH)
+        # adsorbates that are already in the substrate
+        local_ads_indices = [i for i in other_ads_indices if substrate[i].symbol != "H"]
 
-        # - check distances between adsorbates
-        all_ads_indices = other_ads_indices.copy()
-        for ad in range(natoms-natoms_ads, natoms):
-            all_ads_indices.append(ad)
-        #print(ads_atoms)
+        # - parse parameters
+        ads_frames = []
+        for cur_params in ads_params:
+            mode = cur_params.get("mode", "atop")
+            distance_to_site = cur_params.get("distance", 1.5)
+            if mode == "atop":
+                # -- for single atom or linear molecule
+                adsorbate.rotate([0, 0, 1], self.normal, center=[0,0,0])
+                adsorbate.translate(self.position + (self.normal*distance_to_site))
 
-        dist = float("inf")
-        if len(other_ads_indices) != 0:
-            for index in index_to_check_noH:
-                dists = substrate.get_distances(index, ads_atoms_check, mic=True)
-                dist = min(dist, dists.min())
-            # TODO: check is_occupied
-            if dist < self.MIN_INTERADSORBATE_DISTANCE:
-                atoms = dist
+                # -- for planar molecules such as CO2
+                #adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
+                #adsorbate.translate(self.position + (self.normal*distance_to_site))
+
+                # -- for complex molecules
+
+                # -- add adsorbate to substrate
+                substrate.extend(adsorbate)
+            elif mode == "para": # parallel to the site
+                # NOTE: only for bridge and hollow sites
+                #       default atom/molecule is along z-axis
+                adsorbate.rotate([0, 0, 1], self.tangent, center=[0,0,0])
+                adsorbate.translate(self.position + (self.normal*distance_to_site))
+                substrate.extend(adsorbate)
+            else:
+                raise NotImplementedError(f"Adsorption mode {mode} is not supported.")
+
+            # --- check indices of adsorbed species
+
+
+            # - check distances between adsorbates
+            dist = float("inf")
+            if len(local_ads_indices) != 0:
+                for i in inserted_ads_indices:
+                    dists = substrate.get_distances(i, local_ads_indices, mic=True)
+                    dist = min(dist, dists.min())
+                # TODO: check is_occupied
+                if dist < self.MIN_INTERADSORBATE_DISTANCE:
+                    atoms = dist
+            
+            ads_frames.append(substrate)
         
-        return substrate
+        return ads_frames
+    
+    def _iadsorb(self):
+        """"""
+
+        return
 
 
 def generate_normals(

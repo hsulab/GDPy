@@ -112,19 +112,21 @@ def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: li
     site_groups = site_creator.find(atoms, site_params)
 
     created_frames = []
-    for i, sites in enumerate(site_groups):
+    for i, (sites, params) in enumerate(zip(site_groups,site_params)):
+        ads_params = params.get("ads", [{}])
         noccupied = 0
         for s in sites: 
-            new_atoms = s.adsorb(
-                ads, site_creator.ads_indices, distance_to_site=distance_to_site
+            ads_frames = s.adsorb(
+                ads, site_creator.ads_indices, ads_params
             )
-            if not isinstance(new_atoms, Atoms):
-                noccupied += 1
-                #print(s, "!!! site may be already occupied!!!", new_atoms)
-            else:
-                new_atoms.info["cycle"] = s.site_indices
-                new_atoms.arrays["order"] = np.array(range(len(new_atoms)))
-                created_frames.append(new_atoms)
+            #if not isinstance(new_atoms, Atoms):
+            #    noccupied += 1
+            #    #print(s, "!!! site may be already occupied!!!", new_atoms)
+            #else:
+            #    #new_atoms.info["cycle"] = s.site_indices
+            #    #new_atoms.arrays["order"] = np.array(range(len(new_atoms)))
+            #    created_frames.append(ads_frames)
+            created_frames.extend(ads_frames)
         pfunc(f"group {i} unique sites {len(sites)} with {noccupied} occupied for substrate {idx}.")
     
     return created_frames
@@ -369,6 +371,7 @@ class AdsorbateGraphGenerator(StructureGenerator):
         else:
             self.pfunc("Use cached results.")
             ads_frames = read(self.directory/"enumerated-last.xyz", ":")
+        exit()
 
         return ads_frames
     
