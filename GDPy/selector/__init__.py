@@ -48,6 +48,9 @@ def create_selector(
             selectors.append(DeviationSelector(**params, pot_worker=pot_worker))
         elif method == "descriptor":
             selectors.append(DescriptorBasedSelector(**params))
+        elif method == "graph":
+            from GDPy.selector.graph import GraphSelector
+            selectors.append(GraphSelector(**params))
         else:
             raise RuntimeError(f"Cant find selector with method {method}.")
     
