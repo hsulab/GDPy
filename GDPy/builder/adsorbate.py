@@ -365,7 +365,6 @@ class AdsorbateGraphGenerator(StructureGenerator):
         else:
             self.pfunc("Use cached results.")
             ads_frames = read(self.directory/"enumerated-last.xyz", ":")
-        exit()
 
         return ads_frames
     

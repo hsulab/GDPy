@@ -104,6 +104,7 @@ class SingleAdsorptionSite(object):
         #self.known = known
 
         order = len(self.site_indices)
+        self.order = order
         
         self.position, self.normal, self.tangent = self._compute_position(
             atoms, nl, normals, node_names, order, site_indices, surf_indices
@@ -208,6 +209,8 @@ class SingleAdsorptionSite(object):
             ...
         elif order == 2:
             tangent = site_positions[1] - site_positions[0]
+        elif order == 3:
+            tangent = site_positions[2] - (site_positions[0]+site_positions[1])/2.
         else:
             ...
 
@@ -270,6 +273,13 @@ class SingleAdsorptionSite(object):
         # adsorbates that are already in the substrate
         local_ads_indices = [i for i in other_ads_indices if self.atoms[i].symbol != "H"]
 
+        # TODO: assert adsorbate to insert is a single atom or a molecule
+        # -- for planar molecules such as CO2
+        #adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
+        #adsorbate.translate(self.position + (self.normal*distance_to_site))
+
+        # -- for complex molecules
+
         # - start to adsorb
         ads_frames = []
         for cur_params in ads_params:
@@ -286,18 +296,17 @@ class SingleAdsorptionSite(object):
                 # -- for single atom or linear molecule
                 adsorbate.rotate([0, 0, 1], self.normal, center=[0,0,0])
                 adsorbate.translate(self.position + (self.normal*distance_to_site))
-
-                # -- for planar molecules such as CO2
-                #adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
-                #adsorbate.translate(self.position + (self.normal*distance_to_site))
-
-                # -- for complex molecules
-
-                # -- add adsorbate to substrate
                 substrate.extend(adsorbate)
-            elif mode == "para": # parallel to the site
+            # -- more adsoprtion modes
+            elif mode == "tbt": # parallel to the site
+                assert self.order == 2, "Only the bridge site has the tbt adsorption."
                 # NOTE: only for bridge and hollow sites
                 #       default atom/molecule is along z-axis
+                adsorbate.rotate([0, 0, 1], self.tangent, center=[0,0,0])
+                adsorbate.translate(self.position + (self.normal*distance_to_site))
+                substrate.extend(adsorbate)
+            elif mode == "thb":
+                assert self.order == 3, "Only the hollow site has the thb adsorption."
                 adsorbate.rotate([0, 0, 1], self.tangent, center=[0,0,0])
                 adsorbate.translate(self.position + (self.normal*distance_to_site))
                 substrate.extend(adsorbate)
