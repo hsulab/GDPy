@@ -528,6 +528,8 @@ class AdsorbateGraphGenerator(StructureGenerator):
         for frames in ret:
             ret_frames.extend(frames)
 
+        write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
+
         # NOTE: It is unnecessary to compare among substrates if the spectator
         #       adsorbates are not the same as the inserted one. Otherwise, 
         #       comparasion should be performed.
@@ -568,12 +570,6 @@ class AdsorbateGraphGenerator(StructureGenerator):
         # - compare the graph of chemical environments in the structure
         #   NOTE: if O atoms were to remove, the chem envs of the rest O atoms 
         #         are used to compare the structure difference.
-        with CustomTimer(name="create-graphs", func=self.pfunc):
-            ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_create_structure_graph)(graph_params, spec_params, a)
-                for a in ret_frames
-            )
-        # not unique across substrates
         write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
 
         # - get unique structures among substrates
