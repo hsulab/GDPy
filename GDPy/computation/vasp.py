@@ -62,6 +62,7 @@ class VaspDriver(AbstractDriver):
     default_init_params = {
         "min": {
             "min_style": "bfgs", # ibrion
+            "maxstep": 0.1 # potim
         },
         "md": {
             "md_style": "nvt",
@@ -94,6 +95,7 @@ class VaspDriver(AbstractDriver):
         "min_style": "ibrion",
         "md_style": "smass",
         "timestep": "potim",
+        "maxstep": "potim",
         "temp": "tebeg", # teend
         # nblock
         "fmax": "ediffg",
@@ -102,6 +104,9 @@ class VaspDriver(AbstractDriver):
 
     # - system depandant params
     syswise_keys: List[str] = ["system", "kpts", "kspacing"]
+
+    # - file names would be copied when continuing a calculation
+    saved_fnames = ["OSZICAR", "OUTCAR", "CONTCAR", "vasprun.xml"]
 
     def _parse_params(self, params_: dict) -> NoReturn:
         """Parse different tasks, and prepare init and run params."""
@@ -189,19 +194,7 @@ class VaspDriver(AbstractDriver):
         atoms.calc = self.calc
 
         # - run dynamics
-        try:
-            # NOTE: some calculation can overwrite existed data
-            if read_exists:
-                converged = False
-                if (self.directory/"OUTCAR").exists():
-                    converged = atoms.calc.read_convergence()
-                if not converged:
-                    _ = atoms.get_forces()
-            else:
-                _  = atoms.get_forces()
-                converged = atoms.calc.read_convergence()
-        except OSError:
-            converged = False
+        converged = self._continue(atoms, read_exists=read_exists)
         
         # NOTE: always use dynamics calc
         # TODO: should change positions and other properties for input atoms?
@@ -219,6 +212,48 @@ class VaspDriver(AbstractDriver):
 
         return new_atoms
     
+    def _continue(self, atoms, read_exists=True, *args, **kwargs):
+        """Check whether continue unfinished calculation."""
+        print(f"run {self.directory}")
+        try:
+            # NOTE: some calculation can overwrite existed data
+            converged = False
+            if (self.directory/"OUTCAR").exists():
+                converged = atoms.calc.read_convergence()
+            if not converged:
+                if read_exists:
+                    # TODO: add a max for continued calculations? 
+                    #       such calcs can be labelled as a failure
+                    # TODO: check WAVECAR to speed restart?
+                    for fname in self.saved_fnames:
+                        curr_fpath = self.directory/fname
+                        if curr_fpath.exists():
+                            backup_fmt = ("bak.{:d}."+fname)
+                            # --- check backups
+                            idx = 0
+                            while True:
+                                backup_fpath = self.directory/(backup_fmt.format(idx))
+                                if not Path(backup_fpath).exists():
+                                    shutil.copy(curr_fpath, backup_fpath)
+                                    break
+                                else:
+                                    idx += 1
+                    # -- continue calculation
+                    if (self.directory/"CONTCAR").exists():
+                        shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+                # -- run calculation
+                _ = atoms.get_forces()
+                # -- check whether the restart s converged
+                converged = atoms.calc.read_convergence()
+            else:
+                ...
+        except OSError:
+            converged = False
+        print(f"end {self.directory}")
+        print("converged: ", converged)
+
+        return converged
+    
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory.
 
@@ -226,13 +261,25 @@ class VaspDriver(AbstractDriver):
 
         """
         vasprun = self.directory / "vasprun.xml"
+        backup_fmt = ("bak.{:d}."+"vasprun.xml")
 
         # - read structures
+        # TODO: read all saved trajectories and concatenate them
         try:
-            traj_frames_ = read(vasprun, ":")
-            traj_frames = []
+            traj_frames_ = []
+            # -- read backups
+            idx = 0
+            while True:
+                backup_fname = backup_fmt.format(idx)
+                backup_fpath = self.directory/backup_fname
+                if Path(backup_fpath).exists():
+                    traj_frames_.extend(read(backup_fpath, ":"))
+                else:
+                    break
+            traj_frames_.extend(read(vasprun, ":")) # read current
 
             # - sort frames
+            traj_frames = []
             sort, resort = read_sort(self.directory)
             for sorted_atoms in traj_frames_:
                 input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")

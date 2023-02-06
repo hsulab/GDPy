@@ -8,6 +8,7 @@ import numpy as np
 from ase.io import read, write
 
 from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.potential.register import create_potter
 
 from GDPy.utils.command import CustomTimer
@@ -39,6 +40,7 @@ def run_driver(structure: str, directory="./", worker=None, o_fname=None):
     for wdir, atoms in zip(wdirs, frames):
         driver.reset()
         driver.directory = directory/wdir
+        print(driver.directory)
         driver.run(atoms, read_exists=True, extra_info=None)
     
     ret_frames = []
@@ -53,13 +55,17 @@ def run_driver(structure: str, directory="./", worker=None, o_fname=None):
     return
 
 
-def run_worker(structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME, local_exec=False, worker=None, o_fname=None):
+def run_worker(
+    structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME, local_exec=False, 
+    worker: DriverBasedWorker=None, o_fname=None
+):
     """"""
     directory = pathlib.Path(directory)
 
     # - read structures
     from GDPy.builder import create_generator
     generator = create_generator(structure)
+    generator.directory = directory/"init"
     frames = generator.run()
     nframes = len(frames)
     print("nframes: ", nframes)

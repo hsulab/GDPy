@@ -292,6 +292,12 @@ class DriverBasedWorker(AbstractWorker):
     
     def _local_run(self, job_info, *args, **kwargs) -> NoReturn:
         """Run calculations locally."""
+        # - read metadata from file or database
+        queued_jobs = self.database.search(Query().queued.exists())
+        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+        queued_frames = [q["md5"] for q in queued_jobs]
+
+        # - cur job info
         dataset = job_info["dataset"]
         cur_md5 = pathlib.Path(dataset).name.split(".")[0]
         groups = job_info["groups"]
@@ -304,18 +310,21 @@ class DriverBasedWorker(AbstractWorker):
             uid = str(uuid.uuid1())
             job_name = uid + "-" + group_name
 
-            # -- store job info
-            doc_id = self.database.insert(
-                dict(
-                    uid = uid,
-                    md5 = cur_md5,
-                    gdir=job_name, 
-                    group_number=ig, 
-                    wdir_names=wdirs, 
-                    local=True,
-                    queued=True
+            # -- wheterh store job info
+            if group_name in queued_names and cur_md5 in queued_frames:
+                self.logger.info(f"{group_name} at {self.directory.name} was submitted.")
+            else:
+                doc_id = self.database.insert(
+                    dict(
+                        uid = uid,
+                        md5 = cur_md5,
+                        gdir=job_name, 
+                        group_number=ig, 
+                        wdir_names=wdirs, 
+                        local=True,
+                        queued=True
+                    )
                 )
-            )
 
             # - use local scheduler
             cur_frames = [frames[x] for x in global_indices]
@@ -330,7 +339,7 @@ class DriverBasedWorker(AbstractWorker):
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                     )
                     self.driver.reset()
-                    self.driver.run(atoms)
+                    self.driver.run(atoms, read_exists=True, extra_info=None)
                 
             #self.database.update({"finished": True}, doc_ids=[doc_id])
 
@@ -379,8 +388,8 @@ class DriverBasedWorker(AbstractWorker):
                     # NOTE: no need to remove unfinished structures
                     #       since the driver would check it
                     if resubmit:
-                        self.scheduler.submit()
-                        self.logger.info(f"{info_name} is re-submitted.")
+                        jobid = self.scheduler.submit()
+                        self.logger.info(f"{info_name} is re-submitted with JOBID {jobid}.")
             else:
                 self.logger.info(f"{info_name} is running...")
 
