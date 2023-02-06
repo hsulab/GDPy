@@ -276,6 +276,7 @@ class VaspDriver(AbstractDriver):
                     traj_frames_.extend(read(backup_fpath, ":"))
                 else:
                     break
+                idx += 1
             traj_frames_.extend(read(vasprun, ":")) # read current
 
             # - sort frames
