@@ -430,9 +430,12 @@ class AbstractExpedition(ABC):
                 selected_frames = current_selector.select(frames)
                 if selected_frames:
                     data["selected_frames_"+tag_name] = selected_frames
-                    if not cur_dpath.exists():
-                        self.logger.info("save structures to xyz file...")
-                        write(cur_dpath/"selected_frames.xyz", selected_frames)
+                    #if not cur_dpath.exists():
+                    #    self.logger.info("save structures to xyz file...")
+                    #    write(cur_dpath/"selected_frames.xyz", selected_frames)
+                    # TODO: option for output selected?
+                    self.logger.info("save structures to xyz file...")
+                    write(cur_dpath/"selected_frames.xyz", selected_frames)
                 else:
                     data["selected_frames_"+tag_name] = []
                     self.logger.info(f"No candidates were found for {tag_name}.")

@@ -54,7 +54,7 @@ class AdsorbateEvolution(AbstractExpedition):
         worker.driver = driver
         worker.batchsize = len(frames)
 
-        worker.run(frames)
+        worker.run(frames) # BUG: re-run worker may have duplicated info in _local_slurm.json
 
         # - inspect
         worker.inspect()
