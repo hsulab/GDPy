@@ -527,8 +527,8 @@ class AdsorbateGraphGenerator(StructureGenerator):
         ret_frames = []
         for frames in ret:
             ret_frames.extend(frames)
-
         write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
+        self.pfunc(f"nframes of inserted: {len(ret_frames)}")
 
         # NOTE: It is unnecessary to compare among substrates if the spectator
         #       adsorbates are not the same as the inserted one. Otherwise, 
