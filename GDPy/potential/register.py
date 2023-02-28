@@ -49,7 +49,7 @@ class PotentialRegister():
 
         return
     
-    def create_potential(self, pot_name, train_params=None, *args, **kwargs):
+    def create_potential(self, pot_name, train_params=None, *args, **kwargs) -> AbstractPotentialManager:
         """
         """
         pot_cls = None

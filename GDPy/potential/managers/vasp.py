@@ -3,6 +3,7 @@
 
 import os
 from pathlib import Path
+from typing import NoReturn
 
 from GDPy.potential.manager import AbstractPotentialManager
 
@@ -19,18 +20,24 @@ class VaspManager(AbstractPotentialManager):
 
         return
 
-    def _set_environs(self, pp_path, vdw_path):
+    def _set_environs(self, pp_path, vdw_path) -> NoReturn:
+        """Set files need for calculation.
+
+        NOTE: pp_path and vdw_path may not exist since we would like to create a
+              dummy calculator.
+
+        """
         # ===== environs TODO: from inputs 
         # - ASE_VASP_COMMAND
         # pseudo 
         if "VASP_PP_PATH" in os.environ.keys():
-            os.environ.pop("VASP_PP_PATH")
+            os.environ.pop("VASP_PP_PATH", "")
         os.environ["VASP_PP_PATH"] = pp_path
 
-        # vdw 
+        # - vdw 
         vdw_envname = "ASE_VASP_VDW"
         if vdw_envname in os.environ.keys():
-            _ = os.environ.pop(vdw_envname)
+            _ = os.environ.pop(vdw_envname, "")
         os.environ[vdw_envname] = vdw_path
 
         return
@@ -44,10 +51,11 @@ class VaspManager(AbstractPotentialManager):
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", Path.cwd())
 
-        # TODO: check pp and vdw
+        # TODO: whether check pp and vdw existence
+        #       since sometimes we'd like a dummy calculator
         incar = calc_params.pop("incar", None)
-        pp_path = calc_params.pop("pp_path", None)
-        vdw_path = calc_params.pop("vdw_path", None)
+        pp_path = calc_params.pop("pp_path", "")
+        vdw_path = calc_params.pop("vdw_path", "")
 
         if self.calc_backend == "vasp":
             # return ase calculator

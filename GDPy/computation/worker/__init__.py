@@ -61,6 +61,8 @@ def run_worker(
 ):
     """"""
     directory = pathlib.Path(directory)
+    if not directory.exists():
+        directory.mkdir()
 
     # - read structures
     from GDPy.builder import create_generator
