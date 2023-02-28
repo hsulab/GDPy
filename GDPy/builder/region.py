@@ -131,6 +131,41 @@ class Reservoir():
 
         return content
 
+class Region():
+
+    """The base class of region.
+
+    Triclinic, sphere, cylinder.
+
+    """
+
+    def __init__(self):
+        """"""
+
+        return
+    
+    def check_overlap(self, atoms, nl, rng=np.random):
+        """Get a random position and check overlap.
+
+        Args:
+            nl: Neighbor list.
+
+        """
+
+        return
+    
+    def get_a_random_position(self):
+        """"""
+
+        return
+    
+    @property
+    def volume(self):
+        """"""
+
+        return
+
+
 class ReducedRegion():
     """
     spherical or cubic box
