@@ -117,6 +117,9 @@ def run_validation(
         elif method == "minima":
             from GDPy.validator.minima import MinimaValidator
             rv = MinimaValidator(task_outpath, task_params, pm)
+        elif method == "traj":
+            from GDPy.validator.traj import TrajValidator
+            rv = TrajValidator(task_outpath, task_params, pm)
         elif method == "rxn":
             from GDPy.validator.rxn import ReactionValidator
             rv = ReactionValidator(task_outpath, task_params, pm)
