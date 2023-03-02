@@ -51,6 +51,9 @@ def create_selector(
         elif method == "graph":
             from GDPy.selector.graph import GraphSelector
             selectors.append(GraphSelector(**params))
+        elif method == "sortcut":
+            from GDPy.selector.sortcut import SortCutSelector
+            selectors.append(SortCutSelector(**params))
         else:
             raise RuntimeError(f"Cant find selector with method {method}.")
     
