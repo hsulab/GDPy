@@ -40,6 +40,8 @@ def create_scheduler(params_: dict={}) -> AbstractScheduler:
             from GDPy.scheduler.slurm import SlurmScheduler as scheduler_cls
         elif backend == "pbs":
             from GDPy.scheduler.pbs import PbsScheduler as scheduler_cls
+        elif backend == "lsf":
+            from GDPy.scheduler.lsf import LSFScheduler as scheduler_cls
         else:
             pass
     scheduler = scheduler_cls(**params)

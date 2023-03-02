@@ -6,52 +6,51 @@ import subprocess
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 
-class SlurmScheduler(AbstractScheduler):
+class LSFScheduler(AbstractScheduler):
 
-    """ Slurm scheduler.
+    """ Load Sharing Facility (LSF) scheduler.
 
-    A slurm scheduler.
+    A LSF scheduler. Commands are bjobs, bsub, bkill.
 
     """
 
-    name = "slurm"
+    name = "lsf"
 
-    PREFIX = "#SBATCH"
-    SUFFIX = ".slurm"
+    PREFIX = "#BSUB"
+    SUFFIX = ".lsf"
     SHELL = "#!/bin/bash -l"
 
-    SUBMIT_COMMAND = "sbatch"
-    ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.60j %.4t %.12M %.12L %.5D %.4C\""
+    SUBMIT_COMMAND = "bsub < "
+    #ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.60j %.4t %.12M %.12L %.5D %.4C\""
+    ENQUIRE_COMMAND = "`which bjobs` -u `whoami` -w"
 
     # compability for different machine
     # not all keywords are necessary
     default_parameters = {
-        "job-name": "slurmJob",
-        "account": None,
-        "partition": None,
-        "time": None,
+        "J": "lsfJob", # job name
+        "q": None, # partition
+        "W": None, # time
         # - CPU
-        "nodes": None,
-        "ntasks": None,
-        "tasks-per-node": None,
-        "cpus-per-task": None,
-        "mem-per-cpu": None, #"4G"
-        #"output": "slurm.o%j",
-        #"error": "slurm.e%j"
+        "R": None, # nodes
+        "n": None, # ncpus
+        "M": None, # memory
+        "o": "lsf.o%J", # output
+        "e": "lsf.e%J", # error
         # - GPU
-        "gres": None,
-        "mem-per-gpu": None # "32G"
+        #"gres": None,
+        #"mem-per-gpu": None, # "32G"
     }
 
-    running_status = ["R", "Q", "PD", "CG"]
+    running_status = ["RUN", "PEND", "DONE", "EXIT", "SSUSP", "USUSP"]
 
     def __str__(self) -> str:
         """Return the content of the job script."""
-        # - slurm params
+        # - scheduler params
         content = self.SHELL + "\n"
         for key, value in self.parameters.items():
             if value:
-                content += "{} --{}={}\n".format(self.PREFIX, key, value)
+                #content += "{} --{}={}\n".format(self.PREFIX, key, value)
+                content += "{} -{} {}\n".format(self.PREFIX, key, value)
             #else:
             #    raise ValueError("Keyword *%s* not properly set." %key)
         
@@ -68,7 +67,7 @@ class SlurmScheduler(AbstractScheduler):
     @AbstractScheduler.job_name.setter
     def job_name(self, job_name_: str):
         self._job_name = job_name_
-        self.set(**{"job-name": self._job_name})
+        self.set(**{"J": self._job_name})
         return
 
     def is_finished(self) -> bool:
@@ -92,16 +91,20 @@ class SlurmScheduler(AbstractScheduler):
         lines = fout.readlines()
 
         # - run over results
+        """format
+        JOBID   USER    STAT  QUEUE      FROM_HOST   EXEC_HOST   JOB_NAME   SUBMIT_TIME
+        120727  phu     PEND  normal     manage01                *ee.script Mar  1 21:55
+        """
         finished = False
         for line in lines[1:]: # skipe first info line
             data = line.strip().split()
-            jobid, name, status = data[0], data[2], data[3]
+            jobid, name, status = data[0], data[6], data[2]
             #if name.startswith(self.prefix) and status in self.running_status:
             #    indices = re.match(self.prefix+"*", name).span()
             #    if indices is not None:
             #        confid = int(name[indices[1]:])
             #    confids.append(int(confid))
-            if name == self.parameters["job-name"]:
+            if name == self.job_name:
                 finished = False
                 break
         else:

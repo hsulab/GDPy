@@ -45,6 +45,9 @@ class AbstractScheduler(ABC):
     #: _script: The path of the job script.
     _script: Union[str,pathlib.Path] = None
 
+    #: The job name.
+    _job_name: str = "scheduler"
+
     #: Environment settings for a job.
     environs: str = None
 
@@ -73,6 +76,9 @@ class AbstractScheduler(ABC):
         #    self.parameters.update(parameters_)
         self.parameters.update(kwargs)
         
+        # - update some special keywords
+        #   job_name
+        
         return
 
     @property
@@ -85,6 +91,18 @@ class AbstractScheduler(ABC):
     def script(self, script_):
         self._script = pathlib.Path(script_)
         return 
+
+    @property
+    def job_name(self) -> str:
+
+        return self._job_name
+    
+    @job_name.setter
+    @abstractmethod
+    def job_name(self, job_name_: str):
+        self._job_name = job_name_
+        # update job name in parameters
+        return
 
     def _get_default_parameters(self):
         return copy.deepcopy(self.default_parameters)
