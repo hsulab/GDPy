@@ -54,7 +54,8 @@ class TrainWorker(AbstractWorker):
             potter._make_train_files(dataset, train_dir)
             # ---
             job_name = str(uuid.uuid1()) + "-" + train_dir.name
-            scheduler.set(**{"job-name": job_name})
+            #scheduler.set(**{"job-name": job_name})
+            scheduler.job_name = job_name
             scheduler.script = train_dir / "train.script"
             if scheduler.name != "local":
                 scheduler.write()

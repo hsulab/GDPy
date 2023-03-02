@@ -243,7 +243,8 @@ class DriverBasedWorker(AbstractWorker):
             jobscript_fname = f"run-{uid}.script"
             structure_fname = f"frames-{uid}.yaml"
 
-            self.scheduler.set(**{"job-name": job_name})
+            #self.scheduler.set(**{"job-name": job_name})
+            self.scheduler.job_name = job_name
             self.scheduler.script = group_directory/jobscript_fname
 
             # NOTE: pot file, stru file, job script
@@ -364,7 +365,8 @@ class DriverBasedWorker(AbstractWorker):
             doc_data = self.database.get(Query().gdir == job_name)
             uid = doc_data["uid"]
 
-            self.scheduler.set(**{"job-name": job_name})
+            #self.scheduler.set(**{"job-name": job_name})
+            self.scheduler.job_name = job_name
             self.scheduler.script = group_directory/f"run-{uid}.script" 
 
             # -- check whether the jobs if running
