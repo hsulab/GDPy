@@ -25,7 +25,12 @@ def run_task(params, pot_worker=None, ref_worker=None, run=1, report=1):
         else:
             if report:
                 ga.report()
+    # TODO: merge all MC methods togather
     elif task == "mc":
+        from GDPy.mc.mc import MonteCarlo
+        mc = MonteCarlo(**params)
+        mc.run(pot_worker, run)
+    elif task == "gcmc":
         from GDPy.mc.gcmc import GCMC
         gcmc = GCMC(**params)
         gcmc.run(pot_worker, run)
