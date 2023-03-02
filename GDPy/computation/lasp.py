@@ -427,7 +427,10 @@ class LaspNN(FileIOCalculator):
         if lasp_out.exists():
             with open(lasp_out, "r") as fopen:
                 lines = fopen.readlines()
-            if lines[-1].strip().startswith("elapse_time"): # NOTE: its a typo in LASP!!
+            if (# NOTE: its a typo in LASP!!
+                lines[-1].strip().startswith("elapse_time") or # v3.3.4
+                lines[-1].strip().startswith("Elapse_time")    # v3.4.5
+            ):
                 converged = True
 
         return converged

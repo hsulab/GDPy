@@ -66,17 +66,19 @@ def parse_thermo_data(logfile_path) -> dict:
     start_idx, end_idx = None, None
     for idx, line in enumerate(lines):
         # - get the line index at the start of the thermo infomation
-        if line.startswith("Step"):
+        #   test with 29Oct2020 and 23Jun2022
+        if line.strip().startswith("Step"):
             start_idx = idx
         # - NOTE: find line index at the end
-        if line.startswith("ERROR: "):
+        if line.strip().startswith("ERROR: "):
             found_error = True
             end_idx = idx
-        if line.startswith("Loop time"):
+        if line.strip().startswith("Loop time"):
             end_idx = idx
         if start_idx is not None and end_idx is not None:
             break
     else:
+        print(start_idx, end_idx)
         raise RuntimeError(f"Error in lammps output of {str(logfile_path)}.")
     end_info = lines[end_idx] # either loop time or error
 
