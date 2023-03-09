@@ -8,8 +8,10 @@ import pathlib
 
 from ase import Atoms
 
+from GDPy.core.node import AbstractNode
 
-class StructureGenerator(abc.ABC):
+
+class StructureGenerator(AbstractNode):
 
     _directory = pathlib.Path.cwd() #: Working directory.
 
@@ -19,22 +21,6 @@ class StructureGenerator(abc.ABC):
     def __init__(self, directory, *args, **kwargs):
         """"""
         self.directory = directory
-        if not self.directory.exists():
-            self.directory.mkdir()
-
-        return
-
-    @property
-    def directory(self):
-
-        return self._directory
-    
-    @directory.setter
-    def directory(self, directory_):
-        """"""
-        self._directory = pathlib.Path(directory_)
-        if not self._directory.exists():
-            self._directory.mkdir()
 
         return
     
@@ -44,6 +30,9 @@ class StructureGenerator(abc.ABC):
         if self.logger is not None:
             self.pfunc = self.logger.info
         self.pfunc(f"@@@{self.__class__.__name__}")
+
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True)
 
         return
     

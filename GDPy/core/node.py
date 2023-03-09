@@ -13,6 +13,9 @@ class AbstractNode(abc.ABC):
     #: Working directory.
     _directory: pathlib.Path = "./"
 
+    #: Standard print function.
+    _print = print
+
     def __init__(self, directory: Union[str,pathlib.Path]="./", *args, **kwargs):
         """"""
         self.directory = directory
