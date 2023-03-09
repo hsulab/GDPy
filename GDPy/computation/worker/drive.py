@@ -397,8 +397,14 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, *args, **kwargs):
-        """"""
+    def retrieve(self, ignore_retrieved: bool=True, *args, **kwargs):
+        """Read results from wdirs.
+
+        Args:
+            ignore_retrieved: Whether include wdirs that are already retrieved.
+                              Otherwise, all finished jobs are included.
+
+        """
         self.inspect(*args, **kwargs)
         self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
 
@@ -406,7 +412,11 @@ class DriverBasedWorker(AbstractWorker):
 
         # - check status and get latest results
         unretrieved_wdirs = []
-        unretrieved_jobs = self._get_unretrieved_jobs()
+        if ignore_retrieved:
+            unretrieved_jobs = self._get_unretrieved_jobs()
+        else:
+            unretrieved_jobs = self._get_finished_jobs()
+            
         for job_name in unretrieved_jobs:
             # NOTE: sometimes prefix has number so confid may be striped
             #group_directory = self.directory / job_name[self.UUIDLEN+1:]
