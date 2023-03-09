@@ -254,7 +254,7 @@ class VaspDriver(AbstractDriver):
 
         return converged
     
-    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory.
 
         If the calculation failed, an empty atoms with errof info would be returned.
@@ -282,8 +282,10 @@ class VaspDriver(AbstractDriver):
             # - sort frames
             traj_frames = []
             sort, resort = read_sort(self.directory)
-            for sorted_atoms in traj_frames_:
+            for i, sorted_atoms in enumerate(traj_frames_):
                 input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
+                if add_step_info:
+                    input_atoms.info["step"] = i
                 traj_frames.append(input_atoms)
         except:
             atoms = Atoms()
