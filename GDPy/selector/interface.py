@@ -9,17 +9,12 @@ from GDPy.computation.worker.worker import AbstractWorker
 
 from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.invariant import InvariantSelector
-from GDPy.selector.traj import BoltzmannMinimaSelection
-from GDPy.selector.descriptor import DescriptorBasedSelector
-from GDPy.selector.uncertainty import DeviationSelector
 from GDPy.selector.composition import ComposedSelector
-from GDPy.selector.convergence import ConvergenceSelector
 
 
 def create_selector(
     input_list: List[dict], directory: Union[str,pathlib.Path]=pathlib.Path.cwd(), 
-    #pot_worker: AbstractWorker=None
-    pot_worker=None
+    pot_worker: AbstractWorker=None
 ) -> AbstractSelector:
     """Create a selector based on arguments.
 
@@ -40,34 +35,33 @@ def create_selector(
     for s in input_list:
         params = copy.deepcopy(s)
         method = params.pop("method", None)
+        # -- frame-based
         if method == "invariant":
-            selectors.append(InvariantSelector(**params))
-        elif method == "convergence":
-            selectors.append(ConvergenceSelector(**params))
-        elif method == "boltzmann":
-            selectors.append(BoltzmannMinimaSelection(**params))
-        elif method == "deviation":
-            selectors.append(DeviationSelector(**params, pot_worker=pot_worker))
+            cur_selector = InvariantSelector(**params)
         elif method == "descriptor":
-            selectors.append(DescriptorBasedSelector(**params))
+            from GDPy.selector.descriptor import DescriptorBasedSelector
+            cur_selector = DescriptorBasedSelector(**params)
         elif method == "graph":
             from GDPy.selector.graph import GraphSelector
-            selectors.append(GraphSelector(**params))
-        elif method == "sortcut":
-            from GDPy.selector.sortcut import SortCutSelector
-            selectors.append(SortCutSelector(**params))
-        elif method == "traj":
-            from GDPy.selector.traj import TrajectorySelection
-            selectors.append(TrajectorySelection(**params))
+            cur_selector = GraphSelector(**params)
+        elif method == "property":
+            from GDPy.selector.property import PropertyBasedSelector
+            cur_selector = PropertyBasedSelector(**params)
         else:
             raise RuntimeError(f"Cant find selector with method {method}.")
+        # -- check if custom worker is set for selection
+        from GDPy.potential.register import create_potter
+        worker_config = params.pop("worker", None)
+        if worker_config is not None:
+            worker = create_potter(worker_config) # register calculator, and scheduler if exists
+        else:
+            worker = None
+        cur_selector.attach_worker(worker)
+        # -- 
+        selectors.append(cur_selector)
     
     # - try a simple composed selector
-    if len(selectors) > 1:
-        selector = ComposedSelector(selectors, directory=directory)
-    else:
-        selector = selectors[0]
-        selector.directory = directory
+    selector = ComposedSelector(selectors, directory=directory)
 
     return selector
 
@@ -93,7 +87,6 @@ def run_selection(
     generator = create_generator(structure)
     frames = generator.run()
     nframes = len(frames)
-    print("nframes: ", nframes)
 
     # -
     selected_frames = selector.select(frames)
