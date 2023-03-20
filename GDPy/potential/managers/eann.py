@@ -65,6 +65,7 @@ class EannManager(AbstractPotentialManager):
                     model=models, type_map=type_map,
                     command = command, directory=directory
                 )
+                calc.calc_uncertainty = True
             else:
                 calc = None
         elif self.calc_backend == "lammps":
