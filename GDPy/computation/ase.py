@@ -41,7 +41,9 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
                 np.savetxt(fopen, devi_values, fmt="%18.6e")
         else:
             with open(devi_fpath, "w") as fopen:
-                np.savetxt(fopen, devi_values, fmt="%18.6e", header=" ".join(devi_names))
+                np.savetxt(
+                    fopen, devi_values, fmt="%18.6e", header=("{:<18s}"*len(devi_names)).format(*devi_names)
+                )
 
     return
 
