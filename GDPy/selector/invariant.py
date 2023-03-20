@@ -31,33 +31,6 @@ class InvariantSelector(AbstractSelector):
         """Return selected indices."""
         selected_indices = list(range(len(frames)))
 
-        # - output
-        data = []
-        for s in selected_indices:
-            atoms = frames[s]
-            # - gather info
-            confid = atoms.info.get("confid", -1)
-            natoms = len(atoms)
-            ae = atoms.get_potential_energy() / natoms
-            maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
-            data.append([s, confid, natoms, ae, maxforce])
-        if data:
-            np.savetxt(
-                self.info_fpath, data, 
-                fmt="%8d  %8d  %8d  %12.4f  %12.4f",
-                #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
-                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}".format(
-                    *"index confid natoms AtomicEnergy MaxForce".split()
-                )
-            )
-        else:
-            np.savetxt(
-                self.info_fpath, [[np.NaN]*5],
-                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}".format(
-                    *"index confid natoms AtomicEnergy MaxForce".split()
-                )
-            )
-
         return selected_indices
 
 
