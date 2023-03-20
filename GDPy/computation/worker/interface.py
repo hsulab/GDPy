@@ -12,7 +12,7 @@ from ase.geometry import find_mic
 from GDPy.computation.worker.worker import AbstractWorker
 from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.potential.register import create_potter
-from GDPy.selector.command import create_selector
+from GDPy.selector.interface import create_selector
 from GDPy.utils.command import parse_input_file
 
 from GDPy.utils.command import CustomTimer
@@ -163,12 +163,17 @@ def run_worker(
             if traj_params is None:
                 traj_params = copy.deepcopy(conv_params)
         # -- create selectors
+        conv_selector = create_selector(conv_params, directory=directory/"results"/"select"/"conv")
         traj_selector = create_selector(traj_params, directory=directory/"results"/"select"/"traj")
 
         # -- run selections
+        conv_frames = data.get("last", None)
+        if conv_frames is not None:
+            _ = conv_selector.select(conv_frames)
+
         trajectories = data.get("traj", None)
-        _ = traj_selector.select(trajectories)
-        ...
+        if trajectories is not None:
+            _ = traj_selector.select(trajectories)
 
     return
 
