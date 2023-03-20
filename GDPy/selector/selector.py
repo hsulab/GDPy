@@ -3,6 +3,8 @@
 
 import abc 
 import copy
+
+import pathlib
 from pathlib import Path
 from typing import Union, List, Callable, NoReturn
 
@@ -11,13 +13,16 @@ import numpy as np
 from ase import Atoms
 
 from GDPy import config
+from GDPy.core.node import AbstractNode
+from GDPy.core.datatype import isAtomsFrames, isTrajectories
+from GDPy.computation.worker.drive import DriverBasedWorker
 
 
 """Define an AbstractSelector that is the base class of any selector.
 """
 
 
-class AbstractSelector(abc.ABC):
+class AbstractSelector(AbstractNode):
 
     """The base class of any selector."""
 
@@ -29,8 +34,8 @@ class AbstractSelector(abc.ABC):
         number = [4, 0.2] # number & ratio
     )
 
-    #: Working directory.
-    _directory: Path = None
+    #: A worker for potential computations.
+    worker: DriverBasedWorker = None
 
     #: Distinguish structures when using ComposedSelector.
     prefix: str = "selection"
@@ -39,8 +44,15 @@ class AbstractSelector(abc.ABC):
     _fname: str = "info.txt"
 
     logger = None #: Logger instance.
+
     _pfunc: Callable = print #: Function for outputs.
     indent: int = 0 #: Indent of outputs.
+
+    #: Input data format (frames or trajectories).
+    _inp_fmt: str = "stru"
+
+    #: Output data format (frames or trajectories).
+    _out_fmt: str = "stru"
 
     def __init__(self, directory=Path.cwd(), *args, **kwargs) -> NoReturn:
         """Create a selector.
@@ -51,12 +63,8 @@ class AbstractSelector(abc.ABC):
             **kwargs: Arbitrary keyword arguments.
 
         """
-        self.parameters = copy.deepcopy(self.default_parameters)
-        for k in self.parameters:
-            if k in kwargs.keys():
-                self.parameters[k] = kwargs[k]
+        super().__init__(directory=directory, *args, **kwargs)
 
-        self.directory = directory
         self.fname = self.name+"-info.txt"
         
         if "random_seed" in self.parameters:
@@ -67,17 +75,7 @@ class AbstractSelector(abc.ABC):
 
         return
 
-    @property
-    def directory(self) -> Path:
-        """Working directory.
-
-        Note:
-            When setting directory, info_fpath would be set as well.
-
-        """
-        return self._directory
-    
-    @directory.setter
+    @AbstractNode.directory.setter
     def directory(self, directory_) -> NoReturn:
         self._directory = Path(directory_)
         self.info_fpath = self._directory/self._fname
@@ -96,41 +94,23 @@ class AbstractSelector(abc.ABC):
         self.info_fpath = self._directory/self._fname
         return
     
-    def set(self, *args, **kwargs):
-        """"""
-        for k, v in kwargs.items():
-            if k in self.parameters:
-                self.parameters[k] = v
-
-        return
-
-    def __getattr__(self, key):
-        """ Corresponding getattribute-function 
-        """
-        if key != "parameters" and key in self.parameters:
-            return self.parameters[key]
-        return object.__getattribute__(self, key)
-
-    def set_rng(self, seed=None):
-        """"""
-        # - assign random seeds
-        if seed is None:
-            self.rng = np.random.default_rng()
-        elif isinstance(seed, int):
-            self.rng = np.random.default_rng(seed)
+    def attach_worker(self, worker=None) -> NoReturn:
+        """Attach a worker to this node."""
+        self.worker = worker
 
         return
 
     def select(
-        self, frames: List[Atoms], index_map: List[int]=None, 
-        ret_indices: bool=False, *args, **kargs
+        self, inp_dat: Union[List[Atoms],List[List[Atoms]]], 
+        index_map: List[int]=None, ret_indices: bool=False, 
+        *args, **kargs
     ) -> Union[List[Atoms],List[int]]:
-        """Seelect frames.
+        """Select frames or trajectories.
 
         Based on used selction protocol
 
         Args:
-            frames: A list of ase.Atoms.
+            frames: A list of ase.Atoms or a list of List[ase.Atoms].
             index_map: Global indices of frames.
             ret_indices: Whether return selected indices or frames.
             *args: Variable length argument list.
@@ -144,11 +124,39 @@ class AbstractSelector(abc.ABC):
             self._pfunc = self.logger.info
         self.pfunc(f"@@@{self.__class__.__name__}")
 
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True)
+
+        # - check whether frames or trajectories
+        #   if trajs, flat it to frames for further selection
+        _is_trajs = False
+        if isAtomsFrames(inp_dat):
+            frames = inp_dat
+            nframes = len(inp_dat)
+            mapping_indices = list(range(nframes))
+            self.pfunc(f"find {nframes} nframes...")
+        else:
+            if isTrajectories(inp_dat):
+                ntrajs = len(inp_dat)
+                frames, mapping_indices = [], []
+                for i, traj in enumerate(inp_dat):
+                    for j, atoms in enumerate(traj):
+                        # TODO: sometimes only last frame is needed
+                        #       e.g. selection based on minima
+                        frames.append(atoms)
+                        mapping_indices.append([i,j])
+                nframes = len(frames)
+                self.pfunc(f"find {nframes} nframes from {ntrajs} ntrajs...")
+                _is_trajs = True
+            else:
+                raise TypeError("Selection needs either Frames or Trajectories.")
+
         # - check if it is finished
         if not (self.info_fpath).exists():
             self.pfunc("run selection...")
             selected_indices = self._select_indices(frames)
         else:
+            # -- restart
             self.pfunc("use cached...")
             data = np.loadtxt(self.info_fpath)
             if len(data.shape) == 1:
@@ -163,17 +171,29 @@ class AbstractSelector(abc.ABC):
         # - add info
         for i, s in enumerate(selected_indices):
             atoms = frames[s]
-            selection = atoms.info.get("selection","")
+            selection = atoms.info.get("selection", "")
             atoms.info["selection"] = selection+f"->{self.name}"
+        
+        # - save cached results for restart
+        self._write_cached_results(frames, selected_indices, index_map)
 
-        # - map selected indices
-        if index_map is not None:
-            selected_indices = [index_map[s] for s in selected_indices]
+        # - map indices to frames or trajectories
+        #   TODO: return entire traj if minima is selected?
+        #global_indices = [mapping_indices[i] for i in selected_indices]
 
+        #print("nframes: ", len(frames), self.__class__.__name__)
+
+        # -
         if not ret_indices:
+            # -- TODO: return frames or trajs
             selected_frames = [frames[i] for i in selected_indices]
-            return selected_frames
+            return selected_frames # mix trajs into one frames
         else:
+            # - map selected indices
+            #   always List[int] for either frames or trajs
+            if index_map is not None:
+                selected_indices = [index_map[s] for s in selected_indices]
+
             return selected_indices
 
     @abc.abstractmethod
@@ -213,15 +233,51 @@ class AbstractSelector(abc.ABC):
         self._pfunc(content)
 
         return
-    
-    def as_dict(self) -> dict:
-        """Return a dict of selector parameters."""
-        params = dict(
-            name = self.__class__.__name__
-        )
-        params.update(**copy.deepcopy(self.parameters))
 
-        return params
+    def _write_cached_results(self, frames: List[Atoms], selected_indices: List[int], index_map: List[int]=None, *args, **kwargs) -> NoReturn:
+        """Write selection results into file that can be used for restart."""
+        # - output
+        data = []
+        for i, s in enumerate(selected_indices):
+            atoms = frames[s]
+            # - gather info
+            confid = atoms.info.get("confid", -1)
+            step = atoms.info.get("step", -1) # step number in the trajectory
+            natoms = len(atoms)
+            try:
+                ene = atoms.get_potential_energy()
+                ae = ene / natoms
+            except:
+                ene, ae = np.NaN, np.NaN
+            try:
+                maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            except:
+                maxforce = np.NaN
+            score = atoms.info.get("score", np.NaN)
+            if index_map is not None:
+                s = index_map[s]
+            data.append([s, confid, step, natoms, ene, ae, maxforce, score])
+
+        if data:
+            np.savetxt(
+                self.info_fpath, data, 
+                fmt="%8d  %8d  %8d  %8d  %12.4f  %12.4f  %12.4f  %12.4f",
+                #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
+                header="{:>6s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
+                    *"index confid step natoms ene aene maxfrc score".split()
+                ),
+                footer=f"random_seed {self.random_seed}"
+            )
+        else:
+            np.savetxt(
+                self.info_fpath, [[np.NaN]*8],
+                header="{:>6s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
+                    *"index confid step natoms ene aene maxfrc score".split()
+                ),
+                footer=f"random_seed {self.random_seed}"
+            )
+
+        return
 
 
 if __name__ == "__main__":
