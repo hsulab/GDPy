@@ -124,6 +124,7 @@ def main():
     )
 
     # --- worker interface
+    # ----- driver interface
     parser_driver = subparsers.add_parser(
         "driver", help="run a driver (local worker)"
     )
@@ -136,6 +137,7 @@ def main():
         help="output filename of all calculated structures"
     )
 
+    # ----- worker
     parser_worker = subparsers.add_parser(
         "worker", help="run a worker"
     )
@@ -144,12 +146,16 @@ def main():
         help="a structure file that stores one or more structures"
     )
     parser_worker.add_argument(
-        "-o", "--output", default=None,
-        help="output filename of all calculated structures"
+        "-o", "--output", default="last", choices=["last","traj"],
+        help="retrieve last frame or entire trajectory"
     )
     parser_worker.add_argument(
-        "--local", action="store_false", 
-        help="whether to perform local execution"
+        "-s", "--selection", 
+        help="perform selection on retrieved structures"
+    )
+    parser_worker.add_argument(
+        "--nostat", action="store_true",
+        help="no statistics shown"
     )
 
     # --- task interface
@@ -243,7 +249,7 @@ def main():
         from GDPy.trainer import run_trainer
         run_trainer(potter, args.directory)
     elif args.subcommand == "select":
-        from GDPy.selector import run_selection
+        from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
     elif args.subcommand == "explore":
         from GDPy.expedition import run_expedition
@@ -260,11 +266,11 @@ def main():
             args.number, args.energy_tolerance, args.energy_shift
         )
     elif args.subcommand == "driver":
-        from GDPy.computation.worker import run_driver
+        from GDPy.computation.worker.interface import run_driver
         run_driver(args.STRUCTURE, args.directory, potter, args.output)
     elif args.subcommand == "worker":
-        from GDPy.computation.worker import run_worker
-        run_worker(args.STRUCTURE, args.directory, args.local, potter, args.output)
+        from GDPy.computation.worker.interface import run_worker
+        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run, args.report)
