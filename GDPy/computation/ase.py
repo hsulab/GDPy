@@ -315,13 +315,18 @@ class AseDriver(AbstractDriver):
         """Read trajectory in the current working directory."""
         traj_frames = read(self.directory/"traj.xyz", index=":")
 
+        # TODO: log file will not be overwritten when restart
         if add_step_info:
             if self.task == "md":
                 data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
+                if len(data.shape) == 1:
+                    data = data[np.newaxis,:]
                 timesteps = data[:, 0] # ps
                 steps = timesteps*1000/self.init_params["timestep"]
             elif self.task == "min":
                 data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+                if len(data.shape) == 1:
+                    data = data[np.newaxis,:]
                 steps = [int(s) for s in data[:, 1]]
             assert len(steps) == len(traj_frames), "Number of steps and number of frames are inconsistent..."
             for step, atoms in zip(steps, traj_frames):
