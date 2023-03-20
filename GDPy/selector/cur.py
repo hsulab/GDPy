@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
+from typing import List
+
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, svds
 from scipy.spatial.distance import cdist
@@ -29,6 +32,14 @@ def cur_selection(features, num: int, zeta: float=2, strategy: str="descent", rn
         zeta: Exponential coefficient.
         strategy: Selection strategy, either stochastic or descent.
         rng: Random generator.
+
+    References:
+        [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
+            De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
+            npj Comput. Mater. 2019, 5, 99.
+        [2] Mahoney, M. W.; Drineas, P. 
+            CUR Matrix Decompositions for Improved Data Analysis. 
+            Proc. Natl. Acad. Sci. USA 2009, 106, 697–702.
 
     """
     # column vectors of descriptors
@@ -89,6 +100,67 @@ def fps_selection(features, num: int, min_distance=0.1, metric="euclidean", metr
     
     scores = distances
 
+    return scores, selected_indices
+
+# - boltz (Boltzmann Selection)
+def boltz_selection(
+    boltz: int, props: List[float], input_indices: List[int], num_minima: int, 
+    rng = np.random
+):
+    """Selected indices based on Boltzmann distribution.
+
+    References:
+    [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
+        De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
+        npj Comput. Mater. 2019, 5, 99.
+
+    """
+    # compute desired probabilities for flattened histogram
+    hist, bin_edges = np.histogram(props, bins=10) # hits, bin_edges
+    min_prop = np.min(props)
+    
+    # - multiply bin number
+    config_prob = []
+    for H in props:
+        bin_i = np.searchsorted(bin_edges[1:], H) # ret index of the bin
+        if hist[bin_i] > 0.0:
+            p = 1.0/hist[bin_i]
+        else:
+            p = 0.0
+        if boltz > 0.0:
+            p *= np.exp(-(H-min_prop)/boltz) # TODO: custom expression?
+        config_prob.append(p)
+    
+    assert len(config_prob) == len(props)
+    #uniform_probs = np.array(config_prob) / np.sum(config_prob)
+    
+    # - select
+    props = copy.deepcopy(props)
+    input_indices = copy.deepcopy(input_indices)
+
+    scores, selected_indices = [], []
+    for i in range(num_minima):
+        # -- random
+        # TODO: rewrite by mask 
+        config_prob = np.array(config_prob)
+        config_prob /= np.sum(config_prob)
+        cumul_prob = np.cumsum(config_prob)
+        rv = rng.uniform()
+        config_i = np.searchsorted(cumul_prob, rv)
+        #print(converged_trajectories[config_i][0])
+        selected_indices.append(input_indices[config_i])
+    
+        # -- remove from config_prob by converting to list
+        scores.append(config_prob[config_i])
+        config_prob = list(config_prob)
+        del config_prob[config_i]
+    
+        # remove from other lists
+        del props[config_i]
+        del input_indices[config_i]
+    
+    # NOTE: scores are current probabilities when selected
+        
     return scores, selected_indices
 
 if __name__ == "__main__":
