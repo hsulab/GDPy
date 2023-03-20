@@ -3,7 +3,7 @@
 
 import copy
 from pathlib import Path
-from typing import List
+from typing import NoReturn, Union, List
 
 import numpy as np
 
@@ -13,19 +13,10 @@ from ase.io import read, write
 from dscribe.descriptors import SOAP
 
 from GDPy.selector.selector import AbstractSelector
-from GDPy.selector.cur import cur_selection
+from GDPy.selector.cur import cur_selection, fps_selection
 
 
 """Selector using descriptors.
-
-References:
-    [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
-        De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
-        npj Comput. Mater. 2019, 5, 99.
-    [2] Mahoney, M. W.; Drineas, P. 
-        CUR Matrix Decompositions for Improved Data Analysis. 
-        Proc. Natl. Acad. Sci. USA 2009, 106, 697–702.
-
 """
 
 
@@ -39,10 +30,17 @@ class DescriptorBasedSelector(AbstractSelector):
     default_parameters = dict(
         random_seed = None,
         descriptor = None,
-        criteria = dict(
+        sparsify = dict(
+            trajwise = False,
+            # -- cur
             method = "cur",
             zeta = "-1",
             strategy = "descent"
+            # -- fps
+            # method = "fps",
+            #min_distance = 0.1,
+            #metric = "euclidean",
+            #metric_params = {}
         ),
         number = [4, 0.2]
     )
@@ -53,22 +51,21 @@ class DescriptorBasedSelector(AbstractSelector):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
 
+        # - check params
+        criteria_method = self.sparsify["method"]
+        assert criteria_method in ["cur", "fps"], f"Unknown selection method {criteria_method}."
+
+        assert self._inp_fmt in ["stru", "traj"], f"{self._inp_fmt} is not allowed for {self.name}."
+
         return
 
-    def calc_desc(self, frames: List[Atoms]):
-        """Calculate descriptors."""
-        # calculate descriptor to select minimum dataset
+    def _compute_descripter(self, frames: List[Atoms]):
+        """Calculate vector-based descriptors.
 
+        Each structure is represented by a vector.
+
+        """
         features_path = self.directory / "features.npy"
-        # TODO: read cached features
-        # if features_path.exists():
-        #    print("use precalculated features...")
-        #    features = np.load(features_path)
-        #    assert features.shape[0] == len(frames)
-        # else:
-        #    print('start calculating features...')
-        #    features = calc_feature(frames, desc_dict, njobs, features_path)
-        #    print('finished calculating features...')
 
         self.pfunc("start calculating features...")
         desc_params = copy.deepcopy(self.descriptor)
@@ -84,7 +81,7 @@ class DescriptorBasedSelector(AbstractSelector):
             raise RuntimeError(f"Unknown descriptor {desc_name}.")
         self.pfunc("finished calculating features...")
 
-        # save calculated features 
+        # - save calculated features 
         features = features.reshape(-1,ndim)
         if self.verbose:
             np.save(features_path, features)
@@ -97,61 +94,68 @@ class DescriptorBasedSelector(AbstractSelector):
         nframes = len(frames)
         num_fixed = self._parse_selection_number(nframes)
 
-        # NOTE: currently, only CUR is supported
-        # TODO: farthest sampling, clustering ...
+        # NOTE: currently, only cur and fps are supported
+        # TODO: clustering ...
         if num_fixed > 0:
-            features = self.calc_desc(frames)
-
-            # cur decomposition
+            features = self._compute_descripter(frames)
             if nframes == 1:
-                cur_scores, selected_indices = [np.NaN], [0]
+                scores, selected_indices = [np.NaN], [0]
             else:
-                cur_scores, selected_indices = cur_selection(
-                    features, num_fixed,
-                    self.criteria["zeta"], self.criteria["strategy"],
-                    rng = self.rng
-                )
+                scores, selected_indices = self._sparsify(features, num_fixed)
+            self._plot_results(features, selected_indices)
         else:
-            cur_scores, selected_indices = [], []
-
-        # - output
-        data = []
-        for i, s in enumerate(selected_indices):
-            atoms = frames[s]
-            # - gather info
-            confid = atoms.info.get("confid", -1)
-            natoms = len(atoms)
-            try:
-                ae = atoms.get_potential_energy() / natoms
-            except:
-                ae = np.NaN
-            try:
-                maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
-            except:
-                maxforce = np.NaN
-            score = cur_scores[i]
-            data.append([s, confid, natoms, ae, maxforce, score])
-
-        if data:
-            np.savetxt(
-                self.info_fpath, data, 
-                fmt="%8d  %8d  %8d  %12.4f  %12.4f  %12.4f",
-                #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
-                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}".format(
-                    *"index confid natoms AtomicEnergy MaxForce  CurScore".split()
-                ),
-                footer=f"random_seed {self.random_seed}"
-            )
-        else:
-            np.savetxt(
-                self.info_fpath, [[np.NaN]*6],
-                header="{:>6s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}".format(
-                    *"index confid natoms AtomicEnergy MaxForce  CurScore".split()
-                ),
-                footer=f"random_seed {self.random_seed}"
-            )
+            scores, selected_indices = [], []
+        
+        # - add score to atoms
+        #   only save scores from last property
+        for score, i in zip(scores, selected_indices):
+            frames[i].info["score"] = score
 
         return selected_indices
+    
+    def _sparsify(self, features, num_fixed: int):
+        """"""
+        # TODO: sparsify each traj separately?
+        criteria_params = copy.deepcopy(self.sparsify)
+        method = criteria_params.pop("method", "cur")
+        is_trajwise = criteria_params.pop("trajwise", False)
+        if not is_trajwise:
+            if method == "cur":
+                # -- cur decomposition
+                scores, selected_indices = cur_selection(
+                    features, num_fixed, **criteria_params, rng = self.rng
+                )
+            elif method == "fps":
+                scores, selected_indices = fps_selection(
+                    features, num_fixed, **criteria_params, rng=self.rng
+                )
+            else:
+                ...
+        else:
+            raise NotImplementedError("Can't sparsify each trajectory separately.")
+
+        return scores, selected_indices
+    
+    def _plot_results(self, features, selected_indices, *args, **kwargs):
+        """"""
+        # - plot selection
+        from sklearn.decomposition import PCA
+        import matplotlib.pyplot as plt
+
+        reducer = PCA(n_components=2)
+        reducer.fit(features)
+        proj = reducer.transform(features)
+        selected_proj = reducer.transform(
+            np.array([features[i] for i in selected_indices])
+        )
+
+        plt.scatter(proj[:,0], proj[:,1], label="ALL")
+        plt.scatter(selected_proj[:,0], selected_proj[:,1], label="SEL")
+        plt.legend()
+        plt.axis("off")
+        plt.savefig(self.info_fpath.parent/(self.info_fpath.stem+".png"))
+
+        return
 
 
 if __name__ == "__main__":
