@@ -11,6 +11,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy.core.datatype import isAtomsFrames, isTrajectories
 from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.cur import boltz_selection
 
@@ -30,6 +31,9 @@ class PropertyItem:
 
     #: Sparsifiction method.
     sparsify: str = "filter"
+
+    #: Whether perform sparsifiction on each traj separately.
+    trajwise: bool = False
 
     #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
@@ -119,7 +123,6 @@ class PropertyBasedSelector(AbstractSelector):
     default_parameters = dict(
         properties = [],
         worker = None, # compute properties on-the-fly
-        reverse = False, # reverse the selection result
         number = [4, 0.2]
     )
 
@@ -131,63 +134,66 @@ class PropertyBasedSelector(AbstractSelector):
         prop_items = []
         for name, params in self.properties.items():
             prop_item = PropertyItem(name=name, **params)
-            print(params)
             prop_items.append(prop_item)
         self._prop_items = prop_items
 
         return
 
-    def _select_indices(
-            self, inp_dat: Union[List[Atoms],List[List[Atoms]]], 
-            *args, **kwargs
-        ) -> Union[List[int],List[List[int]]]:
-        """"""
-        # - check whether input is frames or trajectories
-        frames = inp_dat
-        nframes = len(frames)
-
+    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+        """Return selected indices."""
         # - get property values
         #   NOTE: properties should be pre-computed...
+        nframes = len(frames)
         prev_indices = list(range(nframes))
         for prop_item in self._prop_items:
             self.pfunc(str(prop_item))
             # -- each structure is represented by one float value
             #    get per structure values
-            prop_vals = []
-            for atoms in frames:
-                if prop_item.name == "atomic_energy":
-                    # TODO: move this part to PropertyItem?
-                    energy = atoms.get_potential_energy()
-                    natoms = len(atoms)
-                    atoms_property = energy/natoms
-                elif prop_item.name == "energy":
-                    energy = atoms.get_potential_energy()
-                    atoms_property = energy
-                elif prop_item.name == "forces":
-                    forces = atoms.get_forces(apply_constraint=True)
-                    atoms_property = forces
-                else:
-                    # -- any property stored in atoms.info
-                    #    e.g. max_devi_f
-                    atoms_property = atoms.info.get(prop_item.name, None)
-                    if atoms_property is None:
-                        atoms_property = atoms.arrays.get(prop_item.name, None)
-                    if atoms_property is None:
-                        raise KeyError(f"{prop_item.name} does not exist.")
-                prop_vals.append(atoms_property)
-            prop_vals = prop_item._convert_raw_(prop_vals)
+            prop_vals = self._extract_property(frames, prop_item)
             # --
             scores, prev_indices = self._sparsify(prop_item, prop_vals, prev_indices)
             self.pfunc(f"nselected: {len(prev_indices)}")
-        selected_indices = prev_indices
+        selected_indices = prev_indices # frames [0,1,2,3] or trajectories [[0,0],[0,2]]
 
-        # BUG: TODO: NOTE:
         # - add score to atoms
         #   only save scores from last property
         for score, i in zip(scores, prev_indices):
             frames[i].info["score"] = score
 
         return selected_indices
+    
+    def _extract_property(self, frames: List[Atoms], prop_item: PropertyItem):
+        """Extract property values from frames.
+
+        Returns:
+            property values: List[float] or 1d-np.array.
+
+        """
+        prop_vals = []
+        for atoms in frames:
+            if prop_item.name == "atomic_energy":
+                # TODO: move this part to PropertyItem?
+                energy = atoms.get_potential_energy()
+                natoms = len(atoms)
+                atoms_property = energy/natoms
+            elif prop_item.name == "energy":
+                energy = atoms.get_potential_energy()
+                atoms_property = energy
+            elif prop_item.name == "forces":
+                forces = atoms.get_forces(apply_constraint=True)
+                atoms_property = forces
+            else:
+                # -- any property stored in atoms.info
+                #    e.g. max_devi_f
+                atoms_property = atoms.info.get(prop_item.name, None)
+                if atoms_property is None:
+                    atoms_property = atoms.arrays.get(prop_item.name, None)
+                if atoms_property is None:
+                    raise KeyError(f"{prop_item.name} does not exist.")
+            prop_vals.append(atoms_property)
+        prop_vals = prop_item._convert_raw_(prop_vals)
+
+        return prop_vals
     
     def _sparsify(self, prop_item: PropertyItem, prop_vals, prev_indices):
         """"""
@@ -207,7 +213,7 @@ class PropertyBasedSelector(AbstractSelector):
         elif prop_item.sparsify == "sort":
             npoints = len(prev_indices)
             numbers = copy.deepcopy(prev_indices)
-            sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i], reverse=self.reverse)
+            sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
 
             num_fixed = self._parse_selection_number(npoints)
             if not prop_item.reverse:
@@ -216,11 +222,15 @@ class PropertyBasedSelector(AbstractSelector):
                 cur_indices = sorted_numbers[-num_fixed:]
             scores = [prop_vals[i] for i in prev_indices]
         elif prop_item.sparsify == "boltz":
-            npoints = len(prev_indices)
-            num_fixed = self._parse_selection_number(npoints)
-            scores, cur_indices = boltz_selection(
-                prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
-            )
+            if not prop_item.trajwise:
+                npoints = len(prev_indices)
+                num_fixed = self._parse_selection_number(npoints)
+                scores, cur_indices = boltz_selection(
+                    prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
+                )
+            else:
+                # TODO: deal with trajectories
+                raise NotImplementedError("Can't sparsify each trajectory separately.")
         else:
             # NOTE: check sparsifiction method in PropertyItem
             ...
