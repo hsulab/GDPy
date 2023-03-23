@@ -3,22 +3,55 @@
 
 import copy
 import pathlib
+from typing import NoReturn
 
 import numpy as np
 
 from ase.io import read, write
 from ase.geometry import find_mic
 
+from GDPy.core.operation import Operation
 from GDPy.computation.worker.worker import AbstractWorker
 from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.potential.register import create_potter
 from GDPy.selector.interface import create_selector
 from GDPy.utils.command import parse_input_file
-
 from GDPy.utils.command import CustomTimer
 
-
 DEFAULT_MAIN_DIRNAME = "MyWorker"
+
+
+class drive(Operation):
+
+    """Drive structures.
+    """
+
+    def __init__(self, frames, worker):
+        """"""
+        super().__init__([frames])
+
+        self.worker = worker
+
+        return
+    
+    @Operation.directory.setter
+    def directory(self, directory_) -> NoReturn:
+        """"""
+        super(drive, drive).directory.__set__(self, directory_)
+
+        self.worker.directory = self._directory
+
+        return
+    
+    def forward(self, frames):
+        """"""
+        self.worker.run(frames)
+
+        self.worker.inspect(resubmit=True)
+
+        new_frames = self.worker.retrieve()
+
+        return new_frames
 
 def run_driver(structure: str, directory="./", worker=None, o_fname=None):
     """"""

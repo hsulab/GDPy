@@ -5,11 +5,37 @@ import copy
 import pathlib
 from typing import Union, List, NoReturn
 
+from GDPy.core.operation import Operation
 from GDPy.computation.worker.worker import AbstractWorker
-
 from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.composition import ComposedSelector
+
+
+class select(Operation):
+
+    def __init__(self, frames, selector: AbstractSelector):
+        """"""
+        super().__init__([frames])
+
+        self.selector = selector
+
+        return
+    
+    @Operation.directory.setter
+    def directory(self, directory_) -> NoReturn:
+        """"""
+        super(select, select).directory.__set__(self, directory_)
+
+        self.selector.directory = self._directory
+
+        return
+    
+    def forward(self, frames):
+        """"""
+        new_frames = self.selector.select(frames)
+
+        return new_frames
 
 
 def create_selector(
