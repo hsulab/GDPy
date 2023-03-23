@@ -144,21 +144,27 @@ class PropertyBasedSelector(AbstractSelector):
         # - get property values
         #   NOTE: properties should be pre-computed...
         nframes = len(frames)
-        prev_indices = list(range(nframes))
-        for prop_item in self._prop_items:
-            self.pfunc(str(prop_item))
-            # -- each structure is represented by one float value
-            #    get per structure values
-            prop_vals = self._extract_property(frames, prop_item)
-            # --
-            scores, prev_indices = self._sparsify(prop_item, prop_vals, prev_indices)
-            self.pfunc(f"nselected: {len(prev_indices)}")
-        selected_indices = prev_indices # frames [0,1,2,3] or trajectories [[0,0],[0,2]]
+        if nframes > 0:
+            prev_indices = list(range(nframes))
+            for prop_item in self._prop_items:
+                self.pfunc(str(prop_item))
+                # -- each structure is represented by one float value
+                #    get per structure values
+                prop_vals = self._extract_property(frames, prop_item)
+                # --
+                scores, prev_indices = self._sparsify(prop_item, prop_vals, prev_indices)
+                self.pfunc(f"nselected: {len(prev_indices)}")
+                selected_indices = prev_indices # frames [0,1,2,3] or trajectories [[0,0],[0,2]]
+                # --
+                if not (len(prev_indices) > 0):
+                    break
 
-        # - add score to atoms
-        #   only save scores from last property
-        for score, i in zip(scores, prev_indices):
-            frames[i].info["score"] = score
+            # - add score to atoms
+            #   only save scores from last property
+            for score, i in zip(scores, prev_indices):
+                frames[i].info["score"] = score
+        else:
+            selected_indices = []
 
         return selected_indices
     
