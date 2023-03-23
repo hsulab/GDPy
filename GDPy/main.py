@@ -47,6 +47,14 @@ def main():
         dest="subcommand", 
         help="sub-command help"
     )
+
+    # - run session
+    parser_session = subparsers.add_parser(
+        "session", help="run gdpy session"
+    )
+    parser_session.add_argument(
+        "SESSION", help="session configuration file (json/yaml)"
+    )
     
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -66,7 +74,7 @@ def main():
     #    help="[create/freeze] models"
     #)
 
-    # explore
+    # - explore
     parser_explore = subparsers.add_parser(
         "explore", help="exploration configuration file (json/yaml)"
     )
@@ -248,6 +256,9 @@ def main():
     if args.subcommand == "train":
         from GDPy.trainer import run_trainer
         run_trainer(potter, args.directory)
+    elif args.subcommand == "session":
+        from GDPy.core.session import run_session
+        run_session(args.SESSION, args.directory)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
