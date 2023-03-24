@@ -215,7 +215,7 @@ class PropertyBasedSelector(AbstractSelector):
                 for i in prev_indices:
                     if prop_item.pmin > prop_vals[i] and prop_vals[i] >= prop_item.pmax:
                         cur_indices.append(i)
-            scores = [prop_vals[i] for i in prev_indices]
+            scores = [prop_vals[i] for i in cur_indices]
         elif prop_item.sparsify == "sort":
             npoints = len(prev_indices)
             numbers = copy.deepcopy(prev_indices)
@@ -226,7 +226,7 @@ class PropertyBasedSelector(AbstractSelector):
                 cur_indices = sorted_numbers[:num_fixed]
             else:
                 cur_indices = sorted_numbers[-num_fixed:]
-            scores = [prop_vals[i] for i in prev_indices]
+            scores = [prop_vals[i] for i in cur_indices]
         elif prop_item.sparsify == "boltz":
             if not prop_item.trajwise:
                 npoints = len(prev_indices)
