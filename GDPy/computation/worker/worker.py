@@ -76,10 +76,6 @@ class AbstractWorker(abc.ABC):
         """"""
         # - create main dir
         directory_ = pathlib.Path(directory_)
-        if not directory_.exists():
-            directory_.mkdir() # NOTE: ./tmp_folder
-        else:
-            pass
         self._directory = directory_
 
         return
@@ -153,6 +149,10 @@ class AbstractWorker(abc.ABC):
     
     def _initialise(self, *args, **kwargs):
         """"""
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True, exist_ok=True) # NOTE: ./tmp_folder
+        else:
+            ...
         assert self.directory, "Working directory is not set properly..."
         self._init_database()
         if self.logger is None:
