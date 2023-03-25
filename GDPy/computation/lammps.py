@@ -209,7 +209,6 @@ class LmpDriver(AbstractDriver):
             if read_exists:
                 converged, end_info = atoms.calc._is_finished()
                 if converged:
-                    print(f"Found finished simulation {self.directory.name} with info {end_info}.")
                     atoms.calc.type_list = parse_type_list(atoms)
                     atoms.calc.read_results()
                 else:
@@ -223,6 +222,9 @@ class LmpDriver(AbstractDriver):
             converged = False
         #else:
         #    converged = False
+
+        # TODO: summarise this computation and output some info?
+        #print(f"Found finished simulation {self.directory.name} with info {end_info}.")
 
         # NOTE: always use dynamics calc
         # TODO: should change positions and other properties for input atoms?
