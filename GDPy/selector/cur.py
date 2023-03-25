@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import itertools
 from typing import List
 
 import numpy as np
@@ -104,7 +105,7 @@ def fps_selection(features, num: int, min_distance=0.1, metric="euclidean", metr
 
 # - boltz (Boltzmann Selection)
 def boltz_selection(
-    boltz: int, props: List[float], input_indices: List[int], num_minima: int, 
+    boltz: float, props: List[float], input_indices: List[int], num_minima: int, 
     rng = np.random
 ):
     """Selected indices based on Boltzmann distribution.
@@ -161,6 +162,59 @@ def boltz_selection(
     
     # NOTE: scores are current probabilities when selected
         
+    return scores, selected_indices
+
+# - hist (Histogram-Based Selection)
+def hist_selection(
+    nbins: int, pmin: float, pmax: float, 
+    props: List[float], input_indices: List[int], num_minima: int, 
+    rng = np.random
+):
+    props = np.array(props)
+    scores = None
+    selected_indices = None
+
+    if pmin == -np.inf:
+        pmin = props.min()
+    if pmax == np.inf:
+        pmax = props.max()
+
+    bin_edges = np.linspace(pmin, pmax, nbins, endpoint=False).tolist()
+    bin_edges.append(pmax)
+    #print(len(bin_edges), bin_edges)
+
+    bin_indices = np.digitize(props, bin_edges, right=False)
+
+    groups = [[] for i in range(nbins)]
+    for i, i_bin in enumerate(bin_indices):
+        if i_bin > nbins:
+            i_bin = nbins
+        groups[i_bin-1].append(i)
+    hist_by_digit = np.array([len(x) for x in groups])
+    #print(hist_by_digit)
+
+    # - select bins
+    selected_groups = [[] for i in range(nbins)]
+
+    cur_groups_ = copy.deepcopy(groups)
+    for i in range(num_minima):
+        # -- select bin
+        cur_hists_ = np.array([len(x) for x in cur_groups_])
+        #print("hist: ", cur_hists_)
+        cur_probs_ = cur_hists_ / np.sum(cur_hists_)
+        s_bin = rng.choice(nbins, 1, p=cur_probs_, replace=False)[0]
+        # -- select index in the bin
+        s_ind = rng.choice(cur_hists_[s_bin], 1, replace=False)[0]
+        selected_groups[s_bin].append(cur_groups_[s_bin][s_ind])
+        del cur_groups_[s_bin][s_ind]
+    #print([len(x) for x in selected_groups])
+
+    # - select points
+    selected_indices = []
+    for x in selected_groups:
+        selected_indices.extend(x)
+    scores = [props[i] for i in selected_indices]
+
     return scores, selected_indices
 
 if __name__ == "__main__":

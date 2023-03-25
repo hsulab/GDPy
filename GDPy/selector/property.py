@@ -13,7 +13,7 @@ from ase.io import read, write
 
 from GDPy.core.datatype import isAtomsFrames, isTrajectories
 from GDPy.selector.selector import AbstractSelector
-from GDPy.selector.cur import boltz_selection
+from GDPy.selector.cur import boltz_selection, hist_selection
 
 @dataclasses.dataclass
 class PropertyItem:
@@ -29,7 +29,7 @@ class PropertyItem:
 
     # metric_params
 
-    #: Sparsifiction method.
+    #: Sparsifiction method. [filter, sort, hist, boltz]
     sparsify: str = "filter"
 
     #: Whether perform sparsifiction on each traj separately.
@@ -41,6 +41,9 @@ class PropertyItem:
     range: List[float] = dataclasses.field(default_factory=lambda: [None,None])
     pmin: float = dataclasses.field(init=False, default=-np.inf)
     pmax: float = dataclasses.field(init=False, default= np.inf)
+    
+    #: Number of bins for histogram-based sparsification.
+    nbins: int = 20
 
     #: Boltzmann temperature (eV).
     kBT: float = None
@@ -83,7 +86,7 @@ class PropertyItem:
             self._metric = []
         
         # - sparsify
-        assert self.sparsify in ["filter", "sort", "boltz"], f"Unknown sparsification {self.sparsify}."
+        assert self.sparsify in ["filter", "sort", "hist", "boltz"], f"Unknown sparsification {self.sparsify}."
 
         return
     
@@ -205,24 +208,23 @@ class PropertyBasedSelector(AbstractSelector):
     
     def _statistics(self, prop_item: PropertyItem, prop_vals):
         """"""
+        # - here are all data
         npoints = len(prop_vals)
         pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
         pstd = np.sqrt(np.var(prop_vals-pavg))
 
-        bins = 20
-        #bins = np.arange(0.0, 0.5, 0.05)
-        hist, bin_edges = np.histogram(prop_vals, bins=bins)
+        # - hist data only in the range
+        bins = np.linspace(
+            prop_item.pmin, prop_item.pmax, prop_item.nbins, endpoint=False
+        ).tolist()
+        bins.append(pmax)
+        hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[prop_item.pmin, prop_item.pmax])
 
-        #self.pfunc(
-        #    "# min {:<12.4f} max {:<12.4f} avg {:<12.4f} std {:<12.4f}".format(
-        #        pmin, pmax, pavg, pstd
-        #    )
-        #)
-
+        # - output
         content = f"#Property {prop_item.name}\n"
         content += "# min {:<12.4f} max {:<12.4f}\n".format(pmin, pmax)
         content += "# avg {:<12.4f} std {:<12.4f}\n".format(pavg, pstd)
-        content += "# hist\n"
+        content += "# histogram of {} points in the range (npoints: {})\n".format(np.sum(hist), npoints)
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
         self.pfunc(content)
@@ -258,6 +260,17 @@ class PropertyBasedSelector(AbstractSelector):
             else:
                 cur_indices = sorted_numbers[-num_fixed:]
             scores = [prop_vals[i] for i in cur_indices]
+        elif prop_item.sparsify == "hist":
+            if not prop_item.trajwise:
+                npoints = len(prev_indices)
+                num_fixed = self._parse_selection_number(npoints)
+                scores, cur_indices = hist_selection(
+                    prop_item.nbins, prop_item.pmin, prop_item.pmax,
+                    [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
+                )
+            else:
+                # TODO: deal with trajectories
+                raise NotImplementedError("Can't sparsify each trajectory separately.")
         elif prop_item.sparsify == "boltz":
             if not prop_item.trajwise:
                 npoints = len(prev_indices)
