@@ -151,6 +151,8 @@ class PropertyBasedSelector(AbstractSelector):
                 # -- each structure is represented by one float value
                 #    get per structure values
                 prop_vals = self._extract_property(frames, prop_item)
+                # -- give statistics of this property
+                self._statistics(prop_item, prop_vals)
                 # --
                 scores, prev_indices = self._sparsify(prop_item, prop_vals, prev_indices)
                 self.pfunc(f"nselected: {len(prev_indices)}")
@@ -200,6 +202,35 @@ class PropertyBasedSelector(AbstractSelector):
         prop_vals = prop_item._convert_raw_(prop_vals)
 
         return prop_vals
+    
+    def _statistics(self, prop_item: PropertyItem, prop_vals):
+        """"""
+        npoints = len(prop_vals)
+        pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
+        pstd = np.sqrt(np.var(prop_vals-pavg))
+
+        bins = 20
+        #bins = np.arange(0.0, 0.5, 0.05)
+        hist, bin_edges = np.histogram(prop_vals, bins=bins)
+
+        #self.pfunc(
+        #    "# min {:<12.4f} max {:<12.4f} avg {:<12.4f} std {:<12.4f}".format(
+        #        pmin, pmax, pavg, pstd
+        #    )
+        #)
+
+        content = f"#Property {prop_item.name}\n"
+        content += "# min {:<12.4f} max {:<12.4f}\n".format(pmin, pmax)
+        content += "# avg {:<12.4f} std {:<12.4f}\n".format(pavg, pstd)
+        content += "# hist\n"
+        for x, y in zip(hist, bin_edges[:-1]):
+            content += "{:>12.4f}  {:>12d}\n".format(y, x)
+        self.pfunc(content)
+
+        with open(self.info_fpath.parent/(self.info_fpath.stem+f"-{prop_item.name}-stat.txt"), "w") as fopen:
+            fopen.write(content)
+
+        return
     
     def _sparsify(self, prop_item: PropertyItem, prop_vals, prev_indices):
         """"""
