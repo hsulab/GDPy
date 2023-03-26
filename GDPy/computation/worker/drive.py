@@ -397,7 +397,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, ignore_retrieved: bool=True, *args, **kwargs):
+    def retrieve(self, ignore_retrieved: bool=True, given_wdirs: List[str]=None, *args, **kwargs):
         """Read results from wdirs.
 
         Args:
@@ -411,7 +411,7 @@ class DriverBasedWorker(AbstractWorker):
         gdirs, results = [], []
 
         # - check status and get latest results
-        unretrieved_wdirs = []
+        unretrieved_wdirs_ = []
         if ignore_retrieved:
             unretrieved_jobs = self._get_unretrieved_jobs()
         else:
@@ -423,10 +423,22 @@ class DriverBasedWorker(AbstractWorker):
             #group_directory = self.directory / "_works"
             group_directory = self.directory
             doc_data = self.database.get(Query().gdir == job_name)
-            unretrieved_wdirs.extend(
+            unretrieved_wdirs_.extend(
                 group_directory/w for w in doc_data["wdir_names"]
             )
+        
+        # - get given wdirs
+        unretrieved_wdirs = []
+        if given_wdirs is not None:
+            for wdir in unretrieved_wdirs_:
+                wdir_name = wdir.name
+                if wdir_name in given_wdirs:
+                    unretrieved_wdirs.append(wdir)
+                # TODO: check unfinished given wdirs?
+        else:
+            unretrieved_wdirs = unretrieved_wdirs_
 
+        # - read results
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             results = self._read_results(unretrieved_wdirs, *args, **kwargs)
