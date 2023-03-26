@@ -214,8 +214,13 @@ class PropertyBasedSelector(AbstractSelector):
         pstd = np.sqrt(np.var(prop_vals-pavg))
 
         # - hist data only in the range
+        hist_max, hist_min = prop_item.pmax, prop_item.pmin
+        if hist_max == np.inf:
+            hist_max = pmax
+        if hist_min == -np.inf:
+            hist_min = pmin
         bins = np.linspace(
-            prop_item.pmin, prop_item.pmax, prop_item.nbins, endpoint=False
+            hist_min, hist_max, prop_item.nbins, endpoint=False
         ).tolist()
         bins.append(pmax)
         hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[prop_item.pmin, prop_item.pmax])
