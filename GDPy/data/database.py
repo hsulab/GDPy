@@ -261,6 +261,8 @@ class StructureDatabase:
         if not res_path.exists():
             res_path.mkdir()
 
+        # TODO: add an outlier detector? selection...
+        #       sometimes expedition gives unphysical structures
         for sys in self.systems:
             # -- update basic info for the worker
             nframes_in = len(sys.frames)
