@@ -222,7 +222,7 @@ class PropertyBasedSelector(AbstractSelector):
         bins = np.linspace(
             hist_min, hist_max, prop_item.nbins, endpoint=False
         ).tolist()
-        bins.append(pmax)
+        bins.append(hist_max)
         hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[prop_item.pmin, prop_item.pmax])
 
         # - output
