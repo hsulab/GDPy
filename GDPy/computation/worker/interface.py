@@ -3,10 +3,11 @@
 
 import copy
 import pathlib
-from typing import NoReturn
+from typing import NoReturn, List
 
 import numpy as np
 
+from ase import Atoms
 from ase.io import read, write
 from ase.geometry import find_mic
 
@@ -26,11 +27,17 @@ class drive(Operation):
     """Drive structures.
     """
 
-    def __init__(self, frames, worker):
+    def __init__(
+        self, frames, worker, 
+        read_traj=True, traj_period: int=1,
+    ):
         """"""
         super().__init__([frames])
 
         self.worker = worker
+
+        self.read_traj = read_traj
+        self.traj_period = traj_period
 
         return
     
@@ -45,13 +52,218 @@ class drive(Operation):
     
     def forward(self, frames):
         """"""
-        self.worker.run(frames)
+        super().forward()
 
-        self.worker.inspect(resubmit=True)
+        new_frames = []
 
-        new_frames = self.worker.retrieve()
+        cached_fpath = self.directory/"output.xyz"
+        if not cached_fpath.exists():
+            self.worker.run(frames)
+            self.worker.inspect(resubmit=True)
+            # TODO: check whether finished this operation...
+            if self.worker.get_number_of_running_jobs() == 0:
+                trajectories = self.worker.retrieve(
+                    read_traj = self.read_traj, traj_period = self.traj_period,
+                    include_first = True, include_last = True,
+                    ignore_retrieved=False # TODO: ignore misleads...
+                )
+                for traj in trajectories:
+                    new_frames.append(traj[-1])
+                write(cached_fpath, new_frames)
+        else:
+            new_frames = read(cached_fpath, ":")
 
         return new_frames
+
+class label(Operation):
+
+    """Drive structures.
+    """
+
+    def __init__(
+        self, nodes: list, worker, 
+        read_traj=True, traj_period: int=1,
+    ):
+        """"""
+        super().__init__(nodes)
+
+        self.worker = worker
+
+        self.read_traj = read_traj
+        self.traj_period = traj_period
+
+        return
+    
+    @Operation.directory.setter
+    def directory(self, directory_) -> NoReturn:
+        """"""
+        super(drive, drive).directory.__set__(self, directory_)
+
+        self.worker.directory = self._directory
+
+        return
+    
+    def forward(self, *args):
+        """"""
+        super().forward()
+
+        for node, frames in zip(self.input_nodes, args):
+            _ = self._irun(self.directory/node.directory.name, frames)
+
+        return
+    
+    def _irun(self, sub_wdir, sub_frames: List[Atoms]):
+        """"""
+        cached_fpath = sub_wdir/"output.xyz"
+        if not cached_fpath.exists():
+            self.worker = sub_wdir
+            self.worker.run(sub_frames)
+            self.worker.inspect(resubmit=True)
+            trajectories = self.worker.retrieve(
+                read_traj = self.read_traj, traj_period = self.traj_period,
+                include_first = True, include_last = True,
+                ignore_retrieved=False # TODO: ignore misleads...
+            )
+            new_frames = []
+            for traj in trajectories:
+                new_frames.append(traj[-1])
+            write(cached_fpath, new_frames)
+        else:
+            new_frames = read(cached_fpath, ":")
+
+        return new_frames
+
+class extract_trajectories(Operation):
+
+    """Extract dynamics trajectories from a drive-node's worker.
+    """
+
+    def __init__(
+        self, drive_node, read_traj=True, traj_period: int=1,
+        include_first=True, include_last=True
+    ) -> NoReturn:
+        """"""
+        super().__init__([drive_node])
+
+        self.read_traj = read_traj
+        self.traj_period = traj_period
+
+        self.include_first = include_first
+        self.include_last = include_last
+
+        return
+    
+    def forward(self, frames: List[Atoms]):
+        """
+        Args:
+            frames: Structures from drive-node's output (end frame of each traj).
+            
+        """
+        super().forward()
+
+        # - save ALL end frames
+        cached_conv_fpath = self.directory/"last.xyz" # converged frames
+        if not cached_conv_fpath.exists():
+            write(cached_conv_fpath, frames)
+
+        # - extract trajetories
+        cached_trajs_fpath = self.directory/"trajs.xyz"
+        if not cached_trajs_fpath.exists():
+            worker = self.input_nodes[0].worker
+
+            trajectories = worker.retrieve(
+                read_traj = self.read_traj, traj_period = self.traj_period,
+                include_first = self.include_first, include_last = self.include_last,
+                ignore_retrieved=False # TODO: ignore misleads...
+            )
+            flatten_traj_frames = []
+            for traj in trajectories:
+                flatten_traj_frames.extend(traj)
+            write(cached_trajs_fpath, flatten_traj_frames)
+        else:
+            flatten_traj_frames = read(cached_trajs_fpath, ":")
+        
+        # TODO: reconstruct trajs to List[List[Atoms]]
+
+        return flatten_traj_frames
+
+class extract_selected_trajectories(Operation):
+
+    """Extract dynamics trajectories from a drive-node's worker.
+    """
+
+    def __init__(
+        self, drive_node, selector_node, read_traj=True, traj_period: int=1,
+        include_first=True, include_last=True
+    ) -> NoReturn:
+        """"""
+        super().__init__([drive_node, selector_node])
+
+        self.read_traj = read_traj
+        self.traj_period = traj_period
+
+        self.include_first = include_first
+        self.include_last = include_last
+
+        return
+    
+    def forward(self, frames: List[Atoms], selected_minima: List[Atoms]):
+        """
+        Args:
+            frames: Structures from drive-node's output (end frame of each traj).
+            
+        """
+        super().forward()
+
+        # - save selected minima (end) frames
+        cached_conv_fpath = self.directory/"selected.xyz" # converged frames
+        if not cached_conv_fpath.exists():
+            write(cached_conv_fpath, selected_minima)
+
+        # - find selected minima's wdirs
+        given_wdirs = []
+        for i, atoms in enumerate(selected_minima):
+            wdir = atoms.info.get("wdir", None)
+            if wdir is not None:
+                given_wdirs.append(wdir)
+            else:
+                raise RuntimeError(f"There is no wdir for atoms {i}.")
+
+        # - extract trajetories
+        cached_trajs_fpath = self.directory/"trajs.xyz"
+        if not cached_trajs_fpath.exists():
+            worker = self.input_nodes[0].worker
+
+            trajectories = worker.retrieve(
+                ignore_retrieved=False, # TODO: ignore misleads...
+                given_wdirs = given_wdirs,
+                read_traj = self.read_traj, traj_period = self.traj_period,
+                include_first = self.include_first, include_last = self.include_last
+            )
+            flatten_traj_frames = []
+            for traj in trajectories:
+                flatten_traj_frames.extend(traj)
+            write(cached_trajs_fpath, flatten_traj_frames)
+        else:
+            flatten_traj_frames = read(cached_trajs_fpath, ":")
+        
+        # TODO: reconstruct trajs to List[List[Atoms]]
+
+        return flatten_traj_frames
+
+
+def create_extract(method: str, params: dict):
+    """"""    
+    # TODO: check if params are valid
+    if method == "trajs":
+        from GDPy.computation.worker.interface import extract_trajectories as op_cls
+    elif method == "selected_trajs":
+        from GDPy.computation.worker.interface import extract_selected_trajectories as op_cls
+    else:
+        raise NotImplementedError(f"Unimplemented modifier {method}.")
+
+    return op_cls
+
 
 def run_driver(structure: str, directory="./", worker=None, o_fname=None):
     """"""

@@ -25,6 +25,13 @@ from GDPy.builder.builder import StructureGenerator
 
 from GDPy.utils.command import CustomTimer
 
+"""Monitor computation tasks with Worker.
+
+TODO: Known Issues
+    Inconsistent input frames between two consecutive runs.
+
+"""
+
 def get_file_md5(f):
     import hashlib
     m = hashlib.md5()
@@ -116,20 +123,31 @@ class DriverBasedWorker(AbstractWorker):
 
         # - check wdir
         # NOTE: get a list even if it only has one structure
+        # TODO: a better strategy to deal with wdirs...
         wdirs = [] # [(confid,dynstep), ..., ()]
         for icand, x in enumerate(frames):
-            wdir = x.info.get("wdir", None)
-            if wdir is None:
-                confid = x.info.get("confid", None)
-                if confid:
-                    dynstep = x.info.get("step", None) # step maybe 0
-                    if dynstep is not None:
-                        dynstep = f"_step{dynstep}"
-                    else:
-                        dynstep = ""
-                    wdir = "cand{}{}".format(confid,dynstep)
+            #wdir = x.info.get("wdir", None)
+            #if wdir is None:
+            #    confid = x.info.get("confid", None)
+            #    if confid:
+            #        dynstep = x.info.get("step", None) # step maybe 0
+            #        if dynstep is not None:
+            #            dynstep = f"_step{dynstep}"
+            #        else:
+            #            dynstep = ""
+            #        wdir = "cand{}{}".format(confid,dynstep)
+            #    else:
+            #        wdir = f"cand{icand}"
+            confid = x.info.get("confid", None)
+            if confid is not None:
+                dynstep = x.info.get("step", None) # step maybe 0
+                if dynstep is not None:
+                    dynstep = f"_step{dynstep}"
                 else:
-                    wdir = f"cand{icand}"
+                    dynstep = ""
+                wdir = "cand{}{}".format(confid,dynstep)
+            else:
+                wdir = f"cand{icand}"
             x.info["wdir"] = wdir
             wdirs.append(wdir)
         # - check whether each structure has a unique wdir

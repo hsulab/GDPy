@@ -29,7 +29,6 @@ class AbstractWorker(abc.ABC):
 
     UUIDLEN = 36 # length of uuid
 
-    restart = True
     logger = None
 
     _directory = None
@@ -127,23 +126,27 @@ class AbstractWorker(abc.ABC):
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
-        working_directory = self.directory
-        log_fpath = working_directory / (self.__class__.__name__+".out")
-
-        if self.restart:
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-
-        fh.setLevel(log_level)
-        #fh.setFormatter(formatter)
-
+        # - stream
         ch = logging.StreamHandler()
         ch.setLevel(log_level)
         #ch.setFormatter(formatter)
 
-        self.logger.addHandler(ch)
+        # -- avoid duplicate stream handlers
+        for handler in self.logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                break
+        else:
+            self.logger.addHandler(ch)
+
+        # - file
+        log_fpath = self.directory/(self.__class__.__name__+".out")
+        if log_fpath.exists():
+            fh = logging.FileHandler(filename=log_fpath, mode="a")
+        else:
+            fh = logging.FileHandler(filename=log_fpath, mode="w")
+        fh.setLevel(log_level)
         self.logger.addHandler(fh)
+        #fh.setFormatter(formatter)
 
         return
     
@@ -155,8 +158,9 @@ class AbstractWorker(abc.ABC):
             ...
         assert self.directory, "Working directory is not set properly..."
         self._init_database()
-        if self.logger is None:
-            self._init_logger()
+        #if self.logger is None:
+        #    self._init_logger()
+        self._init_logger()
 
         return
     
