@@ -5,6 +5,8 @@ import copy
 import pathlib
 from typing import Union, List, NoReturn
 
+from ase.io import read, write
+
 from GDPy.core.operation import Operation
 from GDPy.computation.worker.worker import AbstractWorker
 from GDPy.selector.selector import AbstractSelector
@@ -13,6 +15,8 @@ from GDPy.selector.composition import ComposedSelector
 
 
 class select(Operation):
+
+    cached_fname = "selected_frames.xyz"
 
     def __init__(self, frames, selector: AbstractSelector):
         """"""
@@ -33,7 +37,14 @@ class select(Operation):
     
     def forward(self, frames):
         """"""
-        new_frames = self.selector.select(frames)
+        super().forward()
+        cached_fpath = self.directory/self.cached_fname
+        if not cached_fpath.exists():
+            new_frames = self.selector.select(frames)
+            write(cached_fpath, new_frames)
+        else:
+            new_frames = read(cached_fpath, ":")
+        self.pfunc(f"nframes: {len(new_frames)}")
 
         return new_frames
 
