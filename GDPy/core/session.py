@@ -14,6 +14,15 @@ from GDPy.core.placeholder import Placeholder
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 
+class end_session(Operation):
+
+    def __init__(self, *args) -> NoReturn:
+        super().__init__(args)
+    
+    def forward(self, *args):
+        """"""
+        return super().forward()
+
 
 def traverse_postorder(operation):
 
@@ -41,7 +50,7 @@ class Session:
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
-        print(nodes_postorder)
+        #print(nodes_postorder)
 
         # - set wdirs
         #for node in nodes_postorder:
@@ -51,7 +60,7 @@ class Session:
 
         # - run nodes
         for node in nodes_postorder:
-            print(f"----- {node} -----")
+            print(f"----- Node {node.__class__.__name__} -----")
 
             if type(node) == Placeholder:
                 node.output = feed_dict[node]
@@ -114,12 +123,19 @@ def create_operation(op_name, op_params_: dict):
         rng = np.random.default_rng(random_seed)
         op_params.update(rng=rng)
     # --
-    if op_type == "perturb":
-        from GDPy.builder.perturb import perturb as op_func
+    op_method = op_params.pop("method", None)
+    if op_type == "modifier":
+        from GDPy.builder.interface import create_modifier
+        op_func = create_modifier(op_method, op_params)
     elif op_type == "drive":
         from GDPy.computation.worker.interface import drive as op_func
+    elif op_type == "extract":
+        from GDPy.computation.worker.interface import create_extract
+        op_func = create_extract(op_method, op_params)
     elif op_type == "select":
         from GDPy.selector.interface import select as op_func
+    elif op_type == "end":
+        op_func = end_session
     else:
         raise RuntimeError(f"Unknown operation type {op_type}.")
     #op_params.update(func=op_func)
@@ -152,14 +168,14 @@ def create_session(session_params, nodes_params, ops_params, temp_nodes, directo
             #print(out, out.directory)
             #if hasattr(out, "worker"):
             #    print(id(out.worker))
-        (directory / f"{i}_{name}").mkdir(parents=True, exist_ok=True)
+        #(directory / f"{i}_{name}").mkdir(parents=True, exist_ok=True)
         temp_nodes[name] = out
 
     session = Session(directory=directory)
 
     return session, out
 
-def run_session(config_filepath, directory="./"):
+def run_session(config_filepath, custom_session_names=None, directory="./"):
     """"""
     directory = pathlib.Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -173,19 +189,24 @@ def run_session(config_filepath, directory="./"):
     sessions_params = session_config.get("sessions", None)
 
     # - create sessions
-    temp_nodes = {} # intermediate nodes
+    # TODO: check if has duplicated node names!!!
+    temp_nodes = {} # intermediate nodes, shared among sessions
 
-    sessions = []
+    sessions = {}
     for name, cur_params in sessions_params.items():
         session, end_node = create_session(
             cur_params, nodes_params, ops_params, temp_nodes,
             directory=directory/name
         )
-        sessions.append([session,end_node])
+        sessions[name] = [session,end_node]
     
     # - run session
-    for session, end_node in sessions:
-        _ = session.run(end_node, feed_dict={})
+    if custom_session_names is None:
+        custom_session_names = copy.deepcopy(list(sessions.keys()))
+    for name, (session, end_node) in sessions.items():
+        if name in custom_session_names:
+            print(f"===== run session {name} =====")
+            _ = session.run(end_node, feed_dict={})
 
     return
 
