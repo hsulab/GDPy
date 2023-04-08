@@ -10,8 +10,11 @@ from ase import Atoms
 
 from GDPy.core.node import AbstractNode
 
+"""
+"""
 
-class StructureGenerator(AbstractNode):
+
+class StructureBuilder(AbstractNode):
 
     _directory = pathlib.Path.cwd() #: Working directory.
 
@@ -36,6 +39,7 @@ class StructureGenerator(AbstractNode):
 
         return
     
+StructureGenerator = StructureBuilder # compatibility
 
 if __name__ == "__main__":
     pass
