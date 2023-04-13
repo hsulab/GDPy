@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 import os
-from pathlib import Path
+import pathlib
 from typing import NoReturn
 
 from GDPy.potential.manager import AbstractPotentialManager
@@ -49,20 +49,28 @@ class VaspManager(AbstractPotentialManager):
 
         # - some extra params
         command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", Path.cwd())
+        directory = calc_params.pop("directory", pathlib.Path.cwd())
 
-        # TODO: whether check pp and vdw existence
+        # NOTE: whether check pp and vdw existence
         #       since sometimes we'd like a dummy calculator
+        #       -- convert paths to absolute ones
         incar = calc_params.pop("incar", None)
         pp_path = calc_params.pop("pp_path", "")
         vdw_path = calc_params.pop("vdw_path", "")
+
+        incar = str(pathlib.Path(incar).absolute())
+        self.calc_params.update(incar=incar)
+        pp_path = str(pathlib.Path(pp_path).absolute())
+        self.calc_params.update(pp_path=pp_path)
+        vdw_path = str(pathlib.Path(vdw_path).absolute())
+        self.calc_params.update(vdw_path=vdw_path)
 
         if self.calc_backend == "vasp":
             # return ase calculator
             from ase.calculators.vasp import Vasp
             calc = Vasp(directory=directory, command=command)
 
-            # - set some default params
+            # - set some default electronic parameters
             calc.set_xc_params("PBE") # NOTE: since incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
@@ -74,7 +82,7 @@ class VaspManager(AbstractPotentialManager):
             # - update residual params
             calc.set(**calc_params)
         else:
-            pass
+            raise NotImplementedError(f"Unimplemented backend {self.calc_backend} for vasp.")
         
         self.calc = calc
 
