@@ -6,9 +6,8 @@ import re
 import time
 import copy
 import json
-import argparse
-import subprocess 
 import warnings
+import pathlib
 from typing import Union, List, NoReturn
 from collections import Counter
 
@@ -24,7 +23,7 @@ from ase.constraints import FixAtoms
 
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.computation.utils import create_single_point_calculator
-from GDPy.computation.driver import AbstractDriver
+from GDPy.computation.driver import AbstractDriver, DriverSetting
 
 """Driver for VASP."""
 
@@ -51,6 +50,60 @@ def read_sort(directory):
 
     return sort, resort
 
+class VaspDriverSetting(DriverSetting):
+
+    def __post_init__(self):
+        """Convert parameters into driver-specific ones.
+
+        These parameters are frozen when the driver is initialised.
+
+        """
+        # - update internals that are specific for each calculator...
+        if self.task == "min":
+            # minimisation
+            if self.min_style == "bfgs":
+                ibrion = 1
+            elif self.min_style == "cg":
+                ibrion = 2
+            else:
+                #raise ValueError(f"Unknown minimisation {self.min_style} for vasp".)
+                ...
+
+            self._internals.update(
+                ibrion = ibrion,
+                potim = self.maxstep
+            )
+
+        if self.task == "md":
+            # some general
+            potim = self.timestep
+            # TODO: init vel here?
+            ibrion, isif = 0, 0
+            if self.md_style == "nve":
+                smass, mdalgo = -3, 2
+                self._internals.update(
+                    ibrion=ibrion, potim=potim, isif=isif, 
+                    smass=smass, mdalgo=mdalgo
+                )
+            elif self.md_style == "nvt":
+                #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
+                smass = 0.
+                if self.tend is None:
+                    self.tend = self.temp
+                tebeg, teend = self.temp, self.tend
+                self._internals.update(
+                    ibrion=ibrion, potim=potim, isif=isif, 
+                    smass=smass, tebeg=tebeg, teend=teend
+                )
+            else:
+                raise NotImplementedError(f"{self.md_style} is not supported yet.")
+            
+        if self.task == "freq":
+            # ibrion, nfree, potim
+            raise NotImplementedError("")
+
+        return
+
 class VaspDriver(AbstractDriver):
 
     name = "vasp"
@@ -59,99 +112,32 @@ class VaspDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md", "freq"]
 
-    default_init_params = {
-        "min": {
-            "min_style": "bfgs", # ibrion
-            "maxstep": 0.1 # potim
-        },
-        "md": {
-            "md_style": "nvt",
-            #"velocity_seed": 1112,
-            "timestep": 1.0, # fs
-            "temp": 300, # K
-            #"Tdamp": 100, # fs
-            #"pres": 1.0, # atm
-            #"Pdamp": 100
-        },
-        "freq": dict(
-            nsw = 1,
-            ibrion = 5,
-            nfree = 2,
-            potim = 0.015
-        )
-    }
-
-    default_run_params = {
-        "min": {
-            "fmax": 0.05,
-            "steps": 0
-        },
-        "md": {
-            "steps": 0
-        }
-    }
-
-    param_mapping = {
-        "min_style": "ibrion",
-        "md_style": "smass",
-        "timestep": "potim",
-        "maxstep": "potim",
-        "temp": "tebeg", # teend
-        # nblock
-        "fmax": "ediffg",
-        "steps": "nsw"
-    }
-
     # - system depandant params
     syswise_keys: List[str] = ["system", "kpts", "kspacing"]
 
     # - file names would be copied when continuing a calculation
     saved_fnames = ["OSZICAR", "OUTCAR", "CONTCAR", "vasprun.xml"]
 
-    def _parse_params(self, params_: dict) -> NoReturn:
-        """Parse different tasks, and prepare init and run params."""
-        super()._parse_params(params_)
+    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+        """"""
+        self.calc = calc
+        self.calc.reset()
 
-        # - update min
-        if self.task == "min":
-            if self.init_params["ibrion"] == "bfgs":
-                self.init_params["ibrion"] = 1
-            elif self.init_params["ibrion"] == "cg":
-                self.init_params["ibrion"] = 2
-            
-            # TODO: convergence tolerance for force and energy?
-            self.run_params["ediffg"] *= -1.
-        
-        # - update md
-        if self.task == "md":
-            self.init_params["ibrion"] = 0
-            self.init_params["isif"] = 0
-            md_style = self.init_params["smass"]
-            if isinstance(md_style, str):
-                if md_style == "nve":
-                    pass
-                elif md_style == "nvt":
-                    #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
-                    self.init_params["smass"] = 0.
-                    self.init_params["teend"] = self.init_params["tebeg"]
-                else:
-                    raise NotImplementedError(f"{md_style} is not supported yet.")
-            else:
-                if md_style >= 0:
-                    #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
-                    self.init_params["teend"] = self.init_params["tebeg"]
-                else:
-                    raise NotImplementedError(f"SMASS {md_style} is not supported yet.")
+        self._directory = pathlib.Path(directory)
 
-        # - special settings
-        self.run_params = self.__set_special_params(self.run_params)
+        self._org_params = copy.deepcopy(params)
 
-        return 
+        # - for compat
+        params_ = dict(task=params.get("task", self.default_task))
+        params_.update(copy.deepcopy(params.get("init", {})))
+        params_.update(**copy.deepcopy(params.get("run", {})))
+        self.setting = VaspDriverSetting(**params_)
+        print(self.setting)
+
+        return
     
-    def __set_special_params(self, params: dict) -> dict:
-        """Set several connected parameters."""
-
-        return params
+    def _parse_params(self, params_: dict) -> NoReturn:
+        return
     
     def run(self, atoms_: Atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
         """Run the simulation."""
@@ -166,17 +152,13 @@ class VaspDriver(AbstractDriver):
         self.delete_keywords(kwargs)
         self.delete_keywords(self.calc.parameters)
 
-        # - run params
-        kwargs = self._map_params(kwargs)
-
-        run_params = self.run_params.copy()
-        run_params.update(kwargs)
+        # - merge params
+        run_params = self.setting.get_run_params(kwargs)
 
         # - init params
-        run_params.update(**self.init_params)
+        run_params.update(**self.setting.get_init_params())
 
-        run_params = self.__set_special_params(run_params)
-
+        # - check constraint
         cons_text = run_params.pop("constraint", None)
         mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
         if frozen_indices:
@@ -293,6 +275,24 @@ class VaspDriver(AbstractDriver):
             traj_frames = [atoms]
 
         return traj_frames
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = dict(
+            backend = self.name
+        )
+        # NOTE: we use original params otherwise internal param names would be 
+        #       written out and make things confusing
+        org_params = copy.deepcopy(self._org_params)
+
+        # - update some special parameters
+        constraint = self.setting.get_run_params().get("constraint", None)
+        if constraint is not None:
+            org_params["run"]["constraint"] = constraint
+
+        params.update(org_params)
+
+        return params
 
 
 if __name__ == "__main__": 

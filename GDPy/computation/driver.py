@@ -3,6 +3,7 @@
 
 import abc
 import copy
+import dataclasses
 import pathlib
 
 from typing import Optional, NoReturn, List
@@ -26,6 +27,80 @@ MD_INIT_KEYS: List[str] = [
 
 #: Parameter keys used to run a molecular-dynamics task.
 MD_RUN_KEYS: List[str] = ["steps"]
+
+@dataclasses.dataclass
+class DriverSetting:
+
+    """These are geometric parameters. Electronic?
+    """
+
+    #: Simulation task.
+    task: str = "min"
+
+    #: 
+    min_style: str = "bfgs"
+    min_modify: str = "integrator verlet tmax 4",
+    maxstep: float = 0.1
+
+    #:
+    md_style: str = "nvt"
+    velocity_seed: int = None
+    timestep: float = 1.0
+
+    temp: float = 300.
+    tend: float = None
+    Tdamp: float = 100. # fs
+
+    press: float = 1.0 # bar
+    pend: float = 1.0 # bar
+    Pdamp: float = 100.
+
+    #: Shared parameters among tasks.
+    dump_period: int = 1
+
+    #: run params
+    etol: float = None # 5e-2
+    fmax: float = None # 1e-5
+    steps: int = 0
+
+    constraint: str = None
+
+    #: Parameters that are used to update 
+    _internals: dict = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        """A dummy function that will be overridden by subclasses."""
+
+        return
+    
+    def get_init_params(self):
+        """"""
+
+        return copy.deepcopy(self._internals)
+    
+    def get_run_params(self, *args, **kwargs):
+        """"""
+        # convergence criteria
+        fmax_ = kwargs.get("fmax", self.fmax)
+        etol_ = kwargs.get("etol", self.etol)
+
+        if fmax_ is not None:
+            ediffg = -1.*fmax_
+        else:
+            if etol_ is not None:
+                ediffg = etol_
+            else:
+                ediffg = -5e-2
+
+        steps_ = kwargs.get("steps", self.steps)
+        nsw = steps_
+
+        run_params = dict(
+            constraint = kwargs.get("constraint", None),
+            ediffg = ediffg, nsw=nsw
+        )
+
+        return run_params
 
 
 class AbstractDriver(abc.ABC):
