@@ -97,6 +97,15 @@ def create_node(node_name, node_params_: dict):
     if node_type == "builder":
         from GDPy.builder.direct import FileBuilder
         node = FileBuilder(**node_params)
+    elif node_type == "potter":
+        from GDPy.potential.interface import Potter
+        node = Potter(**node_params)
+    elif node_type == "driver":
+        from GDPy.computation.interface import DriverNode
+        node = DriverNode(**node_params)
+    elif node_type == "scheduler":
+        from GDPy.scheduler.interface import SchedulerNode
+        node = SchedulerNode(**node_params)
     elif node_type == "worker":
         from GDPy.potential.register import create_potter
         node = create_potter(**node_params)
@@ -124,11 +133,14 @@ def create_operation(op_name, op_params_: dict):
         op_params.update(rng=rng)
     # --
     op_method = op_params.pop("method", None)
-    if op_type == "modifier":
+    if op_type == "build":
+        from GDPy.builder.interface import build as op_func
+    elif op_type == "modifier":
         from GDPy.builder.interface import create_modifier
         op_func = create_modifier(op_method, op_params)
     elif op_type == "drive":
-        from GDPy.computation.worker.interface import drive as op_func
+        #from GDPy.computation.worker.interface import drive as op_func
+        from GDPy.computation.operations import drive as op_func
     elif op_type == "extract":
         from GDPy.computation.worker.interface import create_extract
         op_func = create_extract(op_method, op_params)
