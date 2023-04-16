@@ -9,6 +9,7 @@ from ase import data, units
 from GDPy.builder.species import build_species
 from GDPy.mc.operators.move import MoveOperator
 from GDPy.mc.operators.swap import SwapOperator
+from GDPy.mc.operators.exchange import ExchangeOperator
 
 def select_operator(operators: list, probs: list, rng=np.random):
     """Select an operator based on the relative probabilities."""
@@ -33,8 +34,7 @@ def parse_operators(op_params: dict):
         elif name == "swap":
             op = SwapOperator(**param)
         elif name == "exchange":
-            # for gcmc
-            ...
+            op = ExchangeOperator(**param)
         else:
             raise NotImplementedError(f"{name} is not supported.")
         operators.append(op)

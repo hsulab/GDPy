@@ -47,7 +47,7 @@ class MonteCarlo():
         frames = generator.run()
         assert len(frames) == 1, "MC only accepts one structure."
         self.atoms = frames[0]
-        print(self.atoms)
+
 
         # - parse operators
         self.operators, self.op_probs = parse_operators(operators)
@@ -122,8 +122,35 @@ class MonteCarlo():
     
     def run(self, worker: DriverBasedWorker, nattempts: int=1):
         """Run MonteCarlo simulation."""
-        # - prepare workers...
+        # - prepare logger and output some basic info...
         self._init_logger()
+
+        self.pfunc("===== MonteCarlo Operators (Modifiers) =====\n")
+        for op in self.operators:
+            self.pfunc(str(op))
+        self.pfunc(f"normalised probabilities {self.op_probs}\n")
+
+        # -- add print function to operators
+        for op in self.operators:
+            op.pfunc = self.pfunc
+
+        # -- TODO: check if operators' regions are consistent
+        #          though it works, unexpected results may occur
+        
+        # - prepare atoms
+        self.pfunc("===== MonteCarlo Structure =====\n")
+        tags = self.atoms.arrays.get("tags", None)
+        if tags is None:
+            # default is setting tags by elements
+            symbols = self.atoms.get_chemical_symbols()
+            type_list = sorted(list(set(symbols)))
+            new_tags = [type_list.index(s)*10000+i for i, s in enumerate(symbols)]
+            self.atoms.set_tags(new_tags)
+            self.pfunc("set default tags by symbols...")
+        else:
+            self.pfunc("set attached tags from the structure...")
+
+        # - prepare drivers
         #     TODO: broadcast scheduler to different drivers?
         worker.directory = self.directory
         worker.logger = self.logger
@@ -135,29 +162,35 @@ class MonteCarlo():
             driver = worker.potter.create_driver(params)
             drivers[name] = driver
 
-        # - add print function to operators
-        for op in self.operators:
-            op.pfunc = self.pfunc
-
         # - run init
+        self.pfunc("===== MonteCarlo Initial Minimisation =====\n")
+        # NOTE: atoms lost tags in optimisation
+        #       TODO: move this part to driver?
+        cur_tags = self.atoms.get_tags()
+
+        #self.atoms.info["wdir"] = "cand0"
+        self.atoms.info["confid"] = 0
+        self.atoms.info["step"] = None # NOTE: remove step info
+
         worker.driver = drivers["init"]
-        self.atoms.info["wdir"] = "cand0"
         _ = worker.run([self.atoms])
         cur_frames = worker.retrieve()
+
         cur_atoms = cur_frames[0]
         energy_stored = cur_atoms.get_potential_energy()
         self.pfunc(f"ene: {energy_stored}")
         self.atoms = cur_atoms
+        self.atoms.set_tags(cur_tags)
         write(self.directory/"mc.xyz", self.atoms)
 
         # -- log operator status
         with open(self.directory/"opstat.txt", "w") as fopen:
             fopen.write(
-                "{:<24s}  {:<12s}  {:<12s}  {:<12s}  \n".format(
-                    "#Operator", "Success", "prev_ene", "curr_ene"
+                "{:<24s}  {:<12s}  {:<12s}  {:<12s}  {:<12s}  \n".format(
+                    "#Operator", "natoms", "Success", "prev_ene", "curr_ene"
                 )
             )
-
+        
         # - run mc steps
         # -- switch to post driver
         worker.driver = drivers["post"]
@@ -173,10 +206,13 @@ class MonteCarlo():
             # -- postprocess?
             energy_operated = energy_stored
             if cur_atoms is not None:
-                cur_atoms.info["wdir"] = f"cand{i}"
+                cur_tags = cur_atoms.get_tags()
+                cur_atoms.info["confid"] = f"{i}"
+                cur_atoms.info["step"] = None # NOTE: remove step info
                 _ = worker.run([cur_atoms])
                 cur_frames = worker.retrieve()
                 cur_atoms = cur_frames[0]
+                cur_atoms.set_tags(cur_tags)
                 energy_operated = cur_atoms.get_potential_energy()
                 self.pfunc(f"post ene: {energy_operated}")
                 ...
@@ -186,8 +222,8 @@ class MonteCarlo():
                 success = False
             with open(self.directory/"opstat.txt", "a") as fopen:
                 fopen.write(
-                    "{:<24s}  {:<12s}  {:<12.4f}  {:<12.4f}  \n".format(
-                        op_name, str(success), energy_stored, energy_operated
+                    "{:<24s}  {:<12d}  {:<12s}  {:<12.4f}  {:<12.4f}  \n".format(
+                        op_name, len(self.atoms), str(success), energy_stored, energy_operated
                     )
                 )
             # -- update atoms

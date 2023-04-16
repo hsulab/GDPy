@@ -3,6 +3,7 @@
 
 import time
 import itertools
+from typing import NoReturn, List
 
 import numpy as np
 
@@ -137,6 +138,8 @@ class Region():
 
     Triclinic, sphere, cylinder.
 
+    TODO: override __contains__?
+
     """
 
     def __init__(self):
@@ -164,6 +167,50 @@ class Region():
         """"""
 
         return
+
+class CubicRegion(Region):
+
+    def __init__(self, desc: str):
+        """"""
+        super().__init__()
+        boundaries_ = np.array(desc.strip().split(), dtype=np.float64)
+        assert len(boundaries_) == 9, "Cubic region needs 6 numbers to define."
+        self.boundaries = boundaries_
+
+        return
+    
+    def get_contains(self, atoms: Atoms) -> List[int]:
+        """"""
+        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
+
+        group_indices = []
+        for i, a in enumerate(atoms):
+            pos = a.position
+            if ( # TODO: support more regions, only cubic box now.
+                (ox+xl <= pos[0] <= ox+xh) and
+                (oy+yl <= pos[1] <= oy+yh) and
+                (oz+zl <= pos[2] <= oz+zh)
+            ):
+                group_indices.append(i)
+
+        return group_indices
+    
+    def get_empty_volume(self, atoms: Atoms, ratio: float=1.0) -> float:
+        """"""
+        atomic_indices = self.get_contains(atoms)
+
+        radii = np.array([data.covalent_radii[data.atomic_numbers[atoms[i].symbol]] for i in atomic_indices])
+        radii *= ratio
+
+        atoms_volume = np.sum([4./3.*np.pi*r**3 for r in radii])
+
+        return self.get_volume() - atoms_volume
+    
+    def get_volume(self) -> float:
+        """"""
+        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
+
+        return (xh-xl)*(yh-yl)*(zh-zl)
 
 
 class ReducedRegion():
