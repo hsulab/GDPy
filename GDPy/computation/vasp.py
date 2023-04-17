@@ -104,6 +104,30 @@ class VaspDriverSetting(DriverSetting):
 
         return
 
+    def get_run_params(self, *args, **kwargs):
+        """"""
+        # convergence criteria
+        fmax_ = kwargs.get("fmax", self.fmax)
+        etol_ = kwargs.get("etol", self.etol)
+
+        if fmax_ is not None:
+            ediffg = -1.*fmax_
+        else:
+            if etol_ is not None:
+                ediffg = etol_
+            else:
+                ediffg = -5e-2
+
+        steps_ = kwargs.get("steps", self.steps)
+        nsw = steps_
+
+        run_params = dict(
+            constraint = kwargs.get("constraint", None),
+            ediffg = ediffg, nsw=nsw
+        )
+
+        return run_params
+
 class VaspDriver(AbstractDriver):
 
     name = "vasp"
