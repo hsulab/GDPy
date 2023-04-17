@@ -28,7 +28,7 @@ from ase.calculators.calculator import (
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.lammps import unitconvert
 
-from GDPy.computation.driver import AbstractDriver
+from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.utils.command import find_backups
 
 from GDPy.builder.constraints import parse_constraint_info
@@ -96,6 +96,56 @@ def parse_thermo_data(logfile_path) -> dict:
 
     return thermo_dict, end_info
 
+class LmpDriverSetting(DriverSetting):
+
+    def __post_init__(self):
+        """"""
+        if self.task == "min":
+            self._internals.update(
+                min_style = self.min_style,
+                min_modify = self.min_modify,
+                etol = self.etol,
+                ftol = self.fmax,
+                #maxstep = self.maxstep
+            )
+        
+        if self.task == "md":
+            self._internals.update(
+                md_style = self.md_style,
+                timestep = self.timestep,
+                velocity_seed = self.velocity_seed,
+                temp = self.temp,
+                # TODO: end temperature
+                Tdamp = self.Tdamp,
+                press = self.press,
+                Pdamp = self.Pdamp,
+            )
+        
+        # - shared params
+        self._internals.update(
+            task = self.task,
+            dump_period = self.dump_period
+        )
+
+        return 
+    
+    def get_run_params(self, *args, **kwargs):
+        """"""
+        # convergence criteria
+        ftol_ = kwargs.get("fmax", self.fmax)
+        etol_ = kwargs.get("etol", self.etol)
+        if etol_ is None:
+            etol_ = 0.
+
+        steps_ = kwargs.get("steps", self.steps)
+
+        run_params = dict(
+            constraint = kwargs.get("constraint", None),
+            etol=etol_, ftol=ftol_, maxiter=steps_, maxeval=2*steps_
+        )
+
+        return run_params
+
 class LmpDriver(AbstractDriver):
 
     """Use lammps to perform dynamics.
@@ -114,61 +164,31 @@ class LmpDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    default_init_params = {
-        "min": {
-            "min_style": "fire",
-            "min_modify": "integrator verlet tmax 4"
-        },
-        "md": {
-            "md_style": "nvt",
-            "velocity_seed": None,
-            "timestep": 1.0, # fs
-            "temp": 300, # K
-            "Tdamp": 100, # fs
-            "pres": 1.0, # atm
-            "Pdamp": 100
-        }
-    }
-
-    default_run_params = {
-        "min": {
-            "etol": 0.0,
-            "ftol": 0.05,
-            "maxiter": 0,
-            "maxeval": 0
-        },
-        "md": {
-            "maxiter": 0
-        }
-    }
-
-    param_mapping = {
-        "fmax": "ftol",
-        "steps": "maxiter"
-    }
-
     #: List of output files would be saved when restart.
     saved_cards: List[str] = [ASELMPCONFIG.trajectory_filename]
 
+    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+        """"""
+        self.calc = calc
+        self.calc.reset()
+
+        self._directory = pathlib.Path(directory)
+
+        self._org_params = copy.deepcopy(params)
+
+        # - for compat
+        params_ = dict(task=params.get("task", self.default_task))
+        params_.update(copy.deepcopy(params.get("init", {})))
+        params_.update(**copy.deepcopy(params.get("run", {})))
+        self.setting = LmpDriverSetting(**params_)
+        print(self.setting)
+        print(self.setting._internals)
+
+        return
+
     def _parse_params(self, params: dict):
         """Set several connected parameters."""
-        super()._parse_params(params)
-
-        # - update task
-        self.init_params.update(task=self.task)
-
-        # - special settings
-        self.run_params = self.__set_special_params(self.run_params)
-
         return 
-    
-    def __set_special_params(self, params: dict) -> dict:
-        """Set several connected parameters."""
-        maxiter = params.get("maxiter", None)
-        if maxiter is not None:
-            params["maxeval"] = 2*maxiter
-
-        return params
     
     def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, **kwargs):
         """Run the driver.
@@ -190,15 +210,10 @@ class LmpDriver(AbstractDriver):
         self.delete_keywords(self.calc.parameters)
 
         # - run params
-        kwargs = self._map_params(kwargs)
-
-        run_params = self.run_params.copy()
-        run_params.update(kwargs)
+        run_params = self.setting.get_run_params(kwargs)
 
         # - init params
-        run_params.update(**self.init_params)
-
-        run_params = self.__set_special_params(run_params)
+        run_params.update(**self.setting.get_init_params())
 
         self.calc.set(**run_params)
         atoms.calc = self.calc
@@ -306,7 +321,6 @@ class Lammps(FileIOCalculator):
         self, 
         command = None, 
         label = name, 
-        #pair_style: Mapping = None, # pair_style specific parameters
         **kwargs
     ):
         """"""
@@ -328,7 +342,8 @@ class Lammps(FileIOCalculator):
     def calculate(self, atoms=None, properties=["energy"],
             system_changes=all_changes): 
         """Run calculation."""
-        # check specorder
+        # TODO: should use user-custom type_list from potential manager
+        #       move this part to driver?
         self.type_list = parse_type_list(atoms)
 
         # init for creating the directory
@@ -525,7 +540,7 @@ class Lammps(FileIOCalculator):
             content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
         elif potential == "deepmd":
             content += "pair_style  {} out_freq {}\n".format(self.pair_style, self.dump_period)
-            content += "pair_coeff  {}\n".format(self.pair_coeff)
+            content += "pair_coeff	{} {}\n".format(self.pair_coeff, " ".join(self.type_list))
         else:
             content += "pair_style {}\n".format(self.pair_style)
             content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
