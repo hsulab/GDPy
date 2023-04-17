@@ -111,9 +111,9 @@ class AbstractPotentialManager(abc.ABC):
         calc = self.calc
 
         if dynamics == "ase":
-            from GDPy.computation.ase import AseDriver as driver_cls
+            from GDPy.computation.asedriver import AseDriver as driver_cls
             if bias_params is not None:
-                from GDPy.computation.ase import BiasedAseDriver as driver_cls
+                from GDPy.computation.asedriver import BiasedAseDriver as driver_cls
         elif dynamics == "lammps":
             from GDPy.computation.lammps import LmpDriver as driver_cls
         elif dynamics == "lasp":
