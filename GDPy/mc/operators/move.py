@@ -180,6 +180,18 @@ class MoveOperator():
 
         return
 
+    def __repr__(self) -> str:
+        """"""
+        content = f"@Modifier {self.__class__.__name__}\n"
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
+        content += "covalent ratio: \n"
+        content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
+        content += f"max disp: {self.max_disp}\n"
+        content += f"group: \n"
+        content += f"  {self.group}\n"
+
+        return content
+
 
 if __name__ == "__main__":
     ...

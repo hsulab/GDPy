@@ -298,6 +298,8 @@ class ExchangeOperator():
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
         content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
+        content += "covalent ratio: \n"
+        content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"reservoir: "
         content += f"  species {self.species} with chemical potential {self.mu} [eV]\n"
         content += f"  within the region {self.region}\n"
