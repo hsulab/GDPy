@@ -15,7 +15,7 @@ from ase.ga.utilities import closest_distances_generator
 
 from GDPy.builder.group import create_a_group
 from GDPy.builder.species import build_species
-from GDPy.builder.region import CubicRegion, get_tags_per_species
+from GDPy.builder.region import create_a_region
 
 
 class ExchangeOperator():
@@ -40,7 +40,7 @@ class ExchangeOperator():
         use_bias: bool=True
     ):
         """"""
-        self.region = CubicRegion(region)
+        self.region = create_a_region(region)
 
         self.species = reservoir["species"]
         self.mu = reservoir["mu"]

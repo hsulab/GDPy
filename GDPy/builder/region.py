@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import abc
 import copy
 import time
 import itertools
@@ -164,7 +165,45 @@ class Reservoir():
 
         return content
 
-class Region():
+class RegionRegister():
+
+    def __init__(self) -> None:
+        """"""
+        self._name_class_map = {}
+
+        return
+    
+    def register(self, cls=None):
+        """"""
+        if cls != None:
+            cls_name = cls.__name__
+            self._name_class_map[cls_name] = cls
+        else:
+            def wrapper(cls):
+                cls_name = cls.__name__
+                self._name_class_map[cls_name] = cls
+                return cls
+            return wrapper
+
+        return
+    
+    def get(self, name: str):
+        """"""
+        cls_name = name.capitalize() + "Region"
+
+        return self._name_class_map[cls_name]
+
+region_register = RegionRegister()
+def create_a_region(desc):
+    """"""
+    data = desc.strip().split()
+    region_type = data[0]
+    region_defs = np.array(data[1:], dtype=np.float64)
+    region = region_register.get(region_type)(region_defs)
+
+    return region
+
+class Region(abc.ABC):
 
     """The base class of region.
 
@@ -174,75 +213,32 @@ class Region():
 
     """
 
-    def __init__(self):
-        """"""
-
-        return
-    
-    def check_overlap(self, atoms, nl, rng=np.random):
-        """Get a random position and check overlap.
-
-        Args:
-            nl: Neighbor list.
-
-        """
-
-        return
-    
-    def get_a_random_position(self):
-        """"""
-
-        return
-    
-    @property
-    def volume(self):
-        """"""
-
-        return
-
-class CubicRegion(Region):
-
     def __init__(self, desc: str):
         """"""
-        super().__init__()
-        boundaries_ = np.array(desc.strip().split(), dtype=np.float64)
-        assert len(boundaries_) == 9, "Cubic region needs 6 numbers to define."
-        self.boundaries = boundaries_
 
         return
     
     def get_random_positions(self, size=1, rng=np.random):
         """"""
-
-        boundaries_ = copy.deepcopy(self.boundaries)
-        boundaries_ = np.reshape(boundaries_, (3,3))
-
         random_positions = []
         for i in range(size):
-            ran_frac_pos = rng.uniform(0,1,3)
-            ran_pos = (
-                boundaries_[0,:] + boundaries_[1,:] +
-                (boundaries_[2,:] - boundaries_[1,:])*ran_frac_pos
-            )
+            ran_pos = self._get_a_random_position(rng)
             random_positions.append(ran_pos)
         random_positions = np.array(random_positions)
 
         return random_positions
     
-    def _is_within_region(self, tags: List[int], positions) -> List[int]:
+    @abc.abstractmethod
+    def _get_a_random_position(self,rng):
         """"""
-        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
 
-        group_indices = []
-        for tag, pos in zip(tags, positions):
-            if ( # TODO: support more regions, only cubic box now.
-                (ox+xl <= pos[0] <= ox+xh) and
-                (oy+yl <= pos[1] <= oy+yh) and
-                (oz+zl <= pos[2] <= oz+zh)
-            ):
-                group_indices.append(tag)
+        return
+    
+    @abc.abstractmethod
+    def _is_within_region(self, tags: List[int], positions) -> List[int]:
+        """Positions are normally atomic positions or molecular centre positions."""
 
-        return group_indices
+        return
     
     def get_tags_dict(self, atoms: Atoms):
         """Get tags dict for atoms within the (entire) system"""
@@ -256,29 +252,26 @@ class CubicRegion(Region):
             tags_dict_within_system = get_tags_per_species(atoms)
         else:
             tags_dict_within_system = tags_dict
+        
+        # - NOTE: get wrapped positions due to PBC
+        positions = copy.deepcopy(atoms.get_positions(wrap=True))
 
         cops_dict = {}
         for key, tags_and_indices in tags_dict_within_system.items():
             for tag, curr_indices in tags_and_indices:
-                cur_atoms = atoms[curr_indices]
+                cur_positions = positions[curr_indices]
                 # TODO: Considering PBC, surface may have molecules across boundaries.
-                cop = np.average(cur_atoms.positions, axis=0)
+                cop = np.average(cur_positions, axis=0)
                 if key not in cops_dict:
                     cops_dict[key] = []
                 cops_dict[key].append([tag, cop])
         
         # - check 
-        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
-
         tags_dict_within_region = {}
         for key, tags_and_cops in cops_dict.items():
             #print(tags_and_cops)
             for tag, cop in tags_and_cops:
-                if ( # TODO: support more regions, only cubic box now.
-                    (ox+xl <= cop[0] <= ox+xh) and
-                    (oy+yl <= cop[1] <= oy+yh) and
-                    (oz+zl <= cop[2] <= oz+zh)
-                ):
+                if self._is_within_region(cop):
                     if key in tags_dict_within_region:
                         tags_dict_within_region[key].append(tag)
                     else:
@@ -309,11 +302,188 @@ class CubicRegion(Region):
 
         return self.get_volume() - atoms_volume
     
+    @abc.abstractmethod
+    def get_volume(self) -> float:
+        """"""
+
+        return
+    
+
+@region_register.register()
+class CubeRegion(Region):
+
+    def __init__(self, desc: List[float]):
+        """"""
+        boundaries_ = np.array(desc, dtype=np.float64)
+        assert len(boundaries_) == 9, "Cubic region needs 6 numbers to define."
+        self.boundaries = boundaries_
+
+        return
+    
+    def _get_a_random_position(self, rng=np.random):
+        """"""
+        boundaries_ = copy.deepcopy(self.boundaries)
+        boundaries_ = np.reshape(boundaries_, (3,3))
+
+        ran_frac_pos = rng.uniform(0,1,3)
+        ran_pos = (
+            boundaries_[0,:] + boundaries_[1,:] +
+            (boundaries_[2,:] - boundaries_[1,:])*ran_frac_pos
+        )
+
+        return ran_pos
+
+    def _is_within_region(self, position) -> bool:
+        """"""
+        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
+
+        position = np.array(position)
+
+        is_in = False
+        if (
+            (ox+xl <= position[0] <= ox+xh) and
+            (oy+yl <= position[1] <= oy+yh) and
+            (oz+zl <= position[2] <= oz+zh)
+        ):
+            is_in = True
+
+        return is_in
+
     def get_volume(self) -> float:
         """"""
         (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
 
         return (xh-xl)*(yh-yl)*(zh-zl)
+
+@region_register.register()
+class SphereRegion(Region):
+
+    def __init__(self, desc: List[float]):
+        super().__init__(desc)
+        assert len(desc) == 4, f"{self.__class__.__name__} needs 4 parameters."
+        self._origin = desc[:3]
+        self._radii = desc[3]
+
+        return
+    
+    def _get_a_random_position(self, rng):
+        """"""
+        ran_coord = rng.uniform(0,1,3)
+        polar = np.array([self._radii, np.pi, np.pi]) * ran_coord
+        r, theta, phi = polar
+
+        ran_pos = np.array(
+            [
+                r*np.sin(theta)*np.cos(phi),
+                r*np.sin(theta)*np.sin(phi),
+                r*np.cos(theta)
+            ]
+        )
+        ran_pos += self._origin
+
+        return ran_pos
+    
+    def _is_within_region(self, position) -> bool:
+        """"""
+        is_in = False
+
+        position = np.array(position)
+        distance = np.linalg.norm(position-self._origin)
+        if distance <= self._radii:
+            is_in = True
+
+        return is_in
+    
+    def get_volume(self):
+        """"""
+
+        return 4./3.*np.pi*self._radii**3
+
+class CylinderRegion(Region):
+
+    """Region by a vertical cylinder.
+    """
+
+    def __init__(self, desc: List[float]):
+        """"""
+        super().__init__(desc)
+        assert len(desc) == 5, f"{self.__class__.__name__} needs 5 parameters."
+
+        self._origin = desc[:3]
+        self._radii = desc[3]
+        self._height = desc[4]
+
+        return
+
+    def _get_a_random_position(self, rng):
+        """"""
+        r, theta, h = rng.uniform(0,1,3) # r, theta, h
+
+        ran_pos = np.array(
+            [
+                r*np.cos(theta),
+                r*np.sin(theta),
+                h
+            ]
+        )
+        ran_pos += self._origin
+
+        return ran_pos
+    
+    def _is_within_region(self, position) -> bool:
+        """"""
+        ox, oy, oz = self._origin
+
+        is_in = False
+        if oz <= position[2] <= oz+self._height:
+            distance = np.linalg.norm(position[:2] - self._origin[:2])
+            if distance <= self._radii:
+                is_in = True
+
+        return is_in
+    
+    def get_volume(self) -> float:
+        """"""
+        return np.pi*self._radii**2*self._height
+
+@region_register.register()
+class LatticeRegion(Region):
+
+    def __init__(self, desc: List[float]):
+        """"""
+        super().__init__(desc)
+        self._origin = desc[:3]
+        self._cell = np.reshape(desc[3:], (3,3))
+
+        return
+
+    def _get_a_random_position(self, rng):
+        """"""
+        ran_frac_coord = rng.uniform(0,1,3)
+        ran_pos = np.dot(ran_frac_coord, self._cell)
+        ran_pos += self._origin
+
+        return ran_pos
+    
+    def _is_within_region(self, position) -> bool:
+        """"""
+        is_in = False
+        pos_ = position - self._origin
+        frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
+        if (
+            0. <= frac_pos_[0] < 1. and
+            0. <= frac_pos_[1] < 1. and
+            0. <= frac_pos_[2] < 1.
+        ):
+            is_in = True
+
+        return is_in
+    
+    def get_volume(self) -> float:
+        """"""
+        a, b, c = self._cell
+
+        return np.dot(np.cross(a,b), c)
 
 
 class ReducedRegion():
