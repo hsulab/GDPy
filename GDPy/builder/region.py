@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import time
 import itertools
-from typing import NoReturn, List
+from typing import NoReturn, List, Mapping
 
 import numpy as np
 
@@ -52,6 +53,37 @@ def estimate_chemical_potential(
     )
 
     return chemical_potential
+
+def get_tags_per_species(atoms: Atoms) -> Mapping[str,Mapping[int,List[int]]]:
+    """Get tags per species.
+
+    Example:
+
+        .. code-block:: python
+
+            >>> atoms = Atoms("PtPtPtCOCO")
+            >>> tags = [0, 0, 0, 1, 1, 2, 2]
+            >>> atoms.set_tags(tags)
+            >>> get_tags_per_species(atoms)
+            >>> {'Pt3': {0: [0,1,2]}, 'CO': {1: [3,4], 2: [5,6]}}
+
+    """
+
+    tags = atoms.get_tags() # default is all zero
+
+    tags_dict = {} # species -> tag list
+    for key, group in itertools.groupby(enumerate(tags), key=lambda x:x[1]):
+        cur_indices = [x[0] for x in group]
+        #print(key, " :", cur_indices)
+        cur_atoms = atoms[cur_indices]
+        formula = cur_atoms.get_chemical_formula()
+        #print(formula)
+        #print(key)
+        if formula not in tags_dict:
+            tags_dict[formula] = []
+        tags_dict[formula].append([key, cur_indices])
+
+    return tags_dict
 
 class Reservoir():
 
@@ -179,26 +211,97 @@ class CubicRegion(Region):
 
         return
     
-    def get_contains(self, atoms: Atoms) -> List[int]:
+    def get_random_positions(self, size=1, rng=np.random):
+        """"""
+
+        boundaries_ = copy.deepcopy(self.boundaries)
+        boundaries_ = np.reshape(boundaries_, (3,3))
+
+        random_positions = []
+        for i in range(size):
+            ran_frac_pos = rng.uniform(0,1,3)
+            ran_pos = (
+                boundaries_[0,:] + boundaries_[1,:] +
+                (boundaries_[2,:] - boundaries_[1,:])*ran_frac_pos
+            )
+            random_positions.append(ran_pos)
+        random_positions = np.array(random_positions)
+
+        return random_positions
+    
+    def _is_within_region(self, tags: List[int], positions) -> List[int]:
         """"""
         (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
 
         group_indices = []
-        for i, a in enumerate(atoms):
-            pos = a.position
+        for tag, pos in zip(tags, positions):
             if ( # TODO: support more regions, only cubic box now.
                 (ox+xl <= pos[0] <= ox+xh) and
                 (oy+yl <= pos[1] <= oy+yh) and
                 (oz+zl <= pos[2] <= oz+zh)
             ):
-                group_indices.append(i)
+                group_indices.append(tag)
 
         return group_indices
     
-    def get_empty_volume(self, atoms: Atoms, ratio: float=1.0) -> float:
-        """"""
-        atomic_indices = self.get_contains(atoms)
+    def get_tags_dict(self, atoms: Atoms):
+        """Get tags dict for atoms within the (entire) system"""
 
+        return get_tags_per_species(atoms)
+    
+    def get_contained_tags_dict(self, atoms: Atoms, tags_dict: dict=None) -> Mapping[str,List[int]]:
+        """"""
+        # - find tags and compute cops
+        if tags_dict is None:
+            tags_dict_within_system = get_tags_per_species(atoms)
+        else:
+            tags_dict_within_system = tags_dict
+
+        cops_dict = {}
+        for key, tags_and_indices in tags_dict_within_system.items():
+            for tag, curr_indices in tags_and_indices:
+                cur_atoms = atoms[curr_indices]
+                # TODO: Considering PBC, surface may have molecules across boundaries.
+                cop = np.average(cur_atoms.positions, axis=0)
+                if key not in cops_dict:
+                    cops_dict[key] = []
+                cops_dict[key].append([tag, cop])
+        
+        # - check 
+        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
+
+        tags_dict_within_region = {}
+        for key, tags_and_cops in cops_dict.items():
+            #print(tags_and_cops)
+            for tag, cop in tags_and_cops:
+                if ( # TODO: support more regions, only cubic box now.
+                    (ox+xl <= cop[0] <= ox+xh) and
+                    (oy+yl <= cop[1] <= oy+yh) and
+                    (oz+zl <= cop[2] <= oz+zh)
+                ):
+                    if key in tags_dict_within_region:
+                        tags_dict_within_region[key].append(tag)
+                    else:
+                        tags_dict_within_region[key] = [tag]
+ 
+        return tags_dict_within_region
+    
+    def get_empty_volume(self, atoms: Atoms, tags_dict: dict=None, ratio: float=1.0) -> float:
+        """Empty volume = Region volume - total volume of atoms within region.
+
+        This is not always correct since all atoms in the fragment are considered 
+        within the region if their cop is in the region.
+        
+        """
+        # - get atom indices with given tags
+        if tags_dict is None:
+            tags_dict = self.get_contained_tags_dict(atoms)
+        tags_within_region = []
+        for key, tags in tags_dict.items():
+            tags_within_region.extend(tags)
+        atomic_indices = [i for i, t in enumerate(atoms.get_tags()) if t in tags_within_region]
+
+        # - get atoms' radii
         radii = np.array([data.covalent_radii[data.atomic_numbers[atoms[i].symbol]] for i in atomic_indices])
         radii *= ratio
 

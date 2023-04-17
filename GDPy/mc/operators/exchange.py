@@ -15,39 +15,7 @@ from ase.ga.utilities import closest_distances_generator
 
 from GDPy.builder.group import create_a_group
 from GDPy.builder.species import build_species
-from GDPy.builder.region import CubicRegion
-
-
-def get_tags_per_species(atoms: Atoms):
-    """Get tags per species.
-
-    Example:
-
-        .. code-block:: python
-
-            >>> atoms = Atoms("PtPtPtCOCO")
-            >>> tags = [0, 0, 0, 1, 1, 2, 2]
-            >>> atoms.set_tags(tags)
-            >>> get_tags_per_species(atoms)
-            >>> {'Pt3': [0], 'CO': [1, 2]}
-
-    """
-
-    tags = atoms.get_tags() # default is all zero
-
-    tags_dict = {} # species -> tag list
-    for key, group in itertools.groupby(enumerate(tags), key=lambda x:x[1]):
-        cur_indices = [x[0] for x in group]
-        #print(key, " :", cur_indices)
-        cur_atoms = atoms[cur_indices]
-        formula = cur_atoms.get_chemical_formula()
-        #print(formula)
-        if formula in tags_dict:
-            tags_dict[formula].append(key)
-        else:
-            tags_dict[formula] = [key]
-
-    return tags_dict
+from GDPy.builder.region import CubicRegion, get_tags_per_species
 
 
 class ExchangeOperator():
@@ -142,11 +110,12 @@ class ExchangeOperator():
         org_positions = species.positions.copy()
 
         for i in range(self.MAX_RANDOM_ATTEMPTS):
+            # BUG: GET A RANDOM POSITION INTHE REGION!!!
             ran_frac_pos = rng.uniform(0,1,3)
             # - make a copy
             species_ = species.copy()
-            # -- TODO: check if it is in the region
-            ran_pos = np.dot(ran_frac_pos, atoms.get_cell())
+            # -- NOTE: check if it is in the region
+            ran_pos = self.region.get_random_positions(size=1,rng=rng)[0]
             if self.use_rotation and len(adpart) > 1:
                 phi, theta, psi = 360 * rng.uniform(0,1,3)
                 species_.euler_rotate(
@@ -188,10 +157,19 @@ class ExchangeOperator():
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
         # - make copy
-        tags_dict = get_tags_per_species(atoms)
-        self._curr_tags_dict = tags_dict
+        tags_dict = self.region.get_tags_dict(atoms)
         #print(tags_dict)
-        # TODO: only consider species within the region
+        # NOTE: only consider species within the region
+        content = "species within system:\n"
+        content += "  " + "  ".join([str(k)+" "+str(len(v)) for k, v in tags_dict.items()]) + "\n"
+        self.pfunc(content)
+
+        self._curr_tags_dict = self.region.get_contained_tags_dict(atoms, tags_dict)
+        #print(self._curr_tags_dict)
+
+        content = "species within region:\n"
+        content += "  " + "  ".join([str(k)+" "+str(len(v)) for k, v in self._curr_tags_dict.items()]) + "\n"
+        self.pfunc(content)
 
         # -- compute acceptable volume
         if self.use_bias:
@@ -212,15 +190,15 @@ class ExchangeOperator():
             if rn_ex < 0.5:
                 self.pfunc("...insert...")
                 self._curr_operation = "insert"
-                cur_atoms = self._insert(atoms, tags_dict, self.species, rng)
+                cur_atoms = self._insert(atoms, self._curr_tags_dict, self.species, rng)
             else:
                 self.pfunc("...remove...")
                 self._curr_operation = "remove"
-                cur_atoms = self._remove(atoms, tags_dict, self.species, rng)
+                cur_atoms = self._remove(atoms, self._curr_tags_dict, self.species, rng)
         else:
             self.pfunc("...insert...")
             self._curr_operation = "insert"
-            cur_atoms = self._insert(atoms, tags_dict, self.species, rng)
+            cur_atoms = self._insert(atoms, self._curr_tags_dict, self.species, rng)
 
         return cur_atoms
 
@@ -236,7 +214,7 @@ class ExchangeOperator():
         overlapped = False
         nl.update(new_atoms)
         for idx_pick in species_indices:
-            self.pfunc(f"- check index {idx_pick}")
+            self.pfunc(f"- check index {idx_pick} {new_atoms.positions[idx_pick]}")
             indices, offsets = nl.get_neighbors(idx_pick)
             if len(indices) > 0:
                 self.pfunc(f"nneighs: {len(indices)}")
@@ -253,7 +231,6 @@ class ExchangeOperator():
                 # TODO: is no neighbours valid?
                 self.pfunc("no neighbours, being isolated...")
                 overlapped = True
-                # TODO: try rotate?
                 break
 
         return overlapped
@@ -329,5 +306,4 @@ class ExchangeOperator():
 
 
 if __name__ == "__main__":
-    get_tags_per_species(None)
     ...
