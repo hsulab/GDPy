@@ -355,6 +355,15 @@ class CubeRegion(Region):
 
         return (xh-xl)*(yh-yl)*(zh-zl)
 
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self.__class__.__name__} "
+        content += f"origin {self.boundaries[:3]} "
+        content += f"lmin {self.boundaries[3:6]} "
+        content += f"lmax {self.boundaries[6:9]} "
+
+        return content
+
 @region_register.register()
 class SphereRegion(Region):
 
@@ -398,6 +407,13 @@ class SphereRegion(Region):
         """"""
 
         return 4./3.*np.pi*self._radii**3
+
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self.__class__.__name__} "
+        content += f"radii {self._radii} "
+
+        return content
 
 class CylinderRegion(Region):
 
@@ -446,6 +462,14 @@ class CylinderRegion(Region):
         """"""
         return np.pi*self._radii**2*self._height
 
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self.__class__.__name__} "
+        content += f"radii {self._radii} "
+        content += f"height   {self._height} "
+
+        return content
+
 @region_register.register()
 class LatticeRegion(Region):
 
@@ -484,6 +508,14 @@ class LatticeRegion(Region):
         a, b, c = self._cell
 
         return np.dot(np.cross(a,b), c)
+    
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self.__class__.__name__} "
+        content += f"origin {self._origin} "
+        content += f"cell   {self._cell} "
+
+        return content
 
 
 class ReducedRegion():
