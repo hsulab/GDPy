@@ -223,7 +223,7 @@ class PropertyBasedSelector(AbstractSelector):
             hist_min, hist_max, prop_item.nbins, endpoint=False
         ).tolist()
         bins.append(hist_max)
-        hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[prop_item.pmin, prop_item.pmax])
+        hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[hist_min, hist_max])
 
         # - output
         content = f"#Property {prop_item.name}\n"
