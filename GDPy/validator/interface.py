@@ -30,20 +30,17 @@ class ValidatorNode(Variable):
 
 class test(Operation):
 
-    def __init__(self, node_with_structures, validator, potter) -> NoReturn:
+    def __init__(self, node_with_structures, validator, worker) -> NoReturn:
         """"""
-        input_nodes = [node_with_structures, validator, potter]
+        input_nodes = [node_with_structures, validator, worker]
         super().__init__(input_nodes)
 
         return
     
-    def forward(self, frames, validator: AbstractValidator, potter):
+    def forward(self, frames, validator: AbstractValidator, worker):
         """"""
         super().forward()
         # - create a worker
-        driver = potter.create_driver()
-        scheduler = create_scheduler()
-        worker = DriverBasedWorker(potter, driver, scheduler)
         worker.directory = self.directory
 
         # - run validation
