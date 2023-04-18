@@ -141,6 +141,8 @@ def create_operation(op_name, op_params_: dict):
     elif op_type == "drive":
         #from GDPy.computation.worker.interface import drive as op_func
         from GDPy.computation.operations import drive as op_func
+    elif op_type == "merge":
+        from GDPy.data.operations import merge as op_func
     elif op_type == "extract":
         from GDPy.computation.worker.interface import create_extract
         op_func = create_extract(op_method, op_params)
