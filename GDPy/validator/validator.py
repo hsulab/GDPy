@@ -7,6 +7,8 @@ import logging
 
 from typing import NoReturn, Union
 
+from GDPy.computation.worker.drive import DriverBasedWorker
+
 
 class AbstractValidator(abc.ABC):
 
@@ -14,13 +16,17 @@ class AbstractValidator(abc.ABC):
 
     restart = True
 
-    def __init__(self, directory: Union[str,pathlib.Path], task_params: dict, pot_worker=None):
+    def __init__(
+        self, directory: Union[str,pathlib.Path], task_params: dict, 
+        pot_worker: DriverBasedWorker=None
+    ):
         """
         """
         self.directory = pathlib.Path(directory)
 
         self.task_params = task_params
 
+        self.worker = pot_worker
         self.pm = pot_worker.potter
         self.calc = self.pm.calc
 

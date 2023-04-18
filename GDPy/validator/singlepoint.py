@@ -208,21 +208,36 @@ class SinglepointValidator(AbstractValidator):
         ref_natoms = [len(a) for a in ref_frames]
 
         if pred is None:
-            # TODO: use worker to calculate
+            # NOTE: use worker to calculate
             # TODO: use cached data?
             driver = self.pm.create_driver()
             self.logger.info(f"Calculate reference frames {prefix} with potential...")
-            pred_frames = []
-            for i, atoms_ in enumerate(ref_frames):
-                # - get clean results
-                driver.directory = self.directory / prefix / f"cand{i}"
-                atoms = driver.run(atoms_) # spc
-                results = dict(
-                    energy = atoms.get_potential_energy(),
-                    forces = copy.deepcopy(atoms.get_forces())
-                )
-                atoms = make_clean_atoms(atoms, results)
-                pred_frames.append(atoms)
+            cached_pred_fpath = self.directory / prefix / "pred.xyz"
+            if not cached_pred_fpath.exists():
+                #for i, atoms_ in enumerate(ref_frames):
+                #    # - get clean results
+                #    driver.directory = self.directory / prefix / f"cand{i}"
+                #    atoms = driver.run(atoms_) # spc
+                #    results = dict(
+                #        energy = atoms.get_potential_energy(),
+                #        forces = copy.deepcopy(atoms.get_forces())
+                #    )
+                #    atoms = make_clean_atoms(atoms, results)
+                #    pred_frames.append(atoms)
+                cur_worker = self.worker
+                cur_worker.directory = self.directory / prefix
+                cur_worker.run(ref_frames, use_wdir=True)
+                cur_worker.inspect(resubmit=True)
+                if cur_worker.get_number_of_running_jobs() == 0:
+                    pred_frames = self.worker.retrieve(
+                        ignore_retrieved=False,
+                    )
+                else:
+                    # TODO: ...
+                    ...
+                write(cached_pred_fpath, pred_frames)
+            else:
+                pred_frames = read(cached_pred_fpath, ":")
         else:
             pred_frames = read(pred, ":")
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
