@@ -141,6 +141,8 @@ def create_operation(op_name, op_params_: dict):
     elif op_type == "modifier":
         from GDPy.builder.interface import create_modifier
         op_func = create_modifier(op_method, op_params)
+    elif op_type == "work":
+        from GDPy.computation.operations import work as op_func
     elif op_type == "drive":
         #from GDPy.computation.worker.interface import drive as op_func
         from GDPy.computation.operations import drive as op_func

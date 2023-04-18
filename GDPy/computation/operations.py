@@ -9,6 +9,26 @@ from ase.io import read, write
 from GDPy.core.operation import Operation
 from GDPy.computation.worker.drive import DriverBasedWorker
 
+class work(Operation):
+
+    def __init__(self, potter, driver, scheduler, batchsize: int=None) -> NoReturn:
+        """"""
+        super().__init__([potter,driver,scheduler])
+
+        self.batchsize = batchsize
+
+        return
+    
+    def forward(self, potter, driver_params, scheduler):
+        """"""
+        super().forward()
+
+        driver = potter.create_driver(driver_params) # use external backend
+        worker = DriverBasedWorker(potter, driver, scheduler)
+        worker.directory = self.directory
+
+        return worker
+
 
 class drive(Operation):
 
