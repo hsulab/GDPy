@@ -22,6 +22,8 @@ from GDPy.validator.validator import AbstractValidator
 from GDPy.computation.utils import make_clean_atoms
 from GDPy.utils.comparasion import parity_plot_dict, rms_dict
 
+from GDPy.core.register import registers
+
 def get_properties(frames: List[Atoms], other_props = []):
     """Get properties of frames for comparison.
 
@@ -129,8 +131,8 @@ def add_rmse_text(ax, x_rmse, x_name):
 
     return
 
-
-class SinglePointValidator(AbstractValidator):
+@registers.validator.register
+class SinglepointValidator(AbstractValidator):
 
     """Calculate energies on each structures and save them to file.
     """

@@ -112,8 +112,8 @@ def run_validation(
             from GDPy.validator.rdf import RdfValidator
             rv = RdfValidator(task_outpath, task_params, pm)
         elif method == "singlepoint":
-            from GDPy.validator.singlepoint import SinglePointValidator
-            rv = SinglePointValidator(task_outpath, task_params, pm)
+            from GDPy.validator.singlepoint import SinglepointValidator
+            rv = SinglepointValidator(task_outpath, task_params, pm)
         elif method == "minima":
             from GDPy.validator.minima import MinimaValidator
             rv = MinimaValidator(task_outpath, task_params, pm)
@@ -123,8 +123,6 @@ def run_validation(
         elif method == "rxn":
             from GDPy.validator.rxn import ReactionValidator
             rv = ReactionValidator(task_outpath, task_params, pm)
-        #elif method == "bulk":
-        #    rv = SinglePointValidator(task_outpath, task_params, pm)
         else:
             raise NotImplementedError(f"Validation {method} is not supported.")
         rv.run()
