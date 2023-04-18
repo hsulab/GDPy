@@ -11,10 +11,18 @@ import numpy as np
 
 # global settings
 from GDPy import config
+from GDPy.core.register import registers, import_all_modules_for_register
 
 
 def main():
-    # arguments 
+    # - register
+    import_all_modules_for_register()
+    #print("registers in main: ", registers.validator._dict)
+    #cls = registers.get("validator", "singlepoint")
+    #print("target_cls: ", cls)
+    #ins = registers.create("validator", "singlepoint")
+
+    # - arguments 
     parser = argparse.ArgumentParser(
         prog="gdp", 
         description="GDPy: Generating Deep Potential with Python"
