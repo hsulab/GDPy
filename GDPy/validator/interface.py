@@ -6,6 +6,8 @@ from typing import NoReturn
 
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
+from GDPy.core.register import registers
+
 from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.scheduler import create_scheduler
 
@@ -39,11 +41,7 @@ class test(Operation):
 
         # - create a validator
         method = validator_params.get("method", "minima")
-        if method == "singlepoint":
-            from GDPy.validator.singlepoint import SinglePointValidator
-            rv = SinglePointValidator(self.directory, validator_params, worker)
-        else:
-            ...
+        rv = registers.create("validator", method, self.directory, validator_params, worker)
 
         # - run validation
         rv.run()
