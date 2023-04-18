@@ -87,7 +87,7 @@ def parse_thermo_data(logfile_path) -> dict:
     for i in range(end_idx,start_idx,-1):
         cur_ncols = len(lines[i].strip().split())
         if cur_ncols == ncols:
-            end_idx = i
+            end_idx = i+1
             break
     else:
         end_idx = None # even not one single complete line
@@ -111,7 +111,11 @@ def parse_thermo_data(logfile_path) -> dict:
 
     return thermo_dict, end_info
 
+@dataclasses.dataclass
 class LmpDriverSetting(DriverSetting):
+
+    min_style: str = "fire"
+    min_modify: str = "integrator verlet tmax 4"
 
     def __post_init__(self):
         """"""
@@ -151,6 +155,8 @@ class LmpDriverSetting(DriverSetting):
         etol_ = kwargs.get("etol", self.etol)
         if etol_ is None:
             etol_ = 0.
+        if ftol_ is None:
+            ftol_ = 0.
 
         steps_ = kwargs.get("steps", self.steps)
 
@@ -224,11 +230,14 @@ class LmpDriver(AbstractDriver):
         self.delete_keywords(kwargs)
         self.delete_keywords(self.calc.parameters)
 
-        # - run params
-        run_params = self.setting.get_run_params(kwargs)
+        ## - init params
+        #run_params.update(**self.setting.get_init_params())
+        ## - run params
+        #run_params = self.setting.get_run_params(kwargs)
+        run_params = self.setting.get_init_params()
+        run_params.update(**self.setting.get_run_params())
 
-        # - init params
-        run_params.update(**self.setting.get_init_params())
+        print("run_params: ", run_params)
 
         self.calc.set(**run_params)
         atoms.calc = self.calc

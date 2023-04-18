@@ -39,7 +39,7 @@ class DriverSetting:
 
     #: 
     min_style: str = "bfgs"
-    min_modify: str = "integrator verlet tmax 4",
+    min_modify: str = "integrator verlet tmax 4"
     maxstep: float = 0.1
 
     #:
@@ -68,10 +68,10 @@ class DriverSetting:
     #: Parameters that are used to update 
     _internals: dict = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
-        """A dummy function that will be overridden by subclasses."""
+    #def __post_init__(self):
+    #    """A dummy function that will be overridden by subclasses."""
 
-        return
+    #    return
     
     def get_init_params(self):
         """"""
