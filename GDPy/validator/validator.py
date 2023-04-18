@@ -17,8 +17,7 @@ class AbstractValidator(abc.ABC):
     restart = True
 
     def __init__(
-        self, directory: Union[str,pathlib.Path], task_params: dict, 
-        pot_worker: DriverBasedWorker=None
+        self, directory: Union[str,pathlib.Path], task_params: dict
     ):
         """
         """
@@ -26,11 +25,11 @@ class AbstractValidator(abc.ABC):
 
         self.task_params = task_params
 
-        self.worker = pot_worker
-        self.pm = pot_worker.potter
-        self.calc = self.pm.calc
+        #self.worker = pot_worker
+        #self.pm = pot_worker.potter
+        #self.calc = self.pm.calc
 
-        self._init_logger()
+        #self._init_logger()
 
         return
     
@@ -43,12 +42,7 @@ class AbstractValidator(abc.ABC):
     @directory.setter
     def directory(self, directory_):
         """"""
-        # - create main dir
         directory_ = pathlib.Path(directory_)
-        if not directory_.exists():
-            directory_.mkdir() # NOTE: ./tmp_folder
-        else:
-            pass
         self._directory = directory_
 
         return
@@ -85,20 +79,20 @@ class AbstractValidator(abc.ABC):
         self.logger.addHandler(fh)
 
         return
-    
-    def __parse_outputs(self, input_dict: dict) -> NoReturn:
-        """ parse and create ouput folders and files
-        """
-        self.output_path = pathlib.Path(input_dict.get("output", "miaow"))
-        if not self.output_path.exists():
-            self.output_path.mkdir(parents=True)
-
-        return
 
     @abc.abstractmethod
     def run(self, *args, **kwargs):
+        """"""
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True)
+
+        #if self.logger is not None:
+        #    self._pfunc = self.logger.info
+        #self.pfunc(f"@@@{self.__class__.__name__}")
+        self._init_logger()
+
         return
 
 
 if __name__ == "__main__":
-    pass
+    ...

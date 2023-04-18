@@ -139,6 +139,7 @@ class SinglepointValidator(AbstractValidator):
 
     def run(self):
         """"""
+        super().run()
         params = self.task_params
 
         # - check structures

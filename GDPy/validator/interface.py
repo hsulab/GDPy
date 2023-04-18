@@ -10,12 +10,19 @@ from GDPy.core.register import registers
 
 from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.scheduler import create_scheduler
+from GDPy.validator import AbstractValidator
 
 class ValidatorNode(Variable):
 
     def __init__(self, **kwargs):
         """"""
-        initial_value = copy.deepcopy(kwargs)
+        # - create a validator
+        method = kwargs.get("method", "minima")
+        validator = registers.create("validator", method, self.directory, kwargs)
+        print(validator)
+
+        # - save
+        initial_value = validator
         super().__init__(initial_value)
 
         return
@@ -30,7 +37,7 @@ class test(Operation):
 
         return
     
-    def forward(self, frames, validator_params, potter):
+    def forward(self, frames, validator: AbstractValidator, potter):
         """"""
         super().forward()
         # - create a worker
@@ -39,12 +46,10 @@ class test(Operation):
         worker = DriverBasedWorker(potter, driver, scheduler)
         worker.directory = self.directory
 
-        # - create a validator
-        method = validator_params.get("method", "minima")
-        rv = registers.create("validator", method, self.directory, validator_params, worker)
-
         # - run validation
-        rv.run()
+        validator.directory = self.directory
+        validator.worker = worker
+        validator.run()
 
         return 
 
