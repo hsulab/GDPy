@@ -62,6 +62,8 @@ class DriverBasedWorker(AbstractWorker):
 
     _exec_mode = "queue"
 
+    _compact: bool = False
+
     def __init__(self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs):
         """"""
         self.batchsize = kwargs.pop("batchsize", 1)
@@ -127,22 +129,33 @@ class DriverBasedWorker(AbstractWorker):
         #       conflicts:
         #           merged trajectories from different drivers that all have cand0
         wdirs = [] # [(confid,dynstep), ..., ()]
-        for icand, x in enumerate(frames):
-            if use_wdir:
-                wdir = x.info.get("wdir", None)
-            else:
-                confid = x.info.get("confid", None)
-                if confid is not None:
-                    dynstep = x.info.get("step", None) # step maybe 0
-                    if dynstep is not None:
-                        dynstep = f"_step{dynstep}"
-                    else:
-                        dynstep = ""
-                    wdir = "cand{}{}".format(confid,dynstep)
-                else:
-                    wdir = f"cand{icand}"
-            x.info["wdir"] = wdir
+        #for icand, x in enumerate(frames):
+        #    if use_wdir:
+        #        wdir = x.info.get("wdir", None)
+        #    else:
+        #        confid = x.info.get("confid", None)
+        #        if confid is not None:
+        #            dynstep = x.info.get("step", None) # step maybe 0
+        #            if dynstep is not None:
+        #                dynstep = f"_step{dynstep}"
+        #            else:
+        #                dynstep = ""
+        #            wdir = "cand{}{}".format(confid,dynstep)
+        #        else:
+        #            wdir = f"cand{icand}"
+        #    x.info["wdir"] = wdir
+        #    wdirs.append(wdir)
+        saved_info = [] # info needs to save
+        for i, atoms in enumerate(frames):
+            # -- get info
+            confid = atoms.info.get("confid", -1)
+            dynstep = atoms.info.get("step", -1)
+            prev_wdir = atoms.info.get("wdir", "null")
+            saved_info.append((confid,dynstep,prev_wdir))
+            # -- set wdir
+            wdir = f"cand{i}"
             wdirs.append(wdir)
+            atoms.info["wdir"] = wdir
         # - check whether each structure has a unique wdir
         assert len(set(wdirs)) == nframes, f"Found duplicated wdirs {len(set(wdirs))} vs. {nframes}..."
 
@@ -169,6 +182,13 @@ class DriverBasedWorker(AbstractWorker):
 
         processed_dpath = self.directory/"_data"
         processed_dpath.mkdir(exist_ok=True)
+
+        # - save info
+        content = "{:<12s}  {:<12s}  {:<s}\n".format("#confid", "step", "wdir")
+        for confid, step, wdir in saved_info:
+            content += "{:<12d}  {:<12d}  {:<s}\n".format(confid, step, wdir)
+        with open(processed_dpath/"_info.txt", "w") as fopen:
+            fopen.write(content)
 
         # - check differences of input structures
         write(
@@ -302,7 +322,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def _local_run(self, job_info, compact=False, *args, **kwargs) -> NoReturn:
+    def _local_run(self, job_info, *args, **kwargs) -> NoReturn:
         """Run calculations locally.
 
         Local execution supports a compact mode as structures will reuse the 
@@ -349,14 +369,33 @@ class DriverBasedWorker(AbstractWorker):
             #group_directory = self.directory
             # - run calculations
             with CustomTimer(name="run-driver", func=self.logger.info):
-                for wdir, atoms in zip(wdirs,cur_frames):
-                    self.driver.directory = self.directory/wdir
-                    #job_name = uid+str(wdir)
-                    self.logger.info(
-                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                    )
-                    self.driver.reset()
-                    self.driver.run(atoms, read_exists=True, extra_info=None)
+                if not self._compact:
+                    for wdir, atoms in zip(wdirs,cur_frames):
+                        self.driver.directory = self.directory/wdir
+                        #job_name = uid+str(wdir)
+                        self.logger.info(
+                            f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                        )
+                        self.driver.reset()
+                        self.driver.run(atoms, read_exists=True, extra_info=None)
+                else:
+                    cached_fpath = self.directory/"_data"/"cached.xyz"
+                    if cached_fpath.exists():
+                        cached_frames = read(cached_fpath, ":")
+                        cached_wdirs = [a.info["wdir"] for a in cached_frames]
+                    else:
+                        cached_wdirs = []
+                    for wdir, atoms in zip(wdirs,cur_frames):
+                        if wdir in cached_wdirs:
+                            continue
+                        self.driver.directory = self.directory/"_shared"
+                        self.logger.info(
+                            f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                        )
+                        self.driver.reset()
+                        new_atoms = self.driver.run(atoms, read_exists=False, extra_info=dict(wdir=wdir))
+                        # - save data
+                        write(self.directory/"_data"/"cached.xyz", new_atoms, append=True)
                 
             #self.database.update({"finished": True}, doc_ids=[doc_id])
 
@@ -391,12 +430,19 @@ class DriverBasedWorker(AbstractWorker):
                 # -- valid if the task finished correctlt not due to time-limit
                 is_finished = False
                 wdir_names = doc_data["wdir_names"]
-                for x in wdir_names:
-                    if not (group_directory/x).exists():
-                        break
+                if not self._compact:
+                    for x in wdir_names:
+                        if not (group_directory/x).exists():
+                            break
+                    else:
+                        # TODO: all subtasks seem to finish...
+                        is_finished = True
                 else:
-                    # TODO: all subtasks seem to finish...
-                    is_finished = True
+                    cached_frames = read(self.directory/"_data"/"cached.xyz", ":")
+                    cached_wdirs = [a.info["wdir"] for a in cached_frames]
+                    if set(wdir_names) == set(cached_wdirs):
+                        is_finished = True
+                    ...
                 if is_finished:
                     # -- finished correctly
                     self.logger.info(f"{info_name} is finished...")
@@ -457,7 +503,12 @@ class DriverBasedWorker(AbstractWorker):
         # - read results
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-            results = self._read_results(unretrieved_wdirs, *args, **kwargs)
+            if not self._compact:
+                results = self._read_results(unretrieved_wdirs, *args, **kwargs)
+            else:
+                # TODO: deal with traj...
+                results = read(self.directory/"_data"/"cached.xyz", ":")
+                ...
 
         for job_name in unretrieved_jobs:
             doc_data = self.database.get(Query().gdir == job_name)

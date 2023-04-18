@@ -214,31 +214,21 @@ class SinglepointValidator(AbstractValidator):
             self.logger.info(f"Calculate reference frames {prefix} with potential...")
             cached_pred_fpath = self.directory / prefix / "pred.xyz"
             if not cached_pred_fpath.exists():
-                if True: # use shared working directory
-                    driver = self.worker.driver
-                    pred_frames = []
-                    for i, atoms_ in enumerate(ref_frames):
-                        # - get clean results
-                        driver.directory = self.directory / prefix / f"_shared"
-                        atoms = driver.run(atoms_, read_exists=False) # spc
-                        results = dict(
-                            energy = atoms.get_potential_energy(),
-                            forces = copy.deepcopy(atoms.get_forces())
-                        )
-                        atoms = make_clean_atoms(atoms, results)
-                        pred_frames.append(atoms)
+                cur_worker = self.worker
+                cur_worker.directory = self.directory / prefix
+                cur_worker.batchsize = nframes
+
+                cur_worker._compact = True
+
+                cur_worker.run(ref_frames, use_wdir=True)
+                cur_worker.inspect(resubmit=True)
+                if cur_worker.get_number_of_running_jobs() == 0:
+                    pred_frames = self.worker.retrieve(
+                        ignore_retrieved=False,
+                    )
                 else:
-                    cur_worker = self.worker
-                    cur_worker.directory = self.directory / prefix
-                    cur_worker.run(ref_frames, use_wdir=True)
-                    cur_worker.inspect(resubmit=True)
-                    if cur_worker.get_number_of_running_jobs() == 0:
-                        pred_frames = self.worker.retrieve(
-                            ignore_retrieved=False,
-                        )
-                    else:
-                        # TODO: ...
-                        ...
+                    # TODO: ...
+                    ...
                 write(cached_pred_fpath, pred_frames)
             else:
                 pred_frames = read(cached_pred_fpath, ":")
