@@ -105,7 +105,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return (starts, ends)
     
-    def _preprocess(self, generator, *args, **kwargs):
+    def _preprocess(self, generator, use_wdir=False, *args, **kwargs):
         """"""
         # - find frames in the database
 
@@ -128,28 +128,19 @@ class DriverBasedWorker(AbstractWorker):
         #           merged trajectories from different drivers that all have cand0
         wdirs = [] # [(confid,dynstep), ..., ()]
         for icand, x in enumerate(frames):
-            #wdir = x.info.get("wdir", None)
-            #if wdir is None:
-            #    confid = x.info.get("confid", None)
-            #    if confid:
-            #        dynstep = x.info.get("step", None) # step maybe 0
-            #        if dynstep is not None:
-            #            dynstep = f"_step{dynstep}"
-            #        else:
-            #            dynstep = ""
-            #        wdir = "cand{}{}".format(confid,dynstep)
-            #    else:
-            #        wdir = f"cand{icand}"
-            confid = x.info.get("confid", None)
-            if confid is not None:
-                dynstep = x.info.get("step", None) # step maybe 0
-                if dynstep is not None:
-                    dynstep = f"_step{dynstep}"
-                else:
-                    dynstep = ""
-                wdir = "cand{}{}".format(confid,dynstep)
+            if use_wdir:
+                wdir = x.info.get("wdir", None)
             else:
-                wdir = f"cand{icand}"
+                confid = x.info.get("confid", None)
+                if confid is not None:
+                    dynstep = x.info.get("step", None) # step maybe 0
+                    if dynstep is not None:
+                        dynstep = f"_step{dynstep}"
+                    else:
+                        dynstep = ""
+                    wdir = "cand{}{}".format(confid,dynstep)
+                else:
+                    wdir = f"cand{icand}"
             x.info["wdir"] = wdir
             wdirs.append(wdir)
         # - check whether each structure has a unique wdir
@@ -200,13 +191,13 @@ class DriverBasedWorker(AbstractWorker):
 
         return job_info
     
-    def run(self, generator=None, *args, **kwargs) -> NoReturn:
+    def run(self, generator=None, use_wdir=False, *args, **kwargs) -> NoReturn:
         """Split frames into groups and submit jobs.
         """
         super().run(*args, **kwargs)
 
         # - pre
-        job_info = self._preprocess(generator)
+        job_info = self._preprocess(generator, use_wdir)
 
         # - check if jobs were submitted
 
@@ -311,8 +302,13 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def _local_run(self, job_info, *args, **kwargs) -> NoReturn:
-        """Run calculations locally."""
+    def _local_run(self, job_info, compact=False, *args, **kwargs) -> NoReturn:
+        """Run calculations locally.
+
+        Local execution supports a compact mode as structures will reuse the 
+        calculation working directory.
+
+        """
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
