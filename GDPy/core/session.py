@@ -112,6 +112,9 @@ def create_node(node_name, node_params_: dict):
     elif node_type == "selector":
         from GDPy.selector.interface import create_selector
         node = create_selector(node_params["selection"])
+    elif node_type == "validator":
+        from GDPy.validator.interface import ValidatorNode
+        node = ValidatorNode(**node_params)
     else:
         raise RuntimeError(f"Unknown node type {node_type}.")
     # -- 
@@ -143,6 +146,8 @@ def create_operation(op_name, op_params_: dict):
         from GDPy.computation.operations import drive as op_func
     elif op_type == "merge":
         from GDPy.data.operations import merge as op_func
+    elif op_type == "test":
+        from GDPy.validator.interface import test as op_func
     elif op_type == "extract":
         from GDPy.computation.worker.interface import create_extract
         op_func = create_extract(op_method, op_params)
