@@ -78,8 +78,23 @@ def parse_thermo_data(logfile_path) -> dict:
         if start_idx is not None and end_idx is not None:
             break
     else:
-        print(start_idx, end_idx)
-        raise RuntimeError(f"Error in lammps output of {str(logfile_path)}.")
+        end_idx = idx
+    #print(start_idx, end_idx)
+    
+    # - check valid lines
+    #   sometimes the line may not be complete
+    ncols = len(lines[start_idx].strip().split())
+    for i in range(end_idx,start_idx,-1):
+        cur_ncols = len(lines[i].strip().split())
+        if cur_ncols == ncols:
+            end_idx = i
+            break
+    else:
+        end_idx = None # even not one single complete line
+    #print(start_idx, end_idx)
+    
+    if start_idx is None or end_idx is None:
+        raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
 
     # -- parse index of PotEng
@@ -165,7 +180,7 @@ class LmpDriver(AbstractDriver):
     supported_tasks = ["min", "md"]
 
     #: List of output files would be saved when restart.
-    saved_cards: List[str] = [ASELMPCONFIG.trajectory_filename]
+    saved_fnames: List[str] = [ASELMPCONFIG.log_filename, ASELMPCONFIG.trajectory_filename]
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
@@ -256,6 +271,48 @@ class LmpDriver(AbstractDriver):
             atoms.calc = calc_old
 
         return new_atoms
+
+    def _continue(self, atoms, read_exists=True, *args, **kwargs):
+        """Check whether continue unfinished calculation."""
+        print(f"run {self.directory}")
+        try:
+            # NOTE: some calculation can overwrite existed data
+            converged = False
+            if (self.directory/"OUTCAR").exists():
+                converged = atoms.calc.read_convergence()
+            if not converged:
+                if read_exists:
+                    # TODO: add a max for continued calculations? 
+                    #       such calcs can be labelled as a failure
+                    # TODO: check WAVECAR to speed restart?
+                    for fname in self.saved_fnames:
+                        curr_fpath = self.directory/fname
+                        if curr_fpath.exists():
+                            backup_fmt = ("bak.{:d}."+fname)
+                            # --- check backups
+                            idx = 0
+                            while True:
+                                backup_fpath = self.directory/(backup_fmt.format(idx))
+                                if not Path(backup_fpath).exists():
+                                    shutil.copy(curr_fpath, backup_fpath)
+                                    break
+                                else:
+                                    idx += 1
+                    # -- continue calculation
+                    if (self.directory/"CONTCAR").exists():
+                        shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+                # -- run calculation
+                _ = atoms.get_forces()
+                # -- check whether the restart s converged
+                converged = atoms.calc.read_convergence()
+            else:
+                ...
+        except OSError:
+            converged = False
+        print(f"end {self.directory}")
+        print("converged: ", converged)
+
+        return converged
     
     def read_trajectory(self, type_list=None, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
@@ -263,6 +320,24 @@ class LmpDriver(AbstractDriver):
             self.calc.type_list = type_list
 
         return self.calc._read_trajectory(add_step_info)
+
+    def as_dict(self) -> dict:
+        """"""
+        params = dict(
+            backend = self.name
+        )
+        # NOTE: we use original params otherwise internal param names would be 
+        #       written out and make things confusing
+        org_params = copy.deepcopy(self._org_params)
+
+        # - update some special parameters
+        constraint = self.setting.get_run_params().get("constraint", None)
+        if constraint is not None:
+            org_params["run"]["constraint"] = constraint
+
+        params.update(org_params)
+
+        return params
 
 
 class Lammps(FileIOCalculator):
