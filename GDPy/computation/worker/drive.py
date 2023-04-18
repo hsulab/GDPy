@@ -124,6 +124,8 @@ class DriverBasedWorker(AbstractWorker):
         # - check wdir
         # NOTE: get a list even if it only has one structure
         # TODO: a better strategy to deal with wdirs...
+        #       conflicts:
+        #           merged trajectories from different drivers that all have cand0
         wdirs = [] # [(confid,dynstep), ..., ()]
         for icand, x in enumerate(frames):
             #wdir = x.info.get("wdir", None)
