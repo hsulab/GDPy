@@ -44,34 +44,48 @@ class Register:
 
 class registers:
 
-    validator = Register("validator")
+    #: Session operations.
+    operation: Register = Register("operation")
+
+    #: Validators.
+    validator: Register = Register("validator")
 
     def __init__(self):
         raise RuntimeError("Registries is not intended to be instantiated")
     
     @staticmethod
-    def get(mod_name: str, cls_name: str, *args, **kwargs):
-        """"""
+    def get(mod_name: str, cls_name: str, convert_name: bool=True, *args, **kwargs):
+        """Acquire the target class from modules."""
         # - convert the cls_name by the internal convention
-        cls_name = cls_name.capitalize() + mod_name.capitalize()
+        if convert_name:
+            cls_name = cls_name.capitalize() + mod_name.capitalize()
 
         # - get the class
-        register = getattr(registers, mod_name)
-        target_cls = register[cls_name]
+        curr_register = getattr(registers, mod_name)
+        target_cls = curr_register[cls_name]
 
         return target_cls
     
     @staticmethod
-    def create(mode_name: str, cls_name: str, *args, **kwargs):
+    def create(mode_name: str, cls_name: str, convert_name: bool=True, *args, **kwargs):
         """"""
-        target_cls = registers.get(mode_name, cls_name)
+        target_cls = registers.get(mode_name, cls_name, convert_name, *args, **kwargs)
         instance = target_cls(*args, **kwargs)
 
         return instance
 
 
 VALIDATOR_MODULES = ["singlepoint"]
-ALL_MODULES = [("GDPy.validator", VALIDATOR_MODULES)]
+DATA_OPS = ["operations"]
+
+ALL_MODULES = [
+    ("GDPy.validator", VALIDATOR_MODULES),
+    ("GDPy.data", DATA_OPS), 
+    ("GDPy.builder", ["interface"]),
+    ("GDPy.computation", ["operations"]),
+    ("GDPy.validator", ["interface"]),
+    ("GDPy.selector", ["interface"]),
+]
 
 
 def _handle_errors(errors):

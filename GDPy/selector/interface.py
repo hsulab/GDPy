@@ -8,12 +8,14 @@ from typing import Union, List, NoReturn
 from ase.io import read, write
 
 from GDPy.core.operation import Operation
+from GDPy.core.register import registers
 from GDPy.computation.worker.worker import AbstractWorker
 from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.composition import ComposedSelector
 
 
+@registers.operation.register
 class select(Operation):
 
     cached_fname = "selected_frames.xyz"

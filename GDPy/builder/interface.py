@@ -7,6 +7,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.operation import Operation
+from GDPy.core.register import registers
 
 
 def create_modifier(method: str, params: dict):
@@ -21,6 +22,7 @@ def create_modifier(method: str, params: dict):
 
     return op_cls
 
+@registers.operation.register
 class build(Operation):
 
     """Build structures without substrate structures.
@@ -37,10 +39,17 @@ class build(Operation):
 
         return frames
 
+@registers.operation.register
 class modify(Operation):
 
-    def __init__(self, modifier) -> NoReturn:
-        super().__init__([modifier])
+    def __init__(self, substrate, modifier) -> NoReturn:
+        super().__init__([substrate, modifier])
+    
+    def forward(self):
+        """"""
+        super().forward()
+
+        return
 
 
 if __name__ == "__main__":

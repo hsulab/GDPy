@@ -12,7 +12,19 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.operation import Operation
+from GDPy.core.register import registers
 
+@registers.operation.register
+class end_session(Operation):
+
+    def __init__(self, *args) -> NoReturn:
+        super().__init__(args)
+    
+    def forward(self, *args):
+        """"""
+        return super().forward()
+
+@registers.operation.register
 class merge(Operation):
 
     """Merge results of workers.
@@ -82,6 +94,7 @@ class merge(Operation):
 
         return all_traj_frames
 
+@registers.operation.register
 class transfer(Operation):
 
     """Transfer worker results to target destination.

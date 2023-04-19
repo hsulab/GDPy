@@ -18,7 +18,7 @@ class ValidatorNode(Variable):
         """"""
         # - create a validator
         method = kwargs.get("method", "minima")
-        validator = registers.create("validator", method, self.directory, kwargs)
+        validator = registers.create("validator", method, True, self.directory, kwargs)
         print(validator)
 
         # - save
@@ -27,7 +27,7 @@ class ValidatorNode(Variable):
 
         return
     
-
+@registers.operation.register
 class test(Operation):
 
     def __init__(self, node_with_structures, validator, worker) -> NoReturn:

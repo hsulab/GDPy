@@ -13,15 +13,7 @@ from ase import Atoms
 from GDPy.core.placeholder import Placeholder
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
-
-class end_session(Operation):
-
-    def __init__(self, *args) -> NoReturn:
-        super().__init__(args)
-    
-    def forward(self, *args):
-        """"""
-        return super().forward()
+from GDPy.core.register import registers
 
 
 def traverse_postorder(operation):
@@ -136,31 +128,32 @@ def create_operation(op_name, op_params_: dict):
         op_params.update(rng=rng)
     # --
     op_method = op_params.pop("method", None)
-    if op_type == "build":
-        from GDPy.builder.interface import build as op_func
-    elif op_type == "modifier":
-        from GDPy.builder.interface import create_modifier
-        op_func = create_modifier(op_method, op_params)
-    elif op_type == "work":
-        from GDPy.computation.operations import work as op_func
-    elif op_type == "drive":
-        #from GDPy.computation.worker.interface import drive as op_func
-        from GDPy.computation.operations import drive as op_func
-    elif op_type == "merge":
-        from GDPy.data.operations import merge as op_func
-    elif op_type == "transfer":
-        from GDPy.data.operations import transfer as op_func
-    elif op_type == "test":
-        from GDPy.validator.interface import test as op_func
-    elif op_type == "extract":
-        from GDPy.computation.worker.interface import create_extract
-        op_func = create_extract(op_method, op_params)
-    elif op_type == "select":
-        from GDPy.selector.interface import select as op_func
-    elif op_type == "end":
-        op_func = end_session
-    else:
-        raise RuntimeError(f"Unknown operation type {op_type}.")
+    #if op_type == "build":
+    #    from GDPy.builder.interface import build as op_func
+    #elif op_type == "modifier":
+    #    from GDPy.builder.interface import create_modifier
+    #    op_func = create_modifier(op_method, op_params)
+    #elif op_type == "work":
+    #    from GDPy.computation.operations import work as op_func
+    #elif op_type == "drive":
+    #    #from GDPy.computation.worker.interface import drive as op_func
+    #    from GDPy.computation.operations import drive as op_func
+    #elif op_type == "merge":
+    #    from GDPy.data.operations import merge as op_func
+    #elif op_type == "transfer":
+    #    from GDPy.data.operations import transfer as op_func
+    #elif op_type == "test":
+    #   from GDPy.validator.interface import test as op_func
+    #elif op_type == "extract":
+    #    from GDPy.computation.worker.interface import create_extract
+    #    op_func = create_extract(op_method, op_params)
+    #elif op_type == "select":
+    #    from GDPy.selector.interface import select as op_func
+    #elif op_type == "end":
+    #    op_func = end_session
+    #else:
+    #    raise RuntimeError(f"Unknown operation type {op_type}.")
+    op_func = registers.get("operation", op_type, convert_name=False)
 
     return op_func, op_params
 

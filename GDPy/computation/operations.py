@@ -7,8 +7,10 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.operation import Operation
+from GDPy.core.register import registers
 from GDPy.computation.worker.drive import DriverBasedWorker
 
+@registers.operation.register
 class work(Operation):
 
     def __init__(self, potter, driver, scheduler, batchsize: int=None) -> NoReturn:
@@ -29,7 +31,7 @@ class work(Operation):
 
         return worker
 
-
+@registers.operation.register
 class drive(Operation):
 
     """Drive structures.
