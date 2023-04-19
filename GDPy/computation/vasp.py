@@ -97,6 +97,31 @@ class VaspDriverSetting(DriverSetting):
                     ibrion=ibrion, potim=potim, isif=isif, 
                     smass=smass, tebeg=tebeg, teend=teend
                 )
+            elif self.md_style == "npt":
+                mdalgo = 3 # langevin thermostat
+                # Parrinello-Rahman Lagrangian
+                isif, smass = 3, 0
+                if self.tend is None:
+                    self.tend = self.temp
+                tebeg, teend = self.temp, self.tend
+                if self.pend is None:
+                    self.pend = self.press
+                # NOTE: pressure unit 1 GPa = 10 kBar
+                #                     1 kB  = 1000 bar = 10^8 Pa
+                pstress = 1e-3*self.press
+                langevin_gamma = self.Tdamp # array, ps^-1
+                langevin_gamma_l = self.Pdamp # real, ps^-1
+                pmass = 100. # a.m.u., default 1000
+                self._internals.update(
+                    mdalgo = mdalgo,
+                    ibrion=ibrion, potim=potim, isif=isif, 
+                    # thermostat
+                    smass=smass, tebeg=tebeg, teend=teend,
+                    # barostat
+                    pstress = pstress, pmass = pmass,
+                    langevin_gamma=langevin_gamma,
+                    langevin_gamma_l=langevin_gamma_l,
+                )
             else:
                 raise NotImplementedError(f"{self.md_style} is not supported yet.")
             
@@ -178,6 +203,11 @@ class VaspDriver(AbstractDriver):
 
         # - init params
         run_params.update(**self.setting.get_init_params())
+
+        # - update some system-dependant params
+        if "langevin_gamma" in run_params:
+            ntypes = len(set(atoms.get_chemical_symbols()))
+            run_params["langevin_gamma"] = [run_params["langevin_gamma"]]*ntypes
 
         # - check constraint
         cons_text = run_params.pop("constraint", None)
