@@ -97,6 +97,16 @@ def parse_thermo_data(logfile_path) -> dict:
         raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
 
+    try: # The last sentence may have the same number of columns as thermo data does.
+        if end_info.strip():
+            first_col = float(end_info.strip().split()[0])
+        else:
+            end_idx -= 1
+    except ValueError:
+        end_idx -= 1
+    finally:
+        ...
+
     # -- parse index of PotEng
     # TODO: save timestep info?
     thermo_keywords = lines[start_idx].strip().split()
@@ -116,6 +126,11 @@ class LmpDriverSetting(DriverSetting):
 
     min_style: str = "fire"
     min_modify: str = "integrator verlet tmax 4"
+
+    neighbor: str = "0.0 bin"
+    neigh_modify: str = None
+
+    extra_fix: List[str] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         """"""
@@ -146,23 +161,36 @@ class LmpDriverSetting(DriverSetting):
             dump_period = self.dump_period
         )
 
+        # - special params
+        self._internals.update(
+            neighbor = self.neighbor,
+            neigh_modify = self.neigh_modify,
+            extra_fix = self.extra_fix
+        )
+
         return 
     
     def get_run_params(self, *args, **kwargs):
         """"""
+        # - pop out special keywords
         # convergence criteria
-        ftol_ = kwargs.get("fmax", self.fmax)
-        etol_ = kwargs.get("etol", self.etol)
+        ftol_ = kwargs.pop("fmax", self.fmax)
+        etol_ = kwargs.pop("etol", self.etol)
         if etol_ is None:
             etol_ = 0.
         if ftol_ is None:
             ftol_ = 0.
 
-        steps_ = kwargs.get("steps", self.steps)
+        steps_ = kwargs.pop("steps", self.steps)
 
         run_params = dict(
             constraint = kwargs.get("constraint", None),
             etol=etol_, ftol=ftol_, maxiter=steps_, maxeval=2*steps_
+        )
+
+        # - add extra parameters
+        run_params.update(
+            **kwargs
         )
 
         return run_params
@@ -197,13 +225,9 @@ class LmpDriver(AbstractDriver):
 
         self._org_params = copy.deepcopy(params)
 
-        # - for compat
-        params_ = dict(task=params.get("task", self.default_task))
-        params_.update(copy.deepcopy(params.get("init", {})))
-        params_.update(**copy.deepcopy(params.get("run", {})))
-        self.setting = LmpDriverSetting(**params_)
-        print(self.setting)
-        print(self.setting._internals)
+        self.setting = LmpDriverSetting(**params)
+        #print(self.setting)
+        #print(self.setting._internals)
 
         return
 
@@ -231,13 +255,8 @@ class LmpDriver(AbstractDriver):
         self.delete_keywords(self.calc.parameters)
 
         ## - init params
-        #run_params.update(**self.setting.get_init_params())
-        ## - run params
-        #run_params = self.setting.get_run_params(kwargs)
         run_params = self.setting.get_init_params()
-        run_params.update(**self.setting.get_run_params())
-
-        print("run_params: ", run_params)
+        run_params.update(**self.setting.get_run_params(**kwargs))
 
         self.calc.set(**run_params)
         atoms.calc = self.calc
@@ -392,7 +411,9 @@ class Lammps(FileIOCalculator):
         maxiter = 0, # NOTE: this is steps for MD
         maxeval = 0,
         min_style = "fire",
-        min_modify = "integrator verlet tmax 4"
+        min_modify = "integrator verlet tmax 4",
+        # - extra fix
+        extra_fix = []
     )
 
     #: Symbol to integer.
@@ -664,6 +685,10 @@ class Lammps(FileIOCalculator):
         )
         content += "dump_modify 1 element {}\n".format(" ".join(self.type_list))
         content += "\n"
+
+        # - add extra fix
+        for i, fix_info in enumerate(self.extra_fix):
+            content += "{:<24s}  {:<24s}  {:<s}\n".format("fix", f"extra{i}", fix_info)
         
         # --- run type
         if self.task == "min":
@@ -704,7 +729,7 @@ class Lammps(FileIOCalculator):
         else:
             # TODO: NEB?
             pass
-
+    
         # - output file
         in_file = os.path.join(self.directory, ASELMPCONFIG.input_fname)
         with open(in_file, "w") as fopen:

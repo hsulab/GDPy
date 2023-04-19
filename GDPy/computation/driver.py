@@ -37,6 +37,9 @@ class DriverSetting:
     #: Simulation task.
     task: str = "min"
 
+    #: Driver setting.
+    backend: str = "external"
+
     #: 
     min_style: str = "bfgs"
     min_modify: str = "integrator verlet tmax 4"

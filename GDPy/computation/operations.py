@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import NoReturn, List
+from typing import NoReturn, Union, List
 
 from ase import Atoms
 from ase.io import read, write
@@ -50,42 +50,57 @@ class drive(Operation):
 
         return
     
-    def forward(self, frames, potter, driver, scheduler):
+    def forward(self, frames, potter, drivers: List[dict], scheduler) -> List[List[Atoms]]:
         """"""
         super().forward()
 
-        driver = potter.create_driver(driver) # use external backend
-        worker = DriverBasedWorker(potter, driver, scheduler)
-        worker.directory = self.directory
+        # - basic input candidates
+        nframes = len(frames)
 
-        if self.batchsize is not None:
-            worker.batchsize = self.batchsize
-        else:
-            nframes = len(frames)
-            worker.batchsize = nframes
+        # - create workers
+        workers = []
+        for i, driver_params in enumerate(drivers):
+            # workers share calculator in potter
+            driver = potter.create_driver(driver_params) # use external backend
+            worker = DriverBasedWorker(potter, driver, scheduler)
+            worker.directory = self.directory / f"w{i}"
 
-        self.worker = worker
+            if self.batchsize is not None:
+                worker.batchsize = self.batchsize
+            else:
+                worker.batchsize = nframes
+            
+            workers.append(worker)
+        nworkers = len(workers)
 
-        new_frames = []
+        if nworkers == 1:
+            workers[0].directory = self.directory
+        self.workers = workers
 
-        cached_fpath = self.directory/"output.xyz"
-        if not cached_fpath.exists():
-            worker.run(frames)
-            worker.inspect(resubmit=True)
-            # TODO: check whether finished this operation...
-            if worker.get_number_of_running_jobs() == 0:
-                trajectories = worker.retrieve(
-                    read_traj = self.read_traj, traj_period = self.traj_period,
-                    include_first = True, include_last = True,
-                    ignore_retrieved=False # TODO: ignore misleads...
-                )
-                for traj in trajectories:
-                    new_frames.append(traj[-1])
-                write(cached_fpath, new_frames)
-        else:
-            new_frames = read(cached_fpath, ":")
+        # - run workers
+        ret_groups = []
+        for i, worker in enumerate(self.workers):
+            self.pfunc(f"run worker {i}")
+            cached_fpath = worker.directory/"output.xyz"
+            if not cached_fpath.exists():
+                worker.run(frames)
+                worker.inspect(resubmit=True)
+                # TODO: check whether finished this operation...
+                new_frames = [] # end frame of each traj
+                if worker.get_number_of_running_jobs() == 0:
+                    trajectories = worker.retrieve(
+                        read_traj = self.read_traj, traj_period = self.traj_period,
+                        include_first = True, include_last = True,
+                        ignore_retrieved=False # TODO: ignore misleads...
+                    )
+                    for traj in trajectories:
+                        new_frames.append(traj[-1])
+                    write(cached_fpath, new_frames)
+            else:
+                new_frames = read(cached_fpath, ":")
+            ret_groups.append(new_frames)
 
-        return new_frames
+        return ret_groups
 
 class extract_trajectories(Operation):
 

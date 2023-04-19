@@ -17,10 +17,49 @@ class DriverVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""
-        initial_value = copy.deepcopy(kwargs)
+        # - compat
+        copied_params = copy.deepcopy(kwargs)
+        merged_params = dict(
+            task = copied_params.get("task", "min"),
+            backend = copied_params.get("backend", "external"),
+        )
+        merged_params.update(**copied_params.get("init", {}))
+        merged_params.update(**copied_params.get("run", {}))
+
+        initial_value = self._broadcast_drivers(merged_params)
+
         super().__init__(initial_value)
 
         return
+    
+    def _broadcast_drivers(self, params: dict) -> List[dict]:
+        """Broadcast parameters if there were any parameter is a list."""
+        # - find longest params
+        plengths = []
+        for k, v in params.items():
+            if isinstance(v, list):
+                n = len(v)
+            else: # int, float, string
+                n = 1
+            plengths.append((k,n))
+        plengths = sorted(plengths, key=lambda x:x[1])
+        # NOTE: check only has one list params
+        assert sum([p[1] > 1 for p in plengths]) <= 1, "only accept one param as list."
+
+        # - convert to dataclass
+        params_list = []
+        maxname, maxlength = plengths[-1]
+        for i in range(maxlength):
+            curr_params = {}
+            for k, n in plengths:
+                if n > 1:
+                    v = params[k][i]
+                else:
+                    v = params[k]
+                curr_params[k] = v
+            params_list.append(curr_params)
+
+        return params_list
 
 if __name__ == "__main__":
     ...
