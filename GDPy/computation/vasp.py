@@ -5,6 +5,7 @@ import os
 import re
 import time
 import copy
+import dataclasses
 import json
 import warnings
 import pathlib
@@ -50,6 +51,7 @@ def read_sort(directory):
 
     return sort, resort
 
+@dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
 
     def __post_init__(self):
@@ -151,12 +153,7 @@ class VaspDriver(AbstractDriver):
 
         self._org_params = copy.deepcopy(params)
 
-        # - for compat
-        params_ = dict(task=params.get("task", self.default_task))
-        params_.update(copy.deepcopy(params.get("init", {})))
-        params_.update(**copy.deepcopy(params.get("run", {})))
-        self.setting = VaspDriverSetting(**params_)
-        print(self.setting)
+        self.setting = VaspDriverSetting(**params)
 
         return
     
@@ -177,7 +174,7 @@ class VaspDriver(AbstractDriver):
         self.delete_keywords(self.calc.parameters)
 
         # - merge params
-        run_params = self.setting.get_run_params(kwargs)
+        run_params = self.setting.get_run_params(**kwargs)
 
         # - init params
         run_params.update(**self.setting.get_init_params())
