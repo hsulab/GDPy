@@ -6,6 +6,7 @@ from typing import NoReturn, List
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
@@ -21,6 +22,19 @@ def create_modifier(method: str, params: dict):
         raise NotImplementedError(f"Unimplemented modifier {method}.")
 
     return op_cls
+
+@registers.variable.register
+class BuilderVariable(Variable):
+
+    """Read structures from file."""
+
+    def __init__(self, filename, index=":", format=None):
+        """"""
+        initial_value = read(filename, index, format)
+
+        super().__init__(initial_value)
+
+        return
 
 @registers.operation.register
 class build(Operation):

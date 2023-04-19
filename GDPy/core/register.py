@@ -47,6 +47,9 @@ class registers:
     #: Session operations.
     operation: Register = Register("operation")
 
+    #: Session variables.
+    variable: Register = Register("variable")
+
     #: Validators.
     validator: Register = Register("validator")
 
@@ -79,12 +82,19 @@ VALIDATOR_MODULES = ["singlepoint"]
 DATA_OPS = ["operations"]
 
 ALL_MODULES = [
+    # - working components.
     ("GDPy.validator", VALIDATOR_MODULES),
+    # - session operations.
     ("GDPy.data", DATA_OPS), 
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["operations"]),
     ("GDPy.validator", ["interface"]),
     ("GDPy.selector", ["interface"]),
+    # - session variables.
+    ("GDPy.validator", ["interface"]),
+    ("GDPy.scheduler", ["interface"]),
+    ("GDPy.computation", ["interface"]),
+    ("GDPy.potential", ["interface"]),
 ]
 
 

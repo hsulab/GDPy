@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from GDPy.core.variable import Variable
+from GDPy.core.register import registers
 from GDPy.scheduler import create_scheduler
 
-class SchedulerNode(Variable):
+
+@registers.variable.register
+class SchedulerVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""

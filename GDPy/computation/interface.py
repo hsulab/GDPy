@@ -9,10 +9,11 @@ from ase.io import read, write
 
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
+from GDPy.core.register import registers
 
-#class
 
-class DriverNode(Variable):
+@registers.variable.register
+class DriverVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""

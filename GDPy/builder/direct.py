@@ -8,8 +8,6 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-from GDPy.core.variable import Variable
-from GDPy.core.operation import Operation
 from GDPy.builder.builder import StructureGenerator
 
 def read_xsd2(fd) -> Atoms:
@@ -216,20 +214,6 @@ class DirectGenerator(StructureGenerator):
 
         return params
 
-
-class FileBuilder(Variable):
-
-    """Read structures from file."""
-
-    def __init__(self, filename, index=":", format=None):
-        """"""
-        initial_value = read(filename, index, format)
-
-        super().__init__(initial_value)
-
-        return
-
-    ...
 
 if __name__ == "__main__":
     ...

@@ -86,32 +86,34 @@ def create_node(node_name, node_params_: dict):
     node = None
     if node_template is not None:
         node_params.update(**node_template)
-    if node_type == "builder":
-        from GDPy.builder.direct import FileBuilder
-        node = FileBuilder(**node_params)
-    elif node_type == "potter":
-        from GDPy.potential.interface import Potter
-        node = Potter(**node_params)
-    elif node_type == "driver":
-        from GDPy.computation.interface import DriverNode
-        node = DriverNode(**node_params)
-    elif node_type == "scheduler":
-        from GDPy.scheduler.interface import SchedulerNode
-        node = SchedulerNode(**node_params)
-    elif node_type == "worker":
-        from GDPy.potential.register import create_potter
-        node = create_potter(**node_params)
-    elif node_type == "selector":
-        from GDPy.selector.interface import create_selector
-        node = create_selector(node_params["selection"])
-    elif node_type == "validator":
-        from GDPy.validator.interface import ValidatorNode
-        node = ValidatorNode(**node_params)
-    else:
-        raise RuntimeError(f"Unknown node type {node_type}.")
+    #if node_type == "builder":
+    #    from GDPy.builder.direct import FileBuilder
+    #    node = FileBuilder(**node_params)
+    #elif node_type == "potter":
+    #    from GDPy.potential.interface import Potter
+    #    node = Potter(**node_params)
+    #elif node_type == "driver":
+    #    from GDPy.computation.interface import DriverNode
+    #    node = DriverNode(**node_params)
+    #elif node_type == "scheduler":
+    #    from GDPy.scheduler.interface import SchedulerNode
+    #    node = SchedulerNode(**node_params)
+    #elif node_type == "worker":
+    #    from GDPy.potential.register import create_potter
+    #    node = create_potter(**node_params)
+    #elif node_type == "selector":
+    #    from GDPy.selector.interface import create_selector
+    #    node = create_selector(node_params["selection"])
+    #elif node_type == "validator":
+    #    from GDPy.validator.interface import ValidatorNode
+    #    node = ValidatorNode(**node_params)
+    #else:
+    #    raise RuntimeError(f"Unknown node type {node_type}.")
     # -- 
     #if not isinstance(node, Variable): # TODO
     #    node = Variable(node)
+    node_cls = registers.get("variable", node_type, convert_name=True)
+    node = node_cls(**node_params)
 
     return node
 

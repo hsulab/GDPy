@@ -12,7 +12,8 @@ from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.scheduler import create_scheduler
 from GDPy.validator import AbstractValidator
 
-class ValidatorNode(Variable):
+@registers.variable.register
+class ValidatorVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""

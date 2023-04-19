@@ -2,10 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from GDPy.core.variable import Variable
+from GDPy.core.register import registers
+
 from GDPy.potential.register import PotentialRegister
+from GDPy.potential.register import create_potter
 
 
-class Potter(Variable):
+@registers.variable.register
+class PotterVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""
@@ -17,6 +21,16 @@ class Potter(Variable):
         potter.version = kwargs.get("version", "unknown")
 
         super().__init__(potter)
+
+        return
+
+@registers.variable.register
+class WorkerVariable(Variable):
+
+    def __init__(self, **kwargs):
+        """"""
+        worker = create_potter(**kwargs) # DriveWorker or TrainWorker
+        super().__init__(worker)
 
         return
 

@@ -7,12 +7,22 @@ from typing import Union, List, NoReturn
 
 from ase.io import read, write
 
+from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 from GDPy.computation.worker.worker import AbstractWorker
 from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.composition import ComposedSelector
+
+
+@registers.variable.register
+class SelectorVariable(Variable):
+
+    def __init__(self, selection):
+        """"""
+        selector = create_selector(selection)
+        super().__init__(selector)
 
 
 @registers.operation.register
