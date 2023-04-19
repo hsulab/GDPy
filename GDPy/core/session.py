@@ -148,6 +148,8 @@ def create_operation(op_name, op_params_: dict):
         from GDPy.computation.operations import drive as op_func
     elif op_type == "merge":
         from GDPy.data.operations import merge as op_func
+    elif op_type == "transfer":
+        from GDPy.data.operations import transfer as op_func
     elif op_type == "test":
         from GDPy.validator.interface import test as op_func
     elif op_type == "extract":
@@ -159,8 +161,6 @@ def create_operation(op_name, op_params_: dict):
         op_func = end_session
     else:
         raise RuntimeError(f"Unknown operation type {op_type}.")
-    #op_params.update(func=op_func)
-    #ops_dict[op_name] = op_params
 
     return op_func, op_params
 
