@@ -30,11 +30,9 @@ class select(Operation):
 
     cached_fname = "selected_frames.xyz"
 
-    def __init__(self, frames, selector: AbstractSelector):
+    def __init__(self, frames, selector):
         """"""
-        super().__init__([frames])
-
-        self.selector = selector
+        super().__init__([frames,selector])
 
         return
     
@@ -43,16 +41,17 @@ class select(Operation):
         """"""
         super(select, select).directory.__set__(self, directory_)
 
-        self.selector.directory = self._directory
-
         return
     
-    def forward(self, frames):
+    def forward(self, frames, selector: AbstractSelector):
         """"""
         super().forward()
+
+        selector.directory = self.directory
+
         cached_fpath = self.directory/self.cached_fname
         if not cached_fpath.exists():
-            new_frames = self.selector.select(frames)
+            new_frames = selector.select(frames)
             write(cached_fpath, new_frames)
         else:
             new_frames = read(cached_fpath, ":")
