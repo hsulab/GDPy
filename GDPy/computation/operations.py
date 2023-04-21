@@ -26,6 +26,8 @@ class work(Operation):
         """"""
         super().forward()
 
+        driver_params = driver_params[0] # support multi-workers?
+
         driver = potter.create_driver(driver_params) # use external backend
         worker = DriverBasedWorker(potter, driver, scheduler)
         worker.directory = self.directory
@@ -149,12 +151,19 @@ class extract(Operation):
         workers = self.input_nodes[0].workers
         nworkrers = len(workers)
 
+        is_finished = True
+
         trajectories = [] # List[List[List[Atoms]]], worker->candidate->trajectory
         for i, worker in enumerate(workers):
             cached_trajs_fpath = self.directory/f"w{i}.xyz"
             # TODO: How to save trajectories into one file?
             #       probably use override function for read/write
             if not cached_trajs_fpath.exists():
+                if not (worker.get_number_of_running_jobs() == 0):
+                    self.pfunc(f"{worker.directory.name} is not finished.")
+                    is_finished = False
+                    exit()
+                    break
                 curr_trajectories_ = worker.retrieve(
                     read_traj = self.read_traj, traj_period = self.traj_period,
                     include_first = self.include_first, include_last = self.include_last,
