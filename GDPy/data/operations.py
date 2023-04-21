@@ -100,7 +100,7 @@ class transfer(Operation):
     """Transfer worker results to target destination.
     """
 
-    def __init__(self, worker, target_dir, version) -> NoReturn:
+    def __init__(self, worker, target_dir, version, system="mixed") -> NoReturn:
         """"""
         input_nodes = [worker]
         super().__init__(input_nodes)
@@ -108,11 +108,15 @@ class transfer(Operation):
         self.target_dir = pathlib.Path(target_dir)
         self.version = version
 
+        self.system = system # molecule/cluster, surface, bulk
+
         return
     
     def forward(self, frames: List[Atoms]):
         """"""
         super().forward()
+
+        self.pfunc(f"target dir: {str(self.target_dir)}")
 
         # - check chemical symbols
         system_dict = {} # {formula: [indices]}
@@ -124,19 +128,21 @@ class transfer(Operation):
         # - transfer data
         for formula, curr_indices in system_dict.items():
             # -- TODO: check system type
-            ...
+            system_type = self.system # currently, use user input one
             # -- name = description+formula+system_type
-            dirname = self.directory.parent.name + "-" + formula
+            dirname = "-".join([self.directory.parent.name, formula, system_type])
             target_subdir = self.target_dir/dirname
             target_subdir.mkdir(parents=True, exist_ok=True)
 
             # -- save frames
             curr_frames = [frames[i] for i in curr_indices]
+            curr_nframes = len(curr_frames)
 
             strname = self.version + ".xyz"
             target_destination = self.target_dir/dirname/strname
             if not target_destination.exists():
                 write(target_destination, curr_frames)
+                self.pfunc(f"nframes {curr_nframes} -> {target_destination.name}")
             else:
                 warnings.warn(f"{target_destination} exists.", UserWarning)
 
