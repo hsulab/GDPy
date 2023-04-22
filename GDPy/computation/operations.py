@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import itertools
+import time
 from typing import NoReturn, Union, List
 
 from ase import Atoms
@@ -14,25 +15,28 @@ from GDPy.computation.worker.drive import DriverBasedWorker
 @registers.operation.register
 class work(Operation):
 
-    def __init__(self, potter, driver, scheduler, batchsize: int=None) -> NoReturn:
+    def __init__(self, potter, driver, scheduler) -> NoReturn:
         """"""
         super().__init__([potter,driver,scheduler])
 
-        self.batchsize = batchsize
-
         return
     
-    def forward(self, potter, driver_params, scheduler):
+    def forward(self, potter, drivers: List[dict], scheduler) -> List[DriverBasedWorker]:
         """"""
         super().forward()
 
-        driver_params = driver_params[0] # support multi-workers?
+        # - create workers
+        # TODO: broadcast potters, schedulers as well?
+        workers = []
+        for i, driver_params in enumerate(drivers):
+            # workers share calculator in potter
+            driver = potter.create_driver(driver_params)
+            worker = DriverBasedWorker(potter, driver, scheduler)
+            # wdir is temporary as it may be reset by drive operation
+            worker.directory = self.directory / f"w{i}"
+            workers.append(worker)
 
-        driver = potter.create_driver(driver_params) # use external backend
-        worker = DriverBasedWorker(potter, driver, scheduler)
-        worker.directory = self.directory
-
-        return worker
+        return workers
 
 @registers.operation.register
 class drive(Operation):
@@ -41,69 +45,61 @@ class drive(Operation):
     """
 
     def __init__(
-        self, builder, potter, driver, scheduler, 
-        batchsize: int=None, read_traj=True, traj_period: int=1,
+        self, builder, worker, batchsize: int=None,
     ):
         """"""
-        super().__init__([builder, potter, driver, scheduler])
+        super().__init__([builder, worker])
 
         self.batchsize = batchsize
-        self.read_traj = read_traj
-        self.traj_period = traj_period
 
         return
     
-    def forward(self, frames, potter, drivers: List[dict], scheduler) -> List[List[Atoms]]:
-        """"""
+    def forward(self, frames, workers: List[DriverBasedWorker]) -> List[DriverBasedWorker]:
+        """Run simulations with given structures and workers.
+
+        Workers' working directory and batchsize are probably set.
+
+        Returns:
+            Workers with correct directory and batchsize.
+
+        """
         super().forward()
 
         # - basic input candidates
         nframes = len(frames)
 
         # - create workers
-        workers = []
-        for i, driver_params in enumerate(drivers):
-            # workers share calculator in potter
-            driver = potter.create_driver(driver_params) # use external backend
-            worker = DriverBasedWorker(potter, driver, scheduler)
+        for i, worker in enumerate(workers):
             worker.directory = self.directory / f"w{i}"
-
             if self.batchsize is not None:
                 worker.batchsize = self.batchsize
             else:
                 worker.batchsize = nframes
-            
-            workers.append(worker)
         nworkers = len(workers)
 
         if nworkers == 1:
             workers[0].directory = self.directory
-        self.workers = workers
 
         # - run workers
-        ret_groups = []
-        for i, worker in enumerate(self.workers):
+        for i, worker in enumerate(workers):
+            flag_fpath = worker.directory/"FINISHED"
             self.pfunc(f"run worker {i} for {nframes} nframes")
-            cached_fpath = worker.directory/"output.xyz"
-            if not cached_fpath.exists():
+            if not flag_fpath.exists():
                 worker.run(frames)
                 worker.inspect(resubmit=True)
                 # TODO: check whether finished this operation...
-                new_frames = [] # end frame of each traj
+                #       set flag to worker?
                 if worker.get_number_of_running_jobs() == 0:
-                    trajectories = worker.retrieve(
-                        read_traj = self.read_traj, traj_period = self.traj_period,
-                        include_first = True, include_last = True,
-                        ignore_retrieved=False # TODO: ignore misleads...
-                    )
-                    for traj in trajectories: # add last frame
-                        new_frames.append(traj[-1])
-                    write(cached_fpath, new_frames)
+                    with open(flag_fpath, "w") as fopen:
+                        fopen.write(
+                            f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
+                        )
             else:
-                new_frames = read(cached_fpath, ":")
-            ret_groups.append(new_frames)
+                with open(flag_fpath, "r") as fopen:
+                    content = fopen.readlines()
+                self.pfunc(content)
 
-        return ret_groups
+        return workers
 
 @registers.operation.register
 class extract(Operation):
@@ -131,10 +127,10 @@ class extract(Operation):
 
         return
     
-    def forward(self, frames: List[Atoms]):
+    def forward(self, workers: List[DriverBasedWorker]):
         """
         Args:
-            frames: Structures from drive-node's output (end frame of each traj).
+            workers: ...
         
         Returns:
             reduce_cand is false and reduce_work is false -> List[List[List[Atoms]]]
@@ -148,16 +144,16 @@ class extract(Operation):
         self.pfunc(f"reduce_cand {self.reduce_cand} reduce_work {self.reduce_work}")
         
         # TODO: reconstruct trajs to List[List[Atoms]]
-        workers = self.input_nodes[0].workers
+        self.workers = workers # for operations to access
         nworkrers = len(workers)
 
         is_finished = True
 
         trajectories = [] # List[List[List[Atoms]]], worker->candidate->trajectory
         for i, worker in enumerate(workers):
-            cached_trajs_fpath = self.directory/f"w{i}.xyz"
             # TODO: How to save trajectories into one file?
             #       probably use override function for read/write
+            cached_trajs_fpath = self.directory/f"{worker.directory.name}-w{i}.xyz"
             if not cached_trajs_fpath.exists():
                 if not (worker.get_number_of_running_jobs() == 0):
                     self.pfunc(f"{worker.directory.name} is not finished.")

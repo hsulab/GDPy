@@ -25,7 +25,29 @@ class end_session(Operation):
         return super().forward()
 
 @registers.operation.register
-class merge(Operation):
+class chain(Operation):
+
+    """Merge arbitrary nodes' outputs into one list.
+    """
+
+    def __init__(self, *args, **kwargs) -> NoReturn:
+        """"""
+        super().__init__(args)
+
+        # - some operation parameters
+
+        return
+    
+    def forward(self, *outputs):
+        """"""
+        super().forward()
+
+        # TODO: make this general
+
+        return list(itertools.chain(*outputs))
+
+@registers.operation.register
+class merge_workers(Operation):
 
     """Merge results of workers.
     """
