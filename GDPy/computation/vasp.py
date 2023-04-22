@@ -149,7 +149,7 @@ class VaspDriverSetting(DriverSetting):
         nsw = steps_
 
         run_params = dict(
-            constraint = kwargs.get("constraint", None),
+            constraint = kwargs.get("constraint", self.constraint),
             ediffg = ediffg, nsw=nsw
         )
 
@@ -339,7 +339,7 @@ class VaspDriver(AbstractDriver):
         # - update some special parameters
         constraint = self.setting.get_run_params().get("constraint", None)
         if constraint is not None:
-            org_params["run"]["constraint"] = constraint
+            org_params["constraint"] = constraint
 
         params.update(org_params)
 
