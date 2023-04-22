@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import itertools
 from typing import NoReturn, List
 
 from ase import Atoms
@@ -42,16 +43,21 @@ class build(Operation):
     """Build structures without substrate structures.
     """
 
-    def __init__(self, builder) -> NoReturn:
-        super().__init__([builder])
+    def __init__(self, *builders) -> NoReturn:
+        super().__init__(builders)
     
-    def forward(self, frames) -> List[Atoms]:
+    def forward(self, *args, **kwargs) -> List[Atoms]:
         """"""
         super().forward()
 
-        write(self.directory/"output.xyz", frames)
+        for i, frames in enumerate(args):
+            write(self.directory/f"output-{i}.xyz", frames)
+            self.pfunc(f"b{i} nframes: {len(frames)}")
+        
+        bundle = list(itertools.chain(*args))
+        self.pfunc(f"nframes: {len(bundle)}")
 
-        return frames
+        return bundle
 
 @registers.operation.register
 class modify(Operation):
