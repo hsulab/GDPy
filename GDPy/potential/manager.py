@@ -104,6 +104,14 @@ class AbstractPotentialManager(abc.ABC):
         if [self.calc_backend, dynamics] not in self.valid_combinations:
             raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
         
+        # - merge params for compat
+        merged_params = {}
+        if "init" in dyn_params or "run" in dyn_params:
+            merged_params.update(**dyn_params.get("init", {}))
+            merged_params.update(**dyn_params.get("run", {}))
+        else:
+            merged_params = copy.deepcopy(dyn_params)
+        
         # - check bias params
         bias_params = self.dyn_params.get("bias", None)
         
@@ -121,7 +129,7 @@ class AbstractPotentialManager(abc.ABC):
         elif dynamics == "vasp":
             from GDPy.computation.vasp import VaspDriver as driver_cls
 
-        driver = driver_cls(calc, dyn_params, directory=calc.directory)
+        driver = driver_cls(calc, merged_params, directory=calc.directory)
         driver.pot_params = self.as_dict()
         
         return driver
