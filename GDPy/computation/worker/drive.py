@@ -44,6 +44,29 @@ def get_file_md5(f):
         m.update(data)
     return m.hexdigest()
 
+def compare_atoms(a1, a2):
+    """Compare structures according to cell, chemical symbols, and positions.
+
+    Structures will be different if the atom order changes.
+
+    """
+    c1 = a1.get_cell(complete=True)
+    c2 = a2.get_cell(complete=True)
+    if np.sum(c1 - c2) >= 1e-8:
+        return False
+    
+    s1 = a1.get_chemical_symbols()
+    s2 = a2.get_chemical_symbols()
+    if s1 != s2:
+        return False
+    
+    p1 = a1.get_positions()
+    p2 = a2.get_positions()
+    if np.sum(p1 - p2) >= 1e-8:
+        return False
+
+    return True
+
 
 class DriverBasedWorker(AbstractWorker):
 
@@ -196,6 +219,7 @@ class DriverBasedWorker(AbstractWorker):
         )
         with open(processed_dpath/"_frames.xyz", "rb") as fopen:
             cur_md5 = get_file_md5(fopen)
+        print("cur_md5: ", cur_md5)
         stored_fname = f"{cur_md5}.xyz"
 
         job_info["dataset"] = str((processed_dpath/stored_fname).resolve())
@@ -235,10 +259,13 @@ class DriverBasedWorker(AbstractWorker):
         """"""
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
+        print("queued jobs:", queued_jobs)
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         queued_frames = [q["md5"] for q in queued_jobs]
+        print(queued_jobs, queued_names, queued_frames)
 
         dataset = job_info["dataset"]
+        print(dataset)
         cur_md5 = pathlib.Path(dataset).name.split(".")[0]
         groups = job_info["groups"]
 
@@ -527,6 +554,14 @@ class DriverBasedWorker(AbstractWorker):
             gdirs: A group of directories.
 
         """
+        # - load name mapping
+        _info_data = []
+        with open(self.directory/"_data"/"_info.txt", "r") as fopen:
+            for line in fopen.readlines():
+                if not line.startswith("#"):
+                    _info_data.append(line.strip().split())
+        self._info_data = _info_data
+
         # - get results
         results = []
         
@@ -568,8 +603,8 @@ class DriverBasedWorker(AbstractWorker):
 
         return results
     
-    @staticmethod
     def _iread_results(
+        self,
         driver, wdir, 
         read_traj: bool=False, traj_period: int=1, 
         include_first: bool=True, include_last: bool=True
@@ -582,7 +617,8 @@ class DriverBasedWorker(AbstractWorker):
         """
         driver.directory = wdir
         # NOTE: name convention, cand1112_field1112_field1112
-        confid = int(wdir.name.strip("cand").split("_")[0])
+        confid_ = int(wdir.name.strip("cand").split("_")[0]) # internal name
+        confid = int(self._info_data[confid_][0])
         if not read_traj:
             new_atoms = driver.read_converged()
             new_atoms.info["confid"] = confid

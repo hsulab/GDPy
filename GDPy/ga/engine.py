@@ -308,13 +308,17 @@ class GeneticAlgorithemEngine():
         # --- initial population
         if self.cur_gen == 0:
             self.pfunc("\n\n===== Initial Population Calculation =====")
+            frames_to_work = []
             while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
                 # calculate structures from init population
                 atoms = self.da.get_an_unrelaxed_candidate()
                 self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
-                # NOTE: provide unified interface to mlp and dft
-                _ = self.worker.run([atoms]) # retrieve later
+                frames_to_work.append(atoms)
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
+            # NOTE: provide unified interface to mlp and dft
+            if frames_to_work:
+                self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
+                _ = self.worker.run(frames_to_work) # retrieve later
         else:
             # --- update population
             self.pfunc("\n\n===== Update Population =====")
@@ -337,17 +341,25 @@ class GeneticAlgorithemEngine():
 
                 self.pfunc("\n\n===== Optimisation =====")
                 # TODO: send candidates directly to worker that respects the batchsize
+                frames_to_work = []
                 for atoms in current_candidates:
                     self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
-                    _ = self.worker.run([atoms]) # retrieve later
+                    frames_to_work.append(atoms)
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
+                if frames_to_work:
+                    self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
+                    _ = self.worker.run(frames_to_work) # retrieve later
             else:
                 self.pfunc("Current generation has not finished...")
 
         # --- check if there were finished jobs
+        self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
         self.worker.inspect()
+        print(self.worker.directory)
         converged_candidates = self.worker.retrieve()
         for cand in converged_candidates:
+            print(cand)
+            print(cand.info)
             # TODO: use tags
             # update extra info
             extra_info = dict(
