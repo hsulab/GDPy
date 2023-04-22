@@ -89,6 +89,7 @@ ALL_MODULES = [
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["operations"]),
     ("GDPy.validator", ["interface"]),
+    ("GDPy.validator", ["meltingpoint"]),
     ("GDPy.selector", ["interface"]),
     # - session variables.
     ("GDPy.validator", ["interface"]),
