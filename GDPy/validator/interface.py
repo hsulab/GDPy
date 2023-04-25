@@ -38,10 +38,13 @@ class test(Operation):
 
         return
     
-    def forward(self, frames, validator: AbstractValidator, worker):
+    def forward(self, frames, validator: AbstractValidator, workers):
         """"""
         super().forward()
         # - create a worker
+        nworkers = len(workers)
+        assert nworkers == 1, "Validator only accepts one worker."
+        worker = workers[0]
         worker.directory = self.directory
 
         # - run validation
