@@ -39,6 +39,24 @@ class work(Operation):
         return workers
 
 @registers.operation.register
+class distill(Operation):
+
+    def __init__(self, worker_node: work) -> NoReturn:
+        """"""
+        super().__init__([worker_node])
+    
+    def forward(self, workers: List[DriverBasedWorker]):
+        """"""
+        super().forward()
+        worker = workers[0]
+        print(worker.directory)
+        ret = worker.retrieve(
+            ignore_retrieved=False
+        )
+
+        return workers
+
+@registers.operation.register
 class drive(Operation):
 
     """Drive structures.
@@ -153,25 +171,41 @@ class extract(Operation):
         for i, worker in enumerate(workers):
             # TODO: How to save trajectories into one file?
             #       probably use override function for read/write
-            cached_trajs_fpath = self.directory/f"{worker.directory.name}-w{i}.xyz"
-            if not cached_trajs_fpath.exists():
+            #       i - worker, j - cand
+            print("worker: ", worker.directory)
+            cached_trajs_dpath = self.directory/f"{worker.directory.parent.name}-w{i}"
+            if not cached_trajs_dpath.exists():
                 if not (worker.get_number_of_running_jobs() == 0):
                     self.pfunc(f"{worker.directory.name} is not finished.")
                     is_finished = False
                     exit()
                     break
+                cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories_ = worker.retrieve(
                     read_traj = self.read_traj, traj_period = self.traj_period,
                     include_first = self.include_first, include_last = self.include_last,
-                    ignore_retrieved=False # TODO: ignore misleads...
-                ) # List[List[Atoms]]
+                    ignore_retrieved=False, # TODO: ignore misleads...
+                    separate_candidates=True
+                ) # List[List[Atoms]] or List[Atoms] depends on read_traj
                 if self.reduce_cand:
                     curr_trajectories = list(itertools.chain(*curr_trajectories_))
+                    write(cached_trajs_dpath/"reduced_candidates.xyz", curr_trajectories)
                 else:
                     curr_trajectories = curr_trajectories_
-                write(cached_trajs_fpath, curr_trajectories)
+                    for j, traj in enumerate(curr_trajectories_):
+                        write(cached_trajs_dpath/f"cand{j}.xyz", traj)
             else:
-                curr_trajectories = read(cached_trajs_fpath, ":")
+                if self.reduce_cand:
+                    curr_trajectories = read(cached_trajs_dpath/"reduced_candidates.xyz", ":")
+                else:
+                    cached_fnames = list(cached_trajs_dpath.glob("cand*"))
+                    cached_fnames.sort()
+
+                    curr_trajectories = []
+                    for fpath in cached_fnames:
+                        traj = read(fpath, ":")
+                        curr_trajectories.append(traj)
+
             ntrajs = len(curr_trajectories)
             self.pfunc(f"worker_{i} ntrajectories {ntrajs}")
 
@@ -186,6 +220,52 @@ class extract(Operation):
         self.pfunc(f"nstructures {nstructures}")
 
         return structures
+
+@registers.operation.register
+class separate(Operation):
+
+    def __init__(self, extract, return_end: bool=False, traj_period: int=1) -> NoReturn:
+        """"""
+        super().__init__([extract])
+
+        self.return_end = return_end
+        self.traj_period = traj_period
+
+        return
+    
+    def forward(self, structures):
+        """"""
+        super().forward()
+        # - check dimensions of input structures
+        d = 0
+        curr_data_ = structures
+        while True:
+            if isinstance(curr_data_, Atoms):
+                break
+            else: # List
+                curr_data_ = curr_data_[0]
+                d += 1
+        print("dimension: ", d)
+
+        # - read full trajs
+        if d == 3: # worker - cand - traj
+            trajectories = list(itertools.chain(*structures))
+            print("ntrajs: ", len(trajectories))
+            end_frames, trj_frames = [], []
+            for traj in trajectories:
+                end_frames.append(traj[-1])
+                trj_frames.extend(traj[1:-1:self.traj_period])
+            write(self.directory/"end_frames.xyz", end_frames)
+            write(self.directory/"trj_frames.xyz", trj_frames)
+            print("end nframes: ", len(end_frames))
+            print("trj nframes: ", len(trj_frames))
+        else:
+            ...
+
+        if self.return_end:
+            return end_frames
+        else:
+            return trj_frames
 
 
 if __name__ == "__main__":
