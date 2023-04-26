@@ -261,13 +261,18 @@ class GeneticAlgorithemEngine():
         self.pfunc(f"current generation number: {self.cur_gen}")
 
         # output a few info
-        unrelaxed_strus_gen = list(self.da.c.select("relaxed=0,generation=%d" %self.cur_gen))
-        #for row in unrelaxed_strus_gen:
-        #    print(row) # NOTE: mark_as_queue unrelaxed_candidate will have relaxed field too...
+        unrelaxed_strus_gen_ = list(self.da.c.select("relaxed=0,generation=%d" %self.cur_gen))
+        unrelaxed_strus_gen = []
+        for row in unrelaxed_strus_gen_:
+            # NOTE: mark_as_queue unrelaxed_candidate will have relaxed field too...
+            if "queued" not in row:
+                unrelaxed_strus_gen.append(row)
         unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
         self.num_unrelaxed_gen = len(unrelaxed_confids)
 
         relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %self.cur_gen))
+        for row in relaxed_strus_gen:
+            print(row)
         relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
         self.num_relaxed_gen = len(relaxed_confids)
 

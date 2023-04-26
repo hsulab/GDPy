@@ -6,7 +6,7 @@ from GDPy.utils.command import parse_input_file
 """
 """
 
-def run_task(params, pot_worker=None, ref_worker=None, run=1, report=1):
+def run_task(params, pot_worker=None, ref_worker=None, run=1, report=False):
     """ task = worker + workflow
         GA - population
         MC - TODO: a single driver?
@@ -17,14 +17,14 @@ def run_task(params, pot_worker=None, ref_worker=None, run=1, report=1):
     if task == "ga":
         from GDPy.ga.engine import GeneticAlgorithemEngine
         ga = GeneticAlgorithemEngine(params)
-        ga.run(pot_worker, run)
-        if ga.is_converged():
+        if report:
             ga.report()
-            if ref_worker:
-                ga.refine(ref_worker)
         else:
-            if report:
+            ga.run(pot_worker, run)
+            if ga.is_converged():
                 ga.report()
+                if ref_worker:
+                    ga.refine(ref_worker)
     # TODO: merge all MC methods togather
     elif task == "mc":
         from GDPy.mc.mc import MonteCarlo
