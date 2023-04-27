@@ -140,20 +140,6 @@ def main():
     )
 
     # --- worker interface
-    # ----- driver interface
-    parser_driver = subparsers.add_parser(
-        "driver", help="run a driver (local worker)"
-    )
-    parser_driver.add_argument(
-        "STRUCTURE",
-        help="a structure file that stores one or more structures"
-    )
-    parser_driver.add_argument(
-        "-o", "--output", default=None,
-        help="output filename of all calculated structures"
-    )
-
-    # ----- worker
     parser_worker = subparsers.add_parser(
         "worker", help="run a worker"
     )
@@ -172,6 +158,10 @@ def main():
     parser_worker.add_argument(
         "--nostat", action="store_true",
         help="no statistics shown"
+    )
+    parser_worker.add_argument(
+        "--ignore_sanity", action="store_true",
+        help="ignore sanity check to avoid conflicts when several jobs start at the same time"
     )
 
     # --- task interface
@@ -284,12 +274,9 @@ def main():
             args.name, args.pattern,
             args.number, args.energy_tolerance, args.energy_shift
         )
-    elif args.subcommand == "driver":
-        from GDPy.computation.worker.interface import run_driver
-        run_driver(args.STRUCTURE, args.directory, potter, args.output)
     elif args.subcommand == "worker":
         from GDPy.computation.worker.interface import run_worker
-        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat)
+        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat, args.ignore_sanity)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run, args.report)
