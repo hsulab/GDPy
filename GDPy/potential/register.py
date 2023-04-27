@@ -121,8 +121,12 @@ def create_potter(config_file=None):
 
     # - try worker
     if driver and potter.scheduler:
-        from GDPy.computation.worker.drive import DriverBasedWorker
-        run_worker = DriverBasedWorker(potter, driver, potter.scheduler)
+        if potter.scheduler.name == "local":
+            from GDPy.computation.worker.drive import CommandDriverBasedWorker as Worker
+            run_worker = Worker(potter, driver, potter.scheduler)
+        else:
+            from GDPy.computation.worker.drive import QueueDriverBasedWorker as Worker
+            run_worker = Worker(potter, driver, potter.scheduler)
     
     # - final worker
     worker = (run_worker if not train_worker else train_worker)
