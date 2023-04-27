@@ -67,6 +67,30 @@ def compare_atoms(a1, a2):
 
     return True
 
+def copy_minimal_frames(prev_frames: List[Atoms]):
+    """Copy atoms without extra information.
+
+    Do not copy atoms.info since it is a dict and does not maitain order.
+
+    """
+    curr_frames, curr_info = [], []
+    for prev_atoms in prev_frames:
+        # - copy geometry
+        curr_atoms = Atoms(
+            symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
+            positions=copy.deepcopy(prev_atoms.get_positions()),
+            cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
+            pbc=copy.deepcopy(prev_atoms.get_pbc())
+        )
+        curr_frames.append(curr_atoms)
+        # - save info
+        confid = prev_atoms.info.get("confid", -1)
+        dynstep = prev_atoms.info.get("step", -1)
+        prev_wdir = prev_atoms.info.get("wdir", "null")
+        curr_info.append((confid,dynstep,prev_wdir))
+
+    return curr_frames, curr_info
+
 
 class DriverBasedWorker(AbstractWorker):
 
@@ -130,65 +154,95 @@ class DriverBasedWorker(AbstractWorker):
 
         return (starts, ends)
     
+    def _read_cached_info(self):
+        # - read extra info data
+        _info_data = []
+        for p in (self.directory/"_data").glob("*_info.txt"):
+            identifier = p.name[:self.UUIDLEN] # MD5
+            with open(p, "r") as fopen:
+                for line in fopen.readlines():
+                    if not line.startswith("#"):
+                        _info_data.append(line.strip().split())
+        _info_data = sorted(_info_data, key=lambda x: int(x[0]))
+
+        return _info_data
+    
     def _preprocess(self, generator, use_wdir=False, *args, **kwargs):
         """"""
-        # - find frames in the database
-
         # - get frames
-        #frames, frames_fpath = [], None
         frames = []
         if isinstance(generator, StructureGenerator):
-            #frames_fpath = getattr(generator, "fpath")
             frames = generator.run()
         else:
             assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
             frames = generator
-        frames = copy.deepcopy(frames)
-        nframes = len(frames)
 
+        # - NOTE: atoms.info is a dict that does not maintain order
+        #         thus, the saved file maybe different
+        frames, curr_info = copy_minimal_frames(frames)
+
+        # - check differences of input structures
+        processed_dpath = self.directory/"_data"
+        processed_dpath.mkdir(exist_ok=True)
+
+        # -- get MD5 of current input structures
+        write(
+            processed_dpath/"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"]
+        )
+        with open(processed_dpath/"_frames.xyz", "rb") as fopen:
+            curr_md5 = get_file_md5(fopen)
+        (processed_dpath/"_frames.xyz").unlink() # remove temp data
+
+        _info_data = self._read_cached_info()
+
+        stored_fname = f"{curr_md5}.xyz"
+        if (processed_dpath/stored_fname).exists():
+            self.logger.info(f"Found file with md5 {curr_md5}")
+            self._info_data = _info_data
+            start_confid = 0
+            for x in self._info_data:
+                if x[1] == curr_md5:
+                    break
+                start_confid += 1
+        else:
+            # - save structures
+            write(
+                processed_dpath/stored_fname, frames, columns=["symbols", "positions", "move_mask"]
+            )
+            # - save current atoms.info and append curr_info to _info_data
+            start_confid = len(_info_data)
+            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}\n".format("#id", "MD5", "confid", "step", "wdir")
+            for i, (confid, step, wdir) in enumerate(curr_info):
+                line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}\n".format(i+start_confid, curr_md5, confid, step, wdir)
+                content += line
+                _info_data.append(line.strip().split())
+            self._info_data = _info_data
+            with open(processed_dpath/f"{curr_md5}_info.txt", "w") as fopen:
+                fopen.write(content)
+
+        return curr_md5, frames, start_confid
+    
+    def _prepare_batches(self, frames: List[Atoms], start_confid: int):
         # - check wdir
+        nframes = len(frames)
         # NOTE: get a list even if it only has one structure
         # TODO: a better strategy to deal with wdirs...
         #       conflicts:
         #           merged trajectories from different drivers that all have cand0
         wdirs = [] # [(confid,dynstep), ..., ()]
-        #for icand, x in enumerate(frames):
-        #    if use_wdir:
-        #        wdir = x.info.get("wdir", None)
-        #    else:
-        #        confid = x.info.get("confid", None)
-        #        if confid is not None:
-        #            dynstep = x.info.get("step", None) # step maybe 0
-        #            if dynstep is not None:
-        #                dynstep = f"_step{dynstep}"
-        #            else:
-        #                dynstep = ""
-        #            wdir = "cand{}{}".format(confid,dynstep)
-        #        else:
-        #            wdir = f"cand{icand}"
-        #    x.info["wdir"] = wdir
-        #    wdirs.append(wdir)
-        saved_info = [] # info needs to save
         for i, atoms in enumerate(frames):
-            # -- get info
-            confid = atoms.info.get("confid", -1)
-            dynstep = atoms.info.get("step", -1)
-            prev_wdir = atoms.info.get("wdir", "null")
-            saved_info.append((confid,dynstep,prev_wdir))
             # -- set wdir
-            wdir = f"cand{i}"
+            wdir = "cand{}".format(int(self._info_data[i+start_confid][0]))
             wdirs.append(wdir)
             atoms.info["wdir"] = wdir
+        print(wdirs)
         # - check whether each structure has a unique wdir
         assert len(set(wdirs)) == nframes, f"Found duplicated wdirs {len(set(wdirs))} vs. {nframes}..."
 
-        # - process data
+        # - split structures into different batches
         starts, ends = self._split_groups(nframes)
 
-        job_info = {
-            "dataset": None,
-            "groups": []
-        }
+        batches = []
         for i, (s,e) in enumerate(zip(starts,ends)):
             # - prepare structures and dirnames
             global_indices = range(s,e)
@@ -201,49 +255,20 @@ class DriverBasedWorker(AbstractWorker):
             assert len(set(cur_wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(cur_frames)} for group {i}..."
 
             # - set specific params
-            job_info["groups"].append([global_indices, cur_wdirs])
+            batches.append([global_indices, cur_wdirs])
 
-        processed_dpath = self.directory/"_data"
-        processed_dpath.mkdir(exist_ok=True)
-
-        # - save info
-        content = "{:<12s}  {:<12s}  {:<s}\n".format("#confid", "step", "wdir")
-        for confid, step, wdir in saved_info:
-            content += "{:<12d}  {:<12d}  {:<s}\n".format(confid, step, wdir)
-        with open(processed_dpath/"_info.txt", "w") as fopen:
-            fopen.write(content)
-
-        # - check differences of input structures
-        write(
-            processed_dpath/"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"]
-        )
-        with open(processed_dpath/"_frames.xyz", "rb") as fopen:
-            cur_md5 = get_file_md5(fopen)
-        print("cur_md5: ", cur_md5)
-        stored_fname = f"{cur_md5}.xyz"
-
-        job_info["dataset"] = str((processed_dpath/stored_fname).resolve())
-        
-        if (processed_dpath/stored_fname).exists():
-            self.logger.debug(f"Found file with md5 {cur_md5}")
-        else:
-            write(
-                processed_dpath/stored_fname, frames, columns=["symbols", "positions", "move_mask"]
-            )
-        # - remove temp data
-        (processed_dpath/"_frames.xyz").unlink()
-
-        return job_info
+        return batches
     
     def run(self, generator=None, use_wdir=False, *args, **kwargs) -> NoReturn:
         """Split frames into groups and submit jobs.
         """
         super().run(*args, **kwargs)
 
-        # - pre
-        job_info = self._preprocess(generator, use_wdir)
-
-        # - check if jobs were submitted
+        # - check if the same input structures are provided
+        identifier, curr_frames, curr_info = self._preprocess(generator, use_wdir)
+        print("cur_md5: ", identifier)
+        batches = self._prepare_batches(curr_frames, curr_info)
+        #self._submit = False
 
         # - run
         if self.scheduler.name == "local":
@@ -251,12 +276,21 @@ class DriverBasedWorker(AbstractWorker):
         else:
             func = self._queue_run
         
-        _ = func(job_info)
+        _ = func(curr_frames, identifier, batches)
 
         return 
     
-    def _queue_run(self, job_info, *args, **kwargs) -> NoReturn:
+    def _pre_run(self):
         """"""
+
+        return
+    
+    def _queue_run(self, frames: List[Atoms], input_identifier, batches, *args, **kwargs) -> NoReturn:
+        """ Submit jobs to the queue.
+
+        Each job is identified by its input structures and batchnumber.
+
+        """
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
         print("queued jobs:", queued_jobs)
@@ -264,12 +298,8 @@ class DriverBasedWorker(AbstractWorker):
         queued_frames = [q["md5"] for q in queued_jobs]
         print(queued_jobs, queued_names, queued_frames)
 
-        dataset = job_info["dataset"]
-        print(dataset)
-        cur_md5 = pathlib.Path(dataset).name.split(".")[0]
-        groups = job_info["groups"]
-
-        frames = read(dataset, ":")
+        cur_md5 = input_identifier
+        dataset_path = str((self.directory/"_data"/f"{cur_md5}.xyz").resolve())
 
         # - use shared worker parameters
         cur_params = {}
@@ -280,7 +310,8 @@ class DriverBasedWorker(AbstractWorker):
         with open(self.directory/"worker.yaml", "w") as fopen:
             yaml.dump(cur_params, fopen)
 
-        for ig, (global_indices, wdirs) in enumerate(groups):
+        # - submit jobs
+        for ig, (global_indices, wdirs) in enumerate(batches):
             # - check if already submitted
             #if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
             #    continue
@@ -318,13 +349,13 @@ class DriverBasedWorker(AbstractWorker):
 
             frames_info = dict(
                 method = "direct",
-                frames = str(dataset),
+                frames = dataset_path,
                 indices = list(global_indices)
             )
             with open(group_directory/structure_fname, "w") as fopen:
                 yaml.dump(frames_info, fopen)
 
-            self.scheduler.user_commands = "gdp -p {} driver {}\n".format(
+            self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
                 (group_directory/f"worker.yaml").name, 
                 (group_directory/structure_fname).name
             )
@@ -349,7 +380,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def _local_run(self, job_info, *args, **kwargs) -> NoReturn:
+    def _local_run(self, frames: List[Atoms], input_identifier, batches, *args, **kwargs) -> NoReturn:
         """Run calculations locally.
 
         Local execution supports a compact mode as structures will reuse the 
@@ -358,30 +389,28 @@ class DriverBasedWorker(AbstractWorker):
         """
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
+        print("queued jobs:", queued_jobs)
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         queued_frames = [q["md5"] for q in queued_jobs]
+        print(queued_jobs, queued_names, queued_frames)
 
-        # - cur job info
-        dataset = job_info["dataset"]
-        cur_md5 = pathlib.Path(dataset).name.split(".")[0]
-        groups = job_info["groups"]
+        curr_md5 = input_identifier
+        #dataset_path = str((self.directory/"_data"/f"{cur_md5}.xyz").resolve())
 
-        frames = read(dataset, ":")
-
-        for ig, (global_indices, wdirs) in enumerate(groups):
+        for ig, (global_indices, wdirs) in enumerate(batches):
             # - set job name
             group_name = f"group-{ig}"
             uid = str(uuid.uuid1())
             job_name = uid + "-" + group_name
 
             # -- wheterh store job info
-            if group_name in queued_names and cur_md5 in queued_frames:
+            if group_name in queued_names and curr_md5 in queued_frames:
                 self.logger.info(f"{group_name} at {self.directory.name} was submitted.")
             else:
                 doc_id = self.database.insert(
                     dict(
                         uid = uid,
-                        md5 = cur_md5,
+                        md5 = curr_md5,
                         gdir=job_name, 
                         group_number=ig, 
                         wdir_names=wdirs, 
@@ -452,7 +481,6 @@ class DriverBasedWorker(AbstractWorker):
             self.scheduler.script = group_directory/f"run-{uid}.script" 
 
             # -- check whether the jobs if running
-            info_name = job_name[self.UUIDLEN+1:]
             if self.scheduler.is_finished(): # if it is still in the queue
                 # -- valid if the task finished correctlt not due to time-limit
                 is_finished = False
@@ -472,7 +500,7 @@ class DriverBasedWorker(AbstractWorker):
                     ...
                 if is_finished:
                     # -- finished correctly
-                    self.logger.info(f"{info_name} is finished...")
+                    self.logger.info(f"{job_name} is finished...")
                     doc_data = self.database.get(Query().gdir == job_name)
                     self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                 else:
@@ -480,9 +508,9 @@ class DriverBasedWorker(AbstractWorker):
                     #       since the driver would check it
                     if resubmit:
                         jobid = self.scheduler.submit()
-                        self.logger.info(f"{info_name} is re-submitted with JOBID {jobid}.")
+                        self.logger.info(f"{job_name} is re-submitted with JOBID {jobid}.")
             else:
-                self.logger.info(f"{info_name} is running...")
+                self.logger.info(f"{job_name} is running...")
 
         return
     
@@ -497,8 +525,6 @@ class DriverBasedWorker(AbstractWorker):
         self.inspect(*args, **kwargs)
         self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
 
-        gdirs, results = [], []
-
         # - check status and get latest results
         unretrieved_wdirs_ = []
         if ignore_retrieved:
@@ -508,8 +534,6 @@ class DriverBasedWorker(AbstractWorker):
             
         for job_name in unretrieved_jobs:
             # NOTE: sometimes prefix has number so confid may be striped
-            #group_directory = self.directory / job_name[self.UUIDLEN+1:]
-            #group_directory = self.directory / "_works"
             group_directory = self.directory
             doc_data = self.database.get(Query().gdir == job_name)
             unretrieved_wdirs_.extend(
@@ -537,6 +561,8 @@ class DriverBasedWorker(AbstractWorker):
                 # TODO: deal with traj...
                 results = read(self.directory/"_data"/"cached.xyz", ":")
                 ...
+        else:
+            results = []
 
         for job_name in unretrieved_jobs:
             doc_data = self.database.get(Query().gdir == job_name)
@@ -556,14 +582,6 @@ class DriverBasedWorker(AbstractWorker):
             gdirs: A group of directories.
 
         """
-        # - load name mapping
-        _info_data = []
-        with open(self.directory/"_data"/"_info.txt", "r") as fopen:
-            for line in fopen.readlines():
-                if not line.startswith("#"):
-                    _info_data.append(line.strip().split())
-        self._info_data = _info_data
-
         # - get results
         results = []
         
@@ -641,7 +659,7 @@ class DriverBasedWorker(AbstractWorker):
         # NOTE: name convention, cand1112_field1112_field1112
         confid_ = int(wdir.name.strip("cand").split("_")[0]) # internal name
         if info_data is not None: 
-            cached_confid = int(info_data[confid_][0])
+            cached_confid = int(info_data[confid_][2])
             if cached_confid >= 0:
                 confid = cached_confid
             else:
