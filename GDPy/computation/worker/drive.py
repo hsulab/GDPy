@@ -27,9 +27,6 @@ from GDPy.utils.command import CustomTimer
 
 """Monitor computation tasks with Worker.
 
-TODO: Known Issues
-    Inconsistent input frames between two consecutive runs.
-
 """
 
 def get_file_md5(f):
@@ -107,9 +104,9 @@ class DriverBasedWorker(AbstractWorker):
 
     _driver = None
 
-    _exec_mode = "queue"
-
     _compact: bool = False
+
+    _sanity_check: bool = True
 
     def __init__(self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs):
         """"""
@@ -186,6 +183,8 @@ class DriverBasedWorker(AbstractWorker):
         processed_dpath.mkdir(exist_ok=True)
 
         # -- get MD5 of current input structures
+        # NOTE: if two jobs start too close,
+        #       there may be conflicts in checking structures
         write(
             processed_dpath/"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"]
         )
@@ -265,112 +264,40 @@ class DriverBasedWorker(AbstractWorker):
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, curr_frames, curr_info = self._preprocess(generator, use_wdir)
-        print("cur_md5: ", identifier)
-        batches = self._prepare_batches(curr_frames, curr_info)
-        #self._submit = False
+        identifier, frames, curr_info = self._preprocess(generator, use_wdir)
+        batches = self._prepare_batches(frames, curr_info)
 
-        # - run
-        if self.scheduler.name == "local":
-            func = self._local_run
-        else:
-            func = self._queue_run
-        
-        _ = func(curr_frames, identifier, batches)
-
-        return 
-    
-    def _pre_run(self):
-        """"""
-
-        return
-    
-    def _queue_run(self, frames: List[Atoms], input_identifier, batches, *args, **kwargs) -> NoReturn:
-        """ Submit jobs to the queue.
-
-        Each job is identified by its input structures and batchnumber.
-
-        """
         # - read metadata from file or database
         queued_jobs = self.database.search(Query().queued.exists())
-        print("queued jobs:", queued_jobs)
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         queued_frames = [q["md5"] for q in queued_jobs]
-        print(queued_jobs, queued_names, queued_frames)
 
-        cur_md5 = input_identifier
-        dataset_path = str((self.directory/"_data"/f"{cur_md5}.xyz").resolve())
-
-        # - use shared worker parameters
-        cur_params = {}
-        cur_params["driver"] = self.driver.as_dict()
-        cur_params["potential"] = self.potter.as_dict()
-        cur_params["batchsize"] = self.batchsize
-
-        with open(self.directory/"worker.yaml", "w") as fopen:
-            yaml.dump(cur_params, fopen)
-
-        # - submit jobs
         for ig, (global_indices, wdirs) in enumerate(batches):
-            # - check if already submitted
-            #if job_name in self.worker_status["finished"] or job_name in self.worker_status["queued"]:
-            #    continue
-            group_name = f"group-{ig}"
-            #if group_directory.name in queued_names:
-            if group_name in queued_names and cur_md5 in queued_frames:
-                self.logger.info(f"{group_name} at {self.directory.name} was submitted.")
-                continue
-            group_directory = self.directory
-
-            # - update scheduler
-            # NOTE: set job name
-            #job_name = str(uuid.uuid1()) + "-" + group_directory.name
+            # - set job name
+            batch_name = f"group-{ig}"
             uid = str(uuid.uuid1())
-            job_name = uid + "-" + group_name
+            job_name = uid + "-" + batch_name
 
-            # - names of input files
-            jobscript_fname = f"run-{uid}.script"
-            structure_fname = f"frames-{uid}.yaml"
+            # -- whether store job info
+            if batch_name in queued_names and identifier in queued_frames:
+                self.logger.info(f"{batch_name} at {self.directory.name} was submitted.")
+                continue
 
-            #self.scheduler.set(**{"job-name": job_name})
-            self.scheduler.job_name = job_name
-            self.scheduler.script = group_directory/jobscript_fname
-
-            # NOTE: pot file, stru file, job script
-            # - use queue scheduler
-            group_directory.mkdir(exist_ok=True)
-
-            #with open(group_directory/f"g{ig}_worker.yaml", "w") as fopen:
-            #    yaml.dump(cur_params, fopen)
-
-            cur_frames = [frames[x] for x in global_indices]
-            for cur_atoms, cur_wdir in zip(cur_frames, wdirs):
-                cur_atoms.info["wdir"] = str(cur_wdir)
-
-            frames_info = dict(
-                method = "direct",
-                frames = dataset_path,
-                indices = list(global_indices)
-            )
-            with open(group_directory/structure_fname, "w") as fopen:
-                yaml.dump(frames_info, fopen)
-
-            self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
-                (group_directory/f"worker.yaml").name, 
-                (group_directory/structure_fname).name
+            # - run batch
+            # NOTE: For command execution, if computation exits incorrectly,
+            #       it will not be recorded. The computation will resume next 
+            #       time.
+            self._irun(
+                batch_name, uid, identifier, 
+                frames, global_indices, wdirs, 
+                *args, **kwargs
             )
 
-            # TODO: check whether params for scheduler is changed
-            self.scheduler.write()
-            if self._submit:
-                self.logger.info(f"{group_directory.name} JOBID: {self.scheduler.submit()}")
-            else:
-                self.logger.info(f"{group_directory.name} waits to submit.")
-
-            self.database.insert(
+            # - save this batch job to the database
+            _ = self.database.insert(
                 dict(
                     uid = uid,
-                    md5 = cur_md5, # dataset md5
+                    md5 = identifier,
                     gdir=job_name, 
                     group_number=ig, 
                     wdir_names=wdirs, 
@@ -380,83 +307,11 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def _local_run(self, frames: List[Atoms], input_identifier, batches, *args, **kwargs) -> NoReturn:
-        """Run calculations locally.
+    def _irun(self, *args, **kwargs):
+        """"""
 
-        Local execution supports a compact mode as structures will reuse the 
-        calculation working directory.
-
-        """
-        # - read metadata from file or database
-        queued_jobs = self.database.search(Query().queued.exists())
-        print("queued jobs:", queued_jobs)
-        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
-        queued_frames = [q["md5"] for q in queued_jobs]
-        print(queued_jobs, queued_names, queued_frames)
-
-        curr_md5 = input_identifier
-        #dataset_path = str((self.directory/"_data"/f"{cur_md5}.xyz").resolve())
-
-        for ig, (global_indices, wdirs) in enumerate(batches):
-            # - set job name
-            group_name = f"group-{ig}"
-            uid = str(uuid.uuid1())
-            job_name = uid + "-" + group_name
-
-            # -- wheterh store job info
-            if group_name in queued_names and curr_md5 in queued_frames:
-                self.logger.info(f"{group_name} at {self.directory.name} was submitted.")
-            else:
-                doc_id = self.database.insert(
-                    dict(
-                        uid = uid,
-                        md5 = curr_md5,
-                        gdir=job_name, 
-                        group_number=ig, 
-                        wdir_names=wdirs, 
-                        local=True,
-                        queued=True
-                    )
-                )
-
-            # - use local scheduler
-            cur_frames = [frames[x] for x in global_indices]
-
-            #group_directory = self.directory
-            # - run calculations
-            with CustomTimer(name="run-driver", func=self.logger.info):
-                if not self._compact:
-                    for wdir, atoms in zip(wdirs,cur_frames):
-                        self.driver.directory = self.directory/wdir
-                        #job_name = uid+str(wdir)
-                        self.logger.info(
-                            f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                        )
-                        self.driver.reset()
-                        self.driver.run(atoms, read_exists=True, extra_info=None)
-                else:
-                    cached_fpath = self.directory/"_data"/"cached.xyz"
-                    if cached_fpath.exists():
-                        cached_frames = read(cached_fpath, ":")
-                        cached_wdirs = [a.info["wdir"] for a in cached_frames]
-                    else:
-                        cached_wdirs = []
-                    for wdir, atoms in zip(wdirs,cur_frames):
-                        if wdir in cached_wdirs:
-                            continue
-                        self.driver.directory = self.directory/"_shared"
-                        self.logger.info(
-                            f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                        )
-                        self.driver.reset()
-                        new_atoms = self.driver.run(atoms, read_exists=False, extra_info=dict(wdir=wdir))
-                        # - save data
-                        write(self.directory/"_data"/"cached.xyz", new_atoms, append=True)
-                
-            #self.database.update({"finished": True}, doc_ids=[doc_id])
-
-        return
-
+        raise NotImplementedError("Function to run a batch of structures is undefined.")
+    
     def inspect(self, resubmit=False, *args, **kwargs):
         """Check if any job were finished correctly not due to time limit.
 
@@ -689,6 +544,88 @@ class DriverBasedWorker(AbstractWorker):
             results = traj_frames
 
         return results
+
+class QueueDriverBasedWorker(DriverBasedWorker):
+
+
+    def _irun(self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], *args, **kwargs) -> NoReturn:
+        """"""
+        # - save worker file
+        worker_params = {}
+        worker_params["driver"] = self.driver.as_dict()
+        worker_params["potential"] = self.potter.as_dict()
+        worker_params["batchsize"] = self.batchsize
+
+        with open(self.directory/f"worker-{uid}.yaml", "w") as fopen:
+            yaml.dump(worker_params, fopen)
+
+        # - save structures
+        dataset_path = str((self.directory/"_data"/f"{identifier}.xyz").resolve())
+
+        # - save scheduler file
+        jobscript_fname = f"run-{uid}.script"
+        self.scheduler.job_name = batch_name
+        self.scheduler.script = self.directory/jobscript_fname
+
+        self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
+            (self.directory/f"worker-{uid}.yaml").name, 
+            #(self.directory/structure_fname).name
+            dataset_path
+        )
+
+        # - TODO: check whether params for scheduler is changed
+        self.scheduler.write()
+        if self._submit:
+            self.logger.info(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
+        else:
+            self.logger.info(f"{self.directory.name} waits to submit.")
+
+        return
+
+class CommandDriverBasedWorker(DriverBasedWorker):
+
+
+    def _irun(self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], *args, **kwargs) -> NoReturn:
+        """Run calculations directly in the command line.
+
+        Local execution supports a compact mode as structures will reuse the 
+        calculation working directory.
+
+        """
+        # - get structures
+        curr_frames = [frames[i] for i in curr_indices]
+
+        # - run calculations
+        with CustomTimer(name="run-driver", func=self.logger.info):
+            if not self._compact:
+                for wdir, atoms in zip(curr_wdirs,curr_frames):
+                    self.driver.directory = self.directory/wdir
+                    #job_name = uid+str(wdir)
+                    self.logger.info(
+                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                    )
+                    self.driver.reset()
+                    self.driver.run(atoms, read_exists=True, extra_info=None)
+            else:
+                cached_fpath = self.directory/"_data"/"cached.xyz"
+                if cached_fpath.exists():
+                    cached_frames = read(cached_fpath, ":")
+                    cached_wdirs = [a.info["wdir"] for a in cached_frames]
+                else:
+                    cached_wdirs = []
+                for wdir, atoms in zip(curr_wdirs,curr_frames):
+                    if wdir in cached_wdirs:
+                        continue
+                    self.driver.directory = self.directory/"_shared"
+                    self.logger.info(
+                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                    )
+                    self.driver.reset()
+                    new_atoms = self.driver.run(atoms, read_exists=False, extra_info=dict(wdir=wdir))
+                    # - save data
+                    write(self.directory/"_data"/"cached.xyz", new_atoms, append=True)
+
+        return
 
 if __name__ == "__main__":
     pass

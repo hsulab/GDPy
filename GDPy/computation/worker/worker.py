@@ -5,10 +5,12 @@ import abc
 import uuid
 import copy
 import pathlib
+from typing import NoReturn
 import logging
 
 from tinydb import TinyDB, Query
 
+from GDPy import config
 from GDPy.scheduler import create_scheduler
 from GDPy.potential.register import PotentialRegister
 from GDPy.scheduler.scheduler import AbstractScheduler
@@ -39,29 +41,14 @@ class AbstractWorker(abc.ABC):
 
     _exec_mode = "queue"
 
-    def __init__(self, params, directory_=None) -> None:
+    def __init__(self, directory=None) -> NoReturn:
         """
         """
-        # - create scheduler
-        scheduler_params = params.pop("scheduler", {})
-        self.scheduler = create_scheduler(scheduler_params)
-
-        # - potter and driver
-        params_ = copy.deepcopy(params)
-        pot_dict = params_.get("potential", None)
-        if pot_dict is None:
-            raise RuntimeError("Need potential...")
-        pm = PotentialRegister() # main potential manager
-        potter = pm.create_potential(pot_name = pot_dict["name"])
-        potter.register_calculator(pot_dict["params"])
-        potter.version = pot_dict.get("version", "unknown") # NOTE: important for calculation in exp
-
-        self.driver = potter.create_driver(params_["driver"])
-
         # - set default directory
-        #self.directory = self.directory / "MyWorker" # TODO: set dir
-        if directory_:
-            self.directory = directory_
+        if directory is not None:
+            self.directory = directory
+
+        self.n_jobs = config.NJOBS
         
         return
 
