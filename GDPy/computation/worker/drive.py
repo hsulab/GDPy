@@ -234,7 +234,6 @@ class DriverBasedWorker(AbstractWorker):
             wdir = "cand{}".format(int(self._info_data[i+start_confid][0]))
             wdirs.append(wdir)
             atoms.info["wdir"] = wdir
-        print(wdirs)
         # - check whether each structure has a unique wdir
         assert len(set(wdirs)) == nframes, f"Found duplicated wdirs {len(set(wdirs))} vs. {nframes}..."
 
@@ -628,4 +627,4 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         return
 
 if __name__ == "__main__":
-    pass
+    ...
