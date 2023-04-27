@@ -528,6 +528,7 @@ class DriverBasedWorker(AbstractWorker):
             unretrieved_wdirs = unretrieved_wdirs_
 
         # - read results
+        #print("unretrieved: ", unretrieved_wdirs)
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             if not self._compact:
@@ -546,7 +547,8 @@ class DriverBasedWorker(AbstractWorker):
     def _read_results(
         self, unretrieved_wdirs: List[pathlib.Path], 
         read_traj: bool=False, traj_period: int=1, 
-        include_first: bool=True, include_last: bool=True
+        include_first: bool=True, include_last: bool=True,
+        separate_candidates: bool=False, *args, **kwargs
     ) -> Union[List[Atoms],List[List[Atoms]]]:
         """Read results from calculation directories.
 
@@ -569,24 +571,40 @@ class DriverBasedWorker(AbstractWorker):
         with CustomTimer(name="read-results", func=self.logger.info):
             # NOTE: works for vasp, ...
             results_ = Parallel(n_jobs=self.n_jobs)(
-                delayed(self._iread_results)(driver, wdir, read_traj, traj_period, include_first, include_last) 
+                delayed(self._iread_results)(
+                    driver, wdir, read_traj, traj_period, include_first, include_last,
+                    info_data = self._info_data
+                ) 
                 for wdir in unretrieved_wdirs
             )
 
             if not read_traj: # read spc results, each dir has one structure
-                for frames in results_:
-                    # - sift error structures
-                    error_info = frames[0].info.get("error", None)
-                    if error_info:
-                        self.logger.info(f"Found failed calculation at {error_info}...")
-                    else:
-                        results.extend(frames)
+                if not separate_candidates: # for compat
+                    for frames in results_:
+                        # - sift error structures
+                        error_info = frames[0].info.get("error", None)
+                        if error_info:
+                            self.logger.info(f"Found failed calculation at {error_info}...")
+                        else:
+                            results.extend(frames)
 
-                if results:
-                    self.logger.info(
-                        f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
-                    )
+                    if results:
+                        self.logger.info(
+                            f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
+                        )
+                else:
+                    for frames in results_:
+                        # - sift error structures
+                        error_info = frames[0].info.get("error", None)
+                        if error_info:
+                            self.logger.info(f"Found failed calculation at {error_info}...")
+                        else:
+                            results.append(frames)
 
+                    if results:
+                        self.logger.info(
+                            f"new_frames: {len(results)} energy of the first: {results[0][0].get_potential_energy()}"
+                        )
             else:
                 for traj_frames in results_:
                     # - sift error structures
@@ -603,13 +621,17 @@ class DriverBasedWorker(AbstractWorker):
 
         return results
     
+    @staticmethod
     def _iread_results(
-        self,
         driver, wdir, 
         read_traj: bool=False, traj_period: int=1, 
-        include_first: bool=True, include_last: bool=True
+        include_first: bool=True, include_last: bool=True,
+        info_data: dict = None
     ) -> List[Atoms]:
         """Extract results from a single directory.
+
+        This must be a staticmethod as it may be pickled by joblib for parallel 
+        running.
 
         Args:
             wdir: Working directory.
@@ -618,7 +640,14 @@ class DriverBasedWorker(AbstractWorker):
         driver.directory = wdir
         # NOTE: name convention, cand1112_field1112_field1112
         confid_ = int(wdir.name.strip("cand").split("_")[0]) # internal name
-        confid = int(self._info_data[confid_][0])
+        if info_data is not None: 
+            cached_confid = int(info_data[confid_][0])
+            if cached_confid >= 0:
+                confid = cached_confid
+            else:
+                confid = confid_
+        else:
+            confid = confid_
         if not read_traj:
             new_atoms = driver.read_converged()
             new_atoms.info["confid"] = confid
