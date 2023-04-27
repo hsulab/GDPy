@@ -50,6 +50,9 @@ class registers:
     #: Session variables.
     variable: Register = Register("variable")
 
+    #: Selectors
+    selector: Register = Register("selector")
+
     #: Validators.
     validator: Register = Register("validator")
 
