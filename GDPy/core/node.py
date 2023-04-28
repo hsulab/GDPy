@@ -65,10 +65,7 @@ class AbstractNode(abc.ABC):
         self.random_seed = seed
 
         # - assign random seeds
-        if seed is None:
-            self.rng = np.random.default_rng()
-        elif isinstance(seed, int):
-            self.rng = np.random.default_rng(seed)
+        self.rng = np.random.Generator(np.random.PCG64(seed))
 
         return
 
