@@ -246,7 +246,12 @@ class VaspDriver(AbstractDriver):
         return new_atoms
     
     def _continue(self, atoms, read_exists=True, *args, **kwargs):
-        """Check whether continue unfinished calculation."""
+        """Check whether continue unfinished calculation.
+
+        NOTE: vasprun.xml maybe incomplete, which leads a runtime error in 
+             read_trajectory.
+
+        """
         print(f"run {self.directory}")
         try:
             # NOTE: some calculation can overwrite existed data
@@ -306,7 +311,7 @@ class VaspDriver(AbstractDriver):
                 backup_fname = backup_fmt.format(idx)
                 backup_fpath = self.directory/backup_fname
                 if Path(backup_fpath).exists():
-                    traj_frames_.extend(read(backup_fpath, ":"))
+                    traj_frames_.extend(read(backup_fpath, index=":", format="vasp-xml"))
                 else:
                     break
                 idx += 1
@@ -317,10 +322,15 @@ class VaspDriver(AbstractDriver):
             sort, resort = read_sort(self.directory)
             for i, sorted_atoms in enumerate(traj_frames_):
                 input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
-                if add_step_info:
-                    input_atoms.info["step"] = i
-                traj_frames.append(input_atoms)
-        except:
+                #if input_atoms is None:
+                #    input_atoms = Atoms()
+                #    input_atoms.info["error"] = str(self.directory)
+                if input_atoms is not None:
+                    if add_step_info:
+                        input_atoms.info["step"] = i
+                    traj_frames.append(input_atoms)
+        except Exception as e:
+            print(e)
             atoms = Atoms()
             atoms.info["error"] = str(self.directory)
             traj_frames = [atoms]

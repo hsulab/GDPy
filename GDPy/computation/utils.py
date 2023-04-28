@@ -33,14 +33,19 @@ def create_single_point_calculator(atoms_sorted, resort, calc_name):
         since some atoms may share a calculator
     """
     atoms = atoms_sorted.copy()[resort]
-    calc = SinglePointCalculator(
-        atoms,
-        energy=atoms_sorted.get_potential_energy(),
-        forces=atoms_sorted.get_forces(apply_constraint=False)[resort]
-        # TODO: magmoms?
-    )
-    calc.name = calc_name
-    atoms.calc = calc
+
+    try:
+        calc = SinglePointCalculator(
+            atoms,
+            energy=atoms_sorted.get_potential_energy(),
+            forces=atoms_sorted.get_forces(apply_constraint=False)[resort]
+            # TODO: magmoms?
+        )
+        calc.name = calc_name
+        atoms.calc = calc
+    except Exception as e:
+        print(f"create_single_point_calculator: {e}")
+        atoms = None
 
     return atoms
 
