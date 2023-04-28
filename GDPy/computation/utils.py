@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+from typing import List
 
 import numpy as np
 
@@ -13,6 +14,29 @@ from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.potential.register import PotentialRegister
 from GDPy.utils.command import parse_input_file
 
+def copy_minimal_frames(prev_frames: List[Atoms]):
+    """Copy atoms without extra information.
+
+    Do not copy atoms.info since it is a dict and does not maitain order.
+
+    """
+    curr_frames, curr_info = [], []
+    for prev_atoms in prev_frames:
+        # - copy geometry
+        curr_atoms = Atoms(
+            symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
+            positions=copy.deepcopy(prev_atoms.get_positions()),
+            cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
+            pbc=copy.deepcopy(prev_atoms.get_pbc())
+        )
+        curr_frames.append(curr_atoms)
+        # - save info
+        confid = prev_atoms.info.get("confid", -1)
+        dynstep = prev_atoms.info.get("step", -1)
+        prev_wdir = prev_atoms.info.get("wdir", "null")
+        curr_info.append((confid,dynstep,prev_wdir))
+
+    return curr_frames, curr_info
 
 def make_clean_atoms(atoms_: Atoms, results: dict=None):
     """Create a clean atoms from the input."""
