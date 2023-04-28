@@ -10,7 +10,9 @@ from ase.io import read, write
 
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.computation.worker.drive import (
+    DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
+)
 
 @registers.operation.register
 class work(Operation):
@@ -31,7 +33,10 @@ class work(Operation):
         for i, driver_params in enumerate(drivers):
             # workers share calculator in potter
             driver = potter.create_driver(driver_params)
-            worker = DriverBasedWorker(potter, driver, scheduler)
+            if scheduler.name == "local":
+                worker = CommandDriverBasedWorker(potter, driver, scheduler)
+            else:
+                worker = QueueDriverBasedWorker(potter, driver, scheduler)
             # wdir is temporary as it may be reset by drive operation
             worker.directory = self.directory / f"w{i}"
             workers.append(worker)
