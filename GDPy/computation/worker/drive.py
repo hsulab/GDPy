@@ -379,6 +379,9 @@ class DriverBasedWorker(AbstractWorker):
         self.inspect(*args, **kwargs)
         self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
 
+        # NOTE: sometimes retrieve is used without run
+        self._info_data = self._read_cached_info() # update _info_data
+
         # - check status and get latest results
         unretrieved_wdirs_ = []
         if ignore_retrieved:
@@ -450,6 +453,7 @@ class DriverBasedWorker(AbstractWorker):
                 for wdir in unretrieved_wdirs
             )
 
+            # NOTE: Failed Calcution, One fail, traj fails
             if not read_traj: # read spc results, each dir has one structure
                 if not separate_candidates: # for compat
                     for frames in results_:
@@ -478,13 +482,16 @@ class DriverBasedWorker(AbstractWorker):
                             f"new_frames: {len(results)} energy of the first: {results[0][0].get_potential_energy()}"
                         )
             else:
-                for traj_frames in results_:
+                for i, traj_frames in enumerate(results_):
                     # - sift error structures
-                    error_info = traj_frames[0].info.get("error", None)
-                    if error_info:
-                        self.logger.info(f"Found failed calculation at {error_info}...")
+                    if traj_frames:
+                        error_info = traj_frames[0].info.get("error", None)
+                        if error_info:
+                            self.logger.info(f"Found failed calculation at {error_info}...")
+                        else:
+                            results.append(traj_frames)
                     else:
-                        results.append(traj_frames)
+                        self.logger.info(f"Found empty calculation at {str(self.directory)} with cand{i}...")
 
                 if results:
                     self.logger.info(
@@ -532,20 +539,24 @@ class DriverBasedWorker(AbstractWorker):
                 a.info["wdir"] = str(wdir.name)
             # NOTE: remove first or last frames since they are always the same?
             n_trajframes = len(traj_frames)
-            first, last = 0, n_trajframes-1
-            cur_indices = list(range(0,len(traj_frames),traj_period))
-            if include_last:
-                if last not in cur_indices:
-                    cur_indices.append(last)
-            if not include_first:
-                cur_indices = cur_indices[1:]
-            traj_frames = [traj_frames[i] for i in cur_indices]
-            results = traj_frames
+            if n_trajframes > 0:
+                first, last = 0, n_trajframes-1
+                cur_indices = list(range(0,len(traj_frames),traj_period))
+                #print("traj_indices: ", cur_indices)
+                if include_last:
+                    if last not in cur_indices:
+                        cur_indices.append(last)
+                if not include_first:
+                    cur_indices = cur_indices[1:]
+                traj_frames = [traj_frames[i] for i in cur_indices]
+                results = traj_frames
+            else:
+                # NOTE: no frames
+                results = []
 
         return results
 
 class QueueDriverBasedWorker(DriverBasedWorker):
-
 
     def _irun(self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], *args, **kwargs) -> NoReturn:
         """"""
