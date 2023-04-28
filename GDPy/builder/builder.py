@@ -21,9 +21,9 @@ class StructureBuilder(AbstractNode):
     logger = None #: Logger instance.
     pfunc: Callable = print #: Function for outputs.
 
-    def __init__(self, directory, *args, **kwargs):
+    def __init__(self, directory="./", random_seed=1112, *args, **kwargs):
         """"""
-        super().__init__(directory=directory)
+        super().__init__(directory=directory, random_seed=random_seed)
 
         return
     

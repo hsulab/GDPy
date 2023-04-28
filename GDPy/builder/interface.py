@@ -4,6 +4,8 @@
 import itertools
 from typing import NoReturn, List
 
+import numpy as np
+
 from ase import Atoms
 from ase.io import read, write
 
@@ -11,18 +13,6 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
-
-def create_modifier(method: str, params: dict):
-    """"""
-    # TODO: check if params are valid
-    if method == "perturb":
-        from GDPy.builder.perturb import perturb as op_cls
-    elif method == "insert_adsorbate_graph":
-        from GDPy.builder.graph import insert_adsorbate_graph as op_cls
-    else:
-        raise NotImplementedError(f"Unimplemented modifier {method}.")
-
-    return op_cls
 
 @registers.variable.register
 class BuilderVariable(Variable):
@@ -69,14 +59,34 @@ class build(Operation):
 @registers.operation.register
 class modify(Operation):
 
-    def __init__(self, substrate, modifier) -> NoReturn:
+    def __init__(self, substrate, modifier, number: int=1, repeat: int=1) -> NoReturn:
+        """"""
         super().__init__([substrate, modifier])
+
+        self.number = number # create number of new structures
+        self.repeat = repeat # repeat modification times for one structure
+
+        return
     
-    def forward(self):
+    def forward(self, substrates, modifier):
         """"""
         super().forward()
 
-        return
+        cache_path = self.directory/f"{modifier.name}-out.xyz"
+
+        if not cache_path.exists():
+            frames = []
+            for substrate in substrates:
+                for j in range(self.number):
+                    curr_atoms = substrate
+                    for k in range(self.repeat):
+                        curr_atoms = modifier.run([curr_atoms])[0]
+                    frames.append(curr_atoms)
+            write(cache_path, frames)
+        else:
+            frames = read(cache_path, ":")
+
+        return frames
 
 
 if __name__ == "__main__":

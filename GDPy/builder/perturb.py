@@ -1,34 +1,54 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import List
+
 import numpy as np
 
-from GDPy.core.operation import Operation
+from ase import Atoms
+from ase.io import read, write
 
-class perturb(Operation):
+from GDPy.core.register import registers
+from GDPy.core.operation import Operation
+from GDPy.builder.builder import StructureBuilder
+from GDPy.computation.utils import copy_minimal_frames
+
+from GDPy.core.node import AbstractNode
+
+#@registers.modifier.register
+@registers.builder.register
+class PerturbatorBuilder(StructureBuilder):
+
+    name = "perturbater"
 
     """Perturb positions of input structures.
+
+    TODO:
+        1. Perturb cell.
+        2. Perturb distances, angles...
+        3. Check if perturbed structures are valid (too close distance).
+
     """
 
-    def __init__(self, frames, eps=0.1, rng=np.random):
-        super().__init__([frames])
+    def __init__(self, eps: float=0.2, directory="./", random_seed=1112, *args, **kwargs):
+        """"""
+        super().__init__(directory=directory, random_seed=random_seed)
 
-        self.eps = eps
-        self.rng = rng
+        self.eps = eps # unit Ang
 
         return
     
-    def forward(self, frames):
+    def run(self, substrates: List[Atoms], *args, **kwargs):
         """"""
-        # TODO: if computed, use cached results
-        new_frames = frames.copy()
+        super().run(*args, **kwargs)
 
-        for atoms in new_frames:
+        frames, _ = copy_minimal_frames(substrates)
+        for atoms in frames:
             natoms = len(atoms)
             pos_drift = self.rng.random((natoms,3))
             atoms.positions += pos_drift*self.eps
 
-        return new_frames
+        return frames
 
 
 if __name__ == "__main__":
