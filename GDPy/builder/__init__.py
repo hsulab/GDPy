@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Union, List
 
-from GDPy.builder.direct import DirectGenerator
+from GDPy.builder.direct import DirectBuilder
 from GDPy.builder.species import FormulaBasedGenerator
 from GDPy.builder.dimer import DimerGenerator
 from GDPy.builder.builder import StructureGenerator
@@ -37,7 +37,7 @@ def create_generator(params: Union[str, dict]) -> StructureGenerator:
     # - params dict
     method = params.pop("method", "random")
     if method == "direct":
-        generator = DirectGenerator(**params)
+        generator = DirectBuilder(**params)
     elif method == "formula":
         generator = FormulaBasedGenerator(**params)
     elif method == "dimer":
@@ -78,7 +78,7 @@ def create_generators(params: Union[str, dict]) -> List[StructureGenerator]:
     generators = []
     for i in range(repeat):
         if method == "direct":
-            generator = DirectGenerator(**params)
+            generator = DirectBuilder(**params)
         elif method == "formula":
             generator = FormulaBasedGenerator(**params)
         elif method == "dimer":

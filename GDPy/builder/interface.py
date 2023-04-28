@@ -27,12 +27,17 @@ def create_modifier(method: str, params: dict):
 @registers.variable.register
 class BuilderVariable(Variable):
 
-    """Read structures from file."""
+    """Build structures from the scratch."""
 
-    def __init__(self, filename, index=":", format=None):
+    def __init__(self, *args, **kwargs):
         """"""
-        initial_value = read(filename, index, format)
+        # - create a validator
+        method = kwargs.get("method", "file")
+        builder = registers.create(
+            "builder", method, convert_name=True, **kwargs
+        )
 
+        initial_value = builder
         super().__init__(initial_value)
 
         return
@@ -50,11 +55,13 @@ class build(Operation):
         """"""
         super().forward()
 
-        for i, frames in enumerate(args):
-            write(self.directory/f"output-{i}.xyz", frames)
-            self.pfunc(f"b{i} nframes: {len(frames)}")
-        
-        bundle = list(itertools.chain(*args))
+        bundle = []
+        for i, builder in enumerate(args):
+            builder.directory = self.directory
+            frames = builder.run()
+            write(self.directory/f"{builder.name}_output-{i}.xyz", frames)
+            self.pfunc(f"{i} - {builder.name} nframes: {len(frames)}")
+            bundle.extend(frames)
         self.pfunc(f"nframes: {len(bundle)}")
 
         return bundle

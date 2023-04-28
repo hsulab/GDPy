@@ -23,7 +23,7 @@ class StructureBuilder(AbstractNode):
 
     def __init__(self, directory, *args, **kwargs):
         """"""
-        self.directory = directory
+        super().__init__(directory=directory)
 
         return
     

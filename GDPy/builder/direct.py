@@ -8,6 +8,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
+from GDPy.core.register import registers
 from GDPy.builder.builder import StructureGenerator
 
 def read_xsd2(fd) -> Atoms:
@@ -111,10 +112,31 @@ def read_xsd2(fd) -> Atoms:
         atoms.set_scaled_positions(coords)
         return atoms
 
+@registers.builder.register
+class FileBuilder(StructureGenerator):
 
-class DirectGenerator(StructureGenerator):
+    def __init__(self, directory, *args, **kwargs):
+        super().__init__(directory, *args, **kwargs)
+
+        return
+    
+    def run(self):
+        """"""
+        frames = read()
+
+        return
+
+@registers.builder.register
+class DirectBuilder(StructureGenerator):
     """This generator directly returns structures that it stores.
     """
+
+    #: Builde's name.
+    name: str = "direct"
+
+    default_parameters: dict= {
+
+    }
 
     #: Stored structures.
     _frames: Optional[List[Atoms]] = None
@@ -146,6 +168,8 @@ class DirectGenerator(StructureGenerator):
             self._frames = frames
 
         self._indices = indices
+
+        print(frames)
 
         return
     
