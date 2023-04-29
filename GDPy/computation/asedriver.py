@@ -3,6 +3,7 @@
 
 import os
 import copy
+import dataclasses
 import shutil
 from pathlib import Path
 from typing import NoReturn, List, Tuple
@@ -14,13 +15,15 @@ from ase import units
 
 from ase.io import read, write
 import ase.constraints
-from ase.constraints import FixAtoms
+from ase.constraints import Filter, FixAtoms
 from ase.optimize.optimize import Dynamics
-from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+from ase.md.velocitydistribution import (
+    MaxwellBoltzmannDistribution, Stationary, ZeroRotation
+)
 
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.computation.driver import AbstractDriver
+from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.computation.bias import create_bias_list
 
 from GDPy.md.md_utils import force_temperature
@@ -67,6 +70,88 @@ def save_trajectory(atoms, log_fpath) -> NoReturn:
 
     return
 
+@dataclasses.dataclass
+class AseDriverSetting(DriverSetting):
+
+    driver_cls: Dynamics = None
+    filter_cls: Filter = None
+
+    fmax: float = 0.05 # eV/Ang
+
+    def __post_init__(self):
+        """"""
+        # - task-specific params
+        if self.task == "md":
+            self._internals.update(
+                velocity_seed = self.velocity_seed,
+                md_style = self.md_style,
+                timestep = self.timestep,
+                temperature_K = self.temp,
+                taut = self.Tdamp,
+                pressure = self.press,
+                taup = self.Pdamp,
+            )
+            # TODO: provide a unified class for thermostat
+            if self.md_style == "nve":
+                from ase.md.verlet import VelocityVerlet as driver_cls
+            elif self.md_style == "nvt":
+                #from GDPy.md.nosehoover import NoseHoover as driver_cls
+                from ase.md.nvtberendsen import NVTBerendsen as driver_cls
+            elif self.md_style == "npt":
+                from ase.md.nptberendsen import NPTBerendsen as driver_cls
+        
+        if self.task == "min":
+           # - to opt atomic positions
+            from ase.optimize import BFGS
+            if self.min_style == "bfgs":
+                driver_cls = BFGS
+            # - to opt unit cell
+            #   UnitCellFilter, StrainFilter, ExpCellFilter
+            # TODO: add filter params
+            filter_names = ["unitCellFilter", "StrainFilter", "ExpCellFilter"]
+            if self.min_style in filter_names:
+                driver_cls = BFGS
+                self.filter_cls = getattr(ase.constraints, self.min_style)
+
+        if self.task == "ts":
+            # TODO: move to reactor
+            try:
+                from sella import Sella, Constraints
+                driver_cls = Sella
+            except:
+                raise NotImplementedError(f"Sella is not installed.")
+            ...
+        
+        try:
+            self.driver_cls = driver_cls
+        except:
+            raise RuntimeError("Ase Driver Class is not defined.")
+
+        # - shared params
+        self._internals.update(
+            loginterval = self.dump_period
+        )
+
+        # NOTE: There is a bug in ASE as it checks `if steps` then fails when spc.
+        if self.steps == 0:
+            self.steps = -1
+
+        return
+    
+    def get_run_params(self, *args, **kwargs) -> dict:
+        """"""
+        run_params = dict(
+            steps = kwargs.get("steps", self.steps),
+            constraint = kwargs.get("constraint", None)
+        )
+        if self.task == "min" or self.task == "ts":
+            run_params.update(
+                fmax = kwargs.get("fmax", self.fmax),
+            )
+        run_params.update(**kwargs)
+
+        return run_params
+
 
 class AseDriver(AbstractDriver):
 
@@ -76,43 +161,6 @@ class AseDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "ts", "md"]
 
-    default_init_params = {
-        "min": {
-            "min_style": "bfgs",
-            "min_modify": "integrator verlet tmax 4",
-            "dump_period": 1
-        },
-        "md": {
-            "md_style": "nvt",
-            "velocity_seed": None,
-            "timestep": 1.0, # fs
-            "temp": 300, # K
-            "Tdamp": 100, # fs
-            "press": 1.0, # bar
-            "Pdamp": 100,
-            "dump_period": 1
-        }
-    }
-
-    default_run_params = {
-        "min": dict(
-            steps= -1, # for spc, steps=0 would fail to step dynamics.max_steps in ase 3.22.1
-            fmax = 0.05
-        ),
-        "ts": {},
-        "md": dict(
-            steps = -1
-        )
-    }
-
-    param_mapping = dict(
-        temp = "temperature_K",
-        Tdamp = "taut",
-        pres = "pressure",
-        Pdamp = "taup",
-        dump_period = "loginterval"
-    )
-
     # - other files
     log_fname = "dyn.log"
     traj_fname = "dyn.traj"
@@ -121,48 +169,15 @@ class AseDriver(AbstractDriver):
     saved_cards: List[str] = [traj_fname]
 
     def __init__(
-        self, calc=None, params: dict={}, directory="./"
+        self, calc=None, params: dict={}, directory="./", *args, **kwargs
     ):
         """"""
-        super().__init__(calc, params, directory)
+        super().__init__(calc, params, directory, *args, **kwargs)
+
+        self.setting = AseDriverSetting(**params)
 
         self._log_fpath = self.directory / self.log_fname
         self._traj_fpath = self.directory / self.traj_fname
-
-        return
-    
-    def _parse_params(self, params):
-        """Parse different tasks, and prepare init and run params."""
-        super()._parse_params(params)
-
-        self.driver_cls, self.filter_cls = None, None
-        if self.task == "min":
-            # - to opt atomic positions
-            from ase.optimize import BFGS
-            if self.init_params["min_style"] == "bfgs":
-                driver_cls = BFGS
-            # - to opt unit cell
-            #   UnitCellFilter, StrainFilter, ExpCellFilter
-            # TODO: add filter params
-            filter_names = ["unitCellFilter", "StrainFilter", "ExpCellFilter"]
-            if self.init_params["min_style"] in filter_names:
-                driver_cls = BFGS
-                self.filter_cls = getattr(ase.constraints, self.init_params["min_style"])
-        elif self.task == "ts":
-            from sella import Sella, Constraints
-            driver_cls = Sella
-        elif self.task == "md":
-            if self.init_params["md_style"] == "nve":
-                from ase.md.verlet import VelocityVerlet as driver_cls
-            elif self.init_params["md_style"] == "nvt":
-                #from GDPy.md.nosehoover import NoseHoover as driver_cls
-                from ase.md.nvtberendsen import NVTBerendsen as driver_cls
-            elif self.init_params["md_style"] == "npt":
-                from ase.md.nptberendsen import NPTBerendsen as driver_cls
-        else:
-            raise NotImplementedError(f"{self.__class__.name} does not have {self.task} task.")
-        
-        self.driver_cls = driver_cls
 
         return
     
@@ -200,9 +215,7 @@ class AseDriver(AbstractDriver):
             self.directory.mkdir(parents=True)
         
         # - overwrite 
-        kwargs = self._map_params(kwargs)
-        run_params = self.run_params.copy()
-        run_params.update(**kwargs)
+        run_params = self.setting.get_run_params(*args, **kwargs)
 
         # TODO: if have cons in kwargs overwrite current cons stored in atoms
         cons_text = run_params.pop("constraint", None)
@@ -217,37 +230,43 @@ class AseDriver(AbstractDriver):
         #print(atoms.constraints)
 
         # - init driver
-        if self.task == "min":
-            if self.filter_cls:
-                atoms = self.filter_cls(atoms)
-            driver = self.driver_cls(
+        if self.setting.task == "min":
+            if self.setting.filter_cls:
+                atoms = self.setting.filter_cls(atoms)
+            driver = self.setting.driver_cls(
                 atoms, 
                 logfile=self.log_fpath,
                 trajectory=str(self.traj_fpath)
             )
-        elif self.task == "ts":
-            driver = self.driver(
+        elif self.setting.task == "ts":
+            driver = self.setting.driver_cls(
                 atoms,
                 order = 1,
                 internal = False,
                 logfile=self.log_fpath,
                 trajectory=str(self.traj_fpath)
             )
-        elif self.task == "md":
+        elif self.setting.task == "md":
             # - adjust params
-            init_params_ = copy.deepcopy(self.init_params)
+            init_params_ = copy.deepcopy(self.setting.get_init_params())
             velocity_seed = init_params_.pop("velocity_seed", np.random.randint(0,10000))
             rng = np.random.default_rng(velocity_seed)
 
             # - velocity
             if atoms.get_kinetic_energy() > 0.:
                 # atoms have momenta
-                pass
+                ...
             else:
-                MaxwellBoltzmannDistribution(atoms, temperature_K=init_params_["temperature_K"], rng=rng)
+                MaxwellBoltzmannDistribution(
+                    atoms, temperature_K=init_params_["temperature_K"], rng=rng
+                )
+                # TODO: make this optional
+                ZeroRotation(atoms, preserve_temperature=True)
+                Stationary(atoms, preserve_temperature=True)
                 force_temperature(atoms, init_params_["temperature_K"], unit="K") # NOTE: respect constraints
 
             # - prepare args
+            # TODO: move this part to setting post_init?
             md_style = init_params_.pop("md_style")
             if md_style == "nve":
                 init_params_ = {k:v for k,v in init_params_.items() if k in ["loginterval", "timestep"]}
@@ -263,12 +282,11 @@ class AseDriver(AbstractDriver):
                 }
                 init_params_["pressure"] *= (1./(160.21766208/0.000101325))
 
-            # TODO: move this to parse_params?
             init_params_["timestep"] *= units.fs
             #print(init_params_)
 
             # - construct the driver
-            driver = self.driver_cls(
+            driver = self.setting.driver_cls(
                 atoms = atoms,
                 **init_params_,
                 logfile=self.log_fpath,
@@ -290,23 +308,19 @@ class AseDriver(AbstractDriver):
             single-point calculations as the simulation goes.
 
         """
-        #atoms = Atoms(
-        #    symbols=copy.deepcopy(atoms_.get_chemical_symbols()),
-        #    positions=copy.deepcopy(atoms_.get_positions()),
-        #    cell=copy.deepcopy(atoms_.get_cell(complete=True)),
-        #    pbc=copy.deepcopy(atoms_.get_pbc())
-        #)
-        atoms = copy.deepcopy(atoms_)
+        atoms = copy.deepcopy(atoms_) # TODO: make minimal atoms object?
         dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+        print("run_params: ", run_params)
 
         # NOTE: traj file not stores properties (energy, forces) properly
+        init_params = self.setting.get_init_params()
         dynamics.attach(
-            save_trajectory, interval=self.init_params["loginterval"],
+            save_trajectory, interval=init_params["loginterval"],
             atoms=atoms, log_fpath=self.directory/"traj.xyz"
         )
         # NOTE: retrieve deviation info
         dynamics.attach(
-            retrieve_and_save_deviation, interval=self.init_params["loginterval"], 
+            retrieve_and_save_deviation, interval=init_params["loginterval"], 
             atoms=atoms, devi_fpath=self.directory/"model_devi-ase.dat"
         )
         dynamics.run(**run_params)
@@ -318,14 +332,15 @@ class AseDriver(AbstractDriver):
         traj_frames = read(self.directory/"traj.xyz", index=":")
 
         # TODO: log file will not be overwritten when restart
+        init_params = self.setting.get_init_params()
         if add_step_info:
-            if self.task == "md":
+            if self.setting.task == "md":
                 data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
                 if len(data.shape) == 1:
                     data = data[np.newaxis,:]
                 timesteps = data[:, 0] # ps
-                steps = timesteps*1000/self.init_params["timestep"]
-            elif self.task == "min":
+                steps = timesteps*1000/init_params["timestep"]
+            elif self.setting.task == "min":
                 data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
                 if len(data.shape) == 1:
                     data = data[np.newaxis,:]

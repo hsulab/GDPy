@@ -93,6 +93,9 @@ class AbstractDriver(abc.ABC):
     #: Deleted keywords.
     delete: list = []
 
+    #: Driver setting.
+    setting: DriverSetting = None
+
     #: Keyword.
     keyword: Optional[str] = None
 
@@ -129,7 +132,6 @@ class AbstractDriver(abc.ABC):
         self._directory = pathlib.Path(directory)
 
         self._org_params = copy.deepcopy(params)
-        self._parse_params(params)
 
         return
     
@@ -164,37 +166,6 @@ class AbstractDriver(abc.ABC):
         self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
 
         return
-    
-    @abc.abstractmethod
-    def _parse_params(self, params_: dict) -> NoReturn:
-        """Parse different tasks, and prepare init and run params.
-
-        For each task, different behaviours should be realised in specific object.
-
-        """
-        params = copy.deepcopy(params_)
-
-        task_ = params.pop("task", self.default_task)
-        if task_ not in self.supported_tasks:
-            raise NotImplementedError(f"{task_} is invalid for {self.__class__.__name__}...")
-
-        # - init
-        init_params_ = copy.deepcopy(self.default_init_params[task_])
-        kwargs_ = params.pop("init", {})
-        init_params_.update(**kwargs_)
-        init_params_ = self._map_params(init_params_)
-
-        # - run
-        run_params_ = copy.deepcopy(self.default_run_params[task_])
-        kwargs_ = params.pop("run", {})
-        run_params_.update(**kwargs_)
-        run_params_ = self._map_params(run_params_)
-
-        self.task = task_
-        self.init_params = init_params_
-        self.run_params = run_params_
-
-        return 
     
     def _map_params(self, params):
         """Map params, avoid conflicts."""
@@ -293,7 +264,7 @@ class AbstractDriver(abc.ABC):
         org_params = copy.deepcopy(self._org_params)
 
         # - update some special parameters
-        constraint = self.run_params.get("constraint", None)
+        constraint = self.setting.constraint
         if constraint is not None:
             org_params["run"]["constraint"] = constraint
 
