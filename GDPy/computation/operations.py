@@ -109,7 +109,6 @@ class drive(Operation):
             self.pfunc(f"run worker {i} for {nframes} nframes")
             if not flag_fpath.exists():
                 worker.run(frames)
-                worker.inspect(resubmit=True)
                 # TODO: check whether finished this operation...
                 #       set flag to worker?
                 if worker.get_number_of_running_jobs() == 0:
@@ -117,6 +116,9 @@ class drive(Operation):
                         fopen.write(
                             f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
                         )
+                else:
+                    # if not running, resubmit
+                    worker.inspect(resubmit=True)
             else:
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
