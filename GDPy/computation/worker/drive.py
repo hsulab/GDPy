@@ -574,7 +574,7 @@ class QueueDriverBasedWorker(DriverBasedWorker):
 
         # - save scheduler file
         jobscript_fname = f"run-{uid}.script"
-        self.scheduler.job_name = batch_name
+        self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self.directory/jobscript_fname
 
         self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
