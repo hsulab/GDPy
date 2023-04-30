@@ -8,9 +8,11 @@ import yaml
 
 from ase.calculators.calculator import Calculator
 
+from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
 
 
+@registers.manager.register
 class EannManager(AbstractPotentialManager):
 
     name = "eann"

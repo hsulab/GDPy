@@ -5,8 +5,10 @@ import os
 import pathlib
 from typing import NoReturn
 
+from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
 
+@registers.manager.register
 class VaspManager(AbstractPotentialManager):
 
     name = "vasp"

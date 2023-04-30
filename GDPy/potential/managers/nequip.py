@@ -10,8 +10,11 @@ import numpy as np
 
 from ase.calculators.calculator import Calculator
 
+from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
 
+
+@registers.manager.register
 class NequipManager(AbstractPotentialManager):
 
     name = "nequip"

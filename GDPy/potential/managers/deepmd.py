@@ -11,9 +11,11 @@ import numpy as np
 
 from ase.calculators.calculator import Calculator
 
+from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
 
 
+@registers.manager.register
 class DeepmdManager(AbstractPotentialManager):
 
     name = "deepmd"
@@ -324,10 +326,4 @@ class DeepmdManager(AbstractPotentialManager):
 
 
 if __name__ == "__main__":
-    from ase.io import read, write
-    frames = read("/mnt/scratch2/users/40247882/ZnCuOx/PtWater/deepmd-gpu/init-data.xyz", ":")
-
-    potter = DeepmdManager()
-    potter.train_config = dict(type_map={"H": 0, "O": 1, "Pt": 2})
-    potter.train(dataset=frames, train_dir=Path.cwd()/"dptrain")
-    pass
+    ...
