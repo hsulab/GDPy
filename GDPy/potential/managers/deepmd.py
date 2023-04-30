@@ -273,9 +273,11 @@ class DeepmdManager(AbstractPotentialManager):
 
         data_dirs = list(str(x.resolve()) for x in (train_dir/"train").iterdir() if x.is_dir())
         train_config["training"]["training_data"]["systems"] = data_dirs
+        train_config["training"]["training_data"]["batch_size"] = batchsizes
 
         data_dirs = list(str(x.resolve()) for x in (train_dir/"valid").iterdir() if x.is_dir())
         train_config["training"]["validation_data"]["systems"] = data_dirs
+        train_config["training"]["validation_data"]["batch_size"] = batchsizes
 
         train_config["training"]["seed"] = np.random.randint(0,10000)
 
