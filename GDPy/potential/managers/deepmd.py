@@ -3,16 +3,116 @@
 
 import copy
 from pathlib import Path
-from typing import Union
+import pathlib
+from typing import Union, List
 
 import json
 
 import numpy as np
 
+from ase import Atoms
+from ase.io import read, write
 from ase.calculators.calculator import Calculator
 
 from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
+
+def group_dataset(dataset):
+    """"""
+
+    return
+
+
+def convert_dataset(
+    dataset: List[List[Atoms]],
+    type_map: List[str], suffix, dest_dir="./"
+):
+    """"""
+    from GDPy.computation.utils import get_composition_from_atoms
+    groups = {}
+    for atoms in dataset:
+        composition = get_composition_from_atoms(atoms)
+        key = "".join([k+str(v) for k,v in composition])
+        if key in groups:
+            groups[key].append(atoms)
+        else:
+            groups[key] = [atoms]
+        
+    # --- dpdata conversion
+    import dpdata
+    dest_dir = pathlib.Path(dest_dir)
+    train_set_dir = dest_dir/f"{suffix}"
+    if not train_set_dir.exists():
+        train_set_dir.mkdir()
+        
+    cum_batchsizes = 0 # number of batchsizes for training
+    for name, frames in groups.items():
+        print(f"{suffix} system {name} nframes {len(frames)}")
+        # --- NOTE: need convert forces to force
+        frames_ = copy.deepcopy(frames) 
+        for atoms in frames_:
+            try:
+                forces = atoms.get_forces().copy()
+                del atoms.arrays["forces"]
+                atoms.arrays["force"] = forces
+            except:
+                pass
+            finally:
+                atoms.calc = None
+
+        # --- convert data
+        write(train_set_dir/f"{name}-{suffix}.xyz", frames_)
+        dsys = dpdata.MultiSystems.from_file(
+            train_set_dir/f"{name}-{suffix}.xyz", fmt="quip/gap/xyz", 
+            type_map = type_map
+        )
+        dsys.to_deepmd_npy(train_set_dir) # prec, set_size
+
+    return
+
+def convert_groups(
+    names: List[str], groups: List[List[Atoms]], batchsizes: Union[List[int],int],
+    type_map: List[str], suffix, dest_dir="./"
+):
+    """"""
+    nsystems = len(groups)
+    if isinstance(batchsizes, int):
+        batchsizes = [batchsizes]*nsystems
+
+    # --- dpdata conversion
+    import dpdata
+    dest_dir = pathlib.Path(dest_dir)
+    train_set_dir = dest_dir/f"{suffix}"
+    if not train_set_dir.exists():
+        train_set_dir.mkdir()
+        
+    cum_batchsizes = 0 # number of batchsizes for training
+    for name, frames, batchsize in zip(names, groups, batchsizes):
+        nframes = len(frames)
+        nbatch = int(nframes / batchsize)
+        print(f"{suffix} system {name} nframes {nframes} nbatch {nbatch}")
+        cum_batchsizes += nbatch
+        # --- NOTE: need convert forces to force
+        frames_ = copy.deepcopy(frames) 
+        for atoms in frames_:
+            try:
+                forces = atoms.get_forces().copy()
+                del atoms.arrays["forces"]
+                atoms.arrays["force"] = forces
+            except:
+                pass
+            finally:
+                atoms.calc = None
+
+        # --- convert data
+        write(train_set_dir/f"{name}-{suffix}.xyz", frames_)
+        dsys = dpdata.MultiSystems.from_file(
+            train_set_dir/f"{name}-{suffix}.xyz", fmt="quip/gap/xyz", 
+            type_map = type_map
+        )
+        dsys.to_deepmd_npy(train_set_dir) # prec, set_size
+
+    return cum_batchsizes
 
 
 @registers.manager.register
@@ -132,6 +232,10 @@ class DeepmdManager(AbstractPotentialManager):
 
     def _make_train_files(self, dataset=None, train_dir=Path.cwd()):
         """ make files for training
+
+        Args:
+            dataset: [set_names, train_frames, test_frames]
+
         """
         # - add dataset to config
         if not dataset: # NOTE: can be a path or a List[Atoms]
@@ -139,80 +243,23 @@ class DeepmdManager(AbstractPotentialManager):
         assert dataset, f"No dataset has been set for the potential {self.name}."
 
         # - convert dataset
-        # --- custom conversion
-        from GDPy.computation.utils import get_composition_from_atoms
-        groups = {}
-        for atoms in dataset:
-            composition = get_composition_from_atoms(atoms)
-            key = "".join([k+str(v) for k,v in composition])
-            if key in groups:
-                groups[key].append(atoms)
-            else:
-                groups[key] = [atoms]
-        
-        #for k, frames in groups.items():
-        #    # - sort atoms
-        #    pass
-        # --- dpdata conversion
-        import dpdata
-        from ase.io import read, write
-        train_set_dir = train_dir/"train"
-        if not train_set_dir.exists():
-            train_set_dir.mkdir()
-        valid_set_dir = train_dir/"valid"
-        if not valid_set_dir.exists():
-            valid_set_dir.mkdir()
-        
-        cum_batchsizes = 0 # number of batchsizes for training
-        for name, frames in groups.items():
-            # --- NOTE: need convert forces to force
-            frames_ = copy.deepcopy(frames) 
-            for atoms in frames_:
-                try:
-                    forces = atoms.get_forces().copy()
-                    del atoms.arrays["forces"]
-                    atoms.arrays["force"] = forces
-                except:
-                    pass
-                finally:
-                    atoms.calc = None
-            # --- get train and valid numbers
-            nframes = len(frames_)
-            n_train = int(nframes*self.train_split_ratio)
-            n_train_batchsize = int(np.floor(n_train/self.train_batchsize["train"]))
-            n_valid = int(nframes - n_train_batchsize*self.train_batchsize["train"])
-            if n_valid <= 0:
-                n_train_batchsize -= 1
-                n_train = n_train_batchsize * self.train_batchsize["train"]
-                n_valid = int(nframes - n_train)
-            cum_batchsizes += n_train_batchsize
-            
-            # --- split train and valid
-            train_indices = np.random.choice(nframes, n_train, replace=False).tolist()
-            valid_indices = [x for x in range(nframes) if x not in train_indices]
-            train_frames = [frames_[x] for x in train_indices]
-            valid_frames = [frames_[x] for x in valid_indices]
-            assert len(train_frames)+len(valid_frames)==nframes, "train_valid_split failed..."
-            with open(train_set_dir/f"{name}-info.txt", "w") as fopen:
-                content = "# train-valid-split\n"
-                content += "{}\n".format(" ".join([str(x) for x in train_indices]))
-                content += "{}\n".format(" ".join([str(x) for x in valid_indices]))
-                fopen.write(content)
-
-            # --- convert data
-            write(train_set_dir/f"{name}-train.xyz", train_frames)
-            dsys = dpdata.MultiSystems.from_file(
-                train_set_dir/f"{name}-train.xyz", fmt="quip/gap/xyz", 
-                type_map = self.train_config["model"]["type_map"]
-            )
-            dsys.to_deepmd_npy(train_set_dir) # prec, set_size
-
-            write(valid_set_dir/f"{name}-valid.xyz", valid_frames)
-            dsys = dpdata.MultiSystems.from_file(
-                valid_set_dir/f"{name}-valid.xyz", fmt="quip/gap/xyz", 
-                type_map = self.train_config["model"]["type_map"]
-            )
-            dsys.to_deepmd_npy(valid_set_dir) # prec, set_size
+        #_ = convert_dataset(
+        #    dataset[0], self.train_config["model"]["type_map"], "train", train_dir
+        #)
+        #_ = convert_dataset(
+        #    dataset[1], self.train_config["model"]["type_map"], "valid", train_dir
+        #)
+        batchsizes = self.train_batchsize
+        cum_batchsizes = convert_groups(
+            dataset[0], dataset[1], batchsizes, 
+            self.train_config["model"]["type_map"],
+            "train", train_dir
+        )
+        _ = convert_groups(
+            dataset[0], dataset[2], batchsizes,
+            self.train_config["model"]["type_map"], 
+            "valid", train_dir
+        )
 
         # - check train config
         # NOTE: parameters
@@ -226,7 +273,6 @@ class DeepmdManager(AbstractPotentialManager):
 
         data_dirs = list(str(x.resolve()) for x in (train_dir/"train").iterdir() if x.is_dir())
         train_config["training"]["training_data"]["systems"] = data_dirs
-        #train_config["training"]["batch_size"] = 32
 
         data_dirs = list(str(x.resolve()) for x in (train_dir/"valid").iterdir() if x.is_dir())
         train_config["training"]["validation_data"]["systems"] = data_dirs
@@ -245,18 +291,6 @@ class DeepmdManager(AbstractPotentialManager):
             json.dump(train_config, fopen, indent=2)
 
         return
-    
-    def get_batchsize(self, train_config: dict) -> dict:
-        """"""
-        train_batchsize = train_config["training"]["training_data"]["batch_size"]
-        valid_batchsize = train_config["training"]["validation_data"]["batch_size"]
-
-        batchsize = dict(
-            train = train_batchsize,
-            valid = valid_batchsize
-        )
-
-        return batchsize
 
     def freeze(self, train_dir=Path.cwd()):
         """ freeze model and return a new calculator

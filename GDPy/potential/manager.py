@@ -164,7 +164,7 @@ class AbstractPotentialManager(abc.ABC):
         # TODO: manager also needs a rng to handle random?
         self.train_split_seed = train_params.get("split_seed", np.random.randint(0,10000))
 
-        self.train_batchsize = self.get_batchsize(self.train_config)
+        self.train_batchsize = train_params.get("batchsize", 16)
 
         # - for the task
         scheduelr_params = train_params.get("scheduler", {}) 
@@ -175,12 +175,6 @@ class AbstractPotentialManager(abc.ABC):
 
         freeze_command = train_params.get("freeze", None)
         self.freeze_command = freeze_command
-
-        return
-    
-    def get_batchsize(self, *args, **kwargs):
-        """ get batchsize for train and valid set
-        """
 
         return
     
