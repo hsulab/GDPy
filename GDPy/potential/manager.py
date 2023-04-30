@@ -106,7 +106,8 @@ class AbstractPotentialManager(abc.ABC):
         
         # - merge params for compat
         merged_params = {}
-        if "init" in dyn_params or "run" in dyn_params:
+        if "task" in dyn_params or "init" in dyn_params or "run" in dyn_params:
+            merged_params.update(task=dyn_params.get("task", "min"))
             merged_params.update(**dyn_params.get("init", {}))
             merged_params.update(**dyn_params.get("run", {}))
         else:
