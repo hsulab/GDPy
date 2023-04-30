@@ -50,7 +50,16 @@ class registers:
     #: Session variables.
     variable: Register = Register("variable")
 
-    #: Selectors
+    #: Managers (Potentials).
+    manager: Register = Register("manager")
+
+    #: Builders.
+    builder: Register = Register("builder")
+
+    #: Modifiers.
+    modifier: Register = Register("modifier")
+
+    #: Selectors.
     selector: Register = Register("selector")
 
     #: Validators.
@@ -86,6 +95,13 @@ DATA_OPS = ["operations"]
 
 ALL_MODULES = [
     # - working components.
+    # -- managers (potentials)
+    ("GDPy.potential.managers", ["vasp", "cp2k", "xtb", "reax", "eann", "deepmd", "lasp", "nequip"]),
+    # -- builders
+    ("GDPy.builder", ["direct", "species"]),
+    # -- modifiers
+    ("GDPy.builder", ["perturbator"]),
+    # -- validators
     ("GDPy.validator", VALIDATOR_MODULES),
     # - session operations.
     ("GDPy.data", DATA_OPS), 
