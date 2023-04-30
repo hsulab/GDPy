@@ -7,6 +7,7 @@ import dataclasses
 import shutil
 from pathlib import Path
 from typing import NoReturn, List, Tuple
+import warnings
 
 import numpy as np
 
@@ -142,7 +143,7 @@ class AseDriverSetting(DriverSetting):
         """"""
         run_params = dict(
             steps = kwargs.get("steps", self.steps),
-            constraint = kwargs.get("constraint", None)
+            constraint = kwargs.get("constraint", self.constraint)
         )
         if self.task == "min" or self.task == "ts":
             run_params.update(
@@ -168,7 +169,10 @@ class AseDriver(AbstractDriver):
     devi_fname = "model_devi-ase.dat"
 
     #: List of output files would be saved when restart.
-    saved_fnames: List[str] = [log_fname, traj_fname, xyz_fname]
+    saved_fnames: List[str] = [xyz_fname, devi_fname]
+
+    #: List of output files would be removed when restart.
+    removed_fnames: List[str] = [log_fname, traj_fname]
 
     def __init__(
         self, calc=None, params: dict={}, directory="./", *args, **kwargs
@@ -226,7 +230,6 @@ class AseDriver(AbstractDriver):
             )
             if frozen_indices:
                 atoms.set_constraint(FixAtoms(indices=frozen_indices))
-        #print(atoms.constraints)
 
         # - init driver
         if self.setting.task == "min":
@@ -282,7 +285,6 @@ class AseDriver(AbstractDriver):
                 init_params_["pressure"] *= (1./(160.21766208/0.000101325))
 
             init_params_["timestep"] *= units.fs
-            #print(init_params_)
 
             # - construct the driver
             driver = self.setting.driver_cls(
@@ -313,12 +315,16 @@ class AseDriver(AbstractDriver):
         _dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
 
         converged, trajectory = self._continue(atoms, run_params, read_exists=read_exists, *args, **kwargs)
-        if converged and trajectory:
+        if trajectory:
             new_atoms = trajectory[-1]
             if extra_info is not None:
                 new_atoms.info.update(**extra_info)
+            # TODO: set a hard limit of min steps
+            #       since some terrible structures may not converged anyway
+            if not converged:
+                warnings.warn(f"{self.name} failed to converge.", RuntimeWarning)
         else:
-            raise RuntimeError(f"{self.name} failed to converge.")
+            raise RuntimeError(f"{self.name} doesnot have a trajectory.")
         
         # - reset calc params
 
@@ -331,7 +337,6 @@ class AseDriver(AbstractDriver):
 
         # - set dynamics
         dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
-        print("run_params: ", run_params)
 
         # NOTE: traj file not stores properties (energy, forces) properly
         init_params = self.setting.get_init_params()
@@ -365,6 +370,7 @@ class AseDriver(AbstractDriver):
             if not converged:
                 if read_exists:
                     # backup output files and continue with lastest atoms
+                    # dyn.log and dyn.traj are created when init so dont backup them
                     for fname in self.saved_fnames:
                         curr_fpath = self.directory/fname
                         if curr_fpath.exists():
@@ -379,12 +385,11 @@ class AseDriver(AbstractDriver):
                                     break
                                 else:
                                     idx += 1
-                else:
-                    # remove unnecessary files and start all over
-                    # retain calculator-related files
-                    for fname in self.saved_fnames:
-                        curr_fpath = self.directory/fname
-                        curr_fpath.unlink()
+                # remove unnecessary files and start all over
+                # retain calculator-related files
+                for fname in self.removed_fnames:
+                    curr_fpath = self.directory/fname
+                    curr_fpath.unlink()
                 # run dynamics again
                 dynamics = self._set_dynamics(prev_atoms)
                 dynamics.run(**run_params)
