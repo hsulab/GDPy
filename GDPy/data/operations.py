@@ -30,6 +30,8 @@ class chain(Operation):
     """Merge arbitrary nodes' outputs into one list.
     """
 
+    status = "finished" # Always finished since it is not time-consuming
+
     def __init__(self, *args, **kwargs) -> NoReturn:
         """"""
         super().__init__(args)
@@ -41,8 +43,6 @@ class chain(Operation):
     def forward(self, *outputs):
         """"""
         super().forward()
-
-        # TODO: make this general
 
         return list(itertools.chain(*outputs))
 

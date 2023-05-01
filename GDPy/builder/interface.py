@@ -9,10 +9,21 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy.core.placeholder import Placeholder
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
+@registers.placeholder.register
+class StructurePlaceholder(Placeholder):
+
+    name = "structure"
+
+    def __init__(self, *args, **kwargs):
+        """"""
+        super().__init__()
+
+        return
 
 @registers.variable.register
 class BuilderVariable(Variable):
