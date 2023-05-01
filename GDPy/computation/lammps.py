@@ -184,7 +184,7 @@ class LmpDriverSetting(DriverSetting):
         steps_ = kwargs.pop("steps", self.steps)
 
         run_params = dict(
-            constraint = kwargs.get("constraint", None),
+            constraint = kwargs.get("constraint", self.constraint),
             etol=etol_, ftol=ftol_, maxiter=steps_, maxeval=2*steps_
         )
 
