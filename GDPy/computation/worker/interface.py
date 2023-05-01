@@ -307,7 +307,7 @@ def run_driver(structure: str, directory="./", worker=None, o_fname=None):
 def run_worker(
     structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME,
     worker: DriverBasedWorker=None, output: str=None, selection=None, 
-    nostat: bool=False, sanity_check: bool=True
+    nostat: bool=False, batch: int=None
 ):
     """"""
     directory = pathlib.Path(directory)
@@ -330,7 +330,7 @@ def run_worker(
     worker.directory = directory
     print(directory)
 
-    _ = worker.run(generator)
+    _ = worker.run(generator, batch=batch)
     if worker.get_number_of_running_jobs() == 0:
         # - report
         res_dir = directory/"results"

@@ -148,6 +148,10 @@ def main():
         help="a structure file that stores one or more structures"
     )
     parser_worker.add_argument(
+        "-b", "--batch", default=None, type=int,
+        help="run selected batch number (useful when queue run)"
+    )
+    parser_worker.add_argument(
         "-o", "--output", default="last", choices=["last","traj"],
         help="retrieve last frame or entire trajectory"
     )
@@ -158,10 +162,6 @@ def main():
     parser_worker.add_argument(
         "--nostat", action="store_true",
         help="no statistics shown"
-    )
-    parser_worker.add_argument(
-        "--ignore_sanity", action="store_true",
-        help="ignore sanity check to avoid conflicts when several jobs start at the same time"
     )
 
     # --- task interface
@@ -276,7 +276,7 @@ def main():
         )
     elif args.subcommand == "worker":
         from GDPy.computation.worker.interface import run_worker
-        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat, args.ignore_sanity)
+        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat, args.batch)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run, args.report)
