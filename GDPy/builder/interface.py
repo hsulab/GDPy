@@ -65,6 +65,8 @@ class build(Operation):
             bundle.extend(frames)
         self.pfunc(f"nframes: {len(bundle)}")
 
+        self.status = "finished"
+
         return bundle
 
 @registers.operation.register
@@ -96,6 +98,8 @@ class modify(Operation):
             write(cache_path, frames)
         else:
             frames = read(cache_path, ":")
+
+        self.status = "finished"
 
         return frames
 
