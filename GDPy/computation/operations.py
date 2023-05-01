@@ -129,7 +129,7 @@ class drive(Operation):
                 worker_status.append(True)
         
         if all(worker_status):
-            self.stats = "finished"
+            self.status = "finished"
 
         return workers
 
