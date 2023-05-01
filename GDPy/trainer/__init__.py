@@ -31,6 +31,7 @@ def split_dataset(
     set_names = []
     train_size, test_size = [], []
     train_frames, test_frames = [], []
+    adjusted_batchsizes = [] # auto-adjust batchsize based on nframes
     for i, (cur_system, cur_batchsize) in enumerate(zip(data_dirs, batchsizes)):
         cur_system = pathlib.Path(cur_system)
         set_names.append(cur_system.name)
@@ -45,14 +46,18 @@ def split_dataset(
             frames.extend(p_frames)
             print(f"  subsystem: {p.name} number {p_nframes}\n")
 
-        # split dataset
+        # split dataset and get adjusted batchsize
+        # TODO: adjust batchsize of train and test separately
         nframes = len(frames)
         if nframes == 1 or nframes <= cur_batchsize:
+            new_batchsize = int(2**np.floor(np.log2(nframes)))
+            adjusted_batchsizes.append(new_batchsize)
             # NOTE: use same train and test set
             #       since they are very important structures...
             train_index = list(range(nframes))
             test_index = list(range(nframes))
         else:
+            adjusted_batchsizes.append(cur_batchsize)
             # - assure there is at least one batch for test
             #          and number of train frames is integer times of batchsize
             ntrain = int(np.floor(nframes * train_ratio / cur_batchsize) * cur_batchsize)
@@ -90,7 +95,7 @@ def split_dataset(
     test_size = sum(test_size)
     print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}\n")
 
-    return set_names, train_frames, test_frames
+    return set_names, train_frames, test_frames, adjusted_batchsizes
 
 def run_trainer(pot_worker: TrainWorker, directory="./") -> NoReturn:
     """Train a potential using a TrainWorker
@@ -111,16 +116,16 @@ def run_trainer(pot_worker: TrainWorker, directory="./") -> NoReturn:
     # - check dataset
     #   NOTE: assume it's a list of dirs that have xyz files
     # TODO: get random splits for each model instance
-    (set_names, train_frames, test_frames) = split_dataset(
+    (set_names, train_frames, test_frames, new_batchsizes) = split_dataset(
         pot_worker.potter.train_dataset, 
         batchsizes=pot_worker.potter.train_batchsize, 
         train_ratio=pot_worker.potter.train_split_ratio,
-        rng=np.random.default_rng(seed=1112)
+        rng=np.random.default_rng(seed=pot_worker.potter.train_split_seed)
     )
 
     # - train
     #pot_worker._submit = False # TEST
-    _ = pot_worker.run([set_names, train_frames, test_frames], train_size)
+    _ = pot_worker.run([set_names, train_frames, test_frames, new_batchsizes], train_size)
 
     is_trained = True
     _ = pot_worker.retrieve()

@@ -90,6 +90,15 @@ def get_composition_from_atoms(atoms):
 
     return sorted_composition
 
+def get_formula_from_atoms(atoms):
+    """"""
+    from collections import Counter
+    chemical_symbols = atoms.get_chemical_symbols()
+    composition = Counter(chemical_symbols)
+    sorted_composition = sorted(composition.items(), key=lambda x:x[0])
+
+    return "".join([str(k)+str(v) for k,v in sorted_composition])
+
 
 def read_trajectories(
     driver, traj_dirs,
