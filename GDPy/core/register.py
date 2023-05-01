@@ -50,6 +50,9 @@ class registers:
     #: Session variables.
     variable: Register = Register("variable")
 
+    #: Session placeholder
+    placeholder: Register = Register("placeholder")
+
     #: Managers (Potentials).
     manager: Register = Register("manager")
 

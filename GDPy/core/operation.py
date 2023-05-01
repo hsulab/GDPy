@@ -11,7 +11,10 @@ class Operation(abc.ABC):
     """"""
 
     #: Working directory for the operation.
-    _directory: Union[str,pathlib.Path] = "./"
+    _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
+
+    #: Whether re-compute this operation
+    status: str = "unfinished"
 
     #: Whether re-compute this operation.
     restart: bool = False
