@@ -29,7 +29,7 @@ class ValidatorVariable(Variable):
         return
     
 @registers.operation.register
-class test(Operation):
+class validate(Operation):
 
     def __init__(self, node_with_structures, validator, worker) -> NoReturn:
         """"""
@@ -38,8 +38,13 @@ class test(Operation):
 
         return
     
-    def forward(self, frames, validator: AbstractValidator, workers):
-        """"""
+    def forward(self, dataset, validator: AbstractValidator, workers):
+        """Run a validator on input dataset.
+
+        Args:
+            dataset: List[(prefix,frames)]
+
+        """
         super().forward()
         # - create a worker
         nworkers = len(workers)
@@ -49,8 +54,9 @@ class test(Operation):
 
         # - run validation
         validator.directory = self.directory
-        validator.worker = worker
-        validator.run()
+        validator.run(dataset, worker)
+
+        self.status = "finished"
 
         return 
 
