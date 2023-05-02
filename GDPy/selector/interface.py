@@ -57,6 +57,8 @@ class select(Operation):
             new_frames = read(cached_fpath, ":")
         self.pfunc(f"nframes: {len(new_frames)}")
 
+        self.status = "finished"
+
         return new_frames
 
 

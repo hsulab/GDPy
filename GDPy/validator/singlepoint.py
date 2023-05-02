@@ -15,9 +15,13 @@ from ase.io import read, write
 import matplotlib as mpl
 mpl.use("Agg") #silent mode
 from matplotlib import pyplot as plt
-plt.style.use("presentation")
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    print("Used default matplotlib style.")
 
 from GDPy.validator.validator import AbstractValidator
+from GDPy.computation.worker.drive import DriverBasedWorker
 
 from GDPy.computation.utils import make_clean_atoms
 from GDPy.utils.comparasion import parity_plot_dict, rms_dict
@@ -137,39 +141,21 @@ class SinglepointValidator(AbstractValidator):
     """Calculate energies on each structures and save them to file.
     """
 
-    def run(self):
+    def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         super().run()
-        params = self.task_params
 
-        # - check structures
-        ref_fpaths = params["structures"].get("reference", None)
-        if ref_fpaths is None:
-            raise RuntimeError("No reference structures were found.")
-        
-        pred_fpaths = params["structures"].get("prediction", None)
-        if pred_fpaths is not None:
-            assert len(ref_fpaths) == len(pred_fpaths), "Inconsistent reference and prediction structures."
-        else:
-            pred_fpaths = [None]*len(ref_fpaths)
-        
-        prefix_names = params["structures"].get("names", None)
-        if prefix_names is not None:
-            assert len(ref_fpaths) == len(prefix_names), "Inconsistent names of structures."
-        else:
-            prefix_names = [None]*len(ref_fpaths)
-        
-        # - run calculations...
         data = []
-        for prefix, ref_fpath, pred_fpath in zip(prefix_names, ref_fpaths, pred_fpaths):
-            if prefix is None:
-                prefix = pathlib.Path(ref_fpath).stem
-            nframes, rmse_ret = self._irun(prefix, ref_fpath, pred_fpath)
-            #print(rmse_ret)
+        for prefix, frames in dataset:
+            nframes, rmse_ret = self._irun(prefix, frames, None, worker)
             data.append([prefix, nframes, rmse_ret])
+        self.write_data(data)
 
+        return
+
+    def write_data(self, data):
         # - check data file
-        keys = ["en", "frc"]
+        keys = ["ene", "frc"]
         for rmse_ret in [x[2] for x in data]:
             for k in rmse_ret.keys():
                 if k not in keys:
@@ -198,32 +184,30 @@ class SinglepointValidator(AbstractValidator):
         self.logger.info(content)
 
         return
-    
-    def _irun(self, prefix: str, ref: Union[str,pathlib.Path], pred: Union[str,pathlib.Path]=None):
+
+    def _irun(self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker):
         """"""
         # - read structures
-        ref_frames = read(ref, ":")
         ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
 
         nframes = len(ref_frames)
         ref_natoms = [len(a) for a in ref_frames]
 
-        if pred is None:
+        if pred_frames is None:
             # NOTE: use worker to calculate
             # TODO: use cached data?
             self.logger.info(f"Calculate reference frames {prefix} with potential...")
             cached_pred_fpath = self.directory / prefix / "pred.xyz"
             if not cached_pred_fpath.exists():
-                cur_worker = self.worker
-                cur_worker.directory = self.directory / prefix
-                cur_worker.batchsize = nframes
+                worker.directory = self.directory / prefix
+                worker.batchsize = nframes
 
-                cur_worker._compact = True
+                worker._compact = False
 
-                cur_worker.run(ref_frames, use_wdir=True)
-                cur_worker.inspect(resubmit=True)
-                if cur_worker.get_number_of_running_jobs() == 0:
-                    pred_frames = self.worker.retrieve(
+                worker.run(ref_frames, use_wdir=True)
+                worker.inspect(resubmit=True)
+                if worker.get_number_of_running_jobs() == 0:
+                    pred_frames = worker.retrieve(
                         ignore_retrieved=False,
                     )
                 else:
@@ -232,8 +216,6 @@ class SinglepointValidator(AbstractValidator):
                 write(cached_pred_fpath, pred_frames)
             else:
                 pred_frames = read(cached_pred_fpath, ":")
-        else:
-            pred_frames = read(pred, ":")
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
         
         # - figure
@@ -246,8 +228,8 @@ class SinglepointValidator(AbstractValidator):
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
         # -- energies
-        en_rmse = plot_parity(
-            axarr[0], ref_energies, pred_energies, x_name="en", weights=ref_natoms
+        ene_rmse = plot_parity(
+            axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms
         )
 
         # -- forces
@@ -261,14 +243,8 @@ class SinglepointValidator(AbstractValidator):
         plt.savefig(self.directory/f"{prefix}.png")
 
         # - save results to data file
-        #with open(self.directory/"rmse.dat", "a") as fopen:
-        #    content = "{:<24s}  {:>8d}  ".format(prefix, nframes)
-        #    content += "{:>8.4f}  {:>8.4f}  ".format(
-        #        en_rmse[0][0]["rmse"], en_rmse[0][0]["std"]
-        #    )
-        #    fopen.write(content)
         rmse_ret = {}
-        x_rmse, x_rmse_names = en_rmse
+        x_rmse, x_rmse_names = ene_rmse
         for _rms, rms_name in zip(x_rmse, x_rmse_names):
             rmse_ret[rms_name] = _rms
         x_rmse, x_rmse_names = frc_rmse

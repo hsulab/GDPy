@@ -40,6 +40,8 @@ class work(Operation):
             # wdir is temporary as it may be reset by drive operation
             worker.directory = self.directory / f"w{i}"
             workers.append(worker)
+        
+        self.status = "finished"
 
         return workers
 
@@ -104,25 +106,30 @@ class drive(Operation):
             workers[0].directory = self.directory
 
         # - run workers
+        worker_status = []
         for i, worker in enumerate(workers):
             flag_fpath = worker.directory/"FINISHED"
             self.pfunc(f"run worker {i} for {nframes} nframes")
             if not flag_fpath.exists():
                 worker.run(frames)
-                # TODO: check whether finished this operation...
-                #       set flag to worker?
                 if worker.get_number_of_running_jobs() == 0:
                     with open(flag_fpath, "w") as fopen:
                         fopen.write(
                             f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
                         )
+                    worker_status.append(True)
                 else:
                     # if not running, resubmit
                     worker.inspect(resubmit=True)
+                    worker_status.append(False)
             else:
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
                 self.pfunc(content)
+                worker_status.append(True)
+        
+        if all(worker_status):
+            self.status = "finished"
 
         return workers
 
@@ -170,9 +177,8 @@ class extract(Operation):
         
         # TODO: reconstruct trajs to List[List[Atoms]]
         self.workers = workers # for operations to access
-        nworkrers = len(workers)
-
-        is_finished = True
+        nworkers = len(workers)
+        worker_status = [False]*nworkers
 
         trajectories = [] # List[List[List[Atoms]]], worker->candidate->trajectory
         for i, worker in enumerate(workers):
@@ -184,8 +190,6 @@ class extract(Operation):
             if not cached_trajs_dpath.exists():
                 if not (worker.get_number_of_running_jobs() == 0):
                     self.pfunc(f"{worker.directory.name} is not finished.")
-                    is_finished = False
-                    exit()
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories_ = worker.retrieve(
@@ -215,16 +219,21 @@ class extract(Operation):
 
             ntrajs = len(curr_trajectories)
             self.pfunc(f"worker_{i} ntrajectories {ntrajs}")
-
             trajectories.append(curr_trajectories)
 
+            worker_status[i] = True
+
         structures = []
-        if self.reduce_work:
-            structures = list(itertools.chain(*trajectories))
+        if all(worker_status):
+            if self.reduce_work:
+                structures = list(itertools.chain(*trajectories))
+            else:
+                structures = trajectories
+            nstructures = len(structures)
+            self.pfunc(f"nstructures {nstructures}")
+            self.status = "finished"
         else:
-            structures = trajectories
-        nstructures = len(structures)
-        self.pfunc(f"nstructures {nstructures}")
+            ...
 
         return structures
 

@@ -63,6 +63,10 @@ def main():
         "-n", "--names", default=None, nargs="+", 
         help="session's names to run"
     )
+    parser_session.add_argument(
+        "-e", "--entry", default="",
+        help="placeholder definitions"
+    )
     
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -148,6 +152,10 @@ def main():
         help="a structure file that stores one or more structures"
     )
     parser_worker.add_argument(
+        "-b", "--batch", default=None, type=int,
+        help="run selected batch number (useful when queue run)"
+    )
+    parser_worker.add_argument(
         "-o", "--output", default="last", choices=["last","traj"],
         help="retrieve last frame or entire trajectory"
     )
@@ -158,10 +166,6 @@ def main():
     parser_worker.add_argument(
         "--nostat", action="store_true",
         help="no statistics shown"
-    )
-    parser_worker.add_argument(
-        "--ignore_sanity", action="store_true",
-        help="ignore sanity check to avoid conflicts when several jobs start at the same time"
     )
 
     # --- task interface
@@ -256,7 +260,7 @@ def main():
         run_trainer(potter, args.directory)
     elif args.subcommand == "session":
         from GDPy.core.session import run_session
-        run_session(args.SESSION, args.names, args.directory)
+        run_session(args.SESSION, args.names, args.entry, args.directory)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
@@ -276,7 +280,7 @@ def main():
         )
     elif args.subcommand == "worker":
         from GDPy.computation.worker.interface import run_worker
-        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat, args.ignore_sanity)
+        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat, args.batch)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run, args.report)

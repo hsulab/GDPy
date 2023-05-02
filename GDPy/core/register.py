@@ -50,6 +50,9 @@ class registers:
     #: Session variables.
     variable: Register = Register("variable")
 
+    #: Session placeholder
+    placeholder: Register = Register("placeholder")
+
     #: Managers (Potentials).
     manager: Register = Register("manager")
 
@@ -111,6 +114,7 @@ ALL_MODULES = [
     ("GDPy.validator", ["meltingpoint"]),
     ("GDPy.selector", ["interface"]),
     # - session variables.
+    ("GDPy.data", ["interface"]),
     ("GDPy.validator", ["interface"]),
     ("GDPy.scheduler", ["interface"]),
     ("GDPy.computation", ["interface"]),

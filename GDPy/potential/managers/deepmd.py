@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import os
 import copy
 from pathlib import Path
 import pathlib
@@ -79,6 +80,8 @@ def convert_groups(
     if isinstance(batchsizes, int):
         batchsizes = [batchsizes]*nsystems
 
+    from GDPy.computation.utils import get_formula_from_atoms
+
     # --- dpdata conversion
     import dpdata
     dest_dir = pathlib.Path(dest_dir)
@@ -89,8 +92,13 @@ def convert_groups(
     cum_batchsizes = 0 # number of batchsizes for training
     for name, frames, batchsize in zip(names, groups, batchsizes):
         nframes = len(frames)
-        nbatch = int(nframes / batchsize)
+        nbatch = int(np.ceil(nframes / batchsize))
         print(f"{suffix} system {name} nframes {nframes} nbatch {nbatch}")
+        # --- check composition consistent
+        compositions = [get_formula_from_atoms(a) for a in frames]
+        assert len(set(compositions)) == 1, "Inconsistent composition..."
+        curr_composition = compositions[0]
+
         cum_batchsizes += nbatch
         # --- NOTE: need convert forces to force
         frames_ = copy.deepcopy(frames) 
@@ -110,7 +118,15 @@ def convert_groups(
             train_set_dir/f"{name}-{suffix}.xyz", fmt="quip/gap/xyz", 
             type_map = type_map
         )
-        dsys.to_deepmd_npy(train_set_dir) # prec, set_size
+        # NOTE: this function create dir with composition and overwrite files
+        #       so we need separate dirs...
+        sys_dir = train_set_dir/name
+        if sys_dir.exists():
+            raise FileExistsError(f"{sys_dir} exists. Please check the dataset.")
+        else:
+            dsys.to_deepmd_npy(train_set_dir/"_temp") # prec, set_size
+            (train_set_dir/"_temp"/curr_composition).rename(sys_dir)
+    (train_set_dir/"_temp").rmdir()
 
     return cum_batchsizes
 
@@ -249,7 +265,7 @@ class DeepmdManager(AbstractPotentialManager):
         #_ = convert_dataset(
         #    dataset[1], self.train_config["model"]["type_map"], "valid", train_dir
         #)
-        batchsizes = self.train_batchsize
+        batchsizes = dataset[3]
         cum_batchsizes = convert_groups(
             dataset[0], dataset[1], batchsizes, 
             self.train_config["model"]["type_map"],

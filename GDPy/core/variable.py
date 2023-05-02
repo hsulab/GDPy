@@ -10,7 +10,7 @@ class Variable:
     """
 
     #: Working directory for the operation.
-    _directory: Union[str,pathlib.Path] = "./"
+    _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
 
     def __init__(self, initial_value=None):
         """"""

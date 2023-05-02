@@ -8,12 +8,6 @@ from typing import NoReturn
 from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
 
-try:
-    from xtb.ase.calculator import XTB
-except:
-    print("Please install xtb python for this module.")
-    exit()
-
 @registers.manager.register
 class XtbManager(AbstractPotentialManager):
 
@@ -44,6 +38,12 @@ class XtbManager(AbstractPotentialManager):
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
+
+        try:
+            from xtb.ase.calculator import XTB
+        except:
+            print("Please install xtb python to use this module.")
+            exit()
 
         if self.calc_backend == "xtb":
             calc_cls = XTB

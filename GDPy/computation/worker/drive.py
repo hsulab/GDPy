@@ -560,6 +560,8 @@ class QueueDriverBasedWorker(DriverBasedWorker):
 
     def _irun(self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], *args, **kwargs) -> NoReturn:
         """"""
+        batch_number = int(batch_name.split("-")[-1])
+
         # - save worker file
         worker_params = {}
         worker_params["driver"] = self.driver.as_dict()
@@ -577,10 +579,10 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self.directory/jobscript_fname
 
-        self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
+        self.scheduler.user_commands = "gdp -p {} worker {} --batch {}\n".format(
             (self.directory/f"worker-{uid}.yaml").name, 
             #(self.directory/structure_fname).name
-            dataset_path
+            dataset_path, batch_number
         )
 
         # - TODO: check whether params for scheduler is changed
@@ -602,6 +604,22 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         calculation working directory.
 
         """
+        # - specify which group this worker is responsible for
+        #   if not, then skip
+        batch_number = int(batch_name.split("-")[-1])
+        target_number = kwargs.get("batch", None)
+        if isinstance(target_number, int):
+            if batch_number != target_number:
+                with CustomTimer(name="run-driver", func=self.logger.info):
+                    self.logger.info(
+                        f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} batch {batch_number} is skipped..."
+                    )
+                    return
+            else:
+                ...
+        else:
+            ...
+
         # - get structures
         curr_frames = [frames[i] for i in curr_indices]
 
