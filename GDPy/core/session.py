@@ -47,7 +47,6 @@ class Session:
 
         # - run nodes
         for node in nodes_postorder:
-            print(node)
             print(f"----- Node {node.__class__.__name__} @ {node.directory.name} -----")
 
             if isinstance(node, Placeholder):
@@ -193,7 +192,7 @@ def run_session(config_filepath, custom_session_names=None, entry_string: str=No
     from GDPy.utils.command import parse_input_file
     session_config = parse_input_file(config_filepath)
 
-    phs_params = session_config.get("placeholders", None)
+    phs_params = session_config.get("placeholders", {}) # this is optional
     nodes_params = session_config.get("nodes", None)
     ops_params = session_config.get("operations", None)
     sessions_params = session_config.get("sessions", None)
