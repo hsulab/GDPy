@@ -4,6 +4,7 @@
 import copy
 import uuid
 import pathlib
+import shutil
 import time
 from typing import Tuple, List, NoReturn, Union
 import yaml
@@ -104,9 +105,8 @@ class DriverBasedWorker(AbstractWorker):
 
     _driver = None
 
-    _compact: bool = False
-
-    _sanity_check: bool = True
+    #: Whether share calc dir for each candidate. Only for command run and spc.
+    _share_wdir: bool = False
 
     def __init__(self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs):
         """"""
@@ -164,7 +164,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return _info_data
     
-    def _preprocess(self, generator, use_wdir=False, *args, **kwargs):
+    def _preprocess(self, generator, *args, **kwargs):
         """"""
         # - get frames
         frames = []
@@ -257,13 +257,13 @@ class DriverBasedWorker(AbstractWorker):
 
         return batches
     
-    def run(self, generator=None, use_wdir=False, *args, **kwargs) -> NoReturn:
+    def run(self, generator=None, *args, **kwargs) -> NoReturn:
         """Split frames into groups and submit jobs.
         """
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, frames, curr_info = self._preprocess(generator, use_wdir)
+        identifier, frames, curr_info = self._preprocess(generator)
         batches = self._prepare_batches(frames, curr_info)
 
         # - read metadata from file or database
@@ -329,6 +329,7 @@ class DriverBasedWorker(AbstractWorker):
             group_directory = self.directory
             doc_data = self.database.get(Query().gdir == job_name)
             uid = doc_data["uid"]
+            identifier = doc_data["md5"]
 
             #self.scheduler.set(**{"job-name": job_name})
             self.scheduler.job_name = job_name
@@ -339,7 +340,7 @@ class DriverBasedWorker(AbstractWorker):
                 # -- valid if the task finished correctlt not due to time-limit
                 is_finished = False
                 wdir_names = doc_data["wdir_names"]
-                if not self._compact:
+                if not self._share_wdir:
                     for x in wdir_names:
                         if not (group_directory/x).exists():
                             break
@@ -347,11 +348,10 @@ class DriverBasedWorker(AbstractWorker):
                         # TODO: all subtasks seem to finish...
                         is_finished = True
                 else:
-                    cached_frames = read(self.directory/"_data"/"cached.xyz", ":")
-                    cached_wdirs = [a.info["wdir"] for a in cached_frames]
-                    if set(wdir_names) == set(cached_wdirs):
+                    cache_frames = read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
+                    cache_wdirs = [a.info["wdir"] for a in cache_frames]
+                    if set(wdir_names) == set(cache_wdirs):
                         is_finished = True
-                    ...
                 if is_finished:
                     # -- finished correctly
                     self.logger.info(f"{job_name} is finished...")
@@ -389,12 +389,12 @@ class DriverBasedWorker(AbstractWorker):
         else:
             unretrieved_jobs = self._get_finished_jobs()
             
+        unretrieved_identifiers = []
         for job_name in unretrieved_jobs:
-            # NOTE: sometimes prefix has number so confid may be striped
-            group_directory = self.directory
             doc_data = self.database.get(Query().gdir == job_name)
+            unretrieved_identifiers.append(doc_data["md5"])
             unretrieved_wdirs_.extend(
-                group_directory/w for w in doc_data["wdir_names"]
+                self.directory/w for w in doc_data["wdir_names"]
             )
         
         # - get given wdirs
@@ -404,7 +404,6 @@ class DriverBasedWorker(AbstractWorker):
                 wdir_name = wdir.name
                 if wdir_name in given_wdirs:
                     unretrieved_wdirs.append(wdir)
-                # TODO: check unfinished given wdirs?
         else:
             unretrieved_wdirs = unretrieved_wdirs_
 
@@ -412,12 +411,17 @@ class DriverBasedWorker(AbstractWorker):
         #print("unretrieved: ", unretrieved_wdirs)
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-            if not self._compact:
+            if not self._share_wdir:
                 results = self._read_results(unretrieved_wdirs, *args, **kwargs)
             else:
                 # TODO: deal with traj...
-                results = read(self.directory/"_data"/"cached.xyz", ":")
-                ...
+                cache_frames = []
+                for identifier in unretrieved_identifiers:
+                    cache_frames.extend(
+                        read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
+                    )
+                wdir_names = [x.name for x in unretrieved_wdirs]
+                results = [a for a in cache_frames if a.info["wdir"] in wdir_names]
         else:
             results = []
 
@@ -520,9 +524,9 @@ class DriverBasedWorker(AbstractWorker):
         # NOTE: name convention, cand1112_field1112_field1112
         confid_ = int(wdir.name.strip("cand").split("_")[0]) # internal name
         if info_data is not None: 
-            cached_confid = int(info_data[confid_][2])
-            if cached_confid >= 0:
-                confid = cached_confid
+            cache_confid = int(info_data[confid_][2])
+            if cache_confid >= 0:
+                confid = cache_confid
             else:
                 confid = confid_
         else:
@@ -625,7 +629,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
 
         # - run calculations
         with CustomTimer(name="run-driver", func=self.logger.info):
-            if not self._compact:
+            if not self._share_wdir:
                 for wdir, atoms in zip(curr_wdirs,curr_frames):
                     self.driver.directory = self.directory/wdir
                     #job_name = uid+str(wdir)
@@ -635,15 +639,17 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                     self.driver.reset()
                     self.driver.run(atoms, read_exists=True, extra_info=None)
             else:
-                cached_fpath = self.directory/"_data"/"cached.xyz"
-                if cached_fpath.exists():
-                    cached_frames = read(cached_fpath, ":")
-                    cached_wdirs = [a.info["wdir"] for a in cached_frames]
+                cache_fpath = self.directory/"_data"/f"{identifier}_cache.xyz"
+                if cache_fpath.exists():
+                    cache_frames = read(cache_fpath, ":")
+                    cache_wdirs = [a.info["wdir"] for a in cache_frames]
                 else:
-                    cached_wdirs = []
+                    cache_wdirs = []
                 for wdir, atoms in zip(curr_wdirs,curr_frames):
-                    if wdir in cached_wdirs:
+                    if wdir in cache_wdirs:
                         continue
+                    #if (self.directory/"_shared").exists():
+                    #    shutil.rmtree(self.directory/"_shared")
                     self.driver.directory = self.directory/"_shared"
                     self.logger.info(
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
@@ -651,7 +657,9 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                     self.driver.reset()
                     new_atoms = self.driver.run(atoms, read_exists=False, extra_info=dict(wdir=wdir))
                     # - save data
-                    write(self.directory/"_data"/"cached.xyz", new_atoms, append=True)
+                    # TODO: There may have conflicts in write as many groups may run at the same time.
+                    #       Add protection to the file.
+                    write(self.directory/"_data"/f"{identifier}_cache.xyz", new_atoms, append=True)
 
         return
 
