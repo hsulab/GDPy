@@ -172,7 +172,7 @@ class AseDriver(AbstractDriver):
     saved_fnames: List[str] = [xyz_fname, devi_fname]
 
     #: List of output files would be removed when restart.
-    removed_fnames: List[str] = [log_fname, traj_fname]
+    removed_fnames: List[str] = [log_fname, traj_fname, xyz_fname, devi_fname]
 
     def __init__(
         self, calc=None, params: dict={}, directory="./", *args, **kwargs
@@ -322,9 +322,9 @@ class AseDriver(AbstractDriver):
             # TODO: set a hard limit of min steps
             #       since some terrible structures may not converged anyway
             if not converged:
-                warnings.warn(f"{self.name} failed to converge.", RuntimeWarning)
+                warnings.warn(f"{self.name} at {self.directory} failed to converge.", RuntimeWarning)
         else:
-            raise RuntimeError(f"{self.name} doesnot have a trajectory.")
+            raise RuntimeError(f"{self.name} at {self.directory} doesnot have a trajectory.")
         
         # - reset calc params
 
@@ -361,14 +361,14 @@ class AseDriver(AbstractDriver):
         trajectory = []
         converged = False
         try:
-            if (self.directory/self.xyz_fname).exists():
-                trajectory = self.read_trajectory(add_step_info=True)
-                prev_atoms = trajectory[-1]
-                converged = self.read_convergence(trajectory, run_params)
-            else:
-                prev_atoms = atoms
-            if not converged:
-                if read_exists:
+            if read_exists:
+                if (self.directory/self.xyz_fname).exists():
+                    trajectory = self.read_trajectory(add_step_info=True)
+                    prev_atoms = trajectory[-1]
+                    converged = self.read_convergence(trajectory, run_params)
+                else:
+                    prev_atoms = atoms
+                if not converged:
                     # backup output files and continue with lastest atoms
                     # dyn.log and dyn.traj are created when init so dont backup them
                     for fname in self.saved_fnames:
@@ -385,17 +385,30 @@ class AseDriver(AbstractDriver):
                                     break
                                 else:
                                     idx += 1
+                    # remove unnecessary files and start all over
+                    # retain calculator-related files
+                    for fname in self.removed_fnames:
+                        curr_fpath = self.directory/fname
+                        if curr_fpath.exists():
+                            curr_fpath.unlink()
+                    # run dynamics again
+                    dynamics = self._set_dynamics(prev_atoms)
+                    dynamics.run(**run_params)
+            else:
+                # restart calculation from the scratch
+                prev_atoms = atoms
                 # remove unnecessary files and start all over
                 # retain calculator-related files
                 for fname in self.removed_fnames:
                     curr_fpath = self.directory/fname
-                    curr_fpath.unlink()
+                    if curr_fpath.exists():
+                        curr_fpath.unlink()
                 # run dynamics again
                 dynamics = self._set_dynamics(prev_atoms)
                 dynamics.run(**run_params)
-                # -- check convergence again
-                trajectory = self.read_trajectory(add_step_info=True)
-                converged = self.read_convergence(trajectory, run_params)
+            # -- check convergence again
+            trajectory = self.read_trajectory(add_step_info=True)
+            converged = self.read_convergence(trajectory, run_params)
         except Exception as e:
             print(e)
         print(f"{self.name} {self.directory}")
@@ -464,6 +477,7 @@ class AseDriver(AbstractDriver):
                 atoms.info["step"] = int(step)
 
         # - read deviation, similar to lammps
+        # TODO: concatenate all deviations
         devi_fpath = self.directory / self.devi_fname
         if devi_fpath.exists():
             with open(devi_fpath, "r") as fopen:
