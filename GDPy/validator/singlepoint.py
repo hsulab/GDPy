@@ -178,6 +178,8 @@ class SinglepointValidator(AbstractValidator):
                 else:
                     cur_data.extend([v["rmse"], v["std"]])
             content += content_fmt.format(*cur_data)
+        
+        # TODO: add statistics on all data
 
         with open(self.directory/"rmse.dat", "w") as fopen:
             fopen.write(content)
@@ -202,9 +204,9 @@ class SinglepointValidator(AbstractValidator):
                 worker.directory = self.directory / prefix
                 worker.batchsize = nframes
 
-                worker._compact = False
+                worker._share_wdir = True
 
-                worker.run(ref_frames, use_wdir=True)
+                worker.run(ref_frames)
                 worker.inspect(resubmit=True)
                 if worker.get_number_of_running_jobs() == 0:
                     pred_frames = worker.retrieve(
