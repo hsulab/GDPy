@@ -168,9 +168,8 @@ class MonteCarlo():
         #       TODO: move this part to driver?
         cur_tags = self.atoms.get_tags()
 
-        #self.atoms.info["wdir"] = "cand0"
         self.atoms.info["confid"] = 0
-        self.atoms.info["step"] = None # NOTE: remove step info
+        self.atoms.info["step"] = -1 # NOTE: remove step info
 
         worker.driver = drivers["init"]
         _ = worker.run([self.atoms])
@@ -207,8 +206,8 @@ class MonteCarlo():
             energy_operated = energy_stored
             if cur_atoms is not None:
                 cur_tags = cur_atoms.get_tags()
-                cur_atoms.info["confid"] = f"{i}"
-                cur_atoms.info["step"] = None # NOTE: remove step info
+                cur_atoms.info["confid"] = int(f"{i}")
+                cur_atoms.info["step"] = -1 # NOTE: remove step info
                 _ = worker.run([cur_atoms])
                 cur_frames = worker.retrieve()
                 cur_atoms = cur_frames[0]
