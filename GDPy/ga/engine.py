@@ -359,41 +359,43 @@ class GeneticAlgorithemEngine():
 
         # --- check if there were finished jobs
         self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
-        self.worker.inspect()
+        self.worker.inspect(resubmit=True)
         print(self.worker.directory)
-        converged_candidates = self.worker.retrieve()
-        for cand in converged_candidates:
-            print(cand)
-            print(cand.info)
-            # TODO: use tags
-            # update extra info
-            extra_info = dict(
-                data = {},
-                key_value_pairs = {"extinct": 0}
-            )
-            cand.info.update(extra_info)
-            # get tags
-            confid = cand.info["confid"]
-            if self.use_tags:
-                rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
-                for row in rows:
-                    if row.formula:
-                        previous_atoms = row.toatoms(add_additional_information=True)
-                        previous_tags = previous_atoms.get_tags()
-                        self.pfunc(f"tags: {previous_tags}")
-                        break
-                else:
-                    raise RuntimeError(f"Cant find tags for cand {confid}")
-                cand.set_tags(previous_tags)
-            # evaluate raw score
-            self.evaluate_candidate(cand)
-            self.pfunc(f"  add relaxed cand {confid}")
-            self.pfunc("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
-            self.da.add_relaxed_step(
-                cand,
-                find_neighbors=self.find_neighbors,
-                perform_parametrization=self.perform_parametrization
-            )
+        if self.worker.get_number_of_running_jobs() == 0:
+            converged_candidates = self.worker.retrieve()
+            for cand in converged_candidates:
+                print(cand)
+                print(cand.info)
+                # update extra info
+                extra_info = dict(
+                    data = {},
+                    key_value_pairs = {"extinct": 0}
+                )
+                cand.info.update(extra_info)
+                # get tags
+                confid = cand.info["confid"]
+                if self.use_tags:
+                    rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
+                    for row in rows:
+                        if row.formula:
+                            previous_atoms = row.toatoms(add_additional_information=True)
+                            previous_tags = previous_atoms.get_tags()
+                            self.pfunc(f"tags: {previous_tags}")
+                            break
+                    else:
+                        raise RuntimeError(f"Cant find tags for cand {confid}")
+                    cand.set_tags(previous_tags)
+                # evaluate raw score
+                self.evaluate_candidate(cand)
+                self.pfunc(f"  add relaxed cand {confid}")
+                self.pfunc("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
+                self.da.add_relaxed_step(
+                    cand,
+                    find_neighbors=self.find_neighbors,
+                    perform_parametrization=self.perform_parametrization
+                )
+        else:
+            self.pfunc("Worker is unfinished.")
 
         return
     
