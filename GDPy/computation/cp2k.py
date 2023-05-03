@@ -48,11 +48,7 @@ def read_cp2k_xyz(fpath):
 
 
 def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
-    #parser = argparse.ArgumentParser()
-    #parser.add_argument("PREFIX", help="path with prefix such as ../prefix")
-    #args = parser.parse_args()
-    #p = pathlib.Path(args.PREFIX)
-    #wdir, prefix = p.parent, p.name
+    """"""
     wdir = pathlib.Path(wdir)
 
     # - positions
@@ -285,4 +281,15 @@ class Cp2kFileIO(FileIOCalculator):
 
 
 if __name__ == "__main__":
+    # TODO: add an interface in main
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-w", "--wdir", default="./")
+    parser.add_argument("-p", "--prefix", default="cp2k")
+    args = parser.parse_args()
+
+    wdir = pathlib.Path(args.wdir)
+    prefix = args.prefix
+    frames = read_cp2k_md_outputs(wdir, prefix)
+    write(wdir/f"{prefix}-MDtraj.xyz")
     ...
