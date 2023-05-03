@@ -55,7 +55,7 @@ class DriverSetting:
     Tdamp: float = 100. # fs
 
     press: float = 1.0 # bar
-    pend: float = 1.0 # bar
+    pend: float = None # bar
     Pdamp: float = 100.
 
     #: Shared parameters among tasks.
