@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import itertools
+import pathlib
 import time
 from typing import NoReturn, Union, List
 
@@ -17,9 +19,15 @@ from GDPy.computation.worker.drive import (
 @registers.operation.register
 class work(Operation):
 
-    def __init__(self, potter, driver, scheduler) -> NoReturn:
+    """Create a list of workers by necessary components (potter, drivers, and scheduler).
+    """
+
+    def __init__(self, potter, driver, scheduler, custom_wdirs=None, *args, **kwargs) -> NoReturn:
         """"""
         super().__init__([potter,driver,scheduler])
+
+        # Custom worker directories.
+        self.custom_wdirs = custom_wdirs
 
         return
     
@@ -27,10 +35,23 @@ class work(Operation):
         """"""
         super().forward()
 
+        # - check if there were custom wdirs, and zip longest
+        ndrivers = len(drivers)
+        if self.custom_wdirs is not None:
+            wdirs = [pathlib.Path(p) for p in self.custom_wdirs]
+        else:
+            wdirs = [self.directory/f"w{i}" for i in range(ndrivers)]
+        
+        nwdirs = len(wdirs)
+        assert (nwdirs==1 and ndrivers>=1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
+        pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
+
+        print("Custom wdirs: ", wdirs)
+
         # - create workers
         # TODO: broadcast potters, schedulers as well?
         workers = []
-        for i, driver_params in enumerate(drivers):
+        for wdir, driver_params in pairs:
             # workers share calculator in potter
             driver = potter.create_driver(driver_params)
             if scheduler.name == "local":
@@ -38,12 +59,38 @@ class work(Operation):
             else:
                 worker = QueueDriverBasedWorker(potter, driver, scheduler)
             # wdir is temporary as it may be reset by drive operation
-            worker.directory = self.directory / f"w{i}"
+            worker.directory = wdir
             workers.append(worker)
         
         self.status = "finished"
 
         return workers
+
+@registers.operation.register
+class zip_workers(Operation):
+
+    def __init__(self, *args, **kwargs) -> NoReturn:
+        """"""
+        worker_node = args[0]
+        self.target_wdirs = [pathlib.Path(p) for p in args[1:]]
+
+        super().__init__(worker_node)
+    
+    def forward(self, workers):
+        """"""
+        super().forward()
+
+        nworkers = len(workers)
+        assert nworkers == 1, "Zip can only apply on one worker."
+
+        worker = workers[0]
+
+        new_workers = []
+        for wdir in self.target_wdirs:
+            curr_worker = []
+            ...
+
+        return
 
 @registers.operation.register
 class distill(Operation):
@@ -178,6 +225,8 @@ class extract(Operation):
         # TODO: reconstruct trajs to List[List[Atoms]]
         self.workers = workers # for operations to access
         nworkers = len(workers)
+        self.pfunc(f"nworkers: {nworkers}")
+        print(self.workers)
         worker_status = [False]*nworkers
 
         trajectories = [] # List[List[List[Atoms]]], worker->candidate->trajectory
@@ -277,6 +326,8 @@ class separate(Operation):
             print("trj nframes: ", len(trj_frames))
         else:
             ...
+        
+        self.status = "finished"
 
         if self.return_end:
             return end_frames
