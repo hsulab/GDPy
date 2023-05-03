@@ -3,9 +3,11 @@
 
 import os
 import copy
+import dataclasses
 import time
 import shutil
 import warnings
+import pathlib
 from pathlib import Path
 from typing import List
 
@@ -16,7 +18,7 @@ from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.computation.driver import AbstractDriver
+from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.builder.constraints import parse_constraint_info
 
 
@@ -108,6 +110,76 @@ def read_laspset(train_structures):
 
     return frames
 
+@dataclasses.dataclass
+class LaspDriverSetting(DriverSetting):
+
+    def __post_init__(self):
+        """"""
+        if self.task == "min":
+            self._internals.update(
+                **{
+                    "explore_type": "ssw",
+                    "SSW.SSWsteps": 1, # BFGS
+                    "SSW.ftol": self.fmax
+                }
+            )
+            ...
+        
+        if self.task == "md":
+            if self.tend is None:
+                self.tend = self.temp
+            self._internals.update(
+                **{
+                    "explore_type": self.md_style,
+                    "Ranseed": self.velocity_seed,
+                    "MD.dt": self.timestep,
+                    "MD.initial_T": self.temp,
+                    "MD.target_T": self.tend,
+                    "nhmass": self.Tdamp,
+                    "MD.target_P": self.press,
+                    "MD.prmass": self.Pdamp,
+                }
+            )
+            ...
+
+        # - shared params
+
+        # - special params
+
+        return
+    
+    def get_run_params(self, *args, **kwargs):
+        """"""
+        steps_ = kwargs.get("steps", self.steps)
+        fmax_ = kwargs.get("fmax", self.fmax)
+
+        run_params = {
+            "constraint": kwargs.get("constraint", self.constraint),
+            "SSW.MaxOptstep": steps_
+        }
+
+        if self.task == "min":
+            run_params.update(
+                **{"SSW.ftol": fmax_}
+            )
+        
+        if self.task == "md":
+            timestep = self._internals["MD.dt"]
+            run_params.update(
+                **{
+                    "MD.ttotal": timestep*steps_,
+                    "MD.print_freq": self.dump_period*timestep, # freq has unit fs
+                    "MD.print_strfreq": self.dump_period*timestep
+                }
+            )
+
+        # - add extra parameters
+        run_params.update(
+            **kwargs
+        )
+
+        return run_params
+
 
 class LaspDriver(AbstractDriver):
 
@@ -119,76 +191,21 @@ class LaspDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    default_init_params = {
-        "min": {
-            "explore_type": "ssw",
-            #"SSW.SSWsteps": 1 # min_style
-            "min_style": 1, # SSW.SSWsteps
-            "dump_period": 1
-        },
-        "md": {
-            "md_style": "nvt",
-            "velocity_seed": None,
-            "timestep": 1.0, # fs
-            "temp": 300, # K
-            "Tdamp": 100, # fs
-            "pres": 1.0, # atm
-            "Pdamp": 100,
-            "dump_period": 1
-        }
-    }
-
-    default_run_params = {
-        "min": {
-            "SSW.ftol": 0.05,
-            "SSW.MaxOptstep": 0
-        },
-        "md": {
-            "SSW.MaxOptstep": 0
-        }
-    }
-
-    param_mapping = {
-        # - min
-        "min_style": "SSW.SSWsteps",
-        # - md
-        "md_style": "explore_type",
-        "timestep" : "MD.dt", # fs
-        "dump_period": "MD.print_freq", # for MD.print_strfreq as well
-        # MD.ttotal uses value equal SSW.MaxOptstep*MD.dt
-        "temp": "MD.target_T", # K
-        "Tdamp": "nhmass",
-        "pres": "MD.target_P",
-        "Pdamp": "MD.prmass",
-        "fmax": "SSW.ftol",
-        "steps": "SSW.MaxOptstep",
-        "velocity_seed": "Ranseed"
-    }
-
     #: List of output files would be saved when restart.
     saved_cards = ["allstr.arc", "allfor.arc"]
 
-    def _parse_params(self, params: dict):
-        """Set several connected parameters."""
-        super()._parse_params(params)
+    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+        """"""
+        self.calc = calc
+        self.calc.reset()
 
-        return 
+        self._directory = pathlib.Path(directory)
 
-    def __set_special_params(self, params: dict) -> dict:
-        """Set several connected parameters."""
-        if self.task == "md":
-            total_time = params.get("MD.ttotal", None)
-            if total_time is None:
-                params["MD.ttotal"] = params["MD.dt"]*params["SSW.MaxOptstep"]
-        
-            init_temp = params.get("MD.initial_T", None)
-            if init_temp is None:
-                params["MD.initial_T"] = params["MD.target_T"]
+        self._org_params = copy.deepcopy(params)
 
-            params["MD.print_freq"] *= params["MD.dt"] # freq has unit fs
-            params["MD.print_strfreq"] = params["MD.print_freq"]
+        self.setting = LaspDriverSetting(**params)
 
-        return params
+        return
 
     def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
         """Run the driver."""
@@ -202,16 +219,9 @@ class LaspDriver(AbstractDriver):
         self.delete_keywords(kwargs)
         self.delete_keywords(self.calc.parameters)
 
-        # - run params
-        kwargs = self._map_params(kwargs)
-
-        run_params = self.run_params.copy()
-        run_params.update(kwargs)
-
         # - init params
-        run_params.update(**self.init_params)
-
-        run_params = self.__set_special_params(run_params)
+        run_params = self.setting.get_init_params()
+        run_params.update(**self.setting.get_run_params(**kwargs))
 
         self.calc.set(**run_params)
         atoms.calc = self.calc
