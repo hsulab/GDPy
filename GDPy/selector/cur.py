@@ -187,9 +187,9 @@ def hist_selection(
 
     groups = [[] for i in range(nbins)]
     for i, i_bin in enumerate(bin_indices):
-        if i_bin > nbins:
-            i_bin = nbins
-        groups[i_bin-1].append(i)
+        # dump prop not in pmin and pmax
+        if i_bin <= nbins:
+            groups[i_bin-1].append(i)
     hist_by_digit = np.array([len(x) for x in groups])
     #print(hist_by_digit)
 
@@ -200,13 +200,18 @@ def hist_selection(
     for i in range(num_minima):
         # -- select bin
         cur_hists_ = np.array([len(x) for x in cur_groups_])
-        #print("hist: ", cur_hists_)
-        cur_probs_ = cur_hists_ / np.sum(cur_hists_)
-        s_bin = rng.choice(nbins, 1, p=cur_probs_, replace=False)[0]
-        # -- select index in the bin
-        s_ind = rng.choice(cur_hists_[s_bin], 1, replace=False)[0]
-        selected_groups[s_bin].append(cur_groups_[s_bin][s_ind])
-        del cur_groups_[s_bin][s_ind]
+        curr_npoints = np.sum(cur_hists_)
+        if curr_npoints > 0:
+            #print("hist: ", cur_hists_)
+            cur_probs_ = cur_hists_ / np.sum(cur_hists_)
+            s_bin = rng.choice(nbins, 1, p=cur_probs_, replace=False)[0]
+            # -- select index in the bin
+            s_ind = rng.choice(cur_hists_[s_bin], 1, replace=False)[0]
+            selected_groups[s_bin].append(cur_groups_[s_bin][s_ind])
+            del cur_groups_[s_bin][s_ind]
+        else:
+            # Not enough data points for num_minima
+            break
     #print([len(x) for x in selected_groups])
 
     # - select points
