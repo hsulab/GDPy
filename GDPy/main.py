@@ -67,6 +67,10 @@ def main():
         "-e", "--entry", default="",
         help="placeholder definitions"
     )
+    parser_session.add_argument(
+        "-l", "--label", default=None,
+        help="label the session name"
+    )
     
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -260,7 +264,7 @@ def main():
         run_trainer(potter, args.directory)
     elif args.subcommand == "session":
         from GDPy.core.session import run_session
-        run_session(args.SESSION, args.names, args.entry, args.directory)
+        run_session(args.SESSION, args.names, args.entry, args.directory, args.label)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)

@@ -123,7 +123,7 @@ def create_operation(op_name, op_params_: dict):
 
     return op_func, op_params
 
-def create_session(session_params, phs_params, nodes_params, ops_params, temp_nodes, directory="./"):
+def create_session(session_params, phs_params, nodes_params, ops_params, temp_nodes, directory="./", label=None):
     """"""
     directory = pathlib.Path(directory)
 
@@ -162,7 +162,7 @@ def create_session(session_params, phs_params, nodes_params, ops_params, temp_no
 
     return session, out, placeholders
 
-def run_session(config_filepath, custom_session_names=None, entry_string: str=None, directory="./"):
+def run_session(config_filepath, custom_session_names=None, entry_string: str=None, directory="./", label=None):
     """Run a session based on user-defined input.
 
     Read definitions of nodes and operations from the file and placeholders from
@@ -197,11 +197,18 @@ def run_session(config_filepath, custom_session_names=None, entry_string: str=No
     ops_params = session_config.get("operations", None)
     sessions_params = session_config.get("sessions", None)
 
+    # - try use session label
+    nsessions = len(sessions_params)
+    if label is not None:
+        assert nsessions == 1, f"Label can be used for only one session."
+
     # - create sessions
     temp_nodes = {} # intermediate nodes, shared among sessions
 
     sessions = {}
     for name, cur_params in sessions_params.items():
+        if label is not None:
+            name = label
         sessions[name] = create_session(
             cur_params, phs_params, nodes_params, ops_params, temp_nodes,
             directory=directory/name
