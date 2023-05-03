@@ -54,13 +54,15 @@ class Session:
             elif isinstance(node, Variable):
                 node.output = node.value
             else: # Operation
-                node.inputs = [input_node.output for input_node in node.input_nodes]
-
-                # TODO: if output exists, not forward?
-                node.output = node.forward(*node.inputs)
-                if node.status != "finished":
-                    print(f"node is still forwarding! Try later!")
-                    break
+                if node.preward():
+                    node.inputs = [input_node.output for input_node in node.input_nodes]
+                    node.output = node.forward(*node.inputs)
+                    #if node.status != "finished":
+                    #    print(f"node is still forwarding! Try later!")
+                    #    break
+                else:
+                    print("wait previous nodes to finish...")
+                    continue
 
         return
 

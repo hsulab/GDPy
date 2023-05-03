@@ -12,6 +12,9 @@ class Variable:
     #: Working directory for the operation.
     _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
 
+    #: Working status that should be always finished.
+    status = "finished"
+
     def __init__(self, initial_value=None):
         """"""
         self.value = initial_value

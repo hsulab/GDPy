@@ -14,7 +14,7 @@ class Operation(abc.ABC):
     _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
 
     #: Whether re-compute this operation
-    status: str = "unfinished"
+    status: str = "unfinished" # ["unfinished", "ready", "wait", "finished"]
 
     #: Whether re-compute this operation.
     restart: bool = False
@@ -82,10 +82,20 @@ class Operation(abc.ABC):
         #fh.setFormatter(formatter)
 
         return
+    
+    def preward(self) -> bool:
+        """Check whether this operation is ready to forward."""
+        # - check input nodes' status
+        status = [node.status == "finished" for node in self.input_nodes]
+        if all(status):
+            return True
+        else:
+            return False
 
     @abc.abstractmethod
     def forward(self):
         """"""
+        # - set working directory and logger
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
         
@@ -93,7 +103,6 @@ class Operation(abc.ABC):
         if hasattr(self, "logger") is not None:
             self.pfunc = self.logger.info
         self.pfunc(f"@@@{self.__class__.__name__}")
-
 
         return
 
