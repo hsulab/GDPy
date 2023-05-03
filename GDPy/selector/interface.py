@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import itertools
 import pathlib
 from typing import Union, List, NoReturn
 
+from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.variable import Variable
@@ -15,6 +17,27 @@ from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.invariant import InvariantSelector
 from GDPy.selector.composition import ComposedSelector
 
+
+def get_dataset_type(dataset):
+    """"""
+    # - determine the type of the input dataset by dimension
+    d = 0
+    curr_data_ = dataset
+    while True:
+        if isinstance(curr_data_, Atoms):
+            break
+        else: # List
+            curr_data_ = curr_data_[0]
+            d += 1
+    
+    if d == 3:
+        return "workers" # worker - candidate - trajectory
+    elif d == 2:
+        return "trajectories" # candidate - trajectory
+    elif d == 1:
+        return "frames" # One trajectory
+    else:
+        raise RuntimeError(f"Unknown type of dataset with dimension {d}.")
 
 @registers.variable.register
 class SelectorVariable(Variable):
@@ -28,11 +51,19 @@ class SelectorVariable(Variable):
 @registers.operation.register
 class select(Operation):
 
-    cached_fname = "selected_frames.xyz"
+    cache_fname = "selected_frames.xyz"
 
-    def __init__(self, frames, selector):
+    def __init__(self, frames, selector, merge_workers=True, only_end=True, only_traj=False, traj_period=10, *args, **kwargs):
         """"""
         super().__init__([frames,selector])
+
+        # - These params apply to input as List[List[Atoms]]
+        self.merger_workers = merge_workers
+        self.only_end = only_end
+        self.only_traj = only_traj
+        self.traj_period = traj_period
+
+        assert (self.only_end and not self.only_traj) or (not self.only_end and self.only_traj), "Conflicts in only_end and only_traj."
 
         return
     
@@ -43,20 +74,38 @@ class select(Operation):
 
         return
     
-    def forward(self, frames, selector: AbstractSelector):
+    def forward(self, dataset, selector: AbstractSelector):
         """"""
         super().forward()
 
+        curr_dataset, dataset_type = dataset, None
+        while dataset_type != "frames":
+            dataset_type = get_dataset_type(curr_dataset)
+            if dataset_type == "workers":
+                # merge workers
+                curr_dataset = list(itertools.chain(*curr_dataset))
+            elif dataset_type == "trajectories":
+                if self.only_end:
+                    curr_dataset = [t[-1] for t in curr_dataset]
+                if self.only_traj:
+                    curr_dataset = [t[1:-1:self.traj_period] for t in curr_dataset]
+                    curr_dataset = list(itertools.chain(*curr_dataset))
+            elif dataset_type == "frames":
+                ...
+            else:
+                ...
+        frames = curr_dataset
+
         selector.directory = self.directory
 
-        cached_fpath = self.directory/self.cached_fname
-        if not cached_fpath.exists():
+        cache_fpath = self.directory/self.cache_fname
+        if not cache_fpath.exists():
             new_frames = selector.select(frames)
-            write(cached_fpath, new_frames)
+            write(cache_fpath, new_frames)
         else:
-            new_frames = read(cached_fpath, ":")
+            new_frames = read(cache_fpath, ":")
         self.pfunc(f"nframes: {len(new_frames)}")
-
+        
         self.status = "finished"
 
         return new_frames
