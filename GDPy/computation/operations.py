@@ -43,7 +43,7 @@ class work(Operation):
             wdirs = [self.directory/f"w{i}" for i in range(ndrivers)]
         
         nwdirs = len(wdirs)
-        assert (nwdirs==1 and ndrivers>=1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
+        assert (nwdirs==ndrivers and ndrivers>1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
         pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
 
         print("Custom wdirs: ", wdirs)
