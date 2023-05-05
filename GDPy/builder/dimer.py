@@ -9,29 +9,29 @@ import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
 
-from GDPy.builder.builder import StructureGenerator
+from GDPy.core.register import registers
+from GDPy.builder.builder import StructureBuilder
 
 
-class DimerGenerator(StructureGenerator):
+@registers.builder.register
+class DimerBuilder(StructureBuilder):
 
-    def __init__(self, params, directory=Path.cwd(), *args, **kwargs):
+    def __init__(self, elements: List[str], distances: List[float]=[0.8,2.5,0.05], directory=Path.cwd(), *args, **kwargs):
         """"""
         super().__init__(directory, *args, **kwargs)
 
-        self.elements = params.get("elements", None)
-        assert self.elements, "DimerGenerator needs elements as a param."
-        assert len(self.elements) == 2, "DimerGenerator needs two chemical symbols as elements."
+        self.elements = elements
+        assert len(self.elements) == 2, "DimerBuilder needs two chemical symbols as elements."
 
-        self.number = params.get("number", 21)
-        self.distance = params.get("distance", [0.8, 2.8])
-        assert len(self.distance) == 2, "DimerGenerator needs min and max for the distance."
+        self.distances = distances
+        assert len(self.distances) == 3, "DimerBuilder needs min, max and intv for the distance."
 
         return
 
     def run(self, *args, **kwargs) -> List[Atoms]:
         """"""
-        dmin, dmax = self.distance
-        distances = np.linspace(dmin, dmax, self.number)
+        dmin, dmax, intv = self.distances
+        distances = np.arange(dmin, dmax+intv, intv)
 
         frames = []
         for dis in distances:
@@ -41,7 +41,7 @@ class DimerGenerator(StructureGenerator):
                     [0., 0., 0.],
                     [0., 0., dis]
                 ],
-                cell = 10.*np.eye(3),
+                cell = 20.*np.eye(3),
                 pbc=[True,True,True]
             )
             atoms.set_constraint(FixAtoms(indices=[0]))
@@ -51,4 +51,4 @@ class DimerGenerator(StructureGenerator):
 
 
 if __name__ == "__main__":
-    pass
+    ...

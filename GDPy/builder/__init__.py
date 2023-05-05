@@ -6,7 +6,7 @@ from typing import Union, List
 
 from GDPy.builder.direct import DirectBuilder
 from GDPy.builder.species import FormulaBasedGenerator
-from GDPy.builder.dimer import DimerGenerator
+from GDPy.builder.dimer import DimerBuilder
 from GDPy.builder.builder import StructureGenerator
 from GDPy.builder.randomBuilder import RandomGenerator
 from GDPy.builder.adsorbate import AdsorbateGraphGenerator
@@ -41,7 +41,7 @@ def create_generator(params: Union[str, dict]) -> StructureGenerator:
     elif method == "formula":
         generator = FormulaBasedGenerator(**params)
     elif method == "dimer":
-        generator = DimerGenerator(params)
+        generator = DimerBuilder(params)
     elif method == "random":
         generator = RandomGenerator(params)
     elif method == "adsorbate":
@@ -82,7 +82,7 @@ def create_generators(params: Union[str, dict]) -> List[StructureGenerator]:
         elif method == "formula":
             generator = FormulaBasedGenerator(**params)
         elif method == "dimer":
-            generator = DimerGenerator(params)
+            generator = DimerBuilder(params)
         elif method == "random":
             generator = RandomGenerator(params)
         elif method == "adsorbate":
