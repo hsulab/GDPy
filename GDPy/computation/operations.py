@@ -159,6 +159,7 @@ class drive(Operation):
             self.pfunc(f"run worker {i} for {nframes} nframes")
             if not flag_fpath.exists():
                 worker.run(frames)
+                worker.inspect(resubmit=True) # if not running, resubmit
                 if worker.get_number_of_running_jobs() == 0:
                     with open(flag_fpath, "w") as fopen:
                         fopen.write(
@@ -166,8 +167,6 @@ class drive(Operation):
                         )
                     worker_status.append(True)
                 else:
-                    # if not running, resubmit
-                    worker.inspect(resubmit=True)
                     worker_status.append(False)
             else:
                 with open(flag_fpath, "r") as fopen:
