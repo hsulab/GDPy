@@ -27,34 +27,8 @@ from GDPy.computation.utils import make_clean_atoms
 from GDPy.utils.comparasion import parity_plot_dict, rms_dict
 
 from GDPy.core.register import registers
+from GDPy.validator.utils import get_properties
 
-def get_properties(frames: List[Atoms], other_props = []):
-    """Get properties of frames for comparison.
-
-    Currently, only total energy and forces are considered.
-
-    Returns:
-        tot_symbols: shape (nframes,)
-        tot_energies: shape (nframes,)
-        tot_forces: shape (nframes,3)
-
-    """
-    tot_symbols, tot_energies, tot_forces = [], [], []
-
-    for atoms in frames: # free energy per atom
-        # -- basic info
-        symbols = atoms.get_chemical_symbols()
-        tot_symbols.extend(symbols)
-
-        # -- energy
-        energy = atoms.get_potential_energy() 
-        tot_energies.append(energy)
-
-        # -- force
-        forces = atoms.get_forces(apply_constraint=False)
-        tot_forces.extend(forces.tolist())
-
-    return tot_symbols, tot_energies, tot_forces
 
 def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
     """Plots the distribution of energy per atom on the output vs the input."""
@@ -191,7 +165,6 @@ class SinglepointValidator(AbstractValidator):
         """"""
         # - read structures
         ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
-
         nframes = len(ref_frames)
         ref_natoms = [len(a) for a in ref_frames]
 
