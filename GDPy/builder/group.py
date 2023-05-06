@@ -81,7 +81,7 @@ def create_a_group(atoms: Atoms, group_command: str) -> List[int]:
     #print(group_command)
     if isinstance(group_command, str):
         args = group_command.strip().split()
-        assert args[0] in ["index", "id", "region", "symbol"], f"{args[0]} is not implemented."
+        assert args[0] in ["index", "id", "region", "symbol", "tag"], f"{args[0]} is not implemented."
         nargs = len(args)
     else: # indices
         assert isinstance(group_command, list), "group command is not a list of int."
@@ -119,6 +119,12 @@ def create_a_group(atoms: Atoms, group_command: str) -> List[int]:
         for i, a in enumerate(atoms):
             if a.symbol in selected_symbols:
                 group_indices.append(i)
+    
+    # - tag
+    if args[0] == "tag":
+        tag_indices = [int(i) for i in args[1:]]
+        tags = atoms.get_tags()
+        group_indices = [i for (i,t) in enumerate(tags) if t in tag_indices]
 
     return group_indices
 
