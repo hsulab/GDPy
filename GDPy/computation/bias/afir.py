@@ -10,6 +10,7 @@ from jax import grad, jit
 
 from ase import Atoms
 from ase.data import covalent_radii
+from ase.calculators.calculator import Calculator
 
 from GDPy.builder.group import create_a_group
 
@@ -23,13 +24,10 @@ eps_afir = 1.0061 / 96.485
 def force_function(
     positions, covalent_radii, pair_indices, 
     pair_shifts, # in cartesian, AA
-    gamma=2.5
+    gamma=2.5, r0=3.8164, epsilon=eps_afir
 ):
     """AFIR function."""
     bias = 0.0
-    # collision coef
-    r0 = 3.8164 # Ar-Ar LJ
-    epsilon = 1.0061 / 96.485
     alpha = gamma/((2**(-1/6)-(1+(1+gamma/epsilon)**0.5)**(-1/6))*r0)
 
     # inverse distance weights
@@ -101,6 +99,66 @@ class AFIRBias():
         )
 
         return ext_forces
+
+
+class AFIRCalculator(Calculator):
+
+    implemented_properties = ["energy", "free_energy","forces"]
+
+    default_parameters = dict(
+        gamma = 2.5, # eV,
+        r0 = 3.8164, # Ar-Ar LJ
+        epsilon = eps_afir,
+        groups = None
+    )
+    
+    def __init__(self, restart=None, label=None, atoms=None, directory='.', **kwargs):
+        """"""
+        super().__init__(restart=restart, label=label, atoms=atoms, directory=directory, **kwargs)
+        print("params: ", self.parameters)
+
+        return
+    
+    def calculate(self, atoms=None, properties=["energy"], system_changes=["positions","numbers","cell"]):
+        """"""
+        super().calculate(atoms, properties, system_changes)
+
+        # - get constants
+        atomic_numbers = atoms.get_atomic_numbers()
+        atomic_radii = np.array([covalent_radii[i] for i in atomic_numbers])
+
+        # - find reactive groups
+        groups = []
+        for group_command in self.parameters["groups"]:
+            curr_group = create_a_group(atoms, group_command)
+            assert len(curr_group) > 0, f"No atoms in group {group_command}."
+            groups.append(curr_group)
+        frag_indices = groups
+        #print("groups: ", groups)
+
+        pair_indices = list(product(*frag_indices))
+        pair_indices = np.array(pair_indices).transpose()
+        pair_shifts = np.zeros((pair_indices.shape[1],3)) # TODO: ...
+
+        ext_energy = force_function(
+            atoms.positions, atomic_radii, 
+            pair_indices, pair_shifts, self.parameters["gamma"],
+            self.parameters["r0"], self.parameters["epsilon"]
+        )
+        ext_energy = float(ext_energy)
+        self.results["energy"] = ext_energy
+        self.results["free_energy"] = ext_energy
+        #print("ext_energy: ", ext_energy)
+
+        ext_forces = -dfn(
+            atoms.positions, atomic_radii, 
+            pair_indices, pair_shifts, self.parameters["gamma"],
+            self.parameters["r0"], self.parameters["epsilon"]
+        )
+        self.results["forces"] = ext_forces
+        #print("ext_forces", ext_forces)
+
+        return
 
 
 if __name__ == "__main__":
