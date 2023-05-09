@@ -4,7 +4,7 @@
 import abc
 import copy
 import pathlib
-from typing import NoReturn, Union
+from typing import NoReturn, Union, Callable
 
 import numpy as np
 
@@ -20,7 +20,7 @@ class AbstractNode(abc.ABC):
     _directory: pathlib.Path = "./"
 
     #: Standard print function.
-    _print = print
+    _print: Callable = print
 
     #: Default parameters.
     default_parameters: dict = dict()
