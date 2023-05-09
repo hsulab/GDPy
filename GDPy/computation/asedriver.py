@@ -23,6 +23,7 @@ from ase.md.velocitydistribution import (
 )
 
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.calculators.mixing import MixedCalculator
 
 from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.computation.bias import create_bias_list
@@ -53,19 +54,24 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
 
 def save_trajectory(atoms, log_fpath) -> NoReturn:
     """Create a clean atoms from the input and save simulation trajectory."""
-    atoms_ = Atoms(
-        symbols=atoms.get_chemical_symbols(),
-        positions=atoms.get_positions().copy(),
-        cell=atoms.get_cell().copy(),
-        pbc=copy.deepcopy(atoms.get_pbc())
-    )
+    #atoms_ = Atoms(
+    #    symbols=atoms.get_chemical_symbols(),
+    #    positions=atoms.get_positions().copy(),
+    #    cell=atoms.get_cell().copy(),
+    #    pbc=copy.deepcopy(atoms.get_pbc())
+    #)
+    #results = dict(
+    #    energy = atoms.get_potential_energy(),
+    #    forces = copy.deepcopy(atoms.get_forces())
+    #)
+    #spc = SinglePointCalculator(atoms, **results)
+    #atoms_.calc = spc
+    atoms_ = atoms
 
-    results = dict(
-        energy = atoms.get_potential_energy(),
-        forces = copy.deepcopy(atoms.get_forces())
-    )
-    spc = SinglePointCalculator(atoms, **results)
-    atoms_.calc = spc
+    calc = atoms_.calc
+    if isinstance(calc, MixedCalculator):
+        atoms_.info["energy_contributions"] = copy.deepcopy(calc.results["energy_contributions"])
+        atoms_.arrays["force_contributions"] = copy.deepcopy(calc.results["force_contributions"])
 
     write(log_fpath, atoms_, append=True)
 
@@ -321,6 +327,8 @@ class AseDriver(AbstractDriver):
                 new_atoms.info.update(**extra_info)
             # TODO: set a hard limit of min steps
             #       since some terrible structures may not converged anyway
+            if not new_atoms.info.get("scf_convergence", True):
+                warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
             if not converged:
                 warnings.warn(f"{self.name} at {self.directory} failed to converge.", RuntimeWarning)
         else:
@@ -410,7 +418,7 @@ class AseDriver(AbstractDriver):
             trajectory = self.read_trajectory(add_step_info=True)
             converged = self.read_convergence(trajectory, run_params)
         except Exception as e:
-            print(e)
+            print(f"Exception of {self.__class__.__name__} is {e}.")
         print(f"{self.name} {self.directory}")
         print("converged: ", converged)
 

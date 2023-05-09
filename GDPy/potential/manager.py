@@ -27,6 +27,8 @@ class AbstractPotentialManager(abc.ABC):
     valid_combinations = []
 
     _calc = None
+    modifier = None
+
     _scheduler = None
 
     _estimator = None
@@ -59,13 +61,39 @@ class AbstractPotentialManager(abc.ABC):
     
     @abc.abstractmethod
     def register_calculator(self, calc_params, *agrs, **kwargs):
-        """ register calculator
+        """Register the host calculator.
         """
         self.calc_backend = calc_params.pop("backend", self.name)
         if self.calc_backend not in self.implemented_backends:
             raise RuntimeError(f"Unknown backend for potential {self.name}")
 
         self.calc_params = copy.deepcopy(calc_params)
+
+        # - check if there were any modifiers
+        modifier_params = calc_params.pop("modifier", None)
+        if modifier_params is not None:
+            self.register_modifier(modifier_params)
+
+        return
+    
+    def register_modifier(self, params, *args, **kwargs):
+        """Register a modifier.
+       
+        The modifier is also a calculator but it usually works as an add-on to slightly
+        change the host calculator. The modifier will be mixed with the host driver when
+        creating the driver by using ase Mixer or driver built-in.
+
+        """
+        params = copy.deepcopy(params)
+        backend = params.pop("backend", "plumed")
+        if backend == "plumed":
+            ...
+        elif backend == "afir":
+            from GDPy.computation.bias.afir import AFIRCalculator
+            modifier = AFIRCalculator(**params)
+        else:
+            ...
+        self.modifier = modifier
 
         return
 
@@ -123,14 +151,17 @@ class AbstractPotentialManager(abc.ABC):
 
         if dynamics == "ase":
             from GDPy.computation.asedriver import AseDriver as driver_cls
-            if bias_params is not None:
-                from GDPy.computation.asedriver import BiasedAseDriver as driver_cls
         elif dynamics == "lammps":
             from GDPy.computation.lammps import LmpDriver as driver_cls
         elif dynamics == "lasp":
             from GDPy.computation.lasp import LaspDriver as driver_cls
         elif dynamics == "vasp":
             from GDPy.computation.vasp import VaspDriver as driver_cls
+
+        # -- add PES modifier (BIAS) to the host PES
+        if self.modifier is not None:
+            from GDPy.computation.mixer import AddonCalculator
+            calc = AddonCalculator(self.calc, self.modifier, 1., 1.)
 
         driver = driver_cls(calc, merged_params, directory=calc.directory)
         driver.pot_params = self.as_dict()
