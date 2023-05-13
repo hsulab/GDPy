@@ -62,6 +62,9 @@ class registers:
     #: Modifiers.
     modifier: Register = Register("modifier")
 
+    #: Reactors.
+    reactor: Register = Register("reactor")
+
     #: Selectors.
     selector: Register = Register("selector")
 
@@ -93,7 +96,7 @@ class registers:
         return instance
 
 
-VALIDATOR_MODULES = ["singlepoint"]
+VALIDATOR_MODULES = ["singlepoint", "dimer"]
 DATA_OPS = ["operations"]
 
 ALL_MODULES = [
@@ -101,9 +104,11 @@ ALL_MODULES = [
     # -- managers (potentials)
     ("GDPy.potential.managers", ["vasp", "cp2k", "xtb", "reax", "eann", "deepmd", "lasp", "nequip"]),
     # -- builders
-    ("GDPy.builder", ["direct", "species"]),
+    ("GDPy.builder", ["direct", "dimer", "species"]),
     # -- modifiers
     ("GDPy.builder", ["perturbator"]),
+    # -- reactors
+    ("GDPy.reactor", ["afir"]),
     # -- validators
     ("GDPy.validator", VALIDATOR_MODULES),
     # - session operations.
