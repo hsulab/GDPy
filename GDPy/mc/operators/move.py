@@ -13,47 +13,35 @@ from ase.ga.utilities import closest_distances_generator
 from GDPy.builder.group import create_a_group
 from GDPy.builder.species import build_species
 
+from GDPy.mc.operators.operator import AbstractOperator
 
-class MoveOperator():
 
-    MAX_RANDOM_ATTEMPTS = 1000
+class MoveOperator(AbstractOperator):
 
-    pfunc = print
-
-    #: Name of current species to operate.
-    _curr_species: str = None
 
     def __init__(
-        self, group: str, temperature: float=300., pressure: float=1.,
-        covalent_ratio=[0.8,2.0], max_disp: float=2.0, use_rotation: bool=True
+        self, particles: List[str]=None, region: dict={}, temperature: float=300., pressure: float=1.,
+        covalent_ratio=[0.8,2.0], max_disp: float=2.0, use_rotation: bool=True,
+        *args, **kwargs
     ):
         """"""
-        self.group = group # atom index or tag
+        super().__init__(
+            region=region, temperature=temperature, pressure=pressure, 
+            covalent_ratio=covalent_ratio, use_rotation=use_rotation,
+            *args, **kwargs
+        )
 
-        # - thermostat
-        self.temperature = temperature
-        self.pressure = pressure
-
-        # - close check
-        self.covalent_min = covalent_ratio[0]
-        self.covalent_max = covalent_ratio[1]
+        self.particles = particles
 
         self.max_disp = max_disp
-        self.use_rotation = use_rotation
 
         return
     
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
-        # - pick an atom
-        #   either index of an atom or tag of an moiety
-        group_indices = create_a_group(atoms, self.group)
-        if len(group_indices) == 0:
-            idx_pick = None
-        else:
-            idx_pick = rng.choice(group_indices, 1)
-        self.pfunc(f"move idx: {idx_pick}")
-        # TODO: if use tag, return all indices in the tag
+        super().run(atoms)
+
+        species_indices = self._select_species(atoms, self.particles, rng=rng)
 
         # - basic
         cur_atoms = atoms.copy() # TODO: use clean atoms?
@@ -75,11 +63,10 @@ class MoveOperator():
         )
 
         # - find tag atoms
-        # record original position of idx_pick
-        species = cur_atoms[idx_pick]
-        self._curr_species = species.get_chemical_formula()
+        # record original position of species_indices
+        species = cur_atoms[species_indices]
 
-        #org_pos = new_atoms[idx_pick].position.copy() # original position
+        #org_pos = new_atoms[species_indices].position.copy() # original position
         # TODO: deal with pbc, especially for move step
         org_com = np.mean(species.positions, axis=0)
         org_positions = species.positions.copy()
@@ -91,26 +78,21 @@ class MoveOperator():
                 rvec = 2*rng.uniform(size=3) - 1.0
                 rsq = np.linalg.norm(rvec)
             ran_pos = org_com + rvec*self.max_disp
-            # -- make a copy
-            species_ = species.copy()
-            # -- Apply a random rotation to multi-atom blocks
-            if self.use_rotation and len(idx_pick) > 1:
-                phi, theta, psi = 360 * self.rng.uniform(0,1,3)
-                species_.euler_rotate(
-                    phi=phi, theta=0.5 * theta, psi=psi,
-                    center=org_com
-                )
-            # -- Apply translation
-            new_vec = ran_pos - org_com
+            # -- make a copy and rotate
+            species_ = self._rotate_species(species, rng=rng)
+            curr_cop = np.average(species_.positions, axis=0)
+            # -- translate
+            new_vec = ran_pos - curr_cop
             species_.translate(new_vec)
-            cur_atoms.positions[idx_pick] = species_.positions.copy()
+            cur_atoms.positions[species_indices] = species_.positions.copy()
             # use neighbour list
-            if not self.check_overlap_neighbour(nl, cur_atoms, cell, idx_pick):
-                self.pfunc(f"succeed to random after {i+1} attempts...")
-                self.pfunc(f"original position: {org_com}")
-                self.pfunc(f"random position: {ran_pos}")
+            if not self.check_overlap_neighbour(nl, cur_atoms, cell, species_indices):
+                self._print(f"succeed to random after {i+1} attempts...")
+                self._print(f"original position: {org_com}")
+                self._print(f"random position: {ran_pos}")
+                self._print(f"actual position: {np.average(atoms.positions[species_indices], axis=0)}")
                 break
-            cur_atoms.positions[idx_pick] = org_positions
+            cur_atoms.positions[species_indices] = org_positions
         else:
             cur_atoms = None
 
@@ -128,10 +110,10 @@ class MoveOperator():
         overlapped = False
         nl.update(new_atoms)
         for idx_pick in species_indices:
-            self.pfunc(f"- check index {idx_pick}")
+            self._print(f"- check index {idx_pick}")
             indices, offsets = nl.get_neighbors(idx_pick)
             if len(indices) > 0:
-                self.pfunc(f"nneighs: {len(indices)}")
+                self._print(f"nneighs: {len(indices)}")
                 # should close to other atoms
                 for ni, offset in zip(indices, offsets):
                     dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, cell)))
@@ -143,9 +125,8 @@ class MoveOperator():
                         break
             else:
                 # TODO: is no neighbours valid?
-                self.pfunc("no neighbours, being isolated...")
+                self._print("no neighbours, being isolated...")
                 overlapped = True
-                # TODO: try rotate?
                 break
 
         return overlapped
@@ -164,14 +145,14 @@ class MoveOperator():
         #    self.acc_volume, len(self.tag_list[expart]), cubic_wavelength, coef
         #)
         content = "\nVolume %.4f Beta %.4f Coefficient %.4f\n" %(
-            0., beta, coef
+            self.region.get_volume(), beta, coef
         )
         content += "Energy Difference %.4f [eV]\n" %ene_diff
         content += "Accept Ratio %.4f\n" %acc_ratio
-        self.pfunc(content)
+        self._print(content)
 
         rn_move = rng.uniform()
-        self.pfunc(f"{self.__class__.__name__} Probability %.4f" %rn_move)
+        self._print(f"{self.__class__.__name__} Probability %.4f" %rn_move)
 
         return rn_move < acc_ratio
     
@@ -187,8 +168,8 @@ class MoveOperator():
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"max disp: {self.max_disp}\n"
-        content += f"group: \n"
-        content += f"  {self.group}\n"
+        content += f"particles: \n"
+        content += f"  {self.particles}\n"
 
         return content
 

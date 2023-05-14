@@ -41,6 +41,7 @@ def parse_operators(op_params: dict):
         probs.append(prob)
     
     # - reweight probabilities
+    probs = (np.array(probs) / np.sum(probs)).tolist()
 
     return operators, probs
 

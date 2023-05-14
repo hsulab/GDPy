@@ -15,17 +15,14 @@ from ase.ga.utilities import closest_distances_generator
 
 from GDPy.builder.group import create_a_group
 from GDPy.builder.species import build_species
-from GDPy.builder.region import create_a_region
+
+from GDPy.mc.operators.operator import AbstractOperator
 
 
-class ExchangeOperator():
-
-    MAX_RANDOM_ATTEMPTS = 1000
+class ExchangeOperator(AbstractOperator):
 
     MIN_RANDOM_TAG = 10000
     MAX_RANDOM_TAG = 100000
-
-    pfunc = print
 
     #: 
     _curr_operation = None # insert or remove
@@ -37,29 +34,24 @@ class ExchangeOperator():
     def __init__(
         self, region: str, reservoir: dict, temperature: float=300., pressure: float=1.,
         covalent_ratio=[0.8,2.0], max_disp: float=2.0, use_rotation: bool=True,
-        use_bias: bool=True
+        use_bias: bool=True, *args, **kwargs
     ):
         """"""
-        self.region = create_a_region(region)
+        super().__init__(
+            region=region, temperature=temperature, pressure=pressure, 
+            covalent_ratio=covalent_ratio, use_rotation=use_rotation,
+            *args, **kwargs
+        )
 
         self.species = reservoir["species"]
         self.mu = reservoir["mu"]
 
-        # - thermostat
-        self.temperature = temperature
-        self.pressure = pressure
-
-        # - close check
-        self.covalent_min = covalent_ratio[0]
-        self.covalent_max = covalent_ratio[1]
-
         self.max_disp = max_disp
-        self.use_rotation = use_rotation
         self.use_bias = use_bias
 
         return
     
-    def _insert(self, atoms_, tags_dict, species: str, rng):
+    def _insert(self, atoms_, species: str, rng):
         """"""
         atoms = atoms_.copy()
 
@@ -110,25 +102,18 @@ class ExchangeOperator():
         org_positions = species.positions.copy()
 
         for i in range(self.MAX_RANDOM_ATTEMPTS):
-            # BUG: GET A RANDOM POSITION INTHE REGION!!!
-            ran_frac_pos = rng.uniform(0,1,3)
             # - make a copy
-            species_ = species.copy()
-            # -- NOTE: check if it is in the region
+            species_ = self._rotate_species(species, rng=rng)
+            curr_cop = np.average(species_.positions, axis=0)
             ran_pos = self.region.get_random_positions(size=1,rng=rng)[0]
-            if self.use_rotation and len(adpart) > 1:
-                phi, theta, psi = 360 * rng.uniform(0,1,3)
-                species_.euler_rotate(
-                    phi=phi, theta=0.5 * theta, psi=psi,
-                    center=org_com
-                )
-            new_vec = ran_pos - org_com
+            new_vec = ran_pos - curr_cop
             species_.translate(new_vec)
             atoms.positions[species_indices] = copy.deepcopy(species_.positions)
             if not self.check_overlap_neighbour(nl, atoms, cell, species_indices):
-                self.pfunc(f"succeed to insert after {i+1} attempts...")
-                self.pfunc(f"original position: {org_com}")
-                self.pfunc(f"random position: {ran_pos}")
+                self._print(f"succeed to insert after {i+1} attempts...")
+                self._print(f"original position: {org_com}")
+                self._print(f"random position: {ran_pos}")
+                self._print(f"actual position: {np.average(atoms.positions[species_indices], axis=0)}")
                 break
             atoms.positions[species_indices] = org_positions
         else:
@@ -138,38 +123,21 @@ class ExchangeOperator():
 
         return atoms
     
-    def _remove(self, atoms_, tags_dict: dict, species: str, rng):
+    def _remove(self, atoms_, species: str, rng):
         """"""
         atoms = atoms_.copy()
 
         # - pick a random atom/molecule
-        tag_idx_pick = rng.choice(tags_dict[species])
+        species_indices = self._select_species(atoms, [species], rng)
         
         # - remove then
-        tags = atoms.get_tags()
-        species_indices = [i for i, t in enumerate(tags) if t==tag_idx_pick]
         del atoms[species_indices]
-
-        self.pfunc(f"succeed to remove tag {tag_idx_pick}")
 
         return atoms
     
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
-        # - make copy
-        tags_dict = self.region.get_tags_dict(atoms)
-        #print(tags_dict)
-        # NOTE: only consider species within the region
-        content = "species within system:\n"
-        content += "  " + "  ".join([str(k)+" "+str(len(v)) for k, v in tags_dict.items()]) + "\n"
-        self.pfunc(content)
-
-        self._curr_tags_dict = self.region.get_contained_tags_dict(atoms, tags_dict)
-        #print(self._curr_tags_dict)
-
-        content = "species within region:\n"
-        content += "  " + "  ".join([str(k)+" "+str(len(v)) for k, v in self._curr_tags_dict.items()]) + "\n"
-        self.pfunc(content)
+        super().run(atoms)
 
         # -- compute acceptable volume
         if self.use_bias:
@@ -182,21 +150,21 @@ class ExchangeOperator():
 
         # - choose a species to exchange
         #valid_species = [k for k, v in tag_dict.items() if len(v) > 0]
-        nparticles = len(tags_dict.get(self.species, []))
+        nparticles = len(self._curr_tags_dict.get(self.species, []))
 
         # - choose insert or remove
         if nparticles > 0:
             rn_ex = rng.uniform()
             if rn_ex < 0.5:
-                self.pfunc("...insert...")
+                self._print("...insert...")
                 self._curr_operation = "insert"
-                cur_atoms = self._insert(atoms, self._curr_tags_dict, self.species, rng)
+                cur_atoms = self._insert(atoms, self.species, rng)
             else:
-                self.pfunc("...remove...")
+                self._print("...remove...")
                 self._curr_operation = "remove"
-                cur_atoms = self._remove(atoms, self._curr_tags_dict, self.species, rng)
+                cur_atoms = self._remove(atoms, self.species, rng)
         else:
-            self.pfunc("...insert...")
+            self._print("...insert...")
             self._curr_operation = "insert"
             cur_atoms = self._insert(atoms, self._curr_tags_dict, self.species, rng)
 
@@ -214,10 +182,10 @@ class ExchangeOperator():
         overlapped = False
         nl.update(new_atoms)
         for idx_pick in species_indices:
-            self.pfunc(f"- check index {idx_pick} {new_atoms.positions[idx_pick]}")
+            self._print(f"- check index {idx_pick} {new_atoms.positions[idx_pick]}")
             indices, offsets = nl.get_neighbors(idx_pick)
             if len(indices) > 0:
-                self.pfunc(f"nneighs: {len(indices)}")
+                self._print(f"nneighs: {len(indices)}")
                 # should close to other atoms
                 for ni, offset in zip(indices, offsets):
                     dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, cell)))
@@ -229,7 +197,7 @@ class ExchangeOperator():
                         break
             else:
                 # TODO: is no neighbours valid?
-                self.pfunc("no neighbours, being isolated...")
+                self._print("no neighbours, being isolated...")
                 overlapped = True
                 break
 
@@ -277,10 +245,10 @@ class ExchangeOperator():
         #)
         content += "Energy Difference %.4f [eV]\n" %ene_diff
         content += "Accept Ratio %.4f\n" %acc_ratio
-        self.pfunc(content)
+        self._print(content)
 
         rn_move = rng.uniform()
-        self.pfunc(f"{self.__class__.__name__} Probability %.4f" %rn_move)
+        self._print(f"{self.__class__.__name__} Probability %.4f" %rn_move)
 
         # - reset stored temp data
         self._curr_operation = None
