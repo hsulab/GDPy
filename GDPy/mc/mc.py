@@ -213,9 +213,13 @@ class MonteCarlo():
                 cur_tags = cur_atoms.get_tags()
                 cur_atoms.info["confid"] = int(f"{i}")
                 cur_atoms.info["step"] = -1 # NOTE: remove step info
-                _ = worker.run([cur_atoms])
-                cur_frames = worker.retrieve()
-                cur_atoms = cur_frames[0]
+                # BUG: Too Many Open Files...
+                #      Just use driver interface for now...
+                #_ = worker.run([cur_atoms])
+                #cur_frames = worker.retrieve()
+                #cur_atoms = cur_frames[0]
+                worker.driver.directory = self.directory/f"cand{i}"
+                cur_atoms = worker.driver.run(cur_atoms, read_exists=True)
                 cur_atoms.set_tags(cur_tags)
                 energy_operated = cur_atoms.get_potential_energy()
                 self._pinrt(f"post ene: {energy_operated}")
