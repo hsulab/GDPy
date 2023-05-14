@@ -283,6 +283,23 @@ class DriverBasedWorker(AbstractWorker):
                 self.logger.info(f"{batch_name} at {self.directory.name} was submitted.")
                 continue
 
+            # - specify which group this worker is responsible for
+            #   if not, then skip
+            #   Skip batch here assures the skipped batches will not recorded and 
+            #   thus will not affect their execution if several batches run at the same time.
+            target_number = kwargs.get("batch", None)
+            if isinstance(target_number, int):
+                if ig != target_number:
+                    with CustomTimer(name="run-driver", func=self.logger.info):
+                        self.logger.info(
+                            f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} batch {ig} is skipped..."
+                        )
+                        continue
+                else:
+                    ...
+            else:
+                ...
+
             # - run batch
             # NOTE: For command execution, if computation exits incorrectly,
             #       it will not be recorded. The computation will resume next 
@@ -609,21 +626,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         calculation working directory.
 
         """
-        # - specify which group this worker is responsible for
-        #   if not, then skip
         batch_number = int(batch_name.split("-")[-1])
-        target_number = kwargs.get("batch", None)
-        if isinstance(target_number, int):
-            if batch_number != target_number:
-                with CustomTimer(name="run-driver", func=self.logger.info):
-                    self.logger.info(
-                        f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} batch {batch_number} is skipped..."
-                    )
-                    return
-            else:
-                ...
-        else:
-            ...
 
         # - get structures
         curr_frames = [frames[i] for i in curr_indices]
