@@ -111,9 +111,9 @@ def boltz_selection(
     """Selected indices based on Boltzmann distribution.
 
     References:
-    [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
-        De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
-        npj Comput. Mater. 2019, 5, 99.
+        [1] Bernstein, N.; Csányi, G.; Deringer, V. L. 
+            De Novo Exploration and Self-Guided Learning of Potential-Energy Surfaces. 
+            npj Comput. Mater. 2019, 5, 99.
 
     """
     # compute desired probabilities for flattened histogram
