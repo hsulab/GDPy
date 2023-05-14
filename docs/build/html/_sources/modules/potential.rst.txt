@@ -12,6 +12,14 @@ Subpackages
 Submodules
 ----------
 
+potential.interface module
+--------------------------
+
+.. automodule:: potential.interface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 potential.manager module
 ------------------------
 

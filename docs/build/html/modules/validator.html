@@ -1,0 +1,647 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>validator package &mdash; GDPy 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="trainer package" href="trainer.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> GDPy
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../start.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../potentials/index.html">Potentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../computations/index.html">Computations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../expeditions/index.html">Expeditions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guides:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../extensions/index.html">Extensions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">GDPy</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data.html">data package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.html">potential package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reaction.html">reaction package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trainer.html">trainer package</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">validator package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#validator-calc-eos-module">validator.calc_eos module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.dimer">validator.dimer module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.distribution">validator.distribution module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.interface">validator.interface module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.make_eos">validator.make_eos module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.meltingpoint">validator.meltingpoint module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.minima">validator.minima module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.plot_bm">validator.plot_bm module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.pull_initstrs">validator.pull_initstrs module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.rdf">validator.rdf module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#validator-read-all-data-module">validator.read_all_data module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.rxn">validator.rxn module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.singlepoint">validator.singlepoint module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.traj">validator.traj module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.utils">validator.utils module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator.validator">validator.validator module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-validator">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">GDPy</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="modules.html">GDPy</a> &raquo;</li>
+        
+      <li>validator package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/modules/validator.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="validator-package">
+<h1>validator package<a class="headerlink" href="#validator-package" title="Permalink to this heading">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="validator-calc-eos-module">
+<h2>validator.calc_eos module<a class="headerlink" href="#validator-calc-eos-module" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-validator.dimer">
+<span id="validator-dimer-module"></span><h2>validator.dimer module<a class="headerlink" href="#module-validator.dimer" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.dimer.DimerValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.dimer.</span></span><span class="sig-name descname"><span class="pre">DimerValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.dimer.DimerValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.dimer.DimerValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DriverBasedWorker</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.dimer.DimerValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.dimer.plot_dimer">
+<span class="sig-prename descclassname"><span class="pre">validator.dimer.</span></span><span class="sig-name descname"><span class="pre">plot_dimer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_ref</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_pred</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.dimer.plot_dimer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-validator.distribution">
+<span id="validator-distribution-module"></span><h2>validator.distribution module<a class="headerlink" href="#module-validator.distribution" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.distribution.calc_gyration">
+<span class="sig-prename descclassname"><span class="pre">validator.distribution.</span></span><span class="sig-name descname"><span class="pre">calc_gyration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">particle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Cr'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cluster'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nbins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.distribution.calc_gyration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.distribution.plot_rdf">
+<span class="sig-prename descclassname"><span class="pre">validator.distribution.</span></span><span class="sig-name descname"><span class="pre">plot_rdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bincentres</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.distribution.plot_rdf" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-validator.interface">
+<span id="validator-interface-module"></span><h2>validator.interface module<a class="headerlink" href="#module-validator.interface" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.interface.ValidatorVariable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.interface.</span></span><span class="sig-name descname"><span class="pre">ValidatorVariable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.interface.ValidatorVariable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Variable</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.interface.validate">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.interface.</span></span><span class="sig-name descname"><span class="pre">validate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node_with_structures</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">validator</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.interface.validate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Operation</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.interface.validate.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">validator</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AbstractValidator</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.interface.validate.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run a validator on input dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>dataset</strong> – List[(prefix,frames)]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.make_eos">
+<span id="validator-make-eos-module"></span><h2>validator.make_eos module<a class="headerlink" href="#module-validator.make_eos" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.make_eos.check_convergence">
+<span class="sig-prename descclassname"><span class="pre">validator.make_eos.</span></span><span class="sig-name descname"><span class="pre">check_convergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'force'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.make_eos.check_convergence" title="Permalink to this definition">¶</a></dt>
+<dd><p>ase ignores forces of fixed atoms</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.make_eos.create_slurm">
+<span class="sig-prename descclassname"><span class="pre">validator.make_eos.</span></span><span class="sig-name descname"><span class="pre">create_slurm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'k2-hipri'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'3:00:00'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ncpus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'32'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.make_eos.create_slurm" title="Permalink to this definition">¶</a></dt>
+<dd><p>create job script</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.make_eos.create_vasp_inputs">
+<span class="sig-prename descclassname"><span class="pre">validator.make_eos.</span></span><span class="sig-name descname"><span class="pre">create_vasp_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'vasp-test'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.make_eos.create_vasp_inputs" title="Permalink to this definition">¶</a></dt>
+<dd><p>only for molecules</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.make_eos.find_bulks">
+<span class="sig-prename descclassname"><span class="pre">validator.make_eos.</span></span><span class="sig-name descname"><span class="pre">find_bulks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incar_template</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.make_eos.find_bulks" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.make_eos.submit_slurm">
+<span class="sig-prename descclassname"><span class="pre">validator.make_eos.</span></span><span class="sig-name descname"><span class="pre">submit_slurm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.make_eos.submit_slurm" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-validator.meltingpoint">
+<span id="validator-meltingpoint-module"></span><h2>validator.meltingpoint module<a class="headerlink" href="#module-validator.meltingpoint" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.meltingpoint.MeltingpointValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.meltingpoint.</span></span><span class="sig-name descname"><span class="pre">MeltingpointValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.MeltingpointValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<p>Estimate the melting point from a series of MD simulations.</p>
+<p>For nanoparticles, the lindeman index is used. MD simulations with various
+initial temperatures are performed. For bulk, phase co-existence approach is used.
+Different initial temperatures are set for solid and liquid, where the steady state is
+found.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.meltingpoint.MeltingpointValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trajectories</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperatures</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.MeltingpointValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.meltingpoint.get_distance_matrix">
+<span class="sig-prename descclassname"><span class="pre">validator.meltingpoint.</span></span><span class="sig-name descname"><span class="pre">get_distance_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.get_distance_matrix" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.meltingpoint.mp2_func">
+<span class="sig-prename descclassname"><span class="pre">validator.meltingpoint.</span></span><span class="sig-name descname"><span class="pre">mp2_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Tm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.mp2_func" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.meltingpoint.mp_func">
+<span class="sig-prename descclassname"><span class="pre">validator.meltingpoint.</span></span><span class="sig-name descname"><span class="pre">mp_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Tm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.mp_func" title="Permalink to this definition">¶</a></dt>
+<dd><p>JPCC2020</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.meltingpoint.mptest">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.meltingpoint.</span></span><span class="sig-name descname"><span class="pre">mptest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">extract_node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.mptest" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Operation</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.meltingpoint.mptest.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trajectories</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.meltingpoint.mptest.forward" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.minima">
+<span id="validator-minima-module"></span><h2>validator.minima module<a class="headerlink" href="#module-validator.minima" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.minima.MinimaValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.minima.</span></span><span class="sig-name descname"><span class="pre">MinimaValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.minima.MinimaValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<p>Run minimisation on various configurations and compare relative energy.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.minima.MinimaValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.minima.MinimaValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.minima.make_clean_atoms">
+<span class="sig-prename descclassname"><span class="pre">validator.minima.</span></span><span class="sig-name descname"><span class="pre">make_clean_atoms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.minima.make_clean_atoms" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a clean atoms from the input.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.plot_bm">
+<span id="validator-plot-bm-module"></span><h2>validator.plot_bm module<a class="headerlink" href="#module-validator.plot_bm" title="Permalink to this heading">¶</a></h2>
+<p>plot various BM curves</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.plot_bm.read_arrays">
+<span class="sig-prename descclassname"><span class="pre">validator.plot_bm.</span></span><span class="sig-name descname"><span class="pre">read_arrays</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datafile</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.plot_bm.read_arrays" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.plot_bm.read_eos">
+<span class="sig-prename descclassname"><span class="pre">validator.plot_bm.</span></span><span class="sig-name descname"><span class="pre">read_eos</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eos_dir</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.plot_bm.read_eos" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-validator.pull_initstrs">
+<span id="validator-pull-initstrs-module"></span><h2>validator.pull_initstrs module<a class="headerlink" href="#module-validator.pull_initstrs" title="Permalink to this heading">¶</a></h2>
+<p>pull initial structures</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.pull_initstrs.perturb_sites">
+<span class="sig-prename descclassname"><span class="pre">validator.pull_initstrs.</span></span><span class="sig-name descname"><span class="pre">perturb_sites</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.pull_initstrs.perturb_sites" title="Permalink to this definition">¶</a></dt>
+<dd><p>mg can also perturb atoms randomly</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.pull_initstrs.scale_bulk">
+<span class="sig-prename descclassname"><span class="pre">validator.pull_initstrs.</span></span><span class="sig-name descname"><span class="pre">scale_bulk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">array([0.8,</span> <span class="pre">0.85,</span> <span class="pre">0.9,</span> <span class="pre">0.95,</span> <span class="pre">1.0,</span> <span class="pre">1.05,</span> <span class="pre">1.1,</span> <span class="pre">1.15,</span> <span class="pre">1.2])</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.pull_initstrs.scale_bulk" title="Permalink to this definition">¶</a></dt>
+<dd><p>scale bulks using ase</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.pull_initstrs.scale_bulk_mg">
+<span class="sig-prename descclassname"><span class="pre">validator.pull_initstrs.</span></span><span class="sig-name descname"><span class="pre">scale_bulk_mg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">structure</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">array([0.8,</span> <span class="pre">0.85,</span> <span class="pre">0.9,</span> <span class="pre">0.95,</span> <span class="pre">1.0,</span> <span class="pre">1.05,</span> <span class="pre">1.1,</span> <span class="pre">1.15,</span> <span class="pre">1.2])</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.pull_initstrs.scale_bulk_mg" title="Permalink to this definition">¶</a></dt>
+<dd><p>scale bulks using pymatgen</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.pull_initstrs.workflow_ase">
+<span class="sig-prename descclassname"><span class="pre">validator.pull_initstrs.</span></span><span class="sig-name descname"><span class="pre">workflow_ase</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.pull_initstrs.workflow_ase" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.pull_initstrs.yield_dimer">
+<span class="sig-prename descclassname"><span class="pre">validator.pull_initstrs.</span></span><span class="sig-name descname"><span class="pre">yield_dimer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distances</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">array([1.5,</span> <span class="pre">1.6,</span> <span class="pre">1.7,</span> <span class="pre">1.8,</span> <span class="pre">1.9,</span> <span class="pre">2.0,</span> <span class="pre">2.1,</span> <span class="pre">2.2,</span> <span class="pre">2.3,</span> <span class="pre">2.4,</span> <span class="pre">2.5,</span> <span class="pre">2.6,</span> <span class="pre">2.7,</span> <span class="pre">2.8,</span> <span class="pre">2.9,</span> <span class="pre">3.0])</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.pull_initstrs.yield_dimer" title="Permalink to this definition">¶</a></dt>
+<dd><p>generate dimer curve using ase</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.pull_initstrs.yield_slab">
+<span class="sig-prename descclassname"><span class="pre">validator.pull_initstrs.</span></span><span class="sig-name descname"><span class="pre">yield_slab</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames_mg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_miller</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.pull_initstrs.yield_slab" title="Permalink to this definition">¶</a></dt>
+<dd><p>cleave surface with pymatgen</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.rdf">
+<span id="validator-rdf-module"></span><h2>validator.rdf module<a class="headerlink" href="#module-validator.rdf" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.rdf.RdfValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.rdf.</span></span><span class="sig-name descname"><span class="pre">RdfValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.rdf.RdfValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.rdf.RdfValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.rdf.RdfValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.rdf.calc_rdf">
+<span class="sig-prename descclassname"><span class="pre">validator.rdf.</span></span><span class="sig-name descname"><span class="pre">calc_rdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dat_fpath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">first_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">second_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">avg_density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nbins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.rdf.calc_rdf" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.rdf.plot_rdf">
+<span class="sig-prename descclassname"><span class="pre">validator.rdf.</span></span><span class="sig-name descname"><span class="pre">plot_rdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fig_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'RDF'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.rdf.plot_rdf" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.rdf.smooth_curve">
+<span class="sig-prename descclassname"><span class="pre">validator.rdf.</span></span><span class="sig-name descname"><span class="pre">smooth_curve</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.rdf.smooth_curve" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="validator-read-all-data-module">
+<h2>validator.read_all_data module<a class="headerlink" href="#validator-read-all-data-module" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-validator.rxn">
+<span id="validator-rxn-module"></span><h2>validator.rxn module<a class="headerlink" href="#module-validator.rxn" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.rxn.ReactionValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.rxn.</span></span><span class="sig-name descname"><span class="pre">ReactionValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.rxn.ReactionValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.rxn.ReactionValidator.analyse">
+<span class="sig-name descname"><span class="pre">analyse</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.rxn.ReactionValidator.analyse" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.rxn.ReactionValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.rxn.ReactionValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.rxn.make_clean_atoms">
+<span class="sig-prename descclassname"><span class="pre">validator.rxn.</span></span><span class="sig-name descname"><span class="pre">make_clean_atoms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms_</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.rxn.make_clean_atoms" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a clean atoms from the input.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.singlepoint">
+<span id="validator-singlepoint-module"></span><h2>validator.singlepoint module<a class="headerlink" href="#module-validator.singlepoint" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.singlepoint.SinglepointValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.singlepoint.</span></span><span class="sig-name descname"><span class="pre">SinglepointValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.singlepoint.SinglepointValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<p>Calculate energies on each structures and save them to file.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.singlepoint.SinglepointValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DriverBasedWorker</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.singlepoint.SinglepointValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.singlepoint.SinglepointValidator.write_data">
+<span class="sig-name descname"><span class="pre">write_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.singlepoint.SinglepointValidator.write_data" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.singlepoint.add_rmse_text">
+<span class="sig-prename descclassname"><span class="pre">validator.singlepoint.</span></span><span class="sig-name descname"><span class="pre">add_rmse_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_rmse</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.singlepoint.add_rmse_text" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.singlepoint.plot_parity">
+<span class="sig-prename descclassname"><span class="pre">validator.singlepoint.</span></span><span class="sig-name descname"><span class="pre">plot_parity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_ref</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_pred</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'data'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.singlepoint.plot_parity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plots the distribution of energy per atom on the output vs the input.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.traj">
+<span id="validator-traj-module"></span><h2>validator.traj module<a class="headerlink" href="#module-validator.traj" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.traj.TrajValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.traj.</span></span><span class="sig-name descname"><span class="pre">TrajValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.traj.TrajValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractValidator</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.traj.TrajValidator.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#validator.traj.TrajValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.utils">
+<span id="validator-utils-module"></span><h2>validator.utils module<a class="headerlink" href="#module-validator.utils" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.utils.get_properties">
+<span class="sig-prename descclassname"><span class="pre">validator.utils.</span></span><span class="sig-name descname"><span class="pre">get_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_props</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.utils.get_properties" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get properties of frames for comparison.</p>
+<p>Currently, only total energy and forces are considered.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>shape (nframes,)
+tot_energies: shape (nframes,)
+tot_forces: shape (nframes,3)</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>tot_symbols</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator.validator">
+<span id="validator-validator-module"></span><h2>validator.validator module<a class="headerlink" href="#module-validator.validator" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.validator.AbstractValidator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.validator.</span></span><span class="sig-name descname"><span class="pre">AbstractValidator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.validator.AbstractValidator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<dl class="py property">
+<dt class="sig sig-object py" id="validator.validator.AbstractValidator.directory">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><a class="headerlink" href="#validator.validator.AbstractValidator.directory" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="validator.validator.AbstractValidator.restart">
+<span class="sig-name descname"><span class="pre">restart</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></em><a class="headerlink" href="#validator.validator.AbstractValidator.restart" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.validator.AbstractValidator.run">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.validator.AbstractValidator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-validator">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-validator" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="validator.RunCalculation">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">validator.</span></span><span class="sig-name descname"><span class="pre">RunCalculation</span></span><a class="headerlink" href="#validator.RunCalculation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.RunCalculation.dimer">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dimer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.RunCalculation.dimer" title="Permalink to this definition">¶</a></dt>
+<dd><p>turn xyz into dimer data</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.RunCalculation.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.RunCalculation.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="validator.RunCalculation.volume">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">volume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.RunCalculation.volume" title="Permalink to this definition">¶</a></dt>
+<dd><p>turn xyz into eos data</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="validator.run_validation">
+<span class="sig-prename descclassname"><span class="pre">validator.</span></span><span class="sig-name descname"><span class="pre">run_validation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_json</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Path</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pot_manager</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#validator.run_validation" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is a factory to deal with various validations…</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="trainer.html" class="btn btn-neutral float-left" title="trainer package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2022, Jiayan Xu
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

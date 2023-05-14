@@ -7,6 +7,7 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
+   computation.bias
    computation.uncertainty
    computation.worker
 
@@ -21,10 +22,18 @@ computation.Morse module
    :undoc-members:
    :show-inheritance:
 
-computation.ase module
-----------------------
+computation.asedriver module
+----------------------------
 
-.. automodule:: computation.ase
+.. automodule:: computation.asedriver
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+computation.cp2k module
+-----------------------
+
+.. automodule:: computation.cp2k
    :members:
    :undoc-members:
    :show-inheritance:
@@ -45,6 +54,14 @@ computation.driver module
    :undoc-members:
    :show-inheritance:
 
+computation.interface module
+----------------------------
+
+.. automodule:: computation.interface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 computation.lammps module
 -------------------------
 
@@ -57,6 +74,22 @@ computation.lasp module
 -----------------------
 
 .. automodule:: computation.lasp
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+computation.mixer module
+------------------------
+
+.. automodule:: computation.mixer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+computation.operations module
+-----------------------------
+
+.. automodule:: computation.operations
    :members:
    :undoc-members:
    :show-inheritance:

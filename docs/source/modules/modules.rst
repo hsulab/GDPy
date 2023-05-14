@@ -7,6 +7,7 @@ GDPy
    builder
    computation
    config
+   data
    expedition
    main
    potential
@@ -14,3 +15,4 @@ GDPy
    scheduler
    selector
    trainer
+   validator

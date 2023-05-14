@@ -28,10 +28,66 @@ builder.constraints module
    :undoc-members:
    :show-inheritance:
 
+builder.dimer module
+--------------------
+
+.. automodule:: builder.dimer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 builder.direct module
 ---------------------
 
 .. automodule:: builder.direct
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.graph module
+--------------------
+
+.. automodule:: builder.graph
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.group module
+--------------------
+
+.. automodule:: builder.group
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.hypercube module
+------------------------
+
+.. automodule:: builder.hypercube
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.interface module
+------------------------
+
+.. automodule:: builder.interface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.packer module
+---------------------
+
+.. automodule:: builder.packer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.perturbator module
+--------------------------
+
+.. automodule:: builder.perturbator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -56,6 +112,14 @@ builder.species module
 ----------------------
 
 .. automodule:: builder.species
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.system module
+---------------------
+
+.. automodule:: builder.system
    :members:
    :undoc-members:
    :show-inheritance:

@@ -20,6 +20,14 @@ computation.worker.drive module
    :undoc-members:
    :show-inheritance:
 
+computation.worker.interface module
+-----------------------------------
+
+.. automodule:: computation.worker.interface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 computation.worker.train module
 -------------------------------
 

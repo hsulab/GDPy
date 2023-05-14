@@ -104,6 +104,7 @@
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data.html">data package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="potential.html">potential package</a><ul class="current">
@@ -112,6 +113,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="potential.html#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="potential.html#module-potential.interface">potential.interface module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="potential.html#module-potential.manager">potential.manager module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="potential.html#module-potential.register">potential.register module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="potential.html#module-potential">Module contents</a></li>
@@ -121,6 +123,7 @@
 <li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="trainer.html">trainer package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="validator.html">validator package</a></li>
 </ul>
 </li>
 </ul>
@@ -196,6 +199,35 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
 </div>
+<div class="section" id="module-potential.managers.cp2k">
+<span id="potential-managers-cp2k-module"></span><h2>potential.managers.cp2k module<a class="headerlink" href="#module-potential.managers.cp2k" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="potential.managers.cp2k.Cp2kManager">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">potential.managers.cp2k.</span></span><span class="sig-name descname"><span class="pre">Cp2kManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.cp2k.Cp2kManager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractPotentialManager</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.managers.cp2k.Cp2kManager.implemented_backends">
+<span class="sig-name descname"><span class="pre">implemented_backends</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['cp2k',</span> <span class="pre">'cp2k_shell']</span></em><a class="headerlink" href="#potential.managers.cp2k.Cp2kManager.implemented_backends" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.managers.cp2k.Cp2kManager.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cp2k'</span></em><a class="headerlink" href="#potential.managers.cp2k.Cp2kManager.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.managers.cp2k.Cp2kManager.register_calculator">
+<span class="sig-name descname"><span class="pre">register_calculator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc_params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.cp2k.Cp2kManager.register_calculator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.managers.cp2k.Cp2kManager.valid_combinations">
+<span class="sig-name descname"><span class="pre">valid_combinations</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[['cp2k',</span> <span class="pre">'ase'],</span> <span class="pre">['cp2k_shell',</span> <span class="pre">'ase']]</span></em><a class="headerlink" href="#potential.managers.cp2k.Cp2kManager.valid_combinations" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
 <div class="section" id="module-potential.managers.deepmd">
 <span id="potential-managers-deepmd-module"></span><h2>potential.managers.deepmd module<a class="headerlink" href="#module-potential.managers.deepmd" title="Permalink to this heading">¶</a></h2>
 <dl class="py class">
@@ -214,11 +246,6 @@
 <dd><p>freeze model and return a new calculator
 that may have a committee for uncertainty</p>
 </dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="potential.managers.deepmd.DeepmdManager.get_batchsize">
-<span class="sig-name descname"><span class="pre">get_batchsize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#potential.managers.deepmd.DeepmdManager.get_batchsize" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="potential.managers.deepmd.DeepmdManager.implemented_backends">
@@ -260,6 +287,21 @@ estimating uncertainty.</p>
 <dd></dd></dl>
 
 </dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="potential.managers.deepmd.convert_dataset">
+<span class="sig-prename descclassname"><span class="pre">potential.managers.deepmd.</span></span><span class="sig-name descname"><span class="pre">convert_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type_map</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.deepmd.convert_dataset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="potential.managers.deepmd.convert_groups">
+<span class="sig-prename descclassname"><span class="pre">potential.managers.deepmd.</span></span><span class="sig-name descname"><span class="pre">convert_groups</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">groups</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Atoms</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batchsizes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type_map</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.deepmd.convert_groups" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="potential.managers.deepmd.group_dataset">
+<span class="sig-prename descclassname"><span class="pre">potential.managers.deepmd.</span></span><span class="sig-name descname"><span class="pre">group_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.deepmd.group_dataset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </div>
 <div class="section" id="module-potential.managers.eann">
@@ -445,6 +487,42 @@ pot</p>
 <dt class="sig sig-object py" id="potential.managers.vasp.VaspManager.valid_combinations">
 <span class="sig-name descname"><span class="pre">valid_combinations</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[['vasp',</span> <span class="pre">'vasp']]</span></em><a class="headerlink" href="#potential.managers.vasp.VaspManager.valid_combinations" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-potential.managers.xtb">
+<span id="potential-managers-xtb-module"></span><h2>potential.managers.xtb module<a class="headerlink" href="#module-potential.managers.xtb" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="potential.managers.xtb.XtbManager">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">potential.managers.xtb.</span></span><span class="sig-name descname"><span class="pre">XtbManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.xtb.XtbManager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractPotentialManager</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.managers.xtb.XtbManager.implemented_backends">
+<span class="sig-name descname"><span class="pre">implemented_backends</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['xtb']</span></em><a class="headerlink" href="#potential.managers.xtb.XtbManager.implemented_backends" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.managers.xtb.XtbManager.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'xtb'</span></em><a class="headerlink" href="#potential.managers.xtb.XtbManager.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.managers.xtb.XtbManager.register_calculator">
+<span class="sig-name descname"><span class="pre">register_calculator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc_params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">agrs</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.managers.xtb.XtbManager.register_calculator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.managers.xtb.XtbManager.valid_combinations">
+<span class="sig-name descname"><span class="pre">valid_combinations</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[['xtb',</span> <span class="pre">'ase']]</span></em><a class="headerlink" href="#potential.managers.xtb.XtbManager.valid_combinations" title="Permalink to this definition">¶</a></dt>
+<dd><p>See XTB documentation for calculator parameters.</p>
+<p>method: “GFN2-xTB”
+accuracy: 1.0
+electronic_temperature: 300.0
+max_iterations: 250
+solvent: “none”
+cache_api: True</p>
+</dd></dl>
 
 </dd></dl>
 

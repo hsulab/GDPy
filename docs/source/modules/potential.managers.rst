@@ -4,6 +4,14 @@ potential.managers package
 Submodules
 ----------
 
+potential.managers.cp2k module
+------------------------------
+
+.. automodule:: potential.managers.cp2k
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 potential.managers.deepmd module
 --------------------------------
 
@@ -48,6 +56,14 @@ potential.managers.vasp module
 ------------------------------
 
 .. automodule:: potential.managers.vasp
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+potential.managers.xtb module
+-----------------------------
+
+.. automodule:: potential.managers.xtb
    :members:
    :undoc-members:
    :show-inheritance:

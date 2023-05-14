@@ -104,6 +104,7 @@
 <li class="toctree-l2"><a class="reference internal" href="builder.html">builder package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="computation.html">computation package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config.html">config module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data.html">data package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="expedition.html">expedition package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="main.html">main module</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">potential package</a><ul>
@@ -112,6 +113,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-potential.interface">potential.interface module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-potential.manager">potential.manager module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-potential.register">potential.register module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-potential">Module contents</a></li>
@@ -121,6 +123,7 @@
 <li class="toctree-l2"><a class="reference internal" href="scheduler.html">scheduler package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="selector.html">selector package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="trainer.html">trainer package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="validator.html">validator package</a></li>
 </ul>
 </li>
 </ul>
@@ -197,12 +200,14 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="potential.managers.html">potential.managers package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.cp2k">potential.managers.cp2k module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.deepmd">potential.managers.deepmd module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.eann">potential.managers.eann module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.lasp">potential.managers.lasp module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.nequip">potential.managers.nequip module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.reax">potential.managers.reax module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.vasp">potential.managers.vasp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers.xtb">potential.managers.xtb module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="potential.managers.html#module-potential.managers">Module contents</a></li>
 </ul>
 </li>
@@ -211,6 +216,21 @@
 </div>
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</div>
+<div class="section" id="module-potential.interface">
+<span id="potential-interface-module"></span><h2>potential.interface module<a class="headerlink" href="#module-potential.interface" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="potential.interface.PotterVariable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">potential.interface.</span></span><span class="sig-name descname"><span class="pre">PotterVariable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.interface.PotterVariable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Variable</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="potential.interface.WorkerVariable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">potential.interface.</span></span><span class="sig-name descname"><span class="pre">WorkerVariable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.interface.WorkerVariable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Variable</span></code></p>
+</dd></dl>
+
 </div>
 <div class="section" id="module-potential.manager">
 <span id="potential-manager-module"></span><h2>potential.manager module<a class="headerlink" href="#module-potential.manager" title="Permalink to this heading">¶</a></h2>
@@ -245,15 +265,14 @@ ase-based dynamics can be used for all calculators.</p>
 <dd><p>Update current calculator and estimator.</p>
 </dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.get_batchsize">
-<span class="sig-name descname"><span class="pre">get_batchsize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.get_batchsize" title="Permalink to this definition">¶</a></dt>
-<dd><p>get batchsize for train and valid set</p>
-</dd></dl>
-
 <dl class="py attribute">
 <dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.implemented_backends">
 <span class="sig-name descname"><span class="pre">implemented_backends</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#potential.manager.AbstractPotentialManager.implemented_backends" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.modifier">
+<span class="sig-name descname"><span class="pre">modifier</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#potential.manager.AbstractPotentialManager.modifier" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -264,7 +283,16 @@ ase-based dynamics can be used for all calculators.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_calculator">
 <em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">register_calculator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc_params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">agrs</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_calculator" title="Permalink to this definition">¶</a></dt>
-<dd><p>register calculator</p>
+<dd><p>Register the host calculator.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="potential.manager.AbstractPotentialManager.register_modifier">
+<span class="sig-name descname"><span class="pre">register_modifier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.manager.AbstractPotentialManager.register_modifier" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register a modifier.</p>
+<p>The modifier is also a calculator but it usually works as an add-on to slightly
+change the host calculator. The modifier will be mixed with the host driver when
+creating the driver by using ase Mixer or driver built-in.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -312,7 +340,7 @@ estimating uncertainty.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="potential.register.PotentialRegister.create_potential">
-<span class="sig-name descname"><span class="pre">create_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pot_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#potential.register.PotentialRegister.create_potential" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">create_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pot_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">AbstractPotentialManager</span></span></span><a class="headerlink" href="#potential.register.PotentialRegister.create_potential" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">

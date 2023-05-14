@@ -4,10 +4,26 @@ scheduler package
 Submodules
 ----------
 
+scheduler.interface module
+--------------------------
+
+.. automodule:: scheduler.interface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 scheduler.local module
 ----------------------
 
 .. automodule:: scheduler.local
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+scheduler.lsf module
+--------------------
+
+.. automodule:: scheduler.lsf
    :members:
    :undoc-members:
    :show-inheritance:

@@ -4,10 +4,18 @@ reaction package
 Submodules
 ----------
 
-reaction.AFIR module
+reaction.afir module
 --------------------
 
-.. automodule:: reaction.AFIR
+.. automodule:: reaction.afir
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+reaction.utils module
+---------------------
+
+.. automodule:: reaction.utils
    :members:
    :undoc-members:
    :show-inheritance:

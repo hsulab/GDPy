@@ -12,14 +12,6 @@ selector.composition module
    :undoc-members:
    :show-inheritance:
 
-selector.convergence module
----------------------------
-
-.. automodule:: selector.convergence
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 selector.cur module
 -------------------
 
@@ -44,6 +36,14 @@ selector.graph module
    :undoc-members:
    :show-inheritance:
 
+selector.interface module
+-------------------------
+
+.. automodule:: selector.interface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 selector.invariant module
 -------------------------
 
@@ -52,26 +52,18 @@ selector.invariant module
    :undoc-members:
    :show-inheritance:
 
+selector.property module
+------------------------
+
+.. automodule:: selector.property
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 selector.selector module
 ------------------------
 
 .. automodule:: selector.selector
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-selector.traj module
---------------------
-
-.. automodule:: selector.traj
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-selector.uncertainty module
----------------------------
-
-.. automodule:: selector.uncertainty
    :members:
    :undoc-members:
    :show-inheritance:
