@@ -84,14 +84,6 @@ validator.rdf module
    :undoc-members:
    :show-inheritance:
 
-validator.read\_all\_data module
---------------------------------
-
-.. automodule:: validator.read_all_data
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 validator.rxn module
 --------------------
 
