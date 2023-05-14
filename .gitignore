@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.vscode
+.DS_store
+
 # simulation results
 cand*
 
