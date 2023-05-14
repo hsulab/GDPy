@@ -56,6 +56,9 @@ class registers:
     #: Managers (Potentials).
     manager: Register = Register("manager")
 
+    #: Regions.
+    region: Register = Register("region")
+
     #: Builders.
     builder: Register = Register("builder")
 
@@ -103,6 +106,8 @@ ALL_MODULES = [
     # - working components.
     # -- managers (potentials)
     ("GDPy.potential.managers", ["vasp", "cp2k", "xtb", "reax", "eann", "deepmd", "lasp", "nequip"]),
+    # -- region
+    ("GDPy.builder", ["region"]),
     # -- builders
     ("GDPy.builder", ["direct", "dimer", "species"]),
     # -- modifiers

@@ -16,6 +16,7 @@ from ase.formula import Formula
 from ase.neighborlist import natural_cutoffs, NeighborList
 from ase.ga.utilities import closest_distances_generator
 
+from GDPy.core.register import registers
 from GDPy.builder.species import build_species
 
 def estimate_chemical_potential(
@@ -165,43 +166,6 @@ class Reservoir():
 
         return content
 
-class RegionRegister():
-
-    def __init__(self) -> None:
-        """"""
-        self._name_class_map = {}
-
-        return
-    
-    def register(self, cls=None):
-        """"""
-        if cls != None:
-            cls_name = cls.__name__
-            self._name_class_map[cls_name] = cls
-        else:
-            def wrapper(cls):
-                cls_name = cls.__name__
-                self._name_class_map[cls_name] = cls
-                return cls
-            return wrapper
-
-        return
-    
-    def get(self, name: str):
-        """"""
-        cls_name = name.capitalize() + "Region"
-
-        return self._name_class_map[cls_name]
-
-region_register = RegionRegister()
-def create_a_region(desc):
-    """"""
-    data = desc.strip().split()
-    region_type = data[0]
-    region_defs = np.array(data[1:], dtype=np.float64)
-    region = region_register.get(region_type)(region_defs)
-
-    return region
 
 class Region(abc.ABC):
 
@@ -213,8 +177,9 @@ class Region(abc.ABC):
 
     """
 
-    def __init__(self, desc: str):
+    def __init__(self, origin: List[float], *args, **kwargs):
         """"""
+        self._origin = np.array(origin)
 
         return
     
@@ -235,7 +200,7 @@ class Region(abc.ABC):
         return
     
     @abc.abstractmethod
-    def _is_within_region(self, tags: List[int], positions) -> List[int]:
+    def _is_within_region(self, position) -> bool:
         """Positions are normally atomic positions or molecular centre positions."""
 
         return
@@ -308,14 +273,65 @@ class Region(abc.ABC):
 
         return
     
+    #def __eq__(self, other):
+    #    """"""
+    #    return all(self.__dict__ == other.__dict__)
 
-@region_register.register()
+@registers.region.register
+class AutoRegion(Region):
+
+    _curr_atoms: Atoms = None
+
+    def __init__(self, origin: List[float]=[0.,0.,0.], atoms=None, *args, **kwargs) -> NoReturn:
+        """"""
+        super().__init__(origin, *args, **kwargs)
+
+        self._curr_atoms = atoms
+
+        return
+    
+    def _get_a_random_position(self, rng=np.random):
+        """"""
+        if self._curr_atoms is None:
+            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
+        
+        frac_pos = rng.uniform(0,1,3)
+        ran_pos = np.dot(frac_pos, self._curr_atoms.get_cell())
+        
+        return ran_pos
+    
+    def _is_within_region(self, position) -> bool:
+        """"""
+        if self._curr_atoms is None:
+            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
+
+        is_in = False
+        pos_ = position - self._origin
+        frac_pos_ = np.dot(np.linalg.inv(self._curr_atoms.get_cell().T), pos_)
+        if (
+            0. <= np.modf(frac_pos_[0])[0] < 1. and
+            0. <= np.modf(frac_pos_[1])[0] < 1. and
+            0. <= np.modf(frac_pos_[2])[0] < 1.
+        ):
+            is_in = True
+
+        return is_in
+    
+    def get_volume(self) -> float:
+        """"""
+        if self._curr_atoms is None:
+            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
+
+        return self._curr_atoms.get_volume()
+    
+@registers.region.register
 class CubeRegion(Region):
 
-    def __init__(self, desc: List[float]):
+    def __init__(self, origin: List[float], boundary: List[float], *args, **kwargs):
         """"""
-        boundaries_ = np.array(desc, dtype=np.float64)
-        assert len(boundaries_) == 9, "Cubic region needs 6 numbers to define."
+        super().__init__(origin=origin, *args, **kwargs)
+        boundaries_ = np.array(boundary, dtype=np.float64)
+        assert len(boundaries_) == 6, "Cubic region needs 6 numbers to define."
         self.boundaries = boundaries_
 
         return
@@ -323,19 +339,20 @@ class CubeRegion(Region):
     def _get_a_random_position(self, rng=np.random):
         """"""
         boundaries_ = copy.deepcopy(self.boundaries)
-        boundaries_ = np.reshape(boundaries_, (3,3))
+        boundaries_ = np.reshape(boundaries_, (2,3))
 
         ran_frac_pos = rng.uniform(0,1,3)
         ran_pos = (
-            boundaries_[0,:] + boundaries_[1,:] +
-            (boundaries_[2,:] - boundaries_[1,:])*ran_frac_pos
+            self._origin + boundaries_[0,:] +
+            (boundaries_[0,:] - boundaries_[1,:])*ran_frac_pos
         )
 
         return ran_pos
 
     def _is_within_region(self, position) -> bool:
         """"""
-        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
+        ox, oy, oz = self._origin
+        (xl, yl, zl, xh, yh, zh) = self.boundaries
 
         position = np.array(position)
 
@@ -351,7 +368,7 @@ class CubeRegion(Region):
 
     def get_volume(self) -> float:
         """"""
-        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = self.boundaries
+        (xl, yl, zl, xh, yh, zh) = self.boundaries
 
         return (xh-xl)*(yh-yl)*(zh-zl)
 
@@ -364,21 +381,20 @@ class CubeRegion(Region):
 
         return content
 
-@region_register.register()
+@registers.region.register
 class SphereRegion(Region):
 
-    def __init__(self, desc: List[float]):
-        super().__init__(desc)
-        assert len(desc) == 4, f"{self.__class__.__name__} needs 4 parameters."
-        self._origin = desc[:3]
-        self._radii = desc[3]
+    def __init__(self, origin: List[float], radius: float, *args, **kwargs):
+        """"""
+        super().__init__(origin=origin, *args, **kwargs)
+        self._radius = radius
 
         return
     
     def _get_a_random_position(self, rng):
         """"""
         ran_coord = rng.uniform(0,1,3)
-        polar = np.array([self._radii, np.pi, np.pi]) * ran_coord
+        polar = np.array([self._radius, np.pi, np.pi]) * ran_coord
         r, theta, phi = polar
 
         ran_pos = np.array(
@@ -398,7 +414,7 @@ class SphereRegion(Region):
 
         position = np.array(position)
         distance = np.linalg.norm(position-self._origin)
-        if distance <= self._radii:
+        if distance <= self._radius:
             is_in = True
 
         return is_in
@@ -406,28 +422,28 @@ class SphereRegion(Region):
     def get_volume(self):
         """"""
 
-        return 4./3.*np.pi*self._radii**3
+        return 4./3.*np.pi*self._radius**3
 
     def __repr__(self) -> str:
         """"""
         content = f"{self.__class__.__name__} "
-        content += f"radii {self._radii} "
+        content += f"radius {self._radius} "
+        content += f"volume {self.get_volume()} "
 
         return content
 
+@registers.region.register
 class CylinderRegion(Region):
 
     """Region by a vertical cylinder.
     """
 
-    def __init__(self, desc: List[float]):
+    def __init__(self, origin: List[float], radius: float, height: float, *args, **kwargs):
         """"""
-        super().__init__(desc)
-        assert len(desc) == 5, f"{self.__class__.__name__} needs 5 parameters."
+        super().__init__(origin=origin, *args, **kwargs)
 
-        self._origin = desc[:3]
-        self._radii = desc[3]
-        self._height = desc[4]
+        self._radius = radius
+        self._height = height
 
         return
 
@@ -453,31 +469,30 @@ class CylinderRegion(Region):
         is_in = False
         if oz <= position[2] <= oz+self._height:
             distance = np.linalg.norm(position[:2] - self._origin[:2])
-            if distance <= self._radii:
+            if distance <= self._radius:
                 is_in = True
 
         return is_in
     
     def get_volume(self) -> float:
         """"""
-        return np.pi*self._radii**2*self._height
+        return np.pi*self._radius**2*self._height
 
     def __repr__(self) -> str:
         """"""
         content = f"{self.__class__.__name__} "
-        content += f"radii {self._radii} "
+        content += f"radii {self._radius} "
         content += f"height   {self._height} "
 
         return content
 
-@region_register.register()
+@registers.region.register
 class LatticeRegion(Region):
 
-    def __init__(self, desc: List[float]):
+    def __init__(self, origin: List[float], cell: List[float], *args, **kwargs):
         """"""
-        super().__init__(desc)
-        self._origin = desc[:3]
-        self._cell = np.reshape(desc[3:], (3,3))
+        super().__init__(origin=origin, *args, **kwargs)
+        self._cell = np.reshape(cell, (3,3))
 
         return
 
@@ -495,9 +510,9 @@ class LatticeRegion(Region):
         pos_ = position - self._origin
         frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
         if (
-            0. <= frac_pos_[0] < 1. and
-            0. <= frac_pos_[1] < 1. and
-            0. <= frac_pos_[2] < 1.
+            0. <= np.modf(frac_pos_[0])[0] < 1. and
+            0. <= np.modf(frac_pos_[1])[0] < 1. and
+            0. <= np.modf(frac_pos_[2])[0] < 1.
         ):
             is_in = True
 
@@ -766,4 +781,4 @@ class ReducedRegion():
 
 
 if __name__ == "__main__":
-    pass
+    ...
