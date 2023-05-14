@@ -24,7 +24,7 @@ class MonteCarlo():
 
     restart = False
 
-    pfunc = print
+    _print = print
 
     def __init__(
         self, system: dict, operators: List[dict], drivers: dict, 
@@ -107,7 +107,7 @@ class MonteCarlo():
         self.logger.addHandler(ch)
         self.logger.addHandler(fh)
 
-        self.pfunc = self.logger.info
+        self._pinrt = self.logger.info
 
         return
 
@@ -125,20 +125,25 @@ class MonteCarlo():
         # - prepare logger and output some basic info...
         self._init_logger()
 
-        self.pfunc("===== MonteCarlo Operators (Modifiers) =====\n")
+        self._pinrt("===== MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:
-            self.pfunc(str(op))
-        self.pfunc(f"normalised probabilities {self.op_probs}\n")
+            self._pinrt(str(op))
+        self._pinrt(f"normalised probabilities {self.op_probs}\n")
 
         # -- add print function to operators
         for op in self.operators:
-            op.pfunc = self.pfunc
+            op._print = self._print
 
-        # -- TODO: check if operators' regions are consistent
-        #          though it works, unexpected results may occur
+        # NOTE: check if operators' regions are consistent
+        #       though it works, unexpected results may occur
+        # TODO: need rewrite eq function as compare array is difficult
+        #noperators = len(self.operators)
+        #for i in range(1,noperators):
+        #    if self.operators[i].region != self.operators[i-1].region:
+        #        raise RuntimeError(f"Inconsistent region found in op {i-1} and op {i}")
         
         # - prepare atoms
-        self.pfunc("===== MonteCarlo Structure =====\n")
+        self._pinrt("===== MonteCarlo Structure =====\n")
         tags = self.atoms.arrays.get("tags", None)
         if tags is None:
             # default is setting tags by elements
@@ -146,9 +151,9 @@ class MonteCarlo():
             type_list = sorted(list(set(symbols)))
             new_tags = [type_list.index(s)*10000+i for i, s in enumerate(symbols)]
             self.atoms.set_tags(new_tags)
-            self.pfunc("set default tags by symbols...")
+            self._pinrt("set default tags by symbols...")
         else:
-            self.pfunc("set attached tags from the structure...")
+            self._pinrt("set attached tags from the structure...")
 
         # - prepare drivers
         #     TODO: broadcast scheduler to different drivers?
@@ -163,7 +168,7 @@ class MonteCarlo():
             drivers[name] = driver
 
         # - run init
-        self.pfunc("===== MonteCarlo Initial Minimisation =====\n")
+        self._pinrt("===== MonteCarlo Initial Minimisation =====\n")
         # NOTE: atoms lost tags in optimisation
         #       TODO: move this part to driver?
         cur_tags = self.atoms.get_tags()
@@ -177,7 +182,7 @@ class MonteCarlo():
 
         cur_atoms = cur_frames[0]
         energy_stored = cur_atoms.get_potential_energy()
-        self.pfunc(f"ene: {energy_stored}")
+        self._pinrt(f"ene: {energy_stored}")
         self.atoms = cur_atoms
         self.atoms.set_tags(cur_tags)
         write(self.directory/"mc.xyz", self.atoms)
@@ -195,12 +200,12 @@ class MonteCarlo():
         worker.driver = drivers["post"]
         # -- 
         for i in range(1,nattempts+1):
-            self.pfunc(f"===== MC Step {i} =====")
+            self._pinrt(f"===== MC Step {i} =====")
             # -- operate atoms
             #    always return atoms even if no change is applied
             op = select_operator(self.operators, self.op_probs, self.rng)
             op_name = op.__class__.__name__
-            self.pfunc(f"operator {op_name}")
+            self._pinrt(f"operator {op_name}")
             cur_atoms = op.run(self.atoms, self.rng)
             # -- postprocess?
             energy_operated = energy_stored
@@ -213,7 +218,7 @@ class MonteCarlo():
                 cur_atoms = cur_frames[0]
                 cur_atoms.set_tags(cur_tags)
                 energy_operated = cur_atoms.get_potential_energy()
-                self.pfunc(f"post ene: {energy_operated}")
+                self._pinrt(f"post ene: {energy_operated}")
                 ...
                 # -- metropolis
                 success = op.metropolis(energy_stored, energy_operated, self.rng)
@@ -229,9 +234,9 @@ class MonteCarlo():
             if success:
                 energy_stored = energy_operated
                 self.atoms = cur_atoms
-                self.pfunc("success...")
+                self._pinrt("success...")
             else:
-                self.pfunc("failure...")
+                self._pinrt("failure...")
             write(self.directory/"mc.xyz", self.atoms, append=True)
 
             # -- remove
