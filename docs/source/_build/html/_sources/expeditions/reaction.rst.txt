@@ -1,2 +1,0 @@
-Explore Chemical Reactions
---------------------------

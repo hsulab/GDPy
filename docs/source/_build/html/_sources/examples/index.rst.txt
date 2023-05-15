@@ -1,9 +1,0 @@
-Examples
-========
-
-.. _Driver Examples:
-
-Genetic Algorithm (GA)
-----------------------
-
-Here, we use EMT-GA to explore structures of Cu bulks.

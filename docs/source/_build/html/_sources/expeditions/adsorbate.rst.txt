@@ -1,3 +1,0 @@
-Explore Adsorbate Configurations
---------------------------------
-
