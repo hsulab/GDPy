@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath("../../GDPy/"))
 # -- Project information -----------------------------------------------------
 
 project = 'GDPy'
-copyright = '2022, Jiayan Xu'
+copyright = '2020-2023, Jiayan Xu'
 author = 'Jiayan Xu'
 
 # The full version, including alpha/beta/rc tags
