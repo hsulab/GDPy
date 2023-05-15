@@ -211,7 +211,7 @@ Two sparsification methods are supported.
             strategy: descent
         number: [16, 1.0]
 
-.. |dscribe| image:: ../../assets/dscribe.png
+.. |dscribe| image:: ../../images/dscribe.png
     :width: 400
 
 This selection will produce a picture to visualise the distribution of structures.
