@@ -41,13 +41,22 @@ Supported **Expeditions**
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guides:
+   :caption: Basic Guides:
 
    start
    potentials/index
    computations/index
+   builders/index
+   selections/index
+   routines/index
    expeditions/index
    tutorials/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Advanced Guides:
+
+   sessions/index
 
 .. toctree::
    :maxdepth: 2
