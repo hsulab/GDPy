@@ -8,7 +8,10 @@ from scipy.interpolate import make_interp_spline, BSpline
 import matplotlib as mpl
 mpl.use("Agg") #silent mode
 from matplotlib import pyplot as plt
-plt.style.use("presentation")
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    print("Used default matplotlib style.")
 
 from ase.io import read, write
 

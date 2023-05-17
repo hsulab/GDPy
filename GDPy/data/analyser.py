@@ -30,9 +30,12 @@ from GDPy import config
 
 
 import matplotlib as mpl
-mpl.use('Agg')  # silent mode
+mpl.use("Agg") #silent mode
 from matplotlib import pyplot as plt
-plt.style.use('presentation')
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    print("Used default matplotlib style.")
 
 
 """

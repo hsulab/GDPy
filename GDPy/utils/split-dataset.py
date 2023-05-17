@@ -20,9 +20,12 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 
 import matplotlib as mpl
-mpl.use('Agg') #silent mode
+mpl.use("Agg") #silent mode
 from matplotlib import pyplot as plt
-plt.style.use('presentation') # mpl style on kelvin2
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    print("Used default matplotlib style.")
 
 from ase.io import read, write
 

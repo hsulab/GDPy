@@ -13,10 +13,13 @@ from joblib import Parallel, delayed
 from ase import Atoms
 from ase.io import read, write
 
-import matplotlib
-matplotlib.use("Agg") #silent mode
-import matplotlib.pyplot as plt
-plt.style.use("presentation")
+import matplotlib as mpl
+mpl.use("Agg") #silent mode
+from matplotlib import pyplot as plt
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    print("Used default matplotlib style.")
 
 from GDPy.core.register import registers
 from GDPy.core.operation import Operation

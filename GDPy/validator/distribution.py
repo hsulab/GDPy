@@ -3,6 +3,14 @@
 
 import numpy as np
 
+import matplotlib as mpl
+mpl.use("Agg") #silent mode
+from matplotlib import pyplot as plt
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    print("Used default matplotlib style.")
+
 import ase
 from ase.io import read, write
 
@@ -72,11 +80,6 @@ def calc_gyration(atoms, particle: int="Cr", method="cluster", cutoff=30., nbins
 def plot_rdf(bincentres, rdf, step=5):
     """"""
     print("rdf shape: ", rdf.shape)
-
-    import matplotlib as mpl
-    mpl.use("Agg") #silent mode
-    from matplotlib import pyplot as plt
-    plt.style.use("presentation")
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16,12))
 
