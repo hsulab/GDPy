@@ -606,7 +606,7 @@ class Lammps(FileIOCalculator):
             content += "boundary {0} \n".format(self.parameters["boundary"])
         else:
             content += "boundary {0} {1} {2} \n".format(
-                *tuple("sp"[int(x)] for x in pbc)
+                *tuple("fp"[int(x)] for x in pbc) # sometimes s failed to wrap all atoms
             )
         content += "\n"
         if self.newton:
