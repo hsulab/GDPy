@@ -88,6 +88,8 @@ def convert_groups(
     train_set_dir = dest_dir/f"{suffix}"
     if not train_set_dir.exists():
         train_set_dir.mkdir()
+
+    sys_dirs = []
         
     cum_batchsizes = 0 # number of batchsizes for training
     for name, frames, batchsize in zip(names, groups, batchsizes):
@@ -128,9 +130,10 @@ def convert_groups(
         else:
             dsys.to_deepmd_npy(train_set_dir/"_temp") # prec, set_size
             (train_set_dir/"_temp"/curr_composition).rename(sys_dir)
+        sys_dirs.append(sys_dir)
     (train_set_dir/"_temp").rmdir()
 
-    return cum_batchsizes
+    return cum_batchsizes, sys_dirs
 
 
 @registers.manager.register
@@ -268,12 +271,12 @@ class DeepmdManager(AbstractPotentialManager):
         #    dataset[1], self.train_config["model"]["type_map"], "valid", train_dir
         #)
         batchsizes = dataset[3]
-        cum_batchsizes = convert_groups(
+        cum_batchsizes, train_sys_dirs = convert_groups(
             dataset[0], dataset[1], batchsizes, 
             self.train_config["model"]["type_map"],
             "train", train_dir
         )
-        _ = convert_groups(
+        _, valid_sys_dirs = convert_groups(
             dataset[0], dataset[2], batchsizes,
             self.train_config["model"]["type_map"], 
             "valid", train_dir
@@ -289,12 +292,10 @@ class DeepmdManager(AbstractPotentialManager):
         train_config["model"]["descriptor"]["seed"] = np.random.randint(0,10000)
         train_config["model"]["fitting_net"]["seed"] = np.random.randint(0,10000)
 
-        data_dirs = list(str(x.resolve()) for x in (train_dir/"train").iterdir() if x.is_dir())
-        train_config["training"]["training_data"]["systems"] = data_dirs
+        train_config["training"]["training_data"]["systems"] = [str(x.resolve()) for x in train_sys_dirs]
         train_config["training"]["training_data"]["batch_size"] = batchsizes
 
-        data_dirs = list(str(x.resolve()) for x in (train_dir/"valid").iterdir() if x.is_dir())
-        train_config["training"]["validation_data"]["systems"] = data_dirs
+        train_config["training"]["validation_data"]["systems"] = [str(x.resolve()) for x in valid_sys_dirs]
         train_config["training"]["validation_data"]["batch_size"] = batchsizes
 
         train_config["training"]["seed"] = np.random.randint(0,10000)
