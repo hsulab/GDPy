@@ -327,7 +327,13 @@ class AseDriver(AbstractDriver):
                 new_atoms.info.update(**extra_info)
             # TODO: set a hard limit of min steps
             #       since some terrible structures may not converged anyway
-            if not new_atoms.info.get("scf_convergence", True):
+            # - check convergence of forace evaluation (e.g. SCF convergence)
+            try:
+                scf_convergence = self.calc.read_convergence()
+            except:
+                # -- cannot read scf convergence then assume it is ok
+                scf_convergence = True
+            if not scf_convergence:
                 warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
             if not converged:
                 warnings.warn(f"{self.name} at {self.directory} failed to converge.", RuntimeWarning)
@@ -433,8 +439,7 @@ class AseDriver(AbstractDriver):
 
         """
         converged = False
-
-        #traj_frames = self.read_trajectory(add_step_info=True, *args, **kwargs)
+        # - check geometric convergence
         nframes = len(trajectory)
         if run_params["steps"] > 0:
             if self.setting.task == "md":
@@ -458,6 +463,16 @@ class AseDriver(AbstractDriver):
         """Read trajectory in the current working directory."""
         # TODO: concatenate all trajectories
         traj_frames = read(self.directory/self.xyz_fname, index=":")
+
+        # - check the convergence of the force evaluation
+        try:
+            scf_convergence = self.calc.read_convergence()
+        except:
+            # -- cannot read scf convergence then assume it is ok
+            scf_convergence = True
+        if not scf_convergence:
+            warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
+            traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
 
         # TODO: log file will not be overwritten when restart
         init_params = self.setting.get_init_params()
