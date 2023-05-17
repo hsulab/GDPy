@@ -107,6 +107,8 @@ def convert_groups(
                 forces = atoms.get_forces().copy()
                 del atoms.arrays["forces"]
                 atoms.arrays["force"] = forces
+                # TODO: dpdata doesnot support read tags
+                del atoms.arrays["tags"]
             except:
                 pass
             finally:
