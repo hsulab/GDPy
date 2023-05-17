@@ -388,7 +388,7 @@ class Lammps(FileIOCalculator):
         units = "metal",
         atom_style = "atomic",
         processors = "* * 1",
-        boundary = "p p p",
+        #boundary = "p p p",
         newton = None,
         pair_style = None,
         pair_coeff = None,
@@ -601,7 +601,13 @@ class Lammps(FileIOCalculator):
             content += "processors {}\n".format(self.processors) # if 2D simulation
         
         # - simulation box
-        content += "boundary        p p p\n"
+        pbc = atoms.get_pbc()
+        if "boundary" in self.parameters:
+            content += "boundary {0} \n".format(self.parameters["boundary"])
+        else:
+            content += "boundary {0} {1} {2} \n".format(
+                *tuple("sp"[int(x)] for x in pbc)
+            )
         content += "\n"
         if self.newton:
             content += "newton {}\n".format(self.newton)
