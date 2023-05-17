@@ -32,10 +32,10 @@ def split_dataset(
     train_size, test_size = [], []
     train_frames, test_frames = [], []
     adjusted_batchsizes = [] # auto-adjust batchsize based on nframes
-    for i, (cur_system, cur_batchsize) in enumerate(zip(data_dirs, batchsizes)):
+    for i, (cur_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
         cur_system = pathlib.Path(cur_system)
         set_names.append(cur_system.name)
-        print(f"System {cur_system.stem} Batchsize {cur_batchsize}\n")
+        print(f"System {cur_system.stem} Batchsize {curr_batchsize}\n")
         frames = [] # all frames in this subsystem
         subsystems = list(cur_system.glob("*.xyz"))
         subsystems.sort() # sort by alphabet
@@ -49,26 +49,35 @@ def split_dataset(
         # split dataset and get adjusted batchsize
         # TODO: adjust batchsize of train and test separately
         nframes = len(frames)
-        if nframes == 1 or nframes <= cur_batchsize:
-            new_batchsize = int(2**np.floor(np.log2(nframes)))
+        if nframes <= curr_batchsize:
+            if nframes == 1 or curr_batchsize == 1:
+                new_batchsize = 1
+            else:
+                new_batchsize = int(2**np.floor(np.log2(nframes)))
             adjusted_batchsizes.append(new_batchsize)
             # NOTE: use same train and test set
             #       since they are very important structures...
             train_index = list(range(nframes))
             test_index = list(range(nframes))
         else:
-            adjusted_batchsizes.append(cur_batchsize)
-            # - assure there is at least one batch for test
-            #          and number of train frames is integer times of batchsize
-            ntrain = int(np.floor(nframes * train_ratio / cur_batchsize) * cur_batchsize)
-            train_index = rng.choice(nframes, ntrain, replace=False)
-            test_index = [x for x in range(nframes) if x not in train_index]
+            if nframes == 1 or curr_batchsize == 1:
+                new_batchsize = 1
+                train_index = list(range(nframes))
+                test_index = list(range(nframes))
+            else:
+                new_batchsize = curr_batchsize
+                # - assure there is at least one batch for test
+                #          and number of train frames is integer times of batchsize
+                ntrain = int(np.floor(nframes * train_ratio / new_batchsize) * new_batchsize)
+                train_index = rng.choice(nframes, ntrain, replace=False)
+                test_index = [x for x in range(nframes) if x not in train_index]
+            adjusted_batchsizes.append(new_batchsize)
 
         ntrain, ntest = len(train_index), len(test_index)
         train_size.append(ntrain)
         test_size.append(ntest)
 
-        print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes}\n")
+        print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}\n")
 
         curr_train_frames = [frames[train_i] for train_i in train_index]
         curr_test_frames = [frames[test_i] for test_i in test_index]
