@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import itertools
 from typing import NoReturn, List
 
@@ -59,8 +60,12 @@ class build(Operation):
         bundle = []
         for i, builder in enumerate(args):
             builder.directory = self.directory
-            frames = builder.run()
-            write(self.directory/f"{builder.name}_output-{i}.xyz", frames)
+            curr_builder_output = self.directory/f"{builder.name}_output-{i}.xyz"
+            if curr_builder_output.exists():
+                frames = read(curr_builder_output, ":")
+            else:
+                frames = builder.run()
+                write(curr_builder_output, frames)
             self.pfunc(f"{i} - {builder.name} nframes: {len(frames)}")
             bundle.extend(frames)
         self.pfunc(f"nframes: {len(bundle)}")
@@ -77,12 +82,16 @@ class modify(Operation):
         super().__init__([substrate, modifier])
 
         self.number = number # create number of new structures
-        self.repeat = repeat # repeat modification times for one structure
+        #self.repeat = repeat # repeat modification times for one structure
 
         return
     
     def forward(self, substrates, modifier):
-        """"""
+        """Modify inputs structures.
+
+        A modifier only accepts one structure each time.
+
+        """
         super().forward()
 
         cache_path = self.directory/f"{modifier.name}-out.xyz"
@@ -90,11 +99,9 @@ class modify(Operation):
         if not cache_path.exists():
             frames = []
             for substrate in substrates:
-                for j in range(self.number):
-                    curr_atoms = substrate
-                    for k in range(self.repeat):
-                        curr_atoms = modifier.run([curr_atoms])[0]
-                    frames.append(curr_atoms)
+                curr_atoms = copy.deepcopy(substrate)
+                curr_frames = modifier.run(curr_atoms, size=self.number)
+                frames.extend(curr_frames)
             write(cache_path, frames)
         else:
             frames = read(cache_path, ":")
