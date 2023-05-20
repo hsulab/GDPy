@@ -80,8 +80,10 @@ class MoleculeBuilder(StructureBuilder):
 
         if (name is None and filename is None) or (name is not None and filename is not None):
             raise RuntimeError(f"Either name or filname should be set for {self.name}.")
-        self.name, self.func = name, self._build
-        self.filename, self.func = filename, self._read
+        if name is not None:
+            self.molecule_name, self.func = name, self._build
+        if filename is not None:
+            self.filename, self.func = filename, self._read
 
         return
     
@@ -122,12 +124,12 @@ class MoleculeBuilder(StructureBuilder):
     
     def _build(self) -> Atoms:
         """"""
-        molecule_name = self.name
+        molecule_name = self.molecule_name
         # - build adsorbate
         atoms = None
         if molecule_name in ase.data.chemical_symbols:
             atoms = Atoms(molecule_name, positions=[[0.,0.,0.]])
-        elif species in g2.names:
+        elif molecule_name in g2.names:
             atoms = molecule(molecule_name)
         else:
             raise RuntimeError(f"Cant create molecule {molecule_name}")
