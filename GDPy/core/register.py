@@ -56,6 +56,12 @@ class registers:
     #: Managers (Potentials).
     manager: Register = Register("manager")
 
+    #: Trainers (Potential Trainers).
+    trainer: Register = Register("trainer")
+
+    #: Dataloaders (Datasets).
+    dataloader: Register = Register("dataloader")
+
     #: Regions.
     region: Register = Register("region")
 
@@ -106,6 +112,10 @@ ALL_MODULES = [
     # - working components.
     # -- managers (potentials)
     ("GDPy.potential.managers", ["vasp", "cp2k", "xtb", "reax", "eann", "deepmd", "lasp", "nequip"]),
+    # -- trainers (potentials)
+    ("GDPy.potential.managers", ["deepmd"]),
+    # -- dataloaders (datasets)
+    ("GDPy.data", ["dataset"]),
     # -- region
     ("GDPy.builder", ["region"]),
     # -- builders
