@@ -156,15 +156,18 @@ def parse_input_file(
             return None
 
         # --- read dict from files
-        if input_file.suffix == ".json":
-            with open(input_file, "r") as fopen:
-                input_dict = json.load(fopen)
-        elif input_file.suffix == ".yaml":
-            with open(input_file, "r") as fopen:
-                input_dict = yaml.safe_load(fopen)
-        else:
-            pass
-            # raise ValueError("input file format should be json or yaml...")
+        try:
+            if input_file.suffix == ".json":
+                with open(input_file, "r") as fopen:
+                    input_dict = json.load(fopen)
+            elif input_file.suffix == ".yaml":
+                with open(input_file, "r") as fopen:
+                    input_dict = yaml.safe_load(fopen)
+            else:
+                ...
+        except FileNotFoundError as e:
+            # NOTE: There is json or yaml in the string but it is not a file though.
+            input_dict = None
     
     # NOTE: recursive read internal json or yaml files
     if input_dict is not None:
@@ -181,17 +184,4 @@ def parse_input_file(
     return input_dict
 
 if __name__ == "__main__":
-    # - test convert indices
-    indices = [1,2,3,6,7,8]
-    indices = "1:3 4:5"
-    ret = convert_indices(indices)
-    print(ret)
-    exit()
-    # test backups
-    backups = find_backups("/users/40247882/scratch2/pbe-oxides/eann-main/m07/ga/PtCOx/cand2", "surface.dump")
-    print(backups)
-    exit()
-    # test input reader
-    #input_dict = parse_input_file("/mnt/scratch2/users/40247882/PtOx-dataset/systems.yaml")
-    #print(input_dict)
-    pass
+    ...
