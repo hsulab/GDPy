@@ -111,7 +111,7 @@ DATA_OPS = ["operations"]
 ALL_MODULES = [
     # - working components.
     # -- managers (potentials)
-    ("GDPy.potential.managers", ["vasp", "cp2k", "xtb", "reax", "eann", "deepmd", "lasp", "nequip"]),
+    ("GDPy.potential.managers", ["vasp", "cp2k", "emt", "xtb", "reax", "eann", "deepmd", "lasp", "nequip"]),
     # -- trainers (potentials)
     ("GDPy.potential.managers", ["deepmd"]),
     # -- dataloaders (datasets)
