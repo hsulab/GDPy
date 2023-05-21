@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 from typing import List
 
 import numpy as np
@@ -38,15 +39,17 @@ class PerturbatorBuilder(StructureBuilder):
 
         return
     
-    def run(self, substrates: List[Atoms], *args, **kwargs):
+    def run(self, substrate: Atoms, size:int=1, *args, **kwargs):
         """"""
         super().run(*args, **kwargs)
 
-        frames, _ = copy_minimal_frames(substrates)
-        for atoms in frames:
+        frames = []
+        for i in range(size):
+            atoms = copy.deepcopy(substrate)
             natoms = len(atoms)
             pos_drift = self.rng.random((natoms,3))
             atoms.positions += pos_drift*self.eps
+            frames.append(atoms)
 
         return frames
 
