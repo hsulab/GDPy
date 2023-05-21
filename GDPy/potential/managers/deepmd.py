@@ -5,7 +5,8 @@ import os
 import copy
 from pathlib import Path
 import pathlib
-from typing import Union, List
+import subprocess
+from typing import Union, List, Callable
 
 import json
 
@@ -17,11 +18,186 @@ from ase.calculators.calculator import Calculator
 
 from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager
+from GDPy.potential.trainer import AbstractTrainer
 
-def group_dataset(dataset):
-    """"""
 
-    return
+@registers.trainer.register
+class DeepmdTrainer(AbstractTrainer):
+
+    name = "deepmd"
+    command = "dp"
+    prefix = "config"
+
+    def __init__(
+        self, config: dict, train_ratio: float=0.9, train_epochs: int=200,
+        directory=".", command="dp", random_seed=1112, 
+        *args, **kwargs
+    ) -> None:
+        """"""
+        super().__init__(
+            config=config, train_ratio=train_ratio, train_epochs=train_epochs,
+            directory=directory, command=command, random_seed=random_seed, *args, **kwargs
+        )
+
+        # - update command
+        if self.prefix not in self.command:
+            train_command = self.command.strip().split()[0]
+            self.command = "{} train {}.json".format(train_command, self.prefix)
+
+        return
+    
+    def write_input(self, dataset, batchsizes, reduce_system: bool=False):
+        """Write inputs for training.
+
+        Args:
+            reduce_system: Whether merge structures.
+
+        """
+        set_names, train_frames, test_frames, adjusted_batchsizes = self._get_dataset(
+            dataset, batchsizes, reduce_system
+        )
+
+        train_dir = self.directory
+
+        # - update config
+        batchsizes = adjusted_batchsizes
+        cum_batchsizes, train_sys_dirs = convert_groups(
+            set_names, train_frames, batchsizes, 
+            self.config["model"]["type_map"],
+            "train", train_dir
+        )
+        _, valid_sys_dirs = convert_groups(
+            set_names, test_frames, batchsizes,
+            self.config["model"]["type_map"], 
+            "valid", train_dir
+        )
+
+        # - check train config
+        # NOTE: parameters
+        #       numb_steps, seed
+        #       descriptor-seed, fitting_net-seed
+        #       training - training_data, validation_data
+        train_config = copy.deepcopy(self.config)
+
+        train_config["model"]["descriptor"]["seed"] =  self.rng.integers(0,10000, dtype=int)
+        train_config["model"]["fitting_net"]["seed"] = self.rng.integers(0,10000, dtype=int)
+
+        train_config["training"]["training_data"]["systems"] = [str(x.resolve()) for x in train_sys_dirs]
+        train_config["training"]["training_data"]["batch_size"] = batchsizes
+
+        train_config["training"]["validation_data"]["systems"] = [str(x.resolve()) for x in valid_sys_dirs]
+        train_config["training"]["validation_data"]["batch_size"] = batchsizes
+
+        train_config["training"]["seed"] = self.rng.integers(0,10000, dtype=int)
+
+        # --- calc numb_steps
+        save_freq = train_config["training"]["save_freq"]
+        n_checkpoints = int(np.ceil(cum_batchsizes*self.train_epochs/save_freq))
+        numb_steps = n_checkpoints*save_freq
+
+        train_config["training"]["numb_steps"] = numb_steps
+
+        # - write
+        with open(train_dir/"config.json", "w") as fopen:
+            json.dump(train_config, fopen, indent=2)
+
+        return
+    
+    def _get_dataset(self, dataset, batchsizes, reduce_system):
+        data_dirs = dataset.load()
+        self._print(data_dirs)
+        self._print("\n--- auto data reader ---\n")
+        #content += f"Use batchsize {batchsize} and train-ratio {train_ratio}\n"
+
+        nsystems = len(data_dirs)
+        if isinstance(batchsizes, int):
+            batchsizes = [batchsizes]*nsystems
+        assert len(batchsizes) == nsystems, "Number of systems and batchsizes are inconsistent."
+
+        # read configurations
+        set_names = []
+        train_size, test_size = [], []
+        train_frames, test_frames = [], []
+        adjusted_batchsizes = [] # auto-adjust batchsize based on nframes
+        for i, (cur_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
+            cur_system = pathlib.Path(cur_system)
+            set_names.append(cur_system.name)
+            self._print(f"System {cur_system.stem} Batchsize {curr_batchsize}\n")
+            frames = [] # all frames in this subsystem
+            subsystems = list(cur_system.glob("*.xyz"))
+            subsystems.sort() # sort by alphabet
+            for p in subsystems:
+                # read and split dataset
+                p_frames = read(p, ":")
+                p_nframes = len(p_frames)
+                frames.extend(p_frames)
+                self._print(f"  subsystem: {p.name} number {p_nframes}\n")
+
+            # split dataset and get adjusted batchsize
+            # TODO: adjust batchsize of train and test separately
+            nframes = len(frames)
+            if nframes <= curr_batchsize:
+                if nframes == 1 or curr_batchsize == 1:
+                    new_batchsize = 1
+                else:
+                    new_batchsize = int(2**np.floor(np.log2(nframes)))
+                adjusted_batchsizes.append(new_batchsize)
+                # NOTE: use same train and test set
+                #       since they are very important structures...
+                train_index = list(range(nframes))
+                test_index = list(range(nframes))
+            else:
+                if nframes == 1 or curr_batchsize == 1:
+                    new_batchsize = 1
+                    train_index = list(range(nframes))
+                    test_index = list(range(nframes))
+                else:
+                    new_batchsize = curr_batchsize
+                    # - assure there is at least one batch for test
+                    #          and number of train frames is integer times of batchsize
+                    ntrain = int(np.floor(nframes * self.train_ratio / new_batchsize) * new_batchsize)
+                    train_index = self.rng.choice(nframes, ntrain, replace=False)
+                    test_index = [x for x in range(nframes) if x not in train_index]
+                adjusted_batchsizes.append(new_batchsize)
+
+            ntrain, ntest = len(train_index), len(test_index)
+            train_size.append(ntrain)
+            test_size.append(ntest)
+
+            self._print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}\n")
+
+            curr_train_frames = [frames[train_i] for train_i in train_index]
+            curr_test_frames = [frames[test_i] for test_i in test_index]
+            if reduce_system:
+                # train
+                train_frames.extend(curr_train_frames)
+                n_train_frames = len(train_frames)
+
+                # test
+                test_frames.extend(curr_test_frames)
+                n_test_frames = len(test_frames)
+            else:
+                # train
+                train_frames.append(curr_train_frames)
+                n_train_frames = sum([len(x) for x in train_frames])
+
+                # test
+                test_frames.append(curr_test_frames)
+                n_test_frames = sum([len(x) for x in test_frames])
+            self._print(f"  Current Dataset -> ntrain: {n_train_frames} ntest: {n_test_frames}\n\n")
+
+        assert len(train_size) == len(test_size), "inconsistent train_size and test_size"
+        train_size = sum(train_size)
+        test_size = sum(test_size)
+        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}\n")
+
+        return set_names, train_frames, test_frames, adjusted_batchsizes
+    
+    def read_convergence(self):
+        """"""
+        CONVERGENCE_FLAG = "finished training"
+
+        return
 
 
 def convert_dataset(
@@ -110,7 +286,10 @@ def convert_groups(
                 del atoms.arrays["forces"]
                 atoms.arrays["force"] = forces
                 # TODO: dpdata doesnot support read tags
-                del atoms.arrays["tags"]
+                if "tags" in atoms.arrays:
+                    del atoms.arrays["tags"]
+                if "initial_charges" in atoms.arrays:
+                    del atoms.arrays["initial_charges"]
             except:
                 pass
             finally:
