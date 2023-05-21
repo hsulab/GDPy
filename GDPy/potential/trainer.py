@@ -16,23 +16,32 @@ class TrainingFailed(RuntimeError):
 
     ...
 
+class FreezingFailed(RuntimeError):
+
+    """Freezing unexpectedly fails."""
+
+    ...
+
 class AbstractTrainer(abc.ABC):
 
     #: Name of this trainer.
-    name:str = "trainer"
+    name: str = "trainer"
 
     #: Command to train.
-    command:str = None
+    command: str = None
+
+    #: Command to freeze/deploy.
+    freeze_command: str = None
     
-    #: Prefix of input and output.
-    prefix:str = "config"
+    #: Prefix of input file.
+    prefix: str = "config"
 
     #: Default output function.
     _print: Callable = print
 
     def __init__(
         self, config: dict, train_ratio: float=0.9, train_epochs: int=200,
-        directory=".", command="train", random_seed: int=None, 
+        directory=".", command="train", freeze_command="freeze", random_seed: int=None, 
         *args, **kwargs
     ) -> None:
         """"""
@@ -76,12 +85,36 @@ class AbstractTrainer(abc.ABC):
 
         if errorcode:
             path = os.path.abspath(self.directory)
-            msg = ('Calculator "{}" failed with command "{}" failed in '
+            msg = ('Trainer "{}" failed with command "{}" failed in '
                    '{} with error code {}'.format(self.name, command,
                                                   path, errorcode))
             raise TrainingFailed(msg)
 
         return
+    
+    def freeze(self):
+        """Freeze trained model and return the model path."""
+        frozen_model = self.directory/f"{self.name}.pb"
+        if not frozen_model.exists():
+            command = self.freeze_command
+            try:
+                proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+            except OSError as err:
+                msg = "Failed to execute `{}`".format(command)
+                raise FreezingFailed(msg) from err
+
+            errorcode = proc.wait()
+
+            if errorcode:
+                path = os.path.abspath(self.directory)
+                msg = ('Trainer "{}" failed with command "{}" failed in '
+                       '{} with error code {}'.format(self.name, command,
+                                                      path, errorcode))
+                raise FreezingFailed(msg)
+        else:
+            ...
+
+        return self.directory/f"{self.name}.pb"
     
     @abc.abstractmethod
     def write_input(self, dataset, batchsizes, reduce_system: bool=False):
@@ -106,6 +139,7 @@ class AbstractTrainer(abc.ABC):
         trainer_params["name"] = self.name
         trainer_params["config"] = self.config
         trainer_params["command"] = self.command
+        trainer_params["freeze_command"] = self.freeze_command
         trainer_params["train_ratio"] = self.train_ratio
         trainer_params["train_epochs"] = self.train_epochs
         trainer_params["random_seed"] = self.random_seed
