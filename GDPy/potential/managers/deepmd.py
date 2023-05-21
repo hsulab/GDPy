@@ -26,25 +26,49 @@ class DeepmdTrainer(AbstractTrainer):
 
     name = "deepmd"
     command = "dp"
+    freeze_command = "dp"
     prefix = "config"
+
+    _type_list: List[str] = None
+
+    #: Flag indicates that the training is finished properly.
+    CONVERGENCE_FLAG: str = "finished training"
 
     def __init__(
         self, config: dict, train_ratio: float=0.9, train_epochs: int=200,
-        directory=".", command="dp", random_seed=1112, 
+        directory=".", command="dp", freeze_command="dp", random_seed=1112, 
         *args, **kwargs
     ) -> None:
         """"""
         super().__init__(
             config=config, train_ratio=train_ratio, train_epochs=train_epochs,
-            directory=directory, command=command, random_seed=random_seed, *args, **kwargs
+            directory=directory, command=command, freeze_command=freeze_command, 
+            random_seed=random_seed, *args, **kwargs
         )
 
+        # - sync type_list
+        self._type_list = config["model"]["type_map"]
+
         # - update command
-        if self.prefix not in self.command:
-            train_command = self.command.strip().split()[0]
-            self.command = "{} train {}.json".format(train_command, self.prefix)
+        train_command = self.command.strip().split()[0]
+        self.command = "{} train {}.json 2>&1 > {}.out".format(
+            train_command, self.name, self.name
+        )
+
+        if freeze_command is None:
+            freeze_command = train_command
+        freeze_command = self.freeze_command.strip().split()[0]
+        self.freeze_command = "{} freeze -o {}.pb 2>&1 >> {}.out".format(
+            freeze_command, self.name, self.name
+        )
 
         return
+    
+    @property
+    def type_list(self):
+        """"""
+
+        return self._type_list
     
     def write_input(self, dataset, batchsizes, reduce_system: bool=False):
         """Write inputs for training.
@@ -98,7 +122,7 @@ class DeepmdTrainer(AbstractTrainer):
         train_config["training"]["numb_steps"] = numb_steps
 
         # - write
-        with open(train_dir/"config.json", "w") as fopen:
+        with open(train_dir/f"{self.name}.json", "w") as fopen:
             json.dump(train_config, fopen, indent=2)
 
         return
@@ -193,11 +217,21 @@ class DeepmdTrainer(AbstractTrainer):
 
         return set_names, train_frames, test_frames, adjusted_batchsizes
     
-    def read_convergence(self):
+    def read_convergence(self) -> bool:
         """"""
-        CONVERGENCE_FLAG = "finished training"
+        train_out = self.directory/f"{self.name}.out"
+        with open(train_out, "r") as fopen:
+            lines = fopen.readlines()
+        
+        converged = False
+        for line in lines:
+            if line.strip("DEEPMD INFO").startswith(self.CONVERGENCE_FLAG):
+                converged = True
+                break
+        else:
+            ...
 
-        return
+        return converged
 
 
 def convert_dataset(
