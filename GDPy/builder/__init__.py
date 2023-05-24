@@ -8,7 +8,6 @@ from GDPy.builder.direct import DirectBuilder
 from GDPy.builder.species import FormulaBasedGenerator
 from GDPy.builder.dimer import DimerBuilder
 from GDPy.builder.builder import StructureGenerator
-from GDPy.builder.randomBuilder import RandomGenerator
 from GDPy.builder.adsorbate import AdsorbateGraphGenerator
 
 supported_filetypes = [".xyz", ".xsd", ".arc"]
@@ -42,8 +41,6 @@ def create_generator(params: Union[str, dict]) -> StructureGenerator:
         generator = FormulaBasedGenerator(**params)
     elif method == "dimer":
         generator = DimerBuilder(params)
-    elif method == "random":
-        generator = RandomGenerator(params)
     elif method == "adsorbate":
         generator = AdsorbateGraphGenerator(params)
     else:
@@ -83,8 +80,6 @@ def create_generators(params: Union[str, dict]) -> List[StructureGenerator]:
             generator = FormulaBasedGenerator(**params)
         elif method == "dimer":
             generator = DimerBuilder(params)
-        elif method == "random":
-            generator = RandomGenerator(params)
         elif method == "adsorbate":
             generator = AdsorbateGraphGenerator(params)
         else:
