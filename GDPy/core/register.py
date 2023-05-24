@@ -119,7 +119,7 @@ ALL_MODULES = [
     # -- region
     ("GDPy.builder", ["region"]),
     # -- builders
-    ("GDPy.builder", ["direct", "dimer", "species", "hypercube"]),
+    ("GDPy.builder", ["direct", "dimer", "species", "hypercube", "randomBuilder"]),
     # -- modifiers
     ("GDPy.builder", ["perturbator"]),
     # -- reactors
