@@ -241,7 +241,7 @@ class GeneticAlgorithemEngine():
         self._print("\n\n===== register generator =====")
         self._print(self.generator)
 
-        # TODO: check database existence and generation number to determine restart
+        # NOTE: check database existence and generation number to determine restart
         if not self.db_name.exists():
             self._print("----- create a new database -----")
             self._create_initial_population()
@@ -250,7 +250,6 @@ class GeneticAlgorithemEngine():
             self.__initialise()
         else:
             self._print("restart the database...")
-            # blah
             self.__restart()
 
         # --- mutation and comparassion operators
@@ -289,7 +288,7 @@ class GeneticAlgorithemEngine():
         self._print(f"end of current generation: {end_of_gen}")
 
         # --- check generation
-        if self.is_converged():
+        if self.read_convergence():
             self._print("reach maximum generation...")
             return
         else:
@@ -363,7 +362,6 @@ class GeneticAlgorithemEngine():
         # --- check if there were finished jobs
         self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
         self.worker.inspect(resubmit=True)
-        print(self.worker.directory)
         if self.worker.get_number_of_running_jobs() == 0:
             converged_candidates = self.worker.retrieve()
             for cand in converged_candidates:
@@ -426,7 +424,7 @@ class GeneticAlgorithemEngine():
 
         return
     
-    def is_converged(self):
+    def read_convergence(self):
         """ check whether the search is converged
         """
         max_gen = self.conv_dict["generation"]
@@ -706,4 +704,4 @@ class GeneticAlgorithemEngine():
         return
 
 if __name__ == "__main__":
-    pass
+    ...
