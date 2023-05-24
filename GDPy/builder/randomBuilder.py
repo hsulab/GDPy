@@ -50,14 +50,6 @@ class RandomBuilder(StructureBuilder):
     ):
         super().__init__(directory, random_seed, *args, **kwargs)
 
-        # - add substrate
-        self.substrate = substrate
-
-        # - create region
-        region = copy.deepcopy(region)
-        shape = region.pop("method", "auto")
-        self.region = registers.create("region", shape, convert_name=True, **region)
-
         # - parse composition
         self.composition = composition
         self._parse_composition()
@@ -65,13 +57,23 @@ class RandomBuilder(StructureBuilder):
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
+        # - add substrate
+        self.substrate = substrate
+        if self.substrate is not None:
+            unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
+            self.blmin = self._build_tolerance(unique_atom_types)
+        else:
+            self.blmin = None
+
+        # - create region
+        region = copy.deepcopy(region)
+        shape = region.pop("method", "auto")
+        self.region = registers.create("region", shape, convert_name=True, **region)
+
         # - check cell
         self.cell = cell
         if not self.cell: # None or []
             self.cell = np.array(cell).reshape(-1,3)
-
-        # - other parameters
-        self.blmin = None
 
         # - read from kwargs
         self.test_too_far = kwargs.get("test_too_far", True) # test_too_far
