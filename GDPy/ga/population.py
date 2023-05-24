@@ -113,7 +113,7 @@ class AbstractPopulationManager():
 
         # - generate random structures
         self.pfunc("\n----- try to generate random structures -----")
-        random_frames = generator.run(self.init_size - seed_size)
+        random_frames = generator.run(size=self.init_size - seed_size)
         self.pfunc(f"number of random structures: {len(random_frames)}")
         starting_population.extend(random_frames)
 
@@ -161,7 +161,7 @@ class AbstractPopulationManager():
         # - random
         random_structures = []
         for i in range(self.gen_ran_max_try):
-            frames = generator.run(ran_size=1)
+            frames = generator.run(size=1)
             if frames:
                 atoms = frames[0]
                 self.pfunc("  reproduce randomly ")

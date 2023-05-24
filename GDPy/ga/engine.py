@@ -6,6 +6,7 @@ import time
 from random import random
 import pathlib
 from pathlib import Path
+from typing import Callable
 import importlib
 import warnings
 import logging
@@ -18,12 +19,11 @@ import ase.formula
 from ase import Atoms
 from ase.io import read, write
 from ase.ga.data import PrepareDB, DataConnection
-
 from ase.ga.population import Population
-
 from ase.ga.offspring_creator import OperationSelector
-
 from GDPy.ga.population import AbstractPopulationManager
+
+from GDPy.core.register import registers
 
 """
 TODO: search variational composition
@@ -38,7 +38,7 @@ Workflow
 Systems
     bulk
     slab
-    cluster (w/support)
+    cluster
 
 Reserved Keywords in Database
     generation
@@ -52,6 +52,7 @@ Operators
     comparator
     crossover (pairing)
     mutation
+
 """
 
 class GeneticAlgorithemEngine():
@@ -60,9 +61,9 @@ class GeneticAlgorithemEngine():
     Genetic Algorithem Engine
     """
 
-    # output 
     restart = True
-    pfunc = print
+    _print: Callable = print
+    _debug: Callable = print
     _directory = Path.cwd()
 
     # local optimisation directory
@@ -73,20 +74,8 @@ class GeneticAlgorithemEngine():
 
     # TODO: Neighbor list and parametrization parameters to screen
     # candidates before relaxation can be added. Default is not to use.
-
     find_neighbors = None
     perform_parametrization = None
-
-    test_dist_to_slab = True
-    test_too_far = True
-
-    # - cell settings
-    #number_of_variable_cell_vectors=0,
-    #box_to_place_in=box_to_place_in,
-    #box_volume=None,
-    #splits=None,
-    #cellbounds=None,
-
 
     def __init__(self, ga_dict: dict, directroy=Path.cwd(), *args, **kwargs):
         """"""
@@ -98,8 +87,19 @@ class GeneticAlgorithemEngine():
         self.ga_dict = copy.deepcopy(ga_dict)
 
         # - check system type
-        from GDPy.builder.randomBuilder import RandomGenerator
-        self.generator = RandomGenerator(ga_dict["system"])
+        builder_params = copy.deepcopy(ga_dict["builder"])
+        substrate_builder = builder_params.pop("substrate", None)
+        if substrate_builder is not None:
+            # TODO: support all builders
+            #       currently, only filepath is supported
+            substrates = read(substrate_builder, ":")
+            assert len(substrates) == 1, "Only support one substrate."
+            builder_params["substrate"] = substrates[0]
+
+        builder_method = builder_params.pop("method")
+        self.generator = registers.create(
+            "builder", builder_method, convert_name=True, **builder_params
+        )
 
         # --- database ---
         self.db_name = pathlib.Path(ga_dict["database"])
@@ -139,25 +139,28 @@ class GeneticAlgorithemEngine():
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
-        working_directory = self.directory
-        log_fpath = working_directory / (self.__class__.__name__+".out")
-
-        if self.restart:
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-
-        fh.setLevel(log_level)
-        #fh.setFormatter(formatter)
-
+        # - stream
         ch = logging.StreamHandler()
         ch.setLevel(log_level)
         #ch.setFormatter(formatter)
 
-        self.logger.addHandler(ch)
+        # -- avoid duplicate stream handlers
+        for handler in self.logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                break
+        else:
+            self.logger.addHandler(ch)
+
+        # - file
+        log_fpath = self.directory/(self.__class__.__name__+".out")
+        if log_fpath.exists():
+            fh = logging.FileHandler(filename=log_fpath, mode="a")
+        else:
+            fh = logging.FileHandler(filename=log_fpath, mode="w")
+        fh.setLevel(log_level)
         self.logger.addHandler(fh)
 
-        self.pfunc = self.logger.info
+        self._print = self.logger.info
 
         return
     
@@ -223,42 +226,42 @@ class GeneticAlgorithemEngine():
         """ main procedure
         """
         # - search target
-        self.pfunc(f"\n\n===== Genetic Algorithm at Step {istep} =====")
+        self._print(f"\n\n===== Genetic Algorithm at Step {istep} =====")
         target = self.prop_dict["target"]
-        self.pfunc(f"\nTarget of Global Optimisation is {target}")
+        self._print(f"\nTarget of Global Optimisation is {target}")
 
         # - worker info
-        self.pfunc("\n\n===== register worker =====")
+        self._print("\n\n===== register worker =====")
         assert worker is not None, "Worker is not properly set..."
         self.worker = worker
         self.worker.directory = self.directory / self.CALC_DIRNAME
         self.worker.logger = self.logger
 
         # - generator info
-        self.pfunc("\n\n===== register generator =====")
-        self.pfunc(self.generator)
+        self._print("\n\n===== register generator =====")
+        self._print(self.generator)
 
         # TODO: check database existence and generation number to determine restart
         if not self.db_name.exists():
-            self.pfunc("----- create a new database -----")
+            self._print("----- create a new database -----")
             self._create_initial_population()
             # make calculation dir
-            self.pfunc("----- create a new tmp_folder -----")
+            self._print("----- create a new tmp_folder -----")
             self.__initialise()
         else:
-            self.pfunc("restart the database...")
+            self._print("restart the database...")
             # blah
             self.__restart()
 
         # --- mutation and comparassion operators
-        self.pfunc("\n\n===== register operators =====")
+        self._print("\n\n===== register operators =====")
         self._register_operators()
 
         # --- check current generation number
-        self.pfunc("\n\n===== Generation Info =====")
+        self._print("\n\n===== Generation Info =====")
 
         self.cur_gen = self.da.get_generation_number()
-        self.pfunc(f"current generation number: {self.cur_gen}")
+        self._print(f"current generation number: {self.cur_gen}")
 
         # output a few info
         unrelaxed_strus_gen_ = list(self.da.c.select("relaxed=0,generation=%d" %self.cur_gen))
@@ -279,21 +282,21 @@ class GeneticAlgorithemEngine():
         # check if this is the end of the current generation
         end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen)
 
-        self.pfunc(f"number of relaxed in current generation: {self.num_relaxed_gen}")
-        self.pfunc(sorted(relaxed_confids))
-        self.pfunc(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
-        self.pfunc(sorted(unrelaxed_confids))
-        self.pfunc(f"end of current generation: {end_of_gen}")
+        self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
+        self._print(sorted(relaxed_confids))
+        self._print(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
+        self._print(sorted(unrelaxed_confids))
+        self._print(f"end of current generation: {end_of_gen}")
 
         # --- check generation
         if self.is_converged():
-            self.pfunc("reach maximum generation...")
+            self._print("reach maximum generation...")
             return
         else:
-            self.pfunc("not converged yet...")
+            self._print("not converged yet...")
 
         # - run
-        self.pfunc("\n\n===== Population Info =====")
+        self._print("\n\n===== Population Info =====")
         #content = "For generation == 0 (initial population),"
         #content += "{:>8s}  {:>8s}  {:>8s}\n".format("Random", "Seed", "Total")
         #content += "{:>8d}  {:>8d}  {:>8d}\n".format(
@@ -308,16 +311,16 @@ class GeneticAlgorithemEngine():
             self.pop_manager.gen_mut_size, self.pop_manager.gen_size
         )
         content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
-        self.pfunc(content)
+        self._print(content)
 
         # --- initial population
         if self.cur_gen == 0:
-            self.pfunc("\n\n===== Initial Population Calculation =====")
+            self._print("\n\n===== Initial Population Calculation =====")
             frames_to_work = []
             while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
                 # calculate structures from init population
                 atoms = self.da.get_an_unrelaxed_candidate()
-                self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
+                self._print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                 frames_to_work.append(atoms)
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
             # NOTE: provide unified interface to mlp and dft
@@ -326,7 +329,7 @@ class GeneticAlgorithemEngine():
                 _ = self.worker.run(frames_to_work) # retrieve later
         else:
             # --- update population
-            self.pfunc("\n\n===== Update Population =====")
+            self._print("\n\n===== Update Population =====")
             # TODO: population settings
             #self._prepare_population(end_of_gen)
             if end_of_gen:
@@ -344,18 +347,18 @@ class GeneticAlgorithemEngine():
                     generator=self.generator, pairing=self.pairing, mutations=self.mutations
                 )
 
-                self.pfunc("\n\n===== Optimisation =====")
+                self._print("\n\n===== Optimisation =====")
                 # TODO: send candidates directly to worker that respects the batchsize
                 frames_to_work = []
                 for atoms in current_candidates:
-                    self.pfunc("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
+                    self._print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                     frames_to_work.append(atoms)
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
                 if frames_to_work:
                     self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
                     _ = self.worker.run(frames_to_work) # retrieve later
             else:
-                self.pfunc("Current generation has not finished...")
+                self._print("Current generation has not finished...")
 
         # --- check if there were finished jobs
         self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
@@ -380,22 +383,22 @@ class GeneticAlgorithemEngine():
                         if row.formula:
                             previous_atoms = row.toatoms(add_additional_information=True)
                             previous_tags = previous_atoms.get_tags()
-                            self.pfunc(f"tags: {previous_tags}")
+                            self._print(f"tags: {previous_tags}")
                             break
                     else:
                         raise RuntimeError(f"Cant find tags for cand {confid}")
                     cand.set_tags(previous_tags)
                 # evaluate raw score
                 self.evaluate_candidate(cand)
-                self.pfunc(f"  add relaxed cand {confid}")
-                self.pfunc("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
+                self._print(f"  add relaxed cand {confid}")
+                self._print("  with raw_score {:.4f}".format(cand.info["key_value_pairs"]["raw_score"]))
                 self.da.add_relaxed_step(
                     cand,
                     find_neighbors=self.find_neighbors,
                     perform_parametrization=self.perform_parametrization
                 )
         else:
-            self.pfunc("Worker is unfinished.")
+            self._print("Worker is unfinished.")
 
         return
     
@@ -433,7 +436,7 @@ class GeneticAlgorithemEngine():
             return False
     
     def report(self):
-        self.pfunc("restart the database...")
+        self._print("restart the database...")
         self.__restart()
         results = self.directory/"results"
         if not results.exists():
@@ -446,14 +449,14 @@ class GeneticAlgorithemEngine():
         # - plot population evolution
         data = []
         cur_gen_num = self.da.get_generation_number() # equals finished generation plus one
-        self.pfunc(f"Current generation number: {cur_gen_num}")
+        self._print(f"Current generation number: {cur_gen_num}")
         for i in range(cur_gen_num):
             #print('generation ', i)
             energies = [
                 atoms.get_potential_energy() for atoms in all_relaxed_candidates 
                     if atoms.info["key_value_pairs"]["generation"]==i
             ]
-            self.pfunc(energies)
+            self._print(energies)
             data.append([i, energies])
         
         import matplotlib as mpl
@@ -480,7 +483,7 @@ class GeneticAlgorithemEngine():
         """ refine structures with DFT (VASP)
             the number of structures is determined by the rule
         """
-        self.pfunc("restart the database...")
+        self._print("restart the database...")
         self.__restart()
 
         # - get all candidates
@@ -505,7 +508,7 @@ class GeneticAlgorithemEngine():
 
         selected_frames = selector.select(sorted_candidates)
         nselected = len(selected_frames)
-        self.pfunc(f"Find {nselected} frames for refinement...")
+        self._print(f"Find {nselected} frames for refinement...")
 
         # - computation
         ref_worker.directory = results/"refine"
@@ -522,7 +525,7 @@ class GeneticAlgorithemEngine():
     def __get_operator(self, operators, settings, default_op):
         """ comparator, crossover, mutation
         """
-        #self.pfunc("operators: ", operators)
+        #self._print("operators: ", operators)
         #comp_settings = op_dict.get(section, None)
         if settings is not None:
             # - get operator
@@ -533,7 +536,7 @@ class GeneticAlgorithemEngine():
             op_name = default_op
             kwargs = None
 
-        #self.pfunc(f"use {op_name}")
+        #self._print(f"use {op_name}")
         op_obj = getattr(operators, op_name)
         default_params = getattr(operators, op_obj.__name__+"_params")
 
@@ -563,11 +566,11 @@ class GeneticAlgorithemEngine():
             params.update(**kwargs)
         self.comparing = comparator(**params)
 
-        self.pfunc("--- comparator ---")
-        self.pfunc(f"Use comparator {comparator.__name__}.")
+        self._print("--- comparator ---")
+        self._print(f"Use comparator {comparator.__name__}.")
 
         # --- crossover
-        #self.pfunc("operators: ", operators)
+        #self._print("operators: ", operators)
         crossover, params, kwargs = self.__get_operator(
             operators, op_dict.get("crossover", None), 
             "CutAndSplicePairing"
@@ -588,20 +591,20 @@ class GeneticAlgorithemEngine():
             params["use_tags"] = self.use_tags
         if isinstance(kwargs, dict):
             params.update(**kwargs)
-        #self.pfunc("pairing params: ")
+        #self._print("pairing params: ")
         #for k, v in params.items():
-        #    self.pfunc(k, "->", v)
+        #    self._print(k, "->", v)
         self.pairing = crossover(**params)
         #self.pairing = CutAndSplicePairing(self.slab, self.n_to_optimize, self.blmin)
 
-        self.pfunc("--- crossover ---")
-        self.pfunc(f"Use crossover {crossover.__name__}.")
-        #self.pfunc("pairing: ", self.pairing)
+        self._print("--- crossover ---")
+        self._print(f"Use crossover {crossover.__name__}.")
+        #self._print("pairing: ", self.pairing)
 
         # --- mutations
         mutations, probs = [], []
         mutation_list = op_dict.get("mutation", [])
-        #self.pfunc(mutation_list)
+        #self._print(mutation_list)
         if not isinstance(mutation_list, list):
             mutation_list = [mutation_list]
         for mut_settings in mutation_list:
@@ -630,10 +633,10 @@ class GeneticAlgorithemEngine():
                 params.update(**kwargs)
             mutations.append(mut(**params))
 
-        self.pfunc("--- mutations ---")
-        #self.pfunc(f"mutation probability: {self.pmut}")
+        self._print("--- mutations ---")
+        #self._print(f"mutation probability: {self.pmut}")
         for mut, prob in zip(mutations, probs):
-            self.pfunc(f"Use mutation {mut.descriptor} with prob {prob}.")
+            self._print(f"Use mutation {mut.descriptor} with prob {prob}.")
         self.mutations = OperationSelector(probs, mutations, rng=np.random)
 
         return
@@ -645,18 +648,18 @@ class GeneticAlgorithemEngine():
         # TODO: move this part to where before generator is created
         da = PrepareDB(
             db_file_name = self.db_name,
-            simulation_cell = self.generator.slab,
-            stoichiometry = self.generator.atom_numbers_to_optimise
+            simulation_cell = self.generator.substrate,
+            stoichiometry = self.generator.composition_atom_numbers
         )
 
         starting_population = self.pop_manager._prepare_initial_population(generator=self.generator)
 
-        self.pfunc(f"save population {len(starting_population)} to database")
+        self._print(f"save population {len(starting_population)} to database")
         for a in starting_population:
             da.add_unrelaxed_candidate(a)
         
         # TODO: change this to the DB interface
-        self.pfunc("save population size {0} into database...".format(self.pop_manager.gen_size))
+        self._print("save population size {0} into database...".format(self.pop_manager.gen_size))
         row = da.c.get(1)
         new_data = row["data"].copy()
         new_data["population_size"] = self.pop_manager.gen_size
