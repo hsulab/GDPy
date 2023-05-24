@@ -526,9 +526,11 @@ class LatticeRegion(Region):
     
     def __repr__(self) -> str:
         """"""
-        content = f"{self.__class__.__name__} "
-        content += f"origin {self._origin} "
-        content += f"cell   {self._cell} "
+        content = f"{self.__class__.__name__}\n"
+        content += f"origin\n"
+        content += ("  "+"{:<12.8f}  "*3+"\n").format(*self._origin)
+        content += f"cell\n"
+        content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
 
         return content
 
