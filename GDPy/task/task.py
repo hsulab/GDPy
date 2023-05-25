@@ -21,7 +21,7 @@ def run_task(params, pot_worker=None, ref_worker=None, run=1, report=False):
             ga.report()
         else:
             ga.run(pot_worker, run)
-            if ga.is_converged():
+            if ga.read_convergence():
                 ga.report()
                 if ref_worker:
                     ga.refine(ref_worker)
