@@ -65,6 +65,12 @@ Supported **Expeditions**
    extensions/index
    modules/modules
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Gallery:
+
+   applications/index
+
 
 .. Indices and tables
 .. ==================
