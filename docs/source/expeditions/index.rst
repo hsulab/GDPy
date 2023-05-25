@@ -1,5 +1,11 @@
 Expeditions
 ===========
+
+.. warning:: 
+
+    This module is deprecated in version 0.0.2. With the new feature `Session`, 
+    custom and versatile expedition workflows can be created. See :ref:`sessions` for more details.
+
 This section introduces expeditions implemented in GDPy. In general, each expedition
 includes four stages, namely create, collect, select, and label. As usual, we offer 
 a unified input file to access different explorations by setting the **method** 
