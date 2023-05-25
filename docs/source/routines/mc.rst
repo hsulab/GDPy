@@ -3,6 +3,14 @@
 Monte Carlo (MC)
 ================
 
+Overview
+--------
+
+MC is a conventional method to explore the configuration space.
+
+Example
+-------
+
 The related commands are 
 
 .. code-block:: shell
@@ -92,3 +100,11 @@ The input file is organised as
 
     In general, operators should have the same region. Otherwise, the simulation is 
     not converged to an equilibrium.
+
+
+Application
+-----------
+
+.. include:: ../references.rst
+
+#. |ACSCatal2022Xu|

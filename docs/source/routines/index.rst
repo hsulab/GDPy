@@ -1,7 +1,8 @@
 Routines
 ========
 
-This section demonstrates several advanced methods that is made up of basic components.
+This section demonstrates several advanced methods to explore the configuration space, 
+which are made up of basic components.
 
 List of Routines
 ----------------
