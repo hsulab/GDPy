@@ -27,6 +27,16 @@ Define a region in the `yaml` input file as follows (units: Ang):
       origin: [50, 50, 50] # ox, oy, oz
       boundary: [0, 0, 0, 10, 10, 10] # xl, yl, zl, xh, yh, zh
 
+  
+.. |cube| image:: ../../images/region-cube.png
+    :width: 800
+    :align: middle
+    
+The figure shows a cubic region in a (10x10x10) simulation box. The origin is (2,2,2) 
+and the boundary is [0,0,0,2,2,2].
+
+    |cube|
+
 - `sphere`.
 
 .. code-block:: yaml
@@ -36,6 +46,15 @@ Define a region in the `yaml` input file as follows (units: Ang):
       method: sphere
       origin: [50, 50, 50]
       radius: 50
+
+.. |sphere| image:: ../../images/region-sphere.png
+    :width: 800
+    :align: middle
+
+The figure shows a spherical region in a (10x10x10) simulation box. The origin is (5,5,5) 
+and the radius is 2.
+
+    |sphere|
 
 - `cylinder`.
 
@@ -48,6 +67,15 @@ Define a region in the `yaml` input file as follows (units: Ang):
       radius: 50
       height: 20
 
+.. |cylinder| image:: ../../images/region-cylinder.png
+    :width: 800
+    :align: middle
+
+The figure shows a vertical cylinderal region in a (10x10x10) simulation box. 
+The origin is (5,5,2), the radius is 2, and the height is 6.
+
+    |cylinder|
+
 - `lattice`.
 
 .. code-block:: yaml
@@ -58,3 +86,12 @@ Define a region in the `yaml` input file as follows (units: Ang):
       origin: [50, 50, 50]
       cell: [10, 0, 0, 0, 10, 0, 0, 0, 10]
 
+.. |lattice| image:: ../../images/region-lattice.png
+    :width: 800
+    :align: middle
+
+The figure shows a lattice region in a (10x10x10) simulation box. The origin is (0,0,2) 
+and the cell is [10,0,0,0,10,0,0,0,2]. This is useful when only considering surface atoms.
+Periodic boundary condition is used for this region.
+
+    |lattice|
