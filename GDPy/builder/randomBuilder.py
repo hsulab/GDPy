@@ -87,7 +87,7 @@ class RandomBuilder(StructureBuilder):
 
         return
 
-    def run(self, substrate: Atoms=None, size: int=1, *args, **kwargs) -> List[Atoms]:
+    def run(self, substrate: Atoms=None, size: int=1, soft_error: bool=False, *args, **kwargs) -> List[Atoms]:
         """Modify input structures.
 
         Args:
@@ -112,7 +112,10 @@ class RandomBuilder(StructureBuilder):
             else:
                 break
         else:
-            raise RuntimeError(f"Failed to create {size} structures, only {nframes} are created.")
+            if soft_error:
+                warnings.warn(f"Failed to create {size} structures, only {nframes} are created.", UserWarning)
+            else:
+                raise RuntimeError(f"Failed to create {size} structures, only {nframes} are created.")
         
         return frames
     
