@@ -53,27 +53,37 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
     return
 
 def save_trajectory(atoms, log_fpath) -> NoReturn:
-    """Create a clean atoms from the input and save simulation trajectory."""
-    #atoms_ = Atoms(
-    #    symbols=atoms.get_chemical_symbols(),
-    #    positions=atoms.get_positions().copy(),
-    #    cell=atoms.get_cell().copy(),
-    #    pbc=copy.deepcopy(atoms.get_pbc())
-    #)
-    #results = dict(
-    #    energy = atoms.get_potential_energy(),
-    #    forces = copy.deepcopy(atoms.get_forces())
-    #)
-    #spc = SinglePointCalculator(atoms, **results)
-    #atoms_.calc = spc
-    atoms_ = atoms
+    """Create a clean atoms from the input and save simulation trajectory.
 
-    calc = atoms_.calc
+    We need an explicit copy of atoms as some calculators may not return all 
+    necessary information. For example, schnet only returns required properties.
+    If only energy is required, there are no forces.
+
+    """
+    # - save atoms
+    atoms_to_save = Atoms(
+        symbols=atoms.get_chemical_symbols(),
+        positions=atoms.get_positions().copy(),
+        cell=atoms.get_cell().copy(),
+        pbc=copy.deepcopy(atoms.get_pbc())
+    )
+    if "tags" in atoms.arrays:
+        atoms_to_save.set_tags(atoms.get_tags())
+    results = dict(
+        energy = atoms.get_potential_energy(),
+        forces = copy.deepcopy(atoms.get_forces())
+    )
+    spc = SinglePointCalculator(atoms, **results)
+    atoms_to_save.calc = spc
+
+    # - check special metadata
+    calc = atoms.calc
     if isinstance(calc, MixedCalculator):
-        atoms_.info["energy_contributions"] = copy.deepcopy(calc.results["energy_contributions"])
-        atoms_.arrays["force_contributions"] = copy.deepcopy(calc.results["force_contributions"])
+        atoms_to_save.info["energy_contributions"] = copy.deepcopy(calc.results["energy_contributions"])
+        atoms_to_save.arrays["force_contributions"] = copy.deepcopy(calc.results["force_contributions"])
 
-    write(log_fpath, atoms_, append=True)
+    # - append to traj
+    write(log_fpath, atoms_to_save, append=True)
 
     return
 
