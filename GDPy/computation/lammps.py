@@ -132,9 +132,6 @@ class LmpDriverSetting(DriverSetting):
 
     extra_fix: List[str] = dataclasses.field(default_factory=list)
 
-    remove_rotation: bool = True
-    remove_translation: bool = True
-
     def __post_init__(self):
         """"""
         if self.task == "min":

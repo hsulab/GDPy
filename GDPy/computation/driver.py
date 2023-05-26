@@ -47,7 +47,15 @@ class DriverSetting:
 
     #:
     md_style: str = "nvt"
+
     velocity_seed: int = None
+
+    #: Whether remove rotation when init velocity.
+    remove_rotation: bool = True
+
+    #: Whether remove translation when init velocity.
+    remove_translation: bool = True
+
     timestep: float = 1.0
 
     temp: float = 300.

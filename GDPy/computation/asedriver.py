@@ -278,9 +278,10 @@ class AseDriver(AbstractDriver):
                 MaxwellBoltzmannDistribution(
                     atoms, temperature_K=init_params_["temperature_K"], rng=rng
                 )
-                # TODO: make this optional
-                ZeroRotation(atoms, preserve_temperature=True)
-                Stationary(atoms, preserve_temperature=True)
+                if self.setting.remove_rotation:
+                    ZeroRotation(atoms, preserve_temperature=True)
+                if self.setting.remove_translation:
+                    Stationary(atoms, preserve_temperature=True)
                 force_temperature(atoms, init_params_["temperature_K"], unit="K") # NOTE: respect constraints
 
             # - prepare args
