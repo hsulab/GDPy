@@ -132,6 +132,9 @@ class LmpDriverSetting(DriverSetting):
 
     extra_fix: List[str] = dataclasses.field(default_factory=list)
 
+    remove_rotation: bool = True
+    remove_translation: bool = True
+
     def __post_init__(self):
         """"""
         if self.task == "min":
@@ -148,6 +151,8 @@ class LmpDriverSetting(DriverSetting):
                 md_style = self.md_style,
                 timestep = self.timestep,
                 velocity_seed = self.velocity_seed,
+                remove_rotation = self.remove_rotation,
+                remove_translation = self.remove_translation,
                 temp = self.temp,
                 # TODO: end temperature
                 Tdamp = self.Tdamp,
@@ -711,7 +716,15 @@ class Lammps(FileIOCalculator):
                 velocity_seed = self.velocity_seed
                 if velocity_seed is None:
                     velocity_seed = np.random.randint(0,10000)
-                content += "velocity        mobile create {} {}\n".format(self.temp, velocity_seed)
+                velocity_command = "velocity        mobile create {} {} dist gaussian ".format(self.temp, velocity_seed)
+                if hasattr(self, "remove_translation"):
+                    if self.remove_translation:
+                        velocity_command += "mom yes "
+                if hasattr(self, "remove_rotation"):
+                    if self.remove_rotation:
+                        velocity_command += "rot yes "
+                velocity_command += "\n"
+                content += velocity_command
         
             if self.md_style == "nvt":
                 Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
