@@ -15,7 +15,7 @@ from GDPy.validator import AbstractValidator
 @registers.variable.register
 class ValidatorVariable(Variable):
 
-    def __init__(self, **kwargs):
+    def __init__(self, directory="./", **kwargs):
         """"""
         # - create a validator
         method = kwargs.get("method", "minima")
@@ -23,18 +23,17 @@ class ValidatorVariable(Variable):
         print(validator)
 
         # - save
-        initial_value = validator
-        super().__init__(initial_value)
+        super().__init__(initial_value=validator, directory=directory)
 
         return
     
 @registers.operation.register
 class validate(Operation):
 
-    def __init__(self, node_with_structures, validator, worker) -> NoReturn:
+    def __init__(self, node_with_structures, validator, worker, directory="./") -> NoReturn:
         """"""
         input_nodes = [node_with_structures, validator, worker]
-        super().__init__(input_nodes)
+        super().__init__(input_nodes=input_nodes, directory=directory)
 
         return
     

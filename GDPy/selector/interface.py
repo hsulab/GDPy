@@ -42,10 +42,10 @@ def get_dataset_type(dataset):
 @registers.variable.register
 class SelectorVariable(Variable):
 
-    def __init__(self, selection):
+    def __init__(self, selection, directory="./"):
         """"""
         selector = create_selector(selection)
-        super().__init__(selector)
+        super().__init__(initial_value=selector, directory=directory)
 
 
 @registers.operation.register

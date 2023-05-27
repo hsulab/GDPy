@@ -15,7 +15,7 @@ from GDPy.computation.worker.train import TrainerBasedWorker
 @registers.variable.register
 class PotterVariable(Variable):
 
-    def __init__(self, **kwargs):
+    def __init__(self, directory="./", **kwargs):
         """"""
         #manager = PotentialRegister()
         name = kwargs.get("name", None)
@@ -29,14 +29,14 @@ class PotterVariable(Variable):
         )
         potter.register_calculator(kwargs.get("params", {}))
 
-        super().__init__(potter)
+        super().__init__(initial_value=potter, directory=directory)
 
         return
 
 @registers.variable.register
 class TrainerVariable(Variable):
 
-    def __init__(self, **kwargs):
+    def __init__(self, directory="./", **kwargs):
         """"""
         print("trainer keys: ", kwargs.keys())
         name = kwargs.get("name", None)
@@ -44,27 +44,27 @@ class TrainerVariable(Variable):
             "trainer", name, convert_name=True, **kwargs
         )
 
-        super().__init__(trainer)
+        super().__init__(initial_value=trainer, directory=directory)
 
         return
 
 @registers.variable.register
 class WorkerVariable(Variable):
 
-    def __init__(self, **kwargs):
+    def __init__(self, directory="./", **kwargs):
         """"""
         worker = create_potter(**kwargs) # DriveWorker or TrainWorker
-        super().__init__(worker)
+        super().__init__(initial_value=worker, directory=directory)
 
         return
     
 @registers.operation.register
 class train(Operation):
 
-    def __init__(self, dataset, trainer, scheduler, size: int=1, *args, **kwargs) -> NoReturn:
+    def __init__(self, dataset, trainer, scheduler, size: int=1, directory="./", *args, **kwargs) -> NoReturn:
         """"""
         input_nodes = [dataset, trainer, scheduler]
-        super().__init__(input_nodes)
+        super().__init__(input_nodes=input_nodes, directory=directory)
 
         self.size = size # number of models
 

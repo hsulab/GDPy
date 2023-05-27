@@ -15,10 +15,12 @@ class Variable:
     #: Working status that should be always finished.
     status = "finished"
 
-    def __init__(self, initial_value=None):
+    def __init__(self, initial_value=None, directory="./"):
         """"""
         self.value = initial_value
         self.consumers = []
+
+        self.directory = directory
 
         #_default_graph.variables.append(self)
 

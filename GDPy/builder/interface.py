@@ -31,7 +31,7 @@ class BuilderVariable(Variable):
 
     """Build structures from the scratch."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, directory="./", *args, **kwargs):
         """"""
         # - create a validator
         method = kwargs.get("method", "file")
@@ -39,8 +39,7 @@ class BuilderVariable(Variable):
             "builder", method, convert_name=True, **kwargs
         )
 
-        initial_value = builder
-        super().__init__(initial_value)
+        super().__init__(initial_value=builder, directory=directory)
 
         return
 
@@ -50,8 +49,8 @@ class build(Operation):
     """Build structures without substrate structures.
     """
 
-    def __init__(self, *builders) -> NoReturn:
-        super().__init__(builders)
+    def __init__(self, builders, directory="./") -> NoReturn:
+        super().__init__(input_nodes=builders, directory=directory)
     
     def forward(self, *args, **kwargs) -> List[Atoms]:
         """"""
@@ -77,9 +76,9 @@ class build(Operation):
 @registers.operation.register
 class modify(Operation):
 
-    def __init__(self, substrate, modifier, number: int=1, repeat: int=1) -> NoReturn:
+    def __init__(self, substrate, modifier, number: int=1, repeat: int=1, directory="./") -> NoReturn:
         """"""
-        super().__init__([substrate, modifier])
+        super().__init__(input_nodes=[substrate, modifier], directory=directory)
 
         self.number = number # create number of new structures
         #self.repeat = repeat # repeat modification times for one structure

@@ -9,10 +9,10 @@ from GDPy.scheduler import create_scheduler
 @registers.variable.register
 class SchedulerVariable(Variable):
 
-    def __init__(self, **kwargs):
+    def __init__(self, directory="./", **kwargs):
         """"""
         scheduler = create_scheduler(kwargs)
-        super().__init__(scheduler)
+        super().__init__(initial_value=scheduler, directory=directory)
 
         return
 
