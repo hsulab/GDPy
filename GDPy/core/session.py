@@ -377,20 +377,28 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
         v_dict["directory"] = str(directory/"variables"/k)
     
     # - add placeholders and their directories
+    conf.placeholders = {}
     if feed_command is not None:
         pairs = [x.split("=") for x in feed_command]
         for k, v in pairs:
-            conf.placeholders = {k: v}
-    #print(OmegaConf.to_yaml(conf))
+            conf.placeholders[k] = v
 
+    # - resolve sessions
     container = OmegaConf.to_object(conf.sessions)
-    print(container)
 
     # - run session
-    for k, v in container.items():
-        print(k, v)
+    names = conf.placeholders.get("names", None)
+    if names is not None:
+        session_names = [x.strip() for x in names.strip().split(",")]
+    else:
+        session_names =[None]*len(container)
+
+    for i, (k, v) in enumerate(container.items()):
+        n = session_names[i]
+        if n is None:
+            n = k
         entry_operation = create_op_instance("entry", **container[k][entry_dict[k]])
-        session = Session(directory=directory/k)
+        session = Session(directory=directory/n)
         session.run(entry_operation, feed_dict={})
 
     return
