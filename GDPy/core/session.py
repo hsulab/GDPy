@@ -3,7 +3,7 @@
 
 import abc
 import copy
-from typing import NoReturn, Union, List
+from typing import NoReturn, Union, List, Callable
 import pathlib
 
 import numpy as np
@@ -33,21 +33,35 @@ def traverse_postorder(operation):
 
 class Session:
 
+    _print: Callable = print
+    _debug: Callable = print
+
     def __init__(self, directory="./") -> NoReturn:
         """"""
         self.directory = pathlib.Path(directory)
 
         return
 
-    def run(self, operation, feed_dict={}) -> NoReturn:
+    def run(self, operation, feed_dict: dict={}) -> NoReturn:
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
-        #print(nodes_postorder)
+        self._print(
+            "[{:^24s}] NUM_NODES: {} AT MAIN: {}".format(
+                "START", len(nodes_postorder), str(self.directory)
+            )
+        )
 
         # - run nodes
         for node in nodes_postorder:
-            print(f"----- Node {node.__class__.__name__} @ {node.directory.name} -----")
+            # NOTE: reset directory since it maybe changed
+            prev_wdir = node.directory
+            node.directory = self.directory/prev_wdir.name
+            self._print(
+                "[{:^24s}] NAME: {} AT {}".format(
+                    "NODE", node.__class__.__name__.upper(), node.directory.name
+                )
+            )
 
             if isinstance(node, Placeholder):
                 node.output = feed_dict[node]
@@ -65,6 +79,66 @@ class Session:
                     continue
 
         return
+    
+class CyclicSession:
+
+    """Create a cyclic session.
+
+    This supports a session that contains preprocess, iteration, and postprocess.
+
+    """
+
+    _print: Callable = print
+    _debug: Callable = print
+
+    def __init__(self, init, iteration, post=None, directory="./") -> None:
+        """"""
+        self.directory = pathlib.Path(directory)
+
+        self.init = init
+        self.loop = iteration
+        self.post = post
+
+        return
+    
+    def iteration(self, operations):
+        """Iterative part that converges at certain criteria.
+
+        This noramlly includes steps: sample, select, label, and train. Some inputs of
+        operations should be update during the iterations, for instance, the models 
+        in the potential.
+
+        """
+
+        return
+    
+    def run(self, feed_dict={}, *args, **kwargs) -> NoReturn:
+        """"""
+        # - init
+        session, end_node, placeholders = self.init
+        self._debug("init session: ", session)
+        self._debug("entry point: ", end_node)
+        self._debug("placeholders: ", placeholders)
+
+        self._print("[{:^24s}]".format("INIT"))
+        session.run(end_node, )
+
+        # - iter
+        self._print("[{:^24s}]".format("ITER"))
+        for i in range(5):
+            session, end_node, placeholders = self.loop
+            session.directory = self.directory/"iter"/f"iter.{str(i).zfill(4)}"
+            # TODO: update some parameters
+            session.run(end_node, )
+            # TODO: check if the last node is finished
+            ...
+
+        # - post
+        if self.post is not None:
+            ...
+
+        return
+
 
 def create_placeholder(node_name, node_params_: dict):
     """"""
@@ -125,6 +199,17 @@ def create_operation(op_name, op_params_: dict):
 
     return op_func, op_params
 
+def create_op_instance(op_name, *args, **kwargs):
+    """"""
+    op_type = kwargs.pop("type", None)
+    assert op_type is not None, f"{op_name} has no type."
+
+    operation = registers.create(
+        "operation", op_type, convert_name=False, **kwargs
+    )
+
+    return operation
+
 def create_session(session_params, phs_params, nodes_params, ops_params, temp_nodes, directory="./", label=None):
     """"""
     directory = pathlib.Path(directory)
@@ -164,7 +249,7 @@ def create_session(session_params, phs_params, nodes_params, ops_params, temp_no
 
     return session, out, placeholders
 
-def run_session(config_filepath, custom_session_names=None, entry_string: str=None, directory="./", label=None):
+def naive_run_session(config_filepath, custom_session_names=None, entry_string: str=None, directory="./", label=None):
     """Run a session based on user-defined input.
 
     Read definitions of nodes and operations from the file and placeholders from
@@ -224,6 +309,68 @@ def run_session(config_filepath, custom_session_names=None, entry_string: str=No
         if name in custom_session_names:
             print(f"===== run session {name} =====")
             _ = session.run(end_node, feed_dict=feed_dict)
+
+    return
+
+@registers.operation.register
+class enter(Operation):
+
+    def __init__(self, *args, **kwargs) -> NoReturn:
+        """"""
+        input_nodes = list(kwargs.values())
+        super().__init__(input_nodes)
+
+        return
+    
+    def forward(self, *args):
+        super().forward()
+
+        return
+
+
+def run_session(config_filepath, custom_session_names=None, entry_string: str=None, directory="./", label=None):
+    """Configure session with omegaconfig."""
+    from omegaconf import OmegaConf
+
+    # - add resolvers
+    OmegaConf.register_new_resolver(
+        "gdp_v", lambda x: create_node("xxx", OmegaConf.to_object(x)),
+        use_cache=False
+    )
+    OmegaConf.register_new_resolver(
+        "gdp_o", lambda x: create_op_instance("xxx", **OmegaConf.to_object(x))
+    )
+
+    from GDPy.builder.interface import build
+    OmegaConf.register_new_resolver(
+        "structure", lambda x: build(*[create_node("xxx", {"type": "builder", "method": "molecule", "filename": x})])
+    )
+
+    # - configure
+    conf = OmegaConf.load(config_filepath)
+
+    # -- check if every session has a valid entry operation
+    entry_dict = {}
+    for k, op_dict in conf.sessions.items():
+        print("session: ", k)
+        entry_names = []
+        for op_name, op_params in op_dict.items():
+            op_type = op_params.get("type")
+            if op_type == "enter":
+                entry_names.append(op_name)
+        assert len(entry_names) == 1, f"Session {k} only needs one entry operation!!!"
+        entry_dict[k] = entry_names[0]
+        print(f"find entry: {entry_names[0]}")
+
+    container = OmegaConf.to_object(conf.sessions)
+    print(container)
+
+    # - run session
+    for k, v in container.items():
+        print(k, v)
+        entry_operation = create_op_instance("entry", **container[k][entry_dict[k]])
+        session = Session()
+        session.run(entry_operation, feed_dict={})
 
     return
 
