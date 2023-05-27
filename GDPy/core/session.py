@@ -53,10 +53,12 @@ class Session:
         )
 
         # - run nodes
-        for node in nodes_postorder:
+        for i, node in enumerate(nodes_postorder):
             # NOTE: reset directory since it maybe changed
-            prev_wdir = node.directory
-            node.directory = self.directory/prev_wdir.name
+            prev_name = node.directory.name
+            if not prev_name:
+                prev_name = node.__class__.__name__
+            node.directory = self.directory/f"{str(i).zfill(4)}.{prev_name}"
             self._print(
                 "[{:^24s}] NAME: {} AT {}".format(
                     "NODE", node.__class__.__name__.upper(), node.directory.name
@@ -315,10 +317,10 @@ def naive_run_session(config_filepath, custom_session_names=None, entry_string: 
 @registers.operation.register
 class enter(Operation):
 
-    def __init__(self, *args, **kwargs) -> NoReturn:
+    def __init__(self, directory="./", *args, **kwargs) -> NoReturn:
         """"""
         input_nodes = list(kwargs.values())
-        super().__init__(input_nodes)
+        super().__init__(input_nodes=input_nodes, directory=directory)
 
         return
     
@@ -328,8 +330,10 @@ class enter(Operation):
         return
 
 
-def run_session(config_filepath, custom_session_names=None, entry_string: str=None, directory="./", label=None):
+def run_session(config_filepath, feed_command=None, custom_session_names=None, entry_string: str=None, directory="./", label=None):
     """Configure session with omegaconfig."""
+    directory = pathlib.Path(directory)
+
     from omegaconf import OmegaConf
 
     # - add resolvers
@@ -358,6 +362,8 @@ def run_session(config_filepath, custom_session_names=None, entry_string: str=No
             op_type = op_params.get("type")
             if op_type == "enter":
                 entry_names.append(op_name)
+            op_params["directory"] = str(directory/k/op_name)
+            
         assert len(entry_names) == 1, f"Session {k} only needs one entry operation!!!"
         entry_dict[k] = entry_names[0]
         print(f"find entry: {entry_names[0]}")
@@ -369,7 +375,7 @@ def run_session(config_filepath, custom_session_names=None, entry_string: str=No
     for k, v in container.items():
         print(k, v)
         entry_operation = create_op_instance("entry", **container[k][entry_dict[k]])
-        session = Session()
+        session = Session(directory=directory/k)
         session.run(entry_operation, feed_dict={})
 
     return

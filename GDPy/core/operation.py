@@ -19,9 +19,11 @@ class Operation(abc.ABC):
     #: Whether re-compute this operation.
     restart: bool = False
 
-    def __init__(self, input_nodes=[]) -> NoReturn:
+    def __init__(self, input_nodes=[], directory="./") -> NoReturn:
         """"""
         self.input_nodes = input_nodes
+
+        self.directory = directory
 
         # Initialize list of consumers (i.e. nodes that receive this operation's output as input)
         self.consumers = []

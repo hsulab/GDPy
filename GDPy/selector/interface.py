@@ -53,9 +53,12 @@ class select(Operation):
 
     cache_fname = "selected_frames.xyz"
 
-    def __init__(self, frames, selector, merge_workers=True, only_end=True, only_traj=False, traj_period=10, *args, **kwargs):
+    def __init__(
+        self, frames, selector, merge_workers=True, only_end=True, only_traj=False, 
+        traj_period=10, directory="./", *args, **kwargs
+    ):
         """"""
-        super().__init__([frames,selector])
+        super().__init__(input_nodes=[frames,selector], directory=directory)
 
         # - These params apply to input as List[List[Atoms]]
         self.merger_workers = merge_workers

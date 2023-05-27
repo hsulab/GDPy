@@ -22,9 +22,9 @@ class work(Operation):
     """Create a list of workers by necessary components (potter, drivers, and scheduler).
     """
 
-    def __init__(self, potter, driver, scheduler, custom_wdirs=None, *args, **kwargs) -> NoReturn:
+    def __init__(self, potter, driver, scheduler, custom_wdirs=None, directory="./", *args, **kwargs) -> NoReturn:
         """"""
-        super().__init__([potter,driver,scheduler])
+        super().__init__(input_nodes=[potter,driver,scheduler], directory=directory)
 
         # Custom worker directories.
         self.custom_wdirs = custom_wdirs
@@ -117,10 +117,10 @@ class drive(Operation):
     """
 
     def __init__(
-        self, builder, worker, batchsize: int=None,
+        self, builder, worker, batchsize: int=None, directory="./",
     ):
         """"""
-        super().__init__([builder, worker])
+        super().__init__(input_nodes=[builder, worker], directory=directory)
 
         self.batchsize = batchsize
 
@@ -189,10 +189,11 @@ class extract(Operation):
         self, drive: drive, 
         reduce_cand: bool=True, reduce_work: bool=False,
         read_traj=True, traj_period: int=1,
-        include_first=True, include_last=True
+        include_first=True, include_last=True,
+        directory="./"
     ) -> NoReturn:
         """"""
-        super().__init__([drive])
+        super().__init__(input_nodes=[drive], directory=directory)
 
         self.reduce_cand = reduce_cand
         self.reduce_work = reduce_work
