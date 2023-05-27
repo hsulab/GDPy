@@ -59,9 +59,13 @@ class Session:
             if not prev_name:
                 prev_name = node.__class__.__name__
             node.directory = self.directory/f"{str(i).zfill(4)}.{prev_name}"
+            if node.__class__.__name__.endswith("Variable"):
+                node_type = "VX"
+            else:
+                node_type = "OP"
             self._print(
                 "[{:^24s}] NAME: {} AT {}".format(
-                    "NODE", node.__class__.__name__.upper(), node.directory.name
+                    node_type, node.__class__.__name__.upper(), node.directory.name
                 )
             )
 
@@ -347,7 +351,7 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
 
     from GDPy.builder.interface import build
     OmegaConf.register_new_resolver(
-        "structure", lambda x: build(*[create_node("xxx", {"type": "builder", "method": "molecule", "filename": x})])
+        "structure", lambda x: build(**{"builders":[create_node("xxx", {"type": "builder", "method": "molecule", "filename": x})]})
     )
 
     # - configure
@@ -367,6 +371,17 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
         assert len(entry_names) == 1, f"Session {k} only needs one entry operation!!!"
         entry_dict[k] = entry_names[0]
         print(f"find entry: {entry_names[0]}")
+    
+    # - set variable directory
+    for k, v_dict in conf.variables.items():
+        v_dict["directory"] = str(directory/"variables"/k)
+    
+    # - add placeholders and their directories
+    if feed_command is not None:
+        pairs = [x.split("=") for x in feed_command]
+        for k, v in pairs:
+            conf.placeholders = {k: v}
+    #print(OmegaConf.to_yaml(conf))
 
     container = OmegaConf.to_object(conf.sessions)
     print(container)

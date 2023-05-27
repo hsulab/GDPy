@@ -60,6 +60,10 @@ def main():
         "SESSION", help="session configuration file (json/yaml)"
     )
     parser_session.add_argument(
+        "-f", "--feed", default=None, nargs="+", 
+        help="session's names to run"
+    )
+    parser_session.add_argument(
         "-n", "--names", default=None, nargs="+", 
         help="session's names to run"
     )
@@ -77,18 +81,12 @@ def main():
         "train", help="automatic training utilities"
     )
 
-    # automatic training
-    #parser_model = subparsers.add_parser(
-    #    "model", help="model operations"
-    #)
-    #parser_model.add_argument(
-    #    "INPUTS",
-    #    help="a directory with input json files"
-    #)
-    #parser_model.add_argument(
-    #    "-m", "--mode",
-    #    help="[create/freeze] models"
-    #)
+    parser_newtrain = subparsers.add_parser(
+        "newtrain", help="automatic training utilities"
+    )
+    parser_newtrain.add_argument(
+        "CONFIG", help="training configuration file (json/yaml)"
+    )
 
     # - explore
     parser_explore = subparsers.add_parser(
@@ -262,9 +260,12 @@ def main():
     if args.subcommand == "train":
         from GDPy.trainer import run_trainer
         run_trainer(potter, args.directory)
+    elif args.subcommand == "newtrain":
+        from GDPy.trainer import run_newtrainer
+        run_newtrainer(args.CONFIG, args.directory)
     elif args.subcommand == "session":
         from GDPy.core.session import run_session
-        run_session(args.SESSION, args.names, args.entry, args.directory, args.label)
+        run_session(args.SESSION, args.feed, args.names, args.entry, args.directory, args.label)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
