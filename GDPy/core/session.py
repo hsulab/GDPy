@@ -343,10 +343,11 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
     # - add resolvers
     OmegaConf.register_new_resolver(
         "gdp_v", lambda x: create_node("xxx", OmegaConf.to_object(x)),
-        use_cache=False
+        use_cache=True
     )
     OmegaConf.register_new_resolver(
-        "gdp_o", lambda x: create_op_instance("xxx", **OmegaConf.to_object(x))
+        "gdp_o", lambda x: create_op_instance("xxx", **OmegaConf.to_object(x)),
+        use_cache=True
     )
 
     from GDPy.builder.interface import build
