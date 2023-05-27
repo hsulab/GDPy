@@ -40,8 +40,6 @@ class ComputationVariable(Variable):
         assert (nwdirs==ndrivers and ndrivers>1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
         pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
 
-        print("Custom wdirs: ", wdirs)
-
         # - create workers
         # TODO: broadcast potters, schedulers as well?
         workers = []

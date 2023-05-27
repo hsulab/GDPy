@@ -46,8 +46,6 @@ class work(Operation):
         assert (nwdirs==ndrivers and ndrivers>1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
         pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
 
-        print("Custom wdirs: ", wdirs)
-
         # - create workers
         # TODO: broadcast potters, schedulers as well?
         workers = []
@@ -226,7 +224,7 @@ class extract(Operation):
         self.workers = workers # for operations to access
         nworkers = len(workers)
         self.pfunc(f"nworkers: {nworkers}")
-        print(self.workers)
+        #print(self.workers)
         worker_status = [False]*nworkers
 
         trajectories = [] # List[List[List[Atoms]]], worker->candidate->trajectory
