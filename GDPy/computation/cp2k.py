@@ -133,9 +133,9 @@ class Cp2kFileIO(FileIOCalculator):
     """This calculator is consistent with cp2k-v9.1.
     """
 
-    def __init__(self, restart=None, ignore_bad_restart_file=..., label="cp2k", atoms=None, command="cp2k.psmp", **kwargs):
+    def __init__(self, restart=None, label="cp2k", atoms=None, command="cp2k.psmp", **kwargs):
         """Construct CP2K-calculator object"""
-        super().__init__(restart, ignore_bad_restart_file, label, atoms, command, **kwargs)
+        super().__init__(restart=restart, label=label, atoms=atoms, command=command, **kwargs)
 
         # complete command
         command_ = self.command
@@ -145,7 +145,6 @@ class Cp2kFileIO(FileIOCalculator):
             label_name = pathlib.Path(self.label).name
             command_ += f" -i {label_name}.inp -o {label_name}.out"
         self.command = command_
-        print("commad: ", self.command)
 
         return
 
