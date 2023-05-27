@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import itertools
+import pathlib
 from typing import NoReturn, List
 
 from ase import Atoms
@@ -10,6 +12,51 @@ from ase.io import read, write
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
+from GDPy.computation.worker.drive import (
+    DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
+)
+
+@registers.variable.register
+class ComputationVariable(Variable):
+
+    def __init__(self, potter, driver, scheduler, custom_wdirs=None, *args, **kwargs):
+        """"""
+        workers = self._create_workers(
+            potter.value, driver.value, scheduler.value, custom_wdirs
+        )
+        super().__init__(workers)
+
+        return
+    
+    def _create_workers(self, potter, drivers, scheduler, custom_wdirs=None):
+        # - check if there were custom wdirs, and zip longest
+        ndrivers = len(drivers)
+        if custom_wdirs is not None:
+            wdirs = [pathlib.Path(p) for p in custom_wdirs]
+        else:
+            wdirs = [self.directory/f"w{i}" for i in range(ndrivers)]
+        
+        nwdirs = len(wdirs)
+        assert (nwdirs==ndrivers and ndrivers>1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
+        pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
+
+        print("Custom wdirs: ", wdirs)
+
+        # - create workers
+        # TODO: broadcast potters, schedulers as well?
+        workers = []
+        for wdir, driver_params in pairs:
+            # workers share calculator in potter
+            driver = potter.create_driver(driver_params)
+            if scheduler.name == "local":
+                worker = CommandDriverBasedWorker(potter, driver, scheduler)
+            else:
+                worker = QueueDriverBasedWorker(potter, driver, scheduler)
+            # wdir is temporary as it may be reset by drive operation
+            worker.directory = wdir
+            workers.append(worker)
+        
+        return workers
 
 
 @registers.variable.register
