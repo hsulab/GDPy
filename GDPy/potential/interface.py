@@ -61,12 +61,19 @@ class WorkerVariable(Variable):
 @registers.operation.register
 class train(Operation):
 
-    def __init__(self, dataset, trainer, scheduler, size: int=1, directory="./", *args, **kwargs) -> NoReturn:
+    def __init__(
+        self, dataset, trainer, scheduler, size: int=1, init_models=None, directory="./", *args, **kwargs
+    ) -> NoReturn:
         """"""
         input_nodes = [dataset, trainer, scheduler]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
         self.size = size # number of models
+        if init_models is not None:
+            self.init_models = init_models
+        else:
+            self.init_models = [None]*self.size
+        assert len(self.init_models) == self.size, f"The number of init models {self.init_models} is inconsistent with size {self.size}."
 
         return
     
@@ -80,7 +87,7 @@ class train(Operation):
         # - run
         manager = None
 
-        _ = worker.run(dataset, size=self.size)
+        _ = worker.run(dataset, size=self.size, init_models=self.init_models)
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
             models = worker.retrieve(ignore_retrieved=True)
@@ -89,8 +96,9 @@ class train(Operation):
                 "manager", trainer.name, convert_name=True
             )
             potter_params = dict(
-                backend = "lammps",
-                command = "lmp -in in.lammps 2>&1 > lmp.out",
+                backend = "ase",
+                #backend = "lammps",
+                #command = "lmp -in in.lammps 2>&1 > lmp.out",
                 type_list = trainer.type_list,
                 model = models
             )

@@ -27,7 +27,7 @@ class AbstractTrainer(abc.ABC):
     #: Name of this trainer.
     name: str = "trainer"
 
-    #: Command to train.
+    #: The path of the command executable.
     command: str = None
 
     #: Command to freeze/deploy.
@@ -40,7 +40,7 @@ class AbstractTrainer(abc.ABC):
     _print: Callable = print
 
     def __init__(
-        self, config: dict, train_ratio: float=0.9, train_epochs: int=200,
+        self, config: dict, train_epochs: int=200,
         directory=".", command="train", freeze_command="freeze", random_seed: int=None, 
         *args, **kwargs
     ) -> None:
@@ -49,7 +49,6 @@ class AbstractTrainer(abc.ABC):
         self.directory = pathlib.Path(directory)
         self.config = config # train model parameters
 
-        self.train_ratio = train_ratio
         self.train_epochs = train_epochs
 
         if random_seed is None:
@@ -58,22 +57,27 @@ class AbstractTrainer(abc.ABC):
         self.rng = np.random.default_rng(seed=random_seed)
 
         return
+
+    @abc.abstractmethod
+    def _resolve_train_command(self, init_model):
+        """"""        
+
+        return
     
-    def train(self, dataset):
+    def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
-        if self.command is None:
+        command = self._resolve_train_command(init_model)
+        if command is None:
             raise TrainingFailed(
                 "Please set ${} environment variable "
                 .format("GDP_" + self.name.upper() + "_COMMAND") +
                 "or supply the command keyword")
-        command = self.command
-        if "PREFIX" in command:
-            command = command.replace("PREFIX", self.prefix)
         
         # TODO: ...
+        # TODO: restart?
         if not self.directory.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
-        self.write_input(dataset, batchsizes=4, reduce_system=False)
+        self.write_input(dataset, reduce_system=False)
 
         try:
             proc = subprocess.Popen(command, shell=True, cwd=self.directory)
@@ -140,7 +144,6 @@ class AbstractTrainer(abc.ABC):
         trainer_params["config"] = self.config
         trainer_params["command"] = self.command
         trainer_params["freeze_command"] = self.freeze_command
-        trainer_params["train_ratio"] = self.train_ratio
         trainer_params["train_epochs"] = self.train_epochs
         trainer_params["random_seed"] = self.random_seed
 

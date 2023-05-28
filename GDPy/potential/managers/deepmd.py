@@ -35,13 +35,13 @@ class DeepmdTrainer(AbstractTrainer):
     CONVERGENCE_FLAG: str = "finished training"
 
     def __init__(
-        self, config: dict, train_ratio: float=0.9, train_epochs: int=200,
+        self, config: dict, train_epochs: int=200,
         directory=".", command="dp", freeze_command="dp", random_seed=1112, 
         *args, **kwargs
     ) -> None:
         """"""
         super().__init__(
-            config=config, train_ratio=train_ratio, train_epochs=train_epochs,
+            config=config, train_epochs=train_epochs,
             directory=directory, command=command, freeze_command=freeze_command, 
             random_seed=random_seed, *args, **kwargs
         )
@@ -50,13 +50,8 @@ class DeepmdTrainer(AbstractTrainer):
         self._type_list = config["model"]["type_map"]
 
         # - update command
-        train_command = self.command.strip().split()[0]
-        self.command = "{} train {}.json 2>&1 > {}.out".format(
-            train_command, self.name, self.name
-        )
-
         if freeze_command is None:
-            freeze_command = train_command
+            freeze_command = self.command
         freeze_command = self.freeze_command.strip().split()[0]
         self.freeze_command = "{} freeze -o {}.pb 2>&1 >> {}.out".format(
             freeze_command, self.name, self.name
@@ -70,7 +65,19 @@ class DeepmdTrainer(AbstractTrainer):
 
         return self._type_list
     
-    def write_input(self, dataset, batchsizes, reduce_system: bool=False):
+    def _resolve_train_command(self, init_model=None):
+        """"""
+        train_command = self.command
+
+        # - add options
+        command = "{} train {}.json ".format(train_command, self.name)
+        if init_model is not None:
+            command += "--init-model {}".format(str(pathlib.Path(init_model).resolve()))
+        command += " 2>&1 > {}.out\n".format(self.name)
+
+        return command
+    
+    def write_input(self, dataset, reduce_system: bool=False):
         """Write inputs for training.
 
         Args:
@@ -78,7 +85,7 @@ class DeepmdTrainer(AbstractTrainer):
 
         """
         set_names, train_frames, test_frames, adjusted_batchsizes = self._get_dataset(
-            dataset, batchsizes, reduce_system
+            dataset, reduce_system
         )
 
         train_dir = self.directory
@@ -95,6 +102,7 @@ class DeepmdTrainer(AbstractTrainer):
             self.config["model"]["type_map"], 
             "valid", train_dir
         )
+        self._print(f"accumulated number of batches: {cum_batchsizes}")
 
         # - check train config
         # NOTE: parameters
@@ -127,12 +135,13 @@ class DeepmdTrainer(AbstractTrainer):
 
         return
     
-    def _get_dataset(self, dataset, batchsizes, reduce_system):
+    def _get_dataset(self, dataset, reduce_system):
+        """"""
         data_dirs = dataset.load()
         self._print(data_dirs)
         self._print("\n--- auto data reader ---\n")
-        #content += f"Use batchsize {batchsize} and train-ratio {train_ratio}\n"
 
+        batchsizes = dataset.batchsize
         nsystems = len(data_dirs)
         if isinstance(batchsizes, int):
             batchsizes = [batchsizes]*nsystems
@@ -179,7 +188,7 @@ class DeepmdTrainer(AbstractTrainer):
                     new_batchsize = curr_batchsize
                     # - assure there is at least one batch for test
                     #          and number of train frames is integer times of batchsize
-                    ntrain = int(np.floor(nframes * self.train_ratio / new_batchsize) * new_batchsize)
+                    ntrain = int(np.floor(nframes * dataset.train_ratio / new_batchsize) * new_batchsize)
                     train_index = self.rng.choice(nframes, ntrain, replace=False)
                     test_index = [x for x in range(nframes) if x not in train_index]
                 adjusted_batchsizes.append(new_batchsize)
@@ -234,53 +243,6 @@ class DeepmdTrainer(AbstractTrainer):
         return converged
 
 
-def convert_dataset(
-    dataset: List[List[Atoms]],
-    type_map: List[str], suffix, dest_dir="./"
-):
-    """"""
-    from GDPy.computation.utils import get_composition_from_atoms
-    groups = {}
-    for atoms in dataset:
-        composition = get_composition_from_atoms(atoms)
-        key = "".join([k+str(v) for k,v in composition])
-        if key in groups:
-            groups[key].append(atoms)
-        else:
-            groups[key] = [atoms]
-        
-    # --- dpdata conversion
-    import dpdata
-    dest_dir = pathlib.Path(dest_dir)
-    train_set_dir = dest_dir/f"{suffix}"
-    if not train_set_dir.exists():
-        train_set_dir.mkdir()
-        
-    cum_batchsizes = 0 # number of batchsizes for training
-    for name, frames in groups.items():
-        print(f"{suffix} system {name} nframes {len(frames)}")
-        # --- NOTE: need convert forces to force
-        frames_ = copy.deepcopy(frames) 
-        for atoms in frames_:
-            try:
-                forces = atoms.get_forces().copy()
-                del atoms.arrays["forces"]
-                atoms.arrays["force"] = forces
-            except:
-                pass
-            finally:
-                atoms.calc = None
-
-        # --- convert data
-        write(train_set_dir/f"{name}-{suffix}.xyz", frames_)
-        dsys = dpdata.MultiSystems.from_file(
-            train_set_dir/f"{name}-{suffix}.xyz", fmt="quip/gap/xyz", 
-            type_map = type_map
-        )
-        dsys.to_deepmd_npy(train_set_dir) # prec, set_size
-
-    return
-
 def convert_groups(
     names: List[str], groups: List[List[Atoms]], batchsizes: Union[List[int],int],
     type_map: List[str], suffix, dest_dir="./"
@@ -314,6 +276,8 @@ def convert_groups(
         cum_batchsizes += nbatch
         # --- NOTE: need convert forces to force
         frames_ = copy.deepcopy(frames) 
+        # check pbc
+        pbc = np.all([np.all(a.get_pbc()) for a in frames_])
         for atoms in frames_:
             try:
                 forces = atoms.get_forces().copy()
@@ -343,6 +307,9 @@ def convert_groups(
         else:
             dsys.to_deepmd_npy(train_set_dir/"_temp") # prec, set_size
             (train_set_dir/"_temp"/curr_composition).rename(sys_dir)
+            if not pbc:
+                with open(sys_dir/"nopbc", "w") as fopen:
+                    fopen.write("nopbc\n")
         sys_dirs.append(sys_dir)
     (train_set_dir/"_temp").rmdir()
 
@@ -403,7 +370,8 @@ class DeepmdManager(AbstractPotentialManager):
         # - create specific calculator
         if self.calc_backend == "ase":
             # return ase calculator
-            from deepmd.calculator import DP
+            #from deepmd.calculator import DP
+            from GDPy.computation.dpx import DP
             if models and type_map:
                 calc = DP(model=models[0], type_dict=type_map)
             else:
@@ -477,12 +445,6 @@ class DeepmdManager(AbstractPotentialManager):
         assert dataset, f"No dataset has been set for the potential {self.name}."
 
         # - convert dataset
-        #_ = convert_dataset(
-        #    dataset[0], self.train_config["model"]["type_map"], "train", train_dir
-        #)
-        #_ = convert_dataset(
-        #    dataset[1], self.train_config["model"]["type_map"], "valid", train_dir
-        #)
         batchsizes = dataset[3]
         cum_batchsizes, train_sys_dirs = convert_groups(
             dataset[0], dataset[1], batchsizes, 
