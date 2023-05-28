@@ -17,7 +17,7 @@ from ase.io import read, write
 from ase.calculators.calculator import Calculator
 
 from GDPy.core.register import registers
-from GDPy.potential.manager import AbstractPotentialManager
+from GDPy.potential.manager import AbstractPotentialManager, DummyCalculator
 from GDPy.potential.trainer import AbstractTrainer
 
 
@@ -35,27 +35,22 @@ class DeepmdTrainer(AbstractTrainer):
     CONVERGENCE_FLAG: str = "finished training"
 
     def __init__(
-        self, config: dict, train_epochs: int=200,
+        self, config: dict, type_list: List[str]=None, train_epochs: int=200,
         directory=".", command="dp", freeze_command="dp", random_seed=1112, 
         *args, **kwargs
     ) -> None:
         """"""
         super().__init__(
-            config=config, train_epochs=train_epochs,
+            config=config, type_list=type_list, train_epochs=train_epochs,
             directory=directory, command=command, freeze_command=freeze_command, 
             random_seed=random_seed, *args, **kwargs
         )
 
-        # - sync type_list
-        self._type_list = config["model"]["type_map"]
-
-        # - update command
-        if freeze_command is None:
-            freeze_command = self.command
-        freeze_command = self.freeze_command.strip().split()[0]
-        self.freeze_command = "{} freeze -o {}.pb 2>&1 >> {}.out".format(
-            freeze_command, self.name, self.name
-        )
+        # - TODO: sync type_list
+        if type_list is None:
+            self._type_list = config["model"]["type_map"]
+        else:
+            self._type_list = type_list
 
         return
     
@@ -74,6 +69,17 @@ class DeepmdTrainer(AbstractTrainer):
         if init_model is not None:
             command += "--init-model {}".format(str(pathlib.Path(init_model).resolve()))
         command += " 2>&1 > {}.out\n".format(self.name)
+
+        return command
+
+    def _resolve_freeze_command(self, *args, **kwargs):
+        """"""
+        freeze_command = self.command
+
+        # - add options
+        command = "{} freeze -o {}.pb 2>&1 >> {}.out".format(
+            freeze_command, self.name, self.name
+        )
 
         return command
     
@@ -368,14 +374,13 @@ class DeepmdManager(AbstractPotentialManager):
             models.append(str(m))
 
         # - create specific calculator
+        calc = DummyCalculator()
         if self.calc_backend == "ase":
             # return ase calculator
             #from deepmd.calculator import DP
             from GDPy.computation.dpx import DP
             if models and type_map:
                 calc = DP(model=models[0], type_dict=type_map)
-            else:
-                calc = None
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
             if models:
@@ -393,8 +398,6 @@ class DeepmdManager(AbstractPotentialManager):
                 # - update several params
                 calc.units = "metal"
                 calc.atom_style = "atomic"
-            else:
-                calc = None
 
         return calc
 

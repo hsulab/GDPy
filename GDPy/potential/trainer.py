@@ -6,7 +6,7 @@ import copy
 import os
 import pathlib
 import subprocess
-from typing import Callable
+from typing import Union, Callable, List
 
 import numpy as np
 
@@ -39,15 +39,25 @@ class AbstractTrainer(abc.ABC):
     #: Default output function.
     _print: Callable = print
 
+    #: Working directory.
+    _directory: Union[str,pathlib.Path] = "./"
+
     def __init__(
-        self, config: dict, train_epochs: int=200,
+        self, config: dict, type_list: List[str]=None, train_epochs: int=200,
         directory=".", command="train", freeze_command="freeze", random_seed: int=None, 
         *args, **kwargs
     ) -> None:
         """"""
         self.command = command
-        self.directory = pathlib.Path(directory)
+        if freeze_command is None:
+            self.freeze_command = self.command
+        else:
+            self.freeze_command = freeze_command
+
+        self.directory = directory
         self.config = config # train model parameters
+
+        # - TODO: sync type_list
 
         self.train_epochs = train_epochs
 
@@ -57,9 +67,28 @@ class AbstractTrainer(abc.ABC):
         self.rng = np.random.default_rng(seed=random_seed)
 
         return
+    
+    @property
+    def directory(self):
+        """Directory should always be absolute."""
+        
+        return self._directory
+    
+    @directory.setter
+    def directory(self, directory: Union[str,pathlib.Path]):
+        """"""
+        self._directory = pathlib.Path(directory).resolve()
+
+        return
 
     @abc.abstractmethod
-    def _resolve_train_command(self, init_model):
+    def _resolve_train_command(self, *args, **kwargs):
+        """"""        
+
+        return
+
+    @abc.abstractmethod
+    def _resolve_freeze_command(self, *args, **kwargs):
         """"""        
 
         return
@@ -98,9 +127,9 @@ class AbstractTrainer(abc.ABC):
     
     def freeze(self):
         """Freeze trained model and return the model path."""
-        frozen_model = self.directory/f"{self.name}.pb"
+        frozen_model = (self.directory/f"{self.name}.pb").resolve()
         if not frozen_model.exists():
-            command = self.freeze_command
+            command = self._resolve_freeze_command()
             try:
                 proc = subprocess.Popen(command, shell=True, cwd=self.directory)
             except OSError as err:

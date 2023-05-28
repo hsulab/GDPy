@@ -97,9 +97,10 @@ class TrainerBasedWorker(AbstractWorker):
 
         return
     
-    def run(self, dataset, size: int=1, *args, **kwargs) -> NoReturn:
+    def run(self, dataset, size: int=1, init_models=None, *args, **kwargs) -> NoReturn:
         """"""
         super().run(*args, **kwargs)
+        assert len(init_models) == size, "The number of init models is inconsistent with size."
 
         trainer = self.trainer
         scheduler = self.scheduler
@@ -114,11 +115,8 @@ class TrainerBasedWorker(AbstractWorker):
         if self.scheduler.name == "local":
             for i in range(size):
                 trainer.directory = self.directory / f"{self.TRAIN_PREFIX}{i}"
-                trainer.train(dataset)
+                trainer.train(dataset, init_model=init_models[i])
         else:
-            #for i in range(size):
-            #    trainer.directory = self.directory / f"{self.TRAIN_PREFIX}{i}"
-            #    trainer.train(dataset)
             for i in range(size):
                 uid = str(uuid.uuid1())
                 job_name = uid + "-" + f"{self.TRAIN_PREFIX}{i}"
@@ -136,13 +134,15 @@ class TrainerBasedWorker(AbstractWorker):
                 #       as a committee will be trained
                 trainer_params["trainer"]["random_seed"] = np.random.randint(0,10000)
 
+                trainer_params["init_model"] = init_models[i]
+
                 trainer_params["dataset"] = dataset.as_dict()
                 with open(wdir/"trainer.yaml", "w") as fopen:
                     yaml.dump(trainer_params, fopen)
 
                 scheduler.job_name = job_name
                 scheduler.script = wdir / "train.script"
-                scheduler.user_commands = "gdp newtrain {}\n".format(wdir/"trainer.yaml")
+                scheduler.user_commands = "gdp newtrain {}\n".format(str((wdir/"trainer.yaml").resolve()))
                 scheduler.write()
                 if self._submit:
                     self.logger.info(f"{wdir.name}: {scheduler.submit()}")
@@ -155,7 +155,7 @@ class TrainerBasedWorker(AbstractWorker):
                         uid = uid,
                         gdir=job_name, 
                         group_number=i, 
-                        wdir_names=[str(wdir)], 
+                        wdir_names=[wdir.name], 
                         queued=True
                     )
                 )
@@ -209,13 +209,14 @@ class TrainerBasedWorker(AbstractWorker):
         for job_name in unretrieved_jobs:
             doc_data = self.database.get(Query().gdir == job_name)
             unretrieved_wdirs_.extend(
-                self.directory/w for w in doc_data["wdir_names"]
+                (self.directory/w).resolve() for w in doc_data["wdir_names"]
             )
         unretrieved_wdirs = unretrieved_wdirs_
 
         results = []
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
+            print("unretrieved_wdirs: ", unretrieved_wdirs)
             for p in unretrieved_wdirs:
                 self.trainer.directory = p
                 results.append(self.trainer.freeze())

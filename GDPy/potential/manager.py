@@ -1,18 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-"""
-Potential Manager
-deals with various machine learning potentials
-"""
-
 import abc
 import copy
 from typing import Union, List, NoReturn
 
 import numpy as np
 
-from GDPy.scheduler import create_scheduler
+from ase.calculators.calculator import Calculator, all_properties, all_changes
+
+"""The abstract base class of any potential manager.
+
+"""
+
+class DummyCalculator(Calculator):
+
+    name = "dummy"
+
+    def __init__(self, restart=None, label="dummy", atoms=None, directory=".", **kwargs):
+        super().__init__(restart, label=label, atoms=atoms, directory=directory, **kwargs)
+
+        return
+
+    def calculate(self, atoms=None, properties=all_properties, system_changes=all_changes):
+        """"""
+        raise NotImplementedError("DummyCalculator is unable to calculate.")
 
 
 class AbstractPotentialManager(abc.ABC):
@@ -28,8 +40,6 @@ class AbstractPotentialManager(abc.ABC):
 
     _calc = None
     modifier = None
-
-    _scheduler = None
 
     _estimator = None
 
@@ -49,15 +59,6 @@ class AbstractPotentialManager(abc.ABC):
     def calc(self, calc_):
         self._calc = calc_
         return 
-    
-    @property
-    def scheduler(self):
-        return self._scheduler
-    
-    @scheduler.setter
-    def scheduler(self, scheduler_):
-        self._scheduler = scheduler_
-        return
     
     @abc.abstractmethod
     def register_calculator(self, calc_params, *agrs, **kwargs):
@@ -120,7 +121,10 @@ class AbstractPotentialManager(abc.ABC):
         ase-based dynamics can be used for all calculators.
 
         """
-        if not hasattr(self, "calc") or self.calc is None:
+        # - check whether there is a calc
+        #if not hasattr(self, "calc") or self.calc is None:
+        #    raise AttributeError("Cant create driver before a calculator has been properly registered.")
+        if not hasattr(self, "calc"):
             raise AttributeError("Cant create driver before a calculator has been properly registered.")
             
         # parse backends
@@ -167,16 +171,7 @@ class AbstractPotentialManager(abc.ABC):
         driver.pot_params = self.as_dict()
         
         return driver
-    
-    def register_scheduler(self, params_, *args, **kwargs) -> NoReturn:
-        """ register machine used to submit jobs
-        """
-        params = copy.deepcopy(params_)
-        scheduler = create_scheduler(params)
 
-        self.scheduler = scheduler
-
-        return
 
     def register_trainer(self, train_params_: dict):
         """"""
@@ -226,8 +221,6 @@ class AbstractPotentialManager(abc.ABC):
         pot_params = {"backend": self.calc_backend}
         pot_params.update(copy.deepcopy(self.calc_params))
         params["params"] = pot_params
-
-        # TODO: add train params?
 
         return params
 
