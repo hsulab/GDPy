@@ -11,6 +11,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.register import registers
+from GDPy.core.variable import Variable
 
 
 @registers.dataloader.register
@@ -26,9 +27,12 @@ class XyzDataloader:
 
     """
 
-    def __init__(self, directory="./", *args, **kwargs) -> None:
+    def __init__(self, dataset_path="./", batchsize=32, train_ratio=0.9, *args, **kwargs) -> None:
         """"""
-        self.directory = pathlib.Path(directory) # datset
+        self.directory = pathlib.Path(dataset_path) # datset
+
+        self.batchsize = batchsize
+        self.train_ratio = train_ratio
 
         return
     
@@ -87,7 +91,9 @@ class XyzDataloader:
         """"""
         dataset_params = {}
         dataset_params["name"] = self.name
-        dataset_params["directory"] = str(self.directory)
+        dataset_params["dataset_path"] = str(self.directory)
+        dataset_params["batchsize"] = self.batchsize
+        dataset_params["train_ratio"] = self.train_ratio
 
         dataset_params = copy.deepcopy(dataset_params)
 
