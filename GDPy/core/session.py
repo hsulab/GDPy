@@ -199,11 +199,16 @@ def create_operation(op_name, op_params_: dict):
     if random_seed is not None:
         rng = np.random.default_rng(random_seed)
         op_params.update(rng=rng)
-    # --
-    op_method = op_params.pop("method", None)
-    op_func = registers.get("operation", op_type, convert_name=False)
 
-    return op_func, op_params
+    # --
+    #op_method = op_params.pop("method", None)
+    #op_func = registers.get("operation", op_type, convert_name=False)
+    #return op_func, op_params
+
+    op_cls = registers.get("operation", op_type, convert_name=False)
+    operation = op_cls(**op_params)
+
+    return operation
 
 def create_op_instance(op_name, *args, **kwargs):
     """"""
@@ -341,13 +346,30 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
     from omegaconf import OmegaConf
 
     # - add resolvers
+    def create_vx_instance(vx_name, _root_):
+        """"""
+        #pattern = "${variables.%s}" %vx_name
+        #print("pattern: ", pattern)
+        vx_params = OmegaConf.to_object(_root_.variables.get(vx_name))
+
+        return create_node(vx_name, vx_params)
+
     OmegaConf.register_new_resolver(
-        "gdp_v", lambda x: create_node("xxx", OmegaConf.to_object(x)),
-        use_cache=True
+        #"gdp_v", lambda x: create_node("xxx", OmegaConf.to_object(x)),
+        #use_cache=True
+        "gdp_v", create_vx_instance, use_cache=False
     )
+
+    def create_op_instance(op_name, _root_):
+        """"""
+        op_params = OmegaConf.to_object(_root_.operations.get(op_name))
+
+        return create_operation(op_name, op_params)
+
     OmegaConf.register_new_resolver(
-        "gdp_o", lambda x: create_op_instance("xxx", **OmegaConf.to_object(x)),
-        use_cache=True
+        #"gdp_o", lambda x: create_op_instance("xxx", **OmegaConf.to_object(x)),
+        #use_cache=True
+        "gdp_o", create_op_instance, use_cache=False
     )
 
     from GDPy.builder.interface import build
@@ -358,34 +380,41 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
     # - configure
     conf = OmegaConf.load(config_filepath)
 
-    # -- check if every session has a valid entry operation
-    entry_dict = {}
-    for k, op_dict in conf.sessions.items():
-        print("session: ", k)
-        entry_names = []
-        for op_name, op_params in op_dict.items():
-            op_type = op_params.get("type")
-            if op_type == "enter":
-                entry_names.append(op_name)
-            op_params["directory"] = str(directory/k/op_name)
-            
-        assert len(entry_names) == 1, f"Session {k} only needs one entry operation!!!"
-        entry_dict[k] = entry_names[0]
-        print(f"find entry: {entry_names[0]}")
-    
-    # - set variable directory
-    for k, v_dict in conf.variables.items():
-        v_dict["directory"] = str(directory/"variables"/k)
-    
     # - add placeholders and their directories
     conf.placeholders = {}
     if feed_command is not None:
         pairs = [x.split("=") for x in feed_command]
         for k, v in pairs:
             conf.placeholders[k] = v
+    #print("YAML: ", OmegaConf.to_yaml(conf))
+
+    # -- check if every session has a valid entry operation
+    #entry_dict = {}
+    #for k, op_dict in conf.sessions.items():
+    #    print("session: ", k)
+    #    entry_names = []
+    #    for op_name, op_params in op_dict.items():
+    #        op_type = op_params.get("type")
+    #        if op_type == "enter":
+    #            entry_names.append(op_name)
+    #        op_params["directory"] = str(directory/k/op_name)
+    #        
+    #    assert len(entry_names) == 1, f"Session {k} only needs one entry operation!!!"
+    #    entry_dict[k] = entry_names[0]
+    #    print(f"find entry: {entry_names[0]}")
+    
+    for op_name, op_params in conf.operations.items():
+        op_params["directory"] = str(directory/op_name)
+    
+    # - set variable directory
+    for k, v_dict in conf.variables.items():
+        v_dict["directory"] = str(directory/"variables"/k)
+    #print("YAML: ", OmegaConf.to_yaml(conf))
 
     # - resolve sessions
     container = OmegaConf.to_object(conf.sessions)
+    for k, v in container.items():
+        print(k, v)
 
     # - run session
     names = conf.placeholders.get("names", None)
@@ -398,7 +427,7 @@ def run_session(config_filepath, feed_command=None, custom_session_names=None, e
         n = session_names[i]
         if n is None:
             n = k
-        entry_operation = create_op_instance("entry", **container[k][entry_dict[k]])
+        entry_operation = v
         session = Session(directory=directory/n)
         session.run(entry_operation, feed_dict={})
 
