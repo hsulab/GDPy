@@ -13,6 +13,7 @@ from ase.io import read, write
 
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
+from GDPy.data.dataset import XyzDataloader
 
 @registers.operation.register
 class end_session(Operation):
@@ -122,12 +123,12 @@ class transfer(Operation):
     """Transfer worker results to target destination.
     """
 
-    def __init__(self, worker, target_dir, version, system="mixed") -> NoReturn:
+    def __init__(self, structure, target_dir, version, system="mixed", directory="./") -> NoReturn:
         """"""
-        input_nodes = [worker]
-        super().__init__(input_nodes)
+        input_nodes = [structure]
+        super().__init__(input_nodes=input_nodes, directory=directory)
 
-        self.target_dir = pathlib.Path(target_dir)
+        self.target_dir = pathlib.Path(target_dir).resolve()
         self.version = version
 
         self.system = system # molecule/cluster, surface, bulk
@@ -167,8 +168,11 @@ class transfer(Operation):
                 self.pfunc(f"nframes {curr_nframes} -> {target_destination.name}")
             else:
                 warnings.warn(f"{target_destination} exists.", UserWarning)
+        
+        dataset = XyzDataloader(self.target_dir)
+        self.status = "finished"
 
-        return
+        return dataset
 
 if __name__ == "__main__":
     ...
