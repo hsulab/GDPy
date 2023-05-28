@@ -30,9 +30,9 @@ class ValidatorVariable(Variable):
 @registers.operation.register
 class validate(Operation):
 
-    def __init__(self, node_with_structures, validator, worker, directory="./") -> NoReturn:
+    def __init__(self, structures, validator, worker, directory="./") -> NoReturn:
         """"""
-        input_nodes = [node_with_structures, validator, worker]
+        input_nodes = [structures, validator, worker]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
         return
