@@ -26,6 +26,37 @@ class ComputationVariable(Variable):
         )
         super().__init__(workers)
 
+        # - save state by all nodes
+        self.potter = potter
+        self.driver = driver
+        self.scheduler = scheduler
+        self.custom_wdirs = None
+
+        return
+    
+    def _update_workers(self, potter_node):
+        """"""
+        if isinstance(potter_node, Variable):
+            potter = potter_node.value
+        elif isinstance(potter_node, Operation):
+            # TODO: ...
+            node = potter_node
+            if node.preward():
+                node.inputs = [input_node.output for input_node in node.input_nodes]
+                node.output = node.forward(*node.inputs)
+            else:
+                print("wait previous nodes to finish...")
+            potter = node.output
+        else:
+            ...
+        print("update manager: ", potter)
+        print(potter.calc.model_path)
+        workers = self._create_workers(
+            potter, self.driver.value, self.scheduler.value,
+            custom_wdirs=self.custom_wdirs
+        )
+        self.value = workers
+
         return
     
     def _create_workers(self, potter, drivers, scheduler, custom_wdirs=None):
