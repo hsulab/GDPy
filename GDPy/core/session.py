@@ -115,7 +115,7 @@ class CyclicSession:
 
         return
     
-    def run(self, init_node, iter_node=None, post_node=None, *args, **kwargs) -> NoReturn:
+    def run(self, init_node, iter_node=None, post_node=None, repeat=1, *args, **kwargs) -> NoReturn:
         """"""
         # - init
         self._print(("="*28+"{:^24s}"+"="*28+"\n").format("INIT"))
@@ -130,7 +130,7 @@ class CyclicSession:
 
         # - iter
         curr_potter_node = init_node # a node that forwards a potter manager
-        for i in range(2):
+        for i in range(repeat):
             self._print(("="*28+"{:^24s}"+"="*28+"\n").format(f"ITER.{str(i).zfill(4)}"))
             session = Session(self.directory/f"iter.{str(i).zfill(4)}")
             # -- update some parameters
@@ -237,7 +237,7 @@ def create_operation(op_name, op_params_: dict):
     return operation
 
 
-def run_session(config_filepath, feed_command=None, exec_mode: str="seq", directory="./"):
+def run_session(config_filepath, feed_command=None, directory="./"):
     """Configure session with omegaconfig."""
     directory = pathlib.Path(directory)
 
@@ -314,6 +314,7 @@ def run_session(config_filepath, feed_command=None, exec_mode: str="seq", direct
     else:
         session_names =[None]*len(container)
 
+    exec_mode = conf.get("mode", "seq")
     if exec_mode == "seq":
         # -- sequential
         for i, (k, v) in enumerate(container.items()):
@@ -326,7 +327,10 @@ def run_session(config_filepath, feed_command=None, exec_mode: str="seq", direct
     elif exec_mode == "cyc":
         # -- iterative
         session = CyclicSession(directory="./")
-        session.run(container["init"], container["iter"], container.get("post"))
+        session.run(
+            container["init"], container["iter"], container.get("post"),
+            repeat=conf.get("repeat", 1)
+        )
     else:
         ...
 

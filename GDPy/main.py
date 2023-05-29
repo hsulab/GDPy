@@ -60,10 +60,6 @@ def main():
         "SESSION", help="session configuration file (json/yaml)"
     )
     parser_session.add_argument(
-        "-m", "--mode", default="seq", choices=["seq", "cyc"],
-        help="session mode "
-    )
-    parser_session.add_argument(
         "-f", "--feed", default=None, nargs="+", 
         help="session placeholders"
     )
@@ -257,7 +253,7 @@ def main():
         run_newtrainer(args.CONFIG, args.directory)
     elif args.subcommand == "session":
         from GDPy.core.session import run_session
-        run_session(args.SESSION, args.feed, args.mode, args.directory)
+        run_session(args.SESSION, args.feed, args.directory)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
