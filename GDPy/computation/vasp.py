@@ -28,6 +28,36 @@ from GDPy.computation.driver import AbstractDriver, DriverSetting
 
 """Driver for VASP."""
 
+def run_vasp(name, command, directory):
+    """Run vasp from the command. 
+    
+    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run 
+    directly from the command if INCAR aready exists.
+    
+    """
+    import subprocess
+    from ase.calculators.calculator import EnvironmentError, CalculationFailed
+
+    try:
+        proc = subprocess.Popen(command, shell=True, cwd=directory)
+    except OSError as err:
+        # Actually this may never happen with shell=True, since
+        # probably the shell launches successfully.  But we soon want
+        # to allow calling the subprocess directly, and then this
+        # distinction (failed to launch vs failed to run) is useful.
+        msg = 'Failed to execute "{}"'.format(command)
+        raise EnvironmentError(msg) from err
+
+    errorcode = proc.wait()
+
+    if errorcode:
+        path = os.path.abspath(directory)
+        msg = ('Calculator "{}" failed with command "{}" failed in '
+               '{} with error code {}'.format(name, command,
+                                              path, errorcode))
+        raise CalculationFailed(msg)
+
+    return
 
 # vasp utils
 def read_sort(directory):
@@ -167,7 +197,7 @@ class VaspDriver(AbstractDriver):
     syswise_keys: List[str] = ["system", "kpts", "kspacing"]
 
     # - file names would be copied when continuing a calculation
-    saved_fnames = ["OSZICAR", "OUTCAR", "CONTCAR", "vasprun.xml"]
+    saved_fnames = ["OSZICAR", "OUTCAR", "POSCAR", "CONTCAR", "vasprun.xml"]
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
@@ -180,9 +210,6 @@ class VaspDriver(AbstractDriver):
 
         self.setting = VaspDriverSetting(**params)
 
-        return
-    
-    def _parse_params(self, params_: dict) -> NoReturn:
         return
     
     def run(self, atoms_: Atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
@@ -231,6 +258,7 @@ class VaspDriver(AbstractDriver):
         
         # NOTE: always use dynamics calc
         # TODO: should change positions and other properties for input atoms?
+        # TODO: if not converged?
         traj_frames = self.read_trajectory()
         new_atoms = traj_frames[-1]
 
@@ -253,42 +281,73 @@ class VaspDriver(AbstractDriver):
 
         """
         print(f"run {self.directory}")
-        try:
-            # NOTE: some calculation can overwrite existed data
-            converged = False
-            if (self.directory/"OUTCAR").exists():
-                converged = atoms.calc.read_convergence()
-            if not converged:
-                if read_exists:
-                    # TODO: add a max for continued calculations? 
-                    #       such calcs can be labelled as a failure
-                    # TODO: check WAVECAR to speed restart?
-                    for fname in self.saved_fnames:
-                        curr_fpath = self.directory/fname
-                        if curr_fpath.exists():
-                            backup_fmt = ("bak.{:d}."+fname)
-                            # --- check backups
-                            idx = 0
-                            while True:
-                                backup_fpath = self.directory/(backup_fmt.format(idx))
-                                if not Path(backup_fpath).exists():
-                                    shutil.copy(curr_fpath, backup_fpath)
-                                    break
-                                else:
-                                    idx += 1
-                    # -- continue calculation
-                    if (self.directory/"CONTCAR").exists():
-                        shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-                # -- run calculation
-                _ = atoms.get_forces()
-                # -- check whether the restart s converged
-                converged = atoms.calc.read_convergence()
-            else:
+        # NOTE: some calculation can overwrite existed data
+        converged = self.read_convergence()
+        if not converged:
+            # - backup previous data
+            if read_exists:
+                # TODO: add a max for continued calculations? 
+                #       such calcs can be labelled as a failure
+                # TODO: check WAVECAR to speed restart?
+                for fname in self.saved_fnames:
+                    curr_fpath = self.directory/fname
+                    if curr_fpath.exists():
+                        backup_fmt = ("gbak.{:d}."+fname)
+                        # --- check backups
+                        idx = 0
+                        while True:
+                            backup_fpath = self.directory/(backup_fmt.format(idx))
+                            if not Path(backup_fpath).exists():
+                                shutil.copy(curr_fpath, backup_fpath)
+                                break
+                            else:
+                                idx += 1
+                # -- continue calculation
+                #    update positions and velocities
+                if (self.directory/"CONTCAR").exists():
+                    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+                # TODO: update steps if MD 
                 ...
-        except OSError:
-            converged = False
+            else:
+                # - start from scratch
+                ...
+            # -- run calculation
+            try:
+                if not (self.directory/"INCAR").exists():
+                    # create all input files
+                    _ = atoms.get_forces()
+                else:
+                    run_vasp("vasp", atoms.calc.command, self.directory)
+                # -- check whether the restart is converged
+                converged = self.read_convergence()
+            except OSError:
+                converged = False
         print(f"end {self.directory}")
         print("converged: ", converged)
+
+        return converged
+    
+    def read_convergence(self, *args, **kwargs) -> bool:
+        """"""
+        converged = False
+        if (self.directory/"OUTCAR").exists():
+            if hasattr(self.calc, "read_convergence"):
+                # NOTE: ASE only checks SCF and IONIC minimisation convergence
+                converged = self.calc.read_convergence()
+                print("SCF convergence: ", converged)
+                if self.setting.task == "md":
+                    traj_frames = self.read_trajectory()
+                    nframes = len(traj_frames)
+                    if nframes >= self.setting.steps:
+                        # TODO: NSW should be reduced if restart!!
+                        converged = True
+                    else:
+                        converged = False
+                    print("MD convergence: ", converged)
+            else:
+                raise NotImplementedError()
+        else:
+            ...
 
         return converged
     
@@ -299,10 +358,9 @@ class VaspDriver(AbstractDriver):
 
         """
         vasprun = self.directory / "vasprun.xml"
-        backup_fmt = ("bak.{:d}."+"vasprun.xml")
+        backup_fmt = ("gbak.{:d}."+"vasprun.xml")
 
         # - read structures
-        # TODO: read all saved trajectories and concatenate them
         try:
             traj_frames_ = []
             # -- read backups
@@ -357,4 +415,4 @@ class VaspDriver(AbstractDriver):
 
 
 if __name__ == "__main__": 
-    pass
+    ...

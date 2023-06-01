@@ -244,6 +244,11 @@ class AbstractDriver(abc.ABC):
         new_atoms = copy.deepcopy(atoms)
 
         return new_atoms
+    
+    def read_convergence(self, *args, **kwargs) -> bool:
+        """Read output to check whether the simulation is converged."""
+
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
