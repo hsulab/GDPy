@@ -112,7 +112,9 @@ ALL_MODULES = [
     # - working components.
     # -- managers (potentials)
     ("GDPy.potential.managers", [
-        "vasp", "cp2k", "emt", "xtb", "reax", 
+        "vasp", "cp2k", 
+        "xtb",
+        "eam", "emt", "reax", 
         "eann", "deepmd", "lasp", "nequip", "schnet"
     ]),
     # -- trainers (potentials)
