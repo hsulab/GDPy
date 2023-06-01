@@ -17,7 +17,8 @@ class AbstractValidator(abc.ABC):
     restart = True
 
     def __init__(
-        self, directory: Union[str,pathlib.Path], task_params: dict
+        self, directory: Union[str,pathlib.Path], task_params: dict=None, 
+        *args, **kwargs
     ):
         """
         """

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import itertools
 import warnings
 import pathlib
 from typing import List, Union
@@ -28,6 +29,49 @@ from GDPy.utils.comparasion import parity_plot_dict, rms_dict
 
 from GDPy.core.register import registers
 from GDPy.validator.utils import get_properties
+from GDPy.utils.command import convert_indices
+
+
+def plot_distribution(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
+    """"""
+    x_ref, x_pred = np.array(x_ref), np.array(x_pred)
+    assert x_ref.shape[0] == x_pred.shape[0], "Input data is inconsistent."
+
+    if weights is None:
+        weights = np.ones(x_ref.shape)
+    weights = np.array(weights)
+    assert x_ref.shape[0] == weights.shape[0], "Weight is inconsistent."
+
+    # use flat shape otherwise hist will be separate
+    x_diff = (x_pred - x_ref) / weights
+    #print("x_diff: ", x_diff.shape)
+    #if len(x_diff.shape) > 1:
+    #    x_diff = np.linalg.norm(x_diff, axis=1)
+
+    pmax, pmin = np.max(x_diff), np.min(x_diff)
+
+    ax.set_ylabel("Probability Density")
+    ax.set_xlabel("$\Delta$"+x_name)
+
+    num_bins = 20
+    if x_types is None:
+        x_diff = x_diff.flatten()
+        n, bins, patches = ax.hist(x_diff, num_bins, density=True)
+    else:
+        # -- per type
+        x_types = np.array(x_types)
+    
+        types = sorted(set(x_types))
+        for t in types:
+            t_mask = np.array(x_types==t)
+            x_diff_t = x_diff[t_mask]
+            if len(x_diff.shape) > 1:
+                x_diff_t = x_diff_t.flatten()
+            n, bins, patches = ax.hist(x_diff_t, num_bins, density=True, label=t)
+
+    ax.legend()
+
+    return
 
 
 def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
@@ -120,14 +164,42 @@ class SinglepointValidator(AbstractValidator):
         super().run()
 
         data = []
+        frame_pairs = []
         for prefix, frames in dataset:
-            nframes, rmse_ret = self._irun(prefix, frames, None, worker)
+            pred_frames = self._irun(prefix, frames, None, worker)
+            nframes, rmse_ret = self._plot_comparison(prefix, frames, pred_frames)
+            frame_pairs.append([frames, pred_frames])
             data.append([prefix, nframes, rmse_ret])
         self.write_data(data)
 
+        # - plot specific groups
+        task_params = copy.deepcopy(self.task_params)
+        def run_selection():
+            #prefixes = [d[0] for d in dataset]
+            #print(prefixes)
+
+            selected_prefixes, selected_groups = [], []
+            for k, v in task_params.items():
+                selected_prefixes.append(k)
+                selected_groups.append(
+                    convert_indices(v, index_convention="py")
+                )
+            print(selected_groups)
+            print(selected_prefixes)
+
+            for curr_prefix, curr_indices in zip(selected_prefixes,selected_groups):
+                curr_ref = list(itertools.chain(*[frame_pairs[i][0] for i in curr_indices]))
+                curr_pre = list(itertools.chain(*[frame_pairs[i][1] for i in curr_indices]))
+                nframes, rmse_ret = self._plot_comparison(curr_prefix, curr_ref, curr_pre)
+                self.write_data([[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat")
+        
+        if task_params is not None:
+            run_selection()
+
         return
 
-    def write_data(self, data):
+    def write_data(self, data, fname: str="rmse.dat"):
+        """"""
         # - check data file
         keys = ["ene", "frc"]
         for rmse_ret in [x[2] for x in data]:
@@ -153,9 +225,7 @@ class SinglepointValidator(AbstractValidator):
                     cur_data.extend([v["rmse"], v["std"]])
             content += content_fmt.format(*cur_data)
         
-        # TODO: add statistics on all data
-
-        with open(self.directory/"rmse.dat", "w") as fopen:
+        with open(self.directory/fname, "w") as fopen:
             fopen.write(content)
         self.logger.info(content)
 
@@ -164,10 +234,7 @@ class SinglepointValidator(AbstractValidator):
     def _irun(self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker):
         """"""
         # - read structures
-        ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
         nframes = len(ref_frames)
-        ref_natoms = [len(a) for a in ref_frames]
-
         if pred_frames is None:
             # NOTE: use worker to calculate
             # TODO: use cached data?
@@ -191,6 +258,17 @@ class SinglepointValidator(AbstractValidator):
                 write(cached_pred_fpath, pred_frames)
             else:
                 pred_frames = read(cached_pred_fpath, ":")
+        
+        return pred_frames
+    
+    def _plot_comparison(self, prefix, ref_frames, pred_frames: List[Atoms]):
+        """"""
+        if not (self.directory/prefix).exists():
+            (self.directory/prefix).mkdir(parents=True)
+
+        nframes = len(ref_frames)
+        ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
+        ref_natoms = [len(a) for a in ref_frames]
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
         
         # - figure
@@ -199,7 +277,6 @@ class SinglepointValidator(AbstractValidator):
             gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
         )
         axarr = axarr.flatten()
-
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
         # -- energies
@@ -212,10 +289,28 @@ class SinglepointValidator(AbstractValidator):
             axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
         )
 
-        if (self.directory/f"{prefix}.png").exists():
-            warnings.warn(f"Figure file {prefix} exists.", UserWarning)
+        #if (self.directory/f"{prefix}.png").exists():
+        #    warnings.warn(f"Figure file {prefix} exists.", UserWarning)
+        plt.savefig(self.directory/prefix/"rmse.png")
+        plt.close()
 
-        plt.savefig(self.directory/f"{prefix}.png")
+        # plot distributions
+        fig, axarr = plt.subplots(
+            nrows=1, ncols=2,
+            gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
+        )
+        axarr = axarr.flatten()
+        plt.suptitle(f"{prefix} with nframes {nframes}")
+
+        plot_distribution(
+            axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms
+        )
+        plot_distribution(
+            axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
+        )
+
+        plt.savefig(self.directory/prefix/"dist.png")
+        plt.close()
 
         # - save results to data file
         rmse_ret = {}
