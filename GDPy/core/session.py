@@ -277,8 +277,17 @@ def run_session(config_filepath, feed_command=None, directory="./"):
 
     # -- 
     from GDPy.builder.interface import build
+    def load_structure(x):
+        """"""
+        builder = create_variable(
+            "structure", {"type": "builder", "method": "direct", "frames": x}
+        )
+        node = build([builder])
+
+        return node
+
     OmegaConf.register_new_resolver(
-        "structure", lambda x: build(**{"builders":[create_variable("xxx", {"type": "builder", "method": "molecule", "filename": x})]})
+        "structure",  load_structure
     )
 
 
