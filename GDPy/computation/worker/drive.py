@@ -340,7 +340,6 @@ class DriverBasedWorker(AbstractWorker):
         self.logger.info(f"@@@{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
-        #unretrieved_jobs = self._get_unretrieved_jobs()
         for job_name in running_jobs:
             #group_directory = self.directory / job_name[self.UUIDLEN+1:]
             #group_directory = self.directory / "_works"
@@ -355,15 +354,20 @@ class DriverBasedWorker(AbstractWorker):
 
             # -- check whether the jobs if running
             if self.scheduler.is_finished(): # if it is still in the queue
-                # -- valid if the task finished correctlt not due to time-limit
+                # -- valid if the task finished correctly not due to time-limit
                 is_finished = False
                 wdir_names = doc_data["wdir_names"]
                 if not self._share_wdir:
                     for x in wdir_names:
                         if not (group_directory/x).exists():
+                            # even not start
                             break
+                        else:
+                            # not converged
+                            self.driver.directory = group_directory/x
+                            if not self.driver.read_convergence():
+                                break
                     else:
-                        # TODO: all subtasks seem to finish...
                         is_finished = True
                 else:
                     cache_frames = read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
