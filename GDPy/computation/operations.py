@@ -235,8 +235,10 @@ class extract(Operation):
             print("worker: ", worker.directory)
             cached_trajs_dpath = self.directory/f"{worker.directory.parent.name}-w{i}"
             if not cached_trajs_dpath.exists():
+                # inspect again for using extract without drive
+                worker.inspect(resubmit=False)
                 if not (worker.get_number_of_running_jobs() == 0):
-                    self.pfunc(f"{worker.directory.name} is not finished.")
+                    self.pfunc(f"{worker.directory} is not finished.")
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories_ = worker.retrieve(
