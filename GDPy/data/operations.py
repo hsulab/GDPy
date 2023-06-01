@@ -33,9 +33,9 @@ class chain(Operation):
 
     status = "finished" # Always finished since it is not time-consuming
 
-    def __init__(self, *args, **kwargs) -> NoReturn:
+    def __init__(self, nodes, *args, **kwargs) -> NoReturn:
         """"""
-        super().__init__(args)
+        super().__init__(nodes)
 
         # - some operation parameters
 
@@ -44,6 +44,7 @@ class chain(Operation):
     def forward(self, *outputs):
         """"""
         super().forward()
+        print("chain outputs: ", outputs)
 
         return list(itertools.chain(*outputs))
 

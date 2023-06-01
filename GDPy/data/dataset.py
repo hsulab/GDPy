@@ -46,12 +46,25 @@ class XyzDataloader:
 
         """
         data_dirs = []
-        for p in self.directory.iterdir():
-            if p.is_dir():
-                xyzpaths = list(p.glob("*.xyz"))
-                if len(xyzpaths) > 0:
-                    data_dirs.append(p)
+        def traverse_dirs(wdir):
+            """"""
+            for p in wdir.iterdir():
+                if p.is_dir():
+                    xyzpaths = list(p.glob("*.xyz"))
+                    if len(xyzpaths) > 0:
+                        data_dirs.append(p)
+                    else:
+                        traverse_dirs(p)
+                else:
+                    ...
+
+            return
+        traverse_dirs(self.directory)
         data_dirs = sorted(data_dirs)
+
+        #print(len(data_dirs))
+        #for p in data_dirs:
+        #    print(str(p))
 
         return data_dirs
     
