@@ -17,7 +17,7 @@ from GDPy.computation.worker.drive import (
 )
 
 @registers.variable.register
-class ComputationVariable(Variable):
+class ComputerVariable(Variable):
 
     def __init__(self, potter, driver, scheduler, custom_wdirs=None, *args, **kwargs):
         """"""

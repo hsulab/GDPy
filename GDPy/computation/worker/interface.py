@@ -328,9 +328,10 @@ def run_worker(
 
     # - find input frames
     worker.directory = directory
-    print(directory)
+    print("wdir: ", directory)
 
     _ = worker.run(generator, batch=batch)
+    worker.inspect(resubmit=True)
     if worker.get_number_of_running_jobs() == 0:
         # - report
         res_dir = directory/"results"
