@@ -10,6 +10,7 @@ import pathlib
 from GDPy.utils.command import parse_input_file
 
 from GDPy.core.register import registers
+from GDPy.scheduler.interface import create_scheduler
 from GDPy.potential.manager import AbstractPotentialManager
 TManager = typing.TypeVar("TManager", bound="AbstractPotentialManager")
 
@@ -126,16 +127,16 @@ def create_potter(config_file=None):
     # - scheduler for running the potential
     scheduler_params = params.get("scheduler", {})
     # default is local machine
-    potter.register_scheduler(scheduler_params)
+    scheduler = create_scheduler(scheduler_params)
 
     # - try worker
-    if driver and potter.scheduler:
-        if potter.scheduler.name == "local":
+    if driver and scheduler:
+        if scheduler.name == "local":
             from GDPy.computation.worker.drive import CommandDriverBasedWorker as Worker
-            run_worker = Worker(potter, driver, potter.scheduler)
+            run_worker = Worker(potter, driver, scheduler)
         else:
             from GDPy.computation.worker.drive import QueueDriverBasedWorker as Worker
-            run_worker = Worker(potter, driver, potter.scheduler)
+            run_worker = Worker(potter, driver, scheduler)
         print(run_worker)
     
     # - final worker
