@@ -391,24 +391,6 @@ class LmpDriver(AbstractDriver):
 
         return self.calc._read_trajectory(add_step_info)
 
-    def as_dict(self) -> dict:
-        """"""
-        params = dict(
-            backend = self.name
-        )
-        # NOTE: we use original params otherwise internal param names would be 
-        #       written out and make things confusing
-        org_params = copy.deepcopy(self._org_params)
-
-        # - update some special parameters
-        constraint = self.setting.get_run_params().get("constraint", None)
-        if constraint is not None:
-            org_params["run"]["constraint"] = constraint
-
-        params.update(org_params)
-
-        return params
-
 
 class Lammps(FileIOCalculator):
 

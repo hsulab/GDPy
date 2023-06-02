@@ -394,24 +394,6 @@ class VaspDriver(AbstractDriver):
             traj_frames = [atoms]
 
         return traj_frames
-    
-    def as_dict(self) -> dict:
-        """"""
-        params = dict(
-            backend = self.name
-        )
-        # NOTE: we use original params otherwise internal param names would be 
-        #       written out and make things confusing
-        org_params = copy.deepcopy(self._org_params)
-
-        # - update some special parameters
-        constraint = self.setting.get_run_params().get("constraint", None)
-        if constraint is not None:
-            org_params["constraint"] = constraint
-
-        params.update(org_params)
-
-        return params
 
 
 if __name__ == "__main__": 

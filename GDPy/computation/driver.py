@@ -274,12 +274,12 @@ class AbstractDriver(abc.ABC):
         )
         # NOTE: we use original params otherwise internal param names would be 
         #       written out and make things confusing
+        #       org_params are merged params thatv have init and run sections
         org_params = copy.deepcopy(self._org_params)
 
         # - update some special parameters
         constraint = self.setting.constraint
-        if constraint is not None:
-            org_params["run"]["constraint"] = constraint
+        org_params["constraint"] = constraint
 
         params.update(org_params)
 
