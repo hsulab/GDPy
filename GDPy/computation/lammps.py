@@ -33,6 +33,9 @@ from GDPy.utils.command import find_backups
 
 from GDPy.builder.constraints import parse_constraint_info
 
+#_debug = print
+_debug = lambda *x: x
+
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
 
@@ -79,33 +82,41 @@ def parse_thermo_data(logfile_path) -> dict:
             break
     else:
         end_idx = idx
-    #print(start_idx, end_idx)
+    _debug("lammps LOG index: ", start_idx, end_idx)
     
     # - check valid lines
     #   sometimes the line may not be complete
     ncols = len(lines[start_idx].strip().split())
     for i in range(end_idx,start_idx,-1):
-        cur_ncols = len(lines[i].strip().split())
-        if cur_ncols == ncols:
-            end_idx = i+1
-            break
+        curr_data = lines[i].strip().split()
+        curr_ncols = len(curr_data)
+        if curr_ncols == ncols: # still log step info and no LOOP
+            try:
+                step = int(curr_data[0])
+                end_idx = i+1
+            except ValueError:
+                ...
+            finally:
+                break
     else:
         end_idx = None # even not one single complete line
-    #print(start_idx, end_idx)
+    _debug("lammps LOG index: ", start_idx, end_idx)
     
     if start_idx is None or end_idx is None:
         raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
+    _debug("lammps END info: ", end_info)
 
-    try: # The last sentence may have the same number of columns as thermo data does.
-        if end_info.strip():
-            first_col = float(end_info.strip().split()[0])
-        else:
-            end_idx -= 1
-    except ValueError:
-        end_idx -= 1
-    finally:
-        ...
+    #try: # The last sentence may have the same number of columns as thermo data does.
+    #    if end_info.strip():
+    #        first_col = float(end_info.strip().split()[0])
+    #    else:
+    #        end_idx -= 1
+    #except ValueError:
+    #    end_idx -= 1
+    #finally:
+    #    ...
+    _debug("lammps LOG index: ", start_idx, end_idx)
 
     # -- parse index of PotEng
     # TODO: save timestep info?
@@ -114,7 +125,7 @@ def parse_thermo_data(logfile_path) -> dict:
         raise RuntimeError(f"Cant find PotEng in lammps output of {str(logfile_path)}.")
     thermo_data = lines[start_idx+1:end_idx]
     thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
-    #print(thermo_data)
+    #_debug(thermo_data)
     thermo_dict = {}
     for i, k in enumerate(thermo_keywords):
         thermo_dict[k] = thermo_data[i]
@@ -215,6 +226,9 @@ class LmpDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
+    #: Whether check the dynamics is converged, and re-run if not.
+    ignore_convergence: bool = True
+
     #: List of output files would be saved when restart.
     saved_fnames: List[str] = [ASELMPCONFIG.log_filename, ASELMPCONFIG.trajectory_filename]
 
@@ -228,8 +242,8 @@ class LmpDriver(AbstractDriver):
         self._org_params = copy.deepcopy(params)
 
         self.setting = LmpDriverSetting(**params)
-        #print(self.setting)
-        #print(self.setting._internals)
+        #_debug(self.setting)
+        #_debug(self.setting._internals)
 
         return
 
@@ -256,40 +270,26 @@ class LmpDriver(AbstractDriver):
         self.delete_keywords(kwargs)
         self.delete_keywords(self.calc.parameters)
 
-        ## - init params
+        # - init params
         run_params = self.setting.get_init_params()
         run_params.update(**self.setting.get_run_params(**kwargs))
+
+        # - check constraint
+        ...
 
         self.calc.set(**run_params)
         atoms.calc = self.calc
 
         # - run dynamics
-        try:
-            # NOTE: some calculation can overwrite existed data
-            if read_exists:
-                converged, end_info = atoms.calc._is_finished()
-                if converged:
-                    atoms.calc.type_list = parse_type_list(atoms)
-                    atoms.calc.read_results()
-                else:
-                    # NOTE: restart calculation!!!
-                    _  = atoms.get_forces()
-                    converged, end_info = atoms.calc._is_finished()
-            else:
-                _  = atoms.get_forces()
-                converged, end_info = atoms.calc._is_finished()
-        except OSError:
-            converged = False
-        #else:
-        #    converged = False
+        converged = self._continue(atoms, read_exists=read_exists)
+        traj_frames = self.read_trajectory()
+        new_atoms = traj_frames[-1]
 
         # TODO: summarise this computation and output some info?
-        #print(f"Found finished simulation {self.directory.name} with info {end_info}.")
+        #_debug(f"Found finished simulation {self.directory.name} with info {end_info}.")
 
-        # NOTE: always use dynamics calc
-        # TODO: should change positions and other properties for input atoms?
-        assert converged and atoms.calc.cached_traj_frames is not None, "Failed to read results in lammps."
-        new_atoms = atoms.calc.cached_traj_frames[-1]
+        #assert converged and atoms.calc.cached_traj_frames is not None, "Failed to read results in lammps."
+        #new_atoms = atoms.calc.cached_traj_frames[-1]
 
         if extra_info is not None:
             new_atoms.info.update(**extra_info)
@@ -304,21 +304,31 @@ class LmpDriver(AbstractDriver):
 
     def _continue(self, atoms, read_exists=True, *args, **kwargs):
         """Check whether continue unfinished calculation."""
-        print(f"run {self.directory}")
-        try:
+        _debug(f"run {self.directory}")
+        if not (self.directory/ASELMPCONFIG.trajectory_filename).exists():
+            # -- scratch
+            try:
+                _ = atoms.get_forces()
+                # -- check whether the restart s converged
+                converged = self.read_convergence()
+            except OSError as e:
+                _debug(e)
+                converged = False
+        else:
+            if self.ignore_convergence:
+                converged = True
+            else:
+                converged = self.read_convergence()
+
             # NOTE: some calculation can overwrite existed data
-            converged = False
-            if (self.directory/"OUTCAR").exists():
-                converged = atoms.calc.read_convergence()
             if not converged:
                 if read_exists:
                     # TODO: add a max for continued calculations? 
                     #       such calcs can be labelled as a failure
-                    # TODO: check WAVECAR to speed restart?
                     for fname in self.saved_fnames:
                         curr_fpath = self.directory/fname
                         if curr_fpath.exists():
-                            backup_fmt = ("bak.{:d}."+fname)
+                            backup_fmt = ("gbak.{:d}."+fname)
                             # --- check backups
                             idx = 0
                             while True:
@@ -329,18 +339,48 @@ class LmpDriver(AbstractDriver):
                                 else:
                                     idx += 1
                     # -- continue calculation
-                    if (self.directory/"CONTCAR").exists():
-                        shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-                # -- run calculation
-                _ = atoms.get_forces()
-                # -- check whether the restart s converged
-                converged = atoms.calc.read_convergence()
-            else:
-                ...
-        except OSError:
-            converged = False
-        print(f"end {self.directory}")
-        print("converged: ", converged)
+                    # TODO: should change positions...
+                    #       positions, velociteis, and minimiser/thermostat propertiers
+                else:
+                    ...
+                # - run calculation
+                try:
+                    _ = atoms.get_forces()
+                    # -- check whether the restart s converged
+                    converged = self.read_convergence()
+                except OSError as e:
+                    _debug(e)
+                    converged = False
+        _debug(f"end {self.directory}")
+        _debug("converged: ", converged)
+
+        return converged
+    
+    def read_convergence(self, *args, **kwargs) -> bool:
+        """"""
+        if self.ignore_convergence:
+            return True
+
+        converged = False
+        if (self.directory/ASELMPCONFIG.trajectory_filename).exists():
+            traj_frames = self.read_trajectory()
+            nframes = len(traj_frames)
+            step = traj_frames[-1].info["step"]
+            _debug("nframes: ", nframes)
+            if self.setting.task == "min":
+                # NOTE: check geometric convergence (forces)...
+                # TODO: if etol and fmax is set at run-time???
+                maxfrc = np.max(np.fabs(traj_frames[-1].get_forces()))
+                if maxfrc <= self.setting.fmax:
+                    converged = True
+                _debug("MIN convergence: ", converged, f" {maxfrc} <=? {self.setting.fmax}")
+            if self.setting.task == "md":
+                # TODO: if steps is set at run-time???
+                if step >= self.setting.steps:
+                    converged = True
+                _debug("MD convergence: ", converged)
+        else:
+            ...
 
         return converged
     
@@ -553,6 +593,7 @@ class Lammps(FileIOCalculator):
         pot_energies = [unitconvert.convert(p, "energy", self.units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
+        _debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
 
         # TODO: check whether steps in thermo and traj are consistent
         pot_energies = pot_energies[:nframes]
@@ -581,7 +622,12 @@ class Lammps(FileIOCalculator):
 
             for i, atoms in enumerate(traj_frames):
                 for j, k in enumerate(dkeys):
-                    atoms.info[k] = data[j,i]
+                    try:
+                        atoms.info[k] = data[j,i]
+                    except IndexError:
+                        # NOTE: Some potentials donot print last frames of min
+                        #       for exaple, lammps
+                        atoms.info[k] = 0.
         
         # - label steps
         if add_step_info:
@@ -756,4 +802,4 @@ class Lammps(FileIOCalculator):
  
 
 if __name__ == "__main__":
-    pass
+    ...
