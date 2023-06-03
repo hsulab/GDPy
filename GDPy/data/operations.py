@@ -49,6 +49,38 @@ class chain(Operation):
         return list(itertools.chain(*outputs))
 
 @registers.operation.register
+class map(Operation):
+
+    """Give each input node a name and construct a dict.
+
+    This is useful when validating structures from different systems.
+
+    """
+
+    status = "finished"
+
+    def __init__(self, nodes, names, directory="./") -> NoReturn:
+        """"""
+        super().__init__(nodes, directory)
+
+        assert len(nodes) == len(names), "Numbers of nodes and names are inconsistent."
+        self.names = names
+
+        return
+    
+    def forward(self, *outputs):
+        """"""
+        super().forward()
+
+        ret = {}
+        for k, v in zip(self.names, outputs):
+            ret[k] = v
+        
+        print("map ret: ", ret)
+
+        return ret
+
+@registers.operation.register
 class merge_workers(Operation):
 
     """Merge results of workers.
