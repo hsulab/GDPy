@@ -16,6 +16,7 @@ from GDPy.builder.group import create_a_group
 
 
 """Some calculators of external forces.
+    TODO: use value_and_grad
 """
 
 eps_afir = 1.0061 / 96.485
