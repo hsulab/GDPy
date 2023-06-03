@@ -116,3 +116,19 @@ def parse_constraint_info(atoms, cons_text, ignore_ase_constraints=True, ret_tex
         return mobile_text, frozen_text
     else:
         return mobile_indices, frozen_indices
+
+def set_constraint(atoms, cons_text, ignore_attached_constraints=True):
+    """Set constraint based on constraint text."""
+    mobile_indices, frozen_indices = parse_constraint_info(
+        atoms, cons_text, ignore_ase_constraints=ignore_attached_constraints, ret_text=False
+    )
+    if frozen_indices:
+        if ignore_attached_constraints:
+            atoms._del_constraints()
+        else:
+            ...
+        atoms.set_constraint(FixAtoms(indices=frozen_indices))
+    else:
+        ...
+
+    return
