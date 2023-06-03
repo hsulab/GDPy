@@ -15,7 +15,10 @@ from ase.constraints import UnitCellFilter
 
 from ase.calculators.singlepoint import SinglePointCalculator
 
+from GDPy.core.register import registers
 from GDPy.validator.validator import AbstractValidator
+from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.builder.constraints import set_constraint
 
 """Validate minima and relative energies...
 """
@@ -34,86 +37,95 @@ def make_clean_atoms(atoms_, results=None):
 
     return atoms
 
+@registers.validator.register
 class MinimaValidator(AbstractValidator):
 
     """Run minimisation on various configurations and compare relative energy.
 
+    TODO: 
+
+        Support the comparison of minimisation trajectories.
+
     """
 
-    def run(self):
-        driver = self.pm.create_driver(self.task_params["driver"])
-        global_constraint = driver._org_params["run"].get("constraint", None)
+    def run(self, dataset: dict, worker: DriverBasedWorker, *args, **kwargs):
+        """"""
+        task_params = copy.deepcopy(self.task_params)
 
-        params = self.task_params
+        # TODO: assume dataset is a dict of frames
+        pre_dataset = {}
+        for k, curr_frames in dataset.items():
+            nframes = len(curr_frames)
 
-        # - read structures
-        names, frames, cons_info = [], [], []
-        for name, stru_info in params["structures"].items():
-            if isinstance(stru_info, dict):
-                stru_path = stru_info.get("file", None)
-                indices = stru_info.get("index", "-1")
-                atoms = read(stru_path, indices)
-                cons = stru_info.get("constraint", None)
+            cached_pred_fpath = self.directory/k/ "pred.xyz"
+            if not cached_pred_fpath.exists():
+                worker.directory = self.directory/k
+                worker.batchsize = nframes
+
+                #worker._share_wdir = True
+
+                worker.run(curr_frames)
+                worker.inspect(resubmit=True)
+                if worker.get_number_of_running_jobs() == 0:
+                    pred_frames = worker.retrieve(
+                        ignore_retrieved=False,
+                    )
+                else:
+                    # TODO: ...
+                    ...
+                write(cached_pred_fpath, pred_frames)
             else:
-                assert isinstance(stru_info, str), "Unsupported structure info."
-                atoms = read(stru_info, "-1")
-                cons = None
-            if cons is None:
-                cons = global_constraint
-            names.append(name)
-            frames.append(atoms)
-            cons_info.append(cons)
-
-        # - minimise structures
-        new_frames = []
-        for name, atoms_, cons in zip(names, frames, cons_info):
-            self.logger.info(f"=== run minimisation for {name} ===")
-            driver.directory = self.directory / name
-            atoms = driver.run(atoms_, constraint=cons) 
-            # - get clean results
-            results = dict(
-                energy = atoms.get_potential_energy(),
-                forces = copy.deepcopy(atoms.get_forces())
-            )
-            atoms = make_clean_atoms(atoms, results)
-            new_frames.append(atoms)
-
-        # - process results and output
-        ref_energies, new_energies = [], []
-        ref_maxforces, new_maxforces = [], []
-        displacements = []
-        for name, ref_atoms, new_atoms in zip(names, frames, new_frames):
-            # -- ene
-            ref_energies.append(ref_atoms.get_potential_energy())
-            new_energies.append(new_atoms.get_potential_energy())
-            # -- frc
-            ref_maxforces.append(np.max(np.fabs(ref_atoms.get_forces(apply_constraint=True))))
-            new_maxforces.append(np.max(np.fabs(new_atoms.get_forces(apply_constraint=True))))
-            # -- dis
-            # TODO: not for bulk systems
-            vector = new_atoms.get_positions() - ref_atoms.get_positions()
-            vmin, vlen = find_mic(vector, new_atoms.get_cell())
-            displacements.append(np.linalg.norm(vlen))
+                pred_frames = read(cached_pred_fpath, ":")
+            
+            pre_dataset[k] = pred_frames
         
-        #data = np.array([names, ref_energies, new_energies, ref_maxforces, new_maxforces, displacements]).T
-        #np.savetxt(
-        #    self.directory/"abs.dat", data,
-        #    fmt="%24s  %12.4f  %12.4f  %12.4f  %12.4f  %12.4f",
-        #    #header=("{:<24s}  "+"{:<12.4f}  "*5).format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse")
-        #)
+        # -
+        key = "composites"
+        
+        # - restore constraints
+        cons_text = worker.driver.as_dict()["constraint"]
+        for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
+            set_constraint(ref_atoms, cons_text, ignore_attached_constraints=True)
+            set_constraint(pre_atoms, cons_text, ignore_attached_constraints=True)
+        
+        # - compare ...
+        ref_energies = np.array([a.get_potential_energy() for a in dataset[key]])
+        pre_energies = np.array([a.get_potential_energy() for a in pre_dataset[key]])
 
-        content = ("{:<24s}  "+"{:<12s}  "*5+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse")
-        for name, ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis in zip(
-            names, ref_energies, new_energies, ref_maxforces, new_maxforces, displacements
+        ref_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in dataset[key]])
+        pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
+
+        # - compute shifts if any
+        ref_ene_shift = np.sum([x*y for x, y in task_params["ref_ene_shift"]])
+        pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["pre_ene_shift"]])
+
+        ref_rel_energies = ref_energies - ref_ene_shift
+        pre_rel_energies = pre_energies - pre_ene_shift
+
+        # -- disp
+        disps = [] # displacements
+        for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
+            vector = pre_atoms.get_positions() - ref_atoms.get_positions()
+            vmin, vlen = find_mic(vector, pre_atoms.get_cell())
+            disps.append(np.linalg.norm(vlen))
+
+        content = ("{:<24s}  "+"{:<12s}  "*7+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse", "RefRelEne", "NewRelEne")
+        for i, (ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene) in enumerate(
+            zip(ref_energies, pre_energies, ref_maxforces, pre_maxforces, disps, ref_rel_energies, pre_rel_energies)
         ):
-            content += ("{:>24s}  "+"{:>12.4f}  "*5+"\n").format(
-                name, ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis
+            content += ("{:<24s}  "+"{:<12.4f}  "*7+"\n").format(
+                str(i), ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene
             )
 
         with open(self.directory/"abs.dat", "w") as fopen:
             fopen.write(content)
-        self.logger.info(content)
+        
+        self._print(content)
 
+        return
+
+    def _compute_chemical_equations(self, dataset, worker, *args, **kwargs):
+        """"""
         # - parse relative energies
         ene_dict = {}
         for name, ref_ene, new_ene in zip(names, ref_energies, new_energies):

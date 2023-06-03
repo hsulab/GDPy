@@ -30,8 +30,21 @@ class ValidatorVariable(Variable):
 @registers.operation.register
 class validate(Operation):
 
+    """The operation to validate properties by potentials.
+
+    The reference properties should be stored and accessed through `structures`.
+
+    """
+
     def __init__(self, structures, validator, worker, directory="./") -> NoReturn:
-        """"""
+        """Init a validate operation.
+
+        Args:
+            structures: A node that forwards structures.
+            validator: A validator.
+            worker: A worker to run calculations.
+        
+        """
         input_nodes = [structures, validator, worker]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
