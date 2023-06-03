@@ -19,6 +19,9 @@ class XyzDataloader:
 
     name = "xyz"
 
+    _print = print
+    _debug = print
+
     """A directory-based dataset.
 
     There are several subdirs in the main directory. Each dirname follows the format that 
@@ -67,6 +70,41 @@ class XyzDataloader:
         #    print(str(p))
 
         return data_dirs
+    
+    def get_dataset(self):
+        """"""
+        data_dirs = self.load()
+
+        self._print(data_dirs)
+        self._print("\n--- auto data reader ---\n")
+
+        batchsizes = self.batchsize
+        nsystems = len(data_dirs)
+        if isinstance(batchsizes, int):
+            batchsizes = [batchsizes]*nsystems
+        assert len(batchsizes) == nsystems, "Number of systems and batchsizes are inconsistent."
+
+        # read configurations
+        set_names = []
+        train_size, test_size = [], []
+        train_frames, test_frames = [], []
+        adjusted_batchsizes = [] # auto-adjust batchsize based on nframes
+        for i, (cur_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
+            cur_system = pathlib.Path(cur_system)
+            set_names.append(cur_system.name)
+            self._print(str(cur_system))
+            self._print(f"System {cur_system.stem} Batchsize {curr_batchsize}\n")
+            frames = [] # all frames in this subsystem
+            subsystems = list(cur_system.glob("*.xyz"))
+            subsystems.sort() # sort by alphabet
+            for p in subsystems:
+                # read and split dataset
+                p_frames = read(p, ":")
+                p_nframes = len(p_frames)
+                frames.extend(p_frames)
+                self._print(f"  subsystem: {p.name} number {p_nframes}\n")
+
+        return
     
     def transfer(self, frames: List[Atoms]):
         """Add structures into the dataset."""
