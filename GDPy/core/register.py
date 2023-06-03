@@ -105,7 +105,7 @@ class registers:
         return instance
 
 
-VALIDATOR_MODULES = ["singlepoint", "dimer"]
+VALIDATOR_MODULES = ["singlepoint", "dimer", "minima"]
 DATA_OPS = ["operations"]
 
 ALL_MODULES = [

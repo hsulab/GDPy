@@ -114,7 +114,6 @@ class ReactionValidator(AbstractValidator):
         rxn_params = self.task_params["rxn_params"]
         rxn_method = rxn_params.get("method", "neb") # find mep
         if rxn_method == "neb":
-            # NOTE: only supports ASE driver
             nimages = rxn_params["nimages"]
             self.logger.info(f"{rxn_method} with {nimages} images.")
             #if nframes == 2: # NOTE: create new structures
@@ -141,6 +140,7 @@ class ReactionValidator(AbstractValidator):
             neb.interpolate(apply_constraint=True) # interpolate configurations
 
             traj_path = str((ipath / f"rxn-{rxn_method}.traj").absolute())
+            # TODO: only ASE backend has driver_cls
             qn = driver.driver_cls(neb, logfile="-", trajectory=traj_path)
 
             steps, fmax = driver.run_params["steps"], driver.run_params["fmax"]

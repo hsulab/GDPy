@@ -14,6 +14,9 @@ class AbstractValidator(abc.ABC):
 
     _directory = pathlib.Path.cwd()
 
+    _print = print
+    _debug = print
+
     restart = True
 
     def __init__(

@@ -305,7 +305,9 @@ class VaspDriver(AbstractDriver):
                 # -- continue calculation
                 #    update positions and velocities
                 if (self.directory/"CONTCAR").exists():
-                    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+                    # vasp does not finish one step so CONTCAR is empty
+                    if (self.directory/"CONTCAR").stat().st_size != 0:
+                        shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
                 # TODO: update steps if MD 
                 ...
             else:
