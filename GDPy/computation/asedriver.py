@@ -441,7 +441,7 @@ class AseDriver(AbstractDriver):
 
         return converged, trajectory
     
-    def read_convergence(self, trajectory: List[Atoms], run_params: dict, *args, **kwargs) -> bool:
+    def read_convergence(self, *args, **kwargs) -> bool:
         """Check whether the driver is finished properly.
 
         We need run_params since it is updated when run.
@@ -451,15 +451,17 @@ class AseDriver(AbstractDriver):
         """
         converged = False
         # - check geometric convergence
+        trajectory = self.read_trajectory()
         nframes = len(trajectory)
-        if run_params["steps"] > 0:
+        steps, fmax = self.setting.steps, self.setting.fmax
+        if steps > 0:
             if self.setting.task == "md":
-                if trajectory[-1].info["step"] == run_params["steps"]:
+                if trajectory[-1].info["step"] == steps:
                     converged = True
             elif self.setting.task == "min":
                 # TODO: set a hard limit of min steps
                 #       since some terrible structures may not converged anyway
-                if trajectory[-1].info["fmax"] <= run_params["fmax"]:
+                if trajectory[-1].info["fmax"] <= fmax:
                     converged = True
             else:
                 raise NotImplementedError("Unknown task in read_convergence.")
