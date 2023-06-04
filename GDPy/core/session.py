@@ -295,7 +295,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     conf = OmegaConf.load(config_filepath)
 
     # - add placeholders and their directories
-    conf.placeholders = {}
+    if "placeholders" not in conf:
+        conf.placeholders = {}
     if feed_command is not None:
         pairs = [x.split("=") for x in feed_command]
         for k, v in pairs:
