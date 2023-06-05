@@ -3,9 +3,8 @@
 
 import abc 
 import copy
-
+import itertools
 import pathlib
-from pathlib import Path
 from typing import Union, List, Callable, NoReturn
 
 import numpy as np
@@ -16,10 +15,66 @@ from GDPy import config
 from GDPy.core.node import AbstractNode
 from GDPy.core.datatype import isAtomsFrames, isTrajectories
 from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.data.trajectory import Trajectories
 
 
 """Define an AbstractSelector that is the base class of any selector.
 """
+
+def save_cache(fpath, data, random_seed: int=None):
+    """"""
+    header = ("#{:>11s}  {:>8s}  {:>8s}  {:>8s}  "+"{:>12s}"*4+"\n").format(
+        *"index confid step natoms ene aene maxfrc score".split()
+    )
+    footer = f"random_seed {random_seed}"
+
+    content = header
+    for x in data:
+        content += ("{:>12s}  {:>8d}  {:>8d}  {:>8d}  "+"{:>12.4f}"*4+"\n").format(*x)
+    content += footer
+
+    with open(fpath, "w") as fopen:
+        fopen.write(content)
+
+    return
+
+def load_cache(fpath, random_seed: int=None):
+    """"""
+    with open(fpath, "r") as fopen:
+        lines = fopen.readlines()
+
+    # - header
+    header = lines[0]
+
+    # - data
+    data = lines[1:-1] # TODO: test empty data
+
+    raw_markers = []
+    if data:
+        # new_markers looks like [(0,1),(0,2),(1,0)]
+        new_markers =[
+            [int(x) for x in (d.strip().split()[0]).split(",")] for d in data
+        ]
+        raw_markers = group_markers(new_markers)
+
+    # - footer
+    footer = lines[-1]
+    cache_random_seed = int(footer.strip().split()[-1])
+    #assert cache_random_seed == random_seed
+
+    return raw_markers
+
+def group_markers(new_markers_unsorted):
+    """"""
+    new_markers = sorted(new_markers_unsorted, key=lambda x: x[0])
+    raw_markers_unsorted = []
+    for k, v in itertools.groupby(new_markers, key=lambda x: x[0]):
+        raw_markers_unsorted.append([k,[x[1] for x in v]])
+
+    # traj markers are sorted when set
+    raw_markers = [[x[0],sorted(x[1])] for x in sorted(raw_markers_unsorted, key=lambda x:x[0])]
+
+    return raw_markers
 
 
 class AbstractSelector(AbstractNode):
@@ -31,7 +86,8 @@ class AbstractSelector(AbstractNode):
 
     #: Default parameters.
     default_parameters: dict = dict(
-        number = [4, 0.2] # number & ratio
+        number = [4, 0.2], # number & ratio
+        verbose = False
     )
 
     #: A worker for potential computations.
@@ -48,13 +104,10 @@ class AbstractSelector(AbstractNode):
     _pfunc: Callable = print #: Function for outputs.
     indent: int = 0 #: Indent of outputs.
 
-    #: Input data format (frames or trajectories).
-    _inp_fmt: str = "stru"
-
     #: Output data format (frames or trajectories).
     _out_fmt: str = "stru"
 
-    def __init__(self, directory=Path.cwd(), *args, **kwargs) -> NoReturn:
+    def __init__(self, directory="./", *args, **kwargs) -> NoReturn:
         """Create a selector.
 
         Args:
@@ -77,7 +130,7 @@ class AbstractSelector(AbstractNode):
 
     @AbstractNode.directory.setter
     def directory(self, directory_) -> NoReturn:
-        self._directory = Path(directory_)
+        self._directory = pathlib.Path(directory_)
         self.info_fpath = self._directory/self._fname
 
         return 
@@ -100,12 +153,8 @@ class AbstractSelector(AbstractNode):
 
         return
 
-    def select(
-        self, inp_dat: Union[List[Atoms],List[List[Atoms]]], 
-        index_map: List[int]=None, ret_indices: bool=False, 
-        *args, **kargs
-    ) -> Union[List[Atoms],List[int]]:
-        """Select frames or trajectories.
+    def select(self, inp_dat: Trajectories, *args, **kargs) -> List[Atoms]:
+        """Select trajectories.
 
         Based on used selction protocol
 
@@ -126,79 +175,35 @@ class AbstractSelector(AbstractNode):
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
+        #print("selector input: ", inp_dat)
 
-        # - check whether frames or trajectories
-        #   if trajs, flat it to frames for further selection
-        _is_trajs = False
-        if isAtomsFrames(inp_dat):
-            frames = inp_dat
-            nframes = len(inp_dat)
-            mapping_indices = list(range(nframes))
-            self.pfunc(f"find {nframes} nframes...")
-        else:
-            if isTrajectories(inp_dat):
-                ntrajs = len(inp_dat)
-                frames, mapping_indices = [], []
-                for i, traj in enumerate(inp_dat):
-                    for j, atoms in enumerate(traj):
-                        # TODO: sometimes only last frame is needed
-                        #       e.g. selection based on minima
-                        frames.append(atoms)
-                        mapping_indices.append([i,j])
-                nframes = len(frames)
-                self.pfunc(f"find {nframes} nframes from {ntrajs} ntrajs...")
-                _is_trajs = True
-            else:
-                raise TypeError("Selection needs either Frames or Trajectories.")
+        frames = inp_dat
 
         # - check if it is finished
         if not (self.info_fpath).exists():
             self.pfunc("run selection...")
-            selected_indices = self._select_indices(frames)
+            self._mark_structures(frames)
         else:
             # -- restart
             self.pfunc("use cached...")
-            data = np.loadtxt(self.info_fpath)
-            if len(data.shape) == 1:
-                data = data[np.newaxis,:]
-            if not np.all(np.isnan(data.flatten())):
-                data = data.tolist()
-                selected_indices = [int(row[0]) for row in data]
-            else:
-                selected_indices = []
-        self.pfunc(f"{self.name} nframes {len(frames)} -> nselected {len(selected_indices)}")
+            raw_markers = load_cache(self.info_fpath)
+            frames.set_markers(raw_markers)
+        self.pfunc(f"{self.name} nstructures {frames.nstructures} -> nselected {frames.get_number_of_markers()}")
 
-        # - add info
-        for i, s in enumerate(selected_indices):
-            atoms = frames[s]
+        # - save cached results for restart
+        self._write_cached_results(frames)
+
+        # - add history
+        marked_structures = inp_dat.get_marked_structures()
+        for atoms in marked_structures:
             selection = atoms.info.get("selection", "")
             atoms.info["selection"] = selection+f"->{self.name}"
-        
-        # - save cached results for restart
-        self._write_cached_results(frames, selected_indices, index_map)
 
-        # - map indices to frames or trajectories
-        #   TODO: return entire traj if minima is selected?
-        #global_indices = [mapping_indices[i] for i in selected_indices]
-
-        #print("nframes: ", len(frames), self.__class__.__name__)
-
-        # -
-        if not ret_indices:
-            # -- TODO: return frames or trajs
-            selected_frames = [frames[i] for i in selected_indices]
-            return selected_frames # mix trajs into one frames
-        else:
-            # - map selected indices
-            #   always List[int] for either frames or trajs
-            if index_map is not None:
-                selected_indices = [index_map[s] for s in selected_indices]
-
-            return selected_indices
-
+        return marked_structures
+    
     @abc.abstractmethod
-    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
-        """Select structures and return selected indices."""
+    def _mark_structures(self, frames, *args, **kwargs) -> None:
+        """Mark structures subject to selector's conditions."""
 
         return
 
@@ -234,12 +239,20 @@ class AbstractSelector(AbstractNode):
 
         return
 
-    def _write_cached_results(self, frames: List[Atoms], selected_indices: List[int], index_map: List[int]=None, *args, **kwargs) -> NoReturn:
+    def _write_cached_results(self, frames: Trajectories, *args, **kwargs) -> None:
         """Write selection results into file that can be used for restart."""
+        # - 
+        raw_markers = frames.get_markers()
+        new_markers = []
+        for i, markers in raw_markers:
+            for s in markers:
+                new_markers.append((i,s))
+            ...
+
         # - output
         data = []
-        for i, s in enumerate(selected_indices):
-            atoms = frames[s]
+        for i, j in new_markers:
+            atoms = frames[i][j]
             # - gather info
             confid = atoms.info.get("confid", -1)
             step = atoms.info.get("step", -1) # step number in the trajectory
@@ -253,25 +266,17 @@ class AbstractSelector(AbstractNode):
                 maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             except:
                 maxforce = np.NaN
-            score = atoms.info.get("score", np.NaN)
-            if index_map is not None:
-                s = index_map[s]
-            data.append([s, confid, step, natoms, ene, ae, maxforce, score])
+            score = atoms.info.get("score", np.nan)
+            #if index_map is not None:
+            #    s = index_map[s]
+            data.append([f"{str(i)},{str(j)}", confid, step, natoms, ene, ae, maxforce, score])
 
         if data:
-            np.savetxt(
-                self.info_fpath, data, 
-                fmt="%8d  %8d  %8d  %8d  %12.4f  %12.4f  %12.4f  %12.4f",
-                #fmt="{:>8d}  {:>8d}  {:>8d}  {:>12.4f}  {:>12.4f}",
-                header="{:>6s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
-                    *"index confid step natoms ene aene maxfrc score".split()
-                ),
-                footer=f"random_seed {self.random_seed}"
-            )
+            save_cache(self.info_fpath, data, self.random_seed)
         else:
             np.savetxt(
                 self.info_fpath, [[np.NaN]*8],
-                header="{:>6s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
+                header="{:>11s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
                     *"index confid step natoms ene aene maxfrc score".split()
                 ),
                 footer=f"random_seed {self.random_seed}"
@@ -281,4 +286,4 @@ class AbstractSelector(AbstractNode):
 
 
 if __name__ == "__main__":
-    pass
+    ...

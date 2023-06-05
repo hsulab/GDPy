@@ -12,7 +12,8 @@ from ase.io import read, write
 
 from dscribe.descriptors import SOAP
 
-from GDPy.selector.selector import AbstractSelector
+from GDPy.core.register import registers
+from GDPy.selector.selector import AbstractSelector, group_markers
 from GDPy.selector.cur import cur_selection, fps_selection
 
 
@@ -20,7 +21,8 @@ from GDPy.selector.cur import cur_selection, fps_selection
 """
 
 
-class DescriptorBasedSelector(AbstractSelector):
+@registers.selector.register
+class DescriptorSelector(AbstractSelector):
 
     """Selector using descriptors.
     """
@@ -29,6 +31,7 @@ class DescriptorBasedSelector(AbstractSelector):
 
     default_parameters = dict(
         random_seed = None,
+        mode = "stru",
         descriptor = None,
         sparsify = dict(
             trajwise = False,
@@ -42,10 +45,9 @@ class DescriptorBasedSelector(AbstractSelector):
             #metric = "euclidean",
             #metric_params = {}
         ),
-        number = [4, 0.2]
+        number = [4, 0.2],
+        verbose = False
     )
-
-    verbose = False #: output verbosity
 
     def __init__(self, directory="./", *args, **kwargs):
         """"""
@@ -55,11 +57,11 @@ class DescriptorBasedSelector(AbstractSelector):
         criteria_method = self.sparsify["method"]
         assert criteria_method in ["cur", "fps"], f"Unknown selection method {criteria_method}."
 
-        assert self._inp_fmt in ["stru", "traj"], f"{self._inp_fmt} is not allowed for {self.name}."
+        assert self.mode in ["stru", "traj"], f"Unknown selection mode {self.mode}."
 
         return
 
-    def _compute_descripter(self, frames: List[Atoms]):
+    def _compute_descripter(self, frames: List[Atoms]) -> np.array:
         """Calculate vector-based descriptors.
 
         Each structure is represented by a vector.
@@ -89,8 +91,43 @@ class DescriptorBasedSelector(AbstractSelector):
 
         return features
 
-    def _select_indices(self, frames: List[Atoms], *args, **kwargs):
-        """Return selected indices."""
+    def _mark_structures(self, data, *args, **kwargs) -> None:
+        """Mark structures.
+
+        The selected_indices is the local indices for input markers.
+
+        """
+        if self.mode == "stru":
+            markers = data.get_unpacked_markers()
+            frames = data.get_marked_structures() # reference of atoms
+
+            # -
+            features, selected_indices = self._select_structures(frames)
+            if selected_indices:
+                self._plot_results(features, selected_indices)
+            
+            # - update markers
+            selected_markers = [markers[i] for i in selected_indices]
+            raw_markers = group_markers(selected_markers)
+            data.set_markers(raw_markers)
+        elif self.mode == "traj":
+            # TODO: plot figure...
+            for traj in data:
+                curr_markers = traj.markers
+                #print("curr_markers: ", curr_markers)
+                curr_frames = traj.get_marked_structures()
+                curr_indices = self._select_structures(curr_frames)
+                new_markers = [curr_markers[i] for i in curr_indices]
+                #print("new_markers: ", new_markers)
+                traj.markers = new_markers
+            #print("markers: ", data.get_unpacked_markers())
+        else:
+            ...
+        
+        return
+    
+    def _select_structures(self, frames: List[Atoms]):
+        """"""
         nframes = len(frames)
         num_fixed = self._parse_selection_number(nframes)
 
@@ -102,7 +139,6 @@ class DescriptorBasedSelector(AbstractSelector):
                 scores, selected_indices = [np.NaN], [0]
             else:
                 scores, selected_indices = self._sparsify(features, num_fixed)
-            self._plot_results(features, selected_indices)
         else:
             scores, selected_indices = [], []
         
@@ -110,29 +146,25 @@ class DescriptorBasedSelector(AbstractSelector):
         #   only save scores from last property
         for score, i in zip(scores, selected_indices):
             frames[i].info["score"] = score
-
-        return selected_indices
+            
+        return features, selected_indices
     
     def _sparsify(self, features, num_fixed: int):
         """"""
         # TODO: sparsify each traj separately?
         criteria_params = copy.deepcopy(self.sparsify)
         method = criteria_params.pop("method", "cur")
-        is_trajwise = criteria_params.pop("trajwise", False)
-        if not is_trajwise:
-            if method == "cur":
-                # -- cur decomposition
-                scores, selected_indices = cur_selection(
-                    features, num_fixed, **criteria_params, rng = self.rng
-                )
-            elif method == "fps":
-                scores, selected_indices = fps_selection(
-                    features, num_fixed, **criteria_params, rng=self.rng
-                )
-            else:
-                ...
+        if method == "cur":
+            # -- cur decomposition
+            scores, selected_indices = cur_selection(
+                features, num_fixed, **criteria_params, rng = self.rng
+            )
+        elif method == "fps":
+            scores, selected_indices = fps_selection(
+                features, num_fixed, **criteria_params, rng=self.rng
+            )
         else:
-            raise NotImplementedError("Can't sparsify each trajectory separately.")
+            ...
 
         return scores, selected_indices
     
@@ -141,6 +173,10 @@ class DescriptorBasedSelector(AbstractSelector):
         # - plot selection
         from sklearn.decomposition import PCA
         import matplotlib.pyplot as plt
+        try:
+            plt.style.use("presentation")
+        except Exception as e:
+            ...
 
         reducer = PCA(n_components=2)
         reducer.fit(features)
@@ -159,4 +195,4 @@ class DescriptorBasedSelector(AbstractSelector):
 
 
 if __name__ == "__main__":
-    pass
+    ...

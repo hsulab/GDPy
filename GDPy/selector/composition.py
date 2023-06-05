@@ -11,6 +11,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.datatype import isAtomsFrames, isTrajectories
+from GDPy.data.trajectory import Trajectories
 from GDPy.selector.selector import AbstractSelector
 
 
@@ -33,16 +34,14 @@ class ComposedSelector(AbstractSelector):
 
         return
     
-    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+    def _mark_structures(self, frames: Trajectories, *args, **kwargs) -> None:
         """Return selected indices."""
         # - update selectors' directories
         for s in self.selectors:
             s.directory = self._directory
 
         # - initial index stuff
-        nframes = len(frames)
-        cur_index_map = list(range(nframes))
-        cur_frames = frames
+        curr_frames = frames
         
         # - run selection
         for i, node in enumerate(self.selectors):
@@ -52,15 +51,11 @@ class ComposedSelector(AbstractSelector):
             node.indent = 4
             # - map indices
             #   TODO: use _select_indices instead?
-            cur_indices = node.select(cur_frames, index_map=cur_index_map, ret_indices=True)
-            # - create index_map for next use
-            # NOTE: sub-selector does not output global indices
-            cur_frames = [frames[x] for x in cur_indices]
-            cur_index_map = copy.deepcopy(cur_indices)
+            node.select(curr_frames)
 
             node.fname = prev_fname
 
-        return cur_indices
+        return
 
 
 if __name__ == "__main__":

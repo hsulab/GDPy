@@ -11,8 +11,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.datatype import isAtomsFrames, isTrajectories
-from GDPy.selector.selector import AbstractSelector
+from GDPy.core.register import registers
+from GDPy.data.trajectory import Trajectories
+from GDPy.selector.selector import AbstractSelector, group_markers
 from GDPy.selector.cur import boltz_selection, hist_selection
 
 @dataclasses.dataclass
@@ -113,7 +114,8 @@ class PropertyItem:
     #    return content
 
 
-class PropertyBasedSelector(AbstractSelector):
+@registers.selector.register
+class PropertySelector(AbstractSelector):
 
     """Select structures based on structural properties.
 
@@ -124,6 +126,7 @@ class PropertyBasedSelector(AbstractSelector):
     name = "property"
 
     default_parameters = dict(
+        mode = "stru",
         properties = [],
         worker = None, # compute properties on-the-fly
         number = [4, 0.2]
@@ -132,6 +135,8 @@ class PropertyBasedSelector(AbstractSelector):
     def __init__(self, directory="./", *args, **kwargs) -> NoReturn:
         """"""
         super().__init__(directory, *args, **kwargs)
+
+        assert self.mode in ["stru", "traj"], f"Unknown selection mode {self.mode}."
 
         # - convert properties
         prop_items = []
@@ -142,36 +147,55 @@ class PropertyBasedSelector(AbstractSelector):
 
         return
 
-    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+    def _mark_structures(self, data: Trajectories, *args, **kwargs) -> None:
         """Return selected indices."""
         # - get property values
         #   NOTE: properties should be pre-computed...
-        nframes = len(frames)
-        if nframes > 0:
-            prev_indices = list(range(nframes))
-            for prop_item in self._prop_items:
-                self.pfunc(str(prop_item))
-                # -- each structure is represented by one float value
-                #    get per structure values
-                prop_vals = self._extract_property(frames, prop_item)
-                # -- give statistics of this property
-                self._statistics(prop_item, prop_vals)
+
+        for prop_item in self._prop_items:
+            self.pfunc(str(prop_item))
+
+            if self.mode == "stru":
+                markers = data.get_unpacked_markers()
+                frames = data.get_marked_structures()
+                nframes = len(frames)
+
                 # --
-                scores, prev_indices = self._sparsify(prop_item, prop_vals, prev_indices)
-                self.pfunc(f"nselected: {len(prev_indices)}")
-                selected_indices = prev_indices # frames [0,1,2,3] or trajectories [[0,0],[0,2]]
-                # --
-                if not (len(prev_indices) > 0):
+                if nframes > 0:
+                    scores, selected_indices = self._sparsify(prop_item, frames)
+                    self.pfunc(f"number of structures: {len(selected_indices)}")
+                    selected_markers = [markers[i] for i in selected_indices]
+                    raw_markers = group_markers(selected_markers)
+                    data.set_markers(raw_markers)
+
+                    # - add score to atoms
+                    for score, i in zip(scores, selected_indices):
+                        frames[i].info["score"] = score
+
+                else:
                     break
+            elif self.mode == "traj":
+                # NOTE: Use last frame as selection criteria.
+                #       If the last frames is selected, all structures of the traj
+                #       will be selected.
+                markers = data.get_markers()
+                target_markers = [(m[0], m[1][-1]) for m in markers]
+                #print("target_markers: ", target_markers)
+                frames = [data[i][j] for i, j in target_markers]
+                nframes = len(frames)
 
-            # - add score to atoms
-            #   only save scores from last property
-            for score, i in zip(scores, prev_indices):
-                frames[i].info["score"] = score
-        else:
-            selected_indices = []
+                if nframes > 0:
+                    scores, selected_indices = self._sparsify(prop_item, frames)
+                    self.pfunc(f"number of trajectories: {len(selected_indices)}")
+                    raw_markers = [markers[i] for i in selected_indices]
+                    #print(raw_markers)
+                    data.set_markers(raw_markers)
+                else:
+                    break
+            else:
+                ...
 
-        return selected_indices
+        return
     
     def _extract_property(self, frames: List[Atoms], prop_item: PropertyItem):
         """Extract property values from frames.
@@ -239,58 +263,57 @@ class PropertyBasedSelector(AbstractSelector):
 
         return
     
-    def _sparsify(self, prop_item: PropertyItem, prop_vals, prev_indices):
+    def _sparsify(self, prop_item: PropertyItem, frames: List[Atoms]):
         """"""
-        cur_indices = []
+        # -- each structure is represented by one float value
+        #    get per structure values
+        prop_vals = self._extract_property(frames, prop_item)
+        # -- give statistics of this property
+        self._statistics(prop_item, prop_vals)
+
+        nframes = len(frames)
+
+        curr_indices = []
         if prop_item.sparsify == "filter":
             # -- select current property
             # TODO: possibly use np.where to replace this code
             if not prop_item.reverse:
-                for i in prev_indices:
+                for i in range(nframes):
                     if prop_item.pmin <= prop_vals[i] < prop_item.pmax:
-                        cur_indices.append(i)
+                        curr_indices.append(i)
             else:
-                for i in prev_indices:
+                for i in range(nframes):
                     if prop_item.pmin > prop_vals[i] and prop_vals[i] >= prop_item.pmax:
-                        cur_indices.append(i)
-            scores = [prop_vals[i] for i in cur_indices]
+                        curr_indices.append(i)
+            scores = [prop_vals[i] for i in curr_indices]
         elif prop_item.sparsify == "sort":
-            npoints = len(prev_indices)
-            numbers = copy.deepcopy(prev_indices)
+            numbers = list(range(nframes))
             sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
 
-            num_fixed = self._parse_selection_number(npoints)
+            num_fixed = self._parse_selection_number(nframes)
             if not prop_item.reverse:
-                cur_indices = sorted_numbers[:num_fixed]
+                curr_indices = sorted_numbers[:num_fixed]
             else:
-                cur_indices = sorted_numbers[-num_fixed:]
-            scores = [prop_vals[i] for i in cur_indices]
+                curr_indices = sorted_numbers[-num_fixed:]
+            scores = [prop_vals[i] for i in curr_indices]
         elif prop_item.sparsify == "hist":
-            if not prop_item.trajwise:
-                npoints = len(prev_indices)
-                num_fixed = self._parse_selection_number(npoints)
-                scores, cur_indices = hist_selection(
-                    prop_item.nbins, prop_item.pmin, prop_item.pmax,
-                    [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
-                )
-            else:
-                # TODO: deal with trajectories
-                raise NotImplementedError("Can't sparsify each trajectory separately.")
+            num_fixed = self._parse_selection_number(nframes)
+            prev_indices = list(range(nframes))
+            scores, curr_indices = hist_selection(
+                prop_item.nbins, prop_item.pmin, prop_item.pmax,
+                [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
+            )
         elif prop_item.sparsify == "boltz":
-            if not prop_item.trajwise:
-                npoints = len(prev_indices)
-                num_fixed = self._parse_selection_number(npoints)
-                scores, cur_indices = boltz_selection(
-                    prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
-                )
-            else:
-                # TODO: deal with trajectories
-                raise NotImplementedError("Can't sparsify each trajectory separately.")
+            num_fixed = self._parse_selection_number(npoints)
+            preve_indices = list(raneg(nframes))
+            scores, curr_indices = boltz_selection(
+                prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
+            )
         else:
             # NOTE: check sparsifiction method in PropertyItem
             ...
 
-        return scores, cur_indices
+        return scores, curr_indices
 
 
 if __name__ == "__main__":

@@ -27,11 +27,10 @@ class InvariantSelector(AbstractSelector):
 
         return
     
-    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+    def _mark_structures(self, frames: List[Atoms], *args, **kwargs) -> None:
         """Return selected indices."""
-        selected_indices = list(range(len(frames)))
 
-        return selected_indices
+        return 
 
 
 if __name__ == "__main__":

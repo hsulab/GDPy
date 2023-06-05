@@ -127,6 +127,8 @@ ALL_MODULES = [
     ("GDPy.builder", ["direct", "dimer", "species", "hypercube", "randomBuilder"]),
     # -- modifiers
     ("GDPy.builder", ["perturbator"]),
+    # -- selectors
+    ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
     # -- reactors
     ("GDPy.reactor", ["afir"]),
     # -- validators
