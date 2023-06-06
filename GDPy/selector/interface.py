@@ -60,7 +60,7 @@ class select(Operation):
 
         return
     
-    def forward(self, structures: AtomsArray2D, selector: AbstractSelector):
+    def forward(self, structures: AtomsArray2D, selector: AbstractSelector) -> AtomsArray2D:
         """"""
         super().forward()
         selector.directory = self.directory
@@ -77,7 +77,7 @@ class select(Operation):
         
         self.status = "finished"
 
-        return new_frames
+        return structures
 
 
 def run_selection(

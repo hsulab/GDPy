@@ -304,8 +304,8 @@ class PropertySelector(AbstractSelector):
                 [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
             )
         elif prop_item.sparsify == "boltz":
-            num_fixed = self._parse_selection_number(npoints)
-            preve_indices = list(raneg(nframes))
+            num_fixed = self._parse_selection_number(nframes)
+            prev_indices = list(range(nframes))
             scores, curr_indices = boltz_selection(
                 prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
             )
