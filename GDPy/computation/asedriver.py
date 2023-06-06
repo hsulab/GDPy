@@ -27,6 +27,7 @@ from ase.calculators.mixing import MixedCalculator
 
 from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.computation.bias import create_bias_list
+from GDPy.data.trajectory import Trajectory
 
 from GDPy.md.md_utils import force_temperature
 
@@ -130,7 +131,7 @@ class AseDriverSetting(DriverSetting):
                 driver_cls = BFGS
                 self.filter_cls = getattr(ase.constraints, self.min_style)
 
-        if self.task == "ts":
+        if self.task == "rxn":
             # TODO: move to reactor
             try:
                 from sella import Sella, Constraints
@@ -176,7 +177,7 @@ class AseDriver(AbstractDriver):
 
     # - defaults
     default_task = "min"
-    supported_tasks = ["min", "ts", "md"]
+    supported_tasks = ["min", "rxn", "md"]
 
     # - other files
     log_fname = "dyn.log"
@@ -441,95 +442,69 @@ class AseDriver(AbstractDriver):
 
         return converged, trajectory
     
-    def read_convergence(self, *args, **kwargs) -> bool:
-        """Check whether the driver is finished properly.
-
-        We need run_params since it is updated when run.
-
-        TODO: Maybe read dyn.log is enough to determine convergence.
-
-        """
-        converged = False
-        # - check geometric convergence
-        trajectory = self.read_trajectory()
-        nframes = len(trajectory)
-        steps, fmax = self.setting.steps, self.setting.fmax
-        if steps > 0:
-            if self.setting.task == "md":
-                if trajectory[-1].info["step"] == steps:
-                    converged = True
-            elif self.setting.task == "min":
-                # TODO: set a hard limit of min steps
-                #       since some terrible structures may not converged anyway
-                if trajectory[-1].info["fmax"] <= fmax:
-                    converged = True
-            else:
-                raise NotImplementedError("Unknown task in read_convergence.")
-        else:
-            # consider this is a single-point calculation
-            if nframes == 1:
-                converged = True
-
-        return converged
-    
     def read_trajectory(self, add_step_info=True, *args, **kwargs):
         """Read trajectory in the current working directory."""
-        # TODO: concatenate all trajectories
-        traj_frames = read(self.directory/self.xyz_fname, index=":")
+        traj_frames = []
+        target_fpath = self.directory/self.xyz_fname
+        if target_fpath.exists() and target_fpath.stat().st_size != 0:
+            # TODO: concatenate all trajectories
+            traj_frames = read(self.directory/self.xyz_fname, index=":")
 
-        # - check the convergence of the force evaluation
-        try:
-            scf_convergence = self.calc.read_convergence()
-        except:
-            # -- cannot read scf convergence then assume it is ok
-            scf_convergence = True
-        if not scf_convergence:
-            warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
-            traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
+            # - check the convergence of the force evaluation
+            try:
+                scf_convergence = self.calc.read_convergence()
+            except:
+                # -- cannot read scf convergence then assume it is ok
+                scf_convergence = True
+            if not scf_convergence:
+                warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
+                traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
 
-        # TODO: log file will not be overwritten when restart
-        init_params = self.setting.get_init_params()
-        if add_step_info:
-            if self.setting.task == "md":
-                data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
-                if len(data.shape) == 1:
-                    data = data[np.newaxis,:]
-                timesteps = data[:, 0] # ps
-                steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
-                for time, atoms in zip(timesteps, traj_frames):
-                    atoms.info["time"] = time*1000.
-            elif self.setting.task == "min":
-                # Method - Step - Time - Energy - fmax
-                # BFGS:    0 22:18:46    -1024.329999        3.3947
-                data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
-                if len(data.shape) == 1:
-                    data = data[np.newaxis,:]
-                steps = [int(s) for s in data[:, 1]]
-                fmaxs = [float(fmax) for fmax in data[:, 4]]
-                for fmax, atoms in zip(fmaxs, traj_frames):
-                    atoms.info["fmax"] = fmax
-            assert len(steps) == len(traj_frames), "Number of steps and number of frames are inconsistent..."
-            for step, atoms in zip(steps, traj_frames):
-                atoms.info["step"] = int(step)
+            # TODO: log file will not be overwritten when restart
+            init_params = self.setting.get_init_params()
+            if add_step_info:
+                if self.setting.task == "md":
+                    data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
+                    if len(data.shape) == 1:
+                        data = data[np.newaxis,:]
+                    timesteps = data[:, 0] # ps
+                    steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
+                    for time, atoms in zip(timesteps, traj_frames):
+                        atoms.info["time"] = time*1000.
+                elif self.setting.task == "min":
+                    # Method - Step - Time - Energy - fmax
+                    # BFGS:    0 22:18:46    -1024.329999        3.3947
+                    data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+                    if len(data.shape) == 1:
+                        data = data[np.newaxis,:]
+                    steps = [int(s) for s in data[:, 1]]
+                    fmaxs = [float(fmax) for fmax in data[:, 4]]
+                    for fmax, atoms in zip(fmaxs, traj_frames):
+                        atoms.info["fmax"] = fmax
+                assert len(steps) == len(traj_frames), "Number of steps and number of frames are inconsistent..."
+                for step, atoms in zip(steps, traj_frames):
+                    atoms.info["step"] = int(step)
 
-        # - read deviation, similar to lammps
-        # TODO: concatenate all deviations
-        devi_fpath = self.directory / self.devi_fname
-        if devi_fpath.exists():
-            with open(devi_fpath, "r") as fopen:
-                lines = fopen.readlines()
-            dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-            dkeys = [x.strip() for x in dkeys][1:]
-            data = np.loadtxt(devi_fpath, dtype=float)
-            ncols = data.shape[-1]
-            data = data.reshape(-1,ncols)
-            data = data.transpose()[1:,:len(traj_frames)]
+            # - read deviation, similar to lammps
+            # TODO: concatenate all deviations
+            devi_fpath = self.directory / self.devi_fname
+            if devi_fpath.exists():
+                with open(devi_fpath, "r") as fopen:
+                    lines = fopen.readlines()
+                dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
+                dkeys = [x.strip() for x in dkeys][1:]
+                data = np.loadtxt(devi_fpath, dtype=float)
+                ncols = data.shape[-1]
+                data = data.reshape(-1,ncols)
+                data = data.transpose()[1:,:len(traj_frames)]
 
-            for i, atoms in enumerate(traj_frames):
-                for j, k in enumerate(dkeys):
-                    atoms.info[k] = data[j,i]
+                for i, atoms in enumerate(traj_frames):
+                    for j, k in enumerate(dkeys):
+                        atoms.info[k] = data[j,i]
+        else:
+            ...
 
-        return traj_frames
+        return Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
 
 
 class BiasedAseDriver(AseDriver):

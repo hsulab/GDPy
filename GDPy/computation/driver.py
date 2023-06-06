@@ -6,7 +6,7 @@ import copy
 import dataclasses
 import pathlib
 
-from typing import Optional, NoReturn, List
+from typing import Optional, NoReturn, List, Callable
 from collections.abc import Iterable
 
 import numpy as np
@@ -97,6 +97,15 @@ class AbstractDriver(abc.ABC):
 
     #: Driver's name.
     name: str = "abstract"
+
+    #: Standard print.
+    _print: Callable = print
+
+    #: Standard debug.
+    _debug: Callable = print
+
+    #: Whether check the dynamics is converged, and re-run if not.
+    ignore_convergence: bool = False
 
     #: Deleted keywords.
     delete: list = []
@@ -208,7 +217,7 @@ class AbstractDriver(abc.ABC):
 
         return
 
-    def delete_keywords(self, kwargs) -> NoReturn:
+    def delete_keywords(self, kwargs) -> None:
         """Removes list of keywords (delete) from kwargs."""
         for d in self.delete:
             kwargs.pop(d, None)
@@ -246,9 +255,45 @@ class AbstractDriver(abc.ABC):
         return new_atoms
     
     def read_convergence(self, *args, **kwargs) -> bool:
-        """Read output to check whether the simulation is converged."""
+        """Read output to check whether the simulation is converged.
 
-        raise NotImplementedError()
+        TODO:
+            If not converged, specific params in input files should be updated.
+
+        """
+        if self.ignore_convergence:
+            return True
+
+        traj_frames = self.read_trajectory() # NOTE: DEAL WITH EMPTY FILE ERROR
+        nframes = len(traj_frames)
+
+        converged = False
+        if nframes > 0:
+            if self.setting.steps > 0:
+                step = traj_frames[-1].info["step"]
+                self._debug("nframes: ", nframes)
+                if self.setting.task == "min":
+                    # NOTE: check geometric convergence (forces)...
+                    # TODO: if etol and fmax is set at run-time???
+                    maxfrc = np.max(np.fabs(traj_frames[-1].get_forces()))
+                    if maxfrc <= self.setting.fmax:
+                        converged = True
+                    self._debug("MIN convergence: ", converged, f" {maxfrc} <=? {self.setting.fmax}")
+                elif self.setting.task == "md":
+                    # TODO: if steps is set at run-time???
+                    if step >= self.setting.steps:
+                        converged = True
+                    self._debug("MD convergence: ", converged)
+                else:
+                    raise NotImplementedError("Unknown task in read_convergence.")
+            else:
+                # just spc, only need to check force convergence
+                if nframes == 1:
+                    converged = True
+        else:
+            ...
+
+        return converged
 
     @abc.abstractmethod
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:

@@ -22,6 +22,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
+from GDPy.data.trajectory import Trajectory
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.computation.utils import create_single_point_calculator
 from GDPy.computation.driver import AbstractDriver, DriverSetting
@@ -331,27 +332,19 @@ class VaspDriver(AbstractDriver):
     
     def read_convergence(self, *args, **kwargs) -> bool:
         """"""
-        converged = False
+        converged = super().read_convergence()
+
+        scf_converged = False
         if (self.directory/"OUTCAR").exists():
             if hasattr(self.calc, "read_convergence"):
-                # NOTE: ASE only checks SCF and IONIC minimisation convergence
-                converged = self.calc.read_convergence()
-                print("SCF convergence: ", converged)
-                if self.setting.task == "md":
-                    traj_frames = self.read_trajectory()
-                    nframes = len(traj_frames)
-                    if nframes >= self.setting.steps:
-                        # TODO: NSW should be reduced if restart!!
-                        converged = True
-                    else:
-                        converged = False
-                    print("MD convergence: ", converged)
+                scf_converged = self.calc.read_convergence()
+                self._debug("SCF convergence: ", scf_converged)
             else:
                 raise NotImplementedError()
         else:
             ...
 
-        return converged
+        return (converged and scf_converged)
     
     def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory.
@@ -375,7 +368,8 @@ class VaspDriver(AbstractDriver):
                 else:
                     break
                 idx += 1
-            traj_frames_.extend(read(vasprun, ":")) # read current
+            if vasprun.exists() and vasprun.stat().st_size != 0:
+                traj_frames_.extend(read(vasprun, ":")) # read current
 
             # - sort frames
             traj_frames = []
@@ -390,12 +384,12 @@ class VaspDriver(AbstractDriver):
                         input_atoms.info["step"] = i
                     traj_frames.append(input_atoms)
         except Exception as e:
-            print(e)
+            self._debug(e)
             atoms = Atoms()
             atoms.info["error"] = str(self.directory)
             traj_frames = [atoms]
 
-        return traj_frames
+        return Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
 
 
 if __name__ == "__main__": 

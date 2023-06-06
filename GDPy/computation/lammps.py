@@ -32,6 +32,7 @@ from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.utils.command import find_backups
 
 from GDPy.builder.constraints import parse_constraint_info
+from GDPy.data.trajectory import Trajectory
 
 #_debug = print
 _debug = lambda *x: x
@@ -138,6 +139,9 @@ class LmpDriverSetting(DriverSetting):
     min_style: str = "fire"
     min_modify: str = "integrator verlet tmax 4"
 
+    etol: float = 0
+    fmax: float = 0.05
+
     neighbor: str = "0.0 bin"
     neigh_modify: str = None
 
@@ -226,9 +230,6 @@ class LmpDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    #: Whether check the dynamics is converged, and re-run if not.
-    ignore_convergence: bool = True
-
     #: List of output files would be saved when restart.
     saved_fnames: List[str] = [ASELMPCONFIG.log_filename, ASELMPCONFIG.trajectory_filename]
 
@@ -242,8 +243,6 @@ class LmpDriver(AbstractDriver):
         self._org_params = copy.deepcopy(params)
 
         self.setting = LmpDriverSetting(**params)
-        #_debug(self.setting)
-        #_debug(self.setting._internals)
 
         return
 
@@ -275,8 +274,6 @@ class LmpDriver(AbstractDriver):
         run_params.update(**self.setting.get_run_params(**kwargs))
 
         # - check constraint
-        ...
-
         self.calc.set(**run_params)
         atoms.calc = self.calc
 
@@ -356,40 +353,14 @@ class LmpDriver(AbstractDriver):
 
         return converged
     
-    def read_convergence(self, *args, **kwargs) -> bool:
-        """"""
-        if self.ignore_convergence:
-            return True
-
-        converged = False
-        if (self.directory/ASELMPCONFIG.trajectory_filename).exists():
-            traj_frames = self.read_trajectory()
-            nframes = len(traj_frames)
-            step = traj_frames[-1].info["step"]
-            _debug("nframes: ", nframes)
-            if self.setting.task == "min":
-                # NOTE: check geometric convergence (forces)...
-                # TODO: if etol and fmax is set at run-time???
-                maxfrc = np.max(np.fabs(traj_frames[-1].get_forces()))
-                if maxfrc <= self.setting.fmax:
-                    converged = True
-                _debug("MIN convergence: ", converged, f" {maxfrc} <=? {self.setting.fmax}")
-            if self.setting.task == "md":
-                # TODO: if steps is set at run-time???
-                if step >= self.setting.steps:
-                    converged = True
-                _debug("MD convergence: ", converged)
-        else:
-            ...
-
-        return converged
-    
     def read_trajectory(self, type_list=None, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         if type_list is not None:
             self.calc.type_list = type_list
 
-        return self.calc._read_trajectory(add_step_info)
+        images = self.calc._read_trajectory(add_step_info)
+
+        return Trajectory(images=images, driver_config=dataclasses.asdict(self.setting))
 
 
 class Lammps(FileIOCalculator):

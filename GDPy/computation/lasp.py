@@ -18,8 +18,9 @@ from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.builder.constraints import parse_constraint_info
+from GDPy.computation.driver import AbstractDriver, DriverSetting
+from GDPy.data.trajectory import Trajectory
 
 
 """Driver and calculator of LaspNN.
@@ -261,7 +262,9 @@ class LaspDriver(AbstractDriver):
     
     def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
-        return self.calc._read_trajectory(add_step_info)
+        images = self.calc._read_trajectory(add_step_info)
+
+        return Trajectory(images=images, driver_config=dataclasses.asdict(self.setting))
 
 
 class LaspNN(FileIOCalculator):
