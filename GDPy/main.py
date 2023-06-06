@@ -149,14 +149,6 @@ def main():
         "-o", "--output", default="last", choices=["last","traj"],
         help="retrieve last frame or entire trajectory"
     )
-    parser_worker.add_argument(
-        "-s", "--selection", 
-        help="perform selection on retrieved structures"
-    )
-    parser_worker.add_argument(
-        "--nostat", action="store_true",
-        help="no statistics shown"
-    )
 
     # --- task interface
     parser_task = subparsers.add_parser(
@@ -273,7 +265,7 @@ def main():
         )
     elif args.subcommand == "worker":
         from GDPy.computation.worker.interface import run_worker
-        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.selection, args.nostat, args.batch)
+        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
     elif args.subcommand == "task":
         from GDPy.task.task import run_task
         run_task(args.params, potter, referee, args.run, args.report)
