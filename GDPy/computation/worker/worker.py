@@ -11,8 +11,6 @@ import logging
 from tinydb import TinyDB, Query
 
 from GDPy import config
-from GDPy.scheduler import create_scheduler
-from GDPy.potential.register import PotentialRegister
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 

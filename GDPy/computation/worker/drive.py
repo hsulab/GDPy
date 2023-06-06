@@ -19,6 +19,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy import config
+from GDPy.data.trajectory import Trajectories
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
 from GDPy.computation.worker.worker import AbstractWorker
@@ -258,7 +259,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return batches
     
-    def run(self, generator=None, *args, **kwargs) -> NoReturn:
+    def run(self, generator=None, *args, **kwargs) -> None:
         """Split frames into groups and submit jobs.
         """
         super().run(*args, **kwargs)
@@ -454,84 +455,49 @@ class DriverBasedWorker(AbstractWorker):
         return results
     
     def _read_results(
-        self, unretrieved_wdirs: List[pathlib.Path], 
-        read_traj: bool=False, traj_period: int=1, 
-        include_first: bool=True, include_last: bool=True,
-        separate_candidates: bool=False, *args, **kwargs
+        self, unretrieved_wdirs: List[pathlib.Path], *args, **kwargs
     ) -> Union[List[Atoms],List[List[Atoms]]]:
         """Read results from calculation directories.
 
         Args:
-            gdirs: A group of directories.
+            unretrieved_wdirs: Calculation directories.
 
         """
-        # - get results
-        results = []
-        
-        driver = self.driver
         with CustomTimer(name="read-results", func=self.logger.info):
             # NOTE: works for vasp, ...
             results_ = Parallel(n_jobs=self.n_jobs)(
                 delayed(self._iread_results)(
-                    driver, wdir, read_traj, traj_period, include_first, include_last,
-                    info_data = self._info_data
+                    self.driver, wdir, info_data = self._info_data
                 ) 
                 for wdir in unretrieved_wdirs
             )
 
             # NOTE: Failed Calcution, One fail, traj fails
-            if not read_traj: # read spc results, each dir has one structure
-                if not separate_candidates: # for compat
-                    for frames in results_:
-                        # - sift error structures
-                        error_info = frames[0].info.get("error", None)
-                        if error_info:
-                            self.logger.info(f"Found failed calculation at {error_info}...")
-                        else:
-                            results.extend(frames)
-
-                    if results:
-                        self.logger.info(
-                            f"new_frames: {len(results)} energy of the first: {results[0].get_potential_energy()}"
-                        )
-                else:
-                    for frames in results_:
-                        # - sift error structures
-                        error_info = frames[0].info.get("error", None)
-                        if error_info:
-                            self.logger.info(f"Found failed calculation at {error_info}...")
-                        else:
-                            results.append(frames)
-
-                    if results:
-                        self.logger.info(
-                            f"new_frames: {len(results)} energy of the first: {results[0][0].get_potential_energy()}"
-                        )
-            else:
-                for i, traj_frames in enumerate(results_):
-                    # - sift error structures
-                    if traj_frames:
-                        error_info = traj_frames[0].info.get("error", None)
-                        if error_info:
-                            self.logger.info(f"Found failed calculation at {error_info}...")
-                        else:
-                            results.append(traj_frames)
+            results = []
+            for i, traj_frames in enumerate(results_):
+                # - sift error structures
+                if traj_frames:
+                    error_info = traj_frames[0].info.get("error", None)
+                    if error_info:
+                        self.logger.info(f"Found failed calculation at {error_info}...")
                     else:
-                        self.logger.info(f"Found empty calculation at {str(self.directory)} with cand{i}...")
+                        results.append(traj_frames)
+                else:
+                    self.logger.info(f"Found empty calculation at {str(self.directory)} with cand{i}...")
 
-                if results:
-                    self.logger.info(
-                        f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}"
-                    )
+            if results:
+                self.logger.info(
+                    f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}"
+                )
+            
+            # - convert to Trajectories
+            results = Trajectories(results)
 
         return results
     
     @staticmethod
     def _iread_results(
-        driver, wdir, 
-        read_traj: bool=False, traj_period: int=1, 
-        include_first: bool=True, include_last: bool=True,
-        info_data: dict = None
+        driver, wdir, info_data: dict = None
     ) -> List[Atoms]:
         """Extract results from a single directory.
 
@@ -553,34 +519,14 @@ class DriverBasedWorker(AbstractWorker):
                 confid = confid_
         else:
             confid = confid_
-        if not read_traj:
-            new_atoms = driver.read_converged()
-            new_atoms.info["confid"] = confid
-            new_atoms.info["wdir"] = str(wdir.name)
-            results = [new_atoms]
-        else:
-            traj_frames = driver.read_trajectory(add_step_info=True)
-            for a in traj_frames:
-                a.info["confid"] = confid
-                a.info["wdir"] = str(wdir.name)
-            # NOTE: remove first or last frames since they are always the same?
-            n_trajframes = len(traj_frames)
-            if n_trajframes > 0:
-                first, last = 0, n_trajframes-1
-                cur_indices = list(range(0,len(traj_frames),traj_period))
-                #print("traj_indices: ", cur_indices)
-                if include_last:
-                    if last not in cur_indices:
-                        cur_indices.append(last)
-                if not include_first:
-                    cur_indices = cur_indices[1:]
-                traj_frames = [traj_frames[i] for i in cur_indices]
-                results = traj_frames
-            else:
-                # NOTE: no frames
-                results = []
 
-        return results
+        # NOTE: always return the entire trajectories
+        traj_frames = driver.read_trajectory(add_step_info=True)
+        for a in traj_frames:
+            a.info["confid"] = confid
+            a.info["wdir"] = str(wdir.name)
+        
+        return traj_frames
 
 class QueueDriverBasedWorker(DriverBasedWorker):
 
