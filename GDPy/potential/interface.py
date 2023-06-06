@@ -7,8 +7,6 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
-from GDPy.potential.register import PotentialRegister
-from GDPy.potential.register import create_potter
 from GDPy.computation.worker.train import TrainerBasedWorker
 
 
@@ -48,15 +46,6 @@ class TrainerVariable(Variable):
 
         return
 
-@registers.variable.register
-class WorkerVariable(Variable):
-
-    def __init__(self, directory="./", **kwargs):
-        """"""
-        worker = create_potter(**kwargs) # DriveWorker or TrainWorker
-        super().__init__(initial_value=worker, directory=directory)
-
-        return
     
 @registers.operation.register
 class train(Operation):

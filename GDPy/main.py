@@ -219,22 +219,27 @@ def main():
     if config.NJOBS != 1:
         print(f"Run parallel jobs {config.NJOBS}")
 
-    # always check the current workflow before continuing to subcommands 
-    # also, the global logger will be initialised 
-    # TODO: track the workflow 
-    # tracker = track_workflow(args.status)
-
     # - potential
-    from GDPy.potential.register import create_potter
+    #from GDPy.potential.register import create_potter
+    #potter = None
+    #if args.potential:
+    #    pot_config = args.potential # configuration file of potential
+    #    potter = create_potter(pot_config) # register calculator, and scheduler if exists
+    
+    #referee = None
+    #if args.reference:
+    #    ref_config = args.reference # configuration file of potential
+    #    referee = create_potter(ref_config) # register calculator, and scheduler if exists
+
+    from GDPy.utils.command import parse_input_file
+    from GDPy.computation.worker.interface import WorkerVariable
     potter = None
     if args.potential:
-        pot_config = args.potential # configuration file of potential
-        potter = create_potter(pot_config) # register calculator, and scheduler if exists
-    
-    referee = None
-    if args.reference:
-        ref_config = args.reference # configuration file of potential
-        referee = create_potter(ref_config) # register calculator, and scheduler if exists
+        params = parse_input_file(input_fpath=args.potential)
+        potter = WorkerVariable(
+            params["potential"], params.get("driver", {}), params.get("scheduler", {}),
+            params.get("batchsize", 1)
+        ).value
 
     # - use subcommands
     if args.subcommand == "train":
