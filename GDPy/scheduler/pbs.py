@@ -6,9 +6,11 @@ import subprocess
 import json
 import pathlib
 
+from GDPy.core.register import registers
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 
+@registers.scheduler.register
 class PbsScheduler(AbstractScheduler):
 
     name = "pbs"
@@ -49,7 +51,7 @@ class PbsScheduler(AbstractScheduler):
     def is_finished(self) -> bool:
         """Not implemented yet."""
 
-        return True
+        raise NotImplementedError()
 
 if __name__ == "__main__":
-    pass
+    ...

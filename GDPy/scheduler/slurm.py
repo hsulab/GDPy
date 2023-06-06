@@ -3,9 +3,11 @@
 
 import subprocess
 
+from GDPy.core.register import registers
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 
+@registers.scheduler.register
 class SlurmScheduler(AbstractScheduler):
 
     """ Slurm scheduler.
@@ -111,4 +113,4 @@ class SlurmScheduler(AbstractScheduler):
 
 
 if __name__ == "__main__":
-    pass
+    ...

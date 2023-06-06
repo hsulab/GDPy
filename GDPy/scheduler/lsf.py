@@ -3,10 +3,11 @@
 
 import subprocess
 
+from GDPy.core.register import registers
 from GDPy.scheduler.scheduler import AbstractScheduler
 
-
-class LSFScheduler(AbstractScheduler):
+@registers.scheduler.register
+class LsfScheduler(AbstractScheduler):
 
     """ Load Sharing Facility (LSF) scheduler.
 
@@ -114,4 +115,4 @@ class LSFScheduler(AbstractScheduler):
 
 
 if __name__ == "__main__":
-    pass
+    ...

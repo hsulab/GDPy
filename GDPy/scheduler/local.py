@@ -3,9 +3,11 @@
 
 from typing import NoReturn
 
+from GDPy.core.register import registers
 from GDPy.scheduler.scheduler import AbstractScheduler
 
 
+@registers.scheduler.register
 class LocalScheduler(AbstractScheduler):
 
     """Local scheduler.
@@ -37,4 +39,4 @@ class LocalScheduler(AbstractScheduler):
 
 
 if __name__ == "__main__":
-    pass
+    ...
