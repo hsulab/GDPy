@@ -53,6 +53,9 @@ class registers:
     #: Session placeholder
     placeholder: Register = Register("placeholder")
 
+    #: Schedulers.
+    scheduler: Register = Register("scheduler")
+
     #: Managers (Potentials).
     manager: Register = Register("manager")
 
@@ -108,8 +111,12 @@ class registers:
 VALIDATOR_MODULES = ["singlepoint", "dimer", "minima"]
 DATA_OPS = ["operations"]
 
+SCHEDULER_MODULES = ["local", "lsf", "pbs", "slurm"]
+
 ALL_MODULES = [
     # - working components.
+    # -- schedulers
+    ("GDPy.scheduler", SCHEDULER_MODULES),
     # -- managers (potentials)
     ("GDPy.potential.managers", [
         "vasp", "cp2k", 

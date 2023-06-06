@@ -17,8 +17,6 @@ from GDPy.core.register import registers
 from GDPy.computation.worker.worker import AbstractWorker
 from GDPy.computation.worker.drive import DriverBasedWorker
 
-from GDPy.scheduler.interface import create_scheduler
-
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
 
@@ -37,6 +35,8 @@ class WorkerVariable(Variable):
     
     def _create_worker(self, potter_params, driver_params, scheduler_params={}, batchsize=1):
         """"""
+        # - potter
+        potter_params = copy.deepcopy(potter_params)
         name = potter_params.get("name", None)
         potter = registers.create(
             "manager", name, convert_name=True,
@@ -44,11 +44,18 @@ class WorkerVariable(Variable):
         potter.register_calculator(potter_params.get("params", {}))
         potter.version = potter_params.get("version", "unknown")
 
+        # - driver
         if potter.calc:
+            driver_params = copy.deepcopy(driver_params)
             driver = potter.create_driver(driver_params) # use external backend
 
+        # - scheduler
         # default is local machine
-        scheduler = create_scheduler(scheduler_params)
+        scheduler_params = copy.deepcopy(scheduler_params)
+        backend = scheduler_params.pop("backend", "local")
+        scheduler = registers.create(
+            "scheduler", backend, convert_name=True, **scheduler_params
+        )
 
         if driver and scheduler:
             if scheduler.name == "local":

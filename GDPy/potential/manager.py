@@ -195,8 +195,8 @@ class AbstractPotentialManager(abc.ABC):
         self.train_batchsize = train_params.get("batchsize", 16)
 
         # - for the task
-        scheduelr_params = train_params.get("scheduler", {}) 
-        self.train_scheduler = create_scheduler(scheduelr_params)
+        #scheduelr_params = train_params.get("scheduler", {}) 
+        #self.train_scheduler = create_scheduler(scheduelr_params)
 
         train_command = train_params.get("train", None)
         self.train_command = train_command
