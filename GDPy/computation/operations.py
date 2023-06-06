@@ -15,6 +15,7 @@ from GDPy.core.register import registers
 from GDPy.computation.worker.drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
 )
+from GDPy.data.array import AtomsArray2D
 from GDPy.data.trajectory import Trajectories
 
 @registers.operation.register
@@ -65,49 +66,6 @@ class work(Operation):
 
         return workers
 
-@registers.operation.register
-class zip_workers(Operation):
-
-    def __init__(self, *args, **kwargs) -> NoReturn:
-        """"""
-        worker_node = args[0]
-        self.target_wdirs = [pathlib.Path(p) for p in args[1:]]
-
-        super().__init__(worker_node)
-    
-    def forward(self, workers):
-        """"""
-        super().forward()
-
-        nworkers = len(workers)
-        assert nworkers == 1, "Zip can only apply on one worker."
-
-        worker = workers[0]
-
-        new_workers = []
-        for wdir in self.target_wdirs:
-            curr_worker = []
-            ...
-
-        return
-
-@registers.operation.register
-class distill(Operation):
-
-    def __init__(self, worker_node: work) -> NoReturn:
-        """"""
-        super().__init__([worker_node])
-    
-    def forward(self, workers: List[DriverBasedWorker]):
-        """"""
-        super().forward()
-        worker = workers[0]
-        print(worker.directory)
-        ret = worker.retrieve(
-            ignore_retrieved=False
-        )
-
-        return workers
 
 @registers.operation.register
 class drive(Operation):
@@ -135,6 +93,9 @@ class drive(Operation):
 
         """
         super().forward()
+
+        if isinstance(frames, AtomsArray2D):
+            frames = frames.get_marked_structures()
 
         # - basic input candidates
         nframes = len(frames)
@@ -178,49 +139,30 @@ class drive(Operation):
 
         return workers
 
+
 @registers.operation.register
 class extract(Operation):
 
     """Extract dynamics trajectories from a drive-node's worker.
     """
 
-    def __init__(
-        self, drive: drive, 
-        reduce_cand: bool=True, reduce_work: bool=False,
-        read_traj=True, traj_period: int=1,
-        include_first=True, include_last=True,
-        directory="./"
-    ) -> NoReturn:
+    def __init__(self, drive: drive, directory="./", *args, **kwargs) -> None:
         """"""
         super().__init__(input_nodes=[drive], directory=directory)
 
-        self.reduce_cand = reduce_cand
-        self.reduce_work = reduce_work
-
-        self.read_traj = read_traj
-        self.traj_period = traj_period
-
-        self.include_first = include_first
-        self.include_last = include_last
-
         return
     
-    def forward(self, workers: List[DriverBasedWorker]):
+    def forward(self, workers: List[DriverBasedWorker]) -> AtomsArray2D:
         """
         Args:
             workers: ...
         
         Returns:
-            reduce_cand is false and reduce_work is false -> List[List[List[Atoms]]]
-            reduce_cand is true  and reduce_work is false -> List[List[Atoms]]
-            reduce_cand is false and reduce_work is true  -> List[List[Atoms]]
-            reduce_cand is true  and reduce_work is true  -> List[Atoms]
+            AtomsArray2D.
             
         """
         super().forward()
 
-        self.pfunc(f"reduce_cand {self.reduce_cand} reduce_work {self.reduce_work}")
-        
         # TODO: reconstruct trajs to List[List[Atoms]]
         self.workers = workers # for operations to access
         nworkers = len(workers)
@@ -243,19 +185,8 @@ class extract(Operation):
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories = worker.retrieve(
-                    read_traj = self.read_traj, traj_period = self.traj_period,
-                    include_first = self.include_first, include_last = self.include_last,
                     ignore_retrieved=False, # TODO: ignore misleads...
-                    separate_candidates=True
                 ) # List[List[Atoms]] or List[Atoms] depends on read_traj
-                print("worker trajs: ", curr_trajectories)
-                #if self.reduce_cand:
-                #    curr_trajectories = list(itertools.chain(*curr_trajectories_))
-                #    write(cached_trajs_dpath/"reduced_candidates.xyz", curr_trajectories)
-                #else:
-                #    curr_trajectories = curr_trajectories_
-                #    for j, traj in enumerate(curr_trajectories_):
-                #        write(cached_trajs_dpath/f"cand{j}.xyz", traj)
                 curr_trajectories.save_file(cached_trajs_dpath/"dataset.h5")
             else:
                 #if self.reduce_cand:
@@ -270,28 +201,18 @@ class extract(Operation):
                 #        curr_trajectories.append(traj)
                 curr_trajectories = Trajectories.from_file(cached_trajs_dpath/"dataset.h5")
 
-            ntrajs = len(curr_trajectories)
-            self.pfunc(f"worker_{i} ntrajectories {ntrajs}")
+            self.pfunc(f"worker_{i} {curr_trajectories}")
             trajectories.extend(curr_trajectories)
 
             worker_status[i] = True
         
-        print("trajectories: ", trajectories.get_markers())
-
         structures = []
         if all(worker_status):
-            if self.reduce_work:
-                structures = list(itertools.chain(*trajectories))
-            else:
-                structures = trajectories
-            nstructures = len(structures)
-            self.pfunc(f"nstructures {nstructures}")
+            self.pfunc(f"worker_: {trajectories}")
             self.status = "finished"
-            #print("structures: ", structures)
         else:
             ...
 
-        #return structures
         return trajectories
 
 

@@ -391,7 +391,7 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, ignore_retrieved: bool=True, given_wdirs: List[str]=None, *args, **kwargs):
+    def retrieve(self, ignore_retrieved: bool=True, given_wdirs: List[str]=None, *args, **kwargs) -> Trajectories:
         """Read results from wdirs.
 
         Args:
