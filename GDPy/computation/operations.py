@@ -15,6 +15,7 @@ from GDPy.core.register import registers
 from GDPy.computation.worker.drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
 )
+from GDPy.data.trajectory import Trajectories
 
 @registers.operation.register
 class work(Operation):
@@ -227,7 +228,7 @@ class extract(Operation):
         #print(self.workers)
         worker_status = [False]*nworkers
 
-        trajectories = [] # List[List[List[Atoms]]], worker->candidate->trajectory
+        trajectories = Trajectories()
         for i, worker in enumerate(workers):
             # TODO: How to save trajectories into one file?
             #       probably use override function for read/write
@@ -241,36 +242,41 @@ class extract(Operation):
                     self.pfunc(f"{worker.directory} is not finished.")
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
-                curr_trajectories_ = worker.retrieve(
+                curr_trajectories = worker.retrieve(
                     read_traj = self.read_traj, traj_period = self.traj_period,
                     include_first = self.include_first, include_last = self.include_last,
                     ignore_retrieved=False, # TODO: ignore misleads...
                     separate_candidates=True
                 ) # List[List[Atoms]] or List[Atoms] depends on read_traj
-                if self.reduce_cand:
-                    curr_trajectories = list(itertools.chain(*curr_trajectories_))
-                    write(cached_trajs_dpath/"reduced_candidates.xyz", curr_trajectories)
-                else:
-                    curr_trajectories = curr_trajectories_
-                    for j, traj in enumerate(curr_trajectories_):
-                        write(cached_trajs_dpath/f"cand{j}.xyz", traj)
+                print("worker trajs: ", curr_trajectories)
+                #if self.reduce_cand:
+                #    curr_trajectories = list(itertools.chain(*curr_trajectories_))
+                #    write(cached_trajs_dpath/"reduced_candidates.xyz", curr_trajectories)
+                #else:
+                #    curr_trajectories = curr_trajectories_
+                #    for j, traj in enumerate(curr_trajectories_):
+                #        write(cached_trajs_dpath/f"cand{j}.xyz", traj)
+                curr_trajectories.save_file(cached_trajs_dpath/"dataset.h5")
             else:
-                if self.reduce_cand:
-                    curr_trajectories = read(cached_trajs_dpath/"reduced_candidates.xyz", ":")
-                else:
-                    cached_fnames = list(cached_trajs_dpath.glob("cand*"))
-                    cached_fnames.sort()
+                #if self.reduce_cand:
+                #    curr_trajectories = read(cached_trajs_dpath/"reduced_candidates.xyz", ":")
+                #else:
+                #    cached_fnames = list(cached_trajs_dpath.glob("cand*"))
+                #    cached_fnames.sort()
 
-                    curr_trajectories = []
-                    for fpath in cached_fnames:
-                        traj = read(fpath, ":")
-                        curr_trajectories.append(traj)
+                #    curr_trajectories = []
+                #    for fpath in cached_fnames:
+                #        traj = read(fpath, ":")
+                #        curr_trajectories.append(traj)
+                curr_trajectories = Trajectories.from_file(cached_trajs_dpath/"dataset.h5")
 
             ntrajs = len(curr_trajectories)
             self.pfunc(f"worker_{i} ntrajectories {ntrajs}")
-            trajectories.append(curr_trajectories)
+            trajectories.extend(curr_trajectories)
 
             worker_status[i] = True
+        
+        print("trajectories: ", trajectories.get_markers())
 
         structures = []
         if all(worker_status):
@@ -281,58 +287,12 @@ class extract(Operation):
             nstructures = len(structures)
             self.pfunc(f"nstructures {nstructures}")
             self.status = "finished"
+            #print("structures: ", structures)
         else:
             ...
 
-        return structures
-
-@registers.operation.register
-class separate(Operation):
-
-    def __init__(self, extract, return_end: bool=False, traj_period: int=1) -> NoReturn:
-        """"""
-        super().__init__([extract])
-
-        self.return_end = return_end
-        self.traj_period = traj_period
-
-        return
-    
-    def forward(self, structures):
-        """"""
-        super().forward()
-        # - check dimensions of input structures
-        d = 0
-        curr_data_ = structures
-        while True:
-            if isinstance(curr_data_, Atoms):
-                break
-            else: # List
-                curr_data_ = curr_data_[0]
-                d += 1
-        print("dimension: ", d)
-
-        # - read full trajs
-        if d == 3: # worker - cand - traj
-            trajectories = list(itertools.chain(*structures))
-            print("ntrajs: ", len(trajectories))
-            end_frames, trj_frames = [], []
-            for traj in trajectories:
-                end_frames.append(traj[-1])
-                trj_frames.extend(traj[1:-1:self.traj_period])
-            write(self.directory/"end_frames.xyz", end_frames)
-            write(self.directory/"trj_frames.xyz", trj_frames)
-            print("end nframes: ", len(end_frames))
-            print("trj nframes: ", len(trj_frames))
-        else:
-            ...
-        
-        self.status = "finished"
-
-        if self.return_end:
-            return end_frames
-        else:
-            return trj_frames
+        #return structures
+        return trajectories
 
 
 if __name__ == "__main__":

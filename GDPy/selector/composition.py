@@ -10,7 +10,6 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.datatype import isAtomsFrames, isTrajectories
 from GDPy.data.trajectory import Trajectories
 from GDPy.selector.selector import AbstractSelector
 

@@ -13,7 +13,6 @@ from ase import Atoms
 
 from GDPy import config
 from GDPy.core.node import AbstractNode
-from GDPy.core.datatype import isAtomsFrames, isTrajectories
 from GDPy.computation.worker.drive import DriverBasedWorker
 from GDPy.data.trajectory import Trajectories
 
