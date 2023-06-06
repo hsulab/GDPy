@@ -85,6 +85,9 @@ def read_sort(directory):
 @dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
 
+    etol: float = 1e-4
+    fmax: float = 0.05 
+
     def __post_init__(self):
         """Convert parameters into driver-specific ones.
 
@@ -325,8 +328,8 @@ class VaspDriver(AbstractDriver):
                 converged = self.read_convergence()
             except OSError:
                 converged = False
-        print(f"end {self.directory}")
-        print("converged: ", converged)
+        self._debug(f"end {self.directory}")
+        self._debug("converged: ", converged)
 
         return converged
     
@@ -370,19 +373,23 @@ class VaspDriver(AbstractDriver):
                 idx += 1
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 traj_frames_.extend(read(vasprun, ":")) # read current
+            nframes = len(traj_frames_)
 
             # - sort frames
             traj_frames = []
-            sort, resort = read_sort(self.directory)
-            for i, sorted_atoms in enumerate(traj_frames_):
-                input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
-                #if input_atoms is None:
-                #    input_atoms = Atoms()
-                #    input_atoms.info["error"] = str(self.directory)
-                if input_atoms is not None:
-                    if add_step_info:
-                        input_atoms.info["step"] = i
-                    traj_frames.append(input_atoms)
+            if nframes > 0:
+                sort, resort = read_sort(self.directory)
+                for i, sorted_atoms in enumerate(traj_frames_):
+                    input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
+                    #if input_atoms is None:
+                    #    input_atoms = Atoms()
+                    #    input_atoms.info["error"] = str(self.directory)
+                    if input_atoms is not None:
+                        if add_step_info:
+                            input_atoms.info["step"] = i
+                        traj_frames.append(input_atoms)
+            else:
+                ...
         except Exception as e:
             self._debug(e)
             atoms = Atoms()
