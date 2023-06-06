@@ -150,19 +150,19 @@ def main():
         help="retrieve last frame or entire trajectory"
     )
 
-    # --- task interface
-    parser_task = subparsers.add_parser(
-        "task", help="run a task (e.g. GA and MC)"
+    # --- routine interface
+    parser_routine = subparsers.add_parser(
+        "routine", help="run a routine (e.g. GA and MC)"
     )
-    parser_task.add_argument(
+    parser_routine.add_argument(
         "params",
         help="json/yaml file that stores parameters for a task"
     )
-    parser_task.add_argument(
+    parser_routine.add_argument(
         "--run", default=1, type=int,
         help="running options"
     )
-    parser_task.add_argument(
+    parser_routine.add_argument(
         "--report", action="store_true", # TODO: analysis config file
         help="report options"
     )
@@ -271,9 +271,9 @@ def main():
     elif args.subcommand == "worker":
         from GDPy.computation.worker.interface import run_worker
         run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
-    elif args.subcommand == "task":
-        from GDPy.task.task import run_task
-        run_task(args.params, potter, referee, args.run, args.report)
+    elif args.subcommand == "routine":
+        from GDPy.routine.task import run_routine
+        run_routine(args.params, potter, args.run, args.report)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
         run_validation(args.directory, args.INPUTS, potter)
