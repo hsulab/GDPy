@@ -60,7 +60,10 @@ class Trajectory(AtomsArray):
     def __repr__(self) -> str:
         """"""
 
-        return f"Trajectory(task={self.task}, shape={len(self)}, markers={self.markers})"
+        if len(self) > 0:
+            return f"Trajectory(task={self.task}, shape={len(self)}, markers={self.markers})"
+        else:
+            return f"Trajectory(task={self.task})"
 
 
 class Trajectories(AtomsArray2D):
@@ -70,8 +73,10 @@ class Trajectories(AtomsArray2D):
 
     name = "trajectories"
 
-    def __init__(self, trajectories: List[Trajectory]=[]) -> None:
+    def __init__(self, trajectories: List[Trajectory]=None) -> None:
         """"""
+        if trajectories is None:
+            trajectories = []
         super().__init__(rows=trajectories)
 
         return
@@ -79,7 +84,10 @@ class Trajectories(AtomsArray2D):
     def __repr__(self) -> str:
         """"""
 
-        return f"Trajectories(number: {len(self)}, shape: {self.shape}, markers: {self.get_number_of_markers()})"
+        if len(self) > 0:
+            return f"Trajectories(number: {len(self)}, shape: {self.shape}, markers: {self.get_number_of_markers()})"
+        else:
+            return f"Trajectories(number: {len(self)})"
 
 
 if __name__ == "__main__":

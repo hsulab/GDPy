@@ -14,6 +14,7 @@ from ase.io import read, write
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 from GDPy.data.dataset import XyzDataloader
+from GDPy.data.array import AtomsArray2D
 
 @registers.operation.register
 class end_session(Operation):
@@ -171,6 +172,9 @@ class transfer(Operation):
     def forward(self, frames: List[Atoms]):
         """"""
         super().forward()
+
+        if isinstance(frames, AtomsArray2D):
+            frames = frames.get_marked_structures()
 
         self.pfunc(f"target dir: {str(self.target_dir)}")
 
