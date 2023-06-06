@@ -62,14 +62,14 @@ class MinimaValidator(AbstractValidator):
                 worker.directory = self.directory/k
                 worker.batchsize = nframes
 
-                #worker._share_wdir = True
-
                 worker.run(curr_frames)
                 worker.inspect(resubmit=True)
                 if worker.get_number_of_running_jobs() == 0:
-                    pred_frames = worker.retrieve(
+                    # -- get end frames
+                    trajectories = worker.retrieve(
                         ignore_retrieved=False,
                     )
+                    pred_frames = [t[-1] for t in trajectories]
                 else:
                     # TODO: ...
                     ...
@@ -81,46 +81,49 @@ class MinimaValidator(AbstractValidator):
         
         # -
         key = "composites"
+
+        keys = list(dataset.keys())
         
-        # - restore constraints
-        cons_text = worker.driver.as_dict()["constraint"]
-        for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
-            set_constraint(ref_atoms, cons_text, ignore_attached_constraints=True)
-            set_constraint(pre_atoms, cons_text, ignore_attached_constraints=True)
+        for key in keys:
+            # - restore constraints
+            cons_text = worker.driver.as_dict()["constraint"]
+            for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
+                set_constraint(ref_atoms, cons_text, ignore_attached_constraints=True)
+                set_constraint(pre_atoms, cons_text, ignore_attached_constraints=True)
         
-        # - compare ...
-        ref_energies = np.array([a.get_potential_energy() for a in dataset[key]])
-        pre_energies = np.array([a.get_potential_energy() for a in pre_dataset[key]])
+            # - compare ...
+            ref_energies = np.array([a.get_potential_energy() for a in dataset[key]])
+            pre_energies = np.array([a.get_potential_energy() for a in pre_dataset[key]])
 
-        ref_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in dataset[key]])
-        pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
+            ref_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in dataset[key]])
+            pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
 
-        # - compute shifts if any
-        ref_ene_shift = np.sum([x*y for x, y in task_params["ref_ene_shift"]])
-        pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["pre_ene_shift"]])
+            # - compute shifts if any
+            ref_ene_shift = np.sum([x*y for x, y in task_params["ref_ene_shift"]])
+            pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["pre_ene_shift"]])
 
-        ref_rel_energies = ref_energies - ref_ene_shift
-        pre_rel_energies = pre_energies - pre_ene_shift
+            ref_rel_energies = ref_energies - ref_ene_shift
+            pre_rel_energies = pre_energies - pre_ene_shift
 
-        # -- disp
-        disps = [] # displacements
-        for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
-            vector = pre_atoms.get_positions() - ref_atoms.get_positions()
-            vmin, vlen = find_mic(vector, pre_atoms.get_cell())
-            disps.append(np.linalg.norm(vlen))
+            # -- disp
+            disps = [] # displacements
+            for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
+                vector = pre_atoms.get_positions() - ref_atoms.get_positions()
+                vmin, vlen = find_mic(vector, pre_atoms.get_cell())
+                disps.append(np.linalg.norm(vlen))
 
-        content = ("{:<24s}  "+"{:<12s}  "*7+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse", "RefRelEne", "NewRelEne")
-        for i, (ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene) in enumerate(
-            zip(ref_energies, pre_energies, ref_maxforces, pre_maxforces, disps, ref_rel_energies, pre_rel_energies)
-        ):
-            content += ("{:<24s}  "+"{:<12.4f}  "*7+"\n").format(
-                str(i), ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene
-            )
+            content = ("{:<24s}  "+"{:<12s}  "*7+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse", "RefRelEne", "NewRelEne")
+            for i, (ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene) in enumerate(
+                zip(ref_energies, pre_energies, ref_maxforces, pre_maxforces, disps, ref_rel_energies, pre_rel_energies)
+            ):
+                content += ("{:<24s}  "+"{:<12.4f}  "*7+"\n").format(
+                    str(i), ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene
+                )
 
-        with open(self.directory/"abs.dat", "w") as fopen:
-            fopen.write(content)
+            with open(self.directory/f"abs-{key}.dat", "w") as fopen:
+                fopen.write(content)
         
-        self._print(content)
+            self._print(content)
 
         return
 

@@ -9,7 +9,6 @@ from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
 from GDPy.computation.worker.drive import DriverBasedWorker
-from GDPy.scheduler import create_scheduler
 from GDPy.validator import AbstractValidator
 
 @registers.variable.register

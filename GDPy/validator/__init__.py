@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.potential.register import PotentialRegister
 from GDPy.utils.command import parse_input_file
 
 from GDPy.validator.validator import AbstractValidator
