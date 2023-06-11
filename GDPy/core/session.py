@@ -205,10 +205,10 @@ def create_variable(node_name, node_params_: dict):
     assert node_type is not None, f"{node_name} has no type."
     node_template = node_params.pop("template", None)
     # -- special keywords
-    random_seed = node_params.pop("random_seed", None)
-    if random_seed is not None:
-        rng = np.random.default_rng(random_seed)
-        node_params.update(rng=rng)
+    #random_seed = node_params.pop("random_seed", None)
+    #if random_seed is not None:
+    #    rng = np.random.default_rng(random_seed)
+    #    node_params.update(rng=rng)
 
     # -- 
     node = None
@@ -226,10 +226,10 @@ def create_operation(op_name, op_params_: dict):
     assert op_type is not None, f"{op_name} has no type."
     op_template = op_params.pop("template", None)
     # -- special keywords
-    random_seed = op_params.pop("random_seed", None)
-    if random_seed is not None:
-        rng = np.random.default_rng(random_seed)
-        op_params.update(rng=rng)
+    #random_seed = op_params.pop("random_seed", None)
+    #if random_seed is not None:
+    #    rng = np.random.default_rng(random_seed)
+    #    op_params.update(rng=rng)
 
     # --
     op_cls = registers.get("operation", op_type, convert_name=False)
