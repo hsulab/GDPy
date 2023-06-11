@@ -46,7 +46,7 @@ class RandomBuilder(StructureBuilder):
 
     def __init__(
         self, composition: Mapping[str,int], substrate: Atoms=None,
-        region: dict={}, cell=[], covalent_ratio=[1.0, 2.0], 
+        region: dict={}, cell=None, covalent_ratio=[1.0, 2.0], 
         directory="./", random_seed=None, *args, **kwargs
     ):
         super().__init__(directory, random_seed, *args, **kwargs)
@@ -72,7 +72,8 @@ class RandomBuilder(StructureBuilder):
             unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)
         else:
-            self.blmin = None
+            unique_atom_types = set(self.composition_atom_numbers)
+            self.blmin = self._build_tolerance(unique_atom_types)
 
         # - create region
         region = copy.deepcopy(region)
@@ -241,6 +242,8 @@ class BulkBuilder(RandomBuilder):
         self.blmin = self._build_tolerance(unique_atom_types)
 
         # - check number_of_variable_cell_vectors
+        if self.cell is None:
+            self.cell = []
         number_of_variable_cell_vectors = 3 - len(self.cell)
         box_to_place_in = None
         if number_of_variable_cell_vectors > 0:
@@ -280,7 +283,7 @@ class ClusterBuilder(RandomBuilder):
     def _update_settings(self, substarte: Atoms = None):
         """"""
         # - ignore substrate
-        if not self.cell: # None or []
+        if self.cell is None: # None or []
             self.cell = np.array([19.,0.,0.,0.,20.,0.,0.,0.,21.]).reshape(3,3)
         else:
             self.cell = np.reshape(self.cell, (-1,3))

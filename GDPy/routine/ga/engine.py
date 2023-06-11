@@ -27,6 +27,8 @@ from GDPy.routine.ga.population import AbstractPopulationManager
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
 
+from GDPy.utils.command import convert_indices
+
 """
 TODO: search variational composition
 
@@ -108,6 +110,8 @@ class GeneticAlgorithemEngine():
             random_seed = np.random.randint(0, 10000)
         self.random_seed = random_seed
         self.rng = np.random.default_rng(seed=random_seed)
+        #np.random.seed(random_seed)
+        #self.rng = np.random # for compatibility
 
         # - 
         self.ga_dict = copy.deepcopy(ga_dict)
@@ -189,34 +193,64 @@ class GeneticAlgorithemEngine():
         self._print = self.logger.info
 
         return
+
+    def report(self):
+        self._print("restart the database...")
+        self.__restart()
+        results = self.directory/"results"
+        if not results.exists():
+            results.mkdir()
+
+        # - write structures
+        all_relaxed_candidates = self.da.get_all_relaxed_candidates()
+        write(results/"all_candidates.xyz", all_relaxed_candidates)
+
+        # - plot population evolution
+        data = []
+        cur_gen_num = self.da.get_generation_number() # equals finished generation plus one
+        self._print(f"Current generation number: {cur_gen_num}")
+        for i in range(cur_gen_num):
+            #print('generation ', i)
+            energies = [
+                atoms.get_potential_energy() for atoms in all_relaxed_candidates 
+                    if atoms.info["key_value_pairs"]["generation"]==i
+            ]
+            self._print(energies)
+            data.append([i, energies])
+
+        import matplotlib as mpl
+        mpl.use("Agg") #silent mode
+        from matplotlib import pyplot as plt
+
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
+        ax.set_title(
+            "Population Evolution", 
+            fontsize=20, 
+            fontweight="bold"
+        )
+
+        for i, energies in data:
+            ax.scatter([i]*len(energies), energies)
+
+        plt.savefig(results/"pop.png")
+
+        return
     
-    def run(self, steps=None):
+    def run(self, *args, **kwargs):
         """Run the GA procedure several steps.
 
         Default setting would run the algorithm many times until its convergence. 
         This is useful for running optimisations with serial worker.
 
         """
-        conv_gen_num = self.conv_dict["generation"]
-
+        # - outputs
         self._init_logger()
         self.worker.directory = self.directory / self.CALC_DIRNAME
         self.worker.logger = self.logger
         self.pop_manager.pfunc = self.logger.info
 
-        if steps is None:
-            steps = conv_gen_num
-
-        for istep in range(steps):
-            self._irun(istep)
-
-        return
-
-    def _irun(self, istep: int):
-        """ main procedure
-        """
         # - search target
-        self._print(f"\n\n===== Genetic Algorithm at Step {istep} =====")
+        self._print(f"\n\n===== Genetic Algorithm =====")
         target = self.prop_dict["target"]
         self._print(f"\nTarget of Global Optimisation is {target}")
 
@@ -242,6 +276,22 @@ class GeneticAlgorithemEngine():
         self._print("\n\n===== register operators =====")
         self._register_operators()
 
+        # - run
+        for i in range(1000):
+            self._check_generation()
+            if self.read_convergence():
+                self._print("reach maximum generation...")
+                self.report()
+                break
+            curr_convergence = self._irun()
+            if not curr_convergence:
+                self._print("current generation does not converge...")
+                break
+
+        return
+    
+    def _check_generation(self):
+        """"""
         # --- check current generation number
         self._print("\n\n===== Generation Info =====")
 
@@ -265,28 +315,21 @@ class GeneticAlgorithemEngine():
         self.num_relaxed_gen = len(relaxed_confids)
 
         # check if this is the end of the current generation
-        end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen)
+        self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen)
 
         self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
-        self._print(sorted(relaxed_confids))
+        self._print(convert_indices(sorted(relaxed_confids)))
         self._print(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
-        self._print(sorted(unrelaxed_confids))
-        self._print(f"end of current generation: {end_of_gen}")
+        self._print(convert_indices(sorted(unrelaxed_confids)))
+        self._print(f"end of current generation: {self.end_of_gen}")
 
-        # --- check generation
-        if self.read_convergence():
-            self._print("reach maximum generation...")
-            return
-        else:
-            self._print("not converged yet...")
+        return
 
-        # - run
+    def _irun(self):
+        """ main procedure
+        """
+        # - population
         self._print("\n\n===== Population Info =====")
-        #content = "For generation == 0 (initial population),"
-        #content += "{:>8s}  {:>8s}  {:>8s}\n".format("Random", "Seed", "Total")
-        #content += "{:>8d}  {:>8d}  {:>8d}\n".format(
-        #    self.pop_manager.gen_rep_size, self.pop_manager.gen_ran_size,
-        #)
         content = "For generation > 0,\n"
         content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format(
             "Reprod", "Random", "Mutate", "Total"
@@ -298,16 +341,17 @@ class GeneticAlgorithemEngine():
         content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
         self._print(content)
 
-        # --- initial population
+        # - minimise
         if self.cur_gen == 0:
             self._print("\n\n===== Initial Population Calculation =====")
             frames_to_work = []
             while (self.da.get_number_of_unrelaxed_candidates()): # NOTE: this uses GADB get_atoms which adds extra_info
                 # calculate structures from init population
                 atoms = self.da.get_an_unrelaxed_candidate()
-                self._print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                 frames_to_work.append(atoms)
                 self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
+            confids = [a.info["confid"] for a in frames_to_work]
+            self._print(f"start to run structure {convert_indices(confids)}")
             # NOTE: provide unified interface to mlp and dft
             if frames_to_work:
                 self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
@@ -315,9 +359,7 @@ class GeneticAlgorithemEngine():
         else:
             # --- update population
             self._print("\n\n===== Update Population =====")
-            # TODO: population settings
-            #self._prepare_population(end_of_gen)
-            if end_of_gen:
+            if self.end_of_gen:
                 # - create the population used for crossover and mutation
                 current_population = Population(
                     data_connection = self.da,
@@ -336,9 +378,10 @@ class GeneticAlgorithemEngine():
                 # TODO: send candidates directly to worker that respects the batchsize
                 frames_to_work = []
                 for atoms in current_candidates:
-                    self._print("\n\n ----- start to run structure %s -----" %atoms.info["confid"])
                     frames_to_work.append(atoms)
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
+                confids = [a.info["confid"] for a in frames_to_work]
+                self._print(f"start to run structure {convert_indices(confids)}")
                 if frames_to_work:
                     self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
                     _ = self.worker.run(frames_to_work) # retrieve later
@@ -346,10 +389,11 @@ class GeneticAlgorithemEngine():
                 self._print("Current generation has not finished...")
 
         # --- check if there were finished jobs
+        curr_convergence = False
         self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
-            converged_candidates = self.worker.retrieve()
+            converged_candidates = [t[0] for t in self.worker.retrieve()]
             for cand in converged_candidates:
                 print(cand)
                 print(cand.info)
@@ -381,10 +425,11 @@ class GeneticAlgorithemEngine():
                     find_neighbors=self.find_neighbors,
                     perform_parametrization=self.perform_parametrization
                 )
+            curr_convergence = True
         else:
             self._print("Worker is unfinished.")
 
-        return
+        return curr_convergence
     
     def __initialise(self):
         # get basic system information
@@ -453,7 +498,7 @@ class GeneticAlgorithemEngine():
             test_dist_to_slab = self.generator.test_dist_to_slab,
             use_tags = self.generator.use_tags,
             used_modes_file = self.directory/self.CALC_DIRNAME/"used_modes.json",
-            rng = self.rng
+            #rng = self.rng # TODO: ase operators need np.random
         )
 
         # --- comparator
