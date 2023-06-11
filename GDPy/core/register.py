@@ -32,6 +32,8 @@ class Register:
         return lambda x: add(target, x)
 
     def __getitem__(self, key):
+        if key not in self._dict:
+            raise Exception(f"No {key} in {self._dict.keys()}")
         return self._dict[key]
 
     def __contains__(self, key):
@@ -75,6 +77,9 @@ class registers:
 
     #: Reactors.
     reactor: Register = Register("reactor")
+
+    #: Routines.
+    routine: Register = Register("routine")
 
     #: Selectors.
     selector: Register = Register("selector")
@@ -142,7 +147,9 @@ ALL_MODULES = [
     # -- selectors
     ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
     # -- comparators
-    ("GDPy.comparator", ["interface"]),
+    ("GDPy.comparator", ["comparator"]),
+    # -- comparators
+    ("GDPy.routine", ["routine"]),
     # -- reactors
     ("GDPy.reactor", ["afir"]),
     # -- validators
