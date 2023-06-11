@@ -12,7 +12,7 @@ from ase.io import read, write
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
-from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.worker.worker import AbstractWorker
 from GDPy.data.array import AtomsArray2D
 from GDPy.selector.selector import AbstractSelector, load_cache
 from GDPy.selector.composition import ComposedSelector

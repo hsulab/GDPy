@@ -8,7 +8,7 @@ import uuid
 
 from tinydb import Query
 
-from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.worker.worker import AbstractWorker
 from GDPy.scheduler.scheduler import AbstractScheduler
 from GDPy.utils.command import run_command
 

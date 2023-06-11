@@ -20,7 +20,7 @@ from ase.io import read, write
 
 from GDPy.core.register import registers
 from GDPy.validator.validator import AbstractValidator
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 
 from GDPy.validator.utils import get_properties
 

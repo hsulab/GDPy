@@ -21,7 +21,7 @@ from GDPy.builder import create_generator
 from GDPy.builder.group import create_a_group, create_a_molecule_group
 
 from GDPy.computation.driver import AbstractDriver
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 from GDPy.computation.utils import make_clean_atoms
 
 from GDPy.graph.creator import find_product, find_molecules

@@ -17,7 +17,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.core.register import registers
 from GDPy.validator.validator import AbstractValidator
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 from GDPy.builder.constraints import set_constraint
 
 """Validate minima and relative energies...
@@ -80,11 +80,9 @@ class MinimaValidator(AbstractValidator):
             pre_dataset[k] = pred_frames
         
         # -
-        key = "composites"
-
         keys = list(dataset.keys())
-        
         for key in keys:
+            self._print(f"group {key}")
             # - restore constraints
             cons_text = worker.driver.as_dict()["constraint"]
             for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
@@ -99,8 +97,12 @@ class MinimaValidator(AbstractValidator):
             pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
 
             # - compute shifts if any
-            ref_ene_shift = np.sum([x*y for x, y in task_params["ref_ene_shift"]])
-            pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["pre_ene_shift"]])
+            if key == "composites":
+                ref_ene_shift = np.sum([x*dataset[y][0].get_potential_energy() for x, y in task_params["ene_shift"]])
+                pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["ene_shift"]])
+            else:
+                ref_ene_shift = 0.
+                pre_ene_shift = 0.
 
             ref_rel_energies = ref_energies - ref_ene_shift
             pre_rel_energies = pre_energies - pre_ene_shift

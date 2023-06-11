@@ -18,7 +18,7 @@ from GDPy.scheduler import create_scheduler
 from GDPy.selector.traj import BoltzmannMinimaSelection
 
 from GDPy.computation.utils import read_trajectories
-from GDPy.computation.worker.command import CommandWorker
+from GDPy.worker.command import CommandWorker
 from GDPy.potential.register import create_potter
 
 from GDPy.utils.command import CustomTimer

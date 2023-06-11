@@ -10,7 +10,7 @@ import numpy as np
 from ase.io import read, write
 
 from GDPy.core.register import registers
-from GDPy.computation.worker.train import TrainWorker
+from GDPy.worker.train import TrainWorker
 from GDPy.utils.command import parse_input_file
 
 

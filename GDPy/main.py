@@ -220,19 +220,8 @@ def main():
         print(f"Run parallel jobs {config.NJOBS}")
 
     # - potential
-    #from GDPy.potential.register import create_potter
-    #potter = None
-    #if args.potential:
-    #    pot_config = args.potential # configuration file of potential
-    #    potter = create_potter(pot_config) # register calculator, and scheduler if exists
-    
-    #referee = None
-    #if args.reference:
-    #    ref_config = args.reference # configuration file of potential
-    #    referee = create_potter(ref_config) # register calculator, and scheduler if exists
-
     from GDPy.utils.command import parse_input_file
-    from GDPy.computation.worker.interface import WorkerVariable
+    from GDPy.worker.interface import WorkerVariable
     potter = None
     if args.potential:
         params = parse_input_file(input_fpath=args.potential)
@@ -269,7 +258,7 @@ def main():
             args.number, args.energy_tolerance, args.energy_shift
         )
     elif args.subcommand == "worker":
-        from GDPy.computation.worker.interface import run_worker
+        from GDPy.worker.interface import run_worker
         run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
     elif args.subcommand == "routine":
         from GDPy.routine.task import run_routine

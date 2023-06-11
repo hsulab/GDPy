@@ -7,7 +7,7 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
-from GDPy.computation.worker.train import TrainerBasedWorker
+from GDPy.worker.train import TrainerBasedWorker
 
 
 @registers.variable.register

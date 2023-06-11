@@ -12,7 +12,7 @@ from ase.io import read, write
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
-from GDPy.computation.worker.drive import (
+from GDPy.worker.drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
 )
 

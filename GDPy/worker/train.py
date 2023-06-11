@@ -13,7 +13,7 @@ import numpy as np
 
 from tinydb import Query
 
-from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.worker.worker import AbstractWorker
 from GDPy.potential.trainer import AbstractTrainer
 from GDPy.utils.command import run_command
 

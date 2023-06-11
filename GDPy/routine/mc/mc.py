@@ -12,7 +12,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 from GDPy.builder import create_generator
 from GDPy.mc.operators import select_operator, parse_operators
 

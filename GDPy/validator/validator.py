@@ -7,7 +7,7 @@ import logging
 
 from typing import NoReturn, Union
 
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 
 
 class AbstractValidator(abc.ABC):

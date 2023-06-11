@@ -38,7 +38,7 @@ class Session:
     _print: Callable = print
     _debug: Callable = print
 
-    def __init__(self, directory="./") -> NoReturn:
+    def __init__(self, directory="./") -> None:
         """"""
         self.directory = pathlib.Path(directory)
 
@@ -321,7 +321,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     # - set variable directory
     for k, v_dict in conf.variables.items():
         v_dict["directory"] = str(directory/"variables"/k)
-    print("YAML: ", OmegaConf.to_yaml(conf))
+    #print("YAML: ", OmegaConf.to_yaml(conf))
 
     # - resolve sessions
     container = OmegaConf.to_object(conf.sessions)

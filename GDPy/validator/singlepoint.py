@@ -22,7 +22,7 @@ except Exception as e:
     print("Used default matplotlib style.")
 
 from GDPy.validator.validator import AbstractValidator
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 
 from GDPy.computation.utils import make_clean_atoms
 from GDPy.utils.comparasion import parity_plot_dict, rms_dict

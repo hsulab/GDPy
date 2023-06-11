@@ -14,8 +14,8 @@ from ase.geometry import find_mic
 from GDPy.core.operation import Operation
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
-from GDPy.computation.worker.worker import AbstractWorker
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.worker import AbstractWorker
+from GDPy.worker.drive import DriverBasedWorker
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -59,10 +59,10 @@ class WorkerVariable(Variable):
 
         if driver and scheduler:
             if scheduler.name == "local":
-                from GDPy.computation.worker.drive import CommandDriverBasedWorker as Worker
+                from GDPy.worker.drive import CommandDriverBasedWorker as Worker
                 run_worker = Worker(potter, driver, scheduler)
             else:
-                from GDPy.computation.worker.drive import QueueDriverBasedWorker as Worker
+                from GDPy.worker.drive import QueueDriverBasedWorker as Worker
                 run_worker = Worker(potter, driver, scheduler)
         
         run_worker.batchsize = batchsize

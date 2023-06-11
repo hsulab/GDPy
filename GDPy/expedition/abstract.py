@@ -21,7 +21,7 @@ from GDPy import config
 from GDPy.utils.command import CustomTimer
 
 from GDPy.selector import create_selector
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 
 
 """ abstract class for expedition methods

@@ -22,7 +22,7 @@ from GDPy import config
 from GDPy.data.trajectory import Trajectories
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
-from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.worker.worker import AbstractWorker
 from GDPy.builder.builder import StructureGenerator
 
 from GDPy.utils.command import CustomTimer
