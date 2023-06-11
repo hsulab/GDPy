@@ -72,8 +72,6 @@ class RandomBuilder(StructureBuilder):
 
         # - check cell
         self.cell = cell
-        if not self.cell: # None or []
-            self.cell = np.array(cell).reshape(-1,3)
 
         # - read from kwargs
         self.test_too_far = kwargs.get("test_too_far", True) # test_too_far
@@ -275,6 +273,8 @@ class ClusterBuilder(RandomBuilder):
         # - ignore substrate
         if not self.cell: # None or []
             self.cell = np.array([19.,0.,0.,0.,20.,0.,0.,0.,21.]).reshape(3,3)
+        else:
+            self.cell = np.reshape(self.cell, (-1,3))
         self.substrate = Atoms(cell = self.cell, pbc=False)
 
         unique_atom_types = set(self.composition_atom_numbers)
