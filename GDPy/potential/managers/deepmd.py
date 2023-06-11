@@ -29,8 +29,6 @@ class DeepmdTrainer(AbstractTrainer):
     freeze_command = "dp"
     prefix = "config"
 
-    _type_list: List[str] = None
-
     #: Flag indicates that the training is finished properly.
     CONVERGENCE_FLAG: str = "finished training"
 
@@ -53,12 +51,6 @@ class DeepmdTrainer(AbstractTrainer):
             self._type_list = type_list
 
         return
-    
-    @property
-    def type_list(self):
-        """"""
-
-        return self._type_list
     
     def _resolve_train_command(self, init_model=None):
         """"""
@@ -409,153 +401,6 @@ class DeepmdManager(AbstractPotentialManager):
         self.calc = self._create_calculator(self.calc_params)
 
         return
-    
-    def register_uncertainty_estimator(self, est_params_: dict):
-        """Create an extra uncertainty estimator.
-
-        This can be used when the current calculator is not capable of 
-        estimating uncertainty.
-        
-        """
-        from GDPy.computation.uncertainty import create_estimator
-        self._estimator = create_estimator(est_params_, self.calc_params, self._create_calculator)
-
-        return
-    
-    def register_trainer(self, train_params_: dict):
-        """"""
-        super().register_trainer(train_params_)
-        # print(self.train_config)
-
-        return
-    
-    def train(self, dataset=None, train_dir=Path.cwd()):
-        """"""
-        self._make_train_files(dataset, train_dir)
-
-        return
-
-    def _make_train_files(self, dataset=None, train_dir=Path.cwd()):
-        """ make files for training
-
-        Args:
-            dataset: [set_names, train_frames, test_frames]
-
-        """
-        # - add dataset to config
-        if not dataset: # NOTE: can be a path or a List[Atoms]
-            dataset = self.train_dataset
-        assert dataset, f"No dataset has been set for the potential {self.name}."
-
-        # - convert dataset
-        batchsizes = dataset[3]
-        cum_batchsizes, train_sys_dirs = convert_groups(
-            dataset[0], dataset[1], batchsizes, 
-            self.train_config["model"]["type_map"],
-            "train", train_dir
-        )
-        _, valid_sys_dirs = convert_groups(
-            dataset[0], dataset[2], batchsizes,
-            self.train_config["model"]["type_map"], 
-            "valid", train_dir
-        )
-
-        # - check train config
-        # NOTE: parameters
-        #       numb_steps, seed
-        #       descriptor-seed, fitting_net-seed
-        #       training - training_data, validation_data
-        train_config = copy.deepcopy(self.train_config)
-
-        train_config["model"]["descriptor"]["seed"] = np.random.randint(0,10000)
-        train_config["model"]["fitting_net"]["seed"] = np.random.randint(0,10000)
-
-        train_config["training"]["training_data"]["systems"] = [str(x.resolve()) for x in train_sys_dirs]
-        train_config["training"]["training_data"]["batch_size"] = batchsizes
-
-        train_config["training"]["validation_data"]["systems"] = [str(x.resolve()) for x in valid_sys_dirs]
-        train_config["training"]["validation_data"]["batch_size"] = batchsizes
-
-        train_config["training"]["seed"] = np.random.randint(0,10000)
-
-        # --- calc numb_steps
-        save_freq = train_config["training"]["save_freq"]
-        n_checkpoints = int(np.ceil(cum_batchsizes*self.train_epochs/save_freq))
-        numb_steps = n_checkpoints*save_freq
-
-        train_config["training"]["numb_steps"] = numb_steps
-
-        # - write
-        with open(train_dir/"config.json", "w") as fopen:
-            json.dump(train_config, fopen, indent=2)
-
-        return
-
-    def freeze(self, train_dir=Path.cwd()):
-        """ freeze model and return a new calculator
-            that may have a committee for uncertainty
-        """
-        super().freeze(train_dir)
-
-        # - find subdirs
-        train_dir = Path(train_dir)
-        mdirs = []
-        for p in train_dir.iterdir():
-            if p.is_dir() and p.name.startswith("m"):
-                mdirs.append(p.resolve())
-        assert len(mdirs) == self.train_size, "Number of models does not equal model size..."
-
-        # - find models and form committee
-        models = []
-        for p in mdirs:
-            models.append(str(p/"graph.pb"))
-        models.sort()
-        
-        # --- update current calculator
-        # NOTE: We dont need update calc_backend here...
-        calc_params = copy.deepcopy(self.calc_params)
-        #if self.calc_backend == "ase":
-        #    for i, m in enumerate(models):
-        #        calc_params = copy.deepcopy(self.calc_params)
-        #        calc_params.update(backend=self.calc_backend)
-        #        calc_params["model"] = m
-        #        saved_calc_params = copy.deepcopy(calc_params)
-        #        self.register_calculator(calc_params)
-        #        self.calc.directory = Path.cwd()/f"c{i}"
-        #    # NOTE: do not share calculator...
-        #    self.register_calculator(saved_calc_params)
-        #elif self.calc_backend == "lammps":
-        #    calc_params.update(backend=self.calc_backend)
-        #    # - set out_freq and out_file in lammps
-        #    saved_calc_params = copy.deepcopy(calc_params)
-        calc_params["model"] = models
-        #self.register_calculator(calc_params)
-        self.calc = self._create_calculator(calc_params)
-
-        # --- update current estimator
-        # TODO: deepmd has interal committee in lammps
-        est_params = dict(
-            committee = dict(
-                models = models
-            )
-        )
-        self.register_uncertainty_estimator(est_params)
-
-        return
-
-    def check_finished(self, model_path):
-        """check if the training is finished"""
-        converged = False
-        model_path = Path(model_path)
-        dpout_path = model_path / "dp.out"
-        if dpout_path.exists():
-            content = dpout_path.read_text()
-            line = content.split('\n')[-3]
-            print(line)
-            #if 'finished' in line:
-            #    converged = True
-
-        return converged
 
 
 if __name__ == "__main__":

@@ -25,8 +25,6 @@ class NequipTrainer(AbstractTrainer):
     freeze_command = "nequip-deploy"
     prefix = "config"
 
-    _type_list: List[str] = None
-
     def __init__(
         self, config: dict, type_list: List[str], train_epochs: int=200,
         directory=".", command: str="nequip-train", freeze_command: str="nequip-deploy",
@@ -42,12 +40,6 @@ class NequipTrainer(AbstractTrainer):
         self._type_list = type_list
 
         return
-
-    @property
-    def type_list(self):
-        """"""
-
-        return self._type_list
 
     def _resolve_train_command(self, init_model=None) -> str:
         """"""
