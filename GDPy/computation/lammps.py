@@ -455,8 +455,6 @@ class Lammps(FileIOCalculator):
         """"""
         FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
 
-        self.command = command
-        
         # - check potential
         assert self.pair_style is not None, "pair_style is not set."
 
