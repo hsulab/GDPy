@@ -1,22 +1,54 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import pathlib
+
 from GDPy.utils.command import parse_input_file
 
+from ..core.operation import Operation
+
+
 """
 """
 
-def run_routine(params, pot_worker=None, run=1, report=False):
+class routine(Operation):
+
+    def __init__(self, routine, scheduler, directory="./") -> None:
+        """"""
+        input_nodes = [routine, scheduler]
+        super().__init__(input_nodes, directory)
+
+        return
+
+    def forward(self, routine, scheduler):
+        """Perform a routine and forward results for further analysis.
+
+        Returns:
+            Workers that store structures.
+        
+        """
+        super().forward()
+        routine.directory = self.directory
+        print(routine)
+        routine.run()
+
+        return
+
+
+def run_routine(params, pot_worker=None, directory="./", run=1, report=False):
     """ task = worker + workflow
         GA - population
         MC - TODO: a single driver?
     """
+    directory = pathlib.Path(directory)
+
     params = parse_input_file(params)
 
     task = params.pop("task", None)
     if task == "ga":
-        from GDPy.ga.engine import GeneticAlgorithemEngine
+        from GDPy.routine.ga.engine import GeneticAlgorithemEngine
         ga = GeneticAlgorithemEngine(params)
+        ga.directory = directory
         if report:
             ga.report()
         else:
@@ -25,11 +57,11 @@ def run_routine(params, pot_worker=None, run=1, report=False):
                 ga.report()
     # TODO: merge all MC methods togather
     elif task == "mc":
-        from GDPy.mc.mc import MonteCarlo
+        from GDPy.routine.mc import MonteCarlo
         mc = MonteCarlo(**params)
         mc.run(pot_worker, run)
     elif task == "gcmc":
-        from GDPy.mc.gcmc import GCMC
+        from GDPy.routine.mc.gcmc import GCMC
         gcmc = GCMC(**params)
         gcmc.run(pot_worker, run)
         # TODO: add report functions to MC simulations
