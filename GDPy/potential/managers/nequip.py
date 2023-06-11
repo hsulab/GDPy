@@ -2,16 +2,130 @@
 # -*- coding: utf-8 -*
 
 import copy
-from pathlib import Path
+import pathlib
+from typing import List
+import warnings
 
 import yaml
 
 import numpy as np
 
+from ase.io import read, write
 from ase.calculators.calculator import Calculator
 
 from GDPy.core.register import registers
-from GDPy.potential.manager import AbstractPotentialManager
+from GDPy.potential.manager import AbstractPotentialManager, DummyCalculator
+from GDPy.potential.trainer import AbstractTrainer
+
+@registers.trainer.register
+class NequipTrainer(AbstractTrainer):
+
+    name = "nequip"
+    command = "nequip-train"
+    freeze_command = "nequip-deploy"
+    prefix = "config"
+
+    def __init__(
+        self, config: dict, type_list: List[str], train_epochs: int=200,
+        directory=".", command: str="nequip-train", freeze_command: str="nequip-deploy",
+        random_seed: int=1112, *args, **kwargs
+    ) -> None:
+        super().__init__(
+            config=config, type_list=type_list, train_epochs=train_epochs,
+            directory=directory, command=command, freeze_command=freeze_command, 
+            random_seed=random_seed, *args, **kwargs
+        )
+
+        # - TODO: sync type_list
+        self._type_list = type_list
+
+        return
+
+    def _resolve_train_command(self, init_model=None) -> str:
+        """"""
+        train_command = self.command
+
+        # - add options
+        command = "{} {}.yaml ".format(train_command, self.name)
+        if init_model is not None:
+            #command += "--init-model {}".format(str(pathlib.Path(init_model).resolve()))
+            raise RuntimeError(f"{self.__class__.__name__} does not support init_model.")
+        command += " 2>&1 > {}.out\n".format(self.name)
+
+        return command
+
+    def _resolve_freeze_command(self, *args, **kwargs) -> str:
+        """"""
+        freeze_command = self.command
+
+        # - add options
+        command = "{} build {}.pth --train_dir {}/auto 2>&1 >> {}.out".format(
+            freeze_command, self.name, self.name, self.name
+        )
+
+        return command
+    
+    def write_input(self, dataset, *args, **kwargs):
+        """"""
+        # - check dataset
+        data_dirs = dataset.load()
+        self._print(data_dirs)
+        self._print("\n--- auto data reader ---\n")
+
+        frames = []
+        for i, curr_system in enumerate(data_dirs):
+            curr_system = pathlib.Path(curr_system)
+            self._print(f"System {curr_system.stem}\n")
+            curr_frames = []
+            subsystems = list(curr_system.glob("*.xyz"))
+            subsystems.sort() # sort by alphabet
+            for p in subsystems:
+                # read and split dataset
+                p_frames = read(p, ":")
+                p_nframes = len(p_frames)
+                curr_frames.extend(p_frames)
+                self._print(f"  subsystem: {p.name} number {p_nframes}\n")
+            self._print(f"  nframes {len(curr_frames)}")
+            frames.extend(curr_frames)
+        nframes = len(frames)
+        self._print(f"nframes {nframes}")
+
+        write(self.directory/"dataset.xyz", frames)
+
+        n_train = int(nframes*dataset.train_ratio/dataset.batchsize)*dataset.batchsize
+        n_val = nframes - n_train
+
+        # - check train config
+        # params: root, run_name, seed, dataset_seed, n_train, n_val, batch_size
+        #         dataset, dataset_file_name
+        train_config = copy.deepcopy(self.config)
+
+        train_config["root"] = str(self.directory.resolve())
+        train_config["run_name"] = "auto"
+
+        train_config["seed"] = self.rng.integers(0, 10000, dtype=int)
+        train_config["dataset_seed"] = self.rng.integers(0, 10000, dtype=int)
+
+        train_config["dataset"] = "ase"
+        train_config["dataset_file_name"] = str((self.directory/"dataset.xyz").resolve())
+
+        train_config["chemical_symbols"] = self.type_list
+
+        train_config["n_train"] = n_train
+        train_config["n_val"] = n_val
+
+        train_config["max_epochs"] = self.train_epochs
+
+        with open(self.directory/f"{self.name}.yaml", "w") as fopen:
+            yaml.safe_dump(train_config, fopen)
+
+        return
+    
+    def read_convergence(self) -> bool:
+        """"""
+        converged = True
+
+        return converged
 
 
 @registers.manager.register
@@ -42,7 +156,7 @@ class NequipManager(AbstractPotentialManager):
         calc_params = copy.deepcopy(calc_params)
 
         command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", Path.cwd())
+        directory = calc_params.pop("directory", pathlib.Path.cwd())
         atypes = calc_params.pop("type_list", [])
 
         type_map = {}
@@ -56,20 +170,22 @@ class NequipManager(AbstractPotentialManager):
 
         models = []
         for m in model_:
-            m = Path(m).resolve()
+            m = pathlib.Path(m).resolve()
             if not m.exists():
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
 
+        # - create specific calculator
+        calc = DummyCalculator()
         if self.calc_backend == "ase":
             # return ase calculator
+            import torch
             from nequip.ase import NequIPCalculator
             if models:
                 calc = NequIPCalculator.from_deployed_model(
-                    model_path=models[0]
+                    model_path=models[0], 
+                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 )
-            else:
-                calc = None
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
             flavour = calc_params.pop("flavour", "nequip") # nequip or allegro
@@ -88,8 +204,6 @@ class NequipManager(AbstractPotentialManager):
                     calc.set(**dict(newton="off"))
                 elif pair_style == "allegro":
                     calc.set(**dict(newton="on"))
-            else:
-                calc = None
 
         return calc
 
@@ -100,94 +214,7 @@ class NequipManager(AbstractPotentialManager):
         self.calc = self._create_calculator(calc_params)
 
         return
-    
-    def register_trainer(self, train_params_: dict):
-        """"""
-        super().register_trainer(train_params_)
-        # print(self.train_config)
-
-        return
-    
-    def train(self, dataset=None, train_dir=Path.cwd()):
-        """"""
-        self._make_train_files(dataset, train_dir)
-
-        return
-
-    def _make_train_files(self, dataset=None, train_dir=Path.cwd()):
-        """ make files for training
-        """
-        # - add dataset to config
-        if not dataset: # NOTE: can be a path or a List[Atoms]
-            dataset = self.train_dataset
-        assert dataset, f"No dataset has been set for the potential {self.name}."
-
-        # - check dataset
-        from ase.io import read, write
-        write(train_dir/"dataset.xyz", dataset)
-
-        nframes = len(dataset)
-        n_train = int(nframes*self.train_split_ratio)
-        n_val = nframes - n_train
-
-        # - check train config
-        # params: root, run_name, seed, dataset_seed, n_train, n_val, batch_size
-        #         dataset, dataset_file_name
-        train_config = copy.deepcopy(self.train_config)
-
-        train_config["root"] = str(train_dir.resolve())
-        train_config["run_name"] = "auto"
-
-        train_config["seed"] = np.random.randint(0,10000)
-        train_config["dataset_seed"] = np.random.randint(0,10000)
-
-        train_config["dataset"] = "ase"
-        train_config["dataset_file_name"] = str((train_dir/"dataset.xyz").resolve())
-
-        train_config["n_train"] = n_train
-        train_config["n_val"] = n_val
-
-        train_config["max_epochs"] = self.train_epochs
-
-        with open(train_dir/"config.yaml", "w") as fopen:
-            yaml.safe_dump(train_config, fopen)
-
-        return
-    
-    def freeze(self, train_dir=Path.cwd()):
-        """ freeze model and update current attached calc?
-        """
-        super().freeze(train_dir)
-
-        # - find subdirs
-        train_dir = Path(train_dir)
-        mdirs = []
-        for p in train_dir.iterdir():
-            if p.is_dir() and p.name.startswith("m"):
-                mdirs.append(p.resolve())
-        assert len(mdirs) == self.train_size, "Number of models does not equal model size..."
-
-        # - find models and form committee
-        models = []
-        for p in mdirs:
-            models.append(str(p/"deployed_model.pth"))
-
-        # --- update current calculator
-        # NOTE: We dont need update calc_backend here...
-        calc_params = copy.deepcopy(self.calc_params)
-        calc_params["model"] = models
-        self.calc = self._create_calculator(calc_params)
-
-        # --- update current estimator
-        est_params = dict(
-            committee = dict(
-                models = models
-            )
-        )
-        self.register_uncertainty_estimator(est_params)
-
-        return
 
 
 if __name__ == "__main__":
-    pass
+    ...

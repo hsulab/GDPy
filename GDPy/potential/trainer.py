@@ -32,6 +32,9 @@ class AbstractTrainer(abc.ABC):
 
     #: Command to freeze/deploy.
     freeze_command: str = None
+
+    #: Type list e.g. [C, H, O].
+    _type_list: List[str] = None
     
     #: Prefix of input file.
     prefix: str = "config"
@@ -80,6 +83,12 @@ class AbstractTrainer(abc.ABC):
         self._directory = pathlib.Path(directory).resolve()
 
         return
+
+    @property
+    def type_list(self):
+        """"""
+
+        return self._type_list
 
     @abc.abstractmethod
     def _resolve_train_command(self, *args, **kwargs):
@@ -150,7 +159,7 @@ class AbstractTrainer(abc.ABC):
         return self.directory/f"{self.name}.pb"
     
     @abc.abstractmethod
-    def write_input(self, dataset, batchsizes, reduce_system: bool=False):
+    def write_input(self, dataset, *args, **kwargs):
         """Write inputs for training.
 
         Args:
@@ -170,6 +179,7 @@ class AbstractTrainer(abc.ABC):
         """"""
         trainer_params = {}
         trainer_params["name"] = self.name
+        trainer_params["type_list"] = self.type_list
         trainer_params["config"] = self.config
         trainer_params["command"] = self.command
         trainer_params["freeze_command"] = self.freeze_command

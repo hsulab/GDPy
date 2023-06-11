@@ -6,6 +6,7 @@ import copy
 import json
 from typing import NoReturn, Union, List, Callable
 import pathlib
+import yaml
 
 import numpy as np
 
@@ -273,6 +274,16 @@ def run_session(config_filepath, feed_command=None, directory="./"):
 
     OmegaConf.register_new_resolver(
         "json", read_json
+    )
+
+    def read_yaml(input_file):
+        with open(input_file, "r") as fopen:
+            input_dict = yaml.safe_load(fopen)
+
+        return input_dict
+
+    OmegaConf.register_new_resolver(
+        "yaml", read_yaml
     )
 
     # -- 
