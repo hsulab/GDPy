@@ -11,6 +11,7 @@ import numpy as np
 
 import ase
 from ase import Atoms
+from ase.io import read, write
 from ase.data import covalent_radii
 
 from ase.ga.utilities import get_all_atom_types, closest_distances_generator # get system composition (both substrate and top)
@@ -58,7 +59,15 @@ class RandomBuilder(StructureBuilder):
         self.covalent_max = covalent_ratio[1]
 
         # - add substrate
-        self.substrate = substrate
+        self.substrate = None
+        if isinstance(substrate, Atoms):
+            self.substrate = substrate
+        else:
+            if isinstance(substrate, str):
+                # assume this is a path
+                substrates = read(substrate, ":")
+                assert len(substrates) == 1, "Only support one substrate."
+                self.substrate = substrate[0]
         if self.substrate is not None:
             unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)
