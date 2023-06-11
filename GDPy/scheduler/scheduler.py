@@ -157,7 +157,17 @@ class AbstractScheduler(ABC):
         """
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        sch_params = {}
+        sch_params = {k:v for k, v in self.parameters.items() if v is not None}
+        sch_params["environs"] = self.environs
+
+        sch_params = copy.deepcopy(sch_params)
+
+        return sch_params
 
 
 if __name__ == "__main__":
-    pass
+    ...

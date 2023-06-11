@@ -51,6 +51,15 @@ class RandomBuilder(StructureBuilder):
     ):
         super().__init__(directory, random_seed, *args, **kwargs)
 
+        self._state_params = dict(
+            composition = composition,
+            substrate = substrate,
+            region = region,
+            cell = cell,
+            covalent_ratio = covalent_ratio,
+            random_seed = random_seed
+        )
+
         # - parse composition
         self.composition = composition
         self._parse_composition()
@@ -275,6 +284,13 @@ class BulkBuilder(RandomBuilder):
             self.cell_splits = splits_
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = copy.deepcopy(self._state_params)
+        params["method"] = "bulk"
+
+        return params
 
 
 @registers.builder.register
@@ -300,6 +316,13 @@ class ClusterBuilder(RandomBuilder):
         self.box_to_place_in = [self.region._origin, self.region._cell]
 
         return
+
+    def as_dict(self) -> dict:
+        """"""
+        params = copy.deepcopy(self._state_params)
+        params["method"] = "cluster"
+
+        return params
 
 
 @registers.builder.register
@@ -338,6 +361,13 @@ class SurfaceBuilder(RandomBuilder):
         self.box_to_place_in = [self.region._origin, self.region._cell]
 
         return
+
+    def as_dict(self) -> dict:
+        """"""
+        params = copy.deepcopy(self._state_params)
+        params["method"] = "surface"
+
+        return params
 
 
 if __name__ == "__main__":

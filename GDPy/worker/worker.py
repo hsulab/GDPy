@@ -37,7 +37,7 @@ class AbstractWorker(abc.ABC):
 
     _submit = True
 
-    _exec_mode = "queue"
+    _script_name = "run.script"
 
     def __init__(self, directory=None) -> NoReturn:
         """
@@ -179,6 +179,33 @@ class AbstractWorker(abc.ABC):
                 self.logger.info(f"{info_name} at {self.directory.name} is running...")
 
         return
+
+    def inspect(self, resubmit=False, *args, **kwargs):
+        """"""
+        self._initialise(*args, **kwargs)
+        self._debug(f"@@@{self.__class__.__name__}+inspect")
+
+        running_jobs = self._get_running_jobs()
+        for job_name in running_jobs:
+            doc_data = self.database.get(Query().gdir == job_name)
+            uid = doc_data["uid"]
+
+            self.scheduler.job_name = job_name
+            self.scheduler.script = self.directory/self._script_name
+            
+            if self.scheduler.is_finished():
+                # -- check if the job finished properly
+                # read_convergence
+                if True:
+                    self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                else:
+                    if resubmit:
+                        jobid = self.scheduler.submit()
+                        self.logger.info(f"{job_name} is re-submitted with JOBID {jobid}.")
+            else:
+                self._print(f"{job_name} is running...")
+
+        return
     
     def retrieve(self, *args, **kwargs):
         """"""
@@ -202,11 +229,6 @@ class AbstractWorker(abc.ABC):
             self.database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results
-    
-    @abc.abstractmethod
-    def _read_results(self, gdirs, *args, **kwargs):
-        """"""
-        return
 
     def _get_running_jobs(self):
         """"""

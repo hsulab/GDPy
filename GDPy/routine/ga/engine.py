@@ -64,14 +64,29 @@ class GeneticAlgorithmVariable(Variable):
 
     def __init__(self, builder, worker, params: dict, directory="./", *args, **kwargs) -> None:
         """"""
-        engine = self._create_engine(builder.value, worker.value[0], params, *args, **kwargs)
+        # - builder
+        if isinstance(builder, dict):
+            builder_params = copy.deepcopy(builder)
+            builder_method = builder_params.pop("method")
+            builder = registers.create(
+                "builder", builder_method, convert_name=True, **builder_params
+            )
+        else: # variable
+            builder = builder.value
+        # - worker
+        if isinstance(worker, dict):
+            worker_params = copy.deepcopy(worker)
+            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+        else: # computer variable
+            worker = worker.value[0]
+        engine = self._create_engine(builder, worker, params, directory, *args, **kwargs)
         super().__init__(initial_value=engine, directory=directory)
 
         return
     
-    def _create_engine(self, builder, params, directory, *args, **kwargs):
+    def _create_engine(self, builder, worker, params, directory, *args, **kwargs):
         """"""
-        engine = GeneticAlgorithemEngine(builder, params, directory, *args, **kwargs)
+        engine = GeneticAlgorithemEngine(builder, worker, params, directory, *args, **kwargs)
 
         return engine
 
@@ -129,7 +144,8 @@ class GeneticAlgorithemEngine():
         # - worker info
         #self._print("\n\n===== register worker =====")
         if isinstance(worker, dict):
-            ...
+            worker_params = copy.deepcopy(worker)
+            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
         else:
             ...
         self.worker = worker
@@ -598,6 +614,18 @@ class GeneticAlgorithemEngine():
             raise RuntimeError(f"Unknown target {target}...")
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        engine_params = {}
+        engine_params["method"] = "genetic_algorithm"
+        engine_params["builder"] = self.generator.as_dict()
+        engine_params["worker"] = self.worker.as_dict()
+        engine_params["params"] = self.ga_dict
+
+        engine_params = copy.deepcopy(engine_params)
+
+        return engine_params
 
 if __name__ == "__main__":
     ...

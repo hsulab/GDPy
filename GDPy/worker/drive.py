@@ -7,6 +7,7 @@ import pathlib
 import shutil
 import time
 from typing import Tuple, List, NoReturn, Union
+import tempfile
 import yaml
 
 import numpy as np
@@ -187,12 +188,11 @@ class DriverBasedWorker(AbstractWorker):
         # -- get MD5 of current input structures
         # NOTE: if two jobs start too close,
         #       there may be conflicts in checking structures
-        write(
-            processed_dpath/"_frames.xyz", frames, columns=["symbols", "positions", "move_mask"]
-        )
-        with open(processed_dpath/"_frames.xyz", "rb") as fopen:
-            curr_md5 = get_file_md5(fopen)
-        (processed_dpath/"_frames.xyz").unlink() # remove temp data
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
+            write(tmp.name, frames, columns=["symbols", "positions", "move_mask"])
+
+            with open(tmp.name, "rb") as fopen:
+                curr_md5 = get_file_md5(fopen)
 
         _info_data = self._read_cached_info()
 
@@ -527,6 +527,17 @@ class DriverBasedWorker(AbstractWorker):
             a.info["wdir"] = str(wdir.name)
         
         return traj_frames
+    
+    def as_dict(self) -> dict:
+        """"""
+        worker_params = {}
+        worker_params["potter"] = self.potter.as_dict()
+        worker_params["driver"] = self.driver.as_dict()
+        worker_params["scheduler"] = self.scheduler.as_dict()
+
+        worker_params = copy.deepcopy(worker_params)
+
+        return worker_params
 
 class QueueDriverBasedWorker(DriverBasedWorker):
 
