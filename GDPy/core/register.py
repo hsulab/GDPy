@@ -27,9 +27,8 @@ class Register:
             return value
 
         if callable(target):
-            # @reg.register
             return add(None, target)
-        # @reg.register('alias')
+
         return lambda x: add(target, x)
 
     def __getitem__(self, key):
@@ -80,6 +79,9 @@ class registers:
     #: Selectors.
     selector: Register = Register("selector")
 
+    #: Comparators.
+    comparator: Register = Register("comparator")
+
     #: Validators.
     validator: Register = Register("validator")
 
@@ -91,7 +93,8 @@ class registers:
         """Acquire the target class from modules."""
         # - convert the cls_name by the internal convention
         if convert_name:
-            cls_name = cls_name.capitalize() + mod_name.capitalize()
+            #cls_name = cls_name.capitalize() + mod_name.capitalize()
+            cls_name = "".join([x.capitalize() for x in cls_name.strip().split("_")]) + mod_name.capitalize()
 
         # - get the class
         curr_register = getattr(registers, mod_name)
@@ -134,8 +137,12 @@ ALL_MODULES = [
     ("GDPy.builder", ["direct", "dimer", "species", "hypercube", "randomBuilder"]),
     # -- modifiers
     ("GDPy.builder", ["perturbator"]),
+    # -- genetic-algorithm-related
+    ("GDPy.builder", ["crossover", "mutation"]),
     # -- selectors
     ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
+    # -- comparators
+    ("GDPy.comparator", ["interface"]),
     # -- reactors
     ("GDPy.reactor", ["afir"]),
     # -- validators

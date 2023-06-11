@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import inspect
 import time
 from random import random
 import pathlib
 from pathlib import Path
-from typing import Callable
-import importlib
+from typing import Callable, List
 import warnings
 import logging
 
@@ -21,7 +21,8 @@ from ase.io import read, write
 from ase.ga.data import PrepareDB, DataConnection
 from ase.ga.population import Population
 from ase.ga.offspring_creator import OperationSelector
-from GDPy.ga.population import AbstractPopulationManager
+
+from GDPy.routine.ga.population import AbstractPopulationManager
 
 from GDPy.core.register import registers
 
@@ -77,11 +78,16 @@ class GeneticAlgorithemEngine():
     find_neighbors = None
     perform_parametrization = None
 
-    def __init__(self, ga_dict: dict, directroy=Path.cwd(), *args, **kwargs):
+    def __init__(self, ga_dict: dict, directroy=Path.cwd(), random_seed=None, *args, **kwargs):
         """"""
         # - 
         self.directory = directroy
         self._init_logger()
+
+        if random_seed is None:
+            random_seed = np.random.randint(0, 10000)
+        self.random_seed = random_seed
+        self.rng = np.random.default_rng(seed=random_seed)
 
         # - 
         self.ga_dict = copy.deepcopy(ga_dict)
@@ -520,116 +526,76 @@ class GeneticAlgorithemEngine():
 
         return
     
-    def __get_operator(self, operators, settings, default_op):
-        """ comparator, crossover, mutation
+    def _create_operator(self, op_params: dict, specific_params: dict, mod_name: str, convert_name=False):
+        """ Create operators such as comparator, crossover, and mutation.
+
+        Args:
+            op_params: Operator parameters loaded from input file.
+            specific_params: Operator parameters obtained based on system.
+
         """
-        #self._print("operators: ", operators)
-        #comp_settings = op_dict.get(section, None)
-        if settings is not None:
-            # - get operator
-            op_name = settings.get("name", None)
-            assert op_name is not None, f"No op name is provided."
-            kwargs = settings.get("kwargs", None)
-        else:
-            op_name = default_op
-            kwargs = None
+        op_params = copy.deepcopy(op_params)
+        method = op_params.pop("method", None)
+        if method is None:
+            raise RuntimeError(f"There is no operator {method}.")
+        op_cls = registers.get(mod_name, method, convert_name=convert_name)
+        init_args = inspect.getargspec(op_cls.__init__).args[1:] # skip self
+        for k, v in specific_params.items():
+            if k in init_args:
+                op_params.update(**{k: v})
+        op = op_cls(**op_params)
 
-        #self._print(f"use {op_name}")
-        op_obj = getattr(operators, op_name)
-        default_params = getattr(operators, op_obj.__name__+"_params")
-
-        return op_obj, default_params, kwargs
+        return op
     
     def _register_operators(self):
         """ register various operators
             comparator, pairing, mutations
         """
-        op_dict = self.ga_dict.get("operators", None)
+        op_dict = copy.deepcopy(self.ga_dict.get("operators", None))
         if op_dict is None:
             op_dict = {
                 "comparator": {"name": "InteratomicDistanceComparator"},
                 "crossover": {"name": "CutAndSplicePairing"}
             }
-        operators = importlib.import_module("GDPy.ga.operators")
+
+        specific_params = dict(
+            slab = self.slab,
+            n_top = self.n_to_optimize,
+            blmin = self.blmin,
+            number_of_variable_cell_vectors = self.generator.number_of_variable_cell_vectors,
+            cell_bounds = self.generator.cell_bounds,
+            test_dist_to_slab = self.generator.test_dist_to_slab,
+            use_tags = self.use_tags,
+            used_modes_file = self.directory/self.CALC_DIRNAME/"used_modes.json",
+            rng = self.rng
+        )
 
         # --- comparator
-        comparator, params, kwargs = self.__get_operator(
-            operators, op_dict.get("comparator", None), 
-            "InteratomicDistanceComparator"
-        )
-        # - update params based on this system
-        if "n_top" in params.keys():
-            params["n_top"] = self.n_to_optimize
-        if isinstance(kwargs, dict):
-            params.update(**kwargs)
-        self.comparing = comparator(**params)
+        comp_params = op_dict.get("comparator", None)
+        self.comparing = self._create_operator(comp_params, specific_params, "comparator", convert_name=True)
 
         self._print("--- comparator ---")
-        self._print(f"Use comparator {comparator.__name__}.")
+        self._print(f"Use comparator {self.comparing.__class__.__name__}.")
 
         # --- crossover
-        #self._print("operators: ", operators)
-        crossover, params, kwargs = self.__get_operator(
-            operators, op_dict.get("crossover", None), 
-            "CutAndSplicePairing"
-        )
-        if "slab" in params.keys():
-            params["slab"] = self.slab
-        if "n_top" in params.keys():
-            params["n_top"] = self.n_to_optimize
-        if "blmin" in params.keys():
-            params["blmin"] = self.blmin
-        if "number_of_variable_cell_vectors" in params.keys():
-            params["number_of_variable_cell_vectors"] = self.generator.number_of_variable_cell_vectors
-        if "cellbounds" in params.keys():
-            params["cellbounds"] = self.generator.cell_bounds
-        if "test_dist_to_slab" in params.keys():
-            params["test_dist_to_slab"] = self.generator.test_dist_to_slab
-        if "use_tags" in params.keys():
-            params["use_tags"] = self.use_tags
-        if isinstance(kwargs, dict):
-            params.update(**kwargs)
-        #self._print("pairing params: ")
-        #for k, v in params.items():
-        #    self._print(k, "->", v)
-        self.pairing = crossover(**params)
-        #self.pairing = CutAndSplicePairing(self.slab, self.n_to_optimize, self.blmin)
+        crossover_params = op_dict.get("crossover", None)
+        self.pairing = self._create_operator(crossover_params, specific_params, "builder", convert_name=False)
 
         self._print("--- crossover ---")
-        self._print(f"Use crossover {crossover.__name__}.")
+        self._print(f"Use crossover {self.pairing.__class__.__name__}.")
         #self._print("pairing: ", self.pairing)
 
         # --- mutations
         mutations, probs = [], []
         mutation_list = op_dict.get("mutation", [])
-        #self._print(mutation_list)
+        self._print(mutation_list)
         if not isinstance(mutation_list, list):
             mutation_list = [mutation_list]
-        for mut_settings in mutation_list:
-            mut, params, kwargs = self.__get_operator(
-                operators, mut_settings, "RattleMutation"
-            )
-            if "n_top" in params.keys():
-                params["n_top"] = self.n_to_optimize
-            if "blmin" in params.keys():
-                params["blmin"] = self.blmin
-            if "use_tags" in params.keys():
-                params["use_tags"] = self.use_tags
-            if "cellbounds" in params.keys():
-                params["cellbounds"] = self.generator.cell_bounds
-            if "number_of_variable_cell_vectors" in params.keys():
-                params["number_of_variable_cell_vectors"] = self.generator.number_of_variable_cell_vectors
-            if "used_modes_file" in params.keys():
-                params["used_modes_file"] = self.directory/self.CALC_DIRNAME/"used_modes.json"
-            # NOTE: check this mutation whether valid for this system
-            if kwargs is None:
-                prob = 1.0
-            else:
-                prob = kwargs.pop("prob", 1.0)
+        for mut_params in mutation_list:
+            prob = mut_params.pop("prob", 1.0)
             probs.append(prob)
-            if isinstance(kwargs, dict):
-                params.update(**kwargs)
-            mutations.append(mut(**params))
+            mut = self._create_operator(mut_params, specific_params, "builder", convert_name=False)
+            mutations.append(mut)
 
         self._print("--- mutations ---")
         #self._print(f"mutation probability: {self.pmut}")
