@@ -155,16 +155,16 @@ def main():
         "routine", help="run a routine (e.g. GA and MC)"
     )
     parser_routine.add_argument(
-        "params",
+        "CONFIG",
         help="json/yaml file that stores parameters for a task"
     )
+    #parser_routine.add_argument(
+    #    "--run", default=1, type=int,
+    #    help="running options"
+    #)
     parser_routine.add_argument(
-        "--run", default=1, type=int,
-        help="running options"
-    )
-    parser_routine.add_argument(
-        "--report", action="store_true", # TODO: analysis config file
-        help="report options"
+        "--wait", default=None, type=float,
+        help="wait time after each run"
     )
 
     # selection
@@ -261,8 +261,9 @@ def main():
         from GDPy.worker.interface import run_worker
         run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
     elif args.subcommand == "routine":
-        from GDPy.routine.task import run_routine
-        run_routine(args.params, potter, args.run, args.report)
+        from .routine.interface import run_routine
+        params = parse_input_file(args.CONFIG)
+        run_routine(params, args.wait, args.directory)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
         run_validation(args.directory, args.INPUTS, potter)
