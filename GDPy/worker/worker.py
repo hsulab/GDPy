@@ -5,7 +5,7 @@ import abc
 import uuid
 import copy
 import pathlib
-from typing import NoReturn
+from typing import NoReturn, Callable
 import logging
 
 from tinydb import TinyDB, Query
@@ -30,6 +30,9 @@ class AbstractWorker(abc.ABC):
     UUIDLEN = 36 # length of uuid
 
     logger = None
+
+    _print: Callable = print
+    _debug: Callable = print
 
     _directory = None
     _scheduler = None

@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*
 
 import pathlib
+import time
 
-from GDPy.utils.command import parse_input_file
-
+from ..utils.command import parse_input_file
 from ..core.operation import Operation
+from ..core.register import registers
+from ..worker.explore import RoutineBasedWorker
 
 
 """
@@ -28,50 +30,49 @@ class routine(Operation):
         
         """
         super().forward()
-        routine.directory = self.directory
-        print(routine)
-        routine.run()
 
-        return
+        # - 
+        basic_workers = []
+        
+        # - run routine with a worker
+        worker = RoutineBasedWorker(routine, scheduler)
+        worker.directory = self.directory
 
-
-def run_routine(params, pot_worker=None, directory="./", run=1, report=False):
-    """ task = worker + workflow
-        GA - population
-        MC - TODO: a single driver?
-    """
-    directory = pathlib.Path(directory)
-
-    params = parse_input_file(params)
-
-    task = params.pop("task", None)
-    if task == "ga":
-        from GDPy.routine.ga.engine import GeneticAlgorithemEngine
-        ga = GeneticAlgorithemEngine(params)
-        ga.directory = directory
-        if report:
-            ga.report()
+        worker.run()
+        worker.inspect(resubmit=True)
+        if worker.get_number_of_running_jobs() == 0:
+            basic_workers = worker.retrieve(ignore_retrieved=True)
+            # print("basic_workers: ", basic_workers)
+            # for w in basic_workers:
+            #     print(w.directory)
+            self.status = "finished"
         else:
-            ga.run(pot_worker, run)
-            if ga.read_convergence():
-                ga.report()
-    # TODO: merge all MC methods togather
-    elif task == "mc":
-        from GDPy.routine.mc import MonteCarlo
-        mc = MonteCarlo(**params)
-        mc.run(pot_worker, run)
-    elif task == "gcmc":
-        from GDPy.routine.mc.gcmc import GCMC
-        gcmc = GCMC(**params)
-        gcmc.run(pot_worker, run)
-        # TODO: add report functions to MC simulations
-    elif task == "rxn":
-        from GDPy.reaction.afir import AFIRSearch
-        rxn = AFIRSearch(**params)
-        rxn.run(pot_worker)
-        ...
+            ...
+
+        return basic_workers
+
+
+def run_routine(config_params: dict, wait: float=None, directory="./"):
+    """"""
+    directory = pathlib.Path("./")
+
+    method = config_params.pop("method")
+    routine = registers.create("variable", method, convert_name=True, **config_params).value
+
+    routine.directory = directory
+
+    if wait is not None:
+        for i in range(1000):
+            routine.run()
+            if routine.read_convergence():
+                break
+            time.sleep(wait)
+            print(f"wait {wait} seconds...")
+        else:
+            ...
     else:
-        raise NotImplementedError(f"Cant find task {task}")
+        routine.run()
+        ...
 
     return
 

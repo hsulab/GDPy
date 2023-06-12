@@ -103,6 +103,9 @@ class GeneticAlgorithemEngine():
     # local optimisation directory
     CALC_DIRNAME = "tmp_folder"
 
+    #: Prefix of each generation's directory.
+    GEN_PREFIX: str = "gen"
+
     # TODO: Neighbor list and parametrization parameters to screen
     # candidates before relaxation can be added. Default is not to use.
     find_neighbors = None
@@ -212,7 +215,7 @@ class GeneticAlgorithemEngine():
 
     def report(self):
         self._print("restart the database...")
-        self.__restart()
+        self.da = DataConnection(self.db_path)
         results = self.directory/"results"
         if not results.exists():
             results.mkdir()
@@ -281,12 +284,9 @@ class GeneticAlgorithemEngine():
         if not self.db_path.exists():
             self._print("----- create a new database -----")
             self._create_initial_population()
-            # make calculation dir
-            self._print("----- create a new tmp_folder -----")
-            self.__initialise()
         else:
             self._print("restart the database...")
-            self.__restart()
+            self.da = DataConnection(self.db_path)
 
         # --- mutation and comparassion operators
         self._print("\n\n===== register operators =====")
@@ -309,11 +309,7 @@ class GeneticAlgorithemEngine():
     def _check_generation(self):
         """"""
         # --- check current generation number
-        self._print("\n\n===== Generation Info =====")
-
         self.cur_gen = self.da.get_generation_number()
-        self._print(f"current generation number: {self.cur_gen}")
-
         # output a few info
         unrelaxed_strus_gen_ = list(self.da.c.select("relaxed=0,generation=%d" %self.cur_gen))
         unrelaxed_strus_gen = []
@@ -321,29 +317,34 @@ class GeneticAlgorithemEngine():
             # NOTE: mark_as_queue unrelaxed_candidate will have relaxed field too...
             if "queued" not in row:
                 unrelaxed_strus_gen.append(row)
-        unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
-        self.num_unrelaxed_gen = len(unrelaxed_confids)
+        self.unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
+        self.num_unrelaxed_gen = len(self.unrelaxed_confids)
 
         relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" %self.cur_gen))
         for row in relaxed_strus_gen:
-            print(row)
-        relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
-        self.num_relaxed_gen = len(relaxed_confids)
+            self._debug(row)
+        self.relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
+        self.num_relaxed_gen = len(self.relaxed_confids)
 
         # check if this is the end of the current generation
-        self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen)
-
-        self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
-        self._print(convert_indices(sorted(relaxed_confids)))
-        self._print(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
-        self._print(convert_indices(sorted(unrelaxed_confids)))
-        self._print(f"end of current generation: {self.end_of_gen}")
+        self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen != 0)
 
         return
 
     def _irun(self):
         """ main procedure
         """
+        if not hasattr(self, "cur_gen"):
+            raise RuntimeError("The current genertion is unknown. Check generation before.")
+        # - generation
+        self._print("\n\n===== Generation Info =====")
+        self._print(f"current generation number: {self.cur_gen}")
+        self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
+        self._print(convert_indices(sorted(self.relaxed_confids)))
+        self._print(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
+        self._print(convert_indices(sorted(self.unrelaxed_confids)))
+        self._print(f"end of current generation: {self.end_of_gen}")
+
         # - population
         self._print("\n\n===== Population Info =====")
         content = "For generation > 0,\n"
@@ -447,26 +448,30 @@ class GeneticAlgorithemEngine():
 
         return curr_convergence
     
-    def __initialise(self):
-        # get basic system information
-        self.n_to_optimize = len(self.da.get_atom_numbers_to_optimize())
-        self.slab = self.da.get_slab()
+    def get_workers(self):
+        """Get all workers used by this routine."""
+        if not hasattr(self, "da"):
+            self.da = DataConnection(self.db_path)
+            self._check_generation()
+        
+        num_gen = self.cur_gen
+        if self.end_of_gen:
+            num_gen += 1
+        
+        workers = []
+        for i in range(num_gen):
+            curr_worker = copy.deepcopy(self.worker)
+            curr_worker.directory = self.directory/self.CALC_DIRNAME/(f"{self.GEN_PREFIX}{i}")
+            workers.append(curr_worker)
 
-        return
-
-    def __restart(self):
-        """"""
-        # basic system info
-        self.da = DataConnection(self.db_path)
-
-        # get basic system information
-        self.__initialise()
-
-        return
+        return workers
     
     def read_convergence(self):
         """ check whether the search is converged
         """
+        if not hasattr(self, "cur_gen"):
+            self.da = DataConnection(self.db_path)
+            self._check_generation()
         max_gen = self.conv_dict["generation"]
         if self.cur_gen > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
             return True
@@ -506,8 +511,8 @@ class GeneticAlgorithemEngine():
             }
 
         specific_params = dict(
-            slab = self.slab,
-            n_top = self.n_to_optimize,
+            slab = self.da.get_slab(),
+            n_top = len(self.da.get_atom_numbers_to_optimize()),
             blmin = self.generator.blmin,
             number_of_variable_cell_vectors = self.generator.number_of_variable_cell_vectors,
             cell_bounds = self.generator.cell_bounds,
