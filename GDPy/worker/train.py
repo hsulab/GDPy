@@ -11,7 +11,7 @@ import yaml
 
 import numpy as np
 
-from tinydb import Query
+from tinydb import Query, TinyDB
 
 from GDPy.worker.worker import AbstractWorker
 from GDPy.potential.trainer import AbstractTrainer
@@ -47,7 +47,10 @@ class TrainWorker(AbstractWorker):
             train_dirs.append(train_dir)
 
         # - read metadata from file or database
-        queued_jobs = self.database.search(Query().queued.exists())
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         
         scheduler.user_commands = "\n".join(
@@ -73,7 +76,10 @@ class TrainWorker(AbstractWorker):
                 # train directly
                 run_command(str(train_dir), self.potter.train_command)
                 run_command(str(train_dir), self.potter.freeze_command)
-            self.database.insert(dict(gdir=job_name, queued=True))
+            with TinyDB(
+                self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            ) as database:
+                database.insert(dict(gdir=job_name, queued=True))
 
         return
     
@@ -106,7 +112,10 @@ class TrainerBasedWorker(AbstractWorker):
         scheduler = self.scheduler
 
         # - read metadata from file or database
-        queued_jobs = self.database.search(Query().queued.exists())
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            queued_jobs = database.search(Query().queued.exists())
         #queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         #queued_frames = [q["md5"] for q in queued_jobs]
 
@@ -150,15 +159,18 @@ class TrainerBasedWorker(AbstractWorker):
                     self.logger.info(f"{wdir.name} waits to submit.")
                 
                 # - update database
-                _ = self.database.insert(
-                    dict(
-                        uid = uid,
-                        gdir=job_name, 
-                        group_number=i, 
-                        wdir_names=[wdir.name], 
-                        queued=True
+                with TinyDB(
+                    self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+                ) as database:
+                    _ = database.insert(
+                        dict(
+                            uid = uid,
+                            gdir=job_name, 
+                            group_number=i, 
+                            wdir_names=[wdir.name], 
+                            queued=True
+                        )
                     )
-                )
             ...
 
         return
@@ -169,24 +181,28 @@ class TrainerBasedWorker(AbstractWorker):
         self._debug(f"@@@{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
-        for job_name in running_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            uid = doc_data["uid"]
 
-            self.scheduler.job_name = job_name
-            self.scheduler.script = self.directory/"train.script"
-            
-            if self.scheduler.is_finished():
-                # -- check if the job finished properly
-                #self.trainer.directory = self.directory
-                if True:
-                    self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in running_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                uid = doc_data["uid"]
+
+                self.scheduler.job_name = job_name
+                self.scheduler.script = self.directory/"train.script"
+
+                if self.scheduler.is_finished():
+                    # -- check if the job finished properly
+                    #self.trainer.directory = self.directory
+                    if True:
+                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                    else:
+                        if resubmit:
+                            jobid = self.scheduler.submit()
+                            self.logger.info(f"{job_name} is re-submitted with JOBID {jobid}.")
                 else:
-                    if resubmit:
-                        jobid = self.scheduler.submit()
-                        self.logger.info(f"{job_name} is re-submitted with JOBID {jobid}.")
-            else:
-                self._print(f"{job_name} is running...")
+                    self._print(f"{job_name} is running...")
 
         return
     
@@ -206,11 +222,14 @@ class TrainerBasedWorker(AbstractWorker):
         else:
             unretrieved_jobs = self._get_finished_jobs()
 
-        for job_name in unretrieved_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            unretrieved_wdirs_.extend(
-                (self.directory/w).resolve() for w in doc_data["wdir_names"]
-            )
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in unretrieved_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                unretrieved_wdirs_.extend(
+                    (self.directory/w).resolve() for w in doc_data["wdir_names"]
+                )
         unretrieved_wdirs = unretrieved_wdirs_
 
         results = []
@@ -221,9 +240,12 @@ class TrainerBasedWorker(AbstractWorker):
                 self.trainer.directory = p
                 results.append(self.trainer.freeze())
 
-        for job_name in unretrieved_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            self.database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in unretrieved_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results
     

@@ -83,60 +83,17 @@ class AbstractWorker(abc.ABC):
 
         return
     
-    @property
-    def database(self):
+    #@property
+    #def database(self):
 
-        return self._database
+    #    return self._database
     
-    @database.setter
-    def database(self, database_):
-        self._database = database_
+    #@database.setter
+    #def database(self, database_):
+    #    self._database = database_
 
-        return 
-    
-    def _init_database(self):
-        """"""
-        self.database = TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-        )
+    #    return 
 
-        return
-    
-    def _init_logger(self):
-        """"""
-        self.logger = logging.getLogger(__name__)
-
-        log_level = logging.INFO
-
-        self.logger.setLevel(log_level)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
-        # - stream
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-
-        # -- avoid duplicate stream handlers
-        for handler in self.logger.handlers:
-            if isinstance(handler, logging.StreamHandler):
-                break
-        else:
-            self.logger.addHandler(ch)
-
-        # - file
-        log_fpath = self.directory/(self.__class__.__name__+".out")
-        if log_fpath.exists():
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-        fh.setLevel(log_level)
-        self.logger.addHandler(fh)
-        #fh.setFormatter(formatter)
-
-        return
     
     def _initialise(self, *args, **kwargs):
         """"""
@@ -145,10 +102,6 @@ class AbstractWorker(abc.ABC):
         else:
             ...
         assert self.directory, "Working directory is not set properly..."
-        self._init_database()
-        #if self.logger is None:
-        #    self._init_logger()
-        self._init_logger()
 
         return
     
@@ -156,14 +109,14 @@ class AbstractWorker(abc.ABC):
     def run(self, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self.logger.info(f"@@@{self.__class__.__name__}+run")
+        self._print(f"~~~{self.__class__.__name__}+run")
         return
 
     def inspect(self, *args, **kwargs):
         """ check if any job were finished
         """
         self._initialise(*args, **kwargs)
-        self.logger.info(f"@@@{self.__class__.__name__}+inspect")
+        self._print(f"~~~{self.__class__.__name__}+inspect")
 
         scheduler = self.scheduler
 
@@ -175,45 +128,52 @@ class AbstractWorker(abc.ABC):
 
             info_name = job_name[self.UUIDLEN+1:]
             if scheduler.is_finished():
-                self.logger.info(f"{info_name} at {self.directory.name} is finished...")
-                doc_data = self.database.get(Query().gdir == job_name)
-                self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                self._print(f"{info_name} at {self.directory.name} is finished...")
+                with TinyDB(
+                    self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+                ) as database:
+                    doc_data = database.get(Query().gdir == job_name)
+                    database.update({"finished": True}, doc_ids=[doc_data.doc_id])
             else:
-                self.logger.info(f"{info_name} at {self.directory.name} is running...")
+                self._print(f"{info_name} at {self.directory.name} is running...")
 
         return
 
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+inspect")
+        self._debug(f"~~~{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
-        for job_name in running_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            uid = doc_data["uid"]
 
-            self.scheduler.job_name = job_name
-            self.scheduler.script = self.directory/self._script_name
-            
-            if self.scheduler.is_finished():
-                # -- check if the job finished properly
-                # read_convergence
-                if True:
-                    self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in running_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                uid = doc_data["uid"]
+
+                self.scheduler.job_name = job_name
+                self.scheduler.script = self.directory/self._script_name
+
+                if self.scheduler.is_finished():
+                    # -- check if the job finished properly
+                    # read_convergence
+                    if True:
+                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                    else:
+                        if resubmit:
+                            jobid = self.scheduler.submit()
+                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                 else:
-                    if resubmit:
-                        jobid = self.scheduler.submit()
-                        self.logger.info(f"{job_name} is re-submitted with JOBID {jobid}.")
-            else:
-                self._print(f"{job_name} is running...")
+                    self._print(f"{job_name} is running...")
 
         return
     
     def retrieve(self, *args, **kwargs):
         """"""
         self.inspect(*args, **kwargs)
-        self.logger.info(f"@@@{self.__class__.__name__}+retrieve")
+        self._print(f"~~~{self.__class__.__name__}+retrieve")
 
         gdirs, results = [], []
 
@@ -227,57 +187,67 @@ class AbstractWorker(abc.ABC):
         if gdirs:
             results = self._read_results(gdirs, *args, **kwargs)
 
-        for job_name in unretrieved_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            self.database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in unretrieved_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results
 
     def _get_running_jobs(self):
         """"""
-        self._initialise()
-        running_jobs = self.database.search(
-            Query().queued.exists() & (~Query().finished.exists())
-        )
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            running_jobs = database.search(
+                Query().queued.exists() & (~Query().finished.exists())
+            )
         running_jobs = [r["gdir"] for r in running_jobs]
 
         return running_jobs
 
     def _get_finished_jobs(self):
         """"""
-        self._initialise()
-        finished_jobs = self.database.search(
-            Query().queued.exists() & (Query().finished.exists())
-        )
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            finished_jobs = database.search(
+                Query().queued.exists() & (Query().finished.exists())
+            )
         finished_jobs = [r["gdir"] for r in finished_jobs]
 
         return finished_jobs
     
     def _get_retrieved_jobs(self):
         """"""
-        self._initialise()
-        retrieved_jobs = self.database.search(
-            Query().queued.exists() & (Query().finished.exists()) &
-            Query().retrieved.exists()
-        )
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            retrieved_jobs = database.search(
+                Query().queued.exists() & (Query().finished.exists()) &
+                Query().retrieved.exists()
+            )
         retrieved_jobs = [r["gdir"] for r in retrieved_jobs]
 
         return retrieved_jobs
     
     def _get_unretrieved_jobs(self):
         """"""
-        self._initialise()
-        unretrieved_jobs = self.database.search(
-            (Query().queued.exists() & Query().finished.exists()) &
-            (~Query().retrieved.exists())
-        )
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            unretrieved_jobs = database.search(
+                (Query().queued.exists() & Query().finished.exists()) &
+                (~Query().retrieved.exists())
+            )
         unretrieved_jobs = [r["gdir"] for r in unretrieved_jobs]
 
         return unretrieved_jobs
     
     def get_number_of_running_jobs(self):
         """"""
-        self._initialise()
         running_jobs = self._get_running_jobs()
 
         return len(running_jobs)

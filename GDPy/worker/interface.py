@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import itertools
 import pathlib
 from typing import NoReturn, List
 
@@ -14,8 +15,12 @@ from ase.geometry import find_mic
 from GDPy.core.operation import Operation
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
-from GDPy.worker.worker import AbstractWorker
-from GDPy.worker.drive import DriverBasedWorker
+
+from .worker import AbstractWorker
+from .drive import (
+    DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
+)
+from .single import SingleWorker
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -26,14 +31,14 @@ class WorkerVariable(Variable):
     """Create a single worker from a dict.
     """
 
-    def __init__(self, potter, driver, scheduler={}, batchsize=1, directory="./", *args, **kwargs):
+    def __init__(self, potter, driver, scheduler={}, batchsize=1, use_single=False, directory="./", *args, **kwargs):
         """"""
-        worker = self._create_worker(potter, driver, scheduler, batchsize)
+        worker = self._create_worker(potter, driver, scheduler, batchsize, use_single)
         super().__init__(initial_value=worker, directory=directory)
 
         return
     
-    def _create_worker(self, potter_params, driver_params, scheduler_params={}, batchsize=1):
+    def _create_worker(self, potter_params, driver_params, scheduler_params={}, batchsize=1, use_single=False):
         """"""
         # - potter
         potter_params = copy.deepcopy(potter_params)
@@ -58,16 +63,96 @@ class WorkerVariable(Variable):
         )
 
         if driver and scheduler:
-            if scheduler.name == "local":
-                from GDPy.worker.drive import CommandDriverBasedWorker as Worker
-                run_worker = Worker(potter, driver, scheduler)
+            if not use_single:
+                if scheduler.name == "local":
+                    from GDPy.worker.drive import CommandDriverBasedWorker as Worker
+                else:
+                    from GDPy.worker.drive import QueueDriverBasedWorker as Worker
             else:
-                from GDPy.worker.drive import QueueDriverBasedWorker as Worker
-                run_worker = Worker(potter, driver, scheduler)
+                from .single import SingleWorker as Worker
+
+            run_worker = Worker(potter, driver, scheduler)
         
         run_worker.batchsize = batchsize
 
         return run_worker
+
+@registers.variable.register
+class ComputerVariable(Variable):
+
+    def __init__(self, potter, driver, scheduler, custom_wdirs=None, use_single=False, *args, **kwargs):
+        """"""
+        workers = self._create_workers(
+            potter.value, driver.value, scheduler.value, 
+            custom_wdirs, use_single=use_single
+        )
+        super().__init__(workers)
+
+        # - save state by all nodes
+        self.potter = potter
+        self.driver = driver
+        self.scheduler = scheduler
+
+        self.custom_wdirs = None
+        self.use_single = use_single
+
+        return
+    
+    def _update_workers(self, potter_node):
+        """"""
+        if isinstance(potter_node, Variable):
+            potter = potter_node.value
+        elif isinstance(potter_node, Operation):
+            # TODO: ...
+            node = potter_node
+            if node.preward():
+                node.inputs = [input_node.output for input_node in node.input_nodes]
+                node.output = node.forward(*node.inputs)
+            else:
+                print("wait previous nodes to finish...")
+            potter = node.output
+        else:
+            ...
+        print("update manager: ", potter)
+        print(potter.calc.model_path)
+        workers = self._create_workers(
+            potter, self.driver.value, self.scheduler.value,
+            custom_wdirs=self.custom_wdirs
+        )
+        self.value = workers
+
+        return
+    
+    def _create_workers(self, potter, drivers, scheduler, custom_wdirs=None, use_single=False):
+        # - check if there were custom wdirs, and zip longest
+        ndrivers = len(drivers)
+        if custom_wdirs is not None:
+            wdirs = [pathlib.Path(p) for p in custom_wdirs]
+        else:
+            wdirs = [self.directory/f"w{i}" for i in range(ndrivers)]
+        
+        nwdirs = len(wdirs)
+        assert (nwdirs==ndrivers and ndrivers>1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
+        pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
+
+        # - create workers
+        # TODO: broadcast potters, schedulers as well?
+        workers = []
+        for wdir, driver_params in pairs:
+            # workers share calculator in potter
+            driver = potter.create_driver(driver_params)
+            if not use_single:
+                if scheduler.name == "local":
+                    worker = CommandDriverBasedWorker(potter, driver, scheduler)
+                else:
+                    worker = QueueDriverBasedWorker(potter, driver, scheduler)
+            else:
+                worker = SingleWorker(potter, driver, scheduler)
+            # wdir is temporary as it may be reset by drive operation
+            worker.directory = wdir
+            workers.append(worker)
+        
+        return workers
 
 
 def run_worker(
