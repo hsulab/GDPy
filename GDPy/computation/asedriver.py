@@ -102,6 +102,7 @@ class AseDriverSetting(DriverSetting):
         if self.task == "md":
             self._internals.update(
                 velocity_seed = self.velocity_seed,
+                ignore_atoms_velocities = self.ignore_atoms_velocities,
                 md_style = self.md_style,
                 timestep = self.timestep,
                 temperature_K = self.temp,
@@ -272,7 +273,7 @@ class AseDriver(AbstractDriver):
             rng = np.random.default_rng(velocity_seed)
 
             # - velocity
-            if atoms.get_kinetic_energy() > 0.:
+            if (not init_params_["ignore_atoms_velocties"] and atoms.get_kinetic_energy() > 0.):
                 # atoms have momenta
                 ...
             else:
@@ -280,10 +281,12 @@ class AseDriver(AbstractDriver):
                     atoms, temperature_K=init_params_["temperature_K"], rng=rng
                 )
                 if self.setting.remove_rotation:
-                    ZeroRotation(atoms, preserve_temperature=True)
+                    ZeroRotation(atoms, preserve_temperature=False)
                 if self.setting.remove_translation:
-                    Stationary(atoms, preserve_temperature=True)
-                force_temperature(atoms, init_params_["temperature_K"], unit="K") # NOTE: respect constraints
+                    Stationary(atoms, preserve_temperature=False)
+                # NOTE: respect constraints
+                #       ase code does not consider constraints
+                force_temperature(atoms, init_params_["temperature_K"], unit="K") 
 
             # - prepare args
             # TODO: move this part to setting post_init?

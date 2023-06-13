@@ -50,6 +50,9 @@ class DriverSetting:
 
     velocity_seed: int = None
 
+    #: Whether ignore atoms' velocities and initialise it from the scratch.
+    ignore_atoms_velocities: bool = False
+
     #: Whether remove rotation when init velocity.
     remove_rotation: bool = True
 

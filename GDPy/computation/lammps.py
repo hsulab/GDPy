@@ -163,6 +163,7 @@ class LmpDriverSetting(DriverSetting):
                 md_style = self.md_style,
                 timestep = self.timestep,
                 velocity_seed = self.velocity_seed,
+                ignore_atoms_velocities = self.ignore_atoms_velocities,
                 remove_rotation = self.remove_rotation,
                 remove_translation = self.remove_translation,
                 temp = self.temp,
@@ -377,8 +378,9 @@ class Lammps(FileIOCalculator):
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters: dict = dict(
         # ase params
-        constraint = None, # index of atoms, start from 0
         task = "min",
+        constraint = None, # index of atoms, start from 0
+        ignore_atoms_velocities = False,
         # --- lmp params ---
         units = "metal",
         atom_style = "atomic",
@@ -456,7 +458,7 @@ class Lammps(FileIOCalculator):
         # - check velocities
         self.write_velocities = False
         if atoms.get_kinetic_energy() > 0.:
-            self.write_velocities = True
+            self.write_velocities = (True and not self.ignore_atoms_velocities)
 
         # write structure
         stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
