@@ -5,7 +5,7 @@ import pathlib
 import uuid
 import yaml
 
-from tinydb import Query
+from tinydb import Query, TinyDB
 
 from .worker import AbstractWorker
 from ..scheduler.scheduler import AbstractScheduler
@@ -42,25 +42,25 @@ class RoutineBasedWorker(AbstractWorker):
         routine = self.routine
         scheduler = self.scheduler
 
-        if self.scheduler.name == "local":
-            routine.directory = self.directory
-            routine.run()
-        else:
-            size = 1
-            for i in range(size):
-                uid = str(uuid.uuid1())
-                job_name = uid + "-" + "routine" + "-" + f"{i}"
-                wdir = self.directory / ("routine" + "-" + f"{i}")
-                if not wdir.exists():
-                    wdir.mkdir(parents=True)
-                else:
-                    # TODO: better check
-                    continue
+        size = 1
+        for i in range(size):
+            uid = str(uuid.uuid1())
+            job_name = uid + "-" + "routine" + "-" + f"{i}"
+            wdir = self.directory / ("routine" + "-" + f"{i}")
+            if not wdir.exists():
+                wdir.mkdir(parents=True)
+            else:
+                # TODO: better check
+                continue
 
+            if self.scheduler.name == "local":
+                routine.directory = wdir
+                routine.run()
+            else:
                 routine_params = routine.as_dict()
                 with open(wdir/(f"routine-{uid}.yaml"), "w") as fopen:
                     yaml.safe_dump(routine_params, fopen)
-            
+
                 scheduler.job_name = job_name
                 scheduler.script = wdir/self._script_name
                 scheduler.user_commands = "gdp routine {} --wait {}".format(
@@ -68,12 +68,15 @@ class RoutineBasedWorker(AbstractWorker):
                 )
                 scheduler.write()
                 if self._submit:
-                    self.logger.info(f"{wdir.name}: {scheduler.submit()}")
+                    self._print(f"{wdir.name}: {scheduler.submit()}")
                 else:
-                    self.logger.info(f"{wdir.name} waits to submit.")
+                    self._print(f"{wdir.name} waits to submit.")
 
-                # - update database
-                _ = self.database.insert(
+            # - update database
+            with TinyDB(
+                self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            ) as database:
+                _ = database.insert(
                     dict(
                         uid = uid,
                         gdir=job_name, 
@@ -88,31 +91,35 @@ class RoutineBasedWorker(AbstractWorker):
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+inspect")
+        self._debug(f"~~~{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
-        for job_name in running_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            uid = doc_data["uid"]
 
-            print("doc_data: ", doc_data)
-            wdir = self.directory/doc_data["wdir_names"][0]
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in running_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                uid = doc_data["uid"]
 
-            self.scheduler.job_name = job_name
-            self.scheduler.script = wdir/"train.script"
-            
-            if self.scheduler.is_finished():
-                # -- check if the job finished properly
-                self.routine.directory = wdir
-                if self.routine.read_convergence():
-                    self.database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-                    self.logger.info(f"{job_name} finished.")
+                print("doc_data: ", doc_data)
+                wdir = self.directory/doc_data["wdir_names"][0]
+
+                self.scheduler.job_name = job_name
+                self.scheduler.script = wdir/"train.script"
+
+                if self.scheduler.is_finished():
+                    # -- check if the job finished properly
+                    self.routine.directory = wdir
+                    if self.routine.read_convergence():
+                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                        self._print(f"{job_name} finished.")
+                    else:
+                        if resubmit:
+                            jobid = self.scheduler.submit()
+                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                 else:
-                    if resubmit:
-                        jobid = self.scheduler.submit()
-                        self.logger.info(f"{job_name} is re-submitted with JOBID {jobid}.")
-            else:
-                self._print(f"{job_name} is running...")
+                    self._print(f"{job_name} is running...")
 
         return
     
@@ -120,7 +127,7 @@ class RoutineBasedWorker(AbstractWorker):
         """"""
         #raise NotImplementedError(f"{self.__class__.__name__}")
         self.inspect(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+retrieve")
+        self._debug(f"~~~{self.__class__.__name__}+retrieve")
 
         unretrieved_wdirs_ = []
         if not ignore_retrieved:
@@ -128,12 +135,15 @@ class RoutineBasedWorker(AbstractWorker):
         else:
             unretrieved_jobs = self._get_finished_jobs()
 
-        for job_name in unretrieved_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            unretrieved_wdirs_.extend(
-                (self.directory/w).resolve() for w in doc_data["wdir_names"]
-            )
-        unretrieved_wdirs = unretrieved_wdirs_
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in unretrieved_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                unretrieved_wdirs_.extend(
+                    (self.directory/w).resolve() for w in doc_data["wdir_names"]
+                )
+            unretrieved_wdirs = unretrieved_wdirs_
 
         workers = []
         if unretrieved_wdirs:
@@ -143,11 +153,15 @@ class RoutineBasedWorker(AbstractWorker):
                 self.routine.directory = p
                 workers.extend(self.routine.get_workers())
 
-        for job_name in unretrieved_jobs:
-            doc_data = self.database.get(Query().gdir == job_name)
-            self.database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
-
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            for job_name in unretrieved_jobs:
+                doc_data = database.get(Query().gdir == job_name)
+                database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+        
         return workers
+
 
 if __name__ == "__main__":
     ...

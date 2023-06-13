@@ -227,7 +227,7 @@ def main():
         params = parse_input_file(input_fpath=args.potential)
         potter = WorkerVariable(
             params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-            params.get("batchsize", 1)
+            params.get("batchsize", 1), params.get("use_single", False)
         ).value
 
     # - use subcommands

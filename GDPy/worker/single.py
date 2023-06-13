@@ -13,6 +13,7 @@ from ase.io import read, write
 
 from .worker import AbstractWorker
 from ..utils.command import CustomTimer
+from ..data.trajectory import Trajectories
 
 
 class SingleWorker(AbstractWorker):
@@ -100,7 +101,7 @@ class SingleWorker(AbstractWorker):
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+inspect")
+        self._debug(f"~~~{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
 
@@ -135,7 +136,7 @@ class SingleWorker(AbstractWorker):
 
         """
         self.inspect(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+retrieve")
+        self._debug(f"~~~{self.__class__.__name__}+retrieve")
 
         unretrieved_wdirs_ = []
         if not ignore_retrieved:
@@ -146,6 +147,7 @@ class SingleWorker(AbstractWorker):
         with TinyDB(
             self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
+            print(database.get(doc_id=1))
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_wdirs_.extend(
@@ -160,6 +162,7 @@ class SingleWorker(AbstractWorker):
                 for p in unretrieved_wdirs:
                     self.driver.directory = self.directory
                     results.append(self.driver.read_trajectory())
+                results = Trajectories(results)
 
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
