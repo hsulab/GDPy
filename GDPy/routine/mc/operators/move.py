@@ -13,7 +13,7 @@ from ase.ga.utilities import closest_distances_generator
 from GDPy.builder.group import create_a_group
 from GDPy.builder.species import build_species
 
-from GDPy.mc.operators.operator import AbstractOperator
+from .operator import AbstractOperator
 
 
 class MoveOperator(AbstractOperator):
@@ -41,6 +41,7 @@ class MoveOperator(AbstractOperator):
         """"""
         super().run(atoms)
 
+        # BUG: If there is no species in the system...
         species_indices = self._select_species(atoms, self.particles, rng=rng)
 
         # - basic
@@ -90,7 +91,7 @@ class MoveOperator(AbstractOperator):
                 self._print(f"succeed to random after {i+1} attempts...")
                 self._print(f"original position: {org_com}")
                 self._print(f"random position: {ran_pos}")
-                self._print(f"actual position: {np.average(atoms.positions[species_indices], axis=0)}")
+                self._print(f"actual position: {np.average(cur_atoms.positions[species_indices], axis=0)}")
                 break
             cur_atoms.positions[species_indices] = org_positions
         else:
@@ -110,10 +111,10 @@ class MoveOperator(AbstractOperator):
         overlapped = False
         nl.update(new_atoms)
         for idx_pick in species_indices:
-            self._print(f"- check index {idx_pick}")
+            #self._print(f"- check index {idx_pick}")
             indices, offsets = nl.get_neighbors(idx_pick)
             if len(indices) > 0:
-                self._print(f"nneighs: {len(indices)}")
+                #self._print(f"nneighs: {len(indices)}")
                 # should close to other atoms
                 for ni, offset in zip(indices, offsets):
                     dis = np.linalg.norm(new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, cell)))

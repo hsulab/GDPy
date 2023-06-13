@@ -1,15 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import pickle
+
 import numpy as np
 
 from ase import Atoms
 from ase import data, units
 
 from GDPy.builder.species import build_species
-from GDPy.mc.operators.move import MoveOperator
-from GDPy.mc.operators.swap import SwapOperator
-from GDPy.mc.operators.exchange import ExchangeOperator
+from .move import MoveOperator
+from .swap import SwapOperator
+from .exchange import ExchangeOperator
+
+def save_operator(op, p):
+    """"""
+    with open(p, "wb") as fopen:
+        pickle.dump(op, fopen)
+
+    return
+
+def load_operator(p):
+    """"""
+    with open(p, "rb") as fopen:
+        op = pickle.load(fopen)
+
+    return op
 
 def select_operator(operators: list, probs: list, rng=np.random):
     """Select an operator based on the relative probabilities."""

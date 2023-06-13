@@ -123,6 +123,19 @@ class AbstractOperator(abc.ABC):
         """Monte Carlo."""
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = {}
+        params["region"] = self.region.as_dict()
+        params["temperature"] = self.temperature
+        params["pressure"] = self.pressure
+        params["covalent_ratio"] = [self.covalent_min, self.covalent_max]
+        params["use_rotation"] = self.use_rotation
+
+        params = copy.deepcopy(params)
+
+        return params
 
 
 if __name__ == "__main__":

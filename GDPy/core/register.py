@@ -148,7 +148,7 @@ ALL_MODULES = [
     ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
     # -- comparators
     ("GDPy", ["comparator"]),
-    # -- comparators
+    # -- routines
     ("GDPy", ["routine"]),
     # -- reactors
     ("GDPy.reactor", ["afir"]),

@@ -4,6 +4,7 @@
 import copy
 import itertools
 from typing import NoReturn, List
+import yaml
 
 import numpy as np
 
@@ -16,7 +17,7 @@ from ase.ga.utilities import closest_distances_generator
 from GDPy.builder.group import create_a_group
 from GDPy.builder.species import build_species
 
-from GDPy.mc.operators.operator import AbstractOperator
+from .operator import AbstractOperator
 
 
 class ExchangeOperator(AbstractOperator):
@@ -24,17 +25,19 @@ class ExchangeOperator(AbstractOperator):
     MIN_RANDOM_TAG = 10000
     MAX_RANDOM_TAG = 100000
 
-    #: 
-    _curr_operation = None # insert or remove
+    #: The current suboperation (insert or remove).
+    _curr_operation: str = None # insert or remove
 
+    #: The current tags dict.
     _curr_tags_dict: dict = None
 
+    #: The current accpetable volume.
     _curr_volume: float = None
 
     def __init__(
-        self, region: str, reservoir: dict, temperature: float=300., pressure: float=1.,
-        covalent_ratio=[0.8,2.0], max_disp: float=2.0, use_rotation: bool=True,
-        use_bias: bool=True, *args, **kwargs
+        self, region: dict, reservoir: dict, temperature: float=300., pressure: float=1.,
+        covalent_ratio=[0.8,2.0], use_rotation: bool=True, use_bias: bool=True, 
+        *args, **kwargs
     ):
         """"""
         super().__init__(
@@ -46,7 +49,6 @@ class ExchangeOperator(AbstractOperator):
         self.species = reservoir["species"]
         self.mu = reservoir["mu"]
 
-        self.max_disp = max_disp
         self.use_bias = use_bias
 
         return
@@ -166,7 +168,7 @@ class ExchangeOperator(AbstractOperator):
         else:
             self._print("...insert...")
             self._curr_operation = "insert"
-            cur_atoms = self._insert(atoms, self._curr_tags_dict, self.species, rng)
+            cur_atoms = self._insert(atoms, self.species, rng)
 
         return cur_atoms
 
@@ -222,6 +224,8 @@ class ExchangeOperator(AbstractOperator):
         # - compute coefficient
         # -- determine number of exchangeable particles
         #print("miaow: ", self._curr_tags_dict)
+        if self.species not in self._curr_tags_dict:
+            self._curr_tags_dict[self.species] = []
         nexatoms = len(self._curr_tags_dict[self.species])
 
         # -- compute composed coefficient
@@ -233,7 +237,6 @@ class ExchangeOperator(AbstractOperator):
             ene_diff = curr_ene + self.mu - prev_ene
         else:
             raise RuntimeError(f"Unknown exchange operation {self._curr_operation}.")
-        print("coef: ", coef)
 
         acc_ratio = np.min([1.0, coef * np.exp(-beta*(ene_diff))])
 
@@ -257,11 +260,6 @@ class ExchangeOperator(AbstractOperator):
 
         return rn_move < acc_ratio
     
-    def as_dict(self):
-        """"""
-
-        return
-    
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
@@ -274,6 +272,17 @@ class ExchangeOperator(AbstractOperator):
 
         return content
 
+    def as_dict(self) -> dict:
+        """"""
+        params = super().as_dict()
+        params["reservoir"] = dict(
+            species = self.species,
+            mu = self.mu
+        )
+        params["use_bias"] = self.use_bias
+
+        return params
+    
 
 if __name__ == "__main__":
     ...

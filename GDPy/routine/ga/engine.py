@@ -59,7 +59,7 @@ Operators
 
 """
 
-@registers.variable.register
+
 class GeneticAlgorithmVariable(Variable):
 
     def __init__(self, builder, worker, params: dict, directory="./", *args, **kwargs) -> None:

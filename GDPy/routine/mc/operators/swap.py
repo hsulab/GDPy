@@ -13,7 +13,7 @@ from ase.ga.utilities import closest_distances_generator
 
 from GDPy.builder.species import build_species
 from GDPy.builder.group import create_a_group
-from GDPy.mc.operators.move import MoveOperator
+from .move import MoveOperator
 
 
 class SwapOperator(MoveOperator):
