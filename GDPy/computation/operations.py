@@ -185,8 +185,8 @@ class extract(Operation):
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories = worker.retrieve(
-                    ignore_retrieved=False, # TODO: ignore misleads...
-                ) # List[List[Atoms]] or List[Atoms] depends on read_traj
+                    include_retrieved=True, 
+                )
                 curr_trajectories.save_file(cached_trajs_dpath/"dataset.h5")
             else:
                 #if self.reduce_cand:

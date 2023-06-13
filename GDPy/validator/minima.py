@@ -67,7 +67,7 @@ class MinimaValidator(AbstractValidator):
                 if worker.get_number_of_running_jobs() == 0:
                     # -- get end frames
                     trajectories = worker.retrieve(
-                        ignore_retrieved=False,
+                        include_retrieved=True,
                     )
                     pred_frames = [t[-1] for t in trajectories]
                 else:

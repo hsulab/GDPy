@@ -206,18 +206,15 @@ class TrainerBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, ignore_retrieved: bool=False, *args, **kwargs):
+    def retrieve(self, include_retrieved: bool=False, *args, **kwargs):
         """Retrieve training results.
-
-        Args:
-            ignore_retrieved: Ignore the retrieved tag.
 
         """
         self.inspect(*args, **kwargs)
         self._debug(f"@@@{self.__class__.__name__}+retrieve")
 
         unretrieved_wdirs_ = []
-        if not ignore_retrieved:
+        if not include_retrieved:
             unretrieved_jobs = self._get_unretrieved_jobs()
         else:
             unretrieved_jobs = self._get_finished_jobs()

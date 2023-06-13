@@ -250,7 +250,7 @@ class SinglepointValidator(AbstractValidator):
                 worker.inspect(resubmit=True)
                 if worker.get_number_of_running_jobs() == 0:
                     pred_frames = worker.retrieve(
-                        ignore_retrieved=False,
+                        include_retrieved=True,
                     )
                 else:
                     # TODO: ...

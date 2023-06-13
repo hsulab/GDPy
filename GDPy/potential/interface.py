@@ -82,7 +82,7 @@ class train(Operation):
         _ = worker.run(dataset, size=self.size, init_models=self.init_models)
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
-            models = worker.retrieve(ignore_retrieved=True)
+            models = worker.retrieve(include_retrieved=True)
             print("frozen models: ", models)
             #manager = registers.create(
             #    "manager", trainer.name, convert_name=True

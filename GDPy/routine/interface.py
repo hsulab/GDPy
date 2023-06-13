@@ -41,7 +41,7 @@ class routine(Operation):
         worker.run()
         worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
-            basic_workers = worker.retrieve(ignore_retrieved=True)
+            basic_workers = worker.retrieve(include_retrieved=True)
             # print("basic_workers: ", basic_workers)
             # for w in basic_workers:
             #     print(w.directory)

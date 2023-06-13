@@ -403,11 +403,11 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, ignore_retrieved: bool=True, given_wdirs: List[str]=None, *args, **kwargs) -> Trajectories:
+    def retrieve(self, include_retrieved: bool=False, given_wdirs: List[str]=None, *args, **kwargs) -> Trajectories:
         """Read results from wdirs.
 
         Args:
-            ignore_retrieved: Whether include wdirs that are already retrieved.
+            include_retrieved: Whether include wdirs that are already retrieved.
                               Otherwise, all finished jobs are included.
 
         """
@@ -419,7 +419,7 @@ class DriverBasedWorker(AbstractWorker):
 
         # - check status and get latest results
         unretrieved_wdirs_ = []
-        if ignore_retrieved:
+        if not include_retrieved:
             unretrieved_jobs = self._get_unretrieved_jobs()
         else:
             unretrieved_jobs = self._get_finished_jobs()
