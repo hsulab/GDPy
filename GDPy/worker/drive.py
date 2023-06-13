@@ -81,6 +81,7 @@ def copy_minimal_frames(prev_frames: List[Atoms]):
             positions=copy.deepcopy(prev_atoms.get_positions()),
             cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
             pbc=copy.deepcopy(prev_atoms.get_pbc()),
+            momenta = prev_atoms.get_momenta(), # retain this for MD
             tags = prev_atoms.get_tags() # retain this for molecules
         )
         curr_frames.append(curr_atoms)
@@ -208,7 +209,8 @@ class DriverBasedWorker(AbstractWorker):
         else:
             # - save structures
             write(
-                processed_dpath/stored_fname, frames, columns=["symbols", "positions", "move_mask"]
+                processed_dpath/stored_fname, frames, 
+                columns=["symbols", "positions", "momenta", "tags", "move_mask"]
             )
             # - save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
