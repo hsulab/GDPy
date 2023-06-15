@@ -3,6 +3,7 @@
 
 import copy
 import itertools
+import pathlib
 from typing import NoReturn, List
 
 import numpy as np
@@ -108,6 +109,17 @@ class modify(Operation):
         self.status = "finished"
 
         return frames
+
+def build_structures(config: dict, size: int=1, directory="./"):
+    """"""
+    directory = pathlib.Path(directory)
+
+    builder = BuilderVariable(directory=directory, **config)
+    frames = builder.run(size=size)
+
+    write(directory/"strucures.xyz", frames)
+
+    return
 
 
 if __name__ == "__main__":

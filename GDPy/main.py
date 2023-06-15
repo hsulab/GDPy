@@ -64,6 +64,17 @@ def main():
         help="session placeholders"
     )
     
+    # - build structures
+    parser_build = subparsers.add_parser(
+        "build", help="build structures"
+    )
+    parser_build.add_argument(
+        "CONFIG", help="builder configuration file (json/yaml)"
+    )
+    parser_build.add_argument(
+        "-n", "--number", help="number of structures to build"
+    )
+    
     # - automatic training
     parser_train = subparsers.add_parser(
         "train", help="automatic training utilities"
@@ -240,6 +251,10 @@ def main():
     elif args.subcommand == "session":
         from GDPy.core.session import run_session
         run_session(args.SESSION, args.feed, args.directory)
+    elif args.subcommand == "build":
+        build_config = parse_input_file(args.CONFIG)
+        from .builder.interface import build_structures
+        build_structures(build_config, args.number, args.directory)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
