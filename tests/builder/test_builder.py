@@ -27,7 +27,7 @@ def test_surface():
 
     builder = SurfaceBuilder(**params)
 
-    substrates = read("./assets/Cu-fcc-s111p22.xyz", ":")
+    substrates = read("../assets/Cu-fcc-s111p22.xyz", ":")
 
     frames = builder.run(substrates[0], size=5)
     nframes = len(frames)

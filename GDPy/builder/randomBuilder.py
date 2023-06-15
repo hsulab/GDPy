@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 import ase
-from ase import Atoms
+from ase import units, Atoms
 from ase.io import read, write
 from ase.data import covalent_radii
 
@@ -24,6 +24,22 @@ from GDPy.builder.species import build_species
 
 """ Generate structures randomly
 """
+
+def compute_molecule_number_from_density(molecular_mass, volume, density) -> int:
+    """Compute the number of molecules in the region with a given density.
+
+    Args:
+        moleculer_mass: unit in g/mol.
+        volume: unit in Ang^3.
+        density: unit in g/cm^3.
+    
+    Returns:
+        Number of molecules in the region.
+
+    """
+    number = (density/molecular_mass) * volume * units._Nav * 1e-24
+
+    return int(number)
 
 
 class RandomBuilder(StructureBuilder):
@@ -60,6 +76,11 @@ class RandomBuilder(StructureBuilder):
             random_seed = random_seed
         )
 
+        # - create region
+        region = copy.deepcopy(region)
+        shape = region.pop("method", "auto")
+        self.region = registers.create("region", shape, convert_name=True, **region)
+
         # - parse composition
         self.composition = composition
         self._parse_composition()
@@ -83,11 +104,6 @@ class RandomBuilder(StructureBuilder):
         else:
             unique_atom_types = set(self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)
-
-        # - create region
-        region = copy.deepcopy(region)
-        shape = region.pop("method", "auto")
-        self.region = registers.create("region", shape, convert_name=True, **region)
 
         # - check cell
         self.cell = cell
@@ -166,10 +182,23 @@ class RandomBuilder(StructureBuilder):
 
     def _parse_composition(self):
         # --- Define the composition of the atoms to optimize ---
-        blocks = [(k,v) for k,v in self.composition.items()] # for start generator
+        blocks = []
+        for k, v in self.composition.items():
+            k = build_species(k)
+            if isinstance(v, int): # number
+                v = v
+            else: # string command
+                data = v.split()
+                if data[0] == "density":
+                    v = compute_molecule_number_from_density(
+                        np.sum(k.get_masses()), self.region.get_volume(), 
+                        density = float(data[1])
+                    )
+                else:
+                    raise RuntimeError(f"Unrecognised composition {k:v}.")
+            blocks.append((k,v))
         for k, v in blocks:
-            species = build_species(k)
-            if len(species) > 1:
+            if len(k) > 1:
                 self.use_tags = True
                 break
         else:
@@ -177,9 +206,9 @@ class RandomBuilder(StructureBuilder):
         self.composition_blocks = blocks
 
         atom_numbers = [] # atomic number of inserted atoms
-        for species, num in self.composition.items():
+        for species, num in self.composition_blocks:
             numbers = []
-            for s, n in ase.formula.Formula(species).count().items():
+            for s, n in ase.formula.Formula(species.get_chemical_formula()).count().items():
                 numbers.extend([ase.data.atomic_numbers[s]]*n)
             atom_numbers.extend(numbers*num)
         self.composition_atom_numbers = atom_numbers
