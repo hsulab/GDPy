@@ -76,7 +76,7 @@ class RandomBuilder(StructureBuilder):
                 # assume this is a path
                 substrates = read(substrate, ":")
                 assert len(substrates) == 1, "Only support one substrate."
-                self.substrate = substrate[0]
+                self.substrate = substrates[0]
         if self.substrate is not None:
             unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)

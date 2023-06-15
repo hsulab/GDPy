@@ -114,7 +114,7 @@ def build_structures(config: dict, size: int=1, directory="./"):
     """"""
     directory = pathlib.Path(directory)
 
-    builder = BuilderVariable(directory=directory, **config)
+    builder = BuilderVariable(directory=directory, **config).value
     frames = builder.run(size=size)
 
     write(directory/"strucures.xyz", frames)

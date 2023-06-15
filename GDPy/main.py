@@ -72,7 +72,8 @@ def main():
         "CONFIG", help="builder configuration file (json/yaml)"
     )
     parser_build.add_argument(
-        "-n", "--number", help="number of structures to build"
+        "-n", "--number", default=1, type=int,
+        help="number of structures to build"
     )
     
     # - automatic training
