@@ -69,11 +69,16 @@ class DeepmdTrainer(AbstractTrainer):
         freeze_command = self.command
 
         # - add options
-        command = "{} freeze -o {}.pb 2>&1 >> {}.out".format(
-            freeze_command, self.name, self.name
+        command = "{} freeze -o {} 2>&1 >> {}.out".format(
+            freeze_command, self.frozen_name, self.name
         )
 
         return command
+    
+    @property
+    def frozen_name(self):
+        """"""
+        return f"{self.name}.pb"
     
     def write_input(self, dataset, reduce_system: bool=False):
         """Write inputs for training.

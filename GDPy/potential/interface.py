@@ -97,10 +97,10 @@ class train(Operation):
             #manager.register_calculator(potter_params)
             potter_params = potter.as_dict()
             potter_params["params"]["model"] = models
-            print("potter: ", potter_params)
+            #print("potter: ", potter_params)
             potter.register_calculator(potter_params["params"])
             manager = potter
-            print("manager: ", manager.calc)
+            #print("manager: ", manager.calc)
         else:
             ...
         
