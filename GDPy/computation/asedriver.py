@@ -6,6 +6,7 @@ import copy
 import dataclasses
 import shutil
 from pathlib import Path
+import traceback
 from typing import NoReturn, List, Tuple
 import warnings
 
@@ -25,6 +26,7 @@ from ase.md.velocitydistribution import (
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.mixing import MixedCalculator
 
+from .. import config as GDPCONFIG
 from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.computation.bias import create_bias_list
 from GDPy.data.trajectory import Trajectory
@@ -37,7 +39,8 @@ from GDPy.builder.constraints import parse_constraint_info
 def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
     """Read model deviation and add results to atoms.info if the file exists."""
     results = copy.deepcopy(atoms.calc.results)
-    devi_results = [(k,v) for k,v in results.items() if "devi" in k]
+    #devi_results = [(k,v) for k,v in results.items() if "devi" in k]
+    devi_results = [(k,v) for k,v in results.items() if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS]
     if devi_results:
         devi_names = [x[0] for x in devi_results]
         devi_values = np.array([x[1] for x in devi_results]).reshape(1,-1)
@@ -48,7 +51,7 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
         else:
             with open(devi_fpath, "w") as fopen:
                 np.savetxt(
-                    fopen, devi_values, fmt="%18.6e", header=("{:<18s}"*len(devi_names)).format(*devi_names)
+                    fopen, devi_values, fmt="%18.6e", header=("{:>18s}"*len(devi_names)).format(*devi_names)
                 )
 
     return
@@ -77,7 +80,17 @@ def save_trajectory(atoms, log_fpath) -> NoReturn:
     spc = SinglePointCalculator(atoms, **results)
     atoms_to_save.calc = spc
 
-    # - check special metadata
+    # - save special keys and arrays from calc
+    natoms = len(atoms)
+    # -- add deviation
+    for k, v in atoms.calc.results.items():
+        if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS:
+            atoms_to_save.info[k] = v
+    for k, v in atoms.calc.results.items():
+        if k in GDPCONFIG.VALID_DEVI_ATOMIC_KEYS:
+            atoms_to_save.arrays[k] = np.reshape(v, (natoms, -1))
+
+    # -- check special metadata
     calc = atoms.calc
     if isinstance(calc, MixedCalculator):
         atoms_to_save.info["energy_contributions"] = copy.deepcopy(calc.results["energy_contributions"])
@@ -440,6 +453,7 @@ class AseDriver(AbstractDriver):
             converged = self.read_convergence(trajectory, run_params)
         except Exception as e:
             print(f"Exception of {self.__class__.__name__} is {e}.")
+            print(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
         print(f"{self.name} {self.directory}")
         print("converged: ", converged)
 
@@ -488,22 +502,7 @@ class AseDriver(AbstractDriver):
                 for step, atoms in zip(steps, traj_frames):
                     atoms.info["step"] = int(step)
 
-            # - read deviation, similar to lammps
-            # TODO: concatenate all deviations
-            devi_fpath = self.directory / self.devi_fname
-            if devi_fpath.exists():
-                with open(devi_fpath, "r") as fopen:
-                    lines = fopen.readlines()
-                dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-                dkeys = [x.strip() for x in dkeys][1:]
-                data = np.loadtxt(devi_fpath, dtype=float)
-                ncols = data.shape[-1]
-                data = data.reshape(-1,ncols)
-                data = data.transpose()[1:,:len(traj_frames)]
-
-                for i, atoms in enumerate(traj_frames):
-                    for j, k in enumerate(dkeys):
-                        atoms.info[k] = data[j,i]
+            # - deviation stored in traj, no need to read from file
         else:
             ...
 

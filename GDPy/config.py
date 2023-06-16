@@ -4,9 +4,9 @@
 """Some shared configuration parameters.
 """
 
-from typing import Union
+from typing import Union, List
 
-#: number of parallel jobs for joblib
+#: Number of parallel jobs for joblib.
 NJOBS: int = 1
 
 # - find default vasp settings
@@ -19,5 +19,18 @@ NJOBS: int = 1
 #else:
 #    input_dict = {}
 
+#: Model deviations by the committee model.
+VALID_DEVI_FRAME_KEYS: List[str] = [
+    "devi_te",
+    "max_devi_v", "min_devi_v", "avg_devi_v",
+    "max_devi_f", "min_devi_f", "avg_devi_f",
+    "max_devi_ae", "min_devi_ae", "avg_devi_ae",
+]
+
+#: Model deviations by the committee model.
+VALID_DEVI_ATOMIC_KEYS: List[str] = [
+    "devi_f",
+]
+
 if __name__ == "__main__":
-    pass
+    ...

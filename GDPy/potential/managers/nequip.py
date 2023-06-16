@@ -17,6 +17,7 @@ from ase.calculators.calculator import Calculator
 from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager, DummyCalculator
 from GDPy.potential.trainer import AbstractTrainer
+from GDPy.computation.mixer import CommitteeCalculator
 
 @registers.trainer.register
 class NequipTrainer(AbstractTrainer):
@@ -200,12 +201,23 @@ class NequipManager(AbstractPotentialManager):
         if self.calc_backend == "ase":
             # return ase calculator
             import torch
-            from nequip.ase import NequIPCalculator
-            if models:
-                calc = NequIPCalculator.from_deployed_model(
-                    model_path=models[0], 
+            try:
+                from nequip.ase import NequIPCalculator
+            except:
+                raise ModuleNotFoundError("Please install nequip to use the ase interface.")
+            calcs = []
+            for m in models:
+                curr_calc = NequIPCalculator.from_deployed_model(
+                    model_path=m, species_to_type_name={k:k for k in atypes},
                     device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 )
+                calcs.append(curr_calc)
+            if len(calcs) == 1:
+                calc = calcs[0]
+            elif len(calcs) > 1:
+                calc = CommitteeCalculator(calcs)
+            else:
+                ...
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
             flavour = calc_params.pop("flavour", "nequip") # nequip or allegro
