@@ -273,7 +273,7 @@ class AseDriver(AbstractDriver):
             rng = np.random.default_rng(velocity_seed)
 
             # - velocity
-            if (not init_params_["ignore_atoms_velocties"] and atoms.get_kinetic_energy() > 0.):
+            if (not init_params_["ignore_atoms_velocities"] and atoms.get_kinetic_energy() > 0.):
                 # atoms have momenta
                 ...
             else:
