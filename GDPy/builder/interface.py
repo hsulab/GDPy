@@ -117,7 +117,7 @@ def build_structures(config: dict, size: int=1, directory="./"):
     builder = BuilderVariable(directory=directory, **config).value
     frames = builder.run(size=size)
 
-    write(directory/"strucures.xyz", frames)
+    write(directory/"structures.xyz", frames)
 
     return
 
