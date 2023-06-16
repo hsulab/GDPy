@@ -6,9 +6,19 @@ import numpy as np
 from ase.io import read, write
 
 from GDPy.core.register import import_all_modules_for_register
-from GDPy.builder.randomBuilder import SurfaceBuilder, ClusterBuilder, BulkBuilder
+from GDPy.builder.randomBuilder import (
+    compute_molecule_number_from_density, SurfaceBuilder, ClusterBuilder, BulkBuilder
+)
 
 import_all_modules_for_register()
+
+def test_number():
+    """"""
+
+    number = compute_molecule_number_from_density(18, 20*14*11, 0.998)
+
+    assert number == 102
+
 
 def test_surface():
     """"""
@@ -17,7 +27,7 @@ def test_surface():
         region = dict(
             method = "lattice",
             origin = [0., 0., 7.5],
-            cell = [5.85, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.]
+            cell = [5.08, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.]
         ),
         covalent_ratio = [0.4, 2.0],
         test_dist_to_slab = False,
@@ -30,6 +40,33 @@ def test_surface():
     substrates = read("../assets/Cu-fcc-s111p22.xyz", ":")
 
     frames = builder.run(substrates[0], size=5)
+    nframes = len(frames)
+
+    assert nframes == 5
+
+
+def test_solvated_surface():
+    """"""
+    params = dict(
+        composition = {"H2O": "density 0.998"},
+        region = dict(
+            method = "lattice",
+            origin = [0., 0., 7.5],
+            # NOTE: The lattice region should be smaller than the subsrate.
+            #       Otherwise, ``AssertionError: This is not supposed to happen; please report this bug``
+            #       would happen due to PBC.
+            cell = [5.08, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.]
+        ),
+        substrate = "../assets/Cu-fcc-s111p22.xyz",
+        covalent_ratio = [0.6, 2.0],
+        test_dist_to_slab = False,
+        test_too_far = False,
+        random_seed = 1112
+    )
+
+    builder = SurfaceBuilder(**params)
+
+    frames = builder.run(size=5)
     nframes = len(frames)
 
     assert nframes == 5
