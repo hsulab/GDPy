@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import pathlib
+
 import numpy as np
 
 from ase.calculators.calculator import all_changes
@@ -16,6 +18,37 @@ class AddonCalculator(MixedCalculator):
             forces1 = self.calcs[0].get_property("forces", atoms)
             forces2 = self.calcs[1].get_property("forces", atoms)
             self.results["force_contributions"] = np.hstack([forces1,forces2])
+
+        return
+
+
+class EnhancedCalculator(LinearCombinationCalculator):
+
+    def __init__(self, calcs, weights=None, atoms=None):
+        """"""
+        if weights is None:
+            weights = np.ones(len(calcs))
+        super().__init__(calcs, weights, atoms)
+
+        return
+
+    def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
+        """"""
+        # - for sub calculators...
+        for i, subcalc in enumerate(self.calcs):
+            subcalc.directory = str(
+                (pathlib.Path(self.directory)/(str(i).zfill(2)+"."+subcalc.__class__.__name__)).resolve()
+            )
+        # NOTE: nequip requires that atoms has NequipCalculator or None
+        #       thus, we set atoms.calc to None and restore it later
+        prev_calc = atoms.calc
+        atoms.calc = None
+
+        # TODO: set wdir for each subcalc
+        super().calculate(atoms, properties, system_changes)
+        atoms.calc = prev_calc
+
+        #self._compute_deviation(atoms, properties)
 
         return
     
