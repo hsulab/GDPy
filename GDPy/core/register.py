@@ -126,6 +126,7 @@ ALL_MODULES = [
     # -- schedulers
     ("GDPy.scheduler", SCHEDULER_MODULES),
     # -- managers (potentials)
+    ("GDPy.potential", ["managers"]),
     ("GDPy.potential.managers", [
         "vasp", "cp2k", 
         "xtb",

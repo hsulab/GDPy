@@ -66,7 +66,7 @@ class AbstractPotentialManager(abc.ABC):
         """
         self.calc_backend = calc_params.pop("backend", self.name)
         if self.calc_backend not in self.implemented_backends:
-            raise RuntimeError(f"Unknown backend for potential {self.name}")
+            raise RuntimeError(f"Unknown backend {self.calc_backend} for potential {self.name}")
 
         self.calc_params = copy.deepcopy(calc_params)
 

@@ -200,11 +200,11 @@ class NequipManager(AbstractPotentialManager):
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             # return ase calculator
-            import torch
             try:
+                import torch
                 from nequip.ase import NequIPCalculator
             except:
-                raise ModuleNotFoundError("Please install nequip to use the ase interface.")
+                raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.")
             calcs = []
             for m in models:
                 curr_calc = NequIPCalculator.from_deployed_model(
