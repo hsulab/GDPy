@@ -18,7 +18,8 @@ from ase.calculators.cp2k import CP2K, parse_input, InputSection
 """Convert cp2k md outputs to ase xyz file.
 """
 
-UNCONVERGED_SCF_FLAG = "*** WARNING in qs_scf.F:598 :: SCF run NOT converged ***"
+UNCONVERGED_SCF_FLAG: str = "*** WARNING in qs_scf.F:598 :: SCF run NOT converged ***"
+ABORT_FLAG: str = "ABORT"
 
 def read_cp2k_xyz(fpath):
     """Read xyz-like file by cp2k.
@@ -300,6 +301,9 @@ class Cp2kFileIO(FileIOCalculator):
                 if not line:
                     break
                 if line.strip() == UNCONVERGED_SCF_FLAG:
+                    converged = False
+                    break
+                if ABORT_FLAG in line:
                     converged = False
                     break
 
