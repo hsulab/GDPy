@@ -266,6 +266,9 @@ class AbstractDriver(abc.ABC):
             If not converged, specific params in input files should be updated.
 
         """
+        if self.ignore_convergence:
+            return True
+
         # - check whether the driver is coverged
         traj_frames = self.read_trajectory() # NOTE: DEAL WITH EMPTY FILE ERROR
         nframes = len(traj_frames)
@@ -299,9 +302,8 @@ class AbstractDriver(abc.ABC):
         # TODO: if driver converged but force (scf) is not, return True
         #       and discard this structures which is due to DFT or ...
         force_converged = True
-        if not self.ignore_convergence:
-            if hasattr(self, "read_force_convergence"):
-                force_converged = self.read_force_convergence()
+        if hasattr(self, "read_force_convergence"):
+            force_converged = self.read_force_convergence()
 
         return (converged and force_converged)
 
@@ -315,7 +317,8 @@ class AbstractDriver(abc.ABC):
     def as_dict(self) -> dict:
         """Return parameters of this driver."""
         params = dict(
-            backend = self.name
+            backend = self.name,
+            ignore_convergence = self.ignore_convergence
         )
         # NOTE: we use original params otherwise internal param names would be 
         #       written out and make things confusing

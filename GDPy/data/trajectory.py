@@ -24,6 +24,9 @@ class Trajectory(AtomsArray):
     # MD and MIN settings... TODO: type?
     # dump period
 
+    #: Whether there is an error in the calculation.
+    _error: bool = False
+
     def __init__(self, images: List[Atoms], driver_config: dict, *args, **kwargs):
         """"""
         super().__init__(images=images)
@@ -31,6 +34,19 @@ class Trajectory(AtomsArray):
         self.driver_config = driver_config
 
         self.task = driver_config["task"]
+
+        return
+    
+    @property
+    def error(self) -> bool:
+        """"""
+
+        return self._error
+    
+    @error.setter
+    def error(self, error: bool):
+        """"""
+        self._error = error
 
         return
     

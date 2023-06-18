@@ -350,67 +350,69 @@ class AseDriver(AbstractDriver):
         """
         atoms = copy.deepcopy(atoms_) # TODO: make minimal atoms object?
 
+        # - run
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
-
-        # - run
-        converged = self.read_convergence()
-        if not converged:
-            # -- try to restart if it is not calculated before
-            traj = self.read_trajectory()
-            nframes = len(traj)
-            if read_exists:
-                # --- update atoms and driver settings
-                # backup output files and continue with lastest atoms
-                # dyn.log and dyn.traj are created when init so dont backup them
-                for fname in self.saved_fnames:
-                    curr_fpath = self.directory/fname
-                    if curr_fpath.exists(): # TODO: check if file is empty?
-                        backup_fmt = ("gbak.{:d}."+fname)
-                        # --- check backups
-                        idx = 0
-                        while True:
-                            backup_fpath = self.directory/(backup_fmt.format(idx))
-                            if not Path(backup_fpath).exists():
-                                shutil.copy(curr_fpath, backup_fpath)
-                                break
-                            else:
-                                idx += 1
-                # remove unnecessary files and start all over
-                # retain calculator-related files
-                for fname in self.removed_fnames:
-                    curr_fpath = self.directory/fname
-                    if curr_fpath.exists():
-                        curr_fpath.unlink()
-                if nframes > 0:
-                    # --- update atoms
-                    atoms = traj[-1]
-                    # --- update run_params in settings
-                    kwargs["steps"] = self.setting.get_run_params(*args, **kwargs)["steps"] + 1 - nframes
-            else:
-                ...
-            # --- get run_params, respect steps and fmax from kwargs
-            if nframes > 0:
-                if not self.ignore_convergence:
-                    # accept current results
-                    self._irun(atoms, *args, **kwargs)
+            self._irun(atoms, *args, **kwargs)
+        else:
+            converged = self.read_convergence()
+            if not converged:
+                # -- try to restart if it is not calculated before
+                traj = self.read_trajectory()
+                nframes = len(traj)
+                if read_exists:
+                    # --- update atoms and driver settings
+                    # backup output files and continue with lastest atoms
+                    # dyn.log and dyn.traj are created when init so dont backup them
+                    for fname in self.saved_fnames:
+                        curr_fpath = self.directory/fname
+                        if curr_fpath.exists(): # TODO: check if file is empty?
+                            backup_fmt = ("gbak.{:d}."+fname)
+                            # --- check backups
+                            idx = 0
+                            while True:
+                                backup_fpath = self.directory/(backup_fmt.format(idx))
+                                if not Path(backup_fpath).exists():
+                                    shutil.copy(curr_fpath, backup_fpath)
+                                    break
+                                else:
+                                    idx += 1
+                    # remove unnecessary files and start all over
+                    # retain calculator-related files
+                    for fname in self.removed_fnames:
+                        curr_fpath = self.directory/fname
+                        if curr_fpath.exists():
+                            curr_fpath.unlink()
+                    if nframes > 0:
+                        # --- update atoms
+                        atoms = traj[-1]
+                        # --- update run_params in settings
+                        kwargs["steps"] = self.setting.get_run_params(*args, **kwargs)["steps"] + 1 - nframes
                 else:
                     ...
+                # --- get run_params, respect steps and fmax from kwargs
+                if nframes > 0:
+                    if not self.ignore_convergence:
+                        # accept current results
+                        self._irun(atoms, *args, **kwargs)
+                    else:
+                        ...
+                else:
+                    # not calculated before
+                    self._irun(atoms, *args, **kwargs)
             else:
-                # not calculated before
-                self._irun(atoms, *args, **kwargs)
-        else:
-            ...
+                ...
         
         # - get results
         traj = self.read_trajectory()
-        assert len(traj) > 0, "This error should not happen."
-
-        new_atoms = traj[-1]
-        if extra_info is not None:
-            new_atoms.info.update(**extra_info)
-        
-        # - No need to reset calc params since calc is only for spc
+        nframes = len(traj)
+        if nframes > 0:
+            new_atoms = traj[-1]
+            if extra_info is not None:
+                new_atoms.info.update(**extra_info)
+        else:
+            warnings.warn(f"The calculation at {self.directory.name} performed but failed.", RuntimeWarning)
+            new_atoms = None
 
         return new_atoms
 
@@ -482,16 +484,7 @@ class AseDriver(AbstractDriver):
             # read current
             traj_frames.extend(read(self.directory/self.xyz_fname, index=":"))
 
-            # - check the convergence of the force evaluation
-            try:
-                scf_convergence = self.calc.read_convergence()
-            except:
-                # -- cannot read scf convergence then assume it is ok
-                scf_convergence = True
-            if not scf_convergence:
-                warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
-                traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
-
+            # - add some info
             init_params = self.setting.get_init_params()
             if self.setting.task == "md":
                 #Time[ps]      Etot[eV]     Epot[eV]     Ekin[eV]    T[K]
@@ -521,8 +514,24 @@ class AseDriver(AbstractDriver):
             # - deviation stored in traj, no need to read from file
         else:
             ...
+        
+        ret = Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
 
-        return Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
+        # calculation happens but some errors in calculation
+        if self.directory.exists():
+            # - check the convergence of the force evaluation
+            try:
+                scf_convergence = self.calc.read_convergence()
+            except:
+                # -- cannot read scf convergence then assume it is ok
+                scf_convergence = True
+            if not scf_convergence:
+                warnings.warn(f"{self.name} at {self.directory.name} failed to converge at SCF.", RuntimeWarning)
+                if len(ret) > 0: # for compat
+                    ret[0].info["error"] = f"Unconverged SCF at {self.directory}."
+                ret.error = True
+
+        return ret
 
 
 if __name__ == "__main__":
