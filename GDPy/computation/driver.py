@@ -137,7 +137,7 @@ class AbstractDriver(abc.ABC):
     #: Parameters for PotentialManager.
     pot_params: dict = None
 
-    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+    def __init__(self, calc, params: dict, directory="./", ignore_convergence: bool=False, *args, **kwargs):
         """Init a driver.
 
         Args:
@@ -150,6 +150,8 @@ class AbstractDriver(abc.ABC):
         self.calc.reset()
 
         self._directory = pathlib.Path(directory)
+
+        self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
 
@@ -264,9 +266,7 @@ class AbstractDriver(abc.ABC):
             If not converged, specific params in input files should be updated.
 
         """
-        if self.ignore_convergence:
-            return True
-
+        # - check whether the driver is coverged
         traj_frames = self.read_trajectory() # NOTE: DEAL WITH EMPTY FILE ERROR
         nframes = len(traj_frames)
 
@@ -296,7 +296,14 @@ class AbstractDriver(abc.ABC):
         else:
             ...
 
-        return converged
+        # TODO: if driver converged but force (scf) is not, return True
+        #       and discard this structures which is due to DFT or ...
+        force_converged = True
+        if not self.ignore_convergence:
+            if hasattr(self, "read_force_convergence"):
+                force_converged = self.read_force_convergence()
+
+        return (converged and force_converged)
 
     @abc.abstractmethod
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
@@ -304,16 +311,6 @@ class AbstractDriver(abc.ABC):
         """
 
         return
-    
-    def read_converged(self, *args, **kwargs) -> Atoms:
-        """Read last frame of the trajectory.
-
-        It would be better if the structure were checked to be converged.
-
-        """
-        traj_frames = self.read_trajectory(*args, **kwargs)
-
-        return traj_frames[-1]
     
     def as_dict(self) -> dict:
         """Return parameters of this driver."""

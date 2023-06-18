@@ -147,6 +147,9 @@ class AbstractPotentialManager(abc.ABC):
         else:
             merged_params.update(**dyn_params)
 
+        # - other params
+        ignore_convergence = merged_params.pop("ignore_convergence", False)
+
         # - check bias params
         bias_params = self.dyn_params.get("bias", None)
         
@@ -167,7 +170,10 @@ class AbstractPotentialManager(abc.ABC):
             from GDPy.computation.mixer import AddonCalculator
             calc = AddonCalculator(self.calc, self.modifier, 1., 1.)
 
-        driver = driver_cls(calc, merged_params, directory=calc.directory)
+        driver = driver_cls(
+            calc, merged_params, directory=calc.directory, 
+            ignore_convergence=ignore_convergence
+        )
         driver.pot_params = self.as_dict()
         
         return driver

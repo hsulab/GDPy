@@ -74,6 +74,8 @@ def save_trajectory(atoms, log_fpath) -> NoReturn:
     )
     if "tags" in atoms.arrays:
         atoms_to_save.set_tags(atoms.get_tags())
+    if atoms.get_kinetic_energy() > 0.:
+        atoms_to_save.set_momenta(atoms.get_momenta())
     results = dict(
         energy = atoms.get_potential_energy(),
         forces = copy.deepcopy(atoms.get_forces())
@@ -201,7 +203,7 @@ class AseDriver(AbstractDriver):
     devi_fname = "model_devi-ase.dat"
 
     #: List of output files would be saved when restart.
-    saved_fnames: List[str] = [xyz_fname, devi_fname]
+    saved_fnames: List[str] = [log_fname, xyz_fname, devi_fname]
 
     #: List of output files would be removed when restart.
     removed_fnames: List[str] = [log_fname, traj_fname, xyz_fname, devi_fname]
@@ -244,17 +246,16 @@ class AseDriver(AbstractDriver):
         return 
     
     def _create_dynamics(self, atoms, *args, **kwargs) -> Tuple[Dynamics,dict]:
-        """Create the correct class of this simulation with running parameters."""
-        # - prepare dir
-        if not self.directory.exists():
-            self.directory.mkdir(parents=True)
-        
+        """Create the correct class of this simulation with running parameters.
+
+        Respect `steps` and `fmax` as restart.
+
+        """
         # - overwrite 
         run_params = self.setting.get_run_params(*args, **kwargs)
 
-        # TODO: if have cons in kwargs overwrite current cons stored in atoms
+        # NOTE: if have cons in kwargs overwrite current cons stored in atoms
         cons_text = run_params.pop("constraint", None)
-
         if cons_text is not None:
             atoms._del_constraints()
             mobile_indices, frozen_indices = parse_constraint_info(
@@ -336,7 +337,7 @@ class AseDriver(AbstractDriver):
         
         return driver, run_params
 
-    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
+    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
         """Run the driver.
 
         Additional output files would be generated, namely a xyz-trajectory and
@@ -349,127 +350,137 @@ class AseDriver(AbstractDriver):
         """
         atoms = copy.deepcopy(atoms_) # TODO: make minimal atoms object?
 
-        # - get run_params, respect steps and fmax from kwargs
-        _dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True)
 
-        converged, trajectory = self._continue(atoms, run_params, read_exists=read_exists, *args, **kwargs)
-        if trajectory:
-            new_atoms = trajectory[-1]
-            if extra_info is not None:
-                new_atoms.info.update(**extra_info)
-            # TODO: set a hard limit of min steps
-            #       since some terrible structures may not converged anyway
-            # - check convergence of forace evaluation (e.g. SCF convergence)
-            try:
-                scf_convergence = self.calc.read_convergence()
-            except:
-                # -- cannot read scf convergence then assume it is ok
-                scf_convergence = True
-            if not scf_convergence:
-                warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
-            if not converged:
-                warnings.warn(f"{self.name} at {self.directory} failed to converge.", RuntimeWarning)
-        else:
-            raise RuntimeError(f"{self.name} at {self.directory} doesnot have a trajectory.")
-        
-        # - reset calc params
-
-        return new_atoms
-
-    def _set_dynamics(self, atoms: Atoms, *args, **kwargs):
-        """"""
-        # - set calculator
-        atoms.calc = self.calc
-
-        # - set dynamics
-        dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
-
-        # NOTE: traj file not stores properties (energy, forces) properly
-        init_params = self.setting.get_init_params()
-        dynamics.attach(
-            save_trajectory, interval=init_params["loginterval"],
-            atoms=atoms, log_fpath=self.directory/self.xyz_fname
-        )
-        # NOTE: retrieve deviation info
-        dynamics.attach(
-            retrieve_and_save_deviation, interval=init_params["loginterval"], 
-            atoms=atoms, devi_fpath=self.directory/self.devi_fname
-        )
-
-        return dynamics
-    
-    def _continue(self, atoms, run_params: dict, read_exists=True, *args, **kwargs):
-        """Check whether continue unfinished calculation
-
-        Restart driver from the last accessible atoms.
-
-        """
-        trajectory = []
-        converged = False
-        try:
+        # - run
+        converged = self.read_convergence()
+        if not converged:
+            # -- try to restart if it is not calculated before
+            traj = self.read_trajectory()
+            nframes = len(traj)
             if read_exists:
-                if (self.directory/self.xyz_fname).exists():
-                    trajectory = self.read_trajectory(add_step_info=True)
-                    prev_atoms = trajectory[-1]
-                    converged = self.read_convergence(trajectory, run_params)
-                else:
-                    prev_atoms = atoms
-                if not converged:
-                    # backup output files and continue with lastest atoms
-                    # dyn.log and dyn.traj are created when init so dont backup them
-                    for fname in self.saved_fnames:
-                        curr_fpath = self.directory/fname
-                        if curr_fpath.exists():
-                            # TODO: check if file is empty?
-                            backup_fmt = ("gbak.{:d}."+fname)
-                            # --- check backups
-                            idx = 0
-                            while True:
-                                backup_fpath = self.directory/(backup_fmt.format(idx))
-                                if not Path(backup_fpath).exists():
-                                    shutil.copy(curr_fpath, backup_fpath)
-                                    break
-                                else:
-                                    idx += 1
-                    # remove unnecessary files and start all over
-                    # retain calculator-related files
-                    for fname in self.removed_fnames:
-                        curr_fpath = self.directory/fname
-                        if curr_fpath.exists():
-                            curr_fpath.unlink()
-                    # run dynamics again
-                    dynamics = self._set_dynamics(prev_atoms)
-                    dynamics.run(**run_params)
-            else:
-                # restart calculation from the scratch
-                prev_atoms = atoms
+                # --- update atoms and driver settings
+                # backup output files and continue with lastest atoms
+                # dyn.log and dyn.traj are created when init so dont backup them
+                for fname in self.saved_fnames:
+                    curr_fpath = self.directory/fname
+                    if curr_fpath.exists(): # TODO: check if file is empty?
+                        backup_fmt = ("gbak.{:d}."+fname)
+                        # --- check backups
+                        idx = 0
+                        while True:
+                            backup_fpath = self.directory/(backup_fmt.format(idx))
+                            if not Path(backup_fpath).exists():
+                                shutil.copy(curr_fpath, backup_fpath)
+                                break
+                            else:
+                                idx += 1
                 # remove unnecessary files and start all over
                 # retain calculator-related files
                 for fname in self.removed_fnames:
                     curr_fpath = self.directory/fname
                     if curr_fpath.exists():
                         curr_fpath.unlink()
-                # run dynamics again
-                dynamics = self._set_dynamics(prev_atoms)
-                dynamics.run(**run_params)
-            # -- check convergence again
-            trajectory = self.read_trajectory(add_step_info=True)
-            converged = self.read_convergence(trajectory, run_params)
-        except Exception as e:
-            print(f"Exception of {self.__class__.__name__} is {e}.")
-            print(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
-        print(f"{self.name} {self.directory}")
-        print("converged: ", converged)
+                if nframes > 0:
+                    # --- update atoms
+                    atoms = traj[-1]
+                    # --- update run_params in settings
+                    kwargs["steps"] = self.setting.get_run_params(*args, **kwargs)["steps"] + 1 - nframes
+            else:
+                ...
+            # --- get run_params, respect steps and fmax from kwargs
+            if nframes > 0:
+                if not self.ignore_convergence:
+                    # accept current results
+                    self._irun(atoms, *args, **kwargs)
+                else:
+                    ...
+            else:
+                # not calculated before
+                self._irun(atoms, *args, **kwargs)
+        else:
+            ...
+        
+        # - get results
+        traj = self.read_trajectory()
+        assert len(traj) > 0, "This error should not happen."
 
-        return converged, trajectory
+        new_atoms = traj[-1]
+        if extra_info is not None:
+            new_atoms.info.update(**extra_info)
+        
+        # - No need to reset calc params since calc is only for spc
+
+        return new_atoms
+
+    def _irun(self, atoms: Atoms, *args, **kwargs):
+        """Run the simulation."""
+        try:
+            # - set calculator
+            atoms.calc = self.calc
+
+            # - set dynamics
+            dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+
+            # NOTE: traj file not stores properties (energy, forces) properly
+            init_params = self.setting.get_init_params()
+            dynamics.attach(
+                save_trajectory, interval=init_params["loginterval"],
+                atoms=atoms, log_fpath=self.directory/self.xyz_fname
+            )
+            # NOTE: retrieve deviation info
+            dynamics.attach(
+                retrieve_and_save_deviation, interval=init_params["loginterval"], 
+                atoms=atoms, devi_fpath=self.directory/self.devi_fname
+            )
+            dynamics.run(**run_params)
+        except Exception as e:
+            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
+            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
+
+        return
     
-    def read_trajectory(self, add_step_info=True, *args, **kwargs):
+    def read_force_convergence(self, *args, **kwargs) -> bool:
+        """Check if the force is converged.
+
+        Sometimes DFT failed to converge SCF due to improper structure.
+
+        """
+        # - check convergence of forace evaluation (e.g. SCF convergence)
+        scf_convergence = False
+        try:
+            scf_convergence = self.calc.read_convergence()
+        except:
+            # -- cannot read scf convergence then assume it is ok
+            scf_convergence = True
+        if not scf_convergence:
+            warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
+        #if not converged:
+        #    warnings.warn(f"{self.name} at {self.directory} failed to converge.", RuntimeWarning)
+
+        return scf_convergence
+    
+    def read_trajectory(self, *args, **kwargs):
         """Read trajectory in the current working directory."""
         traj_frames = []
         target_fpath = self.directory/self.xyz_fname
+        backup_fmt = ("gbak.{:d}."+self.xyz_fname)
         if target_fpath.exists() and target_fpath.stat().st_size != 0:
-            # TODO: concatenate all trajectories
-            traj_frames = read(self.directory/self.xyz_fname, index=":")
+            # read backups
+            traj_frames = []
+            idx = 0
+            while True:
+                backup_fname = backup_fmt.format(idx)
+                backup_fpath = self.directory/backup_fname
+                if backup_fpath.exists():
+                    # skip last frame
+                    traj_frames.extend(read(backup_fpath, index=":-1"))
+                else:
+                    break
+                idx += 1
+            # read current
+            traj_frames.extend(read(self.directory/self.xyz_fname, index=":"))
 
             # - check the convergence of the force evaluation
             try:
@@ -481,30 +492,31 @@ class AseDriver(AbstractDriver):
                 warnings.warn(f"{self.name} at {self.directory} failed to converge at SCF.", RuntimeWarning)
                 traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
 
-            # TODO: log file will not be overwritten when restart
             init_params = self.setting.get_init_params()
-            if add_step_info:
-                if self.setting.task == "md":
-                    data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
-                    if len(data.shape) == 1:
-                        data = data[np.newaxis,:]
-                    timesteps = data[:, 0] # ps
-                    steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
-                    for time, atoms in zip(timesteps, traj_frames):
-                        atoms.info["time"] = time*1000.
-                elif self.setting.task == "min":
-                    # Method - Step - Time - Energy - fmax
-                    # BFGS:    0 22:18:46    -1024.329999        3.3947
-                    data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
-                    if len(data.shape) == 1:
-                        data = data[np.newaxis,:]
-                    steps = [int(s) for s in data[:, 1]]
-                    fmaxs = [float(fmax) for fmax in data[:, 4]]
-                    for fmax, atoms in zip(fmaxs, traj_frames):
-                        atoms.info["fmax"] = fmax
-                assert len(steps) == len(traj_frames), "Number of steps and number of frames are inconsistent..."
-                for step, atoms in zip(steps, traj_frames):
-                    atoms.info["step"] = int(step)
+            if self.setting.task == "md":
+                #Time[ps]      Etot[eV]     Epot[eV]     Ekin[eV]    T[K]
+                #0.0000           3.4237       2.8604       0.5633   272.4
+                #data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
+                #if len(data.shape) == 1:
+                #    data = data[np.newaxis,:]
+                #timesteps = data[:, 0] # ps
+                #steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
+                # ... infer from input settings
+                for i, atoms in enumerate(traj_frames):
+                    atoms.info["time"] = i*init_params["timestep"]
+            elif self.setting.task == "min":
+                # Method - Step - Time - Energy - fmax
+                # BFGS:    0 22:18:46    -1024.329999        3.3947
+                #data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+                #if len(data.shape) == 1:
+                #    data = data[np.newaxis,:]
+                #steps = [int(s) for s in data[:, 1]]
+                #fmaxs = [float(fmax) for fmax in data[:, 4]]
+                for atoms in traj_frames:
+                    atoms.info["fmax"] = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+            #assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
+            for step, atoms in enumerate(traj_frames):
+                atoms.info["step"] = int(step)
 
             # - deviation stored in traj, no need to read from file
         else:
@@ -513,108 +525,5 @@ class AseDriver(AbstractDriver):
         return Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
 
 
-class BiasedAseDriver(AseDriver):
-
-    """Run dynamics with external forces (bias).
-    """
-
-    def __init__(
-        self, calc=None, params: dict={}, directory="./",
-        *args, **kwargs
-    ):
-        """"""
-        super().__init__(calc, params, directory)
-
-        # - check bias
-        self.bias = self._parse_bias(params["bias"])
-
-        return
-    
-    def _parse_bias(self, params_list: List[dict]):
-        """"""
-        bias_list = create_bias_list(params_list)
-
-        return bias_list
-
-    def run(self, atoms_, *args, **kwargs):
-        """Run the driver with bias."""
-        atoms = copy.deepcopy(atoms_)
-        dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
-
-        # NOTE: traj file not stores properties (energy, forces) properly
-        dynamics.attach(
-            save_trajectory, interval=self.init_params["loginterval"],
-            atoms=atoms, log_fpath=self.directory/self.xyz_fname
-        )
-        # NOTE: retrieve deviation info
-        dynamics.attach(
-            retrieve_and_save_deviation, interval=self.init_params["loginterval"], 
-            atoms=atoms, devi_fpath=self.directory/self.devi_fname
-        )
-
-        # - set bias to atoms
-        for bias in self.bias:
-            bias.attach_atoms(atoms)
-
-        # - set steps
-        dynamics.max_steps = run_params["steps"]
-        dynamics.fmax = run_params["fmax"]
-
-        # - mimic the behaviour of ase dynamics irun
-        natoms = len(atoms)
-
-        for _ in self._irun(atoms, dynamics):
-            ...
-
-        return atoms
-    
-    def _irun(self, atoms, dynamics):
-        """Mimic the behaviour of ase dynamics irun."""
-        # -- compute original forces
-        cur_forces = atoms.get_forces(apply_constraint=True).copy()
-        ext_forces = np.zeros((len(atoms),3)) + np.inf
-        cur_forces += ext_forces # avoid convergence at 0 step
-
-        yield False
-
-        if dynamics.nsteps == 0: # log first step
-            dynamics.log(forces=cur_forces)
-            dynamics.call_observers()
-
-        while (
-            not dynamics.converged(forces=cur_forces) and 
-            dynamics.nsteps < dynamics.max_steps
-        ):
-            # -- compute original forces
-            cur_forces = atoms.get_forces(apply_constraint=True).copy()
-
-            # -- compute external forces
-            ext_forces = self._compute_external_forces(atoms)
-            #print(ext_forces)
-            cur_forces += ext_forces
-
-            # -- run step
-            dynamics.step(f=cur_forces)
-            dynamics.nsteps += 1
-
-            yield False
-
-            # log the step
-            dynamics.log(forces=cur_forces)
-            dynamics.call_observers()
-        
-        yield dynamics.converged(forces=cur_forces)
-    
-    def _compute_external_forces(self, atoms):
-        """Compute external forces based on bias params."""
-        # TODO: replace this with a bias mixer
-        natoms = len(atoms)
-        ext_forces = np.zeros((natoms,3))
-        for cur_bias in self.bias:
-            ext_forces += cur_bias.compute()
-
-        return ext_forces
-
-
 if __name__ == "__main__":
-    pass
+    ...
