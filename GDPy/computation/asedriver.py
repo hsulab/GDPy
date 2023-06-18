@@ -358,48 +358,12 @@ class AseDriver(AbstractDriver):
             converged = self.read_convergence()
             if not converged:
                 # -- try to restart if it is not calculated before
-                traj = self.read_trajectory()
-                nframes = len(traj)
                 if read_exists:
-                    # --- update atoms and driver settings
-                    # backup output files and continue with lastest atoms
-                    # dyn.log and dyn.traj are created when init so dont backup them
-                    for fname in self.saved_fnames:
-                        curr_fpath = self.directory/fname
-                        if curr_fpath.exists(): # TODO: check if file is empty?
-                            backup_fmt = ("gbak.{:d}."+fname)
-                            # --- check backups
-                            idx = 0
-                            while True:
-                                backup_fpath = self.directory/(backup_fmt.format(idx))
-                                if not Path(backup_fpath).exists():
-                                    shutil.copy(curr_fpath, backup_fpath)
-                                    break
-                                else:
-                                    idx += 1
-                    # remove unnecessary files and start all over
-                    # retain calculator-related files
-                    for fname in self.removed_fnames:
-                        curr_fpath = self.directory/fname
-                        if curr_fpath.exists():
-                            curr_fpath.unlink()
-                    if nframes > 0:
-                        # --- update atoms
-                        atoms = traj[-1]
-                        # --- update run_params in settings
-                        kwargs["steps"] = self.setting.get_run_params(*args, **kwargs)["steps"] + 1 - nframes
-                else:
-                    ...
-                # --- get run_params, respect steps and fmax from kwargs
-                if nframes > 0:
-                    if not self.ignore_convergence:
-                        # accept current results
-                        self._irun(atoms, *args, **kwargs)
-                    else:
-                        ...
-                else:
-                    # not calculated before
-                    self._irun(atoms, *args, **kwargs)
+                    atoms, resume_params = self._resume(atoms, *args, **kwargs)
+                    kwargs.update(**resume_params)
+                    self._backup()
+                self._cleanup()
+                self._irun(atoms, *args, **kwargs)
             else:
                 ...
         
@@ -442,6 +406,30 @@ class AseDriver(AbstractDriver):
             self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
 
         return
+    
+    def _resume(self, atoms: Atoms, *args, **kwargs) -> Tuple[Atoms,dict]:
+        """Get run_params, respect steps and fmax from kwargs.
+        """
+        # - update atoms and driver
+        traj = self.read_trajectory()
+        nframes = len(traj)
+        if nframes > 0:
+            # --- update atoms
+            resume_atoms = traj[-1]
+            resume_params = {}
+            # --- update run_params in settings
+            dump_period = self.setting.get_init_params()["loginterval"]
+            steps = (
+                self.setting.get_run_params(*args, **kwargs)["steps"] + dump_period
+                - nframes*dump_period
+            )
+            assert steps > 0, "Steps should be greater than 0."
+            resume_params.update(steps=steps)
+        else:
+            resume_atoms = atoms
+            resume_params = {}
+
+        return resume_atoms, resume_params
     
     def read_force_convergence(self, *args, **kwargs) -> bool:
         """Check if the force is converged.
@@ -496,7 +484,7 @@ class AseDriver(AbstractDriver):
                 #steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
                 # ... infer from input settings
                 for i, atoms in enumerate(traj_frames):
-                    atoms.info["time"] = i*init_params["timestep"]
+                    atoms.info["time"] = i*init_params["timestep"]*init_params["loginterval"]
             elif self.setting.task == "min":
                 # Method - Step - Time - Energy - fmax
                 # BFGS:    0 22:18:46    -1024.329999        3.3947
@@ -509,7 +497,7 @@ class AseDriver(AbstractDriver):
                     atoms.info["fmax"] = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             #assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
             for step, atoms in enumerate(traj_frames):
-                atoms.info["step"] = int(step)
+                atoms.info["step"] = int(step)*init_params["loginterval"]
 
             # - deviation stored in traj, no need to read from file
         else:
