@@ -5,6 +5,7 @@ import abc
 import copy
 import dataclasses
 import pathlib
+import shutil
 
 from typing import Optional, NoReturn, List, Callable
 from collections.abc import Iterable
@@ -12,6 +13,9 @@ from collections.abc import Iterable
 import numpy as np
 
 from ase import Atoms
+
+#: Prefix of backup files
+BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
 
 #: Parameter keys used to init a minimisation task.
 MIN_INIT_KEYS: List[str] = ["min_style", "min_modify", "dump_period"]
@@ -115,6 +119,12 @@ class AbstractDriver(abc.ABC):
 
     #: Driver setting.
     setting: DriverSetting = None
+
+    #: List of output files would be saved when restart.
+    saved_fnames: List[str] = []
+
+    #: List of output files would be removed when restart.
+    removed_fnames: List[str] = []
 
     #: Keyword.
     keyword: Optional[str] = None
@@ -258,6 +268,38 @@ class AbstractDriver(abc.ABC):
         new_atoms = copy.deepcopy(atoms)
 
         return new_atoms
+
+    def _backup(self):
+        """Backup output files and continue with lastest atoms."""
+        for fname in self.saved_fnames:
+            curr_fpath = self.directory/fname
+            if curr_fpath.exists(): # TODO: check if file is empty?
+                backup_fmt = (BACKUP_PREFIX_FORMAT+fname)
+                # --- check backups
+                idx = 0
+                while True:
+                    backup_fpath = self.directory/(backup_fmt.format(idx))
+                    if not pathlib.Path(backup_fpath).exists():
+                        shutil.copy(curr_fpath, backup_fpath)
+                        break
+                    else:
+                        idx += 1
+
+        return
+    
+    def _cleanup(self):
+        """Remove unnecessary files.
+
+        Some dynamics will not overwrite old files so cleanup is needed.
+
+        """
+        # retain calculator-related files
+        for fname in self.removed_fnames:
+            curr_fpath = self.directory/fname
+            if curr_fpath.exists():
+                curr_fpath.unlink()
+
+        return
     
     def read_convergence(self, *args, **kwargs) -> bool:
         """Read output to check whether the simulation is converged.
