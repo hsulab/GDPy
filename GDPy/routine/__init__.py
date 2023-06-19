@@ -9,7 +9,7 @@ from .mc.mc import MonteCarlo, MonteCarloVariable
 registers.routine.register("genetic_algorithm")(GeneticAlgorithemEngine)
 registers.routine.register("monte_carlo")(MonteCarlo)
 
-registers.variable.register("GeneticAlgorithmVariable")(MonteCarloVariable)
+registers.variable.register("GeneticAlgorithmVariable")(GeneticAlgorithmVariable)
 registers.variable.register("MonteCarloVariable")(MonteCarloVariable)
 
 from .interface import routine

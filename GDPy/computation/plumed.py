@@ -14,7 +14,10 @@ import numpy as np
 from os.path import exists
 from ase.units import fs, mol, kJ, nm
 
-import plumed
+try:
+    import plumed
+except Exception as e:
+    print(e)
 
 
 """A plumed wrapper for ase.
