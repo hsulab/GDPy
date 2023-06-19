@@ -35,7 +35,7 @@ class BuilderVariable(Variable):
     def __init__(self, directory="./", *args, **kwargs):
         """"""
         # - create a validator
-        method = kwargs.get("method", "file")
+        method = kwargs.get("method", "direct")
         builder = registers.create(
             "builder", method, convert_name=True, **kwargs
         )

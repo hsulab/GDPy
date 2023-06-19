@@ -112,19 +112,6 @@ def read_xsd2(fd) -> Atoms:
         atoms.set_scaled_positions(coords)
         return atoms
 
-@registers.builder.register
-class FileBuilder(StructureGenerator):
-
-    def __init__(self, directory, *args, **kwargs):
-        super().__init__(directory, *args, **kwargs)
-
-        return
-    
-    def run(self):
-        """"""
-        frames = read()
-
-        return
 
 @registers.builder.register
 class DirectBuilder(StructureGenerator):
