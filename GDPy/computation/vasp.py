@@ -114,6 +114,10 @@ class VaspDriverSetting(DriverSetting):
             # NOTE: Always use Selective Dynamics and MDALAGO
             #       since it properly treats the DOF and velocities
             # some general
+            if self.velocity_seed is None:
+                self.velocity_seed = np.random.randint(0, 10000)
+            random_seed = [self.velocity_seed, 0, 0]
+
             potim = self.timestep
             # TODO: init vel here?
             ibrion, isif = 0, 0
@@ -121,7 +125,8 @@ class VaspDriverSetting(DriverSetting):
                 smass, mdalgo = -3, 2
                 self._internals.update(
                     ibrion=ibrion, potim=potim, isif=isif, 
-                    smass=smass, mdalgo=mdalgo
+                    smass=smass, mdalgo=mdalgo,
+                    random_seed=random_seed
                 )
             elif self.md_style == "nvt":
                 #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
@@ -132,7 +137,8 @@ class VaspDriverSetting(DriverSetting):
                 self._internals.update(
                     mdalgo=mdalgo,
                     ibrion=ibrion, potim=potim, isif=isif, 
-                    smass=smass, tebeg=tebeg, teend=teend
+                    smass=smass, tebeg=tebeg, teend=teend,
+                    random_seed=random_seed
                 )
             elif self.md_style == "npt":
                 mdalgo = 3 # langevin thermostat
@@ -158,6 +164,7 @@ class VaspDriverSetting(DriverSetting):
                     pstress = pstress, pmass = pmass,
                     langevin_gamma=langevin_gamma,
                     langevin_gamma_l=langevin_gamma_l,
+                    random_seed=random_seed
                 )
             else:
                 raise NotImplementedError(f"{self.md_style} is not supported yet.")
@@ -204,7 +211,7 @@ class VaspDriver(AbstractDriver):
     syswise_keys: List[str] = ["system", "kpts", "kspacing"]
 
     # - file names would be copied when continuing a calculation
-    saved_fnames = ["OSZICAR", "OUTCAR", "POSCAR", "CONTCAR", "vasprun.xml"]
+    saved_fnames = ["OSZICAR", "OUTCAR", "POSCAR", "CONTCAR", "vasprun.xml", "REPORT"]
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
@@ -242,8 +249,13 @@ class VaspDriver(AbstractDriver):
             self.calc.set(**run_params)
             atoms.calc = self.calc
 
-            # - run
-            _ = atoms.get_forces()
+            # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+            #       thus we manually call the function to write input files and
+            #       run the calculation
+            self.calc.write_input(atoms)
+            if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
+                shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+            run_vasp("vasp", atoms.calc.command, self.directory)
 
         except Exception as e:
             self._debug(e)
