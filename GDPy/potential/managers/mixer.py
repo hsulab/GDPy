@@ -42,10 +42,11 @@ class MixerManager(AbstractPotentialManager):
             potters.append(potter)
         
         pot_calcs = [p.calc for p in potters]
+        save_host = calc_params.get("save_host", True)
 
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            calc = EnhancedCalculator(pot_calcs)
+            calc = EnhancedCalculator(pot_calcs, save_host=save_host)
         else:
             ...
         

@@ -24,7 +24,6 @@ from ase.md.velocitydistribution import (
 )
 
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.calculators.mixing import MixedCalculator
 
 from .. import config as GDPCONFIG
 from GDPy.computation.driver import AbstractDriver, DriverSetting
@@ -35,6 +34,7 @@ from GDPy.md.md_utils import force_temperature
 
 from GDPy.builder.constraints import parse_constraint_info
 from .plumed import set_plumed_state
+from .mixer import EnhancedCalculator
 
 
 def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
@@ -95,9 +95,9 @@ def save_trajectory(atoms, log_fpath) -> NoReturn:
 
     # -- check special metadata
     calc = atoms.calc
-    if isinstance(calc, MixedCalculator):
-        atoms_to_save.info["energy_contributions"] = copy.deepcopy(calc.results["energy_contributions"])
-        atoms_to_save.arrays["force_contributions"] = copy.deepcopy(calc.results["force_contributions"])
+    if isinstance(calc, EnhancedCalculator):
+        atoms_to_save.info["host_energy"] = copy.deepcopy(calc.results["host_energy"])
+        atoms_to_save.arrays["host_forces"] = copy.deepcopy(calc.results["host_forces"])
 
     # - append to traj
     write(log_fpath, atoms_to_save, append=True)

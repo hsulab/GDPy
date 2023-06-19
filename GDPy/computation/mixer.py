@@ -24,11 +24,18 @@ class AddonCalculator(MixedCalculator):
 
 class EnhancedCalculator(LinearCombinationCalculator):
 
-    def __init__(self, calcs, weights=None, atoms=None):
-        """"""
+    def __init__(self, calcs, save_host=True, weights=None, atoms=None):
+        """Init the enhanced calculator.
+
+        Args:
+            calcs: Calculators.
+            save_host: Whether save host energy and forces.
+        """
         if weights is None:
             weights = np.ones(len(calcs))
         super().__init__(calcs, weights, atoms)
+
+        self.save_host = save_host
 
         return
 
@@ -48,7 +55,9 @@ class EnhancedCalculator(LinearCombinationCalculator):
         super().calculate(atoms, properties, system_changes)
         atoms.calc = prev_calc
 
-        #self._compute_deviation(atoms, properties)
+        if self.save_host:
+            self.results["host_energy"] = self.calcs[0].get_property("energy", atoms)
+            self.results["host_forces"] = self.calcs[0].get_property("forces", atoms)
 
         return
     
