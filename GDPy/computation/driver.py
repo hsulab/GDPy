@@ -6,6 +6,7 @@ import copy
 import dataclasses
 import pathlib
 import shutil
+import warnings
 
 from typing import Optional, NoReturn, List, Callable
 from collections.abc import Iterable
@@ -114,9 +115,6 @@ class AbstractDriver(abc.ABC):
     #: Whether check the dynamics is converged, and re-run if not.
     ignore_convergence: bool = False
 
-    #: Deleted keywords.
-    delete: list = []
-
     #: Driver setting.
     setting: DriverSetting = None
 
@@ -126,23 +124,8 @@ class AbstractDriver(abc.ABC):
     #: List of output files would be removed when restart.
     removed_fnames: List[str] = []
 
-    #: Keyword.
-    keyword: Optional[str] = None
-
-    #: Special keywords.
-    special_keywords: dict = {}
-
     #: Systemwise parameter keys.
     syswise_keys: list = []
-
-    #: Default init parameters.
-    default_init_params: dict = dict()
-
-    #: Default run parameters.
-    default_run_params: dict = dict()
-
-    #: Map input key names to the actual names used in the backend.
-    param_mapping: dict = dict()
 
     #: Parameters for PotentialManager.
     pot_params: dict = None
@@ -232,31 +215,6 @@ class AbstractDriver(abc.ABC):
 
         return
 
-    def delete_keywords(self, kwargs) -> None:
-        """Removes list of keywords (delete) from kwargs."""
-        for d in self.delete:
-            kwargs.pop(d, None)
-
-        return
-
-    def set_keywords(self, kwargs) -> NoReturn:
-        """Set list of keywords from kwargs."""
-        args = kwargs.pop(self.keyword, [])
-        if isinstance(args, str):
-            args = [args]
-        elif isinstance(args, Iterable):
-            args = list(args)
-
-        for key, template in self.special_keywords.items():
-            if key in kwargs:
-                val = kwargs.pop(key)
-                args.append(template.format(val))
-
-        kwargs[self.keyword] = args
-
-        return
-
-    @abc.abstractmethod
     def run(self, atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
         """Return the last frame of the simulation.
 
@@ -265,7 +223,44 @@ class AbstractDriver(abc.ABC):
         be added to the atoms.info
 
         """
-        new_atoms = copy.deepcopy(atoms)
+        atoms = atoms.copy()
+
+        # - backup old params
+        params_old = copy.deepcopy(self.calc.parameters)
+
+        # - run dynamics
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True)
+            self._irun(atoms, *args, **kwargs)
+        else:
+            if list(self.directory.iterdir()):
+                converged = self.read_convergence()
+                if not converged:
+                    if read_exists:
+                        atoms, resume_params = self._resume(atoms, *args, **kwargs)
+                        kwargs.update(**resume_params)
+                        self._backup()
+                    self._cleanup()
+                    self._irun(atoms, *args, **kwargs)
+                else:
+                    ...
+            else:
+                self._irun(atoms, *args, **kwargs)
+
+        # - get results
+        traj = self.read_trajectory()
+        nframes = len(traj)
+        if nframes > 0:
+            new_atoms = traj[-1]
+            if extra_info is not None:
+                new_atoms.info.update(**extra_info)
+        else:
+            warnings.warn(f"The calculation at {self.directory.name} performed but failed.", RuntimeWarning)
+            new_atoms = None
+
+        # - reset params
+        self.calc.parameters = params_old
+        self.calc.reset()
 
         return new_atoms
 
@@ -328,8 +323,8 @@ class AbstractDriver(abc.ABC):
                         converged = True
                     self._debug("MIN convergence: ", converged, f" {maxfrc} <=? {self.setting.fmax}")
                 elif self.setting.task == "md":
-                    # TODO: if steps is set at run-time???
-                    if step >= self.setting.steps:
+                    #print("steps: ", step, self.setting.steps)
+                    if step+1 >= self.setting.steps: # step startswith 0
                         converged = True
                     self._debug("MD convergence: ", converged)
                 else:

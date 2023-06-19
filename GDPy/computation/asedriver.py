@@ -337,49 +337,6 @@ class AseDriver(AbstractDriver):
         
         return driver, run_params
 
-    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
-        """Run the driver.
-
-        Additional output files would be generated, namely a xyz-trajectory and
-        a deviation file if the calculator could estimate uncertainty.
-
-        Note:
-            Calculator's parameters will not change since it still performs 
-            single-point calculations as the simulation goes.
-
-        """
-        atoms = copy.deepcopy(atoms_) # TODO: make minimal atoms object?
-
-        # - run
-        if not self.directory.exists():
-            self.directory.mkdir(parents=True)
-            self._irun(atoms, *args, **kwargs)
-        else:
-            converged = self.read_convergence()
-            if not converged:
-                # -- try to restart if it is not calculated before
-                if read_exists:
-                    atoms, resume_params = self._resume(atoms, *args, **kwargs)
-                    kwargs.update(**resume_params)
-                    self._backup()
-                self._cleanup()
-                self._irun(atoms, *args, **kwargs)
-            else:
-                ...
-        
-        # - get results
-        traj = self.read_trajectory()
-        nframes = len(traj)
-        if nframes > 0:
-            new_atoms = traj[-1]
-            if extra_info is not None:
-                new_atoms.info.update(**extra_info)
-        else:
-            warnings.warn(f"The calculation at {self.directory.name} performed but failed.", RuntimeWarning)
-            new_atoms = None
-
-        return new_atoms
-
     def _irun(self, atoms: Atoms, *args, **kwargs):
         """Run the simulation."""
         try:

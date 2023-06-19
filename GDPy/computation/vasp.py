@@ -111,6 +111,8 @@ class VaspDriverSetting(DriverSetting):
             )
 
         if self.task == "md":
+            # NOTE: Always use Selective Dynamics and MDALAGO
+            #       since it properly treats the DOF and velocities
             # some general
             potim = self.timestep
             # TODO: init vel here?
@@ -123,11 +125,12 @@ class VaspDriverSetting(DriverSetting):
                 )
             elif self.md_style == "nvt":
                 #assert self.init_params["smass"] > 0, "NVT needs positive SMASS."
-                smass = 0.
+                smass, mdalgo = 0., 2
                 if self.tend is None:
                     self.tend = self.temp
                 tebeg, teend = self.temp, self.tend
                 self._internals.update(
+                    mdalgo=mdalgo,
                     ibrion=ibrion, potim=potim, isif=isif, 
                     smass=smass, tebeg=tebeg, teend=teend
                 )
@@ -216,127 +219,62 @@ class VaspDriver(AbstractDriver):
 
         return
     
-    def run(self, atoms_: Atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs):
-        """Run the simulation."""
-        atoms = atoms_.copy()
-
-        # - backup old params
-        # TODO: change to context message?
-        calc_old = atoms.calc 
-        params_old = copy.deepcopy(self.calc.parameters)
-
-        # - set special keywords
-        self.delete_keywords(kwargs)
-        self.delete_keywords(self.calc.parameters)
-
-        # - merge params
-        run_params = self.setting.get_run_params(**kwargs)
-
-        # - init params
-        run_params.update(**self.setting.get_init_params())
-
-        # - update some system-dependant params
-        if "langevin_gamma" in run_params:
-            ntypes = len(set(atoms.get_chemical_symbols()))
-            run_params["langevin_gamma"] = [run_params["langevin_gamma"]]*ntypes
-
-        # - check constraint
-        cons_text = run_params.pop("constraint", None)
-        mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
-        if frozen_indices:
-            atoms._del_constraints()
-            atoms.set_constraint(FixAtoms(indices=frozen_indices))
-        #print("constraints: ", atoms.constraints)
-        
-        run_params["system"] = self.directory.name
-
-        self.calc.set(**run_params)
-
-        # BUG: ase 3.22.1 no special params in param_state
-        #calc_params["inputs"]["lreal"] = self.calc.special_params["lreal"] 
-
-        atoms.calc = self.calc
-
-        # - run dynamics
-        converged = self._continue(atoms, read_exists=read_exists)
-        
-        # NOTE: always use dynamics calc
-        # TODO: should change positions and other properties for input atoms?
-        # TODO: if not converged?
-        traj_frames = self.read_trajectory()
-        new_atoms = traj_frames[-1]
-
-        if extra_info is not None:
-            new_atoms.info.update(**extra_info)
-
-        # - reset params
-        self.calc.parameters = params_old
-        self.calc.reset()
-        if calc_old is not None:
-            atoms.calc = calc_old
-
-        return new_atoms
-    
-    def _continue(self, atoms, read_exists=True, *args, **kwargs):
-        """Check whether continue unfinished calculation.
-
-        NOTE: vasprun.xml maybe incomplete, which leads a runtime error in 
-             read_trajectory.
-
-        """
-        print(f"run {self.directory}")
-        # NOTE: some calculation can overwrite existed data
-        converged = self.read_convergence()
-        if not converged:
-            # - backup previous data
-            if read_exists:
-                # TODO: add a max for continued calculations? 
-                #       such calcs can be labelled as a failure
-                # TODO: check WAVECAR to speed restart?
-                for fname in self.saved_fnames:
-                    curr_fpath = self.directory/fname
-                    if curr_fpath.exists():
-                        backup_fmt = ("gbak.{:d}."+fname)
-                        # --- check backups
-                        idx = 0
-                        while True:
-                            backup_fpath = self.directory/(backup_fmt.format(idx))
-                            if not Path(backup_fpath).exists():
-                                shutil.copy(curr_fpath, backup_fpath)
-                                break
-                            else:
-                                idx += 1
-                # -- continue calculation
-                #    update positions and velocities
-                if (self.directory/"CONTCAR").exists():
-                    # vasp does not finish one step so CONTCAR is empty
-                    if (self.directory/"CONTCAR").stat().st_size != 0:
-                        shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-                # TODO: update steps if MD 
-                ...
-            else:
-                # - start from scratch
-                ...
-            # -- run calculation
-            try:
-                if not (self.directory/"INCAR").exists():
-                    # create all input files
-                    _ = atoms.get_forces()
-                else:
-                    run_vasp("vasp", atoms.calc.command, self.directory)
-                # -- check whether the restart is converged
-                converged = self.read_convergence()
-            except OSError:
-                converged = False
-        self._debug(f"end {self.directory}")
-        self._debug("converged: ", converged)
-
-        return converged
-    
-    def read_convergence(self, *args, **kwargs) -> bool:
+    def _irun(self, atoms: Atoms, *args, **kwargs):
         """"""
-        converged = super().read_convergence()
+        try:
+            # - merge params
+            run_params = self.setting.get_run_params(**kwargs)
+            run_params.update(**self.setting.get_init_params())
 
+            # - update some system-dependant params
+            if "langevin_gamma" in run_params:
+                ntypes = len(set(atoms.get_chemical_symbols()))
+                run_params["langevin_gamma"] = [run_params["langevin_gamma"]]*ntypes
+            run_params["system"] = self.directory.name
+
+            # - check constraint
+            cons_text = run_params.pop("constraint", None)
+            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+            if frozen_indices:
+                atoms._del_constraints()
+                atoms.set_constraint(FixAtoms(indices=frozen_indices))
+            #print("constraints: ", atoms.constraints)
+            self.calc.set(**run_params)
+            atoms.calc = self.calc
+
+            # - run
+            _ = atoms.get_forces()
+
+        except Exception as e:
+            self._debug(e)
+
+        return
+    
+    def _resume(self, atoms: Atoms, *args, **kwargs):
+        """"""
+        # - update atoms and driver
+        traj = self.read_trajectory()
+        nframes = len(traj)
+        if nframes > 0:
+            # --- update atoms
+            resume_atoms = traj[-1]
+            resume_params = {}
+            # --- update run_params in settings
+            dump_period = 1
+            steps = (
+                self.setting.get_run_params(*args, **kwargs)["nsw"] + dump_period 
+                - nframes*dump_period
+            )
+            assert steps > 0, "Steps should be greater than 0."
+            resume_params.update(steps=steps)
+        else:
+            resume_atoms = atoms
+            resume_params = {}
+
+        return resume_atoms, resume_params
+    
+    def read_force_convergence(self, *args, **kwargs) -> bool:
+        """"""
         scf_converged = False
         if (self.directory/"OUTCAR").exists():
             if hasattr(self.calc, "read_convergence"):
@@ -347,7 +285,7 @@ class VaspDriver(AbstractDriver):
         else:
             ...
 
-        return (converged and scf_converged)
+        return scf_converged
     
     def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory.
