@@ -177,13 +177,16 @@ def run_worker(
     if worker.get_number_of_running_jobs() == 0:
         # - report
         res_dir = directory/"results"
-        res_dir.mkdir(exist_ok=True)
+        if not res_dir.exists():
+            res_dir.mkdir(exist_ok=True)
 
-        ret = worker.retrieve()
-        ret.save_file(res_dir/"trajs.h5")
+            ret = worker.retrieve()
+            ret.save_file(res_dir/"trajs.h5")
 
-        end_frames = [traj[-1] for traj in ret]
-        write(res_dir/"end_frames.xyz", end_frames)
+            end_frames = [traj[-1] for traj in ret]
+            write(res_dir/"end_frames.xyz", end_frames)
+        else:
+            print("Results have already been retrieved.")
 
     return
 
