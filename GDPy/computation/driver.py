@@ -14,6 +14,9 @@ from collections.abc import Iterable
 import numpy as np
 
 from ase import Atoms
+from ase.constraints import FixAtoms
+
+from GDPy.builder.constraints import parse_constraint_info
 
 #: Prefix of backup files
 BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
@@ -317,8 +320,15 @@ class AbstractDriver(abc.ABC):
                 self._debug("nframes: ", nframes)
                 if self.setting.task == "min":
                     # NOTE: check geometric convergence (forces)...
-                    # TODO: if etol and fmax is set at run-time???
-                    maxfrc = np.max(np.fabs(traj_frames[-1].get_forces()))
+                    #       some drivers does not store constraints in trajectories
+                    atoms = traj_frames[-1]
+                    run_params = self.setting.get_run_params()
+                    cons_text = run_params.pop("constraint", None)
+                    mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+                    if frozen_indices:
+                        atoms._del_constraints()
+                        atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                    maxfrc = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
                     if maxfrc <= self.setting.fmax:
                         converged = True
                     self._debug("MIN convergence: ", converged, f" {maxfrc} <=? {self.setting.fmax}")
