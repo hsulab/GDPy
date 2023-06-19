@@ -10,8 +10,6 @@ import numpy as np
 from ase import units
 from ase.calculators.calculator import Calculator, all_changes
 from ase.io.trajectory import Trajectory
-from ase.parallel import broadcast
-from ase.parallel import world
 import numpy as np
 from os.path import exists
 from ase.units import fs, mol, kJ, nm
@@ -42,13 +40,14 @@ Notes:
 
 """
 
-def set_plumed_timestep(calc, timestep: float):
+def set_plumed_state(calc, timestep: float, stride: int):
     """"""
     if isinstance(calc, Plumed):
         calc.timestep = timestep
+        calc.stride = stride
     if hasattr(calc, "calcs"):
         for subcalc in calc.calcs:
-            set_plumed_timestep(subcalc, timestep)
+            set_plumed_state(subcalc, timestep, stride)
     else:
         ...
 
@@ -150,11 +149,27 @@ class AsePlumed(object):
         self.worker.finalize()
 
 
+def update_input_value(line: str, key: str, value, func: callable):
+    """Update the given key with the new value."""
+    shift = len(key) + 1 # key name and =
+    if line.find(key) != -1:
+        ini = line.find(key)
+        end = line.find(' ', ini)
+        if end == -1:
+            prev = line[ini + shift:]
+            line = line[:ini+shift] + func(prev, value)
+        else:
+            prev = line[ini + shift:end]
+            line = line[:ini+shift] + func(prev, value) + line[end:]
+
+    return line
+
+
 class Plumed(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, input: List[str], atoms=None, kT=1., log=None,
+    def __init__(self, input: List[str], atoms=None, kT=1.,
                  restart=False, use_charge=False, update_charge=False):
         """
         Plumed calculator is used for simulations of enhanced sampling methods
@@ -176,9 +191,6 @@ class Plumed(Calculator):
             Value of the thermal energy in eV units. It is important for
             some methods of plumed like Well-Tempered Metadynamics.
 
-        log: string
-            Log file of the plumed calculations
-
         restart: boolean. Default False
             True if the simulation is restarted.
 
@@ -192,7 +204,6 @@ class Plumed(Calculator):
             True if you want the charges to be updated each time step. This
             will fail in case that calc does not have 'charges' in its
             properties.
-
 
         .. note:: For this case, the calculator is defined strictly with the
             object atoms inside. This is necessary for initializing the
@@ -219,11 +230,11 @@ class Plumed(Calculator):
         self.use_charge = use_charge
         self.update_charge = update_charge
 
-        self.log = log
         self.kT = kT
         self.restart = restart
 
         self._timestep = None
+        self._stride = 1
         
         return
     
@@ -240,7 +251,19 @@ class Plumed(Calculator):
 
         return
     
-    def _prepare(self, natoms, input_lines, log, timestep, restart, kT):
+    @property
+    def stride(self):
+
+        return self._stride
+    
+    @stride.setter
+    def stride(self, stride):
+        """"""
+        self._stride = stride
+
+        return self._stride
+    
+    def _prepare(self, natoms, input_lines, timestep, restart, kT):
         """"""
         self.plumed = plumed.Plumed()
 
@@ -254,30 +277,18 @@ class Plumed(Calculator):
         self.plumed.cmd("setMDEngine", "ASE")
 
         self.plumed.cmd("setNatoms", natoms)
-        if log is None:
-            self.plumed.cmd("setLogFile", "")
-        else:
-            self.plumed.cmd("setLogFile", os.path.join(self.directory, log))
+        self.plumed.cmd("setLogFile", os.path.join(self.directory, "plumed.out"))
         self.plumed.cmd("setTimestep", float(timestep))
         self.plumed.cmd("setRestart", restart)
         self.plumed.cmd("setKbT", float(kT))
         self.plumed.cmd("init")
 
-        # - parse lines
+        # - parse lines, update FILE and STRIDE
         input_lines, parsed_lines = copy.deepcopy(input_lines), []
         for line in input_lines:
-            parsed_line = line
-            if line.find("FILE") != -1:
-                ini = line.find("FILE")
-                end = line.find(' ', ini)
-                if end == -1:
-                    fname = line[ini + 5:]
-                    parsed_line = line[:ini+5] + os.path.join(self.directory, fname)
-                else:
-                    fname = line[ini + 5:end]
-                    parsed_line = line[:ini+5] + os.path.join(self.directory, fname) + line[end:]
+            parsed_line = update_input_value(line, "FILE", self.directory, func=lambda x,y: os.path.join(y,x))
+            parsed_line = update_input_value(parsed_line, "STRIDE", self.stride, func=lambda x,y: str(y))
             parsed_lines.append(parsed_line)
-        print(parsed_lines)
 
         for line in parsed_lines:
             self.plumed.cmd("readInputLine", line)
@@ -292,48 +303,30 @@ class Plumed(Calculator):
         if self.timestep is None:
             raise RuntimeError("Plumed needs a valid timestep set by an external class.")
 
-        if not hasattr(self, "plumed") and world.rank == 0:
+        if not hasattr(self, "plumed"):
             self._prepare(
-                len(atoms), self.input, self.log, self.timestep, 
-                self.restart, self.kT
+                len(atoms), self.input, self.timestep, self.restart, self.kT
             )
 
-        comp = self.compute_energy_and_forces(self.atoms.get_positions(),
-                                              self.istep)
-        energy, forces = comp
+        energy_bias, forces_bias = self.compute_bias(
+            self.atoms.get_positions(), self.istep
+        )
+
+        self.results["energy"], self.results["forces"] = energy_bias, forces_bias
         self.istep += 1
-        self.results['energy'], self. results['forces'] = energy, forces
 
         return
 
-    def compute_energy_and_forces(self, pos, istep):
-        """"""
-        unbiased_energy = 0.
-        unbiased_forces = 0.
-
-        if world.rank == 0:
-            ener_forc = self.compute_bias(pos, istep, unbiased_energy)
-        else:
-            ener_forc = None
-        energy_bias, forces_bias = broadcast(ener_forc)
-        energy = unbiased_energy + energy_bias
-        forces = unbiased_forces + forces_bias
-
-        return energy, forces
-
-    def compute_bias(self, pos, istep, unbiased_energy):
+    def compute_bias(self, pos, istep):
         """"""
         self.plumed.cmd("setStep", istep)
 
         # Box for functions with PBC in plumed
-        #if self.atoms.cell:
-        #    cell = np.asarray(self.atoms.get_cell())
-        #    self.plumed.cmd("setBox", cell)
         if np.any(self.atoms.pbc):
             self.plumed.cmd("setBox", self.atoms.get_cell(complete=True))
 
         self.plumed.cmd("setPositions", pos)
-        self.plumed.cmd("setEnergy", unbiased_energy)
+        self.plumed.cmd("setEnergy", 0.)
         self.plumed.cmd("setMasses", self.atoms.get_masses())
         forces_bias = np.zeros((self.atoms.get_positions()).shape)
         self.plumed.cmd("setForces", forces_bias)
@@ -345,40 +338,6 @@ class Plumed(Calculator):
         self.plumed.cmd("getBias", energy_bias)
 
         return [energy_bias, forces_bias]
-
-    def write_plumed_files(self, images):
-        """ This function computes what is required in
-        plumed input for some trajectory.
-
-        The outputs are saved in the typical files of
-        plumed such as COLVAR, HILLS """
-        for i, image in enumerate(images):
-            pos = image.get_positions()
-            self.compute_energy_and_forces(pos, i)
-        return self.read_plumed_files()
-
-    def read_plumed_files(self, file_name=None):
-        read_files = {}
-        if file_name is not None:
-            read_files[file_name] = np.loadtxt(file_name, unpack=True)
-        else:
-            for line in self.input:
-                if line.find('FILE') != -1:
-                    ini = line.find('FILE')
-                    end = line.find(' ', ini)
-                    if end == -1:
-                        file_name = line[ini + 5:]
-                    else:
-                        file_name = line[ini + 5:end]
-                    read_files[file_name] = np.loadtxt(file_name, unpack=True)
-
-            if len(read_files) == 0:
-                if exists('COLVAR'):
-                    read_files['COLVAR'] = np.loadtxt('COLVAR', unpack=True)
-                if exists('HILLS'):
-                    read_files['HILLS'] = np.loadtxt('HILLS', unpack=True)
-        assert not len(read_files) == 0, "There are not files for reading"
-        return read_files
 
     def __enter__(self):
         return self

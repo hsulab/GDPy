@@ -34,7 +34,7 @@ from GDPy.data.trajectory import Trajectory
 from GDPy.md.md_utils import force_temperature
 
 from GDPy.builder.constraints import parse_constraint_info
-from .plumed import set_plumed_timestep
+from .plumed import set_plumed_state
 
 
 def retrieve_and_save_deviation(atoms, devi_fpath) -> NoReturn:
@@ -323,7 +323,9 @@ class AseDriver(AbstractDriver):
             init_params_["timestep"] *= units.fs
 
             # NOTE: plumed 
-            set_plumed_timestep(self.calc, timestep=init_params_["timestep"])
+            set_plumed_state(
+                self.calc, timestep=init_params_["timestep"], stride=init_params_["loginterval"]
+            )
 
             # - construct the driver
             driver = self.setting.driver_cls(

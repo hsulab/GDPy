@@ -1,6 +1,9 @@
 #!/usr3/bin/env python3
 # -*- coding: utf-8 -*
 
+
+import pathlib
+
 from ..manager import AbstractPotentialManager, DummyCalculator
 
 
@@ -29,12 +32,19 @@ class PlumedManager(AbstractPotentialManager):
                 from GDPy.computation.plumed import Plumed
             except:
                 raise ModuleNotFoundError("Please install py-plumed to use the ase interface.")
-            input_lines = [
-                "FLUSH STRIDE=1\n",
-                "d1: DISTANCE ATOMS=1,2\n",
-                "PRINT FILE=COLVAR ARG=d1 STRIDE=1\n"
-            ]
-            calc = Plumed(input=input_lines, log="plumed.out")
+
+            inp = pathlib.Path(calc_params.get("inp", "./plumed.inp"))
+            if inp.exists():
+                self.calc_params.update(inp=str(inp.absolute()))
+            else:
+                raise FileNotFoundError(f"{inp} does not exist.")
+            with open(inp, "r") as fopen:
+                input_lines = fopen.readlines()
+                
+            kT = calc_params.get("kT", 1.)
+            use_charge = calc_params.get("use_charge", False)
+            update_charge = calc_params.get("update_charge", False)
+            calc = Plumed(input=input_lines, kT=kT, use_charge=use_charge, update_charge=update_charge)
         else:
             ...
         
