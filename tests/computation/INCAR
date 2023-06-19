@@ -1,0 +1,40 @@
+# Created by VASPy
+# GENERAL
+  SYSTEM        =  PtCOxNo_MAG               # system name
+  NWRITE        =  2                         # verbosity flag, 0|1|*2|3|4
+  ISTART        =  0                         # 0 New | 1 Restart
+
+# WRITING
+  LCHARG        =  .FALSE.                   # if write CHGCAR
+  LWAVE         =  .FALSE.                   # if write WAVECAR
+  LORBIT        =  10
+
+# PARALLEL
+  NPAR          =  4                         # NCORE=ncores/NPAR
+
+# ELECTRONIC
+  ENCUT         =  200                       # energy cutoff
+  PREC          =  Normal                    # precision
+  EDIFF         =  1.0E-5                    # stopping criterion for electronic updates
+  NELM          =  180                       # maximium number of ionic updates
+  NELMIN        =  6                         # minimium number of ionic updates
+
+# MAGNETIC
+  ISPIN         =  1                         # *1 no | 2 yes
+
+# SMEARING
+  ISMEAR        =  0                         # -5 DOS | 0 large cell | 1 metal
+  SIGMA         =  0.1                       # smearing parameter
+
+# ALGO
+  ALGO          =  Fast                      # algorithms for electronic self-consistent
+  LREAL         =  .FALSE.                   # if calculation done in real spcae
+  ISYM          =  0                         # 0 off | 1 on | 2 charge | 3 no charge
+
+# IONIC
+  EDIFFG        =  0.00001                   # stopping criterion for ionic updates
+  NSW           =  0                         # number of steps for ionic updates
+  IBRION        =  2                         # 0 MD | 1 quasi-Newton | 2 CG | 3 damped-MD | 5 FC
+  ISIF          =  2                         # 0 MD | *2 | 3 lat opt
+  POTIM         =  0.1                       # ionic step size / MD time step
+
