@@ -40,6 +40,7 @@ class MixerManager(AbstractPotentialManager):
                 )
                 potter.register_calculator(potter_.get("params", {}))
             potters.append(potter)
+        self.potters = potters
         
         pot_calcs = [p.calc for p in potters]
         save_host = calc_params.get("save_host", True)
@@ -53,6 +54,13 @@ class MixerManager(AbstractPotentialManager):
         self.calc = calc
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = super().as_dict()
+        params["params"]["potters"] = [p.as_dict() for p in self.potters]
+
+        return params
 
 if __name__ == "__main__":
     ...

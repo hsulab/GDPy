@@ -38,8 +38,13 @@ class PlumedManager(AbstractPotentialManager):
                 self.calc_params.update(inp=str(inp.absolute()))
             else:
                 raise FileNotFoundError(f"{inp} does not exist.")
+
+            input_lines = []
             with open(inp, "r") as fopen:
-                input_lines = fopen.readlines()
+                lines = fopen.readlines()
+                for line in lines:
+                    if not line.strip().startswith("#"):
+                        input_lines.append(line)
                 
             kT = calc_params.get("kT", 1.)
             use_charge = calc_params.get("use_charge", False)
