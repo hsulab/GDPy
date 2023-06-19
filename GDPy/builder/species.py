@@ -83,7 +83,7 @@ class MoleculeBuilder(StructureBuilder):
     #: Whether centre the molecule.
     recentre: bool = True
 
-    def __init__(self, name: str=None, filename: str=None, directory="./", *args, **kwargs):
+    def __init__(self, name: str=None, filename: str=None, box=None, recentre=True, directory="./", *args, **kwargs):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
 
@@ -93,6 +93,10 @@ class MoleculeBuilder(StructureBuilder):
             self.molecule_name, self.func = name, self._build
         if filename is not None:
             self.filename, self.func = filename, self._read
+        
+        if box is not None:
+            self.default_box = box
+        self.recentre = recentre
 
         return
     
