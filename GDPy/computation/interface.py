@@ -24,6 +24,7 @@ class DriverVariable(Variable):
         merged_params = dict(
             task = copied_params.get("task", "min"),
             backend = copied_params.get("backend", "external"),
+            ignore_convergence = copied_params.get("ignore_convergence", False)
         )
         merged_params.update(**copied_params.get("init", {}))
         merged_params.update(**copied_params.get("run", {}))
