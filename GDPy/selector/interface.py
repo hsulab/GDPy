@@ -99,9 +99,9 @@ def run_selection(
     selector.directory = directory
 
    # - read structures
-    from GDPy.builder import create_generator
-    generator = create_generator(structure)
-    frames = generator.run()
+    from GDPy.builder import create_builder
+    builder = create_builder(structure)
+    frames = builder.run()
 
     # TODO: convert to a bundle of atoms?
     data = AtomsArray2D.from_list2d([frames])

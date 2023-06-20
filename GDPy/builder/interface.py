@@ -4,7 +4,7 @@
 import copy
 import itertools
 import pathlib
-from typing import NoReturn, List
+from typing import NoReturn, List, Union
 
 import numpy as np
 
@@ -109,6 +109,25 @@ class modify(Operation):
         self.status = "finished"
 
         return frames
+
+def create_builder(config: Union[str, dict]):
+    """"""
+    supproted_configtypes = ["json", "yaml"]
+    if isinstance(config, (str,pathlib.Path)):
+        params = str(config)
+        suffix = params[-4:]
+        if suffix in supproted_configtypes:
+            from GDPy.utils.command import parse_input_file
+            params = parse_input_file(config)
+        else: # assume it is an ASE readable structure file
+            params = dict(
+                method = "direct",
+                frames = params
+            )
+    
+    builder = BuilderVariable(**params).value
+
+    return builder
 
 def build_structures(config: dict, size: int=1, directory="./"):
     """"""

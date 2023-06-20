@@ -165,14 +165,14 @@ def run_worker(
         directory.mkdir()
 
     # - read structures
-    from GDPy.builder import create_generator
-    generator = create_generator(structure)
-    generator.directory = directory/"init"
+    from GDPy.builder import create_builder
+    builder = create_builder(structure)
+    builder.directory = directory/"init"
 
     # - find input frames
     worker.directory = directory
 
-    _ = worker.run(generator, batch=batch)
+    _ = worker.run(builder, batch=batch)
     worker.inspect(resubmit=True)
     if worker.get_number_of_running_jobs() == 0:
         # - report

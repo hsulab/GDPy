@@ -26,37 +26,6 @@ def compute_number_ideal_gas_molecules(pressure: float, volume: float, temperatu
 
     return nmolecules
 
-class FormulaBasedGenerator(StructureBuilder):
-
-    def __init__(self, chemical_formula, directory="./", *args, **kwargs):
-        """"""
-        super().__init__(directory)
-
-        self.atoms = self._parse_formula(chemical_formula)
-
-        return
-    
-    def _parse_formula(self, formula):
-        """"""
-        # - build adsorbate
-        atoms = None
-        if formula in ase.data.chemical_symbols:
-            atoms = Atoms(formula, positions=[[0.,0.,0.]])
-        elif formula in g2.names:
-            atoms = molecule(formula)
-        else:
-            atoms = None
-
-        return atoms
-    
-    def run(self, *args, **kargs) -> List[Atoms]:
-        """"""
-        frames = None
-        if self.atoms:
-            frames = [self.atoms]
-
-        return frames
-
 
 def build_species(species):
     # - build adsorbate
@@ -71,6 +40,7 @@ def build_species(species):
         raise ValueError(f"Cant create species {species}")
 
     return atoms
+
 
 @registers.builder.register
 class MoleculeBuilder(StructureBuilder):
