@@ -239,8 +239,7 @@ def main():
         params = parse_input_file(input_fpath=args.potential)
         potter = ComputerVariable(
             params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-            params.get("batchsize", 1), params.get("use_single", False), 
-            params.get("ignore_convergence", False)
+            batchsize=params.get("batchsize", 1), use_single=params.get("use_single", False), 
         ).value[0]
 
     # - use subcommands
