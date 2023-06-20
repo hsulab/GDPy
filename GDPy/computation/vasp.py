@@ -215,12 +215,7 @@ class VaspDriver(AbstractDriver):
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
-        self.calc = calc
-        self.calc.reset()
-
-        self._directory = pathlib.Path(directory)
-
-        self._org_params = copy.deepcopy(params)
+        super().__init__(calc, params, directory=directory, *args, **kwargs)
 
         self.setting = VaspDriverSetting(**params)
 
