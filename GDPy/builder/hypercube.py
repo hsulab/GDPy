@@ -15,7 +15,6 @@ from jax import grad, value_and_grad, jit, jacfwd, jacrev
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.register import registers
 from GDPy.builder.builder import StructureBuilder
 
 """Sample small molecule.
@@ -92,7 +91,7 @@ def pseudo_inverse_of_jacobian(jac, eps=0.0001):
 
     return jac_inv
 
-@registers.builder.register
+
 class HypercubeBuilder(StructureBuilder):
 
     """Use hypercube sampling to generate internal coordinates.

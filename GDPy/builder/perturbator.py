@@ -9,11 +9,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.register import registers
-from GDPy.builder.builder import StructureModifier 
+from .builder import StructureModifier 
 
 
-@registers.builder.register
 class PerturbatorBuilder(StructureModifier):
 
     name = "perturbater"

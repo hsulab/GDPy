@@ -12,8 +12,7 @@ from ase.io import read, write
 from ase.collections import g2
 from ase.build import molecule
 
-from GDPy.core.register import registers
-from GDPy.builder.builder import StructureBuilder
+from .builder import StructureBuilder
 
 
 def compute_number_ideal_gas_molecules(pressure: float, volume: float, temperature: float):
@@ -42,7 +41,6 @@ def build_species(species):
     return atoms
 
 
-@registers.builder.register
 class MoleculeBuilder(StructureBuilder):
 
     name: str = "molecule"

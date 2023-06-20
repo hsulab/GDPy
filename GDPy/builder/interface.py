@@ -37,7 +37,7 @@ class BuilderVariable(Variable):
         # - create a validator
         method = kwargs.get("method", "direct")
         builder = registers.create(
-            "builder", method, convert_name=True, **kwargs
+            "builder", method, convert_name=False, **kwargs
         )
 
         super().__init__(initial_value=builder, directory=directory)

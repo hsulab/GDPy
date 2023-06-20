@@ -69,7 +69,7 @@ class GeneticAlgorithmVariable(Variable):
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
             builder = registers.create(
-                "builder", builder_method, convert_name=True, **builder_params
+                "builder", builder_method, convert_name=False, **builder_params
             )
         else: # variable
             builder = builder.value
@@ -139,7 +139,7 @@ class GeneticAlgorithemEngine():
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
             self.generator = registers.create(
-                "builder", builder_method, convert_name=True, **builder_params
+                "builder", builder_method, convert_name=False, **builder_params
             )
         else:
             self.generator = builder

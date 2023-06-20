@@ -9,11 +9,9 @@ import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
 
-from GDPy.core.register import registers
-from GDPy.builder.builder import StructureBuilder
+from .builder import StructureBuilder
 
 
-@registers.builder.register
 class DimerBuilder(StructureBuilder):
 
     def __init__(self, elements: List[str], distances: List[float]=[0.8,2.5,0.05], directory=Path.cwd(), *args, **kwargs):

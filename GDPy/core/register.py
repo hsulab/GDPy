@@ -140,9 +140,7 @@ ALL_MODULES = [
     # -- region
     ("GDPy.builder", ["region"]),
     # -- builders
-    ("GDPy.builder", ["direct", "dimer", "species", "hypercube", "randomBuilder"]),
-    # -- modifiers
-    ("GDPy.builder", ["perturbator"]),
+    ("GDPy", ["builder"]),
     # -- genetic-algorithm-related
     ("GDPy.builder", ["crossover", "mutation"]),
     # -- selectors
@@ -179,7 +177,7 @@ def _handle_errors(errors):
         warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
 
 
-def import_all_modules_for_register(custom_module_paths=None):
+def import_all_modules_for_register(custom_module_paths=None) -> None:
     """Import all modules for register."""
     modules = []
     for base_dir, submodules in ALL_MODULES:
@@ -196,6 +194,10 @@ def import_all_modules_for_register(custom_module_paths=None):
         except ImportError as error:
             errors.append((module, error))
     _handle_errors(errors)
+
+    print(registers.builder._dict.keys())
+
+    return
 
 if __name__ == "__main__":
     ...

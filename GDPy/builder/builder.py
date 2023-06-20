@@ -48,8 +48,6 @@ class StructureBuilder(AbstractNode):
             self.directory.mkdir(parents=True)
 
         return
-    
-StructureGenerator = StructureBuilder # compatibility
 
 
 class StructureModifier(StructureBuilder):

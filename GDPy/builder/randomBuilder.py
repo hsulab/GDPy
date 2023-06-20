@@ -280,7 +280,7 @@ class RandomBuilder(StructureModifier):
 
         return content
 
-@registers.builder.register
+
 class BulkBuilder(RandomBuilder):
 
     def _update_settings(self, substarte: Atoms = None):
@@ -334,7 +334,6 @@ class BulkBuilder(RandomBuilder):
         return params
 
 
-@registers.builder.register
 class ClusterBuilder(RandomBuilder):
 
     def _update_settings(self, substarte: Atoms = None):
@@ -366,7 +365,6 @@ class ClusterBuilder(RandomBuilder):
         return params
 
 
-@registers.builder.register
 class SurfaceBuilder(RandomBuilder):
     
     def __init__(

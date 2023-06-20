@@ -24,7 +24,7 @@ from GDPy.data.trajectory import Trajectories
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
 from GDPy.worker.worker import AbstractWorker
-from GDPy.builder.builder import StructureGenerator
+from GDPy.builder.builder import StructureBuilder
 
 from GDPy.utils.command import CustomTimer
 
@@ -168,15 +168,15 @@ class DriverBasedWorker(AbstractWorker):
 
         return _info_data
     
-    def _preprocess(self, generator, *args, **kwargs):
+    def _preprocess(self, builder, *args, **kwargs):
         """"""
         # - get frames
         frames = []
-        if isinstance(generator, StructureGenerator):
-            frames = generator.run()
+        if isinstance(builder, StructureBuilder):
+            frames = builder.run()
         else:
             assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
-            frames = generator
+            frames = builder
 
         # - NOTE: atoms.info is a dict that does not maintain order
         #         thus, the saved file maybe different
@@ -261,13 +261,13 @@ class DriverBasedWorker(AbstractWorker):
 
         return batches
     
-    def run(self, generator=None, *args, **kwargs) -> None:
+    def run(self, builder=None, *args, **kwargs) -> None:
         """Split frames into groups and submit jobs.
         """
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, frames, curr_info = self._preprocess(generator)
+        identifier, frames, curr_info = self._preprocess(builder)
         batches = self._prepare_batches(frames, curr_info)
 
         # - read metadata from file or database

@@ -8,8 +8,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-from GDPy.core.register import registers
-from GDPy.builder.builder import StructureGenerator
+from .builder import StructureBuilder
 
 def read_xsd2(fd) -> Atoms:
     """read xsd file by Material Studio
@@ -113,8 +112,7 @@ def read_xsd2(fd) -> Atoms:
         return atoms
 
 
-@registers.builder.register
-class DirectBuilder(StructureGenerator):
+class DirectBuilder(StructureBuilder):
     """This generator directly returns structures that it stores.
     """
 

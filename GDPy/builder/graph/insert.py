@@ -12,14 +12,12 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy import config
-from GDPy.core.register import registers
 from GDPy.builder.species import build_species
 from GDPy.graph.creator import StruGraphCreator
 from GDPy.graph.sites import SiteFinder
 from GDPy.utils.command import CustomTimer
 from GDPy.graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
 
-from GDPy.builder.builder import StructureModifier
 from GDPy.builder.graph.modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
 
 
@@ -45,7 +43,6 @@ def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: li
     return created_frames
 
 
-@registers.builder.register("graph_insert")
 class GraphInsertModifier(GraphModifier):
 
     def __init__(

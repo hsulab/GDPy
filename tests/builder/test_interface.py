@@ -19,14 +19,14 @@ import_all_modules_for_register()
 def builder_config():
     """"""
     params = dict(
-        method = "surface",
+        method = "random_surface",
         composition = {"H2O": "density 0.998"},
         region = dict(
             method = "lattice",
             origin = [0., 0., 7.5],
             cell = [5.08, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.]
         ),
-        substrate = "../assets/Cu-fcc-s111p22.xyz",
+        substrates = "../assets/Cu-fcc-s111p22.xyz",
         covalent_ratio = [0.6, 2.0],
         test_dist_to_slab = False,
         test_too_far = False,

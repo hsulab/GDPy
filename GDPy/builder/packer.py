@@ -12,8 +12,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.ga.utilities import closest_distances_generator, atoms_too_close
 
-from GDPy.core.register import registers
-from GDPy.builder.builder import StructureModifier
+from .builder import StructureModifier
 
 
 """Pack given molecules into given box.
@@ -23,7 +22,6 @@ This is a modifer as it requires substrates when initialising.
 """
 
 
-@registers.builder.register
 class PackerBuilder(StructureModifier):
 
     #: Number of attempts to create a random candidate.

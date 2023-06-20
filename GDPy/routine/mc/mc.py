@@ -32,7 +32,7 @@ class MonteCarloVariable(Variable):
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
             builder = registers.create(
-                "builder", builder_method, convert_name=True, **builder_params
+                "builder", builder_method, convert_name=False, **builder_params
             )
         else: # variable
             builder = builder.value
@@ -94,7 +94,7 @@ class MonteCarlo(AbstractRoutine):
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
             builder = registers.create(
-                "builder", builder_method, convert_name=True, **builder_params
+                "builder", builder_method, convert_name=False, **builder_params
             )
         else:
             builder = builder
