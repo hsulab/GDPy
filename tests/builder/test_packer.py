@@ -19,7 +19,7 @@ def test_packer():
     structures = builder.run(size=5)
     n_structures = len(structures)
 
-    write("./xxx.xyz", structures)
+    #write("./xxx.xyz", structures)
 
     assert n_structures == 5
 
@@ -35,7 +35,7 @@ def test_packer_mixed():
     structures = builder.run(size=5)
     n_structures = len(structures)
 
-    write("./xxx.xyz", structures)
+    #write("./xxx.xyz", structures)
 
     assert n_structures == 5
 
