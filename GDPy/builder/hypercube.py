@@ -15,7 +15,7 @@ from jax import grad, value_and_grad, jit, jacfwd, jacrev
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.builder.builder import StructureBuilder
+from .builder import StructureModifier
 
 """Sample small molecule.
 """
@@ -92,7 +92,7 @@ def pseudo_inverse_of_jacobian(jac, eps=0.0001):
     return jac_inv
 
 
-class HypercubeBuilder(StructureBuilder):
+class HypercubeBuilder(StructureModifier):
 
     """Use hypercube sampling to generate internal coordinates.
 
@@ -117,10 +117,10 @@ class HypercubeBuilder(StructureBuilder):
     def __init__(
         self, distances, disrange: List[float], 
         angles=None, angrange: List[float]=None, 
-        directory="./", random_seed=1112, *args, **kwargs
+        substrates=None, *args, **kwargs
     ):
         """"""
-        super().__init__(directory, random_seed, *args, **kwargs)
+        super().__init__(substrates=substrates, *args, **kwargs)
 
         self.dimers = np.array(distances)
         self.trimers = np.array(angles)
@@ -147,9 +147,20 @@ class HypercubeBuilder(StructureBuilder):
 
         return
     
-    def run(self, substrate: Atoms, size: int, *args, **kwargs) -> List[Atoms]:
+    def run(self, substrates: List[Atoms]=None, size: int=1, *args, **kwargs) -> List[Atoms]:
         """Modify input structures to generate random hypercube structures.
         """
+        super().__init__(substrates=substrates, *args, **kwargs)
+
+        frames = []
+        for substrate in substrates:
+            curr_frames = self._irun(substrate=substrate, size=size, *args, **kwargs)
+            frames.extend(curr_frames)
+
+        return frames
+    
+    def _irun(self, substrate: Atoms, size=1, *args, **kwargs) -> List[Atoms]:
+        """"""
         # NOTE: strength new in 1.8.0
         #sampler = qmc.LatinHypercube(d=ninternals, strength=2, seed=self.rng) 
         sampler = qmc.LatinHypercube(d=self.ndof, seed=self.rng)
