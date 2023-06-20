@@ -6,7 +6,7 @@ import pytest
 
 from GDPy.core.register import import_all_modules_for_register
 from GDPy.potential.interface import PotterVariable
-from GDPy.worker.interface import WorkerVariable
+from GDPy.worker.interface import ComputerVariable
 
 import_all_modules_for_register()
 
@@ -36,7 +36,7 @@ def cp2k_config():
 
 def test_empty(cp2k_config):
     """"""
-    worker = WorkerVariable(cp2k_config["potential"], cp2k_config["driver"]).value
+    worker = ComputerVariable(cp2k_config["potential"], cp2k_config["driver"]).value[0]
     print(worker)
 
     driver = worker.driver
@@ -48,7 +48,7 @@ def test_empty(cp2k_config):
 
 def test_broken(cp2k_config):
     """"""
-    worker = WorkerVariable(cp2k_config["potential"], cp2k_config["driver"]).value
+    worker = ComputerVariable(cp2k_config["potential"], cp2k_config["driver"]).value[0]
     print(worker)
 
     driver = worker.driver
@@ -60,7 +60,7 @@ def test_broken(cp2k_config):
 
 def test_broken_by_abort(cp2k_config):
     """"""
-    worker = WorkerVariable(cp2k_config["potential"], cp2k_config["driver"]).value
+    worker = ComputerVariable(cp2k_config["potential"], cp2k_config["driver"]).value[0]
     print(worker)
     print(worker.driver.ignore_convergence)
 

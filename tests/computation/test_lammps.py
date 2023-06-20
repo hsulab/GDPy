@@ -10,7 +10,7 @@ import tempfile
 from ase.io import read, write
 
 from GDPy.core.register import import_all_modules_for_register
-from GDPy.worker.interface import WorkerVariable
+from GDPy.worker.interface import ComputerVariable
 
 
 import_all_modules_for_register()
@@ -94,7 +94,7 @@ def deepmd_lammps_config():
 
 def test_empty(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value[0]
 
     driver = worker.driver
     driver.directory = "./assets/empty_driver"
@@ -105,7 +105,7 @@ def test_empty(emt_config):
 
 def test_broken_spc(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value[0]
 
     driver = worker.driver
     driver.directory = "./assets/broken_ase_spc"
@@ -122,7 +122,7 @@ def test_broken_spc(emt_config):
 
 def test_finished_spc(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value[0]
 
     driver = worker.driver
     driver.directory = "./assets/finished_ase_spc"
@@ -142,7 +142,7 @@ def test_finished_md(deepmd_lammps_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         # - run 10 steps
         config = copy.deepcopy(config)
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -167,7 +167,7 @@ def test_restart_md(deepmd_lammps_config):
         #tmpdir = "./xxx"
 
         config = copy.deepcopy(config)
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -186,7 +186,7 @@ def test_restart_md(deepmd_lammps_config):
         config["driver"]["run"]["steps"] = 20
         print("new: ", config)
 
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -204,8 +204,6 @@ def test_restart_md(deepmd_lammps_config):
         write(pathlib.Path(tmpdir)/"out.xyz", traj)
 
         assert pytest.approx(1.117415e-02) == traj[-1].info["max_devi_f"]
-
-        
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import tempfile
 from ase.io import read, write
 
 from GDPy.core.register import import_all_modules_for_register
-from GDPy.worker.interface import WorkerVariable
+from GDPy.worker.interface import ComputerVariable
 
 
 import_all_modules_for_register()
@@ -81,7 +81,7 @@ def emt_min_config():
 
 def test_empty(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value[0]
 
     driver = worker.driver
     driver.directory = "./assets/empty_driver"
@@ -92,7 +92,7 @@ def test_empty(emt_config):
 
 def test_broken_spc(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value[0]
 
     driver = worker.driver
     driver.directory = "./assets/broken_ase_spc"
@@ -109,7 +109,7 @@ def test_broken_spc(emt_config):
 
 def test_finished_spc(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value[0]
 
     driver = worker.driver
     driver.directory = "./assets/finished_ase_spc"
@@ -128,7 +128,7 @@ def test_finished_md(emt_md_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         # - run 10 steps
         config = copy.deepcopy(emt_md_config)
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -150,7 +150,7 @@ def test_finished_min(emt_min_config):
         #tmpdir = "./xxx"
         # - run 10 steps
         config = copy.deepcopy(config)
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -172,7 +172,7 @@ def test_restart_md(emt_md_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         #tmpdir = "./xxx"
         config = copy.deepcopy(emt_md_config)
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -190,7 +190,7 @@ def test_restart_md(emt_md_config):
         config["driver"]["run"]["steps"] = 20
         print("new: ", config)
 
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir

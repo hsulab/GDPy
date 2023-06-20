@@ -76,7 +76,7 @@ class GeneticAlgorithmVariable(Variable):
         # - worker
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
         else: # computer variable
             worker = worker.value[0]
         engine = self._create_engine(builder, worker, params, directory, *args, **kwargs)
@@ -148,7 +148,7 @@ class GeneticAlgorithemEngine():
         #self._print("\n\n===== register worker =====")
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
         else:
             ...
         self.worker = worker
@@ -293,6 +293,7 @@ class GeneticAlgorithemEngine():
         self._register_operators()
 
         # - run
+        breakpoint()
         for i in range(1000):
             self._check_generation()
             if self.read_convergence():

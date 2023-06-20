@@ -233,14 +233,15 @@ def main():
 
     # - potential
     from GDPy.utils.command import parse_input_file
-    from GDPy.worker.interface import WorkerVariable
+    from GDPy.worker.interface import ComputerVariable
     potter = None
     if args.potential:
         params = parse_input_file(input_fpath=args.potential)
-        potter = WorkerVariable(
+        potter = ComputerVariable(
             params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-            params.get("batchsize", 1), params.get("use_single", False)
-        ).value
+            params.get("batchsize", 1), params.get("use_single", False), 
+            params.get("ignore_convergence", False)
+        ).value[0]
 
     # - use subcommands
     if args.subcommand == "train":
