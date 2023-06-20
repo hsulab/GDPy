@@ -8,7 +8,7 @@ from GDPy.builder.direct import DirectBuilder
 from GDPy.builder.species import FormulaBasedGenerator
 from GDPy.builder.dimer import DimerBuilder
 from GDPy.builder.builder import StructureGenerator
-from GDPy.builder.adsorbate import AdsorbateGraphGenerator
+from GDPy.builder.graph.adsorbate import AdsorbateGraphGenerator
 
 supported_filetypes = [".xyz", ".xsd", ".arc"]
 supproted_configtypes = ["json", "yaml"]
