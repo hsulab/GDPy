@@ -563,7 +563,7 @@ class GeneticAlgorithemEngine():
         # TODO: move this part to where before generator is created
         da = PrepareDB(
             db_file_name = self.db_path,
-            simulation_cell = self.generator.substrate,
+            simulation_cell = self.generator._substrate,
             stoichiometry = self.generator.composition_atom_numbers
         )
 

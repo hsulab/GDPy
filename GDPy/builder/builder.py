@@ -7,8 +7,10 @@ import pathlib
 from typing import List, Callable
 
 from ase import Atoms
+from ase.io import read, write
 
 from GDPy.core.node import AbstractNode
+
 
 """
 """
@@ -62,11 +64,20 @@ class StructureModifier(StructureBuilder):
 
     def _load_substrates(self, inp_sub) -> List[Atoms]:
         """"""
-        substrates = inp_sub # assume it is a List of Atoms
+        substrates = None
+        if isinstance(inp_sub, Atoms):
+            substrates = [inp_sub]
+        elif isinstance(inp_sub, list): # assume this is a List of Atoms
+            substrates = inp_sub
+        else:
+            if isinstance(inp_sub, str): # assume this is a path
+                substrates = read(inp_sub, ":")
+            else:
+                ...
 
         return substrates
 
-    def run(self, substrates=None, *args, **kwargs):
+    def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
         """"""
         super().run(*args, **kwargs)
 
@@ -74,8 +85,9 @@ class StructureModifier(StructureBuilder):
         substrates_at_run = self._load_substrates(substrates)
         if substrates_at_run is not None:
             self.substrates = substrates_at_run
-        assert self.substrates is not None, "Substrates are not set neither at inp nor at run."
-        self.substrates = [copy.deepcopy(s) for s in self.substrates]
+        # TODO: ASE startgenerator mix builders and modifiers
+        #assert self.substrates is not None, "Substrates are not set neither at inp nor at run."
+        #self.substrates = [copy.deepcopy(s) for s in self.substrates]
 
         return
 

@@ -19,7 +19,7 @@ from ase.ga.utilities import CellBounds
 from ase.ga.startgenerator import StartGenerator
 
 from GDPy.core.register import registers
-from GDPy.builder.builder import StructureBuilder 
+from GDPy.builder.builder import StructureBuilder, StructureModifier
 from GDPy.builder.species import build_species
 
 """ Generate structures randomly
@@ -42,7 +42,7 @@ def compute_molecule_number_from_density(molecular_mass, volume, density) -> int
     return int(number)
 
 
-class RandomBuilder(StructureBuilder):
+class RandomBuilder(StructureModifier):
 
     #: Number of attempts to create a random candidate.
     MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
@@ -61,18 +61,23 @@ class RandomBuilder(StructureBuilder):
     composition_blocks: Mapping[str,int] = None
 
     def __init__(
-        self, composition: Mapping[str,int], substrate: Atoms=None,
+        self, composition: Mapping[str,int], substrates = None,
         region: dict={}, cell=None, covalent_ratio=[1.0, 2.0], 
-        directory="./", random_seed=None, *args, **kwargs
+        random_seed=None, *args, **kwargs
     ):
-        super().__init__(directory, random_seed, *args, **kwargs)
+        super().__init__(substrates=substrates, random_seed=random_seed, *args, **kwargs)
 
         self._state_params = dict(
             composition = composition,
-            substrate = substrate,
+            substrates = substrates,
             region = region,
             cell = cell,
             covalent_ratio = covalent_ratio,
+            test_too_far = kwargs.get("test_too_far", True), # test_too_far
+            test_dist_to_slab = kwargs.get("test_dist_to_slab", True), # test_dist_to_slab
+            cell_volume = kwargs.get("cell_volume", None),
+            cell_bounds = kwargs.get("cell_bounds", None),
+            cell_splits = kwargs.get("cell_splits", None),
             random_seed = random_seed
         )
 
@@ -89,17 +94,11 @@ class RandomBuilder(StructureBuilder):
         self.covalent_max = covalent_ratio[1]
 
         # - add substrate
-        self.substrate = None
-        if isinstance(substrate, Atoms):
-            self.substrate = substrate
-        else:
-            if isinstance(substrate, str):
-                # assume this is a path
-                substrates = read(substrate, ":")
-                assert len(substrates) == 1, "Only support one substrate."
-                self.substrate = substrates[0]
-        if self.substrate is not None:
-            unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
+        self._substrate = None
+        if self.substrates is not None:
+            self._substrate = self.substrates[0]
+        if self._substrate is not None:
+            unique_atom_types = get_all_atom_types(self._substrate, self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)
         else:
             unique_atom_types = set(self.composition_atom_numbers)
@@ -110,7 +109,6 @@ class RandomBuilder(StructureBuilder):
 
         # - read from kwargs
         self.test_too_far = kwargs.get("test_too_far", True) # test_too_far
-
         self.test_dist_to_slab = kwargs.get("test_dist_to_slab", True) # test_dist_to_slab
 
         self.cell_volume = kwargs.get("cell_volume", None)
@@ -119,8 +117,16 @@ class RandomBuilder(StructureBuilder):
         self.number_of_variable_cell_vectors = 0 # number_of_variable_cell_vectors
 
         return
+    
+    def _load_substrates(self, inp_sub) -> List[Atoms]:
+        """"""
+        substrates = super()._load_substrates(inp_sub)
+        if substrates is not None:
+            assert len(substrates) == 1, "RandomBuilder only supports one substrate."
 
-    def run(self, substrate: Atoms=None, size: int=1, soft_error: bool=False, *args, **kwargs) -> List[Atoms]:
+        return substrates
+
+    def run(self, substrates: List[Atoms]=None, size: int=1, soft_error: bool=False, *args, **kwargs) -> List[Atoms]:
         """Modify input structures.
 
         Args:
@@ -131,7 +137,10 @@ class RandomBuilder(StructureBuilder):
             A list of structures.
         
         """
-        generator = self._create_generator(substrate)
+        super().run(substrates=substrates, *args, **kwargs)
+
+        # - create generator
+        generator = self._create_generator(self.substrates)
 
         # - run over
         frames = []
@@ -157,15 +166,18 @@ class RandomBuilder(StructureBuilder):
 
         raise NotImplementedError()
 
-    def _create_generator(self, substrate=None):
+    def _create_generator(self, substrates: List[Atoms]=None):
         """"""
-        self._update_settings(substrate)
+        if substrates is not None:
+            self._update_settings(substrates[0])
+        else:
+            self._update_settings()
 
         # - create the starting population
         np.random.seed(self.random_seed)
 
         generator = StartGenerator(
-            self.substrate, 
+            self._substrate, 
             self.composition_blocks, # blocks
             self.blmin,
             number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
@@ -274,7 +286,7 @@ class BulkBuilder(RandomBuilder):
     def _update_settings(self, substarte: Atoms = None):
         """"""
         # - ignore substrate
-        self.substrate = Atoms("", pbc=True)
+        self._substrate = Atoms("", pbc=True)
 
         unique_atom_types = set(self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
@@ -332,7 +344,7 @@ class ClusterBuilder(RandomBuilder):
             self.cell = np.array([19.,0.,0.,0.,20.,0.,0.,0.,21.]).reshape(3,3)
         else:
             self.cell = np.reshape(self.cell, (-1,3))
-        self.substrate = Atoms(cell = self.cell, pbc=False)
+        self._substrate = Atoms(cell = self.cell, pbc=False)
 
         unique_atom_types = set(self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
@@ -376,10 +388,10 @@ class SurfaceBuilder(RandomBuilder):
         """"""        
         # - use init substrate
         if substarte is not None:
-            self.substrate = substarte
+            self._substrate = substarte
 
         # define the closest distance two atoms of a given species can be to each other
-        unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
+        unique_atom_types = get_all_atom_types(self._substrate, self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
 
         # - ignore lattice parameters

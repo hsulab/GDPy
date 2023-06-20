@@ -39,7 +39,7 @@ def test_surface():
 
     substrates = read("../assets/Cu-fcc-s111p22.xyz", ":")
 
-    frames = builder.run(substrates[0], size=5)
+    frames = builder.run(substrates=substrates, size=5)
     nframes = len(frames)
 
     assert nframes == 5
@@ -57,7 +57,7 @@ def test_solvated_surface():
             #       would happen due to PBC.
             cell = [5.08, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.]
         ),
-        substrate = "../assets/Cu-fcc-s111p22.xyz",
+        substrates = "../assets/Cu-fcc-s111p22.xyz",
         covalent_ratio = [0.6, 2.0],
         test_dist_to_slab = False,
         test_too_far = False,
