@@ -146,7 +146,7 @@ class TestHyperCubeBuilder:
             angles = [[0,1,2]], angrange=[75./180.*np.pi, 165./180.*np.pi],
             random_seed=1112
         )
-        frames = builder.run(molecule, size=5)
+        frames = builder.run([molecule], size=5)
 
         positions = np.array(
             [
@@ -155,6 +155,9 @@ class TestHyperCubeBuilder:
                 [-1.14965343,  0.10306119,  0.        ],
             ]
         )
+        #print(frames[0].positions)
+        #from ase.io import read, write
+        #write("./xxx.xyz", frames)
 
         assert np.allclose(frames[0].positions, positions, atol=1e-6)
 

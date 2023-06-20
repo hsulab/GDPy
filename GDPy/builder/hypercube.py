@@ -150,10 +150,10 @@ class HypercubeBuilder(StructureModifier):
     def run(self, substrates: List[Atoms]=None, size: int=1, *args, **kwargs) -> List[Atoms]:
         """Modify input structures to generate random hypercube structures.
         """
-        super().__init__(substrates=substrates, *args, **kwargs)
+        super().run(substrates=substrates, *args, **kwargs)
 
         frames = []
-        for substrate in substrates:
+        for substrate in self.substrates:
             curr_frames = self._irun(substrate=substrate, size=size, *args, **kwargs)
             frames.extend(curr_frames)
 
