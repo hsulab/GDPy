@@ -9,6 +9,7 @@ from typing import List, Callable
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy import config
 from GDPy.core.node import AbstractNode
 
 
@@ -18,16 +19,13 @@ from GDPy.core.node import AbstractNode
 
 class StructureBuilder(AbstractNode):
 
-    _directory = pathlib.Path.cwd() #: Working directory.
-
-    logger = None #: Logger instance.
-    pfunc: Callable = print #: Function for outputs.
+    name = "builder"
 
     #: Standard print function.
-    _print: Callable = print
+    _print: Callable = config._print
 
     #: Standard debug function.
-    _debug: Callable = print
+    _debug: Callable = config._debug
 
     def __init__(self, use_tags=False, directory="./", random_seed=None, *args, **kwargs):
         """"""
@@ -40,10 +38,7 @@ class StructureBuilder(AbstractNode):
     @abc.abstractmethod
     def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
         """Generate structures based on rules."""
-        if self.logger is not None:
-            self.pfunc = self.logger.info
-        self.pfunc(f"@@@{self.__class__.__name__}")
-
+        self._print(f"@@@{self.__class__.__name__}")
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
@@ -51,6 +46,8 @@ class StructureBuilder(AbstractNode):
 
 
 class StructureModifier(StructureBuilder):
+
+    name = "modifier"
 
     def __init__(self, substrates=None, *args, **kwargs):
         """"""

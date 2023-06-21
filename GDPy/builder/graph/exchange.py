@@ -159,7 +159,7 @@ class GraphExchangeModifier(GraphModifier):
         )
 
         # - get possible sites to exchange
-        with CustomTimer(name="exchange-adsorbate", func=self.pfunc):
+        with CustomTimer(name="exchange-adsorbate", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
                 delayed(single_exchange_adsorbate)(graph_params, spec_params, a) 
                 for a in substrates
