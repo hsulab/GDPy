@@ -28,14 +28,10 @@ from ase.calculators.calculator import (
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.lammps import unitconvert
 
+from GDPy import config
 from GDPy.computation.driver import AbstractDriver, DriverSetting, BACKUP_PREFIX_FORMAT 
-from GDPy.utils.command import find_backups
-
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.data.trajectory import Trajectory
-
-#_debug = print
-_debug = lambda *x: x
 
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
@@ -83,7 +79,7 @@ def parse_thermo_data(logfile_path) -> dict:
             break
     else:
         end_idx = idx
-    _debug("lammps LOG index: ", start_idx, end_idx)
+    config._debug("lammps LOG index: ", start_idx, end_idx)
     
     # - check valid lines
     #   sometimes the line may not be complete
@@ -101,12 +97,12 @@ def parse_thermo_data(logfile_path) -> dict:
                 break
     else:
         end_idx = None # even not one single complete line
-    _debug("lammps LOG index: ", start_idx, end_idx)
+    config._debug("lammps LOG index: ", start_idx, end_idx)
     
     if start_idx is None or end_idx is None:
         raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
-    _debug("lammps END info: ", end_info)
+    config._debug("lammps END info: ", end_info)
 
     #try: # The last sentence may have the same number of columns as thermo data does.
     #    if end_info.strip():
@@ -117,7 +113,7 @@ def parse_thermo_data(logfile_path) -> dict:
     #    end_idx -= 1
     #finally:
     #    ...
-    _debug("lammps LOG index: ", start_idx, end_idx)
+    config._debug("lammps LOG index: ", start_idx, end_idx)
 
     # -- parse index of PotEng
     # TODO: save timestep info?
@@ -126,7 +122,7 @@ def parse_thermo_data(logfile_path) -> dict:
         raise RuntimeError(f"Cant find PotEng in lammps output of {str(logfile_path)}.")
     thermo_data = lines[start_idx+1:end_idx]
     thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
-    #_debug(thermo_data)
+    #config._debug(thermo_data)
     thermo_dict = {}
     for i, k in enumerate(thermo_keywords):
         thermo_dict[k] = thermo_data[i]
@@ -252,7 +248,7 @@ class LmpDriver(AbstractDriver):
             # - run
             _ = atoms.get_forces()
         except Exception as e:
-            _debug(e)
+            config._debug(e)
 
         return
 
@@ -333,7 +329,7 @@ class LmpDriver(AbstractDriver):
         pot_energies = [unitconvert.convert(p, "energy", units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
-        _debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
+        config._debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
 
         # TODO: check whether steps in thermo and traj are consistent
         pot_energies = pot_energies[:nframes]
@@ -554,7 +550,7 @@ class Lammps(FileIOCalculator):
         pot_energies = [unitconvert.convert(p, "energy", self.units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
-        _debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
+        config._debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
 
         # TODO: check whether steps in thermo and traj are consistent
         pot_energies = pot_energies[:nframes]

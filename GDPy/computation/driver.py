@@ -16,6 +16,7 @@ import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
 
+from GDPy import config
 from GDPy.builder.constraints import parse_constraint_info
 
 #: Prefix of backup files
@@ -110,10 +111,10 @@ class AbstractDriver(abc.ABC):
     name: str = "abstract"
 
     #: Standard print.
-    _print: Callable = print
+    _print: Callable = config._print
 
     #: Standard debug.
-    _debug: Callable = print
+    _debug: Callable = config._debug
 
     #: Whether check the dynamics is converged, and re-run if not.
     ignore_convergence: bool = False
