@@ -372,8 +372,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self._print("\n\n===== Retrieve Relaxed Population =====")
             converged_candidates = [t[0] for t in self.worker.retrieve()]
             for cand in converged_candidates:
-                print(cand)
-                print(cand.info)
+                self._print(cand)
+                self._print(cand.info)
                 # update extra info
                 extra_info = dict(
                     data = {},
