@@ -344,7 +344,7 @@ class VaspDriver(AbstractDriver):
         
         ret = Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
 
-        if not self.read_force_convergence():
+        if (len(ret) > 0) and (not self.read_force_convergence()):
             ret[0].info["error"] = str(self.directory)
 
         return ret
