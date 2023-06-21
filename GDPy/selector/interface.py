@@ -73,7 +73,7 @@ class select(Operation):
             raw_markers = load_cache(selector.info_fpath)
             structures.set_markers(raw_markers)
             new_frames = read(cache_fpath, ":")
-        self.pfunc(f"nframes: {len(new_frames)}")
+        self._print(f"nframes: {len(new_frames)}")
         
         self.status = "finished"
 

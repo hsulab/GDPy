@@ -86,7 +86,7 @@ class GraphSelector(AbstractSelector):
         group_commands = copy.deepcopy(self.group_commands)
 
         # - create graphs
-        with CustomTimer(name="create-graphs", func=self._pfunc):
+        with CustomTimer(name="create-graphs", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
                 delayed(single_create_structure_graph)(a, graph_params, group_commands)
                 for a in frames
@@ -98,16 +98,16 @@ class GraphSelector(AbstractSelector):
             ret_envs.extend(x)
 
         if ret_envs:
-            self._pfunc("Typical Chemical Environment "+str(ret_envs[0]))
+            self._print("Typical Chemical Environment "+str(ret_envs[0]))
             ret_env_groups = ret
-            with CustomTimer(name="check-uniqueness", func=self._pfunc):
+            with CustomTimer(name="check-uniqueness", func=self._print):
                 unique_envs, unique_groups = paragroup_unique_chem_envs(
                     ret_env_groups, list(enumerate(frames)), directory=self.directory, 
                     n_jobs=1
                 )
             selected_indices = [x[0][0] for x in unique_groups]
         else:
-            self.pfunc("Cant find valid atoms for comparison...")
+            self._print("Cant find valid atoms for comparison...")
             selected_indices = list(range(nframes))
         
         self._write_results(frames, selected_indices, unique_groups=unique_groups)
@@ -166,4 +166,4 @@ class GraphSelector(AbstractSelector):
 
 
 if __name__ == "__main__":
-    pass
+    ...

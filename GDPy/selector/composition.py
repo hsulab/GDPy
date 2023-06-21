@@ -47,7 +47,6 @@ class ComposedSelector(AbstractSelector):
             # - adjust name
             prev_fname = node._fname
             node.fname = str(i) + "-" + prev_fname
-            node.indent = 4
             # - map indices
             #   TODO: use _select_indices instead?
             node.select(curr_frames)
