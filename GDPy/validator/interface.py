@@ -18,8 +18,7 @@ class ValidatorVariable(Variable):
         """"""
         # - create a validator
         method = kwargs.get("method", "minima")
-        validator = registers.create("validator", method, True, self.directory, **kwargs)
-        print(validator)
+        validator = registers.create("validator", method, convert_name=True, **kwargs)
 
         # - save
         super().__init__(initial_value=validator, directory=directory)
@@ -69,7 +68,7 @@ class validate(Operation):
 
         self.status = "finished"
 
-        return 
+        return # TODO: forward a reference-prediction pair?
 
 if __name__ == "__main__":
     ...

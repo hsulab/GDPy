@@ -56,7 +56,7 @@ def plot_distribution(ax, x_ref, x_pred, x_name="data", x_types=None, weights=No
     num_bins = 20
     if x_types is None:
         x_diff = x_diff.flatten()
-        n, bins, patches = ax.hist(x_diff, num_bins, density=True)
+        n, bins, patches = ax.hist(x_diff, num_bins, density=True, label=x_name)
     else:
         # -- per type
         x_types = np.array(x_types)
@@ -159,13 +159,25 @@ class SinglepointValidator(AbstractValidator):
     """Calculate energies on each structures and save them to file.
     """
 
+    def __init__(self, groups: dict, *args, **kwargs):
+        """Init a spc validator.
+
+        Args:
+            groups: Errors are estimated for given groups.
+
+        """
+        super().__init__(*args, **kwargs)
+        self.groups = groups
+
+        return
+
     def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         super().run()
 
         data = []
         frame_pairs = []
-        for prefix, frames in dataset:
+        for prefix, frames in dataset["reference"]:
             pred_frames = self._irun(prefix, frames, None, worker)
             nframes, rmse_ret = self._plot_comparison(prefix, frames, pred_frames)
             frame_pairs.append([frames, pred_frames])
@@ -173,19 +185,16 @@ class SinglepointValidator(AbstractValidator):
         self.write_data(data)
 
         # - plot specific groups
-        task_params = copy.deepcopy(self.task_params)
+        group_params = copy.deepcopy(self.groups)
         def run_selection():
-            #prefixes = [d[0] for d in dataset]
-            #print(prefixes)
-
             selected_prefixes, selected_groups = [], []
-            for k, v in task_params.items():
+            for k, v in group_params.items():
                 selected_prefixes.append(k)
                 selected_groups.append(
-                    convert_indices(v, index_convention="py")
+                    convert_indices(v, index_convention="lmp")
                 )
-            print(selected_groups)
-            print(selected_prefixes)
+            self._debug(selected_groups)
+            self._debug(selected_prefixes)
 
             for curr_prefix, curr_indices in zip(selected_prefixes,selected_groups):
                 curr_ref = list(itertools.chain(*[frame_pairs[i][0] for i in curr_indices]))
@@ -193,7 +202,7 @@ class SinglepointValidator(AbstractValidator):
                 nframes, rmse_ret = self._plot_comparison(curr_prefix, curr_ref, curr_pre)
                 self.write_data([[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat")
         
-        if task_params is not None:
+        if group_params is not None:
             run_selection()
 
         return
@@ -227,7 +236,7 @@ class SinglepointValidator(AbstractValidator):
         
         with open(self.directory/fname, "w") as fopen:
             fopen.write(content)
-        self.logger.info(content)
+        self._print(content)
 
         return
 
@@ -238,7 +247,7 @@ class SinglepointValidator(AbstractValidator):
         if pred_frames is None:
             # NOTE: use worker to calculate
             # TODO: use cached data?
-            self.logger.info(f"Calculate reference frames {prefix} with potential...")
+            self._print(f"Calculate reference frames {prefix} with potential...")
             cached_pred_fpath = self.directory / prefix / "pred.xyz"
             if not cached_pred_fpath.exists():
                 worker.directory = self.directory / prefix

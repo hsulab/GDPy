@@ -48,10 +48,17 @@ class MinimaValidator(AbstractValidator):
 
     """
 
+    def __init__(self, ene_shift=[], *args, **kwargs):
+        """"""
+        super().__init__(*args, **kwargs)
+
+        self.ene_shift = []
+        self.ene_shift = []
+
+        return
+
     def run(self, dataset: dict, worker: DriverBasedWorker, *args, **kwargs):
         """"""
-        task_params = copy.deepcopy(self.task_params)
-
         # TODO: assume dataset is a dict of frames
         pre_dataset = {}
         for k, curr_frames in dataset.items():
@@ -98,8 +105,9 @@ class MinimaValidator(AbstractValidator):
 
             # - compute shifts if any
             if key == "composites":
-                ref_ene_shift = np.sum([x*dataset[y][0].get_potential_energy() for x, y in task_params["ene_shift"]])
-                pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["ene_shift"]])
+                if self.ene_shift:
+                    ref_ene_shift = np.sum([x*dataset[y][0].get_potential_energy() for x, y in self.ene_shift])
+                    pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in self.ene_shift])
             else:
                 ref_ene_shift = 0.
                 pre_ene_shift = 0.
