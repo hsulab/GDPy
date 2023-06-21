@@ -283,6 +283,8 @@ class RandomBuilder(StructureModifier):
 
 class BulkBuilder(RandomBuilder):
 
+    name: str = "random_bulk"
+
     def _update_settings(self, substarte: Atoms = None):
         """"""
         # - ignore substrate
@@ -329,12 +331,14 @@ class BulkBuilder(RandomBuilder):
     def as_dict(self) -> dict:
         """"""
         params = copy.deepcopy(self._state_params)
-        params["method"] = "bulk"
+        params["method"] = self.name
 
         return params
 
 
 class ClusterBuilder(RandomBuilder):
+
+    name: str = "random_cluster"
 
     def _update_settings(self, substarte: Atoms = None):
         """"""
@@ -360,12 +364,14 @@ class ClusterBuilder(RandomBuilder):
     def as_dict(self) -> dict:
         """"""
         params = copy.deepcopy(self._state_params)
-        params["method"] = "cluster"
+        params["method"] = self.name
 
         return params
 
 
 class SurfaceBuilder(RandomBuilder):
+
+    name: str = "random_surface"
     
     def __init__(
         self, region: dict, composition: Mapping[str,int], cell=[], covalent_ratio=[1.0, 2.0], 
@@ -404,7 +410,7 @@ class SurfaceBuilder(RandomBuilder):
     def as_dict(self) -> dict:
         """"""
         params = copy.deepcopy(self._state_params)
-        params["method"] = "surface"
+        params["method"] = self.name
 
         return params
 
