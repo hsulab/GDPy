@@ -286,7 +286,8 @@ class VaspDriver(AbstractDriver):
         if (self.directory/"OUTCAR").exists():
             if hasattr(self.calc, "read_convergence"):
                 scf_converged = self.calc.read_convergence()
-                self._debug("SCF convergence: ", scf_converged)
+                self._debug(f"SCF convergence: {scf_converged}@{self.directory.name}")
+                #self._debug(f"ignore convergence: {self.ignore_convergence}")
             else:
                 raise NotImplementedError()
         else:
@@ -340,8 +341,14 @@ class VaspDriver(AbstractDriver):
             atoms = Atoms()
             atoms.info["error"] = str(self.directory)
             traj_frames = [atoms]
+        
+        ret = Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
 
-        return Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
+        if not self.read_force_convergence():
+            ret[0].info["error"] = str(self.directory)
+
+        return ret
+
 
 
 if __name__ == "__main__": 
