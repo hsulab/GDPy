@@ -76,7 +76,7 @@ class GeneticAlgorithmVariable(Variable):
         # - worker
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
         else: # computer variable
             worker = worker.value[0]
         engine = self._create_engine(builder, worker, params, directory, *args, **kwargs)
@@ -148,7 +148,7 @@ class GeneticAlgorithemEngine():
         #self._print("\n\n===== register worker =====")
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
         else:
             ...
         self.worker = worker
@@ -326,7 +326,8 @@ class GeneticAlgorithemEngine():
         self.relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
         self.num_relaxed_gen = len(self.relaxed_confids)
 
-        # check if this is the end of the current generation
+        # check if this is the begin or the end of the current generation
+        self.beg_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen == 0)
         self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen != 0)
 
         return
@@ -376,7 +377,7 @@ class GeneticAlgorithemEngine():
         else:
             # --- update population
             self._print("\n\n===== Update Population =====")
-            if self.end_of_gen:
+            if self.beg_of_gen:
                 # - create the population used for crossover and mutation
                 current_population = Population(
                     data_connection = self.da,
@@ -410,6 +411,7 @@ class GeneticAlgorithemEngine():
         self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
+            self._print("\n\n===== Retrieve Relaxed Population =====")
             converged_candidates = [t[0] for t in self.worker.retrieve()]
             for cand in converged_candidates:
                 print(cand)

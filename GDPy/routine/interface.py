@@ -15,10 +15,12 @@ from ..worker.explore import RoutineBasedWorker
 
 class routine(Operation):
 
-    def __init__(self, routine, scheduler, directory="./") -> None:
+    def __init__(self, routine, scheduler, wait_time=60, directory="./", *args, **kwargs) -> None:
         """"""
         input_nodes = [routine, scheduler]
         super().__init__(input_nodes, directory)
+
+        self.wait_time = wait_time
 
         return
 
@@ -37,6 +39,7 @@ class routine(Operation):
         # - run routine with a worker
         worker = RoutineBasedWorker(routine, scheduler)
         worker.directory = self.directory
+        worker.wait_time = self.wait_time
 
         worker.run()
         worker.inspect(resubmit=True)

@@ -8,6 +8,7 @@ import shutil
 import time
 from typing import Tuple, List, NoReturn, Union
 import tempfile
+import warnings
 import yaml
 
 import numpy as np
@@ -396,8 +397,11 @@ class DriverBasedWorker(AbstractWorker):
                         # NOTE: no need to remove unfinished structures
                         #       since the driver would check it
                         if resubmit:
-                            jobid = self.scheduler.submit()
-                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                            if self.scheduler.name != "local":
+                                jobid = self.scheduler.submit()
+                                self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                            else:
+                                warnings.warn("Local scheduler does not support re-submit.", UserWarning)
                 else:
                     self._print(f"{job_name} is running...")
 

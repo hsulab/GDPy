@@ -39,7 +39,7 @@ class MonteCarloVariable(Variable):
         # - worker
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
         else: # computer variable
             worker = worker.value[0]
         engine = self._create_engine(builder, worker, *args, **kwargs)
@@ -106,7 +106,7 @@ class MonteCarlo(AbstractRoutine):
         # - create worker
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "worker", convert_name=True, **worker_params).value
+            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
         else:
             ...
         assert isinstance(worker, SingleWorker), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."

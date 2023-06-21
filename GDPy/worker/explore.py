@@ -116,8 +116,12 @@ class RoutineBasedWorker(AbstractWorker):
                         self._print(f"{job_name} finished.")
                     else:
                         if resubmit:
-                            jobid = self.scheduler.submit()
-                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                            if self.scheduler.name != "local":
+                                jobid = self.scheduler.submit()
+                                self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                            else:
+                                self._print(f"{job_name} tries to re-run.")
+                                raise NotImplementedError("Local scheduelr does not support re-run.")
                 else:
                     self._print(f"{job_name} is running...")
 
