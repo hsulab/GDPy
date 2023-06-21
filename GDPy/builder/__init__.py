@@ -12,6 +12,8 @@ from .packer import PackerBuilder
 from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
 from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 
+
+# - basic builders and modifiers
 registers.builder.register("direct")(DirectBuilder)
 registers.builder.register("dimer")(DimerBuilder)
 registers.builder.register("molecule")(MoleculeBuilder)
@@ -23,6 +25,11 @@ registers.builder.register("graph_exchange")(GraphExchangeModifier)
 registers.builder.register("random_bulk")(BulkBuilder)
 registers.builder.register("random_cluster")(ClusterBuilder)
 registers.builder.register("random_surface")(SurfaceBuilder)
+
+
+# - extra modifiers
+from .zoom import ZoomModifier
+registers.builder.register("zoom")(ZoomModifier)
 
 
 # - optional

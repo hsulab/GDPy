@@ -77,16 +77,16 @@ class build(Operation):
 @registers.operation.register
 class modify(Operation):
 
-    def __init__(self, substrate, modifier, number: int=1, repeat: int=1, directory="./") -> NoReturn:
+    def __init__(self, substrates, modifier, size: int=1, repeat: int=1, directory="./") -> None:
         """"""
-        super().__init__(input_nodes=[substrate, modifier], directory=directory)
+        super().__init__(input_nodes=[substrates, modifier], directory=directory)
 
-        self.number = number # create number of new structures
-        #self.repeat = repeat # repeat modification times for one structure
+        self.size = size # create number of new structures
+        self.repeat = repeat # repeat modification times for one structure
 
         return
     
-    def forward(self, substrates, modifier):
+    def forward(self, substrates: List[Atoms], modifier) -> List[Atoms]:
         """Modify inputs structures.
 
         A modifier only accepts one structure each time.
@@ -95,13 +95,8 @@ class modify(Operation):
         super().forward()
 
         cache_path = self.directory/f"{modifier.name}-out.xyz"
-
         if not cache_path.exists():
-            frames = []
-            for substrate in substrates:
-                curr_atoms = copy.deepcopy(substrate)
-                curr_frames = modifier.run(curr_atoms, size=self.number)
-                frames.extend(curr_frames)
+            frames = modifier.run(substrates, size=self.size)
             write(cache_path, frames)
         else:
             frames = read(cache_path, ":")
