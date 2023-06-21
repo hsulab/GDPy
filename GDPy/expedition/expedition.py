@@ -4,10 +4,12 @@
 import abc
 import pathlib
 
+from GDPy import config
+
 class AbstractExpedition(abc.ABC):
 
-    _print = print
-    _debug = print
+    _print = config._print
+    _debug = config._debug
 
     @property
     def directory(self):

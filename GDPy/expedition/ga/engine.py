@@ -26,8 +26,8 @@ from .population import AbstractPopulationManager
 
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
-
 from GDPy.utils.command import convert_indices
+from ..expedition import AbstractExpedition
 
 """
 TODO: search variational composition
@@ -90,14 +90,11 @@ class GeneticAlgorithmVariable(Variable):
 
         return engine
 
-class GeneticAlgorithemEngine():
+class GeneticAlgorithemEngine(AbstractExpedition):
 
     """Genetic Algorithem Engine.
     """
 
-    restart = True
-    _print: Callable = print
-    _debug: Callable = print
     _directory = Path.cwd()
 
     # local optimisation directory
@@ -176,43 +173,6 @@ class GeneticAlgorithemEngine():
         self.db_path = self._directory/self.db_name
         return
 
-    def _init_logger(self):
-        """"""
-        self.logger = logging.getLogger(__name__)
-
-        log_level = logging.INFO
-
-        self.logger.setLevel(log_level)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
-        # - stream
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-
-        # -- avoid duplicate stream handlers
-        for handler in self.logger.handlers:
-            if isinstance(handler, logging.StreamHandler):
-                break
-        else:
-            self.logger.addHandler(ch)
-
-        # - file
-        log_fpath = self.directory/(self.__class__.__name__+".out")
-        if log_fpath.exists():
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-        fh.setLevel(log_level)
-        self.logger.addHandler(fh)
-
-        self._print = self.logger.info
-
-        return
-
     def report(self):
         self._print("restart the database...")
         self.da = DataConnection(self.db_path)
@@ -263,10 +223,8 @@ class GeneticAlgorithemEngine():
 
         """
         # - outputs
-        self._init_logger()
         self.worker.directory = self.directory / self.CALC_DIRNAME
-        self.worker.logger = self.logger
-        self.pop_manager.pfunc = self.logger.info
+        self.pop_manager.pfunc = self._print
 
         # - search target
         self._print(f"\n\n===== Genetic Algorithm =====")

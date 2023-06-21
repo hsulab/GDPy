@@ -320,7 +320,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         pairs = [x.split("=") for x in feed_command]
         for k, v in pairs:
             conf.placeholders[k] = v
-    config._print("YAML: ", OmegaConf.to_yaml(conf))
+    config._debug(f"YAML: {OmegaConf.to_yaml(conf)}")
 
     # - check operations and their directories
     for op_name, op_params in conf.operations.items():

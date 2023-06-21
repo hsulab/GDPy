@@ -122,40 +122,6 @@ class MonteCarlo(AbstractExpedition):
 
         return
 
-    def _init_logger(self):
-        """"""
-        self.logger = logging.getLogger(__name__)
-
-        log_level = logging.INFO
-
-        self.logger.setLevel(log_level)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
-        working_directory = self.directory
-        log_fpath = working_directory / (self.__class__.__name__+".out")
-
-        if self.restart:
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-
-        fh.setLevel(log_level)
-        #fh.setFormatter(formatter)
-
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-
-        self.logger.addHandler(ch)
-        self.logger.addHandler(fh)
-
-        self._pinrt = self.logger.info
-
-        return
-    
     def _init_structure(self):
         """Initialise the input structure.
 
@@ -166,7 +132,7 @@ class MonteCarlo(AbstractExpedition):
         step_wdir = self.directory / f"{self.WDIR_PREFIX}0"
         if not step_wdir.exists():
             # - prepare atoms
-            self._pinrt("===== MonteCarlo Structure =====\n")
+            self._print("===== MonteCarlo Structure =====\n")
             tags = self.atoms.arrays.get("tags", None)
             if tags is None:
                 # default is setting tags by elements
@@ -174,12 +140,12 @@ class MonteCarlo(AbstractExpedition):
                 type_list = sorted(list(set(symbols)))
                 new_tags = [type_list.index(s)*10000+i for i, s in enumerate(symbols)]
                 self.atoms.set_tags(new_tags)
-                self._pinrt("set default tags by chemical symbols...")
+                self._print("set default tags by chemical symbols...")
             else:
-                self._pinrt("set attached tags from the structure...")
+                self._print("set attached tags from the structure...")
 
         # - run init
-        self._pinrt("===== MonteCarlo Initial Minimisation =====\n")
+        self._print("===== MonteCarlo Initial Minimisation =====\n")
         # NOTE: atoms lost tags in optimisation
         #       TODO: move this part to driver?
         curr_tags = self.atoms.get_tags()
@@ -196,7 +162,7 @@ class MonteCarlo(AbstractExpedition):
             # - update atoms
             curr_atoms = curr_frames[-1]
             self.energy_stored = curr_atoms.get_potential_energy()
-            self._pinrt(f"ene: {self.energy_stored}")
+            self._print(f"ene: {self.energy_stored}")
             self.atoms = curr_atoms
             self.atoms.set_tags(curr_tags)
             write(self.directory/self.TRAJ_NAME, self.atoms)
@@ -238,12 +204,11 @@ class MonteCarlo(AbstractExpedition):
         # - prepare logger and output some basic info...
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
-        self._init_logger()
 
-        self._pinrt("===== MonteCarlo Operators (Modifiers) =====\n")
+        self._print("===== MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:
-            self._pinrt(str(op))
-        self._pinrt(f"normalised probabilities {self.op_probs}\n")
+            self._print(str(op))
+        self._print(f"normalised probabilities {self.op_probs}\n")
 
         # -- add print function to operators
         for op in self.operators:
@@ -284,7 +249,7 @@ class MonteCarlo(AbstractExpedition):
     
     def _irun(self, i):
         """Run a single MC step."""
-        self._pinrt(f"===== MC Step {i} =====")
+        self._print(f"===== MC Step {i} =====")
         step_wdir = self.directory/f"{self.WDIR_PREFIX}{i}"
         self.worker.directory = step_wdir
 
@@ -294,7 +259,7 @@ class MonteCarlo(AbstractExpedition):
         temp_stru = self.directory/f"temp_{i}.xyz"
         if not temp_stru.exists():
             curr_op = select_operator(self.operators, self.op_probs, self.rng)
-            self._pinrt(f"operator {curr_op.__class__.__name__}")
+            self._print(f"operator {curr_op.__class__.__name__}")
             curr_atoms = curr_op.run(self.atoms, self.rng)
             if curr_atoms:
                 save_operator(curr_op, temp_op)
@@ -321,7 +286,7 @@ class MonteCarlo(AbstractExpedition):
             curr_atoms.set_tags(curr_tags)
 
             self.energy_operated = curr_atoms.get_potential_energy()
-            self._pinrt(f"post ene: {self.energy_operated}")
+            self._print(f"post ene: {self.energy_operated}")
 
             # -- metropolis
             success = curr_op.metropolis(
@@ -340,9 +305,9 @@ class MonteCarlo(AbstractExpedition):
             if success:
                 self.energy_stored = self.energy_operated
                 self.atoms = curr_atoms
-                self._pinrt("success...")
+                self._print("success...")
             else:
-                self._pinrt("failure...")
+                self._print("failure...")
             write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
 
             # -- clean up
@@ -390,7 +355,6 @@ class MonteCarlo(AbstractExpedition):
             curr_worker = copy.deepcopy(self.worker)
             curr_worker.directory = curr_wdir
             workers.append(curr_worker)
-        print("workers: ", workers)
 
         return workers
 
