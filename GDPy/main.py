@@ -18,10 +18,12 @@ def main():
     # - register
     import_all_modules_for_register()
 
+    description = "GDPy: Generating Deep Potential with Python\n"
+
     # - arguments 
     parser = argparse.ArgumentParser(
         prog="gdp", 
-        description="GDPy: Generating Deep Potential with Python"
+        description=description
     )
 
     parser.add_argument(
@@ -49,7 +51,9 @@ def main():
 
     # - run session
     parser_session = subparsers.add_parser(
-        "session", help="run gdpy session"
+        "session", help="run gdpy session", 
+        description=str(registers.variable)+"\n"+str(registers.operation), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_session.add_argument(
         "SESSION", help="session configuration file (json/yaml)"
@@ -61,7 +65,9 @@ def main():
     
     # - build structures
     parser_build = subparsers.add_parser(
-        "build", help="build structures"
+        "build", help="build structures",
+        description=str(registers.builder), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_build.add_argument(
         "CONFIG", help="builder configuration file (json/yaml)"
@@ -73,7 +79,9 @@ def main():
     
     # - automatic training
     parser_train = subparsers.add_parser(
-        "train", help="automatic training utilities"
+        "train", help="automatic training utilities",
+        description=str(registers.trainer), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_train.add_argument(
         "CONFIG", help="training configuration file (json/yaml)"
@@ -112,7 +120,9 @@ def main():
     # selection
     parser_select = subparsers.add_parser(
         "select",
-        help="apply various selection operations"
+        help="apply various selection operations",
+        description=str(registers.selector), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_select.add_argument(
         "CONFIG", help="selection configuration file"

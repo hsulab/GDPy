@@ -42,6 +42,23 @@ class Register:
     def keys(self):
         """key"""
         return self._dict.keys()
+    
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self._name.upper()}:\n"
+
+        keys = list(self._dict.keys())
+        nkeys = len(keys)
+        ncols = 5
+        nrows = int(nkeys/ncols)
+        for i in range(nrows):
+            content += ("  "+"{:<24s}"*ncols+"\n").format(*keys[i*ncols:i*ncols+ncols])
+
+        nrest = nkeys - nrows*ncols
+        if nrest > 0:
+            content += ("  "+"{:<24s}"*nrest+"\n").format(*keys[nrows*ncols:])
+
+        return content
 
 class registers:
 
@@ -176,10 +193,13 @@ def _handle_errors(errors):
     if not errors:
         return
     for name, err in errors:
-        warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+        #warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+        ...
+    
+    return
 
 
-def import_all_modules_for_register(custom_module_paths=None):
+def import_all_modules_for_register(custom_module_paths=None) -> str:
     """Import all modules for register."""
     modules = []
     for base_dir, submodules in ALL_MODULES:
@@ -196,6 +216,8 @@ def import_all_modules_for_register(custom_module_paths=None):
         except ImportError as error:
             errors.append((module, error))
     _handle_errors(errors)
+
+    return
 
 if __name__ == "__main__":
     ...
