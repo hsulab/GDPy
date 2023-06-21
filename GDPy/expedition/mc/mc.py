@@ -17,7 +17,7 @@ from ase.io import read, write
 from GDPy.core.register import registers
 from GDPy.core.variable import Variable
 from GDPy.worker.single import SingleWorker
-from ..routine import AbstractRoutine
+from ..expedition import AbstractExpedition
 from .operators import select_operator, parse_operators, save_operator, load_operator
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
@@ -55,7 +55,7 @@ class MonteCarloVariable(Variable):
         return engine
 
 
-class MonteCarlo(AbstractRoutine):
+class MonteCarlo(AbstractExpedition):
 
     restart = False
 
@@ -381,7 +381,7 @@ class MonteCarlo(AbstractRoutine):
         return converged
     
     def get_workers(self):
-        """Get all workers used by this routine."""
+        """Get all workers used by this expedition."""
         wdirs = list(self.directory.glob(f"{self.WDIR_PREFIX}*"))
         wdirs = sorted(wdirs, key=lambda x: int(x.name[len(self.WDIR_PREFIX):]))
 

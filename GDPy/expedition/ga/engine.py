@@ -22,7 +22,7 @@ from ase.ga.data import PrepareDB, DataConnection
 from ase.ga.population import Population
 from ase.ga.offspring_creator import OperationSelector
 
-from GDPy.routine.ga.population import AbstractPopulationManager
+from .population import AbstractPopulationManager
 
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
@@ -451,7 +451,7 @@ class GeneticAlgorithemEngine():
         return curr_convergence
     
     def get_workers(self):
-        """Get all workers used by this routine."""
+        """Get all workers used by this expedition."""
         if not hasattr(self, "da"):
             self.da = DataConnection(self.db_path)
             self._check_generation()

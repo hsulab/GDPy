@@ -4,7 +4,7 @@
 import abc
 import pathlib
 
-class AbstractRoutine(abc.ABC):
+class AbstractExpedition(abc.ABC):
 
     _print = print
     _debug = print

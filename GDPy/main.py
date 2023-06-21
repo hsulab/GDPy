@@ -104,15 +104,17 @@ def main():
         help="retrieve last frame or entire trajectory"
     )
 
-    # --- routine interface
-    parser_routine = subparsers.add_parser(
-        "routine", help="run a routine (e.g. GA and MC)"
+    # --- expedition interface
+    parser_explore = subparsers.add_parser(
+        "explore", help="explore structures with advanced methods (e.g. GA and MC)",
+        description=str(registers.expedition),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser_routine.add_argument(
+    parser_explore.add_argument(
         "CONFIG",
         help="json/yaml file that stores parameters for a task"
     )
-    parser_routine.add_argument(
+    parser_explore.add_argument(
         "--wait", default=None, type=float,
         help="wait time after each run"
     )
@@ -177,10 +179,10 @@ def main():
     elif args.subcommand == "worker":
         from GDPy.worker.interface import run_worker
         run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
-    elif args.subcommand == "routine":
-        from .routine.interface import run_routine
+    elif args.subcommand == "explore":
+        from .expedition.interface import run_expedition
         params = parse_input_file(args.CONFIG)
-        run_routine(params, args.wait, args.directory)
+        run_expedition(params, args.wait, args.directory)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
         run_validation(args.directory, args.INPUTS, potter)

@@ -95,8 +95,8 @@ class registers:
     #: Reactors.
     reactor: Register = Register("reactor")
 
-    #: Routines.
-    routine: Register = Register("routine")
+    #: Expeditions.
+    expedition: Register = Register("expedition")
 
     #: Selectors.
     selector: Register = Register("selector")
@@ -164,8 +164,8 @@ ALL_MODULES = [
     ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
     # -- comparators
     ("GDPy", ["comparator"]),
-    # -- routines
-    ("GDPy", ["routine"]),
+    # -- expeditions
+    ("GDPy", ["expedition"]),
     # -- reactors
     ("GDPy.reactor", ["afir"]),
     # -- validators
