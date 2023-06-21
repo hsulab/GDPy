@@ -268,10 +268,9 @@ class LmpDriver(AbstractDriver):
             resume_params = {}
             # --- update run_params in settings
             dump_period = self.setting.get_init_params()["dump_period"]
-            steps = (
-                self.setting.get_run_params(*args, **kwargs)["maxiter"] + dump_period 
-                - nframes*dump_period
-            )
+            target_steps = self.setting.get_run_params(*args, **kwargs)["maxiter"]
+            if target_steps > 0:
+                steps = target_steps + dump_period - nframes*dump_period
             assert steps > 0, "Steps should be greater than 0."
             resume_params.update(steps=steps)
         else:
