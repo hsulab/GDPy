@@ -160,8 +160,12 @@ def main():
     if args.debug:
         config.logger.setLevel(logging.DEBUG)
 
+    curr_wdir = pathlib.Path(args.directory)
+    if not curr_wdir.exists():
+        curr_wdir.mkdir(parents=True)
+
     if args.log:
-        logfpath = args.directory/args.log
+        logfpath = curr_wdir/args.log
         if logfpath.exists():
             fh = logging.FileHandler(logfpath, mode="a")
         else:

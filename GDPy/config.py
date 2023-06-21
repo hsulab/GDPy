@@ -29,6 +29,7 @@ LOGO_LINES = [
 "| |  _| | | | |_) \  /  ",
 "| |_| | |_| |  __//  \  ",
 " \____|____/|_|  /_/\_\ ",
+"                        ",
 ]
 
 #: Number of parallel jobs for joblib.
