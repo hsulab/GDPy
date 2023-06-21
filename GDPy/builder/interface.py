@@ -66,9 +66,9 @@ class build(Operation):
             else:
                 frames = builder.run()
                 write(curr_builder_output, frames)
-            self.pfunc(f"{i} - {builder.name} nframes: {len(frames)}")
+            self._print(f"{i} - {builder.name} nframes: {len(frames)}")
             bundle.extend(frames)
-        self.pfunc(f"nframes: {len(bundle)}")
+        self._print(f"nframes: {len(bundle)}")
 
         self.status = "finished"
 
