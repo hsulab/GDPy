@@ -68,7 +68,7 @@ class compute(Operation):
         worker_status = []
         for i, worker in enumerate(workers):
             flag_fpath = worker.directory/"FINISHED"
-            self.pfunc(f"run worker {i} for {nframes} nframes")
+            self._print(f"run worker {i} for {nframes} nframes")
             if not flag_fpath.exists():
                 worker.run(frames)
                 worker.inspect(resubmit=True) # if not running, resubmit
@@ -83,7 +83,7 @@ class compute(Operation):
             else:
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
-                self.pfunc(content)
+                self._print(content)
                 worker_status.append(True)
         
         if all(worker_status):
@@ -118,7 +118,7 @@ class extract(Operation):
         # TODO: reconstruct trajs to List[List[Atoms]]
         self.workers = workers # for operations to access
         nworkers = len(workers)
-        self.pfunc(f"nworkers: {nworkers}")
+        self._print(f"nworkers: {nworkers}")
         #print(self.workers)
         worker_status = [False]*nworkers
 
@@ -133,7 +133,7 @@ class extract(Operation):
                 # inspect again for using extract without drive
                 worker.inspect(resubmit=False)
                 if not (worker.get_number_of_running_jobs() == 0):
-                    self.pfunc(f"{worker.directory} is not finished.")
+                    self._print(f"{worker.directory} is not finished.")
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories = worker.retrieve(
@@ -153,14 +153,14 @@ class extract(Operation):
                 #        curr_trajectories.append(traj)
                 curr_trajectories = Trajectories.from_file(cached_trajs_dpath/"dataset.h5")
 
-            self.pfunc(f"worker_{i} {curr_trajectories}")
+            self._print(f"worker_{i} {curr_trajectories}")
             trajectories.extend(curr_trajectories)
 
             worker_status[i] = True
         
         structures = []
         if all(worker_status):
-            self.pfunc(f"worker_: {trajectories}")
+            self._print(f"worker_: {trajectories}")
             self.status = "finished"
         else:
             ...

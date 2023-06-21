@@ -13,6 +13,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
+from GDPy import config
 from GDPy.core.placeholder import Placeholder
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
@@ -35,8 +36,12 @@ def traverse_postorder(operation):
 
 class Session:
 
-    _print: Callable = print
-    _debug: Callable = print
+    #: Standard print function.
+    _print: Callable = config._print
+
+    #: Standard debug function.
+    _debug: Callable = config._debug
+
 
     def __init__(self, directory="./") -> None:
         """"""
@@ -96,8 +101,11 @@ class CyclicSession:
 
     """
 
-    _print: Callable = print
-    _debug: Callable = print
+    #: Standard print function.
+    _print: Callable = config._print
+
+    #: Standard debug function.
+    _debug: Callable = config._debug
 
     def __init__(self, directory="./") -> None:
         """"""
@@ -312,7 +320,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         pairs = [x.split("=") for x in feed_command]
         for k, v in pairs:
             conf.placeholders[k] = v
-    #print("YAML: ", OmegaConf.to_yaml(conf))
+    config._print("YAML: ", OmegaConf.to_yaml(conf))
 
     # - check operations and their directories
     for op_name, op_params in conf.operations.items():
