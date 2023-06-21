@@ -451,7 +451,6 @@ class DriverBasedWorker(AbstractWorker):
             unretrieved_wdirs = unretrieved_wdirs_
 
         # - read results
-        #print("unretrieved: ", unretrieved_wdirs)
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             if not self._share_wdir:

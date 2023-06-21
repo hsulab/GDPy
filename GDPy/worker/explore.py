@@ -103,7 +103,6 @@ class ExpeditionBasedWorker(AbstractWorker):
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
 
-                print("doc_data: ", doc_data)
                 wdir = self.directory/doc_data["wdir_names"][0]
 
                 self.scheduler.job_name = job_name
@@ -153,7 +152,7 @@ class ExpeditionBasedWorker(AbstractWorker):
         workers = []
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-            print("unretrieved_wdirs: ", unretrieved_wdirs)
+            self._debug("unretrieved_wdirs: ", unretrieved_wdirs)
             for p in unretrieved_wdirs:
                 self.expedition.directory = p
                 workers.extend(self.expedition.get_workers())

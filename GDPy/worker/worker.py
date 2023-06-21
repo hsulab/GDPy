@@ -29,10 +29,8 @@ class AbstractWorker(abc.ABC):
 
     UUIDLEN = 36 # length of uuid
 
-    logger = None
-
-    _print: Callable = print
-    _debug: Callable = print
+    _print: Callable = config._print
+    _debug: Callable = config._debug
 
     _directory = None
     _scheduler = None

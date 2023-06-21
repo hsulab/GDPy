@@ -144,7 +144,6 @@ class SingleWorker(AbstractWorker):
         with TinyDB(
             self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
-            print(database.get(doc_id=1))
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_wdirs_.extend(
@@ -155,7 +154,7 @@ class SingleWorker(AbstractWorker):
             results = []
             if unretrieved_wdirs:
                 unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-                print("unretrieved_wdirs: ", unretrieved_wdirs)
+                self._debug("unretrieved_wdirs: ", unretrieved_wdirs)
                 for p in unretrieved_wdirs:
                     self.driver.directory = self.directory
                     results.append(self.driver.read_trajectory())
