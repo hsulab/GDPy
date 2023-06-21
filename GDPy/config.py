@@ -4,7 +4,32 @@
 """Some shared configuration parameters.
 """
 
-from typing import Union, List
+import logging
+from typing import Union, List, Callable
+
+#: 
+logger = logging.getLogger("GDP")
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter(
+    "%(asctime)s - %(levelname)s: %(message)s",
+    datefmt="%Y%b%d-%H:%M:%S"
+    #"%(levelname)s: %(module)s - %(message)s"
+)
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+_print: Callable = logger.info
+_debug: Callable = logger.debug
+
+LOGO_LINES = [
+"  ____ ____  ______  __ ",
+" / ___|  _ \|  _ \ \/ / ",
+"| |  _| | | | |_) \  /  ",
+"| |_| | |_| |  __//  \  ",
+" \____|____/|_|  /_/\_\ ",
+]
 
 #: Number of parallel jobs for joblib.
 NJOBS: int = 1

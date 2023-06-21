@@ -3,9 +3,9 @@
 
 import os
 import sys
-
+import logging
 import argparse
-from pathlib import Path
+import pathlib
 
 import numpy as np
 
@@ -27,7 +27,7 @@ def main():
     )
 
     parser.add_argument(
-        "-d", "--directory", default=Path.cwd(),
+        "-d", "--directory", default=pathlib.Path.cwd(),
         help="working directory"
     )
     
@@ -40,6 +40,16 @@ def main():
     parser.add_argument(
         "-nj", "--n_jobs", default = 1, type=int,
         help = "number of processors"
+    )
+
+    parser.add_argument(
+        "--debug", action="store_true",
+        help = "debug mode that gives more information"
+    )
+    
+    parser.add_argument(
+        "--log", default="gdp.out",
+        help = "logging output file"
     )
     
     # subcommands in the entire workflow 
@@ -146,10 +156,27 @@ def main():
     # === execute 
     args = parser.parse_args()
     
-    # - update njobs
+    # - update global configuration
+    if args.debug:
+        config.logger.setLevel(logging.DEBUG)
+
+    if args.log:
+        logfpath = args.directory/args.log
+        if logfpath.exists():
+            fh = logging.FileHandler(logfpath, mode="a")
+        else:
+            fh = logging.FileHandler(logfpath, mode="w")
+        fh.setFormatter(config.formatter)
+        config.logger.addHandler(fh)
+    
+    # -- set LOGO
+    for line in config.LOGO_LINES:
+        config._print(line)
+
+    # -- set njobs
     config.NJOBS = args.n_jobs
     if config.NJOBS != 1:
-        print(f"Run parallel jobs {config.NJOBS}")
+        config._print(f"Use {config.NJOBS} processors.")
 
     # - potential
     from GDPy.utils.command import parse_input_file
