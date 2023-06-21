@@ -70,7 +70,7 @@ class SingleWorker(AbstractWorker):
             self.scheduler.job_name = job_name
             self.scheduler.script = self.directory/jobscript_fname
 
-            self.scheduler.user_commands = "gdp -p {} worker {}\n".format(
+            self.scheduler.user_commands = "gdp -p {} compute {}\n".format(
                 (self.directory/f"worker-{uid}.yaml").name, dataset_path
             )
 

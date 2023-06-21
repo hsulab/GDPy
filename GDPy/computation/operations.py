@@ -18,57 +18,9 @@ from GDPy.worker.drive import (
 from GDPy.data.array import AtomsArray2D
 from GDPy.data.trajectory import Trajectories
 
-@registers.operation.register
-class work(Operation):
-
-    """Create a list of workers by necessary components (potter, drivers, and scheduler).
-    """
-
-    def __init__(self, potter, driver, scheduler, custom_wdirs=None, directory="./", *args, **kwargs) -> NoReturn:
-        """"""
-        super().__init__(input_nodes=[potter,driver,scheduler], directory=directory)
-
-        # Custom worker directories.
-        self.custom_wdirs = custom_wdirs
-
-        return
-    
-    def forward(self, potter, drivers: List[dict], scheduler) -> List[DriverBasedWorker]:
-        """"""
-        super().forward()
-
-        # - check if there were custom wdirs, and zip longest
-        ndrivers = len(drivers)
-        if self.custom_wdirs is not None:
-            wdirs = [pathlib.Path(p) for p in self.custom_wdirs]
-        else:
-            wdirs = [self.directory/f"w{i}" for i in range(ndrivers)]
-        
-        nwdirs = len(wdirs)
-        assert (nwdirs==ndrivers and ndrivers>1) or (nwdirs>=1 and ndrivers==1), "Invalid wdirs and drivers."
-        pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
-
-        # - create workers
-        # TODO: broadcast potters, schedulers as well?
-        workers = []
-        for wdir, driver_params in pairs:
-            # workers share calculator in potter
-            driver = potter.create_driver(driver_params)
-            if scheduler.name == "local":
-                worker = CommandDriverBasedWorker(potter, driver, scheduler)
-            else:
-                worker = QueueDriverBasedWorker(potter, driver, scheduler)
-            # wdir is temporary as it may be reset by drive operation
-            worker.directory = wdir
-            workers.append(worker)
-        
-        self.status = "finished"
-
-        return workers
-
 
 @registers.operation.register
-class drive(Operation):
+class compute(Operation):
 
     """Drive structures.
     """
@@ -146,7 +98,7 @@ class extract(Operation):
     """Extract dynamics trajectories from a drive-node's worker.
     """
 
-    def __init__(self, drive: drive, directory="./", *args, **kwargs) -> None:
+    def __init__(self, drive, directory="./", *args, **kwargs) -> None:
         """"""
         super().__init__(input_nodes=[drive], directory=directory)
 

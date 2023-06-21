@@ -585,7 +585,7 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self.directory/jobscript_fname
 
-        self.scheduler.user_commands = "gdp -p {} worker {} --batch {}\n".format(
+        self.scheduler.user_commands = "gdp -p {} compute {} --batch {}\n".format(
             (self.directory/f"worker-{uid}.yaml").name, 
             #(self.directory/structure_fname).name
             dataset_path, batch_number

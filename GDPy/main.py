@@ -87,26 +87,26 @@ def main():
         "CONFIG", help="training configuration file (json/yaml)"
     )
 
-    # --- worker interface
-    parser_worker = subparsers.add_parser(
-        "worker", help="run a worker"
+    # --- compute interface
+    parser_compute = subparsers.add_parser(
+        "compute", help="compute structures with basic methods (MD, MIN, and ...)"
     )
-    parser_worker.add_argument(
+    parser_compute.add_argument(
         "STRUCTURE",
         help="a structure file that stores one or more structures"
     )
-    parser_worker.add_argument(
+    parser_compute.add_argument(
         "-b", "--batch", default=None, type=int,
         help="run selected batch number (useful when queue run)"
     )
-    parser_worker.add_argument(
+    parser_compute.add_argument(
         "-o", "--output", default="last", choices=["last","traj"],
         help="retrieve last frame or entire trajectory"
     )
 
     # --- expedition interface
     parser_explore = subparsers.add_parser(
-        "explore", help="explore structures with advanced methods (e.g. GA and MC)",
+        "explore", help="explore structures with advanced methods (GA, MC, and ...)",
         description=str(registers.expedition),
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -176,7 +176,7 @@ def main():
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
-    elif args.subcommand == "worker":
+    elif args.subcommand == "compute":
         from GDPy.worker.interface import run_worker
         run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
     elif args.subcommand == "explore":
