@@ -97,7 +97,7 @@ class GraphModifier(StructureModifier):
 
         cached_filepath = self.directory/"enumerated.xyz"
         if not cached_filepath.exists():
-            modified_structures = self._irun(substrates, )
+            modified_structures = self._irun(self.substrates, )
             write(self.directory/"enumerated.xyz", modified_structures)
         else:
             self._print("Use cached results.")
