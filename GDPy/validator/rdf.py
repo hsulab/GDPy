@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
+import itertools
+from typing import List
 
 import numpy as np
 from scipy.interpolate import make_interp_spline, BSpline
@@ -13,9 +16,13 @@ try:
 except Exception as e:
     print("Used default matplotlib style.")
 
+from ase import Atoms
 from ase.io import read, write
+from ase.neighborlist import NeighborList
 
-from GDPy.validator.validator import AbstractValidator
+from ..core.register import registers
+from .validator import AbstractValidator
+from .utils import wrap_traj
 
 def smooth_curve(bins, points):
     """"""
@@ -36,12 +43,7 @@ def calc_rdf(dat_fpath, frames, first_indices, second_indices, avg_density, nbin
     left_edges = np.copy(bincentres) - binwidth/2.
     right_edges = np.copy(bincentres) + binwidth/2.
     bins = np.linspace(0., cutoff+binwidth, nbins+2)
-    #print(bins)
 
-    first_indices = [174, 175]
-    #first_indices = [176, 177, 178, 179]
-
-    from ase.neighborlist import NeighborList
     dis_hist = []
     for atoms in frames:
         cell = atoms.get_cell()
@@ -94,7 +96,7 @@ def calc_rdf(dat_fpath, frames, first_indices, second_indices, avg_density, nbin
 
 def plot_rdf(fig_path, data, ref_data=None, title="RDF"):
     # plot
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16,12))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
 
     plt.suptitle("Radial Distribution Function")
     ax.set_xlabel("r [Å]")
@@ -104,12 +106,12 @@ def plot_rdf(fig_path, data, ref_data=None, title="RDF"):
 
     bincentres, rdf = data[:,0], data[:,1]
     bincentres_, rdf_ = smooth_curve(bincentres, rdf)
-    ax.plot(bincentres_, rdf_, label="MLIP")
+    ax.plot(bincentres_, rdf_, label="prediction")
 
     if ref_data is not None:
         bincentres, rdf = ref_data[:,0], ref_data[:,1]
         bincentres_, rdf_ = smooth_curve(bincentres, rdf)
-        ax.plot(bincentres_, rdf_, ls="-.", label="Ref.")
+        ax.plot(bincentres_, rdf_, ls="-.", label="reference")
 
     plt.legend()
 
@@ -118,38 +120,66 @@ def plot_rdf(fig_path, data, ref_data=None, title="RDF"):
     return
 
 
+@registers.validator.register
 class RdfValidator(AbstractValidator):
 
-
-    def run(self):
+    def __init__(self, pair: List[str], cutoff: float=6., nbins: int=60, directory = "./", *args, **kwargs) -> None:
         """"""
-        params = self.task_params
-        traj_fpath = params["trajectory"]["path"]
-        indices = params["trajectory"].get("indices", ":")
+        super().__init__(directory=directory, *args, **kwargs)
 
-        rdf_params = params["rdf_params"]
-        nbins = rdf_params.get("nbins", 60)
-        cutoff = rdf_params.get("cutoff", 6.)
-        pairs = rdf_params["pairs"]
-        assert len(pairs) == 2, "RDF needs two elements."
+        self.pair = pair
+        assert len(self.pair), f"{self.__class__.__name__} requires two elements."
+        self.cutoff = cutoff
+        self.nbins = nbins
 
-        frames = read(traj_fpath, indices)
+        return
+
+    def run(self, dataset, worker=None, *args, **kwargs):
+        """"""
+        ref_frames = dataset["reference"]
+        self._debug(f"reference  nframes: {len(ref_frames)}")
+        pre_frames = dataset["prediction"]
+        self._debug(f"prediction nframes: {len(pre_frames)}")
+
+        pre_data = self._compute_rdf(
+            self.directory/("-".join(self.pair)+"_pre.dat"), 
+            pre_frames, self.pair, self.cutoff, self.nbins
+        )
+        ref_data = self._compute_rdf(
+            self.directory/("-".join(self.pair)+"_ref.dat"), 
+            ref_frames, self.pair, self.cutoff, self.nbins
+        )
+
+        # - reference
+        plot_rdf(self.directory/"rdf.png", pre_data, ref_data, title="-".join(self.pair))
+
+        return
+    
+    def _compute_rdf(self, dat_fpath, frames: List[Atoms], pair, cutoff, nbins):
+        """"""
+        # -
+        if any(frames[0].pbc):
+            frames = wrap_traj(frames)
 
         # NOTE: the atom order should be consistent in the entire trajectory
-        first_indices, second_indices = [], []
-        for i, sym in enumerate(frames[0].get_chemical_symbols()):
-            if sym == pairs[0]:
-                first_indices.append(i)
-            if sym == pairs[1]:
-                second_indices.append(i)
-        assert len(first_indices) > 0, f"Cant found {pairs[0]}."
-        assert len(second_indices) > 0, f"Cant found {pairs[1]}."
-        if pairs[0] == pairs[1]:
+        #       i.e. this does not work for variable-composition system
+        chemical_symbols = frames[0].get_chemical_symbols()
+        sym_dict = {k: [] for k in set(chemical_symbols)}
+        for k, v in itertools.groupby(enumerate(chemical_symbols), key=lambda x:x[1]):
+            sym_dict[k].extend([x[0] for x in v])
+
+        first_indices  = copy.deepcopy(sym_dict.get(pair[0], []))
+        second_indices = copy.deepcopy(sym_dict.get(pair[1], []))
+        assert len(first_indices) > 0, f"Cant found {pair[0]}."
+        assert len(second_indices) > 0, f"Cant found {pair[1]}."
+        self._debug(f"first : {first_indices}")
+        self._debug(f"second: {second_indices}")
+
+        if pair[0] == pair[1]:
             avg_density = len(first_indices)/frames[0].get_volume()
         else:
             avg_density = (len(first_indices)+len(second_indices))/frames[0].get_volume()
 
-        dat_fpath = self.directory/("-".join(pairs)+".dat")
         if not dat_fpath.exists():
             data = calc_rdf(
                 dat_fpath, frames, first_indices, second_indices, avg_density, nbins, cutoff
@@ -157,13 +187,8 @@ class RdfValidator(AbstractValidator):
         else:
             data = np.loadtxt(dat_fpath)
 
-        # - reference
-        ref_data = np.loadtxt(params["reference"])
-
-        plot_rdf(self.directory/"rdf.png", data, ref_data, title="-".join(pairs))
-
-        return
+        return data
 
 
 if __name__ == "__main__":
-    pass
+    ...

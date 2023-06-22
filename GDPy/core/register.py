@@ -133,7 +133,7 @@ class registers:
         return instance
 
 
-VALIDATOR_MODULES = ["singlepoint", "dimer", "minima", "eos"]
+VALIDATOR_MODULES = ["singlepoint", "dimer", "minima", "eos", "rdf"]
 DATA_OPS = ["operations"]
 
 SCHEDULER_MODULES = ["local", "lsf", "pbs", "slurm"]
