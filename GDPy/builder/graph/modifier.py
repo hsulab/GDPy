@@ -21,6 +21,7 @@ from GDPy.utils.command import CustomTimer
 from GDPy.graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
 
 from GDPy.builder.builder import StructureModifier
+from ..group import create_a_group
 
 DEFAULT_GRAPH_PARAMS = dict(
     pbc_grid = [2, 2, 0],
@@ -31,7 +32,37 @@ DEFAULT_GRAPH_PARAMS = dict(
     )
 )
 
-def single_create_structure_graph(graph_params: dict, spec_params: dict, atoms: Atoms) -> List[nx.Graph]:
+def single_create_structure_graph(graph_params: dict, target_group, atoms: Atoms) -> List[nx.Graph]:
+    """Create structure graph and get selected chemical environments.
+
+    Find atoms with selected chemical symbols or in the defined region.
+
+    Args:
+        graph_params: Parameters for the graph representation.
+        target_indices: A List of Integers.
+        atoms: Input structure.
+
+    Returns:
+        A list of graphs that represent the chemical environments of selected atoms.
+
+    """
+    stru_creator = StruGraphCreator(**graph_params)
+
+    config._debug(f"target_group: {target_group}")
+
+    natoms = len(atoms)
+    group_indices = list(range(natoms))
+    for command in target_group:
+        curr_indices = create_a_group(atoms, command)
+        group_indices = [i for i in group_indices if i in curr_indices]
+
+    _ = stru_creator.generate_graph(atoms, ads_indices_=group_indices)
+
+    chem_envs = stru_creator.extract_chem_envs(atoms)
+
+    return chem_envs
+
+def _temp_single_create_structure_graph(graph_params: dict, spec_params: dict, atoms: Atoms) -> List[nx.Graph]:
     """Create structure graph and get selected chemical environments.
 
     Find atoms with selected chemical symbols or in the defined region.

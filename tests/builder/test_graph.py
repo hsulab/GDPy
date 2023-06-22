@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import pytest
 import tempfile
 
 from ase.io import read, write
 
+from GDPy import config
+from GDPy.core.register import import_all_modules_for_register
 from GDPy.builder.species import MoleculeBuilder
 from GDPy.builder.graph.insert import GraphInsertModifier
 from GDPy.builder.graph.remove import GraphRemoveModifier
 from GDPy.builder.graph.exchange import GraphExchangeModifier
 
+config.logger.setLevel(logging.DEBUG)
+
+import_all_modules_for_register()
 
 MODIFIER_INSERT_PARAMS = dict(
     species = "CO",
-    adsorbate_elements = ["C", "O"], # specific species
+    spectators = ["C", "O"], # specific species
     sites = [
         dict(
             cn = 1,
             group = [
                 "symbol Cu",
-                "region 0. 0. 0. -100. -100. 6. 100. 100. 8."
+                "region cube 0. 0. 0. -100. -100. 6. 100. 100. 8."
             ],
             radius = 3,
             ads = [
@@ -34,7 +40,7 @@ MODIFIER_INSERT_PARAMS = dict(
             cn = 2,
             group = [
                 "symbol Cu",
-                "region 0. 0. 0. -100. -100. 6. 100. 100. 8."
+                "region cube 0. 0. 0. -100. -100. 6. 100. 100. 8."
             ],
             radius = 3,
             ads = [
@@ -48,7 +54,7 @@ MODIFIER_INSERT_PARAMS = dict(
             cn = 3,
             group = [
                 "symbol Cu",
-                "region 0. 0. 0. -100. -100. 6. 100. 100. 8."
+                "region cube 0. 0. 0. -100. -100. 6. 100. 100. 8."
             ],
             radius = 3,
             ads = [
@@ -79,11 +85,19 @@ MODIFIER_REMOVE_PARAMS = dict(
             skin = 0.25
         )
     ),
-    adsorbate_elements = ["O"],
-    target_indices = [ # py convention
-        42, 43, 44, 45, 46, 47, # top surface
-        36, 37, 38, 39, 40, 41, # sub surface
-    ] 
+    #adsorbate_elements = ["O"],
+    #target_indices = [ # py convention
+    #    42, 43, 44, 45, 46, 47, # top surface
+    #    36, 37, 38, 39, 40, 41, # sub surface
+    #] 
+    spectators = ["O"],
+    target_group = [
+        # "id 36 37 38 39 40 41 42 43 44 45 46 47"
+        #"id 37 38 39 40 41 42 43 44 45 46 47 48",
+        "symbol O",
+        # NOTE: LatticeRegion takes the pbc in z-axis as well
+        "region surface_lattice 0.0 0.0 8.0 9.8431 0.0 0.0 0.0 10.5534 0.0 0.0 0.0 8.0",
+    ]
 )
 
 MODIFIER_EXCHANGE_PARAMS = dict(
@@ -99,10 +113,15 @@ MODIFIER_EXCHANGE_PARAMS = dict(
             skin = 0.25
         )
     ),
-    adsorbate_elements = ["Zn", "Cr"],
-    target_indices = [ # py convention
-        90, 91, 92, 93, 94, 95, # top surface
-        84, 85, 86, 87, 88, 89, # sub surface
+    spectators = ["Zn", "Cr"],
+    #target_indices = [ # py convention
+    #    90, 91, 92, 93, 94, 95, # top surface
+    #    84, 85, 86, 87, 88, 89, # sub surface
+    #] 
+    target_group = [
+        "symbol Zn Cr",
+        # NOTE: LatticeRegion takes the pbc in z-axis as well
+        "region surface_lattice 0.0 0.0 8.0 9.8431 0.0 0.0 0.0 10.5534 0.0 0.0 0.0 8.0",
     ] 
 )
 

@@ -10,14 +10,16 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy import config
-from GDPy.builder.graph.modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
 from GDPy.utils.command import CustomTimer
 from GDPy.graph.creator import StruGraphCreator
 from GDPy.graph.utils import unpack_node_name
 from GDPy.graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
 
+from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
+from ..group import create_a_group
 
-def single_remove_adsorbate(graph_params: dict, spec_params: dict, atoms: Atoms):
+
+def single_remove_adsorbate(species: str, graph_params: dict, target_group: List[dict], atoms: Atoms):
     """Remove selected particles from the structure.
 
     Currently, only single atom can be removed. TODO: molecule.
@@ -33,46 +35,25 @@ def single_remove_adsorbate(graph_params: dict, spec_params: dict, atoms: Atoms)
     )
 
     # - check if spec_indices are all species
-    species = spec_params["species"]
-
-    chemical_symbols = atoms.get_chemical_symbols()
-
-    spec_indices = spec_params.get("spec_indices", None)
-    if spec_indices is None:
-        region = spec_params.get("region", None)
-        if region is None:
-            ads_indices = [] # selected indices
-            for i, sym in enumerate(chemical_symbols):
-                if sym == species:
-                    ads_indices.append(i)
-        else:
-            ads_indices = []
-            #print(region)
-            (ox, oy, oz, xl, yl, zl, xh, yh, zh) = region
-            for i, a in enumerate(atoms):
-                if a.symbol == species:
-                    pos = a.position
-                    if (
-                        (ox+xl <= pos[0] <= ox+xh) and
-                        (oy+yl <= pos[1] <= oy+yh) and
-                        (oz+zl <= pos[2] <= oz+zh)
-                    ):
-                        ads_indices.append(i)
-    else:
-        ads_indices = copy.deepcopy(spec_indices)
-    #print(ads_indices)
+    natoms = len(atoms)
+    group_indices = list(range(natoms))
+    for command in target_group:
+        curr_indices = create_a_group(atoms, command)
+        group_indices = [i for i in group_indices if i in curr_indices]
+    config._debug(f"group_indices to remove {group_indices}")
 
     # TODO: tags for molecule?
-    for i in ads_indices:
-        if chemical_symbols[i] != species:
+    chemical_symbols = atoms.get_chemical_symbols()
+    for i in group_indices:
+       if chemical_symbols[i] != species:
             raise RuntimeError("Species to remove is inconsistent for those by indices.")
 
     # - get chem envs
-    _ = stru_creator.generate_graph(atoms, ads_indices_=ads_indices)
+    _ = stru_creator.generate_graph(atoms, ads_indices_=group_indices)
     chem_envs = stru_creator.extract_chem_envs(atoms)
 
     # NOTE: for single atom adsorption,
-    assert len(chem_envs) == len(ads_indices), "Single atoms group into one adsorbate. Try reducing the covalent radii."
+    assert len(chem_envs) == len(group_indices), "Single atoms group into one adsorbate. Try reducing the covalent radii."
     # TODO: for molecule adsorption
 
     # - find unique sites to remove for this structure
@@ -101,7 +82,7 @@ class GraphRemoveModifier(GraphModifier):
 
 
     def __init__(
-            self, species, adsorbate_elements: List[str], target_indices: List[int],
+            self, species, spectators: List[str], target_group: List[dict],
             substrates=None, graph: dict = DEFAULT_GRAPH_PARAMS,
             *args, **kwargs
         ):
@@ -111,9 +92,9 @@ class GraphRemoveModifier(GraphModifier):
 
         self.species = species # make this a node
 
-        self.target_indices = target_indices
+        self.target_group = target_group
 
-        self.adsorbate_elements = adsorbate_elements
+        self.spectators = spectators
         self.graph_params = graph
 
         #self.check_site_unique = True
@@ -130,21 +111,13 @@ class GraphRemoveModifier(GraphModifier):
         """Remove atoms/molecules/adsorbates."""
         self._print("---run remove---")
         graph_params = copy.deepcopy(self.graph_params)
-        adsorbate_elements = copy.deepcopy(self.adsorbate_elements)
+        adsorbate_elements = copy.deepcopy(self.spectators)
         graph_params.update(adsorbate_elements=adsorbate_elements)
-
-        # - find species to remove
-        spec_params = dict(
-            species = self.species,
-            selected_species = [self.species],
-            spec_indices = self.target_indices,
-            region = None
-        )
 
         # - get chem envs of selected species that may be removed
         with CustomTimer(name="remove-adsorbate", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_remove_adsorbate)(graph_params, spec_params, a) 
+                delayed(single_remove_adsorbate)(self.species, graph_params, self.target_group, a) 
                 for idx, a in enumerate(substrates)
             )
 
@@ -172,7 +145,7 @@ class GraphRemoveModifier(GraphModifier):
         write(self.directory/f"possible_frames.xyz", ret_frames)
 
         # - get unique structures among substrates
-        created_frames = self._compare_structures(ret_frames, graph_params, spec_params)
+        created_frames = self._compare_structures(ret_frames, graph_params, self.target_group)
 
         return created_frames
     

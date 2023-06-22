@@ -46,7 +46,7 @@ def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: li
 class GraphInsertModifier(GraphModifier):
 
     def __init__(
-            self, species, adsorbate_elements: List[str], 
+            self, species, spectators: List[str], 
             sites: List[dict], substrates=None, graph: dict = DEFAULT_GRAPH_PARAMS,
             *args, **kwargs
         ):
@@ -56,7 +56,7 @@ class GraphInsertModifier(GraphModifier):
 
         self.species = species # make this a node
 
-        self.adsorbate_elements = adsorbate_elements
+        self.spectators = spectators 
         self.site_params = sites
         self.graph_params = graph
 
@@ -77,7 +77,7 @@ class GraphInsertModifier(GraphModifier):
 
         # -- parameters for site graph
         graph_params = copy.deepcopy(self.graph_params) # to create site graph
-        adsorbate_elements = copy.deepcopy(self.adsorbate_elements)
+        adsorbate_elements = copy.deepcopy(self.spectators)
         graph_params.update( 
             dict(
                 adsorbate_elements = adsorbate_elements,
@@ -89,17 +89,6 @@ class GraphInsertModifier(GraphModifier):
 
         # -- parameters for species used for comparison
         species = self.species # to insert
-        spec_params = dict(
-            species = species,
-            selected_species = [],
-            spec_indices = None,
-            region = None
-        )
-
-        # -------
-
-        # -- 
-        species = spec_params.get("species", None)
         self._print(f"start to insert adsorbate {species}.")
 
         # - build adsorbate (single atom or molecule)
@@ -114,9 +103,6 @@ class GraphInsertModifier(GraphModifier):
         selected_species = copy.deepcopy(graph_params.get("adsorbate_elements", []))
         selected_species.extend(symbols)
         selected_species = list(set(selected_species))
-
-        spec_params = copy.deepcopy(spec_params)
-        spec_params["selected_species"] = selected_species
 
         # - get structures with inserted species
         with CustomTimer(name="insert-adsorbate", func=self._print):
@@ -136,7 +122,8 @@ class GraphInsertModifier(GraphModifier):
         # NOTE: It is unnecessary to compare among substrates if the spectator
         #       adsorbates are not the same as the inserted one. Otherwise, 
         #       comparasion should be performed.
-        created_frames = self._compare_structures(ret_frames, graph_params, spec_params)
+        target_group = ["symbol "+" ".join(selected_species)]
+        created_frames = self._compare_structures(ret_frames, graph_params, target_group)
 
         return created_frames
     
