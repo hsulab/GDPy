@@ -98,9 +98,17 @@ class extract(Operation):
     """Extract dynamics trajectories from a drive-node's worker.
     """
 
-    def __init__(self, drive, directory="./", *args, **kwargs) -> None:
-        """"""
-        super().__init__(input_nodes=[drive], directory=directory)
+    def __init__(self, compute, mark_end: bool = False, directory="./", *args, **kwargs) -> None:
+        """Init an extract operation.
+
+        Args:
+            compute: Any node forwards a List of workers.
+            mark_end: Whether mark th end frame of each trajectory.
+        
+        """
+        super().__init__(input_nodes=[compute], directory=directory)
+
+        self.mark_end = mark_end
 
         return
     
@@ -127,7 +135,7 @@ class extract(Operation):
             # TODO: How to save trajectories into one file?
             #       probably use override function for read/write
             #       i - worker, j - cand
-            print("worker: ", worker.directory)
+            self._print(f"worker: {str(worker.directory)}")
             cached_trajs_dpath = self.directory/f"{worker.directory.parent.name}-w{i}"
             if not cached_trajs_dpath.exists():
                 # inspect again for using extract without drive
@@ -158,10 +166,12 @@ class extract(Operation):
 
             worker_status[i] = True
         
-        structures = []
         if all(worker_status):
             self._print(f"worker_: {trajectories}")
             self.status = "finished"
+            if self.mark_end:
+                for traj in trajectories:
+                    traj.markers = [len(traj)-1]
         else:
             ...
 

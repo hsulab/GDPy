@@ -45,7 +45,7 @@ class chain(Operation):
     def forward(self, *outputs):
         """"""
         super().forward()
-        print("chain outputs: ", outputs)
+        self._debug(f"chain outputs: {outputs}")
 
         return list(itertools.chain(*outputs))
 
@@ -77,7 +77,7 @@ class map(Operation):
         for k, v in zip(self.names, outputs):
             ret[k] = v
         
-        print("map ret: ", ret)
+        self._debug(f"map ret: {ret}")
 
         return ret
 
@@ -107,7 +107,7 @@ class transfer(Operation):
         if isinstance(frames, AtomsArray2D):
             frames = frames.get_marked_structures()
 
-        self.pfunc(f"target dir: {str(self.target_dir)}")
+        self._print(f"target dir: {str(self.target_dir)}")
 
         # - check chemical symbols
         system_dict = {} # {formula: [indices]}
@@ -133,7 +133,7 @@ class transfer(Operation):
             target_destination = self.target_dir/dirname/strname
             if not target_destination.exists():
                 write(target_destination, curr_frames)
-                self.pfunc(f"nframes {curr_nframes} -> {target_destination.name}")
+                self._print(f"nframes {curr_nframes} -> {target_destination.name}")
             else:
                 warnings.warn(f"{target_destination} exists.", UserWarning)
         
