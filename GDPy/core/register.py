@@ -47,7 +47,7 @@ class Register:
         """"""
         content = f"{self._name.upper()}:\n"
 
-        keys = list(self._dict.keys())
+        keys = sorted(list(self._dict.keys()))
         nkeys = len(keys)
         ncols = 5
         nrows = int(nkeys/ncols)
@@ -133,7 +133,7 @@ class registers:
         return instance
 
 
-VALIDATOR_MODULES = ["singlepoint", "dimer", "minima"]
+VALIDATOR_MODULES = ["singlepoint", "dimer", "minima", "eos"]
 DATA_OPS = ["operations"]
 
 SCHEDULER_MODULES = ["local", "lsf", "pbs", "slurm"]

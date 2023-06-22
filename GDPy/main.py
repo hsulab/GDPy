@@ -146,11 +146,12 @@ def main():
 
     # --- validation
     parser_validation = subparsers.add_parser(
-        "valid", help="validate properties with trained models"
+        "valid", help="validate properties with trained models",
+        description=str(registers.validator), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_validation.add_argument(
-        "INPUTS",
-        help="input json/yaml file with calculation parameters"
+        "CONFIG", help="validation configuration file"
     )
     
     # === execute 
@@ -216,7 +217,8 @@ def main():
         run_expedition(params, args.wait, args.directory)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
-        run_validation(args.directory, args.INPUTS, potter)
+        params = parse_input_file(args.CONFIG)
+        run_validation(params, args.directory, potter)
     else:
         ...
 
