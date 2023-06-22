@@ -49,13 +49,13 @@ more concentrated.
 .. code-block:: yaml
 
     # - Genreate a cluster with 13 Cu and 3 H2O.
-    method: cluster
+    method: random_cluster
     composition: 
       Cu: 13
       H2O: 3
     cell: [30., 0., 0., 0., 30., 0., 0., 0., 30.]
     region:
-      method: "lattice"
+      method: lattice
       origin: [10., 10., 10.,]
       cell: [10., 0., 0., 0., 10., 0., 0., 0., 10.]
     covalent_ratio: [0.6, 2.0]
@@ -72,13 +72,13 @@ and the y-axis but a cut in z-axis that has a range from 7.5 to 13.5 (7.5+6.0).
 .. code-block:: yaml
 
     # - Genreate a surface with 8 Cu and 3 O.
-    method: surface
+    method: random_surface
     substrate: ./assets/slab.xyz
     composition: 
       Cu: 8
       O: 3
     region:
-      method: "lattice"
+      method: surface_lattice
       origin: [0., 0., 7.5]
       cell: [5.85, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.0]
     covalent_ratio: [0.4, 2.0]
@@ -95,7 +95,7 @@ angles and lengths.
 .. code-block:: yaml
 
     # - Genreate a bulk with 4 Cu and 2 O.
-    method: bulk
+    method: random_bulk
     composition:
       Cu: 4
       O: 2
