@@ -17,11 +17,13 @@ Must:
 - tinydb_ 4.7.0
 - pyyaml 6.0
 - networkx 2.6.3
+- omegaconf_ 2.3.0
 
 .. - e3nn 0.5.0
 
 .. _ase: https://wiki.fysik.dtu.dk/ase
 .. _tinydb: https://tinydb.readthedocs.io
+.. _omegaconf: https://omegaconf.readthedocs.io
 
 Optional:
 
@@ -38,7 +40,7 @@ Use conda to install necessary packages and add executable **gdp** to PATH.
 .. code-block:: shell
 
     # install packages
-    $ conda install ase dscribe joblib networkx tinydb pyyaml -c conda-forge
+    $ conda install ase dscribe joblib networkx tinydb pyyaml omegaconf -c conda-forge
     # download repository
     $ git clone https://github.com/hsulab/GDPy.git
     # add package to python path
