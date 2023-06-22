@@ -4,7 +4,7 @@
 from .interface import create_builder
 
 from ..core.register import registers
-from .direct import DirectBuilder
+from .direct import DirectBuilder, ReadBuilder
 from .species import MoleculeBuilder
 from .dimer import DimerBuilder
 from .perturbator import PerturbatorBuilder
@@ -15,6 +15,7 @@ from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 
 # - basic builders and modifiers
 registers.builder.register("direct")(DirectBuilder)
+registers.builder.register("reader")(ReadBuilder)
 registers.builder.register("dimer")(DimerBuilder)
 registers.builder.register("molecule")(MoleculeBuilder)
 registers.builder.register("perturb")(PerturbatorBuilder)

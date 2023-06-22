@@ -111,12 +111,34 @@ def read_xsd2(fd) -> Atoms:
         atoms.set_scaled_positions(coords)
         return atoms
 
+class ReadBuilder(StructureBuilder):
+
+    def __init__(
+        self, fname, index=":", format=None, use_tags=False, 
+        directory="./", random_seed=None, *args, **kwargs
+    ):
+        """"""
+        super().__init__(use_tags=use_tags, directory=directory, random_seed=random_seed, *args, **kwargs)
+
+        self.fname = fname
+        self.index = index
+        self.format = format
+        #self.kwargs = kwargs
+
+        return
+    
+    def run(self, *args, **kwargs):
+        """"""
+        frames = read(self.fname, self.index, self.format)
+
+        return frames
+
 
 class DirectBuilder(StructureBuilder):
     """This generator directly returns structures that it stores.
     """
 
-    #: Builde's name.
+    #: Builder's name.
     name: str = "direct"
 
     default_parameters: dict= {
@@ -154,14 +176,7 @@ class DirectBuilder(StructureBuilder):
 
         self._indices = indices
 
-        print(frames)
-
         return
-    
-    #@property
-    #def frames(self) -> List[Atoms]:
-    #    """Return stored structures."""
-    #    return self._frames
     
     @property
     def fpath(self) -> Union[str,pathlib.Path]:
