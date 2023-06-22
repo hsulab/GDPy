@@ -124,13 +124,18 @@ def create_builder(config: Union[str, dict]):
 
     return builder
 
-def build_structures(config: dict, size: int=1, directory="./"):
+def build_structures(config: dict, substrates=None, size: int=1, directory="./"):
     """"""
     directory = pathlib.Path(directory)
 
     builder = BuilderVariable(directory=directory, **config).value
     builder.directory = directory
-    frames = builder.run(size=size)
+
+    # assume substrates is a file path
+    if substrates is not None:
+        substrates = read(substrates, ":")
+
+    frames = builder.run(substrates=substrates, size=size)
 
     write(directory/"structures.xyz", frames)
 

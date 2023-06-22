@@ -27,6 +27,7 @@ from .population import AbstractPopulationManager
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
 from GDPy.utils.command import convert_indices
+from GDPy.worker.drive import DriverBasedWorker
 from ..expedition import AbstractExpedition
 
 """
@@ -77,6 +78,8 @@ class GeneticAlgorithmVariable(Variable):
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
             worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
+        elif isinstance(worker, DriverBasedWorker):
+            worker = worker
         else: # computer variable
             worker = worker.value[0]
         engine = self._create_engine(builder, worker, params, directory, *args, **kwargs)
@@ -239,6 +242,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self._print(self.generator)
 
         # NOTE: check database existence and generation number to determine restart
+        self._debug(f"database path: {str(self.db_path)}")
         if not self.db_path.exists():
             self._print("----- create a new database -----")
             self._create_initial_population()

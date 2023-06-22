@@ -55,11 +55,14 @@ class explore(Operation):
         return basic_workers
 
 
-def run_expedition(config_params: dict, wait: float=None, directory="./"):
+def run_expedition(config_params: dict, wait: float=None, directory="./", potter=None):
     """"""
-    directory = pathlib.Path("./")
+    directory = pathlib.Path(directory)
 
     method = config_params.pop("method")
+    if potter is not None:
+        config_params["worker"] = potter
+
     expedition = registers.create("variable", method, convert_name=True, **config_params).value
     expedition.directory = directory
 

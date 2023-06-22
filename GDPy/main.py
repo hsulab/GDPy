@@ -83,6 +83,10 @@ def main():
         "CONFIG", help="builder configuration file (json/yaml)"
     )
     parser_build.add_argument(
+        "-s", "--substrates", default=None,
+        help="file that stores substrates (e.g. *.xyz)"
+    )
+    parser_build.add_argument(
         "-n", "--number", default=1, type=int,
         help="number of structures to build"
     )
@@ -204,7 +208,7 @@ def main():
     elif args.subcommand == "build":
         build_config = parse_input_file(args.CONFIG)
         from .builder.interface import build_structures
-        build_structures(build_config, args.number, args.directory)
+        build_structures(build_config, args.substrates, args.number, args.directory)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
@@ -214,7 +218,7 @@ def main():
     elif args.subcommand == "explore":
         from .expedition.interface import run_expedition
         params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory)
+        run_expedition(params, args.wait, args.directory, potter)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
         params = parse_input_file(args.CONFIG)
