@@ -516,6 +516,15 @@ class LatticeRegion(Region):
 @registers.region.register
 class SurfaceLatticeRegion(LatticeRegion):
 
+    def __init__(self, origin: List[float], cell: List[float], *args, **kwargs):
+        """"""
+        super().__init__(origin, cell, *args, **kwargs)
+
+        assert self._origin[0] == 0. and self._origin[1] == 0., "The x and y of origin should be ZERO."
+        assert self._cell[2][0] == 0. and self._cell[2][1] == 0., "The x and y of cell 3rd vec should be ZERO."
+
+        return
+
     @staticmethod
     def from_str(command: str):
         """"""
