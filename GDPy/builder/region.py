@@ -104,6 +104,21 @@ class Region(abc.ABC):
 
         return
     
+    @abc.abstractmethod
+    def from_str(command: str):
+        """Init a region from the command"""
+
+        return
+    
+    def get_contained_indices(self, atoms: Atoms):
+        """"""
+        indices_within_region = []
+        for i, a in enumerate(atoms):
+            if self._is_within_region(a.position):
+                indices_within_region.append(i)
+
+        return indices_within_region
+    
     def get_random_positions(self, size=1, rng=np.random):
         """"""
         random_positions = []
@@ -211,6 +226,12 @@ class AutoRegion(Region):
 
         return
     
+    @staticmethod
+    def from_str(command: str):
+        """"""
+
+        raise NotImplementedError("AutoRegion does support init_from_str.")
+    
     def _get_a_random_position(self, rng=np.random):
         """"""
         if self._curr_atoms is None:
@@ -256,6 +277,15 @@ class CubeRegion(Region):
         self.boundaries = boundaries_
 
         return
+
+    @staticmethod
+    def from_str(command: str):
+        """"""
+        data = [float(x) for x in command.strip().split()[1:]]
+        origin = data[:3]
+        boundary = data[3:]
+
+        return CubeRegion(origin, boundary)
     
     def _get_a_random_position(self, rng=np.random):
         """"""
@@ -311,6 +341,15 @@ class SphereRegion(Region):
         self._radius = radius
 
         return
+
+    @staticmethod
+    def from_str(command: str):
+        """"""
+        data = [float(x) for x in command.strip().split()[1:]]
+        origin = data[:3]
+        radius = data[3]
+
+        return SphereRegion(origin, radius)
     
     def _get_a_random_position(self, rng):
         """"""
@@ -368,6 +407,16 @@ class CylinderRegion(Region):
 
         return
 
+    @staticmethod
+    def from_str(command: str):
+        """"""
+        data = [float(x) for x in command.strip().split()[1:]]
+        origin = data[:3]
+        radius = data[3]
+        height = data[4]
+
+        return CylinderRegion(origin, radius, height)
+
     def _get_a_random_position(self, rng):
         """"""
         r, theta, h = rng.uniform(0,1,3) # r, theta, h
@@ -417,6 +466,15 @@ class LatticeRegion(Region):
 
         return
 
+    @staticmethod
+    def from_str(command: str):
+        """"""
+        data = [float(x) for x in command.strip().split()[1:]]
+        origin = data[:3]
+        cell = data[3:]
+
+        return LatticeRegion(origin, cell)
+
     def _get_a_random_position(self, rng):
         """"""
         ran_frac_coord = rng.uniform(0,1,3)
@@ -452,6 +510,89 @@ class LatticeRegion(Region):
         content += ("  "+"{:<12.8f}  "*3+"\n").format(*self._origin)
         content += f"cell\n"
         content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
+
+        return content
+
+@registers.region.register
+class SurfaceLatticeRegion(LatticeRegion):
+
+    @staticmethod
+    def from_str(command: str):
+        """"""
+        data = [float(x) for x in command.strip().split()[1:]]
+        origin = data[:3]
+        cell = data[3:]
+
+        return SurfaceLatticeRegion(origin, cell)
+
+    def _is_within_region(self, position) -> bool:
+        """"""
+        is_in = False
+        #vec1, vec2 = self._cell[0], self._cell[1]
+        #normal = np.cross(vec1, vec2)
+        #normal = normal/np.linalg.norm(normal)
+        if self._origin[2] <= position[2] < self._origin[2] + self._cell[2][2]:
+            is_in = super()._is_within_region(position)
+
+        return is_in
+    
+@registers.region.register
+class SurfaceRegion(Region):
+
+    def __init__(self, origin: List[float], normal: List[float], thickness: float, *args, **kwargs):
+        """"""
+        super().__init__(origin=origin, *args, **kwargs)
+        self._normal = np.array(normal, dtype=float)
+        self._thickness = thickness
+
+        return
+
+    @staticmethod
+    def from_str(command: str):
+        """"""
+        data = [float(x) for x in command.strip().split()[1:]]
+        origin = data[:3]
+        normal = data[3:6]
+        thickness = data[6:9]
+
+        return SurfaceRegion(origin, normal, thickness)
+
+    def _get_a_random_position(self, rng):
+        """"""
+        ran_frac_coord = rng.uniform(0,1,3)
+        ran_pos = np.dot(ran_frac_coord, self._cell)
+        ran_pos += self._origin
+
+        raise NotImplementedError()
+    
+    def _is_within_region(self, position) -> bool:
+        """"""
+        is_in = False
+        pos_ = position - self._origin
+        frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
+        if (
+            0. <= np.modf(frac_pos_[0])[0] < 1. and
+            0. <= np.modf(frac_pos_[1])[0] < 1. and
+            0. <= np.modf(frac_pos_[2])[0] < 1.
+        ):
+            is_in = True
+
+        raise NotImplementedError()
+    
+    def get_volume(self) -> float:
+        """"""
+        a, b, c = self._cell
+
+        #return np.dot(np.cross(a,b), c)
+        raise NotImplementedError()
+    
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self.__class__.__name__}\n"
+        content += f"origin\n"
+        content += ("  "+"{:<12.8f}  "*3+"\n").format(*self._origin)
+        #content += f"cell\n"
+        #content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
 
         return content
 

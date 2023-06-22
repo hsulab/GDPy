@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import abc
 from typing import Union, List, Mapping
 from itertools import groupby
 
@@ -9,6 +10,7 @@ import numpy as np
 from ase import Atoms
 from ase.formula import Formula
 
+from ..core.register import registers
 from GDPy.builder.constraints import convert_indices
 from GDPy.graph.creator import find_molecules
 
@@ -18,10 +20,39 @@ This module tries to mimic the behaviour of LAMMPS group command.
 
 """
 
-class Group():
+class AbstractAtomicGroup(abc.ABC):
 
     def __init__(self) -> None:
+        """"""
         ...
+    
+    @abc.abstractmethod
+    def get_group_indices(self, atoms: Atoms) -> List[int]:
+        """"""
+
+        return
+
+
+class SymbolGroup(AbstractAtomicGroup):
+
+    def __init__(self, symbols: str) -> None:
+        """"""
+        super().__init__()
+
+        self.symbols = symbols.strip().split()
+
+        return
+    
+    def get_group_indices(self, atoms: Atoms) -> List[int]:
+        """"""
+        super().get_group_indices(atoms)
+
+        group_indices = []
+        for i, a in enumerate(atoms):
+            if a.symbol in self.symbols:
+                group_indices.append(i)
+
+        return
 
 
 def create_a_molecule_group(atoms: Atoms, group_command: str, use_tags=True) -> List[List[int]]:
@@ -102,16 +133,9 @@ def create_a_group(atoms: Atoms, group_command: str) -> List[int]:
 
     # - region
     if args[0] == "region":
-        region = np.array(args[1:10], dtype=np.float32)
-        (ox, oy, oz, xl, yl, zl, xh, yh, zh) = region
-        for i, a in enumerate(atoms):
-            pos = a.position
-            if ( # TODO: support more regions, only cubic box now.
-                (ox+xl <= pos[0] <= ox+xh) and
-                (oy+yl <= pos[1] <= oy+yh) and
-                (oz+zl <= pos[2] <= oz+zh)
-            ):
-                group_indices.append(i)
+        region_cls = registers.get("region", args[1], convert_name=True)
+        region = region_cls.from_str(" ".join(args[1:]))
+        group_indices = region.get_contained_indices(atoms)
 
     # - symbol
     if args[0] == "symbol":
