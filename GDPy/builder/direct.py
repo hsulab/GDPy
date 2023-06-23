@@ -120,7 +120,7 @@ class ReadBuilder(StructureBuilder):
         """"""
         super().__init__(use_tags=use_tags, directory=directory, random_seed=random_seed, *args, **kwargs)
 
-        self.fname = fname
+        self.fname = pathlib.Path(fname)
         self.index = index
         self.format = format
         #self.kwargs = kwargs
