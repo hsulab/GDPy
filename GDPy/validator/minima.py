@@ -137,46 +137,6 @@ class MinimaValidator(AbstractValidator):
 
         return
 
-    def _compute_chemical_equations(self, dataset, worker, *args, **kwargs):
-        """"""
-        # - parse relative energies
-        ene_dict = {}
-        for name, ref_ene, new_ene in zip(names, ref_energies, new_energies):
-            ene_dict[name] = [ref_ene, new_ene]
-            ...
-        equations = params.get("equations", None)
-        if equations is not None:
-            ref_rets, new_rets = [], []
-            for eqn in equations:
-                ref_eqn_data, new_eqn_data = [], []
-                data = eqn.strip().split()
-                for e in data:
-                    if (not e.isdigit()) and (e not in ["+", "-", "*", "/"]):
-                        if e in names:
-                            ref_eqn_data.append(
-                                str(round(float(ene_dict[e][0]),4))
-                            )
-                            new_eqn_data.append(
-                                str(round(float(ene_dict[e][1]),4))
-                            )
-                    else:
-                        ref_eqn_data.append(e)
-                        new_eqn_data.append(e)
-                #print(ref_eqn_data)
-                #print(new_eqn_data)
-                ref_eqn = "".join(ref_eqn_data)
-                new_eqn = "".join(new_eqn_data)
-                ref_rets.append(eval(ref_eqn))
-                new_rets.append(eval(new_eqn))
-            
-            self.logger.info("=== Chemical Equations ===")
-            content = "{:<12s}  {:<12s}  {:<40s}\n".format("Ref", "New", "Eqn")
-            for eqn, ref_val, new_val in zip(equations, ref_rets, new_rets):
-                content += "{:>12.4f}  {:>12.4f}  {:>40s}\n".format(ref_val, new_val, eqn)
-            self.logger.info(content)
-
-        return
-
 
 if __name__ == "__main__":
-    pass
+    ...
