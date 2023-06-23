@@ -137,7 +137,7 @@ class ReadBuilder(StructureBuilder):
         """"""
         params = {}
         params["method"] = "reader"
-        params["fname"] = str(self.fname)
+        params["fname"] = str(self.fname.resolve())
         params["index"] = self.index
         params["format"] = self.format
 
@@ -243,7 +243,7 @@ class DirectBuilder(StructureBuilder):
         """Return generator parameters"""
         params = dict(
             method = "direct",
-            frames = str(self._fpath), # TODO: if not exists, and only have _frames
+            frames = str(self._fpath.resolve()), # TODO: if not exists, and only have _frames
             indices = self.indices
         )
 
