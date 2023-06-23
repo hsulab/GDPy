@@ -13,7 +13,7 @@ Related Commands
     #   results would be written to the `results` directory
     $ gdp -d ./results build ./config.yaml 
 
-    # - build 10 structures based on `config.yaml`
+    # - build structures based on `config.yaml`
     #   some builders (modifiers) require substrates as input
     #   it can be set in `config.yaml` directly or as a command argument
     $ gdp -d ./results build ./config.yaml --substrates ./sub.xyz
