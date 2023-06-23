@@ -265,6 +265,13 @@ class AutoRegion(Region):
             raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
 
         return self._curr_atoms.get_volume()
+
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "auto"
+
+        return region_params
     
 @registers.region.register
 class CubeRegion(Region):
@@ -332,6 +339,15 @@ class CubeRegion(Region):
 
         return content
 
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "cube"
+        region_params["origin"] = self._origin.tolist()
+        region_params["boundary"] = self.boundaries.tolist()
+
+        return region_params
+
 @registers.region.register
 class SphereRegion(Region):
 
@@ -392,6 +408,15 @@ class SphereRegion(Region):
 
         return content
 
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "sphere"
+        region_params["origin"] = self._origin.tolist()
+        region_params["radius"] = self._radius
+
+        return region_params
+
 @registers.region.register
 class CylinderRegion(Region):
 
@@ -451,10 +476,20 @@ class CylinderRegion(Region):
     def __repr__(self) -> str:
         """"""
         content = f"{self.__class__.__name__} "
-        content += f"radii {self._radius} "
+        content += f"radius {self._radius} "
         content += f"height   {self._height} "
 
         return content
+
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "cylinder"
+        region_params["origin"] = self._origin.tolist()
+        region_params["radius"] = self._radius
+        region_params["height"] = self._height
+
+        return region_params
 
 @registers.region.register
 class LatticeRegion(Region):
@@ -513,6 +548,15 @@ class LatticeRegion(Region):
 
         return content
 
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "lattice"
+        region_params["origin"] = self._origin.tolist()
+        region_params["cell"] = self._cell.tolist()
+
+        return region_params
+
 @registers.region.register
 class SurfaceLatticeRegion(LatticeRegion):
 
@@ -544,6 +588,15 @@ class SurfaceLatticeRegion(LatticeRegion):
             is_in = super()._is_within_region(position)
 
         return is_in
+
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "surface_lattice"
+        region_params["origin"] = self._origin.tolist()
+        region_params["cell"] = self._cell.tolist()
+
+        return region_params
     
 @registers.region.register
 class SurfaceRegion(Region):

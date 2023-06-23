@@ -250,6 +250,17 @@ class AbstractWorker(abc.ABC):
 
         return len(running_jobs)
 
+    def as_dict(self) -> dict:
+        """"""
+        worker_params = {}
+        worker_params["potter"] = self.potter.as_dict()
+        worker_params["driver"] = self.driver.as_dict()
+        worker_params["scheduler"] = self.scheduler.as_dict()
+
+        worker_params = copy.deepcopy(worker_params)
+
+        return worker_params
+
 
 if __name__ == "__main__":
-    pass
+    ...

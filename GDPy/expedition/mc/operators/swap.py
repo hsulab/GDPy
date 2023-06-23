@@ -18,6 +18,8 @@ from .move import MoveOperator
 
 class SwapOperator(MoveOperator):
 
+    name: str = "swap"
+
     def __init__(
         self, particles: List[str], region: dict={}, temperature: float = 300, pressure: float = 1, 
         covalent_ratio=[0.8,2.0], use_rotation: bool = True,
@@ -106,10 +108,11 @@ class SwapOperator(MoveOperator):
 
         return cur_atoms
 
-    def as_dict(self):
+    def as_dict(self) -> dict:
         """"""
+        params = super().as_dict()
 
-        return
+        return params
 
     def __repr__(self) -> str:
         """"""

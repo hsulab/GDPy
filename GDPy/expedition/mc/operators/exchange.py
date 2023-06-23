@@ -22,6 +22,8 @@ from .operator import AbstractOperator
 
 class ExchangeOperator(AbstractOperator):
 
+    name: str = "exchange"
+
     MIN_RANDOM_TAG = 10000
     MAX_RANDOM_TAG = 100000
 
