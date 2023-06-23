@@ -14,6 +14,9 @@ from GDPy.core.register import registers
 
 class AbstractOperator(abc.ABC):
 
+    #: Operator name.
+    name: str = "abstract"
+
     #: Maximum attempts to generate the new position of a species.
     MAX_RANDOM_ATTEMPTS = 1000
 
@@ -22,8 +25,8 @@ class AbstractOperator(abc.ABC):
 
     def __init__(
             self, region: dict={}, temperature: float=300., pressure: float=1., 
-            covalent_ratio=[0.8, 2.0], use_rotation=True, *args, **kwargs
-        ) -> NoReturn:
+            covalent_ratio=[0.8, 2.0], use_rotation=True, prob: str=1.0, *args, **kwargs
+        ) -> None:
         """Initialise the modification operator.
 
         Args:
@@ -49,6 +52,9 @@ class AbstractOperator(abc.ABC):
 
         # - molecule
         self.use_rotation = use_rotation
+
+        # - probability
+        self.prob = prob
 
         return
     
@@ -127,11 +133,13 @@ class AbstractOperator(abc.ABC):
     def as_dict(self) -> dict:
         """"""
         params = {}
+        params["method"] = self.name
         params["region"] = self.region.as_dict()
         params["temperature"] = self.temperature
         params["pressure"] = self.pressure
         params["covalent_ratio"] = [self.covalent_min, self.covalent_max]
         params["use_rotation"] = self.use_rotation
+        params["prob"] = self.prob
 
         params = copy.deepcopy(params)
 

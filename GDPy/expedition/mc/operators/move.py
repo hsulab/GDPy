@@ -18,6 +18,7 @@ from .operator import AbstractOperator
 
 class MoveOperator(AbstractOperator):
 
+    name: str = "move"
 
     def __init__(
         self, particles: List[str]=None, region: dict={}, temperature: float=300., pressure: float=1.,
@@ -157,10 +158,13 @@ class MoveOperator(AbstractOperator):
 
         return rn_move < acc_ratio
     
-    def as_dict(self):
+    def as_dict(self) -> dict:
         """"""
+        params = super().as_dict()
+        params["particles"] = self.particles
+        params["max_disp"] = self.max_disp
 
-        return
+        return params
 
     def __repr__(self) -> str:
         """"""

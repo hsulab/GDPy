@@ -43,8 +43,8 @@ def parse_operators(op_params: dict):
     """
     operators, probs = [], []
     for param in op_params:
-        name = param.pop("name", "move")
-        prob = param.pop("prob", 1.0)
+        name = param.pop("method", "move")
+        prob = param.get("prob", 1.0)
         if name == "move":
             op = MoveOperator(**param)
         elif name == "swap":

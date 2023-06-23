@@ -552,12 +552,8 @@ class DriverBasedWorker(AbstractWorker):
     
     def as_dict(self) -> dict:
         """"""
-        worker_params = {}
-        worker_params["potter"] = self.potter.as_dict()
-        worker_params["driver"] = self.driver.as_dict()
-        worker_params["scheduler"] = self.scheduler.as_dict()
-
-        worker_params = copy.deepcopy(worker_params)
+        worker_params = super().as_dict()
+        worker_params["batchsize"] = self.batchsize
 
         return worker_params
 

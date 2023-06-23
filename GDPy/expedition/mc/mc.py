@@ -98,6 +98,7 @@ class MonteCarlo(AbstractExpedition):
             )
         else:
             builder = builder
+        self.builder = builder
 
         frames = builder.run()
         assert len(frames) == 1, f"{self.__class__.__name__} only accepts one structure."
@@ -357,6 +358,24 @@ class MonteCarlo(AbstractExpedition):
             workers.append(curr_worker)
 
         return workers
+
+    def as_dict(self) -> dict:
+        """"""
+        engine_params = {}
+        engine_params["method"] = "monte_carlo"
+        engine_params["builder"] = self.builder.as_dict()
+        engine_params["worker"] = self.worker.as_dict()
+        engine_params["operators"] = []
+        for op in self.operators:
+            engine_params["operators"].append(op.as_dict())
+        engine_params["dump_period"] = self.dump_period
+        engine_params["convergence"] = self.convergence
+        engine_params["random_seed"] = self.random_seed
+
+        engine_params = copy.deepcopy(engine_params)
+
+        return engine_params
+
 
 
 if __name__ == "__main__":

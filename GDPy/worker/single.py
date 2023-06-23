@@ -165,6 +165,14 @@ class SingleWorker(AbstractWorker):
                 database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = super().as_dict()
+        params["use_single"] = True
+
+        return params
+    
 
 if __name__ == "__main__":
     ...
