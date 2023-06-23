@@ -1,8 +1,31 @@
 Getting Started
 ===============
 Here, we would introduce several basic components of GDPy, namely **potential**, 
-**driver**, **worker**. **Worker** is the basic unit that performs any 
-computation, which contains a ``AbstractPotentialManager`` and a ``Scheduler``.
+**driver**, **worker**. This section demonstrates how to use **gdp** to computate a number of structures.
+
+The related commands are 
+
+.. code-block:: shell
+
+    # gdp -h for more info
+    $ gdp -h
+
+    # --- run simulations on local nodes or submitted to job queues
+    $ gdp -p ./worker.yaml compute ./structures.xyz
+
+    # - if -d option is used, results would be written to the folder `./results`
+    $ gdp -d ./results -p ./worker.yaml compute ./structures.xyz
+
+An example input file (`worker.yaml`) is organised as follows: 
+
+.. code-block:: yaml
+
+    potential:
+        ... # define the backend, the model path and the specific parameters
+    driver:
+        ... # define the init and the run parameters of a simulation
+    scheduler:
+        ... # define a scheduler 
 
 Units
 -----
@@ -75,9 +98,7 @@ The example below shows how to define a **scheduler** in a **yaml** file:
         ntasks: 1
         time: "0:10:00"
         # -- environment settings
-        environs: "source ~/envs/source_eann.sh\nconda activate catorch2\n"
-        # -- users' commands
-        # user_commands: # automatically set by tasks
+        environs: "conda activate py37\n"
 
 Worker
 ------
@@ -107,7 +128,7 @@ The example below shows how to define a **worker** in a **yaml** file:
         partition: k2-hipri
         ntasks: 1
         time: "0:10:00"
-        environs: "source ~/envs/source_eann.sh\nconda activate catorch2\n"
+        environs: "conda activate py37\n"
 
 to run a **nvt** simulation with given structures by **deepmd** on a **slurm** 
 machine
@@ -116,11 +137,9 @@ machine
 
     # -- submit jobs...
     #    one structure for one job
-    $ gdp -p ./worker.yaml worker ./frames.xyz
+    $ gdp -p ./worker.yaml compute ./frames.xyz
     nframes:  2
     @@@DriverBasedWorker+run
-    Use attached confids...
-    Use attached confids...
     cand100 JOBID: 10206151
     cand96 JOBID: 10206152
     @@@DriverBasedWorker+inspect
@@ -136,8 +155,6 @@ machine
     $ gdp -p ./worker.yaml worker ./frames.xyz
     nframes:  2
     @@@DriverBasedWorker+run
-    Use attached confids...
-    Use attached confids...
     @@@DriverBasedWorker+inspect
     cand100 is running...
     cand96 is running...
@@ -150,8 +167,6 @@ machine
     $ gdp -p ./worker.yaml worker ./frames.xyz
     nframes:  2
     @@@DriverBasedWorker+run
-    Use attached confids...
-    Use attached confids...
     @@@DriverBasedWorker+inspect
     cand100 is finished...
     cand96 is finished...
