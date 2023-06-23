@@ -136,7 +136,7 @@ class ReadBuilder(StructureBuilder):
     def as_dict(self) -> dict:
         """"""
         params = {}
-        params["method"] = "read"
+        params["method"] = "reader"
         params["fname"] = str(self.fname)
         params["index"] = self.index
         params["format"] = self.format
