@@ -3,6 +3,9 @@
 
 from typing import List
 
+import numpy as np
+from scipy.interpolate import make_interp_spline, BSpline
+
 from ase import Atoms
 from ase.geometry import find_mic
 
@@ -57,6 +60,18 @@ def wrap_traj(frames):
         frames[i].positions = prev_positions + curr_vectors
 
     return frames
+
+def smooth_curve(bins, points):
+    """"""
+    spl = make_interp_spline(bins, points, k=3)
+    bins = np.linspace(bins.min(), bins.max(), 300)
+    points= spl(bins)
+
+    for i, d in enumerate(points):
+        if d < 1e-6:
+            points[i] = 0.0
+
+    return bins, points
 
 
 if __name__ == "__main__":
