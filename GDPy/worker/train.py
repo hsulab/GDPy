@@ -82,7 +82,7 @@ class TrainerBasedWorker(AbstractWorker):
 
                 scheduler.job_name = job_name
                 scheduler.script = wdir / "train.script"
-                scheduler.user_commands = "gdp newtrain {}\n".format(str((wdir/"trainer.yaml").resolve()))
+                scheduler.user_commands = "gdp train {}\n".format(str((wdir/"trainer.yaml").resolve()))
                 scheduler.write()
                 if self._submit:
                     self._print(f"{wdir.name}: {scheduler.submit()}")
