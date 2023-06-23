@@ -5,6 +5,14 @@
 <font size=36>**NOTE: GDPy is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
   backward compatibility.**</font>
 
+**The developement stage of different branches: dev > lts >>> main** 
+
+- dev: Highly unstable but with advanced methods.
+- lts: Most functionalities are stable to use.
+- main: Released codes but may have depreacated parts.
+
+Start with `git clone https://github.com/hsulab/GDPy.git -b lts` if possible.
+
 # Table of Contents
 
 - [Overview](#overview)
