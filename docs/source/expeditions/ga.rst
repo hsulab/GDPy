@@ -56,13 +56,28 @@ To use GA, the related commands are
 
 .. code-block:: shell
 
-    # - run GA
-    #   results would be written to current directory
-    $ gdp -p ./worker.yaml task ./ga.yaml --run 10000
+    # - explore configuration space defined by `config.yaml` 
+    #   results will be written to the `results` folder
+    #   a log file will be written to `results/gdp.out` as well
+    $ gdp -d exp -p worker.yaml explore ./config.yaml
 
-The GA input file contains several sections:
+    # - after GA is converged i.e. reaches the maximum generation,
+    #   all found minima will be saved to `./resuslts/results/all_candidates.xyz`
 
-* task: Task type must be `ga`.
+The GA input file `./config.yaml` contains several sections:
+
+* method: This must be `genetic_algorithm`.
+
+* builder: 
+  
+    Define the builder that generates random structures. This is used to generate 
+    an initial population of structures. See :ref:`random builders` for more details. 
+    The example builder will put 4 Cu atoms on the substrate stored in the file 
+    `./sub.xyz`. Cu atoms are randomly created in a `lattice region`, details of which 
+    can be found in :ref:`region definitions`. More specific, Cu atoms will have 
+    arbitrary x- and y-coordiantes but z-coordinate within the range [7,7+6].
+  
+In the `params` section,
 
 * database: All explored structures are stored in this file with suffix `.db`.
 
@@ -74,7 +89,8 @@ The GA input file contains several sections:
 
     * init: 
 
-        Number of structures in the initial generation.
+        Number of structures (`size`) in the initial generation. These structures will be 
+        created by the method defined in the `builder` section.
 
     * gen: 
 
@@ -84,7 +100,7 @@ The GA input file contains several sections:
     
     * pmut:
 
-        The probability for each crossover structure to mutate. 
+        The probability for each reproduced structure to mutate. 
 
 * operators:
 
@@ -101,43 +117,46 @@ The GA input file contains several sections:
 
         Each operator can be selected based on relative probabilities.
 
-* builder: 
-  
-    Define the builder that generates random structures. See :ref:`random builders` for
-    more details.
-
 
 .. code-block:: yaml
 
-    task: ga
+  method: genetic_algorithm
+  builder:
+    method: random_surface
+    composition:
+      Cu: 4
+    region:
+      method: lattice
+      origin: [0., 0., 7.]
+      cell: [11.174, 0., 0., 0., 8.413, 0., 0., 0., 6.]
+    substrates: ./sub.xyz
+    covalent_ratio: [0.8, 2.0]
+    random_seed: 127
+  params:
     database: mydb.db
+    population:
+      init:
+        size: 5
+      gen:
+        size: 5
+        random: 2
+      pmut: 0.8
+    operators:
+      comparator:
+        dE: 0.015
+        method: interatomic_distance
+      crossover:
+        method: cut_and_splice
+      mutation:
+      - method: rattle
+        prob: 1.0
+      - method: mirror
+        prob: 1.0
     property:
       target: energy
     convergence:
-      generation: 10
-    population:
-      init:
-        size: 20
-      gen:
-        size: 20
-        random: 5
-      pmut: 0.8 # prob of mutation
-    operators: # here, define a bunch of operators
-      comparator:
-        name: InteratomicDistanceComparator
-        kwargs:
-          dE: 0.015
-      crossover:
-        name: CutAndSplicePairing
-      mutation:
-        - name: RattleMutation
-          kwargs:
-            prob: 1.0
-        - name: MirrorMutation
-          kwargs:
-            prob: 1.0
-    builder:
-        ...
+      generation: 2
+  
     
 Application
 -----------
