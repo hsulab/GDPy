@@ -18,6 +18,7 @@ Must:
 - pyyaml 6.0
 - networkx 2.6.3
 - omegaconf_ 2.3.0
+- h5py 3.7.0
 
 .. - e3nn 0.5.0
 
@@ -40,7 +41,7 @@ Use conda to install necessary packages and add executable **gdp** to PATH.
 .. code-block:: shell
 
     # install packages
-    $ conda install ase dscribe joblib networkx tinydb pyyaml omegaconf -c conda-forge
+    $ conda install ase dscribe joblib networkx tinydb pyyaml omegaconf h5py -c conda-forge
     # download repository
     $ git clone https://github.com/hsulab/GDPy.git
     # add package to python path
