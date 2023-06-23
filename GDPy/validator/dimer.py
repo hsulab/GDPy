@@ -24,10 +24,6 @@ from GDPy.worker.drive import DriverBasedWorker
 
 from GDPy.validator.utils import get_properties
 
-def plot_dimer(ax, x_ref, x_pred):
-    """"""
-
-    return
 
 @registers.validator.register
 class DimerValidator(AbstractValidator):
@@ -35,8 +31,7 @@ class DimerValidator(AbstractValidator):
     def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         super().run()
-        data = []
-        for prefix, frames in dataset:
+        for prefix, frames in dataset["reference"]:
             self._irun(prefix, frames, None, worker)
 
         return
@@ -59,7 +54,7 @@ class DimerValidator(AbstractValidator):
         if pred_frames is None:
             # NOTE: use worker to calculate
             # TODO: use cached data?
-            self.logger.info(f"Calculate reference frames {prefix} with potential...")
+            self._print(f"Calculate reference frames {prefix} with potential...")
             cached_pred_fpath = self.directory / prefix / "pred.xyz"
             if not cached_pred_fpath.exists():
                 worker.directory = self.directory / prefix
