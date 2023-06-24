@@ -52,8 +52,7 @@ class MinimaValidator(AbstractValidator):
         """"""
         super().__init__(*args, **kwargs)
 
-        self.ene_shift = []
-        self.ene_shift = []
+        self.ene_shift = ene_shift
 
         return
 
