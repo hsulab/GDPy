@@ -27,6 +27,11 @@ registers.builder.register("random_bulk")(BulkBuilder)
 registers.builder.register("random_cluster")(ClusterBuilder)
 registers.builder.register("random_surface")(SurfaceBuilder)
 
+from .cleave_surface import CleaveSurfaceModifier
+registers.builder.register("cleave_surface")(CleaveSurfaceModifier)
+
+from .repeat import RepeatModifier
+registers.builder.register("repeat")(RepeatModifier)
 
 # - extra modifiers
 from .zoom import ZoomModifier
