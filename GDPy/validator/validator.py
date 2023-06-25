@@ -21,6 +21,8 @@ class AbstractValidator(abc.ABC):
         """
         self.directory = directory
 
+        self.njobs = config.NJOBS
+
         return
     
     @property

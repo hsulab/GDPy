@@ -135,7 +135,7 @@ class registers:
 
 VALIDATOR_MODULES = [
     "singlepoint", "dimer", "minima", "eos", "rdf", "distribution",
-    "surface_energy"
+    "surface_energy", "melting_point"
 ]
 DATA_OPS = ["operations"]
 
@@ -178,7 +178,6 @@ ALL_MODULES = [
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["operations"]),
     ("GDPy.validator", ["interface"]),
-    ("GDPy.validator", ["meltingpoint"]),
     ("GDPy.selector", ["interface"]),
     # - session variables.
     ("GDPy.data", ["interface"]),
