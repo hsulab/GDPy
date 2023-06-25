@@ -7,7 +7,7 @@ from pathlib import Path
 from itertools import groupby
 from operator import itemgetter
 
-from typing import Union, List
+from typing import Any, Union, List
 
 import json
 import yaml
@@ -19,9 +19,24 @@ class CustomTimer():
     def __init__(self, name="code", func=print):
         """"""
         self.name = name
-        self.func = func
+        self._print = func
 
         return
+    
+    def __call__(self, func) -> Any:
+        """"""
+
+        def func_timer(*args, **kwargs):
+            st = time.time()
+            ret = func(*args, **kwargs)
+            et = time.time()
+            content = "*** "+self.name+" time: "+"{:>8.4f}".format(et-st)+" ***"
+            self._print(content)
+
+            return ret
+
+        return func_timer
+
 
     def __enter__(self):
         """"""
@@ -34,7 +49,7 @@ class CustomTimer():
         self.et = time.time() # end time
 
         content = "*** "+self.name+" time: "+"{:>8.4f}".format(self.et-self.st)+" ***"
-        self.func(content)
+        self._print(content)
 
         return
 
