@@ -10,6 +10,7 @@ from typing import NoReturn, Union, List
 from ase import Atoms
 from ase.io import read, write
 
+from .. import config
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 from GDPy.worker.drive import (
@@ -17,6 +18,7 @@ from GDPy.worker.drive import (
 )
 from GDPy.data.array import AtomsArray2D
 from GDPy.data.trajectory import Trajectories
+from ..utils.command import CustomTimer
 
 
 @registers.operation.register
@@ -108,6 +110,7 @@ class extract_cache(Operation):
 
         return
     
+    @CustomTimer(name="extract_cache", func=config._debug)
     def forward(self, workers: List[DriverBasedWorker]):
         """"""
         super().forward()
@@ -118,18 +121,33 @@ class extract_cache(Operation):
         assert (nwdirs == nworkers) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
 
         # - use driver to read results
-        trajectories = Trajectories()
-        for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0]):
-            # -- assume the wdir stores the calculation/simulation results
-            curr_worker.driver.directory = curr_wdir # TODO: set worker wdir, also for driver
-            # TODO: whether check convergence?
-            curr_traj = curr_worker.driver.read_trajectory() # TODO: try error?
-            self._debug(curr_traj)
-            trajectories.extend([curr_traj]) # TODO: add append method to Trajectories
+        # -- serial
+        #trajectories = Trajectories()
+        #for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0]):
+        #    # -- assume the wdir stores the calculation/simulation results
+        #    curr_worker.driver.directory = curr_wdir # TODO: set worker wdir, also for driver
+        #    # TODO: whether check convergence?
+        #    curr_traj = curr_worker.driver.read_trajectory() # TODO: try error?
+        #    self._debug(curr_traj)
+        #    trajectories.extend([curr_traj]) # TODO: add append method to Trajectories
+
+        from joblib import Parallel, delayed
+        trajectories = Parallel(n_jobs=config.NJOBS)(
+            delayed(self._read_trajectory)(curr_wdir, curr_worker) 
+            for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
+        )
+        trajectories = Trajectories(trajectories=trajectories)
 
         self.status = "finished"
 
         return trajectories
+    
+    @staticmethod
+    def _read_trajectory(wdir, worker):
+        """"""
+        worker.driver.directory = wdir
+
+        return worker.driver.read_trajectory()
 
 
 @registers.operation.register
