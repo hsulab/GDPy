@@ -20,7 +20,6 @@ from ase import Atoms
 from ase.io import read, write
 from ase.neighborlist import NeighborList
 
-from ..core.register import registers
 from .validator import AbstractValidator
 from .utils import wrap_traj
 
@@ -120,7 +119,6 @@ def plot_rdf(fig_path, data, ref_data=None, title="RDF"):
     return
 
 
-@registers.validator.register
 class RdfValidator(AbstractValidator):
 
     def __init__(self, pair: List[str], cutoff: float=6., nbins: int=60, directory = "./", *args, **kwargs) -> None:

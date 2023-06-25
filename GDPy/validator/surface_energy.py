@@ -8,13 +8,12 @@ import numpy as np
 
 from ase import units
 
-from ..core.register import registers
 from ..data.array import AtomsArray2D
 from .validator import AbstractValidator
 
 EVA2TOJNM2 = (1./(units.kJ/1000.))/((1./units.m)**2)
 
-@registers.validator.register
+
 class SurfaceEnergyValidator(AbstractValidator):
 
     """This computes the surface energy of symmetric surface energies.

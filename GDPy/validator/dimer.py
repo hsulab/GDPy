@@ -18,14 +18,11 @@ except Exception as e:
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.register import registers
-from GDPy.validator.validator import AbstractValidator
-from GDPy.worker.drive import DriverBasedWorker
-
-from GDPy.validator.utils import get_properties
+from ..worker.drive import DriverBasedWorker
+from .validator import AbstractValidator
+from .utils import get_properties
 
 
-@registers.validator.register
 class DimerValidator(AbstractValidator):
 
     def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):

@@ -27,7 +27,6 @@ from GDPy.worker.drive import DriverBasedWorker
 from GDPy.computation.utils import make_clean_atoms
 from GDPy.utils.comparasion import parity_plot_dict, rms_dict
 
-from GDPy.core.register import registers
 from GDPy.validator.utils import get_properties
 from GDPy.utils.command import convert_indices
 
@@ -153,7 +152,7 @@ def add_rmse_text(ax, x_rmse, x_name):
 
     return
 
-@registers.validator.register
+
 class SinglepointValidator(AbstractValidator):
 
     """Calculate energies on each structures and save them to file.

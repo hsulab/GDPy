@@ -132,13 +132,6 @@ class registers:
 
         return instance
 
-
-VALIDATOR_MODULES = [
-    "singlepoint", "dimer", "minima", "eos", "rdf", "distribution",
-    "surface_energy", "melting_point"
-]
-DATA_OPS = ["operations"]
-
 SCHEDULER_MODULES = ["local", "lsf", "pbs", "slurm"]
 
 ALL_MODULES = [
@@ -172,9 +165,9 @@ ALL_MODULES = [
     # -- reactors
     ("GDPy.reactor", ["afir"]),
     # -- validators
-    ("GDPy.validator", VALIDATOR_MODULES),
+    ("GDPy", ["validator"]),
     # - session operations.
-    ("GDPy.data", DATA_OPS), 
+    ("GDPy.data", ["operations"]), 
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["operations"]),
     ("GDPy.validator", ["interface"]),

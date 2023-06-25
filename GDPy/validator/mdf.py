@@ -19,7 +19,6 @@ import ase
 from ase import Atoms
 from ase.io import read, write
 
-from ..core.register import registers
 from .validator import AbstractValidator
 from .utils import wrap_traj, smooth_curve
 
@@ -67,7 +66,7 @@ def plot_mass_distribution(wdir, prefix, bincentres, mass, title):
 
     return
 
-@registers.validator.register
+
 class MassDistributionValidator(AbstractValidator):
 
     """Validate mass distribution.

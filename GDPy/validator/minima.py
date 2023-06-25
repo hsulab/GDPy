@@ -15,7 +15,6 @@ from ase.constraints import UnitCellFilter
 
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.core.register import registers
 from GDPy.validator.validator import AbstractValidator
 from GDPy.worker.drive import DriverBasedWorker
 from GDPy.builder.constraints import set_constraint
@@ -37,7 +36,7 @@ def make_clean_atoms(atoms_, results=None):
 
     return atoms
 
-@registers.validator.register
+
 class MinimaValidator(AbstractValidator):
 
     """Run minimisation on various configurations and compare relative energy.

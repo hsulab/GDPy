@@ -18,7 +18,7 @@ class ValidatorVariable(Variable):
         """"""
         # - create a validator
         method = kwargs.get("method", "minima")
-        validator = registers.create("validator", method, convert_name=True, **kwargs)
+        validator = registers.create("validator", method, convert_name=False, **kwargs)
 
         # - save
         super().__init__(initial_value=validator, directory=directory)

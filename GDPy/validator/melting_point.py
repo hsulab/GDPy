@@ -21,11 +21,8 @@ try:
 except Exception as e:
     print("Used default matplotlib style.")
 
-from GDPy.core.register import registers
-from GDPy.core.operation import Operation
-from GDPy.validator.validator import AbstractValidator
-from GDPy.utils.command import CustomTimer
-
+from ..utils.command import CustomTimer
+from .validator import AbstractValidator
 from .utils import wrap_traj
 
 """Measure melting point.
@@ -78,7 +75,7 @@ def _icalc_local_lindemann_index(frames, n_jobs=1):
 
     return q
 
-@registers.validator.register
+
 class MeltingPointValidator(AbstractValidator):
 
     """Estimate the melting point from a series of MD simulations.

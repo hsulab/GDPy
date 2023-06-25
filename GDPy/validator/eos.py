@@ -16,7 +16,6 @@ except Exception as e:
 from ase.io import read, write
 from ase.eos import EquationOfState 
 
-from ..core.register import registers
 from ..data.array import AtomsArray2D
 from .validator import AbstractValidator
 
@@ -41,7 +40,7 @@ def plot_eos(ref_volumes, ref_energies, pre_volumes, pre_energies, fig_fpath="./
 
     return
 
-@registers.validator.register
+
 class EquationOfStateValidator(AbstractValidator):
 
     def __init__(self, *args, **kwargs):

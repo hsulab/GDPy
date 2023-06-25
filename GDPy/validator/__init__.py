@@ -6,19 +6,32 @@ import pathlib
 from pathlib import Path
 from typing import NoReturn, List, Union
 
-import numpy as np
+from ..core.register import registers
 
-import matplotlib
-matplotlib.use('Agg') #silent mode
-import matplotlib.pyplot as plt
-#plt.style.use("presentation")
+from .dimer import DimerValidator
+registers.validator.register("dimer")(DimerValidator)
 
-from ase import Atoms
-from ase.io import read, write
+from .mdf import MassDistributionValidator
+registers.validator.register("mass_distribution")(MassDistributionValidator)
 
-from GDPy.utils.command import parse_input_file
+from .rdf import RdfValidator
+registers.validator.register("radial_distribution")(RdfValidator)
 
-from GDPy.validator.validator import AbstractValidator
+from .eos import EquationOfStateValidator
+registers.validator.register("equation_of_state")(EquationOfStateValidator)
+
+from .melting_point import MeltingPointValidator
+registers.validator.register("melting_point")(MeltingPointValidator)
+
+from .minima import MinimaValidator
+registers.validator.register("minima")(MinimaValidator)
+
+from .spc import SinglepointValidator
+registers.validator.register("spc")(SinglepointValidator)
+
+from .surface_energy import SurfaceEnergyValidator
+registers.validator.register("surface_energy")(SurfaceEnergyValidator)
+
 
 """
 Various properties to be validated
