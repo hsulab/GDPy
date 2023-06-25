@@ -79,7 +79,7 @@ def parse_thermo_data(logfile_path) -> dict:
             break
     else:
         end_idx = idx
-    config._debug("lammps LOG index: ", start_idx, end_idx)
+    config._debug(f"lammps LOG index: {start_idx} {end_idx}")
     
     # - check valid lines
     #   sometimes the line may not be complete
@@ -97,12 +97,12 @@ def parse_thermo_data(logfile_path) -> dict:
                 break
     else:
         end_idx = None # even not one single complete line
-    config._debug("lammps LOG index: ", start_idx, end_idx)
+    config._debug(f"lammps LOG index: {start_idx} {end_idx}")
     
     if start_idx is None or end_idx is None:
         raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
-    config._debug("lammps END info: ", end_info)
+    config._debug(f"lammps END info: {end_info}")
 
     #try: # The last sentence may have the same number of columns as thermo data does.
     #    if end_info.strip():
@@ -113,7 +113,7 @@ def parse_thermo_data(logfile_path) -> dict:
     #    end_idx -= 1
     #finally:
     #    ...
-    config._debug("lammps LOG index: ", start_idx, end_idx)
+    config._debug(f"lammps LOG index: {start_idx} {end_idx}")
 
     # -- parse index of PotEng
     # TODO: save timestep info?
@@ -329,7 +329,7 @@ class LmpDriver(AbstractDriver):
         pot_energies = [unitconvert.convert(p, "energy", units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
-        config._debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
+        config._debug(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
 
         # TODO: check whether steps in thermo and traj are consistent
         pot_energies = pot_energies[:nframes]
