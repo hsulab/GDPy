@@ -260,7 +260,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         return create_variable(vx_name, vx_params)
 
     OmegaConf.register_new_resolver(
-        "gdp_v", create_vx_instance, use_cache=False
+        "vx", create_vx_instance, use_cache=False
     )
 
     def create_op_instance(op_name, _root_):
@@ -270,7 +270,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         return create_operation(op_name, op_params)
 
     OmegaConf.register_new_resolver(
-        "gdp_o", create_op_instance, use_cache=False
+        "op", create_op_instance, use_cache=False
     )
 
     # --
