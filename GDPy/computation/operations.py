@@ -91,6 +91,46 @@ class compute(Operation):
 
         return workers
 
+@registers.operation.register
+class extract_cache(Operation):
+
+    """Extract results from finished (cache) calculation wdirs.
+
+    This is useful when reading results from manually created structures.
+
+    """
+
+    def __init__(self, compute, cache_wdirs: List[str|pathlib.Path], directory="./") -> None:
+        """"""
+        super().__init__(input_nodes=[compute], directory=directory)
+
+        self.cache_wdirs = cache_wdirs
+
+        return
+    
+    def forward(self, workers: List[DriverBasedWorker]):
+        """"""
+        super().forward()
+        
+        # - broadcast workers
+        nwdirs = len(self.cache_wdirs)
+        nworkers = len(workers)
+        assert (nwdirs == nworkers) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
+
+        # - use driver to read results
+        trajectories = Trajectories()
+        for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0]):
+            # -- assume the wdir stores the calculation/simulation results
+            curr_worker.driver.directory = curr_wdir # TODO: set worker wdir, also for driver
+            # TODO: whether check convergence?
+            curr_traj = curr_worker.driver.read_trajectory() # TODO: try error?
+            self._debug(curr_traj)
+            trajectories.extend([curr_traj]) # TODO: add append method to Trajectories
+
+        self.status = "finished"
+
+        return trajectories
+
 
 @registers.operation.register
 class extract(Operation):
