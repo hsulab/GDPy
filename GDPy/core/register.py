@@ -187,7 +187,7 @@ def _handle_errors(errors):
     if not errors:
         return
     for name, err in errors:
-        #warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+        warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
         ...
     
     return

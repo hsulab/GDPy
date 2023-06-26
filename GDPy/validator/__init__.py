@@ -32,6 +32,9 @@ registers.validator.register("spc")(SinglepointValidator)
 from .surface_energy import SurfaceEnergyValidator
 registers.validator.register("surface_energy")(SurfaceEnergyValidator)
 
+from .diffusion_coefficient import DiffusionCoefficientValidator
+registers.validator.register("diffusion_coefficient")(DiffusionCoefficientValidator)
+
 
 """
 Various properties to be validated

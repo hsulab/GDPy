@@ -8,8 +8,8 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
-from GDPy.worker.drive import DriverBasedWorker
-from GDPy.validator import AbstractValidator
+from ..worker.drive import DriverBasedWorker
+from .validator import AbstractValidator
 
 @registers.variable.register
 class ValidatorVariable(Variable):
