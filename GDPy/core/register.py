@@ -170,6 +170,7 @@ ALL_MODULES = [
     ("GDPy.data", ["operations"]), 
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["operations"]),
+    ("GDPy.reactor", ["interface"]),
     ("GDPy.validator", ["interface"]),
     ("GDPy.selector", ["interface"]),
     # - session variables.
