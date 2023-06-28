@@ -101,6 +101,9 @@ class registers:
     #: Selectors.
     selector: Register = Register("selector")
 
+    #: Describers.
+    describer: Register = Register("describer")
+
     #: Comparators.
     comparator: Register = Register("comparator")
 
@@ -158,6 +161,8 @@ ALL_MODULES = [
     ("GDPy.builder", ["crossover", "mutation"]),
     # -- selectors
     ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
+    # -- describer
+    ("GDPy.describer", ["soap"]),
     # -- comparators
     ("GDPy", ["comparator"]),
     # -- expeditions
@@ -179,6 +184,7 @@ ALL_MODULES = [
     ("GDPy.scheduler", ["interface"]),
     ("GDPy.computation", ["interface"]),
     ("GDPy.potential", ["interface"]),
+    ("GDPy.describer", ["interface"]),
 ]
 
 

@@ -3,7 +3,7 @@
 
 import itertools
 import pathlib
-from typing import NoReturn, List
+from typing import NoReturn, Optional, List, Mapping
 import warnings
 
 import numpy as np
@@ -141,6 +141,66 @@ class transfer(Operation):
         self.status = "finished"
 
         return dataset
+
+
+@registers.operation.register
+class scope(Operation):
+
+    def __init__(self, dataset, describer, groups: Optional[dict]=None, add_legend: bool=True, directory="./") -> None:
+        """"""
+        super().__init__(input_nodes=[dataset, describer], directory=directory)
+
+        if groups is None:
+            groups = {"all": r".*"}
+        self.groups = {k: fr"{v}" for k, v in groups.items()}
+
+        self.add_legend = add_legend
+
+        return
+    
+    def forward(self, dataset, describer):
+        """"""
+        super().forward()
+
+        describer.directory = self.directory
+        features = describer.run(dataset=dataset)
+
+        group_indices = {}
+        for k, v in self.groups.items():
+            group_indices[k] = dataset[0].get_matched_indices(v)
+
+        self._plot_results(features, group_indices, self.add_legend)
+
+        return
+
+    def _plot_results(self, features, groups: Mapping[str,List[int]], add_legend, *args, **kwargs):
+        """"""
+        # - plot selection
+        import matplotlib.pyplot as plt
+        try:
+            plt.style.use("presentation")
+        except Exception as e:
+            ...
+
+        from sklearn.decomposition import PCA
+
+        reducer = PCA(n_components=2)
+        reducer.fit(features)
+
+        for i, (name, indices) in enumerate(groups.items()):
+            proj = reducer.transform(features[indices,:])
+            plt.scatter(
+                proj[:, 0], proj[:, 1], alpha=0.5, zorder=100-i,
+                label=f"{name} {len(indices)}"
+            )
+
+        if add_legend:
+            plt.legend()
+
+        plt.axis("off")
+        plt.savefig(self.directory/"pca.png")
+
+        return 
 
 if __name__ == "__main__":
     ...

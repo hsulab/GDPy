@@ -8,6 +8,7 @@ from ase.io import read, write
 
 from GDPy.core.register import registers
 from GDPy.core.variable import Variable
+from .system import DataSystem
 
 
 @registers.variable.register
@@ -34,6 +35,30 @@ class TempdataVariable(Variable):
             dataset.append([prefix,curr_frames])
 
         return dataset
+
+
+@registers.variable.register
+class NamedTempdataVariable(Variable):
+
+    def __init__(self, system_dirs, *args, **kwargs):
+        """"""
+        initial_value = self._process_dataset(system_dirs)
+        super().__init__(initial_value)
+
+        return
+    
+    def _process_dataset(self, system_dirs: List[str]):
+        """"""
+        #system_dirs.sort()
+        system_dirs = [pathlib.Path(s) for s in system_dirs]
+
+        data_systems = []
+        for s in system_dirs:
+            d = DataSystem(directory=s)
+            data_systems.append(d)
+
+        return data_systems
+
 
 @registers.variable.register
 class DatasetVariable(Variable):
