@@ -15,6 +15,7 @@ import numpy as np
 
 from ase import Atoms
 from ase.constraints import FixAtoms
+from ase.calculators.calculator import compare_atoms
 
 from GDPy import config
 from GDPy.builder.constraints import parse_constraint_info
@@ -109,6 +110,9 @@ class AbstractDriver(abc.ABC):
 
     #: Driver's name.
     name: str = "abstract"
+
+    #: Atoms that is for state check.
+    atoms: Optional[Atoms] = None
 
     #: Standard print.
     _print: Callable = config._print
@@ -213,7 +217,7 @@ class AbstractDriver(abc.ABC):
 
         return value
     
-    def reset(self) -> NoReturn:
+    def reset(self) -> None:
         """Remove results stored in dynamics calculator."""
         self.calc.reset()
 
@@ -227,7 +231,16 @@ class AbstractDriver(abc.ABC):
         be added to the atoms.info
 
         """
+        # - NOTE: input atoms from WORKER may have minimal properties as
+        #         cell, pbc, positions, symbols, tags, momenta...
         atoms = atoms.copy()
+
+        # - set driver's atoms to the current one
+        system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
+        if len(system_changes) > 0:
+            system_changed = True
+        else:
+            system_changed = False
 
         # - backup old params
         params_old = copy.deepcopy(self.calc.parameters)
@@ -237,20 +250,24 @@ class AbstractDriver(abc.ABC):
             self.directory.mkdir(parents=True)
             self._irun(atoms, *args, **kwargs)
         else:
-            if list(self.directory.iterdir()):
-                converged = self.read_convergence()
-                if not converged:
-                    if read_exists:
-                        atoms, resume_params = self._resume(atoms, *args, **kwargs)
-                        kwargs.update(**resume_params)
-                        self._backup()
-                    self._cleanup()
-                    self._irun(atoms, *args, **kwargs)
+            if not system_changed:
+                if list(self.directory.iterdir()):
+                    converged = self.read_convergence()
+                    if not converged:
+                        if read_exists:
+                            atoms, resume_params = self._resume(atoms, *args, **kwargs)
+                            kwargs.update(**resume_params)
+                            self._backup()
+                        self._cleanup()
+                        self._irun(atoms, *args, **kwargs)
+                    else:
+                        ...
                 else:
-                    ...
+                    self._irun(atoms, *args, **kwargs)
             else:
+                self._cleanup()
                 self._irun(atoms, *args, **kwargs)
-
+        
         # - get results
         traj = self.read_trajectory()
         nframes = len(traj)
