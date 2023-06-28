@@ -158,7 +158,7 @@ class SinglepointValidator(AbstractValidator):
     """Calculate energies on each structures and save them to file.
     """
 
-    def __init__(self, groups: dict, *args, **kwargs):
+    def __init__(self, groups: dict=None, *args, **kwargs):
         """Init a spc validator.
 
         Args:
