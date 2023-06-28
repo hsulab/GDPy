@@ -38,6 +38,9 @@ class AbstractNode(abc.ABC):
         # - set random generator
         self.set_rng(seed=random_seed)
 
+        # - number of processors
+        self.njobs = config.NJOBS
+
         # - update parameters from kwargs
         self.parameters = copy.deepcopy(self.default_parameters)
         for k in self.parameters:
