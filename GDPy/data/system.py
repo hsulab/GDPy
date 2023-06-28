@@ -15,6 +15,8 @@ class DataSystem(AbstractNode):
     """This contains a fixed-composition system.
     """
 
+    prefix: str = None
+
     _images: Optional[List[Atoms]] = None
 
     _tags: Optional[List[str]] = None
@@ -31,8 +33,9 @@ class DataSystem(AbstractNode):
     def _process_dataset(self):
         """"""
         wdir = self.directory
+        self.prefix = wdir.name
 
-        prefix, images = wdir.name, []
+        images = []
         xyzpaths = sorted(list(wdir.glob(self.pattern)))
 
         if self._images is None:

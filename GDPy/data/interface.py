@@ -6,6 +6,7 @@ from typing import List
 
 from ase.io import read, write
 
+from .. import config
 from GDPy.core.register import registers
 from GDPy.core.variable import Variable
 from .system import DataSystem
@@ -54,6 +55,7 @@ class NamedTempdataVariable(Variable):
 
         data_systems = []
         for s in system_dirs:
+            config._debug(str(s))
             d = DataSystem(directory=s)
             data_systems.append(d)
 

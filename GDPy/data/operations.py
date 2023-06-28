@@ -3,6 +3,7 @@
 
 import itertools
 import pathlib
+import re
 from typing import NoReturn, Optional, List, Mapping
 import warnings
 
@@ -146,13 +147,21 @@ class transfer(Operation):
 @registers.operation.register
 class scope(Operation):
 
-    def __init__(self, dataset, describer, groups: Optional[dict]=None, add_legend: bool=True, directory="./") -> None:
+    def __init__(
+            self, dataset, describer, 
+            groups: Optional[dict]=None, subgroups: Optional[dict]=None, 
+            add_legend: bool=True, directory="./"
+        ) -> None:
         """"""
         super().__init__(input_nodes=[dataset, describer], directory=directory)
 
         if groups is None:
             groups = {"all": r".*"}
         self.groups = {k: fr"{v}" for k, v in groups.items()}
+
+        if subgroups is None:
+            subgroups = {"all": r".*"}
+        self.subgroups = {k: fr"{v}" for k, v in subgroups.items()}
 
         self.add_legend = add_legend
 
@@ -165,9 +174,23 @@ class scope(Operation):
         describer.directory = self.directory
         features = describer.run(dataset=dataset)
 
+        starts = [0] + [len(d._images) for d in dataset]
+        starts = np.cumsum(starts)
+        self._debug(f"starts: {starts}")
+
         group_indices = {}
-        for k, v in self.groups.items():
-            group_indices[k] = dataset[0].get_matched_indices(v)
+        for i, system in enumerate(dataset):
+            for k, v in self.groups.items():
+                if re.match(v, system.prefix) is not None:
+                    break
+            else:
+                continue
+            for k, v in self.subgroups.items():
+                if k not in group_indices:
+                    group_indices[k] = [x+starts[i] for x in system.get_matched_indices(v)]
+                else:
+                    group_indices[k].extend([x+starts[i] for x in system.get_matched_indices(v)])
+        self._debug(f"groups: {group_indices}")
 
         self._plot_results(features, group_indices, self.add_legend)
 
@@ -188,11 +211,12 @@ class scope(Operation):
         reducer.fit(features)
 
         for i, (name, indices) in enumerate(groups.items()):
-            proj = reducer.transform(features[indices,:])
-            plt.scatter(
-                proj[:, 0], proj[:, 1], alpha=0.5, zorder=100-i,
-                label=f"{name} {len(indices)}"
-            )
+            if len(indices) > 0:
+                proj = reducer.transform(features[indices,:])
+                plt.scatter(
+                    proj[:, 0], proj[:, 1], alpha=0.5, zorder=100-i,
+                    label=f"{name} {len(indices)}"
+                )
 
         if add_legend:
             plt.legend()
