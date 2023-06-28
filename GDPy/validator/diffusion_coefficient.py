@@ -97,6 +97,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
                     start=self.start, end=self.end, timeintv=self.timeintv, 
                     prefix="ref-"
                 )
+                np.save(cache_msd, data)
             else:
                 data = np.load(cache_msd)
 
@@ -118,6 +119,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
                     start=self.start, end=self.end, timeintv=self.timeintv, 
                     prefix="pre-"
                 )
+                np.save(cache_msd, data)
             else:
                 data = np.load(cache_msd)
 
