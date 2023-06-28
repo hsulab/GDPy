@@ -149,11 +149,13 @@ class scope(Operation):
 
     def __init__(
             self, dataset, describer, 
-            groups: Optional[dict]=None, subgroups: Optional[dict]=None, 
-            add_legend: bool=True, directory="./"
+            groups: Optional[dict]=None, subgroups: Optional[dict]=None, level: int=0,
+            add_legend: bool=True, write_chemiscope=False, directory="./"
         ) -> None:
         """"""
         super().__init__(input_nodes=[dataset, describer], directory=directory)
+        
+        self.level = level
 
         if groups is None:
             groups = {"all": r".*"}
@@ -164,6 +166,7 @@ class scope(Operation):
         self.subgroups = {k: fr"{v}" for k, v in subgroups.items()}
 
         self.add_legend = add_legend
+        self.write_chemiscope = write_chemiscope
 
         return
     
@@ -178,21 +181,51 @@ class scope(Operation):
         starts = np.cumsum(starts)
         self._debug(f"starts: {starts}")
 
-        group_indices = {}
+        # - get groups
+        group_indices = {k: {sk: [] for sk in self.subgroups} for k in self.groups}
         for i, system in enumerate(dataset):
+            # -- match group
             for k, v in self.groups.items():
                 if re.match(v, system.prefix) is not None:
+                    self._print(f"{v}, {system.prefix}")
                     break
             else:
                 continue
-            for k, v in self.subgroups.items():
-                if k not in group_indices:
-                    group_indices[k] = [x+starts[i] for x in system.get_matched_indices(v)]
-                else:
-                    group_indices[k].extend([x+starts[i] for x in system.get_matched_indices(v)])
-        self._debug(f"groups: {group_indices}")
+            # -- match subgroups
+            for sk, sv in self.subgroups.items():
+                curr_indices = [x+starts[i] for x in system.get_matched_indices(sv)]
+                #if sk not in group_indices[k]:
+                #    group_indices[k][sk] = curr_indices
+                #else:
+                #    group_indices[k][sk].extend(curr_indices)
+                group_indices[k][sk].extend(curr_indices)
+        #self._debug(f"groups: {group_indices}")
 
-        self._plot_results(features, group_indices, self.add_legend)
+        # - merge groups
+        merged_groups = {}
+        for name, curr_group in group_indices.items():
+            for subname, indices in curr_group.items():
+                if self.level == 0:
+                    gname = f"{name}+{subname}"
+                elif self.level == 1:
+                    gname = f"{name}"
+                elif self.level == 2:
+                    gname = f"{subname}"
+                else:
+                    raise RuntimeError()
+                if gname in merged_groups:
+                    merged_groups[gname].extend(indices)
+                else:
+                    merged_groups[gname] = indices
+
+        self._plot_results(features, merged_groups, self.add_legend)
+
+        # - save chemiscope?
+        if self.write_chemiscope:
+            frames = []
+            for d in dataset:
+                frames.extend(d._images)
+            self._write_chemiscope(frames=frames, features=features)
 
         return
 
@@ -210,21 +243,70 @@ class scope(Operation):
         reducer = PCA(n_components=2)
         reducer.fit(features)
 
+        # -- separate
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
+
+        curves = []
         for i, (name, indices) in enumerate(groups.items()):
+            print(f"{name} -> {len(indices)}")
             if len(indices) > 0:
                 proj = reducer.transform(features[indices,:])
-                plt.scatter(
-                    proj[:, 0], proj[:, 1], alpha=0.5, zorder=100-i,
+                curve = ax.scatter(
+                    proj[:, 0], proj[:, 1], alpha=0.25, zorder=100-i,
                     label=f"{name} {len(indices)}"
                 )
+                curves.append(curve)
+        labels = [c.get_label() for c in curves]
 
+        ax.axis("off")
+        fig.savefig(self.directory/"pca.png", transparent=True)
+
+        label_params = ax.get_legend_handles_labels()
         if add_legend:
-            plt.legend()
-
-        plt.axis("off")
-        plt.savefig(self.directory/"pca.png")
+            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
+            ax.axis("off")
+            ax.legend(*label_params)
+            fig.savefig(self.directory/"pca-legend.png", transparent=True)
 
         return 
+
+    def _write_chemiscope(self, frames, features):
+        """"""
+        USE_CHEMISCOPE = 0
+        try:
+            import chemiscope
+            USE_CHEMISCOPE = 1
+        except Exception as e:
+            print(e)
+
+        from sklearn.decomposition import PCA
+        # - write chemiscope inputs
+        pca = PCA(n_components=2).fit_transform(features)
+        properties = dict(
+            PCA = dict(
+                target = "structure",
+                values = pca
+            ),
+            #energies = dict(
+            #    target = "structure",
+            #    values = [a.get_potential_energy() for a in frames],
+            #    units = "eV"
+            #)
+        )
+
+        frame_properties = chemiscope.extract_properties(
+            frames,
+            only=["energy"]
+        )
+        properties.update(**frame_properties)
+
+        chemiscope.write_input(
+            str(self.directory/"chemiscope.json.gz"), 
+            frames=frames, properties=properties
+        )
+
+        return
+
 
 if __name__ == "__main__":
     ...
