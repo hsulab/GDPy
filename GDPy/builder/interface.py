@@ -15,6 +15,7 @@ from GDPy.core.placeholder import Placeholder
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
+from ..data.array import AtomsArray
 
 @registers.placeholder.register
 class StructurePlaceholder(Placeholder):
@@ -43,6 +44,30 @@ class BuilderVariable(Variable):
         super().__init__(initial_value=builder, directory=directory)
 
         return
+
+@registers.operation.register
+class read_stru(Operation):
+
+    def __init__(self, fname, format=None, index=":", input_nodes=[], directory="./", **kwargs) -> None:
+        """"""
+        super().__init__(input_nodes, directory)
+
+        self.fname = fname
+        self.format = format
+        self.index = index
+        self.kwargs = kwargs
+
+        return
+    
+    def forward(self, *args, **kwargs) -> AtomsArray:
+        """"""
+        super().forward()
+        frames = read(self.fname, format=self.format, index=self.index, **self.kwargs)
+        frames = AtomsArray(images=frames)
+
+        self.status = "finished"
+
+        return frames
 
 @registers.operation.register
 class build(Operation):
