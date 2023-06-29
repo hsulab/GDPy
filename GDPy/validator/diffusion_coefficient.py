@@ -18,8 +18,10 @@ from ..utils.command import CustomTimer
 from .validator import AbstractValidator
 from .utils import wrap_traj
 from ..builder.group import create_a_group
+from ..data.array import AtomsArray, AtomsArray2D
 
-def plot_msd(wdir, names, lagtimes, timeseries, prefix=""):
+
+def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, prefix=""):
     """"""
     # - get self-diffusivity
     from scipy.stats import linregress
@@ -31,7 +33,6 @@ def plot_msd(wdir, names, lagtimes, timeseries, prefix=""):
 
     for name, x, y in zip(names, lagtimes, timeseries):
 
-        start_step, end_step = 20, 60
         linear_model = linregress(
             x[start_step:end_step], y[start_step:end_step]
         )
@@ -66,12 +67,20 @@ class DiffusionCoefficientValidator(AbstractValidator):
 
     """
 
-    def __init__(self, group, timeintv: float, lagmax: int, start: int=None, end: int=None, directory: str | pathlib.Path = "./", *args, **kwargs):
+    def __init__(
+            self, group, timeintv: float, lagmax: int, start: int=None, end: int=None, 
+            d_start: int = 0, d_end: int = 20,
+            directory: str | pathlib.Path = "./", *args, **kwargs
+        ):
         """"""
         super().__init__(directory, *args, **kwargs)
 
         self.start = start
         self.end = end
+        
+        # - diffusion coefficient linear fitting
+        self.d_start = d_start
+        self.d_end = d_end
 
         self.lagmax = lagmax
         self.timeintv = timeintv
@@ -87,6 +96,8 @@ class DiffusionCoefficientValidator(AbstractValidator):
         self._print("process reference ->")
         reference = dataset.get("reference")
         if reference is not None:
+            if isinstance(reference, AtomsArray):
+                reference = AtomsArray2D(rows=[reference])
             mdtraj = reference[0]._images
             group_indices = create_a_group(mdtraj[0], self.group)
 
@@ -103,11 +114,16 @@ class DiffusionCoefficientValidator(AbstractValidator):
 
             lagtimes = [x[0] for x in [data]]
             timeseries = [x[1] for x in [data]]
-            plot_msd(self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, prefix="ref-")
+            plot_msd(
+                self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, 
+                start_step=self.d_start, end_step=self.d_end, prefix="ref-"
+            )
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
+            if isinstance(prediction, AtomsArray):
+                prediction = AtomsArray2D(rows=[prediction])
             mdtraj = prediction[0]._images
             group_indices = create_a_group(mdtraj[0], self.group)
             self._debug(f"group_indices: {group_indices}")
@@ -125,7 +141,10 @@ class DiffusionCoefficientValidator(AbstractValidator):
 
             lagtimes = [x[0] for x in [data]]
             timeseries = [x[1] for x in [data]]
-            plot_msd(self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, prefix="pre-")
+            plot_msd(
+                self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, 
+                start_step=self.d_start, end_step=self.d_end, prefix="pre-"
+            )
 
         return
     
