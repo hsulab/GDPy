@@ -81,14 +81,12 @@ class Session:
             elif isinstance(node, Variable):
                 node.output = node.value
             else: # Operation
+                self._debug(f"node: {node}")
                 if node.preward():
                     node.inputs = [input_node.output for input_node in node.input_nodes]
                     node.output = node.forward(*node.inputs)
-                    #if node.status != "finished":
-                    #    print(f"node is still forwarding! Try later!")
-                    #    break
                 else:
-                    print("wait previous nodes to finish...")
+                    self._print("wait previous nodes to finish...")
                     continue
 
         return
