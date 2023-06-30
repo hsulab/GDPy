@@ -60,9 +60,18 @@ def read_laspset(train_structures):
                 line = fopen.readline()
                 natoms = int(line.strip().split()[-1])
                 # skip 5 lines, symbol info and training weights
-                skipped_lines = [fopen.readline() for i in range(5)]
+                #skipped_lines = [fopen.readline() for i in range(5)]
                 # - cell
-                cell = np.array([fopen.readline().strip().split()[1:] for i in range(3)], dtype=float)
+                cell = []
+                for _ in range(1000):
+                    lat_line = fopen.readline()
+                    if lat_line.strip().startswith("lat"):
+                        cell.append(lat_line.strip().split()[1:])
+                    if len(cell) == 3:
+                        break
+                else:
+                    raise RuntimeError("Failed to read lattice.")
+                cell = np.array(cell, dtype=float)
                 # - symbols, positions, and charges
                 anumbers, positions, charges = [], [], []
                 for i in range(natoms):
