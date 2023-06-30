@@ -198,7 +198,6 @@ class AseDriver(AbstractDriver):
 
     # - other files
     log_fname = "dyn.log"
-    traj_fname = "dyn.traj"
     xyz_fname = "traj.xyz"
     devi_fname = "model_devi-ase.dat"
 
@@ -206,7 +205,7 @@ class AseDriver(AbstractDriver):
     saved_fnames: List[str] = [log_fname, xyz_fname, devi_fname]
 
     #: List of output files would be removed when restart.
-    removed_fnames: List[str] = [log_fname, traj_fname, xyz_fname, devi_fname]
+    removed_fnames: List[str] = [log_fname, xyz_fname, devi_fname]
 
     def __init__(
         self, calc=None, params: dict={}, directory="./", *args, **kwargs
@@ -217,7 +216,6 @@ class AseDriver(AbstractDriver):
         self.setting = AseDriverSetting(**params)
 
         self._log_fpath = self.directory / self.log_fname
-        self._traj_fpath = self.directory / self.traj_fname
 
         return
     
@@ -227,12 +225,6 @@ class AseDriver(AbstractDriver):
 
         return self._log_fpath
     
-    @property
-    def traj_fpath(self):
-        """File path of the simulation trajectory."""
-
-        return self._traj_fpath
-    
     @AbstractDriver.directory.setter
     def directory(self, directory_):
         """Set log and traj path regarding to the working directory."""
@@ -241,7 +233,6 @@ class AseDriver(AbstractDriver):
 
         # - other files
         self._log_fpath = self.directory / self.log_fname
-        self._traj_fpath = self.directory / self.traj_fname
 
         return 
     
@@ -271,7 +262,7 @@ class AseDriver(AbstractDriver):
             driver = self.setting.driver_cls(
                 atoms, 
                 logfile=self.log_fpath,
-                trajectory=str(self.traj_fpath)
+                trajectory=None
             )
         elif self.setting.task == "ts":
             driver = self.setting.driver_cls(
@@ -279,7 +270,7 @@ class AseDriver(AbstractDriver):
                 order = 1,
                 internal = False,
                 logfile=self.log_fpath,
-                trajectory=str(self.traj_fpath)
+                trajectory=None
             )
         elif self.setting.task == "md":
             # - adjust params
@@ -332,7 +323,7 @@ class AseDriver(AbstractDriver):
                 atoms = atoms,
                 **init_params_,
                 logfile=self.log_fpath,
-                trajectory=str(self.traj_fpath)
+                trajectory=None
             )
         else:
             raise NotImplementedError(f"Unknown task {self.task}.")
