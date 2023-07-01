@@ -70,7 +70,7 @@ class read_stru(Operation):
         return frames
 
 @registers.operation.register
-class build(Operation):
+class xbuild(Operation):
 
     """Build structures without substrate structures.
     """
@@ -98,6 +98,36 @@ class build(Operation):
         self.status = "finished"
 
         return bundle
+
+@registers.operation.register
+class build(Operation):
+
+    """Build structures without substrate structures.
+    """
+
+    def __init__(self, builder, size: int=1, directory="./") -> NoReturn:
+        super().__init__(input_nodes=[builder], directory=directory)
+
+        self.size = size
+
+        return
+    
+    def forward(self, builder) -> List[Atoms]:
+        """"""
+        super().forward()
+
+        builder.directory = self.directory
+        curr_builder_output = self.directory/f"{builder.name}_output.xyz"
+        if curr_builder_output.exists():
+            frames = read(curr_builder_output, ":")
+        else:
+            frames = builder.run(size=self.size)
+            write(curr_builder_output, frames)
+        self._print(f"{builder.name} nframes: {len(frames)}")
+
+        self.status = "finished"
+
+        return frames
 
 @registers.operation.register
 class modify(Operation):
