@@ -340,6 +340,13 @@ class ClusterBuilder(RandomBuilder):
 
     name: str = "random_cluster"
 
+    def __init__(self, composition: Mapping[str, int], substrates=None, region: dict = {}, cell=None, covalent_ratio=[1, 2], random_seed=None, *args, **kwargs):
+        super().__init__(composition, substrates, region, cell, covalent_ratio, random_seed, *args, **kwargs)
+
+        self.pbc = kwargs.get("pbc", False)
+
+        return
+
     def _update_settings(self, substarte: Atoms = None):
         """"""
         # - ignore substrate
@@ -347,7 +354,11 @@ class ClusterBuilder(RandomBuilder):
             self.cell = np.array([19.,0.,0.,0.,20.,0.,0.,0.,21.]).reshape(3,3)
         else:
             self.cell = np.reshape(self.cell, (-1,3))
-        self._substrate = Atoms(cell = self.cell, pbc=False)
+        self._substrate = Atoms(cell = self.cell, pbc=self.pbc)
+
+        if self.region.__class__.__name__ == "AutoRegion":
+            from .region import LatticeRegion
+            self.region = LatticeRegion(origin=np.zeros(3), cell=self.cell.flatten())
 
         unique_atom_types = set(self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
@@ -365,6 +376,7 @@ class ClusterBuilder(RandomBuilder):
         """"""
         params = copy.deepcopy(self._state_params)
         params["method"] = self.name
+        params["pbc"] = self.pbc
 
         return params
 
