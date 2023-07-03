@@ -4,7 +4,7 @@
 import itertools
 import pathlib
 import re
-from typing import NoReturn, Optional, List, Mapping
+from typing import Any, NoReturn, Optional, List, Mapping
 import warnings
 
 import numpy as np
@@ -79,6 +79,25 @@ class map(Operation):
             ret[k] = v
         
         self._debug(f"map ret: {ret}")
+
+        return ret
+
+@registers.operation.register
+class zip_nodes(Operation):
+
+    status = "finished"
+
+    def __init__(self, nodes, directory="./") -> None:
+        """"""
+        super().__init__(input_nodes=nodes, directory=directory)
+
+        return
+
+    def forward(self, *outputs):
+        """"""
+        super().forward()
+
+        ret = list(zip(*outputs))
 
         return ret
 
