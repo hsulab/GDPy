@@ -321,5 +321,5 @@ if __name__ == "__main__":
     wdir = pathlib.Path(args.wdir)
     prefix = args.prefix
     frames = read_cp2k_md_outputs(wdir, prefix)
-    write(wdir/f"{prefix}-MDtraj.xyz")
+    write(wdir/f"{prefix}-MDtraj.xyz", frames)
     ...
