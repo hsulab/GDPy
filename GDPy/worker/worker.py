@@ -5,8 +5,10 @@ import abc
 import uuid
 import copy
 import pathlib
-from typing import NoReturn, Callable
+from typing import NoReturn, Callable, List, Tuple
 import logging
+
+import numpy as np
 
 from tinydb import TinyDB, Query
 
@@ -32,6 +34,9 @@ class AbstractWorker(abc.ABC):
     _print: Callable = config._print
     _debug: Callable = config._debug
 
+    # Number of executation in each queue job.
+    batchsize: int = 1
+
     _directory = None
     _scheduler = None
     _database = None
@@ -40,12 +45,14 @@ class AbstractWorker(abc.ABC):
 
     _script_name = "run.script"
 
-    def __init__(self, directory=None) -> NoReturn:
+    def __init__(self, directory=None, batchsize=1, *args, **kwargs) -> None:
         """
         """
         # - set default directory
         if directory is not None:
             self.directory = directory
+
+        self.batchsize = batchsize
 
         self.n_jobs = config.NJOBS
         
@@ -80,6 +87,21 @@ class AbstractWorker(abc.ABC):
         #if self._scheduler.name == "local"
 
         return
+
+    def _split_groups(self, npoints: int) -> Tuple[List[int],List[int]]:
+        """Split nframes into groups."""
+        # - split frames
+        ngroups = int(np.floor(1.*npoints/self.batchsize))
+        group_indices = [0]
+        for i in range(ngroups):
+            group_indices.append((i+1)*self.batchsize)
+        if group_indices[-1] != npoints:
+            group_indices.append(npoints)
+        starts, ends = group_indices[:-1], group_indices[1:]
+        assert len(starts) == len(ends), "Inconsistent start and end indices..."
+        #group_indices = [f"{s}:{e}" for s, e in zip(starts,ends)]
+
+        return (starts, ends)
     
     #@property
     #def database(self):
