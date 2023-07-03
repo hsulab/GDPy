@@ -26,6 +26,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
 from ..computation.mixer import EnhancedCalculator
+from .reactor import AbstractReactor
 from GDPy.builder.constraints import parse_constraint_info
 
 def set_constraint(atoms, cons_text):
@@ -168,7 +169,7 @@ class ReactorSetting:
         return run_params
 
 
-class MEPFinder():
+class MEPFinder(AbstractReactor):
 
     """Find the minimum energy path based on input structures.
 
@@ -227,6 +228,8 @@ class MEPFinder():
     
     def run(self, structures: List[Atoms], read_cache=True, *args, **kwargs):
         """"""
+        super().run(structures=structures, *args, **kwargs)
+
         # - Double-Ended Methods...
         ini_atoms, fin_atoms = structures
         self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
@@ -239,13 +242,21 @@ class MEPFinder():
         if not self.cache_nebtraj.exists():
             self._irun([ini_atoms, fin_atoms])
         else:
-            ...
+            # - check if converged
+            converged = self.read_convergence()
+            if not converged:
+                if read_cache:
+                    ...
+                self._irun(structures, *args, **kwargs)
+            else:
+                ...
         
+        # - get results
         _ = self.read_trajectory()
 
         return
     
-    def _irun(self, structures):
+    def _irun(self, structures, *args, **kwargs):
         """"""
         # - check lattice consistency
         ini_atoms, fin_atoms = structures
@@ -255,7 +266,7 @@ class MEPFinder():
         # - align structures
         shift = fin_atoms.get_positions() - ini_atoms.get_positions()
         curr_vectors, curr_distances = find_mic(shift, c1, pbc=True)
-        self._print(f"curr_vectors: {curr_vectors}")
+        self._debug(f"curr_vectors: {curr_vectors}")
         self._print(f"disp: {np.linalg.norm(curr_vectors)}")
         fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
 
@@ -272,36 +283,58 @@ class MEPFinder():
             a.calc = self.calc
 
         neb = NEB(
-            images, allow_shared_calculator=True, climb=False, k=0.1
+            images=images, k=0.1, climb=False,
+            remove_rotation_and_translation=False, method="aseneb",
+            allow_shared_calculator=True, precon=None
         )
         neb.interpolate(apply_constraint=True)
 
-        #qn = self.setting.opt_cls(neb, logfile="-", trajectory=str(self.directory/"nebtraj.traj"))
-        qn = self.setting.opt_cls(neb, logfile="-", trajectory=None)
-        qn.attach(
+        driver = self.setting.opt_cls(neb, logfile="-", trajectory=None)
+        driver.attach(
             save_nebtraj, interval=1,
             neb=neb, log_fpath=self.cache_nebtraj
         )
 
         run_params = self.setting.get_run_params()
-        qn.run(steps=run_params["steps"], fmax=run_params["fmax"])
+        driver.run(steps=run_params["steps"], fmax=run_params["fmax"])
 
         return
     
     def read_trajectory(self, *args, **kwargs):
         """"""
+        nimages_per_band = self.setting.nimages
         if self.cache_nebtraj.exists():
             images = read(self.cache_nebtraj, ":")
-            plot_mep(self.directory, images[-self.setting.nimages:])
+            converged_nebtraj = images[-nimages_per_band:]
+            plot_mep(self.directory, converged_nebtraj)
+            write(self.directory/"end_nebtraj.xyz", converged_nebtraj)
         else:
             raise FileNotFoundError(f"No cache trajectory {str(self.cache_nebtraj)}.")
+        
+        nimages = len(images)
+        assert nimages%nimages_per_band == 0, "Inconsistent number of bands."
+        nbands = int(nimages/nimages_per_band)
 
-        return
+        reshaped_images = []
+        for i in range(nbands):
+            reshaped_images.append(images[i*nimages_per_band:(i+1)*nimages_per_band])
+
+        return reshaped_images
     
-    def read_convergence(self, *args, **kwargs):
+    def read_convergence(self, *args, **kwargs) -> bool:
         """"""
+        converged = False
+        if self.cache_nebtraj.exists():
+            nimages_per_band = self.setting.nimages
+            images = read(self.cache_nebtraj, ":")
+            end_nebtraj = images[-nimages_per_band:]
+            nt = NEBTools(end_nebtraj)
+            fmax = nt.get_fmax()
+            if fmax <= self.setting.fmax:
+                converged = True
+                self._print(f"{fmax} <=? {self.setting.fmax}")
 
-        return
+        return converged
 
 
 if __name__ == "__main__":

@@ -4,11 +4,14 @@
 import abc
 import pathlib
 import logging
+from typing import Union
 
 from ase import Atoms
 
 from GDPy.core.node import AbstractNode
 from GDPy.builder.builder import StructureBuilder
+
+from ..data.array import AtomsArray, AtomsArray2D
 
 
 """Find possible reaction pathways in given structures.
@@ -16,8 +19,6 @@ from GDPy.builder.builder import StructureBuilder
 
 
 class AbstractReactor(AbstractNode):
-
-    _directory = "./"
 
     """Base class of an arbitrary reactor.
 
@@ -31,60 +32,29 @@ class AbstractReactor(AbstractNode):
 
     """
 
-    def __init__(self, directory="./") -> None:
+    def __init__(self, calc, directory: str | pathlib.Path = "./", random_seed: int = None, *args, **kwargs):
         """"""
-        self.directory = directory
+        super().__init__(directory, random_seed, *args, **kwargs)
+        self.calc = calc
+
+        return
+    
+    def reset(self):
+        """"""
+        self.calc.reset()
 
         return
 
-    def _init_logger(self):
+    @abc.abstractmethod
+    def run(self, structures: AtomsArray, read_cache: bool=True, *args, **kwargs):
         """"""
-        self.logger = logging.getLogger(__name__)
-
-        log_level = logging.INFO
-
-        self.logger.setLevel(log_level)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
-        # - stream
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-
-        # -- avoid duplicate stream handlers
-        for handler in self.logger.handlers:
-            if isinstance(handler, logging.StreamHandler):
-                break
-        else:
-            self.logger.addHandler(ch)
-
-        # - file
-        log_fpath = self.directory/(self.__class__.__name__+".out")
-        if log_fpath.exists():
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-        fh.setLevel(log_level)
-        self.logger.addHandler(fh)
-        #fh.setFormatter(formatter)
-
-        return
-
-    def run(self, builder: StructureBuilder, worker):
-        """"""
-        if self.logger is not None:
-            self._print = self.logger.info
-        self._print(f"@@@{self.__class__.__name__}")
-
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
         
         return 
     
-    def irun(self, atoms: Atoms, worker):
+    @abc.abstractmethod
+    def read_convergence(self, *args, **kwargs):
         """"""
 
         return
