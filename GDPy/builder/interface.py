@@ -63,6 +63,8 @@ class read_stru(Operation):
         """"""
         super().forward()
         frames = read(self.fname, format=self.format, index=self.index, **self.kwargs)
+        if isinstance(frames, Atoms):
+            frames = [frames] # if index is single, then read will give Atoms
         frames = AtomsArray(images=frames)
 
         self.status = "finished"
