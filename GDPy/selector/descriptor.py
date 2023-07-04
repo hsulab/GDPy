@@ -116,7 +116,8 @@ class DescriptorSelector(AbstractSelector):
                 curr_markers = traj.markers
                 #print("curr_markers: ", curr_markers)
                 curr_frames = traj.get_marked_structures()
-                curr_indices = self._select_structures(curr_frames)
+                curr_feactures, curr_indices = self._select_structures(curr_frames)
+                #print(f"curr_indices: {curr_indices}")
                 new_markers = [curr_markers[i] for i in curr_indices]
                 #print("new_markers: ", new_markers)
                 traj.markers = new_markers
