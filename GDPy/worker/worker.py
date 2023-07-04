@@ -132,61 +132,12 @@ class AbstractWorker(abc.ABC):
         self._print(f"~~~{self.__class__.__name__}+run")
         return
 
-    def inspect(self, *args, **kwargs):
-        """ check if any job were finished
-        """
-        self._initialise(*args, **kwargs)
-        self._print(f"~~~{self.__class__.__name__}+inspect")
-
-        scheduler = self.scheduler
-
-        running_jobs = self._get_running_jobs()
-        for job_name in running_jobs:
-            group_directory = self.directory / job_name[self.UUIDLEN+1:]
-            scheduler.set(**{"job-name": job_name})
-            scheduler.script = group_directory/"run-driver.script" 
-
-            info_name = job_name[self.UUIDLEN+1:]
-            if scheduler.is_finished():
-                self._print(f"{info_name} at {self.directory.name} is finished...")
-                with TinyDB(
-                    self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-                ) as database:
-                    doc_data = database.get(Query().gdir == job_name)
-                    database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-            else:
-                self._print(f"{info_name} at {self.directory.name} is running...")
-
-        return
-
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
         self._debug(f"~~~{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
-
-        with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            for job_name in running_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                uid = doc_data["uid"]
-
-                self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory/self._script_name
-
-                if self.scheduler.is_finished():
-                    # -- check if the job finished properly
-                    # read_convergence
-                    if True:
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-                    else:
-                        if resubmit:
-                            jobid = self.scheduler.submit()
-                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                else:
-                    self._print(f"{job_name} is running...")
 
         return
     
@@ -195,24 +146,7 @@ class AbstractWorker(abc.ABC):
         self.inspect(*args, **kwargs)
         self._print(f"~~~{self.__class__.__name__}+retrieve")
 
-        gdirs, results = [], []
-
-        # - check status and get latest results
-        unretrieved_jobs = self._get_unretrieved_jobs()
-        for job_name in unretrieved_jobs:
-            # NOTE: sometimes prefix has number so confid may be striped
-            group_directory = self.directory / job_name[self.UUIDLEN+1:]
-            gdirs.append(group_directory)
-
-        if gdirs:
-            results = self._read_results(gdirs, *args, **kwargs)
-
-        with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            for job_name in unretrieved_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+        results = []
 
         return results
 
