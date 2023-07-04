@@ -19,6 +19,7 @@ from ase.calculators.calculator import Calculator
 from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager, DummyCalculator
 from GDPy.potential.trainer import AbstractTrainer
+from GDPy.computation.mixer import CommitteeCalculator
 
 
 @registers.trainer.register
@@ -415,10 +416,23 @@ class DeepmdManager(AbstractPotentialManager):
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             # return ase calculator
-            #from deepmd.calculator import DP
-            from GDPy.computation.dpx import DP
-            if models and type_map:
-                calc = DP(model=models[0], type_dict=type_map)
+            try:
+                #from deepmd.calculator import DP
+                from GDPy.computation.dpx import DP
+            except:
+                raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
+            #if models and type_map:
+            #    calc = DP(model=models[0], type_dict=type_map)
+            calcs = []
+            for m in models:
+                curr_calc = DP(model=m, type_dict=type_map)
+                calcs.append(curr_calc)
+            if len(calcs) == 1:
+                calc = calcs[0]
+            elif len(calcs) > 1:
+                calc = CommitteeCalculator(calcs=calcs)
+            else:
+                ...
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
             if models:
