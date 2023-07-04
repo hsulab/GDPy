@@ -35,6 +35,9 @@ registers.validator.register("surface_energy")(SurfaceEnergyValidator)
 from .diffusion_coefficient import DiffusionCoefficientValidator
 registers.validator.register("diffusion_coefficient")(DiffusionCoefficientValidator)
 
+from .rxn import PathwayValidator
+registers.validator.register("mep")(PathwayValidator)
+
 
 """
 Various properties to be validated
