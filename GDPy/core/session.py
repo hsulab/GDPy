@@ -299,7 +299,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         builder = create_variable(
             "structure", {"type": "builder", "method": "direct", "frames": x}
         )
-        node = build([builder])
+        node = build(builder)
 
         return node
 
