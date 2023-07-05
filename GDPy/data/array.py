@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import itertools
+import functools
 import numbers
 import pathlib
-from typing import List
+from typing import Any, List
 
 import h5py
 import numpy as np
@@ -64,6 +65,223 @@ def reconstruct_images_from_hd5grp(grp):
         atoms.calc = spc
     
     return AtomsArray(images, dict(grp.attrs))
+
+
+def _get_shape(data):
+    def _get_depth(items: list) -> int:
+        depth = 1 if isinstance(items, list) else 0
+        if depth:
+            for item in items:
+                if isinstance(item, list):
+                    depth = max(depth, _get_depth(item)+1)
+        else:
+            return depth
+        return depth
+    depth = _get_depth(data)
+
+    def _get_item(items, depth: int=0):
+        ret = items
+        for i in range(depth):
+            ret = ret[0]
+
+        return ret
+
+    dimensions = []
+    for i in range(depth):
+        dimensions.append(len(_get_item(data, depth=i)))
+    
+    return dimensions
+
+def _flat_data(items):
+    """"""
+    #if not isinstance(ret, Atoms):
+    if isinstance(items, list) and not isinstance(items[0], Atoms):
+        items = _flat_data(list(itertools.chain(*items)))
+
+    return items
+
+
+class AtomsNDArray:
+
+    #: Atoms data.
+    _data: List[Atoms] = None
+
+    def __init__(self, data: list = None) -> None:
+        """Init from a List^n object."""
+        if data is None:
+            self._data = []
+        else:
+            self._data = data
+        
+        return
+    
+    @property
+    def data(self):
+        """"""
+
+        return self._data
+    
+    @property
+    def shape(self):
+        """"""
+        dimensions = []
+        def _get_depth(items: list) -> int:
+            depth = 1 if isinstance(items, list) else 0
+            if depth:
+                for item in items:
+                    if isinstance(item, list):
+                        depth = max(depth, _get_depth(item)+1)
+            else:
+                return depth
+            return depth
+        depth = _get_depth(self._data)
+        #print(f"depth: {depth}")
+
+        def _get_item(items, depth: int=0):
+            """"""
+            ret = items
+            for i in range(depth):
+                ret = ret[0]
+            lengths = [len(x) for x in ret]
+            #print(f"lengths: {lengths}")
+
+            return ret
+
+        dimensions = []
+        for i in range(depth):
+            dimensions.append(len(_get_item(self._data, depth=i)))
+
+        return tuple(dimensions)
+    
+    @classmethod
+    def from_file(cls, target):
+        """"""
+        with h5py.File(target, "r") as fopen:
+            grp = fopen.require_group("images")
+            shape = grp.attrs["shape"]
+            #print(f"shape: {shape}")
+            images = cls._from_hd5grp(grp=grp)
+
+        def _reshape_data(data, shape):
+            """"""
+            data = data # NOTE: A PURE LIST
+            for i, tsize in enumerate(shape[::-1][:-1]):
+                npoints = len(data)
+                length = int(npoints/tsize)
+                data_ = []
+                for i in range(length):
+                    data_.append(data[i*tsize:(i+1)*tsize])
+                data = data_
+
+            return data
+        
+        data = _reshape_data(images, shape=shape)
+
+        return cls(data=data)
+    
+    @classmethod
+    def _from_hd5grp(cls, grp):
+        """Reconstruct an atoms_array from data stored in HDF5 group `images`."""
+        #print("keys: ", list(grp.keys()))
+        # - rebuild structures
+        images = []
+        for box, pbc, atomic_numbers, positions in zip(grp["box"], grp["pbc"], grp["atype"], grp["positions"]):
+            atoms = Atoms(numbers=atomic_numbers, positions=positions, cell=box.reshape(3,3), pbc=pbc)
+            images.append(atoms)
+        nimages = len(images)
+
+        # -- add info
+        for name in RETAINED_INFO_NAMES:
+            data = grp.get(name, default=None)
+            if data is not None:
+                for atoms, v in zip(images, data):
+                    atoms.info[name] = v
+
+        # -- add calc
+        results = [{} for _ in range(nimages)] # List[Mapping[str,data]]
+        for name in RETAINED_CALC_PROPS:
+            data = grp.get(name, default=None)
+            if data is not None:
+                for i, v in enumerate(data):
+                    results[i][name] = v
+
+        for atoms, ret in zip(images, results):
+            spc = SinglePointCalculator(atoms, **ret)
+            atoms.calc = spc
+
+        return images
+    
+    def save_file(self, target):
+        """"""
+        data = self._data
+        def _flat_data(items):
+            """"""
+            #if not isinstance(ret, Atoms):
+            if isinstance(items, list) and not isinstance(items[0], Atoms):
+                items = _flat_data(list(itertools.chain(*items)))
+
+            return items
+        frames = list(_flat_data(data))
+        #nframes = len(frames)
+        #print("nframes: ", len(frames), frames)
+
+        with h5py.File(target, mode="w") as fopen:
+            grp = fopen.create_group("images")
+            grp.attrs["shape"] = self.shape
+            self._convert_images(grp=grp, images=frames)
+
+        return
+    
+    def _convert_images(self, grp, images: List[Atoms]):
+        """Convert data...
+
+        TODO:
+            support variable number of atoms...
+
+        """
+        natoms_list = np.array([len(a) for a in images], dtype=np.int32)
+        boxes = np.array(
+            [a.get_cell(complete=True) for a in images], dtype=np.float64
+        ).reshape(-1,9)
+        pbcs = np.array(
+            [a.get_pbc() for a in images], dtype=np.int8
+        )
+        atomic_numbers = np.array(
+            [a.get_atomic_numbers() for a in images], dtype=np.int8
+        )
+        positions = np.array([a.get_positions() for a in images], dtype=np.float64)
+
+        # -- sys props
+        natoms_dset = grp.create_dataset("natoms", data=natoms_list, dtype="i8")
+        box_dset = grp.create_dataset("box", data=boxes, dtype="f8")
+        pbc_dset = grp.create_dataset("pbc", data=pbcs, dtype="i8")
+        atype_dset = grp.create_dataset("atype", data=atomic_numbers, dtype="i8")
+        pos_dset = grp.create_dataset("positions", data=positions, dtype="f8")
+
+        # - add some info
+        #   confid, step
+        #   max_devi_e, min_devi_e, avg_devi_e
+        #   max_devi_v, min_devi_v, avg_devi_v
+        #   max_devi_f, min_devi_f, avg_devi_f
+        for name, dtype in zip(RETAINED_INFO_NAMES, RETAIEND_INFO_DTYPES):
+            data = [a.info.get(name, np.nan) for a in images]
+            if not np.all(np.isnan(data)):
+                _ = grp.create_dataset(name, data=data, dtype=dtype)
+
+        # -- calc props
+        # TODO: without calc properties?
+        energies = np.array([a.get_potential_energy() for a in images], dtype=np.float64)
+        forces = np.array([a.get_forces() for a in images], dtype=np.float64)
+
+        ene_dset = grp.create_dataset("energy", data=energies, dtype="f8")
+        frc_dset = grp.create_dataset("forces", data=forces, dtype="f8")
+
+        return
+    
+    def __repr__(self) -> str:
+        """"""
+
+        return f"atoms_array({self.shape})"
 
 
 class AtomsArray:
