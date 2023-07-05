@@ -27,12 +27,13 @@ class Register:
             return value
 
         if callable(target):
-            # @reg.register
             return add(None, target)
-        # @reg.register('alias')
+
         return lambda x: add(target, x)
 
     def __getitem__(self, key):
+        if key not in self._dict:
+            raise Exception(f"No {key} in {self._dict.keys()}")
         return self._dict[key]
 
     def __contains__(self, key):
@@ -41,6 +42,23 @@ class Register:
     def keys(self):
         """key"""
         return self._dict.keys()
+    
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self._name.upper()}:\n"
+
+        keys = sorted(list(self._dict.keys()))
+        nkeys = len(keys)
+        ncols = 5
+        nrows = int(nkeys/ncols)
+        for i in range(nrows):
+            content += ("  "+"{:<24s}"*ncols+"\n").format(*keys[i*ncols:i*ncols+ncols])
+
+        nrest = nkeys - nrows*ncols
+        if nrest > 0:
+            content += ("  "+"{:<24s}"*nrest+"\n").format(*keys[nrows*ncols:])
+
+        return content
 
 class registers:
 
@@ -77,8 +95,17 @@ class registers:
     #: Reactors.
     reactor: Register = Register("reactor")
 
+    #: Expeditions.
+    expedition: Register = Register("expedition")
+
     #: Selectors.
     selector: Register = Register("selector")
+
+    #: Describers.
+    describer: Register = Register("describer")
+
+    #: Comparators.
+    comparator: Register = Register("comparator")
 
     #: Validators.
     validator: Register = Register("validator")
@@ -91,7 +118,8 @@ class registers:
         """Acquire the target class from modules."""
         # - convert the cls_name by the internal convention
         if convert_name:
-            cls_name = cls_name.capitalize() + mod_name.capitalize()
+            #cls_name = cls_name.capitalize() + mod_name.capitalize()
+            cls_name = "".join([x.capitalize() for x in cls_name.strip().split("_")]) + mod_name.capitalize()
 
         # - get the class
         curr_register = getattr(registers, mod_name)
@@ -107,10 +135,6 @@ class registers:
 
         return instance
 
-
-VALIDATOR_MODULES = ["singlepoint", "dimer", "minima"]
-DATA_OPS = ["operations"]
-
 SCHEDULER_MODULES = ["local", "lsf", "pbs", "slurm"]
 
 ALL_MODULES = [
@@ -118,6 +142,7 @@ ALL_MODULES = [
     # -- schedulers
     ("GDPy.scheduler", SCHEDULER_MODULES),
     # -- managers (potentials)
+    ("GDPy.potential", ["managers"]),
     ("GDPy.potential.managers", [
         "vasp", "cp2k", 
         "xtb",
@@ -131,21 +156,27 @@ ALL_MODULES = [
     # -- region
     ("GDPy.builder", ["region"]),
     # -- builders
-    ("GDPy.builder", ["direct", "dimer", "species", "hypercube", "randomBuilder"]),
-    # -- modifiers
-    ("GDPy.builder", ["perturbator"]),
+    ("GDPy", ["builder"]),
+    # -- genetic-algorithm-related
+    ("GDPy.builder", ["crossover", "mutation"]),
     # -- selectors
     ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
+    # -- describer
+    ("GDPy.describer", ["soap"]),
+    # -- comparators
+    ("GDPy", ["comparator"]),
+    # -- expeditions
+    ("GDPy", ["expedition"]),
     # -- reactors
     ("GDPy.reactor", ["afir"]),
     # -- validators
-    ("GDPy.validator", VALIDATOR_MODULES),
+    ("GDPy", ["validator"]),
     # - session operations.
-    ("GDPy.data", DATA_OPS), 
+    ("GDPy.data", ["operations"]), 
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["operations"]),
+    ("GDPy.reactor", ["interface"]),
     ("GDPy.validator", ["interface"]),
-    ("GDPy.validator", ["meltingpoint"]),
     ("GDPy.selector", ["interface"]),
     # - session variables.
     ("GDPy.data", ["interface"]),
@@ -153,6 +184,7 @@ ALL_MODULES = [
     ("GDPy.scheduler", ["interface"]),
     ("GDPy.computation", ["interface"]),
     ("GDPy.potential", ["interface"]),
+    ("GDPy.describer", ["interface"]),
 ]
 
 
@@ -162,9 +194,12 @@ def _handle_errors(errors):
         return
     for name, err in errors:
         warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+        ...
+    
+    return
 
 
-def import_all_modules_for_register(custom_module_paths=None):
+def import_all_modules_for_register(custom_module_paths=None) -> str:
     """Import all modules for register."""
     modules = []
     for base_dir, submodules in ALL_MODULES:
@@ -181,6 +216,8 @@ def import_all_modules_for_register(custom_module_paths=None):
         except ImportError as error:
             errors.append((module, error))
     _handle_errors(errors)
+
+    return
 
 if __name__ == "__main__":
     ...

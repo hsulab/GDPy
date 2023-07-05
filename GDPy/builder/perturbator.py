@@ -9,16 +9,10 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.register import registers
-from GDPy.core.operation import Operation
-from GDPy.builder.builder import StructureBuilder
-from GDPy.computation.utils import copy_minimal_frames
+from .builder import StructureModifier 
 
-from GDPy.core.node import AbstractNode
 
-#@registers.modifier.register
-@registers.builder.register
-class PerturbatorBuilder(StructureBuilder):
+class PerturbatorBuilder(StructureModifier):
 
     name = "perturbater"
 
@@ -31,18 +25,27 @@ class PerturbatorBuilder(StructureBuilder):
 
     """
 
-    def __init__(self, eps: float=0.2, directory="./", random_seed=1112, *args, **kwargs):
+    def __init__(self, eps: float=0.2, *args, **kwargs):
         """"""
-        super().__init__(directory=directory, random_seed=random_seed)
+        super().__init__(*args, **kwargs)
 
         self.eps = eps # unit Ang
 
         return
     
-    def run(self, substrate: Atoms, size:int=1, *args, **kwargs):
+    def run(self, substrates: List[Atoms]=None, size:int=1, *args, **kwargs) -> List[Atoms]:
         """"""
-        super().run(*args, **kwargs)
+        super().run(substrates=substrates, *args, **kwargs)
 
+        frames = []
+        for substrate in self.substrates:
+            curr_frames = self._irun(substrate, size)
+            frames.extend(curr_frames)
+
+        return frames
+    
+    def _irun(self, substrate: Atoms, size: int):
+        """"""
         frames = []
         for i in range(size):
             atoms = copy.deepcopy(substrate)

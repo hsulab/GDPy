@@ -5,6 +5,8 @@ import abc
 import copy
 import dataclasses
 import pathlib
+import shutil
+import warnings
 
 from typing import Optional, NoReturn, List, Callable
 from collections.abc import Iterable
@@ -12,6 +14,14 @@ from collections.abc import Iterable
 import numpy as np
 
 from ase import Atoms
+from ase.constraints import FixAtoms
+from ase.calculators.calculator import compare_atoms
+
+from GDPy import config
+from GDPy.builder.constraints import parse_constraint_info
+
+#: Prefix of backup files
+BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
 
 #: Parameter keys used to init a minimisation task.
 MIN_INIT_KEYS: List[str] = ["min_style", "min_modify", "dump_period"]
@@ -49,6 +59,9 @@ class DriverSetting:
     md_style: str = "nvt"
 
     velocity_seed: int = None
+
+    #: Whether ignore atoms' velocities and initialise it from the scratch.
+    ignore_atoms_velocities: bool = False
 
     #: Whether remove rotation when init velocity.
     remove_rotation: bool = True
@@ -98,43 +111,34 @@ class AbstractDriver(abc.ABC):
     #: Driver's name.
     name: str = "abstract"
 
+    #: Atoms that is for state check.
+    atoms: Optional[Atoms] = None
+
     #: Standard print.
-    _print: Callable = print
+    _print: Callable = config._print
 
     #: Standard debug.
-    _debug: Callable = print
+    _debug: Callable = config._debug
 
     #: Whether check the dynamics is converged, and re-run if not.
     ignore_convergence: bool = False
 
-    #: Deleted keywords.
-    delete: list = []
-
     #: Driver setting.
     setting: DriverSetting = None
 
-    #: Keyword.
-    keyword: Optional[str] = None
+    #: List of output files would be saved when restart.
+    saved_fnames: List[str] = []
 
-    #: Special keywords.
-    special_keywords: dict = {}
+    #: List of output files would be removed when restart.
+    removed_fnames: List[str] = []
 
     #: Systemwise parameter keys.
     syswise_keys: list = []
 
-    #: Default init parameters.
-    default_init_params: dict = dict()
-
-    #: Default run parameters.
-    default_run_params: dict = dict()
-
-    #: Map input key names to the actual names used in the backend.
-    param_mapping: dict = dict()
-
     #: Parameters for PotentialManager.
     pot_params: dict = None
 
-    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+    def __init__(self, calc, params: dict, directory="./", ignore_convergence: bool=False, *args, **kwargs):
         """Init a driver.
 
         Args:
@@ -147,6 +151,8 @@ class AbstractDriver(abc.ABC):
         self.calc.reset()
 
         self._directory = pathlib.Path(directory)
+
+        self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
 
@@ -211,37 +217,12 @@ class AbstractDriver(abc.ABC):
 
         return value
     
-    def reset(self) -> NoReturn:
+    def reset(self) -> None:
         """Remove results stored in dynamics calculator."""
         self.calc.reset()
 
         return
 
-    def delete_keywords(self, kwargs) -> None:
-        """Removes list of keywords (delete) from kwargs."""
-        for d in self.delete:
-            kwargs.pop(d, None)
-
-        return
-
-    def set_keywords(self, kwargs) -> NoReturn:
-        """Set list of keywords from kwargs."""
-        args = kwargs.pop(self.keyword, [])
-        if isinstance(args, str):
-            args = [args]
-        elif isinstance(args, Iterable):
-            args = list(args)
-
-        for key, template in self.special_keywords.items():
-            if key in kwargs:
-                val = kwargs.pop(key)
-                args.append(template.format(val))
-
-        kwargs[self.keyword] = args
-
-        return
-
-    @abc.abstractmethod
     def run(self, atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
         """Return the last frame of the simulation.
 
@@ -250,9 +231,91 @@ class AbstractDriver(abc.ABC):
         be added to the atoms.info
 
         """
-        new_atoms = copy.deepcopy(atoms)
+        # - NOTE: input atoms from WORKER may have minimal properties as
+        #         cell, pbc, positions, symbols, tags, momenta...
+        atoms = atoms.copy()
+
+        # - set driver's atoms to the current one
+        system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
+        if len(system_changes) > 0:
+            system_changed = True
+        else:
+            system_changed = False
+
+        # - backup old params
+        params_old = copy.deepcopy(self.calc.parameters)
+
+        # - run dynamics
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True)
+            self._irun(atoms, *args, **kwargs)
+        else:
+            if not system_changed:
+                if list(self.directory.iterdir()):
+                    converged = self.read_convergence()
+                    if not converged:
+                        if read_exists:
+                            atoms, resume_params = self._resume(atoms, *args, **kwargs)
+                            kwargs.update(**resume_params)
+                            self._backup()
+                        self._cleanup()
+                        self._irun(atoms, *args, **kwargs)
+                    else:
+                        ...
+                else:
+                    self._irun(atoms, *args, **kwargs)
+            else:
+                self._cleanup()
+                self._irun(atoms, *args, **kwargs)
+        
+        # - get results
+        traj = self.read_trajectory()
+        nframes = len(traj)
+        if nframes > 0:
+            new_atoms = traj[-1]
+            if extra_info is not None:
+                new_atoms.info.update(**extra_info)
+        else:
+            warnings.warn(f"The calculation at {self.directory.name} performed but failed.", RuntimeWarning)
+            new_atoms = None
+
+        # - reset params
+        self.calc.parameters = params_old
+        self.calc.reset()
 
         return new_atoms
+
+    def _backup(self):
+        """Backup output files and continue with lastest atoms."""
+        for fname in self.saved_fnames:
+            curr_fpath = self.directory/fname
+            if curr_fpath.exists(): # TODO: check if file is empty?
+                backup_fmt = (BACKUP_PREFIX_FORMAT+fname)
+                # --- check backups
+                idx = 0
+                while True:
+                    backup_fpath = self.directory/(backup_fmt.format(idx))
+                    if not pathlib.Path(backup_fpath).exists():
+                        shutil.copy(curr_fpath, backup_fpath)
+                        break
+                    else:
+                        idx += 1
+
+        return
+    
+    def _cleanup(self):
+        """Remove unnecessary files.
+
+        Some dynamics will not overwrite old files so cleanup is needed.
+
+        """
+        # retain calculator-related files
+        for fname in self.removed_fnames:
+            curr_fpath = self.directory/fname
+            if curr_fpath.exists():
+                curr_fpath.unlink()
+
+        return
     
     def read_convergence(self, *args, **kwargs) -> bool:
         """Read output to check whether the simulation is converged.
@@ -264,6 +327,7 @@ class AbstractDriver(abc.ABC):
         if self.ignore_convergence:
             return True
 
+        # - check whether the driver is coverged
         traj_frames = self.read_trajectory() # NOTE: DEAL WITH EMPTY FILE ERROR
         nframes = len(traj_frames)
 
@@ -274,14 +338,21 @@ class AbstractDriver(abc.ABC):
                 self._debug("nframes: ", nframes)
                 if self.setting.task == "min":
                     # NOTE: check geometric convergence (forces)...
-                    # TODO: if etol and fmax is set at run-time???
-                    maxfrc = np.max(np.fabs(traj_frames[-1].get_forces()))
+                    #       some drivers does not store constraints in trajectories
+                    atoms = traj_frames[-1]
+                    run_params = self.setting.get_run_params()
+                    cons_text = run_params.pop("constraint", None)
+                    mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+                    if frozen_indices:
+                        atoms._del_constraints()
+                        atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                    maxfrc = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
                     if maxfrc <= self.setting.fmax:
                         converged = True
                     self._debug("MIN convergence: ", converged, f" {maxfrc} <=? {self.setting.fmax}")
                 elif self.setting.task == "md":
-                    # TODO: if steps is set at run-time???
-                    if step >= self.setting.steps:
+                    #print("steps: ", step, self.setting.steps)
+                    if step+1 >= self.setting.steps: # step startswith 0
                         converged = True
                     self._debug("MD convergence: ", converged)
                 else:
@@ -293,7 +364,13 @@ class AbstractDriver(abc.ABC):
         else:
             ...
 
-        return converged
+        # TODO: if driver converged but force (scf) is not, return True
+        #       and discard this structures which is due to DFT or ...
+        force_converged = True
+        if hasattr(self, "read_force_convergence"):
+            force_converged = self.read_force_convergence()
+
+        return (converged and force_converged)
 
     @abc.abstractmethod
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
@@ -302,20 +379,11 @@ class AbstractDriver(abc.ABC):
 
         return
     
-    def read_converged(self, *args, **kwargs) -> Atoms:
-        """Read last frame of the trajectory.
-
-        It would be better if the structure were checked to be converged.
-
-        """
-        traj_frames = self.read_trajectory(*args, **kwargs)
-
-        return traj_frames[-1]
-    
     def as_dict(self) -> dict:
         """Return parameters of this driver."""
         params = dict(
-            backend = self.name
+            backend = self.name,
+            ignore_convergence = self.ignore_convergence
         )
         # NOTE: we use original params otherwise internal param names would be 
         #       written out and make things confusing

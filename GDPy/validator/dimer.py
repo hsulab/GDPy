@@ -18,25 +18,17 @@ except Exception as e:
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.register import registers
-from GDPy.validator.validator import AbstractValidator
-from GDPy.computation.worker.drive import DriverBasedWorker
+from ..worker.drive import DriverBasedWorker
+from .validator import AbstractValidator
+from .utils import get_properties
 
-from GDPy.validator.utils import get_properties
 
-def plot_dimer(ax, x_ref, x_pred):
-    """"""
-
-    return
-
-@registers.validator.register
 class DimerValidator(AbstractValidator):
 
     def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         super().run()
-        data = []
-        for prefix, frames in dataset:
+        for prefix, frames in dataset["reference"]:
             self._irun(prefix, frames, None, worker)
 
         return
@@ -59,7 +51,7 @@ class DimerValidator(AbstractValidator):
         if pred_frames is None:
             # NOTE: use worker to calculate
             # TODO: use cached data?
-            self.logger.info(f"Calculate reference frames {prefix} with potential...")
+            self._print(f"Calculate reference frames {prefix} with potential...")
             cached_pred_fpath = self.directory / prefix / "pred.xyz"
             if not cached_pred_fpath.exists():
                 worker.directory = self.directory / prefix
@@ -71,7 +63,7 @@ class DimerValidator(AbstractValidator):
                 worker.inspect(resubmit=True)
                 if worker.get_number_of_running_jobs() == 0:
                     pred_frames = worker.retrieve(
-                        ignore_retrieved=False,
+                        include_retrieved=True,
                     )
                 else:
                     # TODO: ...

@@ -11,12 +11,15 @@ The builder parameters:
 * composition:
 
     A dictionary of the chemical composition to insert. This can be atoms, molecules, 
-    or a mixture of them. For example, `{"Cu": 13}`, `{"H2O": 3}` and `{"Cu": 13, "H2O": 3}`.
+    or a mixture of them. For example, only atoms as `{"Cu": 13}`, only molecules as 
+    `{"H2O": 3}` and mixed atoms and molecules `{"Cu": 13, "H2O": 3}`.
+    Moreover, if the exact number of molecules is unknwon, it can be automatically determined 
+    by the density as `{"H2O": "density 0.998"}` with the unit of ``g/cm^3``.
 
 * region:
 
-    Define the region where random atoms are put. See :ref:`Region Definitions` for 
-    more details.
+    Define the region where random atoms/molecules are put. 
+    See :ref:`Region Definitions` for more details.
 
 * covalent_ratio:
 
@@ -46,18 +49,18 @@ more concentrated.
 .. code-block:: yaml
 
     # - Genreate a cluster with 13 Cu and 3 H2O.
-    builder:
-      composition: 
-        Cu: 13
-        H2O: 3
-      cell: [30., 0., 0., 0., 30., 0., 0., 0., 30.]
-      region:
-        method: "lattice"
-        origin: [10., 10., 10.,]
-        cell: [10., 0., 0., 0., 10., 0., 0., 0., 10.]
-      covalent_ratio: [0.6, 2.0]
-      test_too_far: false
-      random_seed: 1112
+    method: random_cluster
+    composition: 
+      Cu: 13
+      H2O: 3
+    cell: [30., 0., 0., 0., 30., 0., 0., 0., 30.]
+    region:
+      method: lattice
+      origin: [10., 10., 10.,]
+      cell: [10., 0., 0., 0., 10., 0., 0., 0., 10.]
+    covalent_ratio: [0.6, 2.0]
+    test_too_far: false
+    random_seed: 1112
 
 Surface
 -------
@@ -69,19 +72,19 @@ and the y-axis but a cut in z-axis that has a range from 7.5 to 13.5 (7.5+6.0).
 .. code-block:: yaml
 
     # - Genreate a surface with 8 Cu and 3 O.
-    builder:
-      substrate: ./assets/slab.xyz
-      composition: 
-        Cu: 8
-        O: 3
-      region:
-        method: "lattice"
-        origin: [0., 0., 7.5]
-        cell: [5.85, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.0]
-      covalent_ratio: [0.4, 2.0]
-      test_dist_to_slab: false
-      test_too_far: false
-      random_seed: 1112
+    method: random_surface
+    substrate: ./assets/slab.xyz
+    composition: 
+      Cu: 8
+      O: 3
+    region:
+      method: surface_lattice
+      origin: [0., 0., 7.5]
+      cell: [5.85, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.0]
+    covalent_ratio: [0.4, 2.0]
+    test_dist_to_slab: false
+    test_too_far: false
+    random_seed: 1112
 
 Bulk
 ----
@@ -92,14 +95,14 @@ angles and lengths.
 .. code-block:: yaml
 
     # - Genreate a bulk with 4 Cu and 2 O.
-    builder:
-      composition:
-        Cu: 4
-        O: 2
-      cell_bounds:
-        phi: [35, 145]
-        chi: [35, 145]
-        psi: [35, 145]
-        a: [3, 50]
-        b: [3, 50]
-        c: [3, 50]
+    method: random_bulk
+    composition:
+      Cu: 4
+      O: 2
+    cell_bounds:
+      phi: [35, 145]
+      chi: [35, 145]
+      psi: [35, 145]
+      a: [3, 50]
+      b: [3, 50]
+      c: [3, 50]

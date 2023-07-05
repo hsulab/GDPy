@@ -1,127 +1,99 @@
 Expeditions
 ===========
 
-.. warning:: 
+This section demonstrates several advanced methods to explore the configuration space, 
+which are made up of basic computations. In general, an expedition is made up of three 
+components, namely, **builder**, **worker**, and some specific parameters. 
 
-    This module is deprecated in version 0.0.2. With the new feature `Session`, 
-    custom and versatile expedition workflows can be created. See :ref:`sessions` for more details.
+.. |Expedition| image:: ../../images/expedition.svg
+    :width: 800
+    :align: middle
 
-This section introduces expeditions implemented in GDPy. In general, each expedition
-includes four stages, namely create, collect, select, and label. As usual, we offer 
-a unified input file to access different explorations by setting the **method** 
-and its corresponding **create** procedure. Expeditions can be combined with any 
-potential formulation that can be recognised in `pot.yaml` (see :ref:`potential examples`). 
+Also, an expedition progresses iteratively. The figure below demonstrates how we decouple 
+the working ingrediants and manage the communication between the expedition and 
+the job queue (e.g. SLURM) if minimisations were not directly performed in the command line. 
 
-See Expedition_Examples_ in the GDPy repository for prepared input files.
+In every iteration, the expedition will build several new structures (either from the scratch or 
+based on previously explored structures), and then evolves these structures into more 
+physically reasonable ones by minimisation or molecular dynamics. This procedure produces 
+a large number of trajectories. Applying some selections, we can extract local minima 
+of interest and some structures from trajectories, which help the MLIP learns a comprehensive configuration space.
 
-.. _Expedition_Examples: https://github.com/hsulab/GDPy/tree/main/examples/expedition
+   |Expedition|
 
-The related command is 
+Related Commands
+----------------
 
 .. code-block:: shell
 
-    # gdp -h for more info
-    $ gdp -h
+   # - explore configuration space defined by `config.yaml` 
+   #   results will be written to the `results` folder
+   #   a log file will be written to `results/gdp.out` as well
+   $ gdp -d exp explore ./config.yaml
 
-    # run explorations defined in exp.yaml with potential as pot.yaml and
-    #   with selected candidates labelled by ref.yaml
-    $ gdp -p ./pot.yaml -r ./ref.yaml explore ./exp.yaml
+   # - or use the below command if there is `worker` section defined in `config.yaml`
+   $ gdp -d exp -p worker.yaml explore ./config.yaml
 
-.. important:: 
-    If a scheduler is defined in `pot.yaml`, the `create` step would be submitted to
-    the queue and the expedition would stop. When running the `explore` command 
-    again, the expedition would check whether the current step (e.g. `create`) is 
-    finished and move on to the next if the current is finished.
+The `config.yaml` defines the specific expedition. See the page of each documentation 
+for more information.
+    
+The `worker.yaml` defines the potential and the minimisation used through the expedition.
+(See :ref:`computations` for more details.)
+For example, the below configuration indicates a minisation by `deepmd` using both `lammps` 
+backends. Note set `ignore_convergence` to **true** will ignore the convergence check of the 
+minimisation. Since the structures from the first few iterations are far away from minima 
+i.e. they have very high potential energies, there is no need to minimise them to the full 
+convergence. In most cases, 400 `steps` is more than enough. This setting help us reduce 
+computation costs.
 
-.. important:: 
-    If `-r ref.yaml` is not provided, the expedition would stop at the `select` 
-    step and prompt `Reference worker is not set properly.`. Thus, the selected 
-    candidates would not be labelled by reference (e.g. DFT).
+Besides, a `slurm` scheduler is set with a `batchsize` of 5. When the expedition comes 
+across any minimisation, it will automatically submit jobs to the queue and each job 
+will contain 5 structures as a group. When run the `gdp ... explore ...` command again, 
+the expedition will try to retrieve the minimisation results if they are finished, and 
+continues to run the rest procedure.
 
-The code structure is
+If no scheduler is set, all minimisation will run in the command line. Therefore, 
+it is practical to write a job script with the `gdp ... explore ...` command and 
+submit it to the queue if a large number of structures are to explore.
 
-.. code-block:: python
-
-    for exp in explorations:
-        for sys in systems:
-            create()   # run simulation 
-            collect()  # collect results
-            select()   # select structures
-            label()    # label candidates
-
-The input file (`exp.yaml`) structure is 
-
-.. code-block:: yaml
-
-    database: ./set # where labelled structures are stored
-    method: md # options are md, evo, ads, rxn
-    systems:
-        ... # a dict of system definitions
-    explorations:
-        ... # a dict of expedition definitions
-        # for each exploration
-        exp:
-            systems: [...]
-            create:
-                ...
-            collect:
-                ...
-            select:
-                ...
-        ...
-
-Define a System
----------------
-In the **systems** section, we need to specify what particular systems would be 
-explored. There are several parameters need to define:
-
-- prefix:      Use to distinguish systems when creating directories if needed.
-- composition: System chemical composition.
-- kpts:        System-depandent for DFT calculation.
-- constraint:  Fix some atoms during the exploration.
-
-More importantly, there are two ways to create initial structures.
-
-The first one using structures from a file. The example below reads structures with 8
-Cu atoms as initial structures to explore.
 
 .. code-block:: yaml
 
-    sysName:
-        prefix: sysPrefix
-        structure: ./frames.xyz
-        composition: {"Cu": 8}
-        kpts: 30 # kspacing
-        constraint: "1:4"
+   batchsize: 5
+   driver:
+     backend: lammps
+     ignore_convergence: true
+     task: min
+     run:
+       fmax: 0.05 # eV/Ang
+       steps: 400
+       constraint: lowest 120
+   potential:
+     name: deepmd
+     params:
+       backend: lammps
+       command: lmp -in in.lammps 2>&1 > lmp.out
+       type_list: [Al, Cu, O]
+       model:
+         - ./graph-0.pb
+         - ./graph-1.pb
+         - ./graph-2.pb
+         - ./graph-3.pb
+   scheduler:
+     backend: slurm
+     ntasks: 1
+     cpus-per-task: 4
+     time: "00:10:00"
+     environs: "conda activate deepmd\n"
 
-The second one defining a generator to create some. The example below creates
-2 (`size`) structures that have 9 water molecules randomly placed above a Pt substrate.
-
-.. code-block:: yaml
-
-    sysName:
-        prefix: sysPrefix
-        generator:
-            method: random
-            type: surface
-            composition: {"H2O": 9}
-            covalent_ratio: 0.8
-            substrate: ./substrates.xyz
-            surfdis: [1.5, 6.5]
-        size: 2
-        composition: {"H": 9, "O": 18, "Pt": 16}
-        kpts: [2,2,1] # kmesh
-        constraint: "1:4"
 
 List of Expeditions
 -------------------
-The **method** should be set to access different expedition strategies (e.g. 
-md, evo, ads and rxn).
 
 .. toctree::
    :maxdepth: 2
 
-   md.rst
-   evo.rst
-   ads.rst
-   rxn.rst
+   mc.rst
+   ga.rst
+
+

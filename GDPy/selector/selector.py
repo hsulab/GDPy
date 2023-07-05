@@ -13,7 +13,7 @@ from ase import Atoms
 
 from GDPy import config
 from GDPy.core.node import AbstractNode
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 from GDPy.data.trajectory import Trajectories
 
 
@@ -98,10 +98,8 @@ class AbstractSelector(AbstractNode):
     #: Output file name.
     _fname: str = "info.txt"
 
-    logger = None #: Logger instance.
-
-    _pfunc: Callable = print #: Function for outputs.
-    indent: int = 0 #: Indent of outputs.
+    _print: Callable = config._print
+    _debug: Callable = config._debug
 
     #: Output data format (frames or trajectories).
     _out_fmt: str = "stru"
@@ -168,9 +166,7 @@ class AbstractSelector(AbstractNode):
             List[Atoms] or List[int]: selected results
 
         """
-        if self.logger is not None:
-            self._pfunc = self.logger.info
-        self.pfunc(f"@@@{self.__class__.__name__}")
+        self._print(f"@@@{self.__class__.__name__}")
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
@@ -180,14 +176,14 @@ class AbstractSelector(AbstractNode):
 
         # - check if it is finished
         if not (self.info_fpath).exists():
-            self.pfunc("run selection...")
+            self._print("run selection...")
             self._mark_structures(frames)
         else:
             # -- restart
-            self.pfunc("use cached...")
+            self._print("use cached...")
             raw_markers = load_cache(self.info_fpath)
             frames.set_markers(raw_markers)
-        self.pfunc(f"{self.name} nstructures {frames.nstructures} -> nselected {frames.get_number_of_markers()}")
+        self._print(f"{self.name} nstructures {frames.nstructures} -> nselected {frames.get_number_of_markers()}")
 
         # - save cached results for restart
         self._write_cached_results(frames)
@@ -230,13 +226,6 @@ class AbstractSelector(AbstractNode):
             num_fixed = int(nframes*num_percent)
 
         return num_fixed
-    
-    def pfunc(self, content, *args, **kwargs):
-        """Write outputs to file."""
-        content = self.indent*" " + content
-        self._pfunc(content)
-
-        return
 
     def _write_cached_results(self, frames: Trajectories, *args, **kwargs) -> None:
         """Write selection results into file that can be used for restart."""

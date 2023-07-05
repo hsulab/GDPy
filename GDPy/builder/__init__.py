@@ -1,93 +1,50 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from pathlib import Path
-from typing import Union, List
+from .interface import create_builder
 
-from GDPy.builder.direct import DirectBuilder
-from GDPy.builder.species import FormulaBasedGenerator
-from GDPy.builder.dimer import DimerBuilder
-from GDPy.builder.builder import StructureGenerator
-from GDPy.builder.adsorbate import AdsorbateGraphGenerator
+from ..core.register import registers
+from .direct import DirectBuilder, ReadBuilder
+from .species import MoleculeBuilder
+from .dimer import DimerBuilder
+from .perturbator import PerturbatorBuilder
+from .packer import PackerBuilder
+from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
+from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 
-supported_filetypes = [".xyz", ".xsd", ".arc"]
-supproted_configtypes = ["json", "yaml"]
 
-def create_generator(params: Union[str, dict]) -> StructureGenerator:
-    """"""
-    # - parse string
-    if isinstance(params, (str,Path)):
-        params = str(params)
-        suffix = params[-4:]
-        if suffix in supported_filetypes:
-            params = dict(
-                method = "direct",
-                frames = params
-            )
-        elif suffix in supproted_configtypes:
-            from GDPy.utils.command import parse_input_file
-            params = parse_input_file(params)
-        else:
-            params = dict(
-                method = "formula",
-                chemical_formula = params
-            )
+# - basic builders and modifiers
+registers.builder.register("direct")(DirectBuilder)
+registers.builder.register("reader")(ReadBuilder)
+registers.builder.register("dimer")(DimerBuilder)
+registers.builder.register("molecule")(MoleculeBuilder)
+registers.builder.register("perturb")(PerturbatorBuilder)
+registers.builder.register("pack")(PackerBuilder)
+registers.builder.register("graph_insert")(GraphInsertModifier)
+registers.builder.register("graph_remove")(GraphRemoveModifier)
+registers.builder.register("graph_exchange")(GraphExchangeModifier)
+registers.builder.register("random_bulk")(BulkBuilder)
+registers.builder.register("random_cluster")(ClusterBuilder)
+registers.builder.register("random_surface")(SurfaceBuilder)
 
-    # - params dict
-    method = params.pop("method", "random")
-    if method == "direct":
-        generator = DirectBuilder(**params)
-    elif method == "formula":
-        generator = FormulaBasedGenerator(**params)
-    elif method == "dimer":
-        generator = DimerBuilder(params)
-    elif method == "adsorbate":
-        generator = AdsorbateGraphGenerator(params)
-    else:
-        raise RuntimeError("Unknown generator params...")
+from .cleave_surface import CleaveSurfaceModifier
+registers.builder.register("cleave_surface")(CleaveSurfaceModifier)
 
-    return generator
+from .repeat import RepeatModifier
+registers.builder.register("repeat")(RepeatModifier)
 
-def create_generators(params: Union[str, dict]) -> List[StructureGenerator]:
-    """"""
-    # - parse string
-    if isinstance(params, (str,Path)):
-        params = str(params)
-        suffix = params[-4:]
-        if suffix in supported_filetypes:
-            params = dict(
-                method = "direct",
-                frames = params
-            )
-        elif suffix in supproted_configtypes:
-            from GDPy.utils.command import parse_input_file
-            params = parse_input_file(params)
-        else:
-            params = dict(
-                method = "formula",
-                chemical_formula = params
-            )
+# - extra modifiers
+from .zoom import ZoomModifier
+registers.builder.register("zoom")(ZoomModifier)
 
-    # - params dict
-    method = params.pop("method", "random")
-    repeat = params.pop("repeat", 1) # generators would run in tandem
 
-    generators = []
-    for i in range(repeat):
-        if method == "direct":
-            generator = DirectBuilder(**params)
-        elif method == "formula":
-            generator = FormulaBasedGenerator(**params)
-        elif method == "dimer":
-            generator = DimerBuilder(params)
-        elif method == "adsorbate":
-            generator = AdsorbateGraphGenerator(params)
-        else:
-            raise RuntimeError("Unknown generator params...")
-        generators.append(generator)
+# - optional
+try:
+    from .hypercube import HypercubeBuilder
+    registers.builder.register("hypercube")(HypercubeBuilder)
+except ImportError as e:
+    ...
 
-    return generators
-    
 
 if __name__ == "__main__":
-    pass
+    ...

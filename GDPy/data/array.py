@@ -68,9 +68,6 @@ def reconstruct_images_from_hd5grp(grp):
 
 class AtomsArray:
 
-    #: Atoms data.
-    _images: List[Atoms] = None
-
     #: Metadata about how this array is created.
     metadata = None
 
@@ -83,9 +80,16 @@ class AtomsArray:
     # MD and MIN settings... TODO: type?
     # dump period
 
-    def __init__(self, images: List[Atoms], *args, **kwargs):
+    #: Atoms data.
+    _images: List[Atoms] = None
+
+    def __init__(self, images: List[Atoms] = None, *args, **kwargs):
         """"""
-        self._images = images
+        #: Atoms data.
+        if images is None:
+            self._images = []
+        else:
+            self._images = images
 
         return
     
@@ -226,8 +230,10 @@ class AtomsArray:
     
     def __repr__(self) -> str:
         """"""
-
-        return f"AtomsArray(task={self.task}, shape={len(self)}, markers={self.markers})"
+        if len(self) > 0:
+            return f"AtomsArray(shape={len(self)}, markers={self.markers})"
+        else:
+            return f"AtomsArray(shape={len(self)})"
 
 
 class AtomsArray2D:
@@ -238,11 +244,15 @@ class AtomsArray2D:
     name = "array2d"
 
     #: Structure data.
-    _rows: List[AtomsArray] = []
+    _rows: List[AtomsArray] = None
 
-    def __init__(self, rows: List[AtomsArray]=[], *args, **kwargs) -> None:
+    def __init__(self, rows: List[AtomsArray]=None, *args, **kwargs) -> None:
         """"""
-        self._rows = rows
+        #: Structure data.
+        if rows is None:
+            self._rows = []
+        else:
+            self._rows = rows
 
         return
     
@@ -379,7 +389,10 @@ class AtomsArray2D:
     def __repr__(self) -> str:
         """"""
 
-        return f"AtomsArray2D(number: {len(self)}, shape: {self.shape}, markers: {self.get_number_of_markers()})"
+        if len(self) > 0:
+            return f"AtomsArray2D(number: {len(self)}, shape: {self.shape}, markers: {self.get_number_of_markers()})"
+        else:
+            return f"AtomsArray2D(number: {len(self)})"
 
 
 if __name__ == "__main__":

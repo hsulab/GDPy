@@ -102,6 +102,12 @@ class AbstractTrainer(abc.ABC):
 
         return
     
+    @property
+    @abc.abstractmethod
+    def frozen_name(self):
+        """"""
+        ...
+    
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
         command = self._resolve_train_command(init_model)
@@ -136,7 +142,7 @@ class AbstractTrainer(abc.ABC):
     
     def freeze(self):
         """Freeze trained model and return the model path."""
-        frozen_model = (self.directory/f"{self.name}.pb").resolve()
+        frozen_model = (self.directory/self.frozen_name).resolve()
         if not frozen_model.exists():
             command = self._resolve_freeze_command()
             try:
@@ -156,7 +162,7 @@ class AbstractTrainer(abc.ABC):
         else:
             ...
 
-        return self.directory/f"{self.name}.pb"
+        return self.directory/self.frozen_name
     
     @abc.abstractmethod
     def write_input(self, dataset, *args, **kwargs):

@@ -15,9 +15,8 @@ from ase.constraints import UnitCellFilter
 
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from GDPy.core.register import registers
 from GDPy.validator.validator import AbstractValidator
-from GDPy.computation.worker.drive import DriverBasedWorker
+from GDPy.worker.drive import DriverBasedWorker
 from GDPy.builder.constraints import set_constraint
 
 """Validate minima and relative energies...
@@ -37,7 +36,7 @@ def make_clean_atoms(atoms_, results=None):
 
     return atoms
 
-@registers.validator.register
+
 class MinimaValidator(AbstractValidator):
 
     """Run minimisation on various configurations and compare relative energy.
@@ -48,10 +47,16 @@ class MinimaValidator(AbstractValidator):
 
     """
 
+    def __init__(self, ene_shift=[], *args, **kwargs):
+        """"""
+        super().__init__(*args, **kwargs)
+
+        self.ene_shift = ene_shift
+
+        return
+
     def run(self, dataset: dict, worker: DriverBasedWorker, *args, **kwargs):
         """"""
-        task_params = copy.deepcopy(self.task_params)
-
         # TODO: assume dataset is a dict of frames
         pre_dataset = {}
         for k, curr_frames in dataset.items():
@@ -62,14 +67,14 @@ class MinimaValidator(AbstractValidator):
                 worker.directory = self.directory/k
                 worker.batchsize = nframes
 
-                #worker._share_wdir = True
-
                 worker.run(curr_frames)
                 worker.inspect(resubmit=True)
                 if worker.get_number_of_running_jobs() == 0:
-                    pred_frames = worker.retrieve(
-                        ignore_retrieved=False,
+                    # -- get end frames
+                    trajectories = worker.retrieve(
+                        include_retrieved=True,
                     )
+                    pred_frames = [t[-1] for t in trajectories]
                 else:
                     # TODO: ...
                     ...
@@ -80,90 +85,56 @@ class MinimaValidator(AbstractValidator):
             pre_dataset[k] = pred_frames
         
         # -
-        key = "composites"
+        keys = list(dataset.keys())
+        for key in keys:
+            self._print(f"group {key}")
+            # - restore constraints
+            cons_text = worker.driver.as_dict()["constraint"]
+            for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
+                set_constraint(ref_atoms, cons_text, ignore_attached_constraints=True)
+                set_constraint(pre_atoms, cons_text, ignore_attached_constraints=True)
         
-        # - restore constraints
-        cons_text = worker.driver.as_dict()["constraint"]
-        for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
-            set_constraint(ref_atoms, cons_text, ignore_attached_constraints=True)
-            set_constraint(pre_atoms, cons_text, ignore_attached_constraints=True)
+            # - compare ...
+            ref_energies = np.array([a.get_potential_energy() for a in dataset[key]])
+            pre_energies = np.array([a.get_potential_energy() for a in pre_dataset[key]])
+
+            ref_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in dataset[key]])
+            pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
+
+            # - compute shifts if any
+            if key == "composites":
+                if self.ene_shift:
+                    ref_ene_shift = np.sum([x*dataset[y][0].get_potential_energy() for x, y in self.ene_shift])
+                    pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in self.ene_shift])
+            else:
+                ref_ene_shift = 0.
+                pre_ene_shift = 0.
+
+            ref_rel_energies = ref_energies - ref_ene_shift
+            pre_rel_energies = pre_energies - pre_ene_shift
+
+            # -- disp
+            disps = [] # displacements
+            for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
+                vector = pre_atoms.get_positions() - ref_atoms.get_positions()
+                vmin, vlen = find_mic(vector, pre_atoms.get_cell())
+                disps.append(np.linalg.norm(vlen))
+
+            content = ("{:<24s}  "+"{:<12s}  "*7+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse", "RefRelEne", "NewRelEne")
+            for i, (ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene) in enumerate(
+                zip(ref_energies, pre_energies, ref_maxforces, pre_maxforces, disps, ref_rel_energies, pre_rel_energies)
+            ):
+                content += ("{:<24s}  "+"{:<12.4f}  "*7+"\n").format(
+                    str(i), ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene
+                )
+
+            with open(self.directory/f"abs-{key}.dat", "w") as fopen:
+                fopen.write(content)
         
-        # - compare ...
-        ref_energies = np.array([a.get_potential_energy() for a in dataset[key]])
-        pre_energies = np.array([a.get_potential_energy() for a in pre_dataset[key]])
-
-        ref_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in dataset[key]])
-        pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
-
-        # - compute shifts if any
-        ref_ene_shift = np.sum([x*y for x, y in task_params["ref_ene_shift"]])
-        pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in task_params["pre_ene_shift"]])
-
-        ref_rel_energies = ref_energies - ref_ene_shift
-        pre_rel_energies = pre_energies - pre_ene_shift
-
-        # -- disp
-        disps = [] # displacements
-        for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
-            vector = pre_atoms.get_positions() - ref_atoms.get_positions()
-            vmin, vlen = find_mic(vector, pre_atoms.get_cell())
-            disps.append(np.linalg.norm(vlen))
-
-        content = ("{:<24s}  "+"{:<12s}  "*7+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse", "RefRelEne", "NewRelEne")
-        for i, (ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene) in enumerate(
-            zip(ref_energies, pre_energies, ref_maxforces, pre_maxforces, disps, ref_rel_energies, pre_rel_energies)
-        ):
-            content += ("{:<24s}  "+"{:<12.4f}  "*7+"\n").format(
-                str(i), ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene
-            )
-
-        with open(self.directory/"abs.dat", "w") as fopen:
-            fopen.write(content)
-        
-        self._print(content)
-
-        return
-
-    def _compute_chemical_equations(self, dataset, worker, *args, **kwargs):
-        """"""
-        # - parse relative energies
-        ene_dict = {}
-        for name, ref_ene, new_ene in zip(names, ref_energies, new_energies):
-            ene_dict[name] = [ref_ene, new_ene]
-            ...
-        equations = params.get("equations", None)
-        if equations is not None:
-            ref_rets, new_rets = [], []
-            for eqn in equations:
-                ref_eqn_data, new_eqn_data = [], []
-                data = eqn.strip().split()
-                for e in data:
-                    if (not e.isdigit()) and (e not in ["+", "-", "*", "/"]):
-                        if e in names:
-                            ref_eqn_data.append(
-                                str(round(float(ene_dict[e][0]),4))
-                            )
-                            new_eqn_data.append(
-                                str(round(float(ene_dict[e][1]),4))
-                            )
-                    else:
-                        ref_eqn_data.append(e)
-                        new_eqn_data.append(e)
-                #print(ref_eqn_data)
-                #print(new_eqn_data)
-                ref_eqn = "".join(ref_eqn_data)
-                new_eqn = "".join(new_eqn_data)
-                ref_rets.append(eval(ref_eqn))
-                new_rets.append(eval(new_eqn))
-            
-            self.logger.info("=== Chemical Equations ===")
-            content = "{:<12s}  {:<12s}  {:<40s}\n".format("Ref", "New", "Eqn")
-            for eqn, ref_val, new_val in zip(equations, ref_rets, new_rets):
-                content += "{:>12.4f}  {:>12.4f}  {:>40s}\n".format(ref_val, new_val, eqn)
-            self.logger.info(content)
+            self._print(content)
 
         return
 
 
 if __name__ == "__main__":
-    pass
+    ...

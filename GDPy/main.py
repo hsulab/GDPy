@@ -3,9 +3,9 @@
 
 import os
 import sys
-
+import logging
 import argparse
-from pathlib import Path
+import pathlib
 
 import numpy as np
 
@@ -18,14 +18,16 @@ def main():
     # - register
     import_all_modules_for_register()
 
+    description = "GDPy: Generating Deep Potential with Python\n"
+
     # - arguments 
     parser = argparse.ArgumentParser(
         prog="gdp", 
-        description="GDPy: Generating Deep Potential with Python"
+        description=description
     )
 
     parser.add_argument(
-        "-d", "--directory", default=Path.cwd(),
+        "-d", "--directory", default=pathlib.Path.cwd(),
         help="working directory"
     )
     
@@ -36,13 +38,18 @@ def main():
     )
 
     parser.add_argument(
-        "-r", "--reference", default=None,
-        help = "reference potential related configuration (json/yaml)"
+        "-nj", "--n_jobs", default = 1, type=int,
+        help = "number of processors"
     )
 
     parser.add_argument(
-        "-nj", "--n_jobs", default = 1, type=int,
-        help = "number of processors"
+        "--debug", action="store_true",
+        help = "debug mode that gives more information"
+    )
+    
+    parser.add_argument(
+        "--log", default="gdp.out",
+        help = "logging output file"
     )
     
     # subcommands in the entire workflow 
@@ -54,7 +61,9 @@ def main():
 
     # - run session
     parser_session = subparsers.add_parser(
-        "session", help="run gdpy session"
+        "session", help="run gdpy session", 
+        description=str(registers.variable)+"\n"+str(registers.operation), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_session.add_argument(
         "SESSION", help="session configuration file (json/yaml)"
@@ -64,113 +73,72 @@ def main():
         help="session placeholders"
     )
     
+    # - build structures
+    parser_build = subparsers.add_parser(
+        "build", help="build structures",
+        description=str(registers.builder), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser_build.add_argument(
+        "CONFIG", help="builder configuration file (json/yaml)"
+    )
+    parser_build.add_argument(
+        "-s", "--substrates", default=None,
+        help="file that stores substrates (e.g. *.xyz)"
+    )
+    parser_build.add_argument(
+        "-n", "--number", default=1, type=int,
+        help="number of structures to build"
+    )
+    
     # - automatic training
     parser_train = subparsers.add_parser(
-        "train", help="automatic training utilities"
+        "train", help="automatic training utilities",
+        description=str(registers.trainer), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-
-    parser_newtrain = subparsers.add_parser(
-        "newtrain", help="automatic training utilities"
-    )
-    parser_newtrain.add_argument(
+    parser_train.add_argument(
         "CONFIG", help="training configuration file (json/yaml)"
     )
 
-    # - explore
-    parser_explore = subparsers.add_parser(
-        "explore", help="exploration configuration file (json/yaml)"
+    # --- compute interface
+    parser_compute = subparsers.add_parser(
+        "compute", help="compute structures with basic methods (MD, MIN, and ...)"
     )
-    parser_explore.add_argument(
-        "EXPEDITION", 
-        help="expedition configuration file (json/yaml)"
-    )
-    parser_explore.add_argument(
-        "--run", default=None,
-        help="running option"
-    )
-
-    # ----- data analysis -----
-    parser_data = subparsers.add_parser(
-        "data", help="data analysis"
-    )
-    parser_data.add_argument(
-        "DATA", help = "data configuration file (json/yaml)"
-    )
-    parser_data.add_argument(
-        "-r", "--run", default=None,
-        help = "configuration for specific operation (json/yaml)"
-    )
-    parser_data.add_argument(
-        "-c", "--choice", default="dryrun",
-        choices = ["dryrun", "stat", "calc", "compress"],
-        help = "choose data analysis mode"
-    )
-    parser_data.add_argument(
-        "-n", "--name", default = "ALL",
-        help = "system name"
-    )
-    parser_data.add_argument(
-        "-p", "--pattern", default = "*.xyz",
-        help = "xyz search pattern"
-    )
-    parser_data.add_argument(
-        "-m", "--mode", default=None,
-        help = "data analysis mode"
-    )
-    parser_data.add_argument(
-        "-num", "--number", 
-        default = -1, type=int,
-        help = "number of selection"
-    )
-    parser_data.add_argument(
-        "-etol", "--energy_tolerance", 
-        default = 0.020, type = float,
-        help = "energy tolerance per atom"
-    )
-    parser_data.add_argument(
-        "-es", "--energy_shift", 
-        default = 0.0, type = float,
-        help = "add energy correction for each structure"
-    )
-
-    # --- worker interface
-    parser_worker = subparsers.add_parser(
-        "worker", help="run a worker"
-    )
-    parser_worker.add_argument(
+    parser_compute.add_argument(
         "STRUCTURE",
         help="a structure file that stores one or more structures"
     )
-    parser_worker.add_argument(
+    parser_compute.add_argument(
         "-b", "--batch", default=None, type=int,
         help="run selected batch number (useful when queue run)"
     )
-    parser_worker.add_argument(
+    parser_compute.add_argument(
         "-o", "--output", default="last", choices=["last","traj"],
         help="retrieve last frame or entire trajectory"
     )
 
-    # --- task interface
-    parser_task = subparsers.add_parser(
-        "task", help="run a task (e.g. GA and MC)"
+    # --- expedition interface
+    parser_explore = subparsers.add_parser(
+        "explore", help="explore structures with advanced methods (GA, MC, and ...)",
+        description=str(registers.expedition),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser_task.add_argument(
-        "params",
+    parser_explore.add_argument(
+        "CONFIG",
         help="json/yaml file that stores parameters for a task"
     )
-    parser_task.add_argument(
-        "--run", default=1, type=int,
-        help="running options"
-    )
-    parser_task.add_argument(
-        "--report", action="store_true", # TODO: analysis config file
-        help="report options"
+    parser_explore.add_argument(
+        "--wait", default=None, type=float,
+        help="wait time after each run"
     )
 
     # selection
     parser_select = subparsers.add_parser(
         "select",
-        help="apply various selection operations"
+        help="apply various selection operations",
+        description=str(registers.selector), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_select.add_argument(
         "CONFIG", help="selection configuration file"
@@ -180,108 +148,83 @@ def main():
         help="structure generator"
     )
 
-    # graph utils
-    parser_graph = subparsers.add_parser(
-        "graph",
-        help="graph utils"
-    )
-    parser_graph.add_argument(
-        "CONFIG", help="graph configuration file"
-    )
-    parser_graph.add_argument(
-        "-f", "--structure_file", required=True,
-        help="structure filepath (in xyz format)"
-    )
-    parser_graph.add_argument(
-        "-i", "--indices", default=":",
-        help="structure indices"
-    )
-    parser_graph.add_argument(
-        "-m", "--mode", required=True,
-        choices = ["diff", "add"],
-        help="structure filepath (in xyz format)"
-    )
-
     # --- validation
     parser_validation = subparsers.add_parser(
-        "valid", help="validate properties with trained models"
+        "valid", help="validate properties with trained models",
+        description=str(registers.validator), 
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_validation.add_argument(
-        "INPUTS",
-        help="input json/yaml file with calculation parameters"
+        "CONFIG", help="validation configuration file"
     )
     
     # === execute 
     args = parser.parse_args()
     
-    # update njobs
+    # - update global configuration
+    if args.debug:
+        config.logger.setLevel(logging.DEBUG)
+
+    curr_wdir = pathlib.Path(args.directory)
+    if not curr_wdir.exists():
+        curr_wdir.mkdir(parents=True)
+
+    if args.log:
+        logfpath = curr_wdir/args.log
+        if logfpath.exists():
+            fh = logging.FileHandler(logfpath, mode="a")
+        else:
+            fh = logging.FileHandler(logfpath, mode="w")
+        fh.setFormatter(config.formatter)
+        config.logger.addHandler(fh)
+    
+    # -- set LOGO
+    for line in config.LOGO_LINES:
+        config._print(line)
+
+    # -- set njobs
     config.NJOBS = args.n_jobs
     if config.NJOBS != 1:
-        print(f"Run parallel jobs {config.NJOBS}")
+        config._print(f"Use {config.NJOBS} processors.")
 
     # - potential
-    #from GDPy.potential.register import create_potter
-    #potter = None
-    #if args.potential:
-    #    pot_config = args.potential # configuration file of potential
-    #    potter = create_potter(pot_config) # register calculator, and scheduler if exists
-    
-    #referee = None
-    #if args.reference:
-    #    ref_config = args.reference # configuration file of potential
-    #    referee = create_potter(ref_config) # register calculator, and scheduler if exists
-
     from GDPy.utils.command import parse_input_file
-    from GDPy.computation.worker.interface import WorkerVariable
+    from GDPy.worker.interface import ComputerVariable
     potter = None
     if args.potential:
         params = parse_input_file(input_fpath=args.potential)
-        potter = WorkerVariable(
+        potter = ComputerVariable(
             params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-            params.get("batchsize", 1)
-        ).value
+            batchsize=params.get("batchsize", 1), use_single=params.get("use_single", False), 
+        ).value[0]
 
     # - use subcommands
-    if args.subcommand == "train":
-        from GDPy.trainer import run_trainer
-        run_trainer(potter, args.directory)
-    elif args.subcommand == "newtrain":
-        from GDPy.trainer import run_newtrainer
-        run_newtrainer(args.CONFIG, args.directory)
-    elif args.subcommand == "session":
+    if args.subcommand == "session":
         from GDPy.core.session import run_session
         run_session(args.SESSION, args.feed, args.directory)
+    elif args.subcommand == "train":
+        from GDPy.trainer import run_newtrainer
+        run_newtrainer(args.CONFIG, args.directory)
+    elif args.subcommand == "build":
+        build_config = parse_input_file(args.CONFIG)
+        from .builder.interface import build_structures
+        build_structures(build_config, args.substrates, args.number, args.directory)
     elif args.subcommand == "select":
         from GDPy.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory, potter)
-    elif args.subcommand == "explore":
-        from GDPy.expedition import run_expedition
-        run_expedition(potter, referee, args.EXPEDITION)
-    elif args.subcommand == "data":
-        from GDPy.data import data_main
-        data_main(
-            args.DATA,
-            potter, referee,
-            args.run,
-            #
-            args.choice, args.mode,
-            args.name, args.pattern,
-            args.number, args.energy_tolerance, args.energy_shift
-        )
-    elif args.subcommand == "worker":
-        from GDPy.computation.worker.interface import run_worker
+    elif args.subcommand == "compute":
+        from GDPy.worker.interface import run_worker
         run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
-    elif args.subcommand == "task":
-        from GDPy.task.task import run_task
-        run_task(args.params, potter, referee, args.run, args.report)
+    elif args.subcommand == "explore":
+        from .expedition.interface import run_expedition
+        params = parse_input_file(args.CONFIG)
+        run_expedition(params, args.wait, args.directory, potter)
     elif args.subcommand == "valid":
         from GDPy.validator import run_validation
-        run_validation(args.directory, args.INPUTS, potter)
-    elif args.subcommand == "graph":
-        from GDPy.graph.graph_main import graph_main
-        graph_main(args.n_jobs, args.CONFIG, args.structure_file, args.indices, args.mode)
+        params = parse_input_file(args.CONFIG)
+        run_validation(params, args.directory, potter)
     else:
-        pass
+        ...
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 Potentials
 ==========
 
-We can define a **potential** in a unified input file (`pot.yaml`) for later 
+We can define a **potential** in a unified input file (`worker.yaml`) for later 
 simulation and training. The MLIP calculations are performed by **ase** ``calculators`` 
 using either **python** built-in codes (PyTorch, TensorFlow) or File-IO based 
 external codes (e.g. **lammps**).
@@ -47,42 +47,29 @@ potentials are used for pre-sampling to build an initial dataset. *Ab-initio*
 methods are used to label structures with target properties (e.g. total energy, 
 forces, and stresses).
 
-+------------+-----------------------------------+-----------------+------------------------------+
-| Name       | Description                       | Backend         | Notes                        |
-+============+===================================+=================+==============================+
-| reax       | Reactive Force Field              | LAMMPS          |                              |
-+------------+-----------------------------------+-----------------+------------------------------+
-| xtb        | Tight Binding                     | xtb             | Under development.           |
-+------------+-----------------------------------+-----------------+------------------------------+
-| vasp       | Density Functional Theory         | VASP            |                              |
-+------------+-----------------------------------+-----------------+------------------------------+
++--------+---------------------------------------+---------+-------+
+| Name   | Description                           | Backend | Notes |
++========+=======================================+=========+=======+
+| reax   | Reactive Force Field                  | LAMMPS  |       |
++--------+---------------------------------------+---------+-------+
+| xtb    | Tight Binding                         | xtb     |       |
++--------+---------------------------------------+---------+-------+
+| vasp   | Density Functional Theory             | VASP    |       |
++--------+---------------------------------------+---------+-------+
+| cp2k   | Density Functional Theory             | cp2k    |       |
++--------+---------------------------------------+---------+-------+
+| plumed | Collective-Variable Enhanced Sampling | plumed  |       |
++--------+---------------------------------------+---------+-------+
 
 Simulation
 ----------
 
-We should define the potential before running any simulation.
-
-The related commands are 
-
-.. code-block:: shell
-
-    # gdp -h for more info
-    $ gdp -h
-
-    # - results would be written to current directory
-    # --- run simulations on local nodes
-    $ gdp -p ./pot.yaml driver ./structures.xyz
-
-    # --- run simulations on local nodes or submitted to job queues
-    $ gdp -p ./pot.yaml worker ./structures.xyz
-
-    # - if -d option is used, results would be written to it
-    $ gdp -d xxx -p ./pot.yaml worker ./structures.xyz
+We should define the potential in `worker.yaml` before running any simulation.
 
 For most potentials, **type_list** and **model** are two required parameters that 
 are used by different backends. If the **lammps** backend is used, **command** 
 must be set to specify how to run *lammps*. The example below shows how to define 
-a **potential** (eann, deepmd, nequip, reax) in a **yaml** file (`pot.yaml`): 
+a **potential** (eann, deepmd, nequip, reax) in a **yaml** file (`worker.yaml`): 
 
 .. code-block:: yaml
 
@@ -124,11 +111,11 @@ For **vasp**, the input can be much different as:
             # - run vasp
             commad: mpirun -n 32 vasp_std 2>&1 > vasp.out
 
-After setting a **driver** in the input file (`pot.yaml`), we can run simulations 
+After setting a **driver** in the input file (`worker.yaml`), we can run simulations 
 with the defined potential. See :ref:`driver examples` section for more details.
 
-Training
---------
+Training (DEPRECATED, SEE TRAINER SECTION)
+------------------------------------------
 
 See Trainer_Examples_ in the GDPy repository for prepared input files.
 
@@ -139,7 +126,7 @@ The related command is:
 .. code-block:: shell
 
     # train models in directory xxx
-    $ gdp -d xxx -p ./pot.yaml train
+    $ gdp -d xxx -p ./worker.yaml train
 
 To use the training interface, we need to define several parameters in the **trainer** 
 section. The dataset would be automatically converted into required format. Some 

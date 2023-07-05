@@ -83,15 +83,20 @@ The origin is (5,5,2), the radius is 2, and the height is 6.
     # Create a periodic cubic lattice that is centred at [50, 50, 50].
     region:
       method: lattice
-      origin: [50, 50, 50]
-      cell: [10, 0, 0, 0, 10, 0, 0, 0, 10]
+      origin: [0, 0, 2]
+      cell: [10, 0, 0, 0, 10, 0, 0, 0, 1]
 
 .. |lattice| image:: ../../images/region-lattice.png
     :width: 800
     :align: middle
 
 The figure shows a lattice region in a (10x10x10) simulation box. The origin is (0,0,2) 
-and the cell is [10,0,0,0,10,0,0,0,2]. This is useful when only considering surface atoms.
-Periodic boundary condition is used for this region.
+and the cell is [10,0,0,0,10,0,0,0,1]. The surface thickness is 1 and atoms with z-coordinate 
+within [2, 3) will be considered as in the region. Periodic boundary condition is used for this region.
 
     |lattice|
+
+- `surface_lattice`
+
+This has the same definition as `lattice`. However, periodic boundary condition 
+is only applied in x- and y-axis. This is useful when only considering surface atoms.

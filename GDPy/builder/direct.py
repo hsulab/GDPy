@@ -8,8 +8,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-from GDPy.core.register import registers
-from GDPy.builder.builder import StructureGenerator
+from .builder import StructureBuilder
 
 def read_xsd2(fd) -> Atoms:
     """read xsd file by Material Studio
@@ -112,26 +111,44 @@ def read_xsd2(fd) -> Atoms:
         atoms.set_scaled_positions(coords)
         return atoms
 
-@registers.builder.register
-class FileBuilder(StructureGenerator):
+class ReadBuilder(StructureBuilder):
 
-    def __init__(self, directory, *args, **kwargs):
-        super().__init__(directory, *args, **kwargs)
+    def __init__(
+        self, fname, index=":", format=None, use_tags=False, 
+        directory="./", random_seed=None, *args, **kwargs
+    ):
+        """"""
+        super().__init__(use_tags=use_tags, directory=directory, random_seed=random_seed, *args, **kwargs)
+
+        self.fname = pathlib.Path(fname)
+        self.index = index
+        self.format = format
+        #self.kwargs = kwargs
 
         return
     
-    def run(self):
+    def run(self, *args, **kwargs):
         """"""
-        frames = read()
+        frames = read(self.fname, self.index, self.format)
 
-        return
+        return frames
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = {}
+        params["method"] = "reader"
+        params["fname"] = str(self.fname.resolve())
+        params["index"] = self.index
+        params["format"] = self.format
 
-@registers.builder.register
-class DirectBuilder(StructureGenerator):
+        return params
+
+
+class DirectBuilder(StructureBuilder):
     """This generator directly returns structures that it stores.
     """
 
-    #: Builde's name.
+    #: Builder's name.
     name: str = "direct"
 
     default_parameters: dict= {
@@ -169,14 +186,7 @@ class DirectBuilder(StructureGenerator):
 
         self._indices = indices
 
-        print(frames)
-
         return
-    
-    #@property
-    #def frames(self) -> List[Atoms]:
-    #    """Return stored structures."""
-    #    return self._frames
     
     @property
     def fpath(self) -> Union[str,pathlib.Path]:
@@ -232,7 +242,8 @@ class DirectBuilder(StructureGenerator):
     def as_dict(self) -> dict:
         """Return generator parameters"""
         params = dict(
-            frames = self._fpath, # TODO: if not exists, and only have _frames
+            method = "direct",
+            frames = str(self._fpath.resolve()), # TODO: if not exists, and only have _frames
             indices = self.indices
         )
 

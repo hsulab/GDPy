@@ -69,7 +69,7 @@ class DescriptorSelector(AbstractSelector):
         """
         features_path = self.directory / "features.npy"
 
-        self.pfunc("start calculating features...")
+        self._print("start calculating features...")
         desc_params = copy.deepcopy(self.descriptor)
         desc_name = desc_params.pop("name", None)
 
@@ -77,17 +77,17 @@ class DescriptorSelector(AbstractSelector):
         if desc_name == "soap":
             soap = SOAP(**desc_params)
             ndim = soap.get_number_of_features()
-            self.pfunc(f"soap descriptor dimension: {ndim}")
+            self._print(f"soap descriptor dimension: {ndim}")
             features = soap.create(frames, n_jobs=self.njobs)
         else:
             raise RuntimeError(f"Unknown descriptor {desc_name}.")
-        self.pfunc("finished calculating features...")
+        self._print("finished calculating features...")
 
         # - save calculated features 
         features = features.reshape(-1,ndim)
         if self.verbose:
             np.save(features_path, features)
-            self.pfunc(f"number of soap instances {len(features)}")
+            self._print(f"number of soap instances {len(features)}")
 
         return features
 
@@ -116,7 +116,8 @@ class DescriptorSelector(AbstractSelector):
                 curr_markers = traj.markers
                 #print("curr_markers: ", curr_markers)
                 curr_frames = traj.get_marked_structures()
-                curr_indices = self._select_structures(curr_frames)
+                curr_feactures, curr_indices = self._select_structures(curr_frames)
+                #print(f"curr_indices: {curr_indices}")
                 new_markers = [curr_markers[i] for i in curr_indices]
                 #print("new_markers: ", new_markers)
                 traj.markers = new_markers

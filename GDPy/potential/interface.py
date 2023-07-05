@@ -7,7 +7,7 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
-from GDPy.computation.worker.train import TrainerBasedWorker
+from GDPy.worker.train import TrainerBasedWorker
 
 
 @registers.variable.register
@@ -82,7 +82,7 @@ class train(Operation):
         _ = worker.run(dataset, size=self.size, init_models=self.init_models)
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
-            models = worker.retrieve(ignore_retrieved=True)
+            models = worker.retrieve(include_retrieved=True)
             print("frozen models: ", models)
             #manager = registers.create(
             #    "manager", trainer.name, convert_name=True
@@ -97,10 +97,10 @@ class train(Operation):
             #manager.register_calculator(potter_params)
             potter_params = potter.as_dict()
             potter_params["params"]["model"] = models
-            print("potter: ", potter_params)
+            #print("potter: ", potter_params)
             potter.register_calculator(potter_params["params"])
             manager = potter
-            print("manager: ", manager.calc)
+            #print("manager: ", manager.calc)
         else:
             ...
         

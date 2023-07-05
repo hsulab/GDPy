@@ -132,7 +132,7 @@ class XyzDataloader:
             target_destination = self.target_dir/dirname/strname
             if not target_destination.exists():
                 write(target_destination, curr_frames)
-                self.pfunc(f"nframes {curr_nframes} -> {target_destination.name}")
+                self._print(f"nframes {curr_nframes} -> {target_destination.name}")
             else:
                 warnings.warn(f"{target_destination} exists.", UserWarning)
 

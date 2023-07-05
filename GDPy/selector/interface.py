@@ -12,7 +12,7 @@ from ase.io import read, write
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
-from GDPy.computation.worker.worker import AbstractWorker
+from GDPy.worker.worker import AbstractWorker
 from GDPy.data.array import AtomsArray2D
 from GDPy.selector.selector import AbstractSelector, load_cache
 from GDPy.selector.composition import ComposedSelector
@@ -60,7 +60,7 @@ class select(Operation):
 
         return
     
-    def forward(self, structures: AtomsArray2D, selector: AbstractSelector):
+    def forward(self, structures: AtomsArray2D, selector: AbstractSelector) -> AtomsArray2D:
         """"""
         super().forward()
         selector.directory = self.directory
@@ -73,11 +73,11 @@ class select(Operation):
             raw_markers = load_cache(selector.info_fpath)
             structures.set_markers(raw_markers)
             new_frames = read(cache_fpath, ":")
-        self.pfunc(f"nframes: {len(new_frames)}")
+        self._print(f"nframes: {len(new_frames)}")
         
         self.status = "finished"
 
-        return new_frames
+        return structures
 
 
 def run_selection(
@@ -99,9 +99,9 @@ def run_selection(
     selector.directory = directory
 
    # - read structures
-    from GDPy.builder import create_generator
-    generator = create_generator(structure)
-    frames = generator.run()
+    from GDPy.builder import create_builder
+    builder = create_builder(structure)
+    frames = builder.run()
 
     # TODO: convert to a bundle of atoms?
     data = AtomsArray2D.from_list2d([frames])

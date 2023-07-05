@@ -9,7 +9,7 @@ import shutil
 import warnings
 import pathlib
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 
@@ -60,9 +60,18 @@ def read_laspset(train_structures):
                 line = fopen.readline()
                 natoms = int(line.strip().split()[-1])
                 # skip 5 lines, symbol info and training weights
-                skipped_lines = [fopen.readline() for i in range(5)]
+                #skipped_lines = [fopen.readline() for i in range(5)]
                 # - cell
-                cell = np.array([fopen.readline().strip().split()[1:] for i in range(3)], dtype=float)
+                cell = []
+                for _ in range(1000):
+                    lat_line = fopen.readline()
+                    if lat_line.strip().startswith("lat"):
+                        cell.append(lat_line.strip().split()[1:])
+                    if len(cell) == 3:
+                        break
+                else:
+                    raise RuntimeError("Failed to read lattice.")
+                cell = np.array(cell, dtype=float)
                 # - symbols, positions, and charges
                 anumbers, positions, charges = [], [], []
                 for i in range(natoms):
@@ -197,68 +206,56 @@ class LaspDriver(AbstractDriver):
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
-        self.calc = calc
-        self.calc.reset()
-
-        self._directory = pathlib.Path(directory)
-
-        self._org_params = copy.deepcopy(params)
+        super().__init__(calc, params, directory=directory, *args, **kwargs)
 
         self.setting = LaspDriverSetting(**params)
 
         return
 
-    def run(self, atoms_, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
-        """Run the driver."""
-        atoms = atoms_.copy()
-
-        # - backup calc params
-        calc_old = atoms.calc
-        params_old = copy.deepcopy(self.calc.parameters)
-
-        # set special keywords
-        self.delete_keywords(kwargs)
-        self.delete_keywords(self.calc.parameters)
-
-        # - init params
-        run_params = self.setting.get_init_params()
-        run_params.update(**self.setting.get_run_params(**kwargs))
-
-        self.calc.set(**run_params)
-        atoms.calc = self.calc
-
-        # - run dynamics
+    def _irun(self, atoms: Atoms, *args, **kwargs) -> None:
+        """"""
         try:
-            if read_exists:
-                converged = atoms.calc._is_converged()
-                if converged:
-                    # atoms.calc.read_results()
-                    pass
-                else:
-                    # NOTE: restart calculation!!!
-                    _  = atoms.get_forces()
-                    converged = atoms.calc._is_converged()
-            else:
-                _  = atoms.get_forces()
-                converged = atoms.calc._is_converged()
-        except OSError:
-            converged = False
-        #else:
-        #    converged = True
+            # - init params
+            run_params = self.setting.get_init_params()
+            run_params.update(**self.setting.get_run_params(**kwargs))
 
-        assert converged, "LaspDriver is not converged..."
-        
-        # read new atoms positions
-        traj_frames = self.calc._read_trajectory()
-        new_atoms = traj_frames[-1]
+            self.calc.set(**run_params)
+            atoms.calc = self.calc
 
-        # - restore to old calculator
-        self.calc.reset() 
-        self.calc.parameters = params_old
-        if calc_old is not None:
-            atoms.calc = calc_old
+            _ = atoms.get_forces()
+        except Exception as e:
+            self._debug(e)
 
-        return new_atoms
+        return
+    
+    def _resume(self, atoms: Atoms, *args, **kwargs) -> Tuple[Atoms,dict]:
+        """Get run_params, respect steps and fmax from kwargs.
+        """
+        # - update atoms and driver
+        traj = self.read_trajectory()
+        nframes = len(traj)
+        if nframes > 0:
+            # --- update atoms
+            resume_atoms = traj[-1]
+            resume_params = {}
+            # --- update run_params in settings
+            #dump_period = self.setting.get_init_params()["dump_period"]
+            #steps = (
+            #    self.setting.get_run_params(*args, **kwargs)["maxiter"] + dump_period 
+            #    - nframes*dump_period
+            #)
+            #assert steps > 0, "Steps should be greater than 0."
+            #resume_params.update(steps=steps)
+            warnings.warn("LASP does not support restart with updated input parameters.")
+        else:
+            resume_atoms = atoms
+            resume_params = {}
+
+        return resume_atoms, resume_params
+    
+    def read_force_convergence(self, *args, **kwargs) -> bool:
+        """"""
+        return self.calc._is_converged()
     
     def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""

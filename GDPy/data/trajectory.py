@@ -24,6 +24,9 @@ class Trajectory(AtomsArray):
     # MD and MIN settings... TODO: type?
     # dump period
 
+    #: Whether there is an error in the calculation.
+    _error: bool = False
+
     def __init__(self, images: List[Atoms], driver_config: dict, *args, **kwargs):
         """"""
         super().__init__(images=images)
@@ -31,6 +34,19 @@ class Trajectory(AtomsArray):
         self.driver_config = driver_config
 
         self.task = driver_config["task"]
+
+        return
+    
+    @property
+    def error(self) -> bool:
+        """"""
+
+        return self._error
+    
+    @error.setter
+    def error(self, error: bool):
+        """"""
+        self._error = error
 
         return
     
@@ -60,7 +76,10 @@ class Trajectory(AtomsArray):
     def __repr__(self) -> str:
         """"""
 
-        return f"Trajectory(task={self.task}, shape={len(self)}, markers={self.markers})"
+        if len(self) > 0:
+            return f"Trajectory(task={self.task}, shape={len(self)}, markers={self.markers})"
+        else:
+            return f"Trajectory(task={self.task})"
 
 
 class Trajectories(AtomsArray2D):
@@ -70,8 +89,10 @@ class Trajectories(AtomsArray2D):
 
     name = "trajectories"
 
-    def __init__(self, trajectories: List[Trajectory]=[]) -> None:
+    def __init__(self, trajectories: List[Trajectory]=None) -> None:
         """"""
+        if trajectories is None:
+            trajectories = []
         super().__init__(rows=trajectories)
 
         return
@@ -79,7 +100,10 @@ class Trajectories(AtomsArray2D):
     def __repr__(self) -> str:
         """"""
 
-        return f"Trajectories(number: {len(self)}, shape: {self.shape}, markers: {self.get_number_of_markers()})"
+        if len(self) > 0:
+            return f"Trajectories(number: {len(self)}, shape: {self.shape}, markers: {self.get_number_of_markers()})"
+        else:
+            return f"Trajectories(number: {len(self)})"
 
 
 if __name__ == "__main__":

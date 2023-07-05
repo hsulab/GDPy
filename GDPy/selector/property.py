@@ -153,7 +153,7 @@ class PropertySelector(AbstractSelector):
         #   NOTE: properties should be pre-computed...
 
         for prop_item in self._prop_items:
-            self.pfunc(str(prop_item))
+            self._print(str(prop_item))
 
             if self.mode == "stru":
                 markers = data.get_unpacked_markers()
@@ -163,7 +163,7 @@ class PropertySelector(AbstractSelector):
                 # --
                 if nframes > 0:
                     scores, selected_indices = self._sparsify(prop_item, frames)
-                    self.pfunc(f"number of structures: {len(selected_indices)}")
+                    self._print(f"number of structures: {len(selected_indices)}")
                     selected_markers = [markers[i] for i in selected_indices]
                     raw_markers = group_markers(selected_markers)
                     data.set_markers(raw_markers)
@@ -186,7 +186,7 @@ class PropertySelector(AbstractSelector):
 
                 if nframes > 0:
                     scores, selected_indices = self._sparsify(prop_item, frames)
-                    self.pfunc(f"number of trajectories: {len(selected_indices)}")
+                    self._print(f"number of trajectories: {len(selected_indices)}")
                     raw_markers = [markers[i] for i in selected_indices]
                     #print(raw_markers)
                     data.set_markers(raw_markers)
@@ -256,7 +256,7 @@ class PropertySelector(AbstractSelector):
         content += "# histogram of {} points in the range (npoints: {})\n".format(np.sum(hist), npoints)
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
-        self.pfunc(content)
+        self._print(content)
 
         with open(self.info_fpath.parent/(self.info_fpath.stem+f"-{prop_item.name}-stat.txt"), "w") as fopen:
             fopen.write(content)
@@ -304,8 +304,8 @@ class PropertySelector(AbstractSelector):
                 [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
             )
         elif prop_item.sparsify == "boltz":
-            num_fixed = self._parse_selection_number(npoints)
-            preve_indices = list(raneg(nframes))
+            num_fixed = self._parse_selection_number(nframes)
+            prev_indices = list(range(nframes))
             scores, curr_indices = boltz_selection(
                 prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
             )

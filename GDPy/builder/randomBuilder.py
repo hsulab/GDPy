@@ -10,7 +10,8 @@ from pathlib import Path
 import numpy as np
 
 import ase
-from ase import Atoms
+from ase import units, Atoms
+from ase.io import read, write
 from ase.data import covalent_radii
 
 from ase.ga.utilities import get_all_atom_types, closest_distances_generator # get system composition (both substrate and top)
@@ -18,14 +19,30 @@ from ase.ga.utilities import CellBounds
 from ase.ga.startgenerator import StartGenerator
 
 from GDPy.core.register import registers
-from GDPy.builder.builder import StructureBuilder 
+from GDPy.builder.builder import StructureBuilder, StructureModifier
 from GDPy.builder.species import build_species
 
 """ Generate structures randomly
 """
 
+def compute_molecule_number_from_density(molecular_mass, volume, density) -> int:
+    """Compute the number of molecules in the region with a given density.
 
-class RandomBuilder(StructureBuilder):
+    Args:
+        moleculer_mass: unit in g/mol.
+        volume: unit in Ang^3.
+        density: unit in g/cm^3.
+    
+    Returns:
+        Number of molecules in the region.
+
+    """
+    number = (density/molecular_mass) * volume * units._Nav * 1e-24
+
+    return int(number)
+
+
+class RandomBuilder(StructureModifier):
 
     #: Number of attempts to create a random candidate.
     MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
@@ -44,11 +61,30 @@ class RandomBuilder(StructureBuilder):
     composition_blocks: Mapping[str,int] = None
 
     def __init__(
-        self, composition: Mapping[str,int], substrate: Atoms=None,
-        region: dict={}, cell=[], covalent_ratio=[1.0, 2.0], 
-        directory="./", random_seed=None, *args, **kwargs
+        self, composition: Mapping[str,int], substrates = None,
+        region: dict={}, cell=None, covalent_ratio=[1.0, 2.0], 
+        random_seed=None, *args, **kwargs
     ):
-        super().__init__(directory, random_seed, *args, **kwargs)
+        super().__init__(substrates=substrates, random_seed=random_seed, *args, **kwargs)
+
+        self._state_params = dict(
+            composition = composition,
+            substrates = substrates,
+            region = region,
+            cell = cell,
+            covalent_ratio = covalent_ratio,
+            test_too_far = kwargs.get("test_too_far", True), # test_too_far
+            test_dist_to_slab = kwargs.get("test_dist_to_slab", True), # test_dist_to_slab
+            cell_volume = kwargs.get("cell_volume", None),
+            cell_bounds = kwargs.get("cell_bounds", None),
+            cell_splits = kwargs.get("cell_splits", None),
+            random_seed = random_seed
+        )
+
+        # - create region
+        region = copy.deepcopy(region)
+        shape = region.pop("method", "auto")
+        self.region = registers.create("region", shape, convert_name=True, **region)
 
         # - parse composition
         self.composition = composition
@@ -58,26 +94,21 @@ class RandomBuilder(StructureBuilder):
         self.covalent_max = covalent_ratio[1]
 
         # - add substrate
-        self.substrate = substrate
-        if self.substrate is not None:
-            unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
+        self._substrate = None
+        if self.substrates is not None:
+            self._substrate = self.substrates[0]
+        if self._substrate is not None:
+            unique_atom_types = get_all_atom_types(self._substrate, self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)
         else:
-            self.blmin = None
-
-        # - create region
-        region = copy.deepcopy(region)
-        shape = region.pop("method", "auto")
-        self.region = registers.create("region", shape, convert_name=True, **region)
+            unique_atom_types = set(self.composition_atom_numbers)
+            self.blmin = self._build_tolerance(unique_atom_types)
 
         # - check cell
         self.cell = cell
-        if not self.cell: # None or []
-            self.cell = np.array(cell).reshape(-1,3)
 
         # - read from kwargs
         self.test_too_far = kwargs.get("test_too_far", True) # test_too_far
-
         self.test_dist_to_slab = kwargs.get("test_dist_to_slab", True) # test_dist_to_slab
 
         self.cell_volume = kwargs.get("cell_volume", None)
@@ -86,8 +117,16 @@ class RandomBuilder(StructureBuilder):
         self.number_of_variable_cell_vectors = 0 # number_of_variable_cell_vectors
 
         return
+    
+    def _load_substrates(self, inp_sub) -> List[Atoms]:
+        """"""
+        substrates = super()._load_substrates(inp_sub)
+        if substrates is not None:
+            assert len(substrates) == 1, "RandomBuilder only supports one substrate."
 
-    def run(self, substrate: Atoms=None, size: int=1, soft_error: bool=False, *args, **kwargs) -> List[Atoms]:
+        return substrates
+
+    def run(self, substrates: List[Atoms]=None, size: int=1, soft_error: bool=False, *args, **kwargs) -> List[Atoms]:
         """Modify input structures.
 
         Args:
@@ -98,7 +137,10 @@ class RandomBuilder(StructureBuilder):
             A list of structures.
         
         """
-        generator = self._create_generator(substrate)
+        super().run(substrates=substrates, *args, **kwargs)
+
+        # - create generator
+        generator = self._create_generator(self.substrates)
 
         # - run over
         frames = []
@@ -124,15 +166,18 @@ class RandomBuilder(StructureBuilder):
 
         raise NotImplementedError()
 
-    def _create_generator(self, substrate=None):
+    def _create_generator(self, substrates: List[Atoms]=None):
         """"""
-        self._update_settings(substrate)
+        if substrates is not None:
+            self._update_settings(substrates[0])
+        else:
+            self._update_settings()
 
         # - create the starting population
         np.random.seed(self.random_seed)
 
         generator = StartGenerator(
-            self.substrate, 
+            self._substrate, 
             self.composition_blocks, # blocks
             self.blmin,
             number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
@@ -149,10 +194,23 @@ class RandomBuilder(StructureBuilder):
 
     def _parse_composition(self):
         # --- Define the composition of the atoms to optimize ---
-        blocks = [(k,v) for k,v in self.composition.items()] # for start generator
+        blocks = []
+        for k, v in self.composition.items():
+            k = build_species(k)
+            if isinstance(v, int): # number
+                v = v
+            else: # string command
+                data = v.split()
+                if data[0] == "density":
+                    v = compute_molecule_number_from_density(
+                        np.sum(k.get_masses()), self.region.get_volume(), 
+                        density = float(data[1])
+                    )
+                else:
+                    raise RuntimeError(f"Unrecognised composition {k:v}.")
+            blocks.append((k,v))
         for k, v in blocks:
-            species = build_species(k)
-            if len(species) > 1:
+            if len(k) > 1:
                 self.use_tags = True
                 break
         else:
@@ -160,9 +218,9 @@ class RandomBuilder(StructureBuilder):
         self.composition_blocks = blocks
 
         atom_numbers = [] # atomic number of inserted atoms
-        for species, num in self.composition.items():
+        for species, num in self.composition_blocks:
             numbers = []
-            for s, n in ase.formula.Formula(species).count().items():
+            for s, n in ase.formula.Formula(species.get_chemical_formula()).count().items():
                 numbers.extend([ase.data.atomic_numbers[s]]*n)
             atom_numbers.extend(numbers*num)
         self.composition_atom_numbers = atom_numbers
@@ -222,18 +280,22 @@ class RandomBuilder(StructureBuilder):
 
         return content
 
-@registers.builder.register
+
 class BulkBuilder(RandomBuilder):
+
+    name: str = "random_bulk"
 
     def _update_settings(self, substarte: Atoms = None):
         """"""
         # - ignore substrate
-        self.substrate = Atoms("", pbc=True)
+        self._substrate = Atoms("", pbc=True)
 
         unique_atom_types = set(self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
 
         # - check number_of_variable_cell_vectors
+        if self.cell is None:
+            self.cell = []
         number_of_variable_cell_vectors = 3 - len(self.cell)
         box_to_place_in = None
         if number_of_variable_cell_vectors > 0:
@@ -265,17 +327,38 @@ class BulkBuilder(RandomBuilder):
             self.cell_splits = splits_
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = copy.deepcopy(self._state_params)
+        params["method"] = self.name
+
+        return params
 
 
-@registers.builder.register
 class ClusterBuilder(RandomBuilder):
+
+    name: str = "random_cluster"
+
+    def __init__(self, composition: Mapping[str, int], substrates=None, region: dict = {}, cell=None, covalent_ratio=[1, 2], random_seed=None, *args, **kwargs):
+        super().__init__(composition, substrates, region, cell, covalent_ratio, random_seed, *args, **kwargs)
+
+        self.pbc = kwargs.get("pbc", False)
+
+        return
 
     def _update_settings(self, substarte: Atoms = None):
         """"""
         # - ignore substrate
-        if not self.cell: # None or []
+        if self.cell is None: # None or []
             self.cell = np.array([19.,0.,0.,0.,20.,0.,0.,0.,21.]).reshape(3,3)
-        self.substrate = Atoms(cell = self.cell, pbc=False)
+        else:
+            self.cell = np.reshape(self.cell, (-1,3))
+        self._substrate = Atoms(cell = self.cell, pbc=self.pbc)
+
+        if self.region.__class__.__name__ == "AutoRegion":
+            from .region import LatticeRegion
+            self.region = LatticeRegion(origin=np.zeros(3), cell=self.cell.flatten())
 
         unique_atom_types = set(self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
@@ -289,9 +372,18 @@ class ClusterBuilder(RandomBuilder):
 
         return
 
+    def as_dict(self) -> dict:
+        """"""
+        params = copy.deepcopy(self._state_params)
+        params["method"] = self.name
+        params["pbc"] = self.pbc
 
-@registers.builder.register
+        return params
+
+
 class SurfaceBuilder(RandomBuilder):
+
+    name: str = "random_surface"
     
     def __init__(
         self, region: dict, composition: Mapping[str,int], cell=[], covalent_ratio=[1.0, 2.0], 
@@ -312,10 +404,10 @@ class SurfaceBuilder(RandomBuilder):
         """"""        
         # - use init substrate
         if substarte is not None:
-            self.substrate = substarte
+            self._substrate = substarte
 
         # define the closest distance two atoms of a given species can be to each other
-        unique_atom_types = get_all_atom_types(self.substrate, self.composition_atom_numbers)
+        unique_atom_types = get_all_atom_types(self._substrate, self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
 
         # - ignore lattice parameters
@@ -326,6 +418,13 @@ class SurfaceBuilder(RandomBuilder):
         self.box_to_place_in = [self.region._origin, self.region._cell]
 
         return
+
+    def as_dict(self) -> dict:
+        """"""
+        params = copy.deepcopy(self._state_params)
+        params["method"] = self.name
+
+        return params
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from ase.calculators.calculator import Calculator
 from GDPy.core.register import registers
 from GDPy.potential.manager import AbstractPotentialManager, DummyCalculator
 from GDPy.potential.trainer import AbstractTrainer
+from GDPy.computation.mixer import CommitteeCalculator
 
 
 @registers.trainer.register
@@ -69,11 +70,27 @@ class DeepmdTrainer(AbstractTrainer):
         freeze_command = self.command
 
         # - add options
-        command = "{} freeze -o {}.pb 2>&1 >> {}.out".format(
-            freeze_command, self.name, self.name
+        command = "{} freeze -o {} 2>&1 >> {}.out".format(
+            freeze_command, self.frozen_name, self.name
         )
 
         return command
+    
+    def _resolve_compress_command(self, *args, **kwargs):
+        """"""
+        compress_command = self.command
+
+        # - add options
+        command = "{} compress -i {} -o {} 2>&1 >> {}.out".format(
+            compress_command, self.frozen_name, f"{self.name}-c.pb", self.name
+        )
+
+        return command
+    
+    @property
+    def frozen_name(self):
+        """"""
+        return f"{self.name}.pb"
     
     def write_input(self, dataset, reduce_system: bool=False):
         """Write inputs for training.
@@ -224,19 +241,49 @@ class DeepmdTrainer(AbstractTrainer):
 
         return set_names, train_frames, test_frames, adjusted_batchsizes
     
-    def read_convergence(self) -> bool:
+    def freeze(self):
         """"""
-        train_out = self.directory/f"{self.name}.out"
-        with open(train_out, "r") as fopen:
-            lines = fopen.readlines()
-        
-        converged = False
-        for line in lines:
-            if line.strip("DEEPMD INFO").startswith(self.CONVERGENCE_FLAG):
-                converged = True
-                break
+        # - freeze model
+        frozen_model = super().freeze()
+
+        # - compress model
+        compressed_model = self.directory/f"{self.name}-c.pb"
+        if frozen_model.exists() and not compressed_model.exists():
+            command = self._resolve_compress_command()
+            try:
+                proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+            except OSError as err:
+                msg = "Failed to execute `{}`".format(command)
+                raise RuntimeError(msg) from err
+
+            errorcode = proc.wait()
+
+            if errorcode:
+                path = os.path.abspath(self.directory)
+                msg = ('Trainer "{}" failed with command "{}" failed in '
+                       '{} with error code {}'.format(self.name, command,
+                                                      path, errorcode))
+                raise RuntimeError(msg)
         else:
             ...
+
+        return compressed_model
+    
+    def read_convergence(self) -> bool:
+        """"""
+        # - get numb_steps
+        with open(self.directory/f"{self.name}.json") as fopen:
+            input_json = json.load(fopen)
+        numb_steps = input_json["training"]["numb_steps"]
+
+        lcurve_out = self.directory/f"lcurve.out"
+        with open(lcurve_out, "r") as fopen:
+            lines = fopen.readlines()
+        curr_steps = int(lines[-1].strip().split()[0])
+        
+        converged = False
+        if curr_steps > numb_steps:
+            converged = True
 
         return converged
 
@@ -369,10 +416,23 @@ class DeepmdManager(AbstractPotentialManager):
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             # return ase calculator
-            #from deepmd.calculator import DP
-            from GDPy.computation.dpx import DP
-            if models and type_map:
-                calc = DP(model=models[0], type_dict=type_map)
+            try:
+                #from deepmd.calculator import DP
+                from GDPy.computation.dpx import DP
+            except:
+                raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
+            #if models and type_map:
+            #    calc = DP(model=models[0], type_dict=type_map)
+            calcs = []
+            for m in models:
+                curr_calc = DP(model=m, type_dict=type_map)
+                calcs.append(curr_calc)
+            if len(calcs) == 1:
+                calc = calcs[0]
+            elif len(calcs) > 1:
+                calc = CommitteeCalculator(calcs=calcs)
+            else:
+                ...
         elif self.calc_backend == "lammps":
             from GDPy.computation.lammps import Lammps
             if models:

@@ -4,7 +4,9 @@
 import abc
 import logging
 import pathlib
-from typing import NoReturn, Union
+from typing import NoReturn, Union, Callable
+
+from .. import config
 
 class Operation(abc.ABC):
 
@@ -16,10 +18,13 @@ class Operation(abc.ABC):
     #: Whether re-compute this operation
     status: str = "unfinished" # ["unfinished", "ready", "wait", "finished"]
 
-    #: Whether re-compute this operation.
-    restart: bool = False
+    #: Standard print function.
+    _print: Callable = config._print
 
-    def __init__(self, input_nodes=[], directory="./") -> NoReturn:
+    #: Standard debug function.
+    _debug: Callable = config._debug
+
+    def __init__(self, input_nodes=[], directory="./") -> None:
         """"""
         self.input_nodes = input_nodes
 
@@ -49,41 +54,6 @@ class Operation(abc.ABC):
         self._directory = pathlib.Path(directory_)
 
         return
-
-    def _init_logger(self):
-        """"""
-        self.logger = logging.getLogger(__name__)
-
-        log_level = logging.INFO
-        self.logger.setLevel(log_level)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
-        # - stream
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-
-        # -- avoid duplicate stream handlers
-        for handler in self.logger.handlers:
-            if isinstance(handler, logging.StreamHandler):
-                break
-        else:
-            self.logger.addHandler(ch)
-
-        # - file
-        log_fpath = self.directory/(self.__class__.__name__+".out")
-        if log_fpath.exists():
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-        fh.setLevel(log_level)
-        self.logger.addHandler(fh)
-        #fh.setFormatter(formatter)
-
-        return
     
     def preward(self) -> bool:
         """Check whether this operation is ready to forward."""
@@ -100,11 +70,6 @@ class Operation(abc.ABC):
         # - set working directory and logger
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
-        
-        self._init_logger()
-        if hasattr(self, "logger") is not None:
-            self.pfunc = self.logger.info
-        self.pfunc(f"@@@{self.__class__.__name__}")
 
         return
 

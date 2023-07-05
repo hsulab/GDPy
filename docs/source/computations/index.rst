@@ -1,3 +1,5 @@
+.. _computations:
+
 Computations
 ============
 
@@ -9,7 +11,20 @@ See Worker_Examples_ in the GDPy repository for prepared input files.
 
 .. _Worker_Examples: https://github.com/hsulab/GDPy/tree/main/examples/computations/worker
 
-An example input file (`pot.yaml`) is organised as follows: 
+The related commands are 
+
+.. code-block:: shell
+
+    # gdp -h for more info
+    $ gdp -h
+
+    # --- run simulations on local nodes or submitted to job queues
+    $ gdp -p ./worker.yaml compute ./structures.xyz
+
+    # - if -d option is used, results would be written to the folder `./results`
+    $ gdp -d ./results -p ./worker.yaml compute ./structures.xyz
+
+An example input file (`worker.yaml`) is organised as follows: 
 
 .. code-block:: yaml
 
@@ -19,24 +34,6 @@ An example input file (`pot.yaml`) is organised as follows:
         ... # define the init and the run parameters of a simulation
     scheduler:
         ... # define a scheduler 
-
-The related commands are 
-
-.. code-block:: shell
-
-    # gdp -h for more info
-    $ gdp -h
-
-    # - results would be written to current directory
-    # --- run simulations on local nodes
-    $ gdp -p ./pot.yaml driver ./structures.xyz
-
-    # --- run simulations on local nodes or submitted to job queues
-    $ gdp -p ./pot.yaml worker ./structures.xyz
-
-    # - if -d option is used, results would be written to it
-    $ gdp -d xxx -p ./pot.yaml worker ./structures.xyz
-
 
 Potential
 ---------
@@ -55,7 +52,7 @@ For the **driver** section, `backend`, `task`, `init`, and `run` should be speci
 for each simulation. If an `external` backend is used, the minimisation would use 
 the same backend defined in the **potential** section if it is valid. 
 
-An example input file (`pot.yaml`) is
+An example input file (`worker.yaml`) is
 
 .. code-block:: yaml
 
@@ -84,6 +81,13 @@ Constraints can be specified as:
     run:
         # fix atoms with indices 1,2,3,4, 6,7,8, starting from 1
         constraints: "1:4 6:8"
+
+    # 2. useful for surface systems
+    run:
+        # fix 8 atoms with the smallest z-coordinates
+        # NOTE: this does not consider PBC...
+        constraints: "lowest 8"
+
 
 Minimisation
 ____________
@@ -146,7 +150,7 @@ and NEB using the `lammps` backend.
 Worker
 ------
 
-If the **scheduler** section is defined in the input file (`pot.yaml`), a worker 
+If the **scheduler** section is defined in the input file (`worker.yaml`), a worker 
 would be created to delegate simulations to the queue. Instead of using server 
 database, we implement a light-weight file-based database using TinyDB_ to manage jobs.
 
@@ -164,7 +168,6 @@ Currently, we only support the **slurm** scheduler. The definition is
         time: ...
         ...
         environs: "conda activte py37" # working environment setting
-        user_commands: "" # would be automatically set by tasks
 
 An additional keyword **batchsize** can be set in the input file as 
 
