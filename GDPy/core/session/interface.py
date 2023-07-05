@@ -124,6 +124,16 @@ def run_session(config_filepath, feed_command=None, directory="./"):
             container["init"], container["iter"], container.get("post"),
             repeat=conf.get("repeat", 1)
         )
+    elif exec_mode == "otf":
+        config._print("Use OTF Session...")
+        from .otf import OTFSession
+        for i, (k, v) in enumerate(container.items()):
+            n = session_names[i]
+            if n is None:
+                n = k
+            entry_operation = v
+            session = OTFSession(directory=directory/n)
+            session.run(entry_operation, feed_dict={})
     else:
         ...
 
