@@ -131,6 +131,26 @@ def plot_mep(wdir, images):
     return
 
 
+def plot_bands(wdir, images, nimages: int):
+    """"""
+    rxn_coords = compute_rxn_coords(images)
+    
+    nframes = len(images)
+
+    nbands = int(nframes/nimages)
+
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
+    plt.suptitle("Nudge Elastic Band Calculation")
+
+    for i in range(nbands):
+        nbt = NEBTools(images=images[i*nimages:(i+1)*nimages])
+        nbt.plot_band(ax=ax)
+
+    plt.savefig(wdir/"bands.png")
+
+    return
+
+
 @dataclasses.dataclass
 class ReactorSetting:
 
@@ -308,6 +328,7 @@ class MEPFinder(AbstractReactor):
             images = read(self.cache_nebtraj, ":")
             converged_nebtraj = images[-nimages_per_band:]
             plot_mep(self.directory, converged_nebtraj)
+            plot_bands(self.directory, images, nimages=nimages_per_band)
             write(self.directory/"end_nebtraj.xyz", converged_nebtraj)
         else:
             raise FileNotFoundError(f"No cache trajectory {str(self.cache_nebtraj)}.")
