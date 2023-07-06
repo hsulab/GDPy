@@ -4,6 +4,7 @@
 import abc
 import copy
 import dataclasses
+import itertools
 from typing import NoReturn, Union, List, Callable
 
 import numpy as np
@@ -12,8 +13,8 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy.core.register import registers
-from GDPy.data.trajectory import Trajectories
-from GDPy.selector.selector import AbstractSelector, group_markers
+from GDPy.data.array import AtomsNDArray
+from GDPy.selector.selector import AbstractSelector
 from GDPy.selector.cur import boltz_selection, hist_selection
 
 @dataclasses.dataclass
@@ -32,9 +33,6 @@ class PropertyItem:
 
     #: Sparsifiction method. [filter, sort, hist, boltz]
     sparsify: str = "filter"
-
-    #: Whether perform sparsifiction on each traj separately.
-    trajwise: bool = False
 
     #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
@@ -147,7 +145,7 @@ class PropertySelector(AbstractSelector):
 
         return
 
-    def _mark_structures(self, data: Trajectories, *args, **kwargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
         """Return selected indices."""
         # - get property values
         #   NOTE: properties should be pre-computed...
@@ -155,45 +153,43 @@ class PropertySelector(AbstractSelector):
         for prop_item in self._prop_items:
             self._print(str(prop_item))
 
-            if self.mode == "stru":
-                markers = data.get_unpacked_markers()
-                frames = data.get_marked_structures()
-                nframes = len(frames)
+            # - group markers
+            if self.axis is None:
+                marker_groups = dict(
+                    all = data.markers
+                )
+            else:
+                marker_groups = {}
+                for k, v in itertools.groupby(data.markers, key=lambda x: x[self.axis]):
+                    if k in marker_groups:
+                        marker_groups[k].extend(list(v))
+                    else:
+                        marker_groups[k] = list(v)
+            self._debug(f"marker_groups: {marker_groups}")
+
+            selected_markers = []
+            for grp_name, curr_markers in marker_groups.items():
+                curr_frames = data.get_marked_structures(curr_markers)
+                curr_nframes = len(curr_frames)
 
                 # --
-                if nframes > 0:
-                    scores, selected_indices = self._sparsify(prop_item, frames)
+                if curr_nframes > 0:
+                    scores, selected_indices = self._sparsify(prop_item, curr_frames)
                     self._print(f"number of structures: {len(selected_indices)}")
-                    selected_markers = [markers[i] for i in selected_indices]
-                    raw_markers = group_markers(selected_markers)
-                    data.set_markers(raw_markers)
+                    curr_selected_markers = [curr_markers[i] for i in selected_indices]
+                    selected_markers.extend(curr_selected_markers)
 
                     # - add score to atoms
                     for score, i in zip(scores, selected_indices):
-                        frames[i].info["score"] = score
+                        curr_frames[i].info["score"] = score
 
                 else:
-                    break
-            elif self.mode == "traj":
-                # NOTE: Use last frame as selection criteria.
-                #       If the last frames is selected, all structures of the traj
-                #       will be selected.
-                markers = data.get_markers()
-                target_markers = [(m[0], m[1][-1]) for m in markers]
-                #print("target_markers: ", target_markers)
-                frames = [data[i][j] for i, j in target_markers]
-                nframes = len(frames)
+                    ...
+            
+            data.markers = selected_markers
 
-                if nframes > 0:
-                    scores, selected_indices = self._sparsify(prop_item, frames)
-                    self._print(f"number of trajectories: {len(selected_indices)}")
-                    raw_markers = [markers[i] for i in selected_indices]
-                    #print(raw_markers)
-                    data.set_markers(raw_markers)
-                else:
-                    break
-            else:
-                ...
+            if len(selected_markers) == 0:
+                break
 
         return
     
@@ -256,6 +252,7 @@ class PropertySelector(AbstractSelector):
         content += "# histogram of {} points in the range (npoints: {})\n".format(np.sum(hist), npoints)
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
+        content += "{:>12.4f}  {:>12s}\n".format(bin_edges[-1], "-")
         self._print(content)
 
         with open(self.info_fpath.parent/(self.info_fpath.stem+f"-{prop_item.name}-stat.txt"), "w") as fopen:
@@ -273,7 +270,7 @@ class PropertySelector(AbstractSelector):
 
         nframes = len(frames)
 
-        curr_indices = []
+        curr_indices, scores = [], []
         if prop_item.sparsify == "filter":
             # -- select current property
             # TODO: possibly use np.where to replace this code
