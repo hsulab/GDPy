@@ -186,7 +186,7 @@ class PropertySelector(AbstractSelector):
                 else:
                     ...
             
-            data.markers = selected_markers
+            data.markers = np.array(selected_markers)
 
             if len(selected_markers) == 0:
                 break

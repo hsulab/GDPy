@@ -132,7 +132,7 @@ class DescriptorSelector(AbstractSelector):
         if any([len(v) for k, v in sind_grps.items()]):
             self._plot_results(features, sind_grps)
 
-        data.markers = selected_markers 
+        data.markers = np.array(selected_markers)
         
         return
     

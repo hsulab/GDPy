@@ -96,7 +96,7 @@ class IntervalSelector(AbstractSelector):
             curr_selected_markers = [curr_markers[i] for i in curr_indices]
             selected_markers.extend(curr_selected_markers)
         
-        data.markers = selected_markers
+        data.markers = np.array(selected_markers)
 
         return
 

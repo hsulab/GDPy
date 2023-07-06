@@ -122,7 +122,7 @@ class AtomsNDArray:
         if markers is None:
             self._markers = np.argwhere(np.full(self._shape, True))
         else:
-            self._markers = markers
+            self.markers = markers
         
         return
     
@@ -186,7 +186,14 @@ class AtomsNDArray:
 
         """
         # TODO: IndexError?
-        self._markers = np.array(new_markers)
+        if isinstance(new_markers, list):
+            ...
+        elif isinstance(new_markers, np.ndarray):
+            new_markers = new_markers.tolist()
+        else:
+            raise ValueError("Index must be a list or a ndarray.")
+
+        self._markers = np.array(sorted(new_markers))
 
         return
 
