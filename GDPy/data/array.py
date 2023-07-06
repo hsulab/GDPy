@@ -106,13 +106,14 @@ class AtomsNDArray:
     #: Array shape.
     _shape: List[int] = None
 
-    #: Has the same shape as the array.
+    #: Array-like indices.
     _markers = None
 
     def __init__(self, data: list = None, markers = None) -> None:
         """Init from a List^n object."""
         if data is None:
             data = []
+        # TODO: Check data should be a list
         
         self._shape = self._get_shape(data)
         self._data = _flat_data(data)
@@ -305,7 +306,7 @@ class AtomsNDArray:
         if isinstance(key, numbers.Integral) or isinstance(key, slice):
             key = [key] + [slice(None) for _ in range(len(self._shape)-1)]
         elif not isinstance(key, tuple):
-            raise IndentationError("Index must be an integer, a slice or a tuple.")
+            raise IndexError("Index must be an integer, a slice or a tuple.")
         assert len(key) <= len(self._shape), "Out of dimension."
         #print(f"key: {key}")
 
@@ -327,6 +328,7 @@ class AtomsNDArray:
             else:
                 raise IndexError(f"Index must be an integer or a slice for dimension {dim}.")
             indices.append(curr_indices)
+        #print(f"tshape: {tshape}")
 
         # - convert indices
         products = list(itertools.product(*indices))
@@ -335,7 +337,10 @@ class AtomsNDArray:
         # - get data
         #print(f"tshape: {tshape}")
         ret_data = [self._data[x] for x in global_indices]
-        ret = _reshape_data(ret_data, tshape)
+        if tshape:
+            ret = _reshape_data(ret_data, tshape)
+        else: # tshape is empty, means this is a single atoms
+            ret = ret_data[0]
 
         return ret
     
