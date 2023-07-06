@@ -3,7 +3,7 @@
 
 import copy
 import itertools
-from typing import NoReturn, Union, List
+from typing import NoReturn, Union, List, Mapping
 
 import numpy as np
 
@@ -110,17 +110,27 @@ class DescriptorSelector(AbstractSelector):
         self._debug(f"marker_groups: {marker_groups}")
         
         selected_markers = []
+        features, sind_grps = None, {}
         for grp_name, markers in marker_groups.items():
             frames = data.get_marked_structures(markers) # reference of atoms
 
             # -
-            features, selected_indices = self._select_structures(frames)
-            if selected_indices:
-                self._plot_results(features, selected_indices)
-
+            curr_features, curr_selected_indices = self._select_structures(frames)
             # - update markers
-            curr_selected_markers = [markers[i] for i in selected_indices]
+            curr_selected_markers = [markers[i] for i in curr_selected_indices]
             selected_markers.extend(curr_selected_markers)
+
+            # - prepare for plot
+            if curr_selected_indices:
+                if features is None:
+                    features = curr_features
+                else:
+                    features = np.vstack((features, curr_features))
+                curr_nframes = sum([len(v) for k, v in sind_grps.items()])
+                sind_grps[grp_name] = [x+curr_nframes for x in curr_selected_indices]
+
+        if any([len(v) for k, v in sind_grps.items()]):
+            self._plot_results(features, sind_grps)
 
         data.markers = selected_markers 
         
@@ -140,7 +150,7 @@ class DescriptorSelector(AbstractSelector):
             else:
                 scores, selected_indices = self._sparsify(features, num_fixed)
         else:
-            scores, selected_indices = [], []
+            features, scores, selected_indices = None, [], []
         
         # - add score to atoms
         #   only save scores from last property
@@ -168,7 +178,7 @@ class DescriptorSelector(AbstractSelector):
 
         return scores, selected_indices
     
-    def _plot_results(self, features, selected_indices, *args, **kwargs):
+    def _plot_results(self, features, groups: dict, *args, **kwargs):
         """"""
         # - plot selection
         from sklearn.decomposition import PCA
@@ -181,12 +191,13 @@ class DescriptorSelector(AbstractSelector):
         reducer = PCA(n_components=2)
         reducer.fit(features)
         proj = reducer.transform(features)
-        selected_proj = reducer.transform(
-            np.array([features[i] for i in selected_indices])
-        )
 
-        plt.scatter(proj[:,0], proj[:,1], label="ALL")
-        plt.scatter(selected_proj[:,0], selected_proj[:,1], label="SEL")
+        plt.scatter(proj[:,0], proj[:,1], label="candidates")
+        for grp_name, inds in groups.items():
+            selected_proj = reducer.transform(
+                np.array([features[i] for i in inds])
+            )
+            plt.scatter(selected_proj[:,0], selected_proj[:,1], label=grp_name)
         plt.legend()
         plt.axis("off")
         plt.savefig(self.info_fpath.parent/(self.info_fpath.stem+".png"))
