@@ -51,10 +51,8 @@ def selection_params():
     return params
 
 
-def test_props(selection_params):
+def test_props_1d(selection_params):
     """"""
-    print(selection_params)
-
     with tempfile.NamedTemporaryFile(suffix=".yaml") as tmp:
         with open(tmp.name, "w") as fopen:
             yaml.safe_dump(selection_params, fopen)
@@ -80,8 +78,6 @@ def test_props(selection_params):
 
 def test_props_2d(selection_params):
     """"""
-    #print(selection_params)
-
     frames_ = read("./r2.xyz", ":")
     frames = []
     for i in range(2):
@@ -95,7 +91,6 @@ def test_props_2d(selection_params):
         selector.directory = tmpdirname
         selected_frames = selector.select(frames)
     
-    #write("./xxx.xyz", selected_frames)
     assert len(selected_frames) == 4
 
     #: selected_indices 2, 4, 54, 111
@@ -121,7 +116,6 @@ def test_props_2d_axis0(selection_params):
     frames = AtomsNDArray(frames)
 
     selection_params["selection"][1]["axis"] = 0 # hist on axis 0
-    print(selection_params)
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -134,8 +128,8 @@ def test_props_2d_axis0(selection_params):
 
     #:
     t_energies = [
-        -292.71506118, -292.47855862, -292.12845228, -292.99764801,
-        -292.27131595, -292.14381737, -292.01459094
+        -292.71506118, -292.47855862, -292.12845228, -292.27131595, 
+        -292.99764801, -292.01459094, -292.14381737
     ]
     #print(t_energies)
 
