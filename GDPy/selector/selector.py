@@ -5,7 +5,7 @@ import abc
 import copy
 import itertools
 import pathlib
-from typing import Union, List, Callable, NoReturn
+from typing import Union, List, Callable, NoReturn, Optional
 
 import numpy as np
 
@@ -15,6 +15,7 @@ from GDPy import config
 from GDPy.core.node import AbstractNode
 from GDPy.worker.drive import DriverBasedWorker
 from GDPy.data.trajectory import Trajectories
+from GDPy.data.array import AtomsNDArray
 
 
 """Define an AbstractSelector that is the base class of any selector.
@@ -54,11 +55,12 @@ def load_cache(fpath, random_seed: int=None):
         new_markers =[
             [int(x) for x in (d.strip().split()[0]).split(",")] for d in data
         ]
-        raw_markers = group_markers(new_markers)
+        #raw_markers = group_markers(new_markers)
+        raw_markers = new_markers
 
     # - footer
     footer = lines[-1]
-    cache_random_seed = int(footer.strip().split()[-1])
+    cache_random_seed = int(footer.strip().split()[-1]) # TODO: random state
     #assert cache_random_seed == random_seed
 
     return raw_markers
@@ -83,6 +85,9 @@ class AbstractSelector(AbstractNode):
     #: Selector name.
     name: str = "abstract"
 
+    #: Target axis to select.
+    axis: Optional[int] = None
+
     #: Default parameters.
     default_parameters: dict = dict(
         number = [4, 0.2], # number & ratio
@@ -104,7 +109,7 @@ class AbstractSelector(AbstractNode):
     #: Output data format (frames or trajectories).
     _out_fmt: str = "stru"
 
-    def __init__(self, directory="./", *args, **kwargs) -> NoReturn:
+    def __init__(self, directory="./", *args, **kwargs) -> None:
         """Create a selector.
 
         Args:
@@ -117,8 +122,8 @@ class AbstractSelector(AbstractNode):
 
         self.fname = self.name+"-info.txt"
         
-        if "random_seed" in self.parameters:
-            self.set_rng(seed=self.parameters["random_seed"])
+        #if "random_seed" in self.parameters:
+        #    self.set_rng(seed=self.parameters["random_seed"])
 
         #: Number of parallel jobs for joblib.
         self.njobs = config.NJOBS
@@ -150,7 +155,7 @@ class AbstractSelector(AbstractNode):
 
         return
 
-    def select(self, inp_dat: Trajectories, *args, **kargs) -> List[Atoms]:
+    def select(self, inp_dat: AtomsNDArray, *args, **kargs) -> List[Atoms]:
         """Select trajectories.
 
         Based on used selction protocol
@@ -173,26 +178,37 @@ class AbstractSelector(AbstractNode):
         #print("selector input: ", inp_dat)
 
         frames = inp_dat
+        inp_nframes = len(frames.markers)
 
         # - check if it is finished
         if not (self.info_fpath).exists():
+            # -- mark structures
             self._print("run selection...")
             self._mark_structures(frames)
+            # -- save cached results for restart
+            self._write_cached_results(frames)
         else:
             # -- restart
             self._print("use cached...")
             raw_markers = load_cache(self.info_fpath)
-            frames.set_markers(raw_markers)
-        self._print(f"{self.name} nstructures {frames.nstructures} -> nselected {frames.get_number_of_markers()}")
-
-        # - save cached results for restart
-        self._write_cached_results(frames)
+            #print(f"raw_markers: {raw_markers}")
+            frames.markers = raw_markers
+        
+        out_nframes = len(frames.markers)
+        self._print(f"{self.name} nstructures {inp_nframes} -> nselected {out_nframes}")
 
         # - add history
+        #   get_marked_structures return reference to Atoms objects
+        #for a in inp_dat.get_marked_structures():
+        #    print(a.info.get("selection"))
+
         marked_structures = inp_dat.get_marked_structures()
         for atoms in marked_structures:
             selection = atoms.info.get("selection", "")
             atoms.info["selection"] = selection+f"->{self.name}"
+        
+        #for a in inp_dat.get_marked_structures():
+        #    print(a.info["selection"])
 
         return marked_structures
     
@@ -227,20 +243,15 @@ class AbstractSelector(AbstractNode):
 
         return num_fixed
 
-    def _write_cached_results(self, frames: Trajectories, *args, **kwargs) -> None:
+    def _write_cached_results(self, aa: AtomsNDArray, *args, **kwargs) -> None:
         """Write selection results into file that can be used for restart."""
         # - 
-        raw_markers = frames.get_markers()
-        new_markers = []
-        for i, markers in raw_markers:
-            for s in markers:
-                new_markers.append((i,s))
-            ...
+        markers = aa.markers
 
         # - output
         data = []
-        for i, j in new_markers:
-            atoms = frames[i][j]
+        for ind in markers:
+            atoms = aa[tuple(ind)]
             # - gather info
             confid = atoms.info.get("confid", -1)
             step = atoms.info.get("step", -1) # step number in the trajectory
@@ -255,9 +266,9 @@ class AbstractSelector(AbstractNode):
             except:
                 maxforce = np.NaN
             score = atoms.info.get("score", np.nan)
-            #if index_map is not None:
-            #    s = index_map[s]
-            data.append([f"{str(i)},{str(j)}", confid, step, natoms, ene, ae, maxforce, score])
+            # - add info
+            ind_str = ",".join([str(x) for x in ind])
+            data.append([f"{ind_str}", confid, step, natoms, ene, ae, maxforce, score])
 
         if data:
             save_cache(self.info_fpath, data, self.random_seed)

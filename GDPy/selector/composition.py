@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.data.trajectory import Trajectories
+from GDPy.data.array import AtomsNDArray
 from GDPy.selector.selector import AbstractSelector
 
 
@@ -33,7 +33,7 @@ class ComposedSelector(AbstractSelector):
 
         return
     
-    def _mark_structures(self, frames: Trajectories, *args, **kwargs) -> None:
+    def _mark_structures(self, frames: AtomsNDArray, *args, **kwargs) -> None:
         """Return selected indices."""
         # - update selectors' directories
         for s in self.selectors:
@@ -57,4 +57,4 @@ class ComposedSelector(AbstractSelector):
 
 
 if __name__ == "__main__":
-    pass
+    ...

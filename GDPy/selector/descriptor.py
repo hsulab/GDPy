@@ -30,11 +30,9 @@ class DescriptorSelector(AbstractSelector):
     name = "dscribe"
 
     default_parameters = dict(
-        random_seed = None,
         mode = "stru",
         descriptor = None,
         sparsify = dict(
-            trajwise = False,
             # -- cur
             method = "cur",
             zeta = "-1",
@@ -52,6 +50,10 @@ class DescriptorSelector(AbstractSelector):
     def __init__(self, directory="./", *args, **kwargs):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
+
+        #print(f"random_seed: {self.random_seed}")
+        #print(f"random_seed: {self.rng}")
+        #print(f"random_seed: {self.rng.bit_generator.state}")
 
         # - check params
         criteria_method = self.sparsify["method"]
@@ -98,7 +100,7 @@ class DescriptorSelector(AbstractSelector):
 
         """
         if self.mode == "stru":
-            markers = data.get_unpacked_markers()
+            markers = data.markers
             frames = data.get_marked_structures() # reference of atoms
 
             # -
@@ -108,8 +110,7 @@ class DescriptorSelector(AbstractSelector):
             
             # - update markers
             selected_markers = [markers[i] for i in selected_indices]
-            raw_markers = group_markers(selected_markers)
-            data.set_markers(raw_markers)
+            data.markers = selected_markers 
         elif self.mode == "traj":
             # TODO: plot figure...
             for traj in data:

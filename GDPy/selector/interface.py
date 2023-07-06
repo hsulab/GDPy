@@ -13,7 +13,7 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 from GDPy.worker.worker import AbstractWorker
-from GDPy.data.array import AtomsArray2D
+from GDPy.data.array import AtomsNDArray
 from GDPy.selector.selector import AbstractSelector, load_cache
 from GDPy.selector.composition import ComposedSelector
 
@@ -23,6 +23,7 @@ class SelectorVariable(Variable):
 
     def __init__(self, selection: List[dict], directory="./", *args, **kwargs) -> None:
         """"""
+        print("xasdasdsa", selection)
         selection = copy.deepcopy(selection)
         selectors = []
         for params in selection:
@@ -60,7 +61,7 @@ class select(Operation):
 
         return
     
-    def forward(self, structures: AtomsArray2D, selector: AbstractSelector) -> AtomsArray2D:
+    def forward(self, structures: AtomsNDArray, selector: AbstractSelector) -> AtomsNDArray:
         """"""
         super().forward()
         selector.directory = self.directory
@@ -101,10 +102,10 @@ def run_selection(
    # - read structures
     from GDPy.builder import create_builder
     builder = create_builder(structure)
-    frames = builder.run()
+    frames = builder.run() # -> List[Atoms]
 
     # TODO: convert to a bundle of atoms?
-    data = AtomsArray2D.from_list2d([frames])
+    data = AtomsNDArray(frames)
 
     # -
     selected_frames = selector.select(data)
