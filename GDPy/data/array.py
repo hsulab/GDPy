@@ -3,6 +3,7 @@
 
 import itertools
 import functools
+import operator
 import numbers
 import pathlib
 from typing import Any, List
@@ -66,32 +67,6 @@ def reconstruct_images_from_hd5grp(grp):
     
     return AtomsArray(images, dict(grp.attrs))
 
-
-def _get_shape(data):
-    def _get_depth(items: list) -> int:
-        depth = 1 if isinstance(items, list) else 0
-        if depth:
-            for item in items:
-                if isinstance(item, list):
-                    depth = max(depth, _get_depth(item)+1)
-        else:
-            return depth
-        return depth
-    depth = _get_depth(data)
-
-    def _get_item(items, depth: int=0):
-        ret = items
-        for i in range(depth):
-            ret = ret[0]
-
-        return ret
-
-    dimensions = []
-    for i in range(depth):
-        dimensions.append(len(_get_item(data, depth=i)))
-    
-    return dimensions
-
 def _flat_data(items):
     """"""
     #if not isinstance(ret, Atoms):
@@ -101,17 +76,48 @@ def _flat_data(items):
     return items
 
 
+def _reshape_data(data, shape):
+    """"""
+    data = data # NOTE: A PURE LIST
+    for i, tsize in enumerate(shape[::-1][:-1]):
+        npoints = len(data)
+        length = int(npoints/tsize)
+        data_ = []
+        for i in range(length):
+            data_.append(data[i*tsize:(i+1)*tsize])
+        data = data_
+
+    return data
+
+
+def _map_idx(loc, shape):
+    """"""
+    i = 0
+    for dim, j in enumerate(loc):
+        i += j*functools.reduce(operator.mul, ([1]+list(shape[dim+1:])))
+    return i
+
+
 class AtomsNDArray:
 
     #: Atoms data.
     _data: List[Atoms] = None
 
+    #: Array shape.
+    _shape: List[int] = None
+
+    #: Has the same shape as the array.
+    _markers = None
+
     def __init__(self, data: list = None) -> None:
         """Init from a List^n object."""
         if data is None:
-            self._data = []
-        else:
-            self._data = data
+            data = []
+        
+        self._shape = self._get_shape(data)
+        self._data = _flat_data(data)
+
+        self._markers = np.full(self._shape, True)
         
         return
     
@@ -119,39 +125,79 @@ class AtomsNDArray:
     def data(self):
         """"""
 
-        return self._data
+        return _reshape_data(self._data)
     
-    @property
-    def shape(self):
+    def _get_shape(self, data):
         """"""
         dimensions = []
         def _get_depth(items: list) -> int:
             depth = 1 if isinstance(items, list) else 0
             if depth:
-                for item in items:
-                    if isinstance(item, list):
-                        depth = max(depth, _get_depth(item)+1)
+                curr_size = len(items)
+                dimensions.append(curr_size)
+                #for item in items:
+                #    if isinstance(item, list):
+                #        depth = max(depth, _get_depth(item)+1)
+                types = [isinstance(item, list) for item in items]
+                if all(types):
+                    subsizes = [len(item) for item in items]
+                    assert len(set(subsizes)) == 1, f"Inhomogeneous part found at {dimensions}+?."
+                    depth = max(depth, _get_depth(items[0])+1)
+                elif any(types):
+                    raise RuntimeError("Found mixed List and others.")
+                else:
+                    ...
             else:
                 return depth
             return depth
-        depth = _get_depth(self._data)
+        depth = _get_depth(data)
         #print(f"depth: {depth}")
-
-        def _get_item(items, depth: int=0):
-            """"""
-            ret = items
-            for i in range(depth):
-                ret = ret[0]
-            lengths = [len(x) for x in ret]
-            #print(f"lengths: {lengths}")
-
-            return ret
-
-        dimensions = []
-        for i in range(depth):
-            dimensions.append(len(_get_item(self._data, depth=i)))
+        #print(f"dimensions: {dimensions}")
 
         return tuple(dimensions)
+    
+    @property
+    def shape(self):
+        """"""
+
+        return self._shape
+    
+    @property
+    def markers(self):
+        """Return markers.
+
+        If it is the first time, all structures are returned.
+        
+        """
+
+        return self._markers
+    
+    @markers.setter
+    def markers(self, marker_indices):
+        """Set new markers.
+
+        Args:
+            new_markers: These should have the shape as the array.
+
+        """
+        self._markers = np.full(self._shape, False) # set all to false
+        marker_indices = tuple((np.array(marker_indices).T).tolist())
+        self.markers[marker_indices] = True
+
+        return
+    
+    def get_marked_indices(self):
+        """"""
+
+        return np.argwhere(self.markers)
+
+    def get_marked_structures(self):
+        """"""
+        structures = []
+        for i in self.markers:
+            structures.append(self[i])
+
+        return structures
     
     @classmethod
     def from_file(cls, target):
@@ -161,19 +207,6 @@ class AtomsNDArray:
             shape = grp.attrs["shape"]
             #print(f"shape: {shape}")
             images = cls._from_hd5grp(grp=grp)
-
-        def _reshape_data(data, shape):
-            """"""
-            data = data # NOTE: A PURE LIST
-            for i, tsize in enumerate(shape[::-1][:-1]):
-                npoints = len(data)
-                length = int(npoints/tsize)
-                data_ = []
-                for i in range(length):
-                    data_.append(data[i*tsize:(i+1)*tsize])
-                data = data_
-
-            return data
         
         data = _reshape_data(images, shape=shape)
 
@@ -213,22 +246,10 @@ class AtomsNDArray:
     
     def save_file(self, target):
         """"""
-        data = self._data
-        def _flat_data(items):
-            """"""
-            #if not isinstance(ret, Atoms):
-            if isinstance(items, list) and not isinstance(items[0], Atoms):
-                items = _flat_data(list(itertools.chain(*items)))
-
-            return items
-        frames = list(_flat_data(data))
-        #nframes = len(frames)
-        #print("nframes: ", len(frames), frames)
-
         with h5py.File(target, mode="w") as fopen:
             grp = fopen.create_group("images")
             grp.attrs["shape"] = self.shape
-            self._convert_images(grp=grp, images=frames)
+            self._convert_images(grp=grp, images=self._data)
 
         return
     
@@ -278,10 +299,53 @@ class AtomsNDArray:
 
         return
     
+    def __getitem__(self, key):
+        """"""
+        if isinstance(key, numbers.Integral) or isinstance(key, slice):
+            key = [key] + [slice(None) for _ in range(len(self._shape)-1)]
+        elif not isinstance(key, tuple):
+            raise IndentationError("Index must be an integer, a slice or a tuple.")
+        assert len(key) <= len(self._shape), "Out of dimension."
+        #print(f"key: {key}")
+
+        # - get indices for each dimension
+        indices, tshape = [], []
+        for dim, i in enumerate(key):
+            size = self._shape[dim]
+            if isinstance(i, numbers.Integral):
+                if i <= -size or i >= size:
+                    raise IndexError(f"Index {i} out of range {size}.")
+                    # IndexError: index 1 is out of bounds for axis 0 with size 1
+                curr_indices = [i]
+            elif isinstance(i, slice):
+                curr_indices = range(size)[i]
+                for c_i in curr_indices:
+                    if c_i <= -size or c_i >= size:
+                        raise IndexError(f"Index {c_i} out of range {size}.")
+                tshape.append(len(curr_indices))
+            else:
+                raise IndexError(f"Index must be an integer or a slice for dimension {dim}.")
+            indices.append(curr_indices)
+
+        # - convert indices
+        products = list(itertools.product(*indices))
+        global_indices = [_map_idx(x, self._shape) for x in products]
+
+        # - get data
+        #print(f"tshape: {tshape}")
+        ret_data = [self._data[x] for x in global_indices]
+        ret = _reshape_data(ret_data, tshape)
+
+        return ret
+    
+    def __len__(self):
+        """"""
+        return len(self._data)
+    
     def __repr__(self) -> str:
         """"""
 
-        return f"atoms_array({self.shape})"
+        return f"atoms_array(nimages: {len(self)}, shape: {self.shape})"
 
 
 class AtomsArray:
