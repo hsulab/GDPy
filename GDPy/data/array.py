@@ -190,9 +190,16 @@ class AtomsNDArray:
 
         return
 
-    def get_marked_structures(self):
-        """"""
-        structures = [self._data[_map_idx(loc, self.shape)] for loc in self.markers]
+    def get_marked_structures(self, markers=None):
+        """Get structures according to markers.
+
+        If custom markers is None, `self._markers` will be used instead.
+
+        """
+        if markers is None:
+            structures = [self._data[_map_idx(loc, self.shape)] for loc in self.markers]
+        else:
+            structures = [self._data[_map_idx(loc, self.shape)] for loc in markers]
 
         return structures
     
