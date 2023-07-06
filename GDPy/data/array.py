@@ -109,7 +109,7 @@ class AtomsNDArray:
     #: Has the same shape as the array.
     _markers = None
 
-    def __init__(self, data: list = None) -> None:
+    def __init__(self, data: list = None, markers = None) -> None:
         """Init from a List^n object."""
         if data is None:
             data = []
@@ -117,7 +117,11 @@ class AtomsNDArray:
         self._shape = self._get_shape(data)
         self._data = _flat_data(data)
 
-        self._markers = np.full(self._shape, True)
+        # TODO: Check IndexError?
+        if markers is None:
+            self._markers = np.argwhere(np.full(self._shape, True))
+        else:
+            self._markers = markers
         
         return
     
@@ -173,29 +177,21 @@ class AtomsNDArray:
         return self._markers
     
     @markers.setter
-    def markers(self, marker_indices):
+    def markers(self, new_markers):
         """Set new markers.
 
         Args:
             new_markers: These should have the shape as the array.
 
         """
-        self._markers = np.full(self._shape, False) # set all to false
-        marker_indices = tuple((np.array(marker_indices).T).tolist())
-        self.markers[marker_indices] = True
+        # TODO: IndexError?
+        self._markers = np.array(new_markers)
 
         return
-    
-    def get_marked_indices(self):
-        """"""
-
-        return np.argwhere(self.markers)
 
     def get_marked_structures(self):
         """"""
-        structures = []
-        for i in self.markers:
-            structures.append(self[i])
+        structures = [self._data[_map_idx(loc, self.shape)] for loc in self.markers]
 
         return structures
     
@@ -205,17 +201,16 @@ class AtomsNDArray:
         with h5py.File(target, "r") as fopen:
             grp = fopen.require_group("images")
             shape = grp.attrs["shape"]
-            #print(f"shape: {shape}")
             images = cls._from_hd5grp(grp=grp)
+            markers = np.array(grp["markers"][:])
         
         data = _reshape_data(images, shape=shape)
 
-        return cls(data=data)
+        return cls(data=data, markers=markers)
     
     @classmethod
     def _from_hd5grp(cls, grp):
         """Reconstruct an atoms_array from data stored in HDF5 group `images`."""
-        #print("keys: ", list(grp.keys()))
         # - rebuild structures
         images = []
         for box, pbc, atomic_numbers, positions in zip(grp["box"], grp["pbc"], grp["atype"], grp["positions"]):
@@ -241,7 +236,7 @@ class AtomsNDArray:
         for atoms, ret in zip(images, results):
             spc = SinglePointCalculator(atoms, **ret)
             atoms.calc = spc
-
+        
         return images
     
     def save_file(self, target):
@@ -249,7 +244,12 @@ class AtomsNDArray:
         with h5py.File(target, mode="w") as fopen:
             grp = fopen.create_group("images")
             grp.attrs["shape"] = self.shape
+
+            # - save structures
             self._convert_images(grp=grp, images=self._data)
+
+            # - save markers
+            grp.create_dataset("markers", data=self.markers, dtype="i8")
 
         return
     
@@ -260,6 +260,7 @@ class AtomsNDArray:
             support variable number of atoms...
 
         """
+        # - save structures
         natoms_list = np.array([len(a) for a in images], dtype=np.int32)
         boxes = np.array(
             [a.get_cell(complete=True) for a in images], dtype=np.float64
