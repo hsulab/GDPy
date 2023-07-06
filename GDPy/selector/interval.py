@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import itertools
 from typing import Union, List
 
 import numpy as np
@@ -8,7 +9,7 @@ import numpy as np
 from ase import Atoms
 
 from GDPy.core.register import registers
-from GDPy.data.trajectory import Trajectories
+from GDPy.data.array import AtomsNDArray
 from GDPy.selector.selector import AbstractSelector
 
 
@@ -18,11 +19,9 @@ class IntervalSelector(AbstractSelector):
     name = "interval"
 
     default_parameters = dict(
-        traj_period = 1,
+        period = 1,
         include_first = True,
-        include_last = True,
-        number = [4, 0.2],
-        random_seed = 1112
+        include_last = False,
     )
 
     """This is a number-unaware selector.
@@ -34,7 +33,7 @@ class IntervalSelector(AbstractSelector):
 
         return
     
-    def _mark_structures(self, inp_dat, *args, **kargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray, *args, **kargs) -> None:
         """Select structures.
 
         Add unmasks to input trajectories.
@@ -43,15 +42,43 @@ class IntervalSelector(AbstractSelector):
             inp_dat: Structures.
         
         """
-        trajectories = inp_dat
+        #if axis == -1 or axis == ndim-1: 
+        #    # NOTE: Last dimension is the trajectory
+        #    #       it may have padded dummy atoms
+        #    ...
+        #else:
+        #    ...
 
-        for traj in trajectories:
-            markers = traj.markers
-            #print(markers)
-            nstructures = len(markers)
+        # - group markers
+        if self.axis is not None:
+            axis = self.axis
+            ndim = len(data.shape)
+            if axis < -ndim or axis > ndim:
+                raise IndexError(f"axis {axis} is out of dimension {ndim}.")
+            if axis < 0:
+                axis = ndim + axis
+
+            marker_groups = {}
+            for k, v in itertools.groupby(data.markers, key=lambda x: x[axis]):
+                if k in marker_groups:
+                    marker_groups[k].extend(list(v))
+                else:
+                    marker_groups[k] = list(v)
+        else:
+            marker_groups = dict(
+                all = data.markers
+            )
+        
+        self._debug(f"marker_groups: {marker_groups}")
+
+        selected_markers = []
+        for curr_grpname, curr_markers in marker_groups.items():
+            curr_markers = sorted(np.array(curr_markers).tolist())
+            nstructures = len(curr_markers)
+
             first, last = 0, nstructures-1
             if self.include_first:
-                curr_indices = list(range(0,nstructures,self.traj_period))
+                curr_indices = list(range(0,nstructures,self.period))
                 if self.include_last:
                     if last not in curr_indices:
                         curr_indices.append(last)
@@ -59,16 +86,17 @@ class IntervalSelector(AbstractSelector):
                     if last in curr_indices:
                         curr_indices.remove(last)
             else:
-                curr_indices = list(range(1,nstructures,self.traj_period))
+                curr_indices = list(range(1,nstructures,self.period))
                 if self.include_last:
                     if last not in curr_indices:
                         curr_indices.append(last)
                 else:
                     if last in curr_indices:
                         curr_indices.remove(last)
-            new_markers = [markers[i] for i in curr_indices]
-            #print(new_markers)
-            traj.markers = new_markers
+            curr_selected_markers = [curr_markers[i] for i in curr_indices]
+            selected_markers.extend(curr_selected_markers)
+        
+        data.markers = selected_markers
 
         return
 
