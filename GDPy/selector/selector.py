@@ -109,7 +109,7 @@ class AbstractSelector(AbstractNode):
     #: Output data format (frames or trajectories).
     _out_fmt: str = "stru"
 
-    def __init__(self, directory="./", *args, **kwargs) -> None:
+    def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
         """Create a selector.
 
         Args:
@@ -119,6 +119,8 @@ class AbstractSelector(AbstractNode):
 
         """
         super().__init__(directory=directory, *args, **kwargs)
+
+        self.axis = axis
 
         self.fname = self.name+"-info.txt"
         

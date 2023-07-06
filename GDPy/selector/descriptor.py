@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from pathlib import Path
+import itertools
 from typing import NoReturn, Union, List
 
 import numpy as np
@@ -51,10 +51,6 @@ class DescriptorSelector(AbstractSelector):
         """"""
         super().__init__(directory=directory, *args, **kwargs)
 
-        #print(f"random_seed: {self.random_seed}")
-        #print(f"random_seed: {self.rng}")
-        #print(f"random_seed: {self.rng.bit_generator.state}")
-
         # - check params
         criteria_method = self.sparsify["method"]
         assert criteria_method in ["cur", "fps"], f"Unknown selection method {criteria_method}."
@@ -99,32 +95,34 @@ class DescriptorSelector(AbstractSelector):
         The selected_indices is the local indices for input markers.
 
         """
-        if self.mode == "stru":
-            markers = data.markers
-            frames = data.get_marked_structures() # reference of atoms
+        # - group markers
+        if self.axis is None:
+            marker_groups = dict(
+                all = data.markers
+            )
+        else:
+            marker_groups = {}
+            for k, v in itertools.groupby(data.markers, key=lambda x: x[self.axis]):
+                if k in marker_groups:
+                    marker_groups[k].extend(list(v))
+                else:
+                    marker_groups[k] = list(v)
+        self._debug(f"marker_groups: {marker_groups}")
+        
+        selected_markers = []
+        for grp_name, markers in marker_groups.items():
+            frames = data.get_marked_structures(markers) # reference of atoms
 
             # -
             features, selected_indices = self._select_structures(frames)
             if selected_indices:
                 self._plot_results(features, selected_indices)
-            
+
             # - update markers
-            selected_markers = [markers[i] for i in selected_indices]
-            data.markers = selected_markers 
-        elif self.mode == "traj":
-            # TODO: plot figure...
-            for traj in data:
-                curr_markers = traj.markers
-                #print("curr_markers: ", curr_markers)
-                curr_frames = traj.get_marked_structures()
-                curr_feactures, curr_indices = self._select_structures(curr_frames)
-                #print(f"curr_indices: {curr_indices}")
-                new_markers = [curr_markers[i] for i in curr_indices]
-                #print("new_markers: ", new_markers)
-                traj.markers = new_markers
-            #print("markers: ", data.get_unpacked_markers())
-        else:
-            ...
+            curr_selected_markers = [markers[i] for i in selected_indices]
+            selected_markers.extend(curr_selected_markers)
+
+        data.markers = selected_markers 
         
         return
     
