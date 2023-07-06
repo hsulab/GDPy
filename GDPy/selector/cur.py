@@ -178,17 +178,19 @@ def hist_selection(
         pmin = props.min()
     if pmax == np.inf:
         pmax = props.max()
+    #print("hist: ", pmin, pmax)
 
     bin_edges = np.linspace(pmin, pmax, nbins, endpoint=False).tolist()
     bin_edges.append(pmax)
     #print(len(bin_edges), bin_edges)
 
     bin_indices = np.digitize(props, bin_edges, right=False)
+    #print("bin_indices: ", bin_indices)
 
-    groups = [[] for i in range(nbins)]
+    groups = [[] for _ in range(nbins)]
     for i, i_bin in enumerate(bin_indices):
         # dump prop not in pmin and pmax
-        if i_bin <= nbins:
+        if 0 < i_bin <= nbins:
             groups[i_bin-1].append(i)
     hist_by_digit = np.array([len(x) for x in groups])
     #print(hist_by_digit)
@@ -223,4 +225,4 @@ def hist_selection(
     return scores, selected_indices
 
 if __name__ == "__main__":
-    pass
+    ...
