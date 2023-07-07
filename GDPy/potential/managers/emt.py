@@ -13,9 +13,9 @@ class EmtManager(AbstractPotentialManager):
 
     name = "emt"
 
-    implemented_backends = ["emt"]
+    implemented_backends = ["ase"]
     valid_combinations = [
-        ["emt", "ase"]
+        ["ase", "ase"]
     ]
 
     """See ASE documentation for calculator parameters.
@@ -31,7 +31,7 @@ class EmtManager(AbstractPotentialManager):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
-        if self.calc_backend == "emt":
+        if self.calc_backend == "ase":
             from ase.calculators.emt import EMT
             calc_cls = EMT
         else:
