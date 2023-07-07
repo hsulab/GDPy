@@ -210,7 +210,7 @@ class extract(Operation):
                     cached_trajs_dpath/"dataset.h5"
                 ).tolist()
 
-            trajectories.extend(curr_trajectories)
+            trajectories.append(curr_trajectories)
 
             worker_status[i] = True
 
