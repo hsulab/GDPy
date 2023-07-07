@@ -13,7 +13,6 @@ from ase.io import read, write
 
 from .worker import AbstractWorker
 from ..utils.command import CustomTimer
-from ..data.trajectory import Trajectories
 
 
 class SingleWorker(AbstractWorker):
@@ -158,7 +157,6 @@ class SingleWorker(AbstractWorker):
                 for p in unretrieved_wdirs:
                     self.driver.directory = self.directory
                     results.append(self.driver.read_trajectory())
-                results = Trajectories(results)
 
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)

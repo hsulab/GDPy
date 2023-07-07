@@ -18,9 +18,9 @@ from ..potential.manager import AbstractPotentialManager
 from .worker import AbstractWorker
 from .drive import DriverBasedWorker
 from ..data.array import AtomsArray2D
+from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
 from ..reactor.reactor import AbstractReactor
-from ..data.trajectory import Trajectories
 
 
 class ReactorBasedWorker(AbstractWorker):
@@ -212,7 +212,7 @@ class ReactorBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, include_retrieved: bool=False, given_wdirs: List[str]=None, *args, **kwargs) -> Trajectories:
+    def retrieve(self, include_retrieved: bool=False, given_wdirs: List[str]=None, *args, **kwargs):
         """Read results from wdirs.
 
         Args:
@@ -290,26 +290,26 @@ class ReactorBasedWorker(AbstractWorker):
             )
 
             # NOTE: Failed Calcution, One fail, traj fails
-            results = []
-            for i, traj_frames in enumerate(results_):
-                # - sift error structures
-                if traj_frames:
-                    error_info = traj_frames[0].info.get("error", None)
-                    if error_info:
-                        self._print(f"Found failed calculation at {error_info}...")
-                    else:
-                        results.append(traj_frames)
-                else:
-                    self._print(f"Found empty calculation at {str(self.directory)} with cand{i}...")
+            # TODO: check failed...
+            #results = []
+            #for i, traj_frames in enumerate(results_):
+            #    # - sift error structures
+            #    if traj_frames:
+            #        error_info = traj_frames[0].info.get("error", None)
+            #        if error_info:
+            #            self._print(f"Found failed calculation at {error_info}...")
+            #        else:
+            #            results.append(traj_frames)
+            #    else:
+            #        self._print(f"Found empty calculation at {str(self.directory)} with cand{i}...")
+
+            results = results_
 
             if results:
                 self._print(
                     f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}"
                 )
             
-            # - convert to Trajectories
-            results = Trajectories(results)
-
         return results
     
     @staticmethod
@@ -339,9 +339,9 @@ class ReactorBasedWorker(AbstractWorker):
 
         # NOTE: always return the entire trajectories
         traj_frames = driver.read_trajectory()
-        for a in traj_frames:
-            a.info["confid"] = confid
-            a.info["wdir"] = str(wdir.name)
+        #for a in traj_frames: # TODO: add to metadata?
+        #    a.info["confid"] = confid
+        #    a.info["wdir"] = str(wdir.name)
         
         return traj_frames
     

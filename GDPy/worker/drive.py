@@ -21,7 +21,6 @@ from ase import Atoms
 from ase.io import read, write
 
 from GDPy import config
-from GDPy.data.trajectory import Trajectories
 from GDPy.potential.manager import AbstractPotentialManager
 from GDPy.computation.driver import AbstractDriver
 from GDPy.worker.worker import AbstractWorker
@@ -407,12 +406,15 @@ class DriverBasedWorker(AbstractWorker):
 
         return
     
-    def retrieve(self, include_retrieved: bool=False, given_wdirs: List[str]=None, *args, **kwargs) -> Trajectories:
+    def retrieve(self, include_retrieved: bool=False, given_wdirs: List[str]=None, *args, **kwargs):
         """Read results from wdirs.
 
         Args:
             include_retrieved: Whether include wdirs that are already retrieved.
                               Otherwise, all finished jobs are included.
+        
+        Returns:
+            A nested List of Atoms.
 
         """
         self.inspect(*args, **kwargs)
@@ -512,9 +514,6 @@ class DriverBasedWorker(AbstractWorker):
                     f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}"
                 )
             
-            # - convert to Trajectories
-            results = Trajectories(results)
-
         return results
     
     @staticmethod
