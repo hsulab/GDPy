@@ -6,7 +6,7 @@ import functools
 import operator
 import numbers
 import pathlib
-from typing import Any, List
+from typing import Any, List, Mapping
 
 import h5py
 import numpy as np
@@ -109,58 +109,73 @@ class AtomsNDArray:
     #: Array-like indices.
     _markers = None
 
+    #:
+    _ind_map: Mapping[int, int] = None
+
     def __init__(self, data: list = None, markers = None) -> None:
         """Init from a List^n object."""
+        # TODO: Check data should be a list
         if data is None:
             data = []
-        # TODO: Check data should be a list
-        
-        self._shape = self._get_shape(data)
-        self._data = _flat_data(data)
 
+        self._shape, self._data, self._markers, self._ind_map = self._process_data(data)
+        
         # TODO: Check IndexError?
-        if markers is None:
-            self._markers = np.argwhere(np.full(self._shape, True))
-        else:
+        if markers is not None:
             self.markers = markers
         
         return
     
-    @property
-    def data(self):
+    @staticmethod
+    def _process_data(data_nd):
         """"""
-
-        return _reshape_data(self._data)
-    
-    def _get_shape(self, data):
-        """"""
-        dimensions = []
-        def _get_depth(items: list) -> int:
-            depth = 1 if isinstance(items, list) else 0
-            if depth:
-                curr_size = len(items)
-                dimensions.append(curr_size)
-                #for item in items:
-                #    if isinstance(item, list):
-                #        depth = max(depth, _get_depth(item)+1)
-                types = [isinstance(item, list) for item in items]
-                if all(types):
-                    subsizes = [len(item) for item in items]
-                    assert len(set(subsizes)) == 1, f"Inhomogeneous part found at {dimensions}+?."
-                    depth = max(depth, _get_depth(items[0])+1)
-                elif any(types):
-                    raise RuntimeError("Found mixed List and others.")
+        sizes = [[len(data_nd)]]
+        def _flat_inhomo_data(items: list):
+            """"""
+            if isinstance(items, list):
+                if not isinstance(items[0], Atoms):
+                    sizes.append([len(item) for item in items])
+                    items = _flat_inhomo_data(list(itertools.chain(*items)))
                 else:
-                    ...
+                    return items
             else:
-                return depth
-            return depth
-        depth = _get_depth(data)
-        #print(f"depth: {depth}")
-        #print(f"dimensions: {dimensions}")
+                ...
 
-        return tuple(dimensions)
-    
+            return items
+
+        data_1d = [a for a in _flat_inhomo_data(data_nd) if a is not None]
+        shape = tuple([max(s) for s in sizes])
+        #print(f"sizes: {sizes}")
+        #print(f"shape: {shape}")
+
+        def assign_markers(arr, seq):
+            #print(arr)
+            #print(seq)
+            if isinstance(arr, list): # assume it is a list
+                if arr[0] is None: #arr.ndim == 1:
+                    inds = []
+                    for i, a in enumerate(seq):
+                        if isinstance(a, Atoms):
+                            inds.append(i)
+                    m = len(arr)
+                    for i in range(m):
+                        if i in inds:
+                            arr[i] = True
+                        else:
+                            arr[i] = False
+                else:
+                    for subarr, subseq in itertools.zip_longest(arr, seq, fillvalue=()):
+                        assign_markers(subarr, subseq)
+            else:
+                ...
+        
+        raw_markers = np.full(shape, None).tolist()
+        _ = assign_markers(raw_markers, data_nd)
+        markers_1d = np.argwhere(raw_markers)
+        ind_map = {_map_idx(loc, shape): i for i, loc in enumerate(markers_1d)}
+
+        return shape, data_1d, markers_1d, ind_map
+
     @property
     def shape(self):
         """"""
@@ -204,16 +219,21 @@ class AtomsNDArray:
 
         """
         if markers is None:
-            structures = [self._data[_map_idx(loc, self.shape)] for loc in self.markers]
+            curr_markers = self.markers
         else:
-            structures = [self._data[_map_idx(loc, self.shape)] for loc in markers]
+            curr_markers = markers
+
+        structures = [self._data[self._ind_map[_map_idx(loc, self.shape)]] for loc in curr_markers]
 
         return structures
 
     def tolist(self):
         """"""
+        data_1d = np.full(self.shape, None).flatten().tolist()
+        for k, v in self._ind_map.items():
+            data_1d[k] = self._data[v]
 
-        return _reshape_data(self._data, self.shape)
+        return _reshape_data(data_1d, self.shape)
     
     @classmethod
     def from_file(cls, target):
@@ -223,8 +243,13 @@ class AtomsNDArray:
             shape = grp.attrs["shape"]
             images = cls._from_hd5grp(grp=grp)
             markers = np.array(grp["markers"][:])
+            mapper = {k: v for k, v in zip(grp["map_k"], grp["map_v"])}
+
+        data_1d = np.full(shape, None).flatten().tolist()
+        for k, v in mapper.items():
+            data_1d[k] = images[v]
         
-        data = _reshape_data(images, shape=shape)
+        data = _reshape_data(data_1d, shape=shape)
 
         return cls(data=data, markers=markers)
     
@@ -270,6 +295,14 @@ class AtomsNDArray:
 
             # - save markers
             grp.create_dataset("markers", data=self.markers, dtype="i8")
+
+            # - save mapper
+            mapper_k, mapper_v = [], []
+            for k, v in self._ind_map.items():
+                mapper_k.append(k)
+                mapper_v.append(v)
+            grp.create_dataset("map_k", data=mapper_k, dtype="i8")
+            grp.create_dataset("map_v", data=mapper_v, dtype="i8")
 
         return
     
@@ -355,7 +388,7 @@ class AtomsNDArray:
 
         # - get data
         #print(f"tshape: {tshape}")
-        ret_data = [self._data[x] for x in global_indices]
+        ret_data = [self._data[self._ind_map[x]] for x in global_indices]
         if tshape:
             ret = _reshape_data(ret_data, tshape)
         else: # tshape is empty, means this is a single atoms
