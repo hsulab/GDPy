@@ -209,6 +209,11 @@ class AtomsNDArray:
             structures = [self._data[_map_idx(loc, self.shape)] for loc in markers]
 
         return structures
+
+    def tolist(self):
+        """"""
+
+        return _reshape_data(self._data, self.shape)
     
     @classmethod
     def from_file(cls, target):
