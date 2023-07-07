@@ -110,7 +110,7 @@ class DescriptorSelector(AbstractSelector):
         self._debug(f"marker_groups: {marker_groups}")
         
         selected_markers = []
-        features, sind_grps = None, {}
+        features, sind_grps, oind_grps = None, {}, {}
         for grp_name, markers in marker_groups.items():
             frames = data.get_marked_structures(markers) # reference of atoms
 
@@ -123,14 +123,20 @@ class DescriptorSelector(AbstractSelector):
             # - prepare for plot
             if curr_selected_indices:
                 if features is None:
+                    curr_nframes = 0
                     features = curr_features
                 else:
+                    curr_nframes = features.shape[0]
                     features = np.vstack((features, curr_features))
-                curr_nframes = sum([len(v) for k, v in sind_grps.items()])
+                # - selected ones
                 sind_grps[grp_name] = [x+curr_nframes for x in curr_selected_indices]
+                # - other ones
+                oind_grps[grp_name] = [
+                    x+curr_nframes for x in range(len(markers))
+                ]
 
         if any([len(v) for k, v in sind_grps.items()]):
-            self._plot_results(features, sind_grps)
+            self._plot_results(features, sind_grps, oind_grps)
 
         data.markers = np.array(selected_markers)
         
@@ -178,7 +184,7 @@ class DescriptorSelector(AbstractSelector):
 
         return scores, selected_indices
     
-    def _plot_results(self, features, groups: dict, *args, **kwargs):
+    def _plot_results(self, features, groups: dict, others: dict, *args, **kwargs):
         """"""
         # - plot selection
         from sklearn.decomposition import PCA
@@ -192,13 +198,21 @@ class DescriptorSelector(AbstractSelector):
         reducer.fit(features)
         proj = reducer.transform(features)
 
-        plt.scatter(proj[:,0], proj[:,1], label="candidates")
         for grp_name, inds in groups.items():
+            sc = plt.scatter(
+                proj[others[grp_name],0], proj[others[grp_name],1], 
+                marker="o", alpha=0.25,
+                label=f"grp-{grp_name} {len(others[grp_name])} -> {len(inds)}", 
+            )
+            # --
             selected_proj = reducer.transform(
                 np.array([features[i] for i in inds])
             )
-            plt.scatter(selected_proj[:,0], selected_proj[:,1], label=grp_name)
-        plt.legend()
+            plt.scatter(
+                selected_proj[:,0], selected_proj[:,1],
+                marker="*", alpha=0.5, color="r"
+            )
+        plt.legend(fontsize=12)
         plt.axis("off")
         plt.savefig(self.info_fpath.parent/(self.info_fpath.stem+".png"))
 
