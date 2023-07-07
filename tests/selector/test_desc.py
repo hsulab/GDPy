@@ -137,5 +137,68 @@ def test_desc_2d_axis0(selection_params):
     return
 
 
+def test_desc_2dp(selection_params):
+    """"""
+    frames_ = read("./r2.xyz", ":")
+    frames = []
+    frames.append(frames_[:70])
+    frames.append(frames_[70:])
+    frames = AtomsNDArray(frames)
+
+    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        selector.directory = tmpdirname
+        selected_frames = selector.select(frames)
+    
+    #write("./xxx.xyz", selected_frames)
+    assert len(selected_frames) == 4
+
+    #: fps start_index is 35, 52, 93, 156
+    t_energies = [-285.47026343, -290.31314607, -291.51942674, -281.75524438]
+    #print(t_energies)
+
+    energies = [a.get_potential_energy() for a in selected_frames]
+    #print(energies)
+
+    assert np.allclose(t_energies, energies)
+
+    return
+
+
+def test_desc_2dp_axis0(selection_params):
+    """"""
+    frames_ = read("./r2.xyz", ":")
+    frames = []
+    frames.append(frames_[:70])
+    frames.append(frames_[70:])
+    frames = AtomsNDArray(frames)
+
+    selection_params["selection"][0]["axis"] = 0
+    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        tmpdirname = "./xxx"
+        selector.directory = tmpdirname
+        selected_frames = selector.select(frames)
+    
+    #write("./xxx.xyz", selected_frames)
+    assert len(selected_frames) == 8
+
+    #:
+    t_energies = [
+        -285.76283507, -282.76850615, -291.06722943, -290.31314607, 
+        -291.51942674, -286.86588241, -284.2378811, -289.39018868
+    ]
+    #print(t_energies)
+
+    energies = [a.get_potential_energy() for a in selected_frames]
+    #print(energies)
+
+    assert np.allclose(t_energies, energies)
+
+    return
+
+
 if __name__ == "__main__":
     ...

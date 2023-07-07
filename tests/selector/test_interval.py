@@ -38,8 +38,6 @@ def selection_params():
 
 def test_intv_1d(selection_params):
     """"""
-    print(selection_params)
-
     with tempfile.NamedTemporaryFile(suffix=".yaml") as tmp:
         with open(tmp.name, "w") as fopen:
             yaml.safe_dump(selection_params, fopen)
@@ -78,6 +76,8 @@ def test_intv_2d(selection_params):
         #tmpdirname = "./xxx"
         selector.directory = tmpdirname
         selected_frames = selector.select(frames)
+        markers = frames.markers
+    #print(markers)
     
     assert len(selected_frames) == 6
 
@@ -105,7 +105,6 @@ def test_intv_2d_axis0(selection_params):
     frames = AtomsNDArray(frames)
 
     selection_params["selection"][0]["axis"] = 0
-    print(selection_params)
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -120,6 +119,74 @@ def test_intv_2d_axis0(selection_params):
     t_energies = [
         -286.04976854, -290.86502869, -280.94478227, -283.21986666, 
         -292.27131595, -286.86588241, -285.31668644, -284.85649391
+    ]
+
+    energies = [a.get_potential_energy() for a in selected_frames]
+
+    assert np.allclose(t_energies, energies)
+
+    return
+
+
+def test_intv_2dp(selection_params):
+    """"""
+    frames_ = read("./r2.xyz", ":")
+    frames = []
+    frames.append(frames_[0:70])
+    frames.append(frames_[70:])
+    frames = AtomsNDArray(frames)
+
+    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        #tmpdirname = "./xxx"
+        selector.directory = tmpdirname
+        selected_frames = selector.select(frames)
+        markers = frames.markers
+    #print(markers)
+    
+    assert len(selected_frames) == 6
+
+    #:
+    t_energies = [
+        -286.04976854, -290.86502869, -280.94478227, -292.01459094,
+        -289.89265403, -284.85649391
+    ]
+
+    energies = [a.get_potential_energy() for a in selected_frames]
+
+    assert np.allclose(t_energies, energies)
+
+    return
+
+def test_intv_2dp_axis0(selection_params):
+    """"""
+    #print(selection_params)
+
+    frames_ = read("./r2.xyz", ":")
+    frames = []
+    frames.append(frames_[0:70])
+    frames.append(frames_[70:])
+    frames = AtomsNDArray(frames)
+
+    selection_params["selection"][0]["axis"] = 0
+    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        #tmpdirname = "./xxx"
+        selector.directory = tmpdirname
+        selected_frames = selector.select(frames)
+        markers = frames.markers
+    #print(markers)
+    
+    # 0 37 69
+    # 0 37 74 99
+    assert len(selected_frames) == 7
+
+    #:
+    t_energies = [
+        -286.04976854, -290.86502869, -290.91516215, -283.53940274,
+        -281.73179116, -287.16805319, -284.85649391
     ]
 
     energies = [a.get_potential_energy() for a in selected_frames]

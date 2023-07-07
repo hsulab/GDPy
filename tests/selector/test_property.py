@@ -141,5 +141,70 @@ def test_props_2d_axis0(selection_params):
     return
 
 
+def test_props_2dp(selection_params):
+    """"""
+    frames_ = read("./r2.xyz", ":")
+    frames = []
+    frames.append(frames_[:70])
+    frames.append(frames_[70:])
+    frames = AtomsNDArray(frames)
+
+    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        #tmpdirname = "./xxx"
+        selector.directory = tmpdirname
+        selected_frames = selector.select(frames)
+    
+    assert len(selected_frames) == 4
+
+    #: selected_indices 2, 4, 54, 111
+    t_energies = [-292.71506118, -292.47855862, -292.12845228, -292.01459094]
+    #print(t_energies)
+
+    energies = [a.get_potential_energy() for a in selected_frames]
+    #print(energies)
+
+    assert np.allclose(t_energies, energies)
+
+    return
+
+
+def test_props_2dp_axis0(selection_params):
+    """"""
+    #print(selection_params)
+
+    frames_ = read("./r2.xyz", ":")
+    frames = []
+    frames.append(frames_[:70])
+    frames.append(frames_[70:])
+    frames = AtomsNDArray(frames)
+
+    selection_params["selection"][1]["axis"] = 0 # hist on axis 0
+    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        #tmpdirname = "./xxx"
+        selector.directory = tmpdirname
+        selected_frames = selector.select(frames)
+    
+    #write("./xxx.xyz", selected_frames)
+    assert len(selected_frames) == 7
+
+    #:
+    t_energies = [
+        -292.71506118, -292.47855862, -292.12845228, -292.27131595, 
+        -292.99764801, -292.01459094, -292.14381737
+    ]
+    #print(t_energies)
+
+    energies = [a.get_potential_energy() for a in selected_frames]
+    #print(energies)
+
+    assert np.allclose(t_energies, energies)
+
+    return
+
+
 if __name__ == "__main__":
     ...
