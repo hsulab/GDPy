@@ -31,7 +31,7 @@ from ase.calculators.lammps import unitconvert
 from GDPy import config
 from GDPy.computation.driver import AbstractDriver, DriverSetting, BACKUP_PREFIX_FORMAT 
 from GDPy.builder.constraints import parse_constraint_info
-from GDPy.data.trajectory import Trajectory
+
 
 dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
@@ -292,7 +292,7 @@ class LmpDriver(AbstractDriver):
             for i, atoms in enumerate(traj_frames):
                 atoms.info["step"] = int(i)*init_params["dump_period"]
 
-        return Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
+        return traj_frames
     
     def _read_backups(self, units: str):
         """"""

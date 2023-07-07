@@ -22,7 +22,6 @@ from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-from GDPy.data.trajectory import Trajectory
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.computation.utils import create_single_point_calculator
 from GDPy.computation.driver import AbstractDriver, DriverSetting
@@ -341,7 +340,7 @@ class VaspDriver(AbstractDriver):
             atoms.info["error"] = str(self.directory)
             traj_frames = [atoms]
         
-        ret = Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
+        ret = traj_frames
 
         if (len(ret) > 0) and (not self.read_force_convergence()):
             ret[0].info["error"] = str(self.directory)

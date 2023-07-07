@@ -16,8 +16,7 @@ from GDPy.core.register import registers
 from GDPy.worker.drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
 )
-from GDPy.data.array import AtomsArray2D
-from GDPy.data.trajectory import Trajectories
+from GDPy.data.array import AtomsNDArray
 from ..utils.command import CustomTimer
 
 
@@ -48,7 +47,7 @@ class compute(Operation):
         """
         super().forward()
 
-        if isinstance(frames, AtomsArray2D):
+        if isinstance(frames, AtomsNDArray):
             frames = frames.get_marked_structures()
 
         # - basic input candidates
@@ -136,7 +135,7 @@ class extract_cache(Operation):
             delayed(self._read_trajectory)(curr_wdir, curr_worker) 
             for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
         )
-        trajectories = Trajectories(trajectories=trajectories)
+        trajectories = AtomsNDArray(data=trajectories)
 
         self.status = "finished"
 
@@ -170,13 +169,13 @@ class extract(Operation):
 
         return
     
-    def forward(self, workers: List[DriverBasedWorker]) -> AtomsArray2D:
+    def forward(self, workers: List[DriverBasedWorker]) -> AtomsNDArray:
         """
         Args:
             workers: ...
         
         Returns:
-            AtomsArray2D.
+            AtomsNDArray.
             
         """
         super().forward()
@@ -188,7 +187,7 @@ class extract(Operation):
         #print(self.workers)
         worker_status = [False]*nworkers
 
-        trajectories = Trajectories()
+        trajectories = []
         for i, worker in enumerate(workers):
             # TODO: How to save trajectories into one file?
             #       probably use override function for read/write
@@ -205,29 +204,23 @@ class extract(Operation):
                 curr_trajectories = worker.retrieve(
                     include_retrieved=True, 
                 )
-                curr_trajectories.save_file(cached_trajs_dpath/"dataset.h5")
+                AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath/"dataset.h5")
             else:
-                #if self.reduce_cand:
-                #    curr_trajectories = read(cached_trajs_dpath/"reduced_candidates.xyz", ":")
-                #else:
-                #    cached_fnames = list(cached_trajs_dpath.glob("cand*"))
-                #    cached_fnames.sort()
+                curr_trajectories = AtomsNDArray.from_file(
+                    cached_trajs_dpath/"dataset.h5"
+                ).tolist()
 
-                #    curr_trajectories = []
-                #    for fpath in cached_fnames:
-                #        traj = read(fpath, ":")
-                #        curr_trajectories.append(traj)
-                curr_trajectories = Trajectories.from_file(cached_trajs_dpath/"dataset.h5")
-
-            self._print(f"worker_{i} {curr_trajectories}")
             trajectories.extend(curr_trajectories)
 
             worker_status[i] = True
+
+        trajectories = AtomsNDArray(trajectories)
+        self._debug(trajectories)
         
         if all(worker_status):
             self._print(f"worker_: {trajectories}")
             self.status = "finished"
-            if self.mark_end:
+            if self.mark_end: # TODO: if it is 2d?
                 for traj in trajectories:
                     traj.markers = [len(traj)-1]
         else:

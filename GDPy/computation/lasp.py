@@ -20,7 +20,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from GDPy.builder.constraints import parse_constraint_info
 from GDPy.computation.driver import AbstractDriver, DriverSetting
-from GDPy.data.trajectory import Trajectory
 
 
 """Driver and calculator of LaspNN.
@@ -261,7 +260,7 @@ class LaspDriver(AbstractDriver):
         """Read trajectory in the current working directory."""
         images = self.calc._read_trajectory(add_step_info)
 
-        return Trajectory(images=images, driver_config=dataclasses.asdict(self.setting))
+        return images
 
 
 class LaspNN(FileIOCalculator):

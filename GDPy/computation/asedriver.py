@@ -28,7 +28,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from .. import config as GDPCONFIG
 from GDPy.computation.driver import AbstractDriver, DriverSetting
 from GDPy.computation.bias import create_bias_list
-from GDPy.data.trajectory import Trajectory
 
 from GDPy.md.md_utils import force_temperature
 
@@ -400,7 +399,7 @@ class AseDriver(AbstractDriver):
 
         return scf_convergence
     
-    def read_trajectory(self, *args, **kwargs):
+    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         traj_frames = []
         target_fpath = self.directory/self.xyz_fname
@@ -452,7 +451,7 @@ class AseDriver(AbstractDriver):
         else:
             ...
         
-        ret = Trajectory(images=traj_frames, driver_config=dataclasses.asdict(self.setting))
+        ret = traj_frames
 
         # calculation happens but some errors in calculation
         if self.directory.exists():
