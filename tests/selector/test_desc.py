@@ -178,7 +178,7 @@ def test_desc_2dp_axis0(selection_params):
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:
-        tmpdirname = "./xxx"
+        #tmpdirname = "./xxx"
         selector.directory = tmpdirname
         selected_frames = selector.select(frames)
     
