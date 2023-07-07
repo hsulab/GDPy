@@ -71,8 +71,8 @@ class select(Operation):
             new_frames = selector.select(structures)
             write(cache_fpath, new_frames)
         else:
-            raw_markers = load_cache(selector.info_fpath)
-            structures.set_markers(raw_markers)
+            markers = load_cache(selector.info_fpath)
+            structures.markers = markers
             new_frames = read(cache_fpath, ":")
         self._print(f"nframes: {len(new_frames)}")
         
