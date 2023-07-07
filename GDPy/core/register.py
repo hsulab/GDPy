@@ -171,20 +171,19 @@ ALL_MODULES = [
     ("GDPy.reactor", ["afir"]),
     # -- validators
     ("GDPy", ["validator"]),
-    # - session operations.
-    ("GDPy.data", ["operations"]), 
+    # - session operations + variables.
     ("GDPy.builder", ["interface"]),
-    ("GDPy.computation", ["operations"]),
-    ("GDPy.reactor", ["interface"]),
-    ("GDPy.validator", ["interface"]),
-    ("GDPy.selector", ["interface"]),
-    # - session variables.
-    ("GDPy.data", ["interface"]),
-    ("GDPy.validator", ["interface"]),
-    ("GDPy.scheduler", ["interface"]),
     ("GDPy.computation", ["interface"]),
-    ("GDPy.potential", ["interface"]),
+    ("GDPy.computation", ["operations"]),
+    ("GDPy.data", ["interface"]),
+    ("GDPy.data", ["operations"]), 
     ("GDPy.describer", ["interface"]),
+    ("GDPy.potential", ["interface"]),
+    ("GDPy.reactor", ["interface"]),
+    ("GDPy.selector", ["interface"]),
+    ("GDPy.scheduler", ["interface"]),
+    ("GDPy.validator", ["interface"]),
+    ("GDPy.worker", ["interface"]),
 ]
 
 
