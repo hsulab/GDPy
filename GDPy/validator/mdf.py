@@ -106,11 +106,7 @@ class MassDistributionValidator(AbstractValidator):
             data_ = []
             for d in data[:]: # TODO: add squeeze method?
                 data_.extend(d)
-<<<<<<< Updated upstream
             data = data_
-=======
-            data = data
->>>>>>> Stashed changes
         else:
             raise RuntimeError(f"Invalid shape {data.shape}.")
 
