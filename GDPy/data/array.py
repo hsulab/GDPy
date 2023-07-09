@@ -117,7 +117,14 @@ class AtomsNDArray:
         # TODO: Check data should be a list
         if data is None:
             data = []
-
+        # TODO: Check data should be a list
+        if isinstance(data, list):
+            data = data
+        elif isinstance(data, AtomsNDArray):
+            data = data.tolist()
+        else:
+            raise ValueError("Data should be a list or a AtomsNDArray.")
+        
         self._shape, self._data, self._markers, self._ind_map = self._process_data(data)
         
         # TODO: Check IndexError?
@@ -143,6 +150,7 @@ class AtomsNDArray:
 
             return items
 
+        # NOTE: properly deal with None?
         data_1d = [a for a in _flat_inhomo_data(data_nd) if a is not None]
         shape = tuple([max(s) for s in sizes])
         #print(f"sizes: {sizes}")
@@ -181,6 +189,12 @@ class AtomsNDArray:
         """"""
 
         return self._shape
+    
+    @property
+    def ndim(self) -> int:
+        """"""
+
+        return len(self.shape)
     
     @property
     def markers(self):
@@ -367,9 +381,11 @@ class AtomsNDArray:
         for dim, i in enumerate(key):
             size = self._shape[dim]
             if isinstance(i, numbers.Integral):
-                if i <= -size or i >= size:
-                    raise IndexError(f"Index {i} out of range {size}.")
+                if i < -size or i >= size:
+                    raise IndexError(f"index {i} is out of bounds for axis {dim} with size {size}.")
                     # IndexError: index 1 is out of bounds for axis 0 with size 1
+                if i < 0:
+                    i += size
                 curr_indices = [i]
             elif isinstance(i, slice):
                 curr_indices = range(size)[i]
@@ -385,10 +401,18 @@ class AtomsNDArray:
         # - convert indices
         products = list(itertools.product(*indices))
         global_indices = [_map_idx(x, self._shape) for x in products]
+        #print(global_indices)
+        #print(self._data)
+        #print(f"nframes: {len(self._data)}")
+        #print(self._ind_map)
 
         # - get data
-        #print(f"tshape: {tshape}")
-        ret_data = [self._data[self._ind_map[x]] for x in global_indices]
+        ret_data = []
+        for x in global_indices:
+            if x in self._ind_map:
+                ret_data.append(self._data[self._ind_map[x]])
+            else:
+                ret_data.append(None)
         if tshape:
             ret = _reshape_data(ret_data, tshape)
         else: # tshape is empty, means this is a single atoms
