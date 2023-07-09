@@ -130,12 +130,18 @@ class extract_cache(Operation):
         #    self._debug(curr_traj)
         #    trajectories.extend([curr_traj]) # TODO: add append method to Trajectories
 
-        from joblib import Parallel, delayed
-        trajectories = Parallel(n_jobs=config.NJOBS)(
-            delayed(self._read_trajectory)(curr_wdir, curr_worker) 
-            for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
-        )
-        trajectories = AtomsNDArray(data=trajectories)
+        cache_data = self.directory/"cache_data.h5"
+        if not cache_data.exists():
+            from joblib import Parallel, delayed
+            trajectories = Parallel(n_jobs=config.NJOBS)(
+                delayed(self._read_trajectory)(curr_wdir, curr_worker) 
+                for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
+            )
+            trajectories = AtomsNDArray(data=trajectories)
+            trajectories.save_file(cache_data)
+        else:
+            self._print("read cache...")
+            trajectories = AtomsNDArray.from_file(cache_data)
 
         self.status = "finished"
 
@@ -155,7 +161,7 @@ class extract(Operation):
     """Extract dynamics trajectories from a drive-node's worker.
     """
 
-    def __init__(self, compute, mark_end: bool = False, directory="./", *args, **kwargs) -> None:
+    def __init__(self, compute, directory="./", *args, **kwargs) -> None:
         """Init an extract operation.
 
         Args:
@@ -164,8 +170,6 @@ class extract(Operation):
         
         """
         super().__init__(input_nodes=[compute], directory=directory)
-
-        self.mark_end = mark_end
 
         return
     
@@ -210,7 +214,7 @@ class extract(Operation):
                     cached_trajs_dpath/"dataset.h5"
                 ).tolist()
 
-            trajectories.extend(curr_trajectories)
+            trajectories.append(curr_trajectories)
 
             worker_status[i] = True
 
@@ -220,9 +224,6 @@ class extract(Operation):
         if all(worker_status):
             self._print(f"worker_: {trajectories}")
             self.status = "finished"
-            if self.mark_end: # TODO: if it is 2d?
-                for traj in trajectories:
-                    traj.markers = [len(traj)-1]
         else:
             ...
 
