@@ -22,6 +22,7 @@ from ase.neighborlist import NeighborList
 
 from .validator import AbstractValidator
 from .utils import wrap_traj
+from ..data.array import AtomsNDArray
 
 def smooth_curve(bins, points):
     """"""
@@ -132,24 +133,61 @@ class RdfValidator(AbstractValidator):
 
         return
 
-    def run(self, dataset, worker=None, *args, **kwargs):
+    def _process_data(self, data) -> List[List[Atoms]]:
         """"""
-        ref_frames = dataset["reference"]
-        self._debug(f"reference  nframes: {len(ref_frames)}")
-        pre_frames = dataset["prediction"]
-        self._debug(f"prediction nframes: {len(pre_frames)}")
+        data = AtomsNDArray(data)
 
-        pre_data = self._compute_rdf(
-            self.directory/("-".join(self.pair)+"_pre.dat"), 
-            pre_frames, self.pair, self.cutoff, self.nbins
-        )
-        ref_data = self._compute_rdf(
-            self.directory/("-".join(self.pair)+"_ref.dat"), 
-            ref_frames, self.pair, self.cutoff, self.nbins
-        )
+        if data.ndim == 1:
+            data = [data.tolist()]
+        elif data.ndim == 2: # assume it is from extract_cache...
+            data = data.tolist()
+        elif data.ndim == 3: # assume it is from a compute node...
+            data_ = []
+            for d in data[:]: # TODO: add squeeze method?
+                data_.extend(d)
+            data = data_
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
 
-        # - reference
-        plot_rdf(self.directory/"rdf.png", pre_data, ref_data, title="-".join(self.pair))
+        return data[0] # TODO: support several trajectories
+
+    def run(self, dataset, worker=None, *args, **kwargs):
+        """Process reference and prediction data separately.
+
+        TODO:
+
+            Support average over several trajectories.
+
+        """
+        # - process dataset
+        self._print("process reference ->")
+        reference = dataset.get("reference", None)
+        if reference is not None:
+            ref_frames = self._process_data(reference)
+            self._debug(f"reference  nframes: {len(ref_frames)}")
+            ref_data = self._compute_rdf(
+                self.directory/("-".join(self.pair)+"_ref.dat"), 
+                ref_frames, self.pair, self.cutoff, self.nbins
+            )
+        else:
+            ref_data = None
+
+        self._print("process prediction ->")
+        prediction = dataset.get("prediction", None)
+        if prediction is not None:
+            pre_frames = self._process_data(prediction)
+            self._debug(f"prediction nframes: {len(pre_frames)}")
+            pre_data = self._compute_rdf(
+                self.directory/("-".join(self.pair)+"_pre.dat"), 
+                pre_frames, self.pair, self.cutoff, self.nbins
+            )
+        else:
+            pre_data = None
+        
+        assert (ref_data is not None or pre_data is not None), "Neither reference nor prediction is given."
+
+        # - compare results
+        self._compare_results(ref_data, pre_data)
 
         return
     
@@ -186,6 +224,15 @@ class RdfValidator(AbstractValidator):
             data = np.loadtxt(dat_fpath)
 
         return data
+    
+    def _compare_results(self, reference, prediction):
+        """"""
+        plot_rdf(
+            self.directory/"rdf.png", 
+            prediction, reference, title="-".join(self.pair)
+        )
+
+        return
 
 
 if __name__ == "__main__":

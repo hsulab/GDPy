@@ -24,6 +24,7 @@ except Exception as e:
 from ..utils.command import CustomTimer
 from .validator import AbstractValidator
 from .utils import wrap_traj
+from ..data.array import AtomsNDArray
 
 """Measure melting point.
 
@@ -101,6 +102,24 @@ class MeltingPointValidator(AbstractValidator):
         self.fitting = fitting
 
         return
+    
+    def _process_data(self, data) -> List[List[Atoms]]:
+        """"""
+        data = AtomsNDArray(data)
+
+        if data.ndim == 1:
+            data = [data.tolist()]
+        elif data.ndim == 2: # assume it is from extract_cache...
+            data = data.tolist()
+        elif data.ndim == 3: # assume it is from a compute node...
+            data_ = []
+            for d in data[:]: # TODO: add squeeze method?
+                data_.extend(d)
+            data = data_
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
 
     def run(self, dataset: dict, worker=None, *args, **kwargs):
         """"""
@@ -109,14 +128,16 @@ class MeltingPointValidator(AbstractValidator):
         self._print("process reference ->")
         reference = dataset.get("reference")
         if reference is not None:
+            reference = self._process_data(reference)
             data = self._compute_melting_point(reference, prefix="ref-")
-            self._plot_figure(data[:,1], data[:,0], prefix="ref-")
+            self._plot_figure(data[:, 1], data[:, 0], prefix="ref-")
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
+            prediction = self._process_data(prediction)
             data = self._compute_melting_point(prediction, prefix="pre-")
-            self._plot_figure(data[:,1], data[:,0], prefix="pre-")
+            self._plot_figure(data[:, 1], data[:, 0], prefix="pre-")
 
         return
     
@@ -134,7 +155,7 @@ class MeltingPointValidator(AbstractValidator):
             with CustomTimer("joblib", func=self._print):
                 qmat = Parallel(n_jobs=1)(
                     delayed(_icalc_local_lindemann_index)(
-                        curr_frames._images[start::], n_jobs=self.njobs
+                        curr_frames[start::], n_jobs=self.njobs
                     ) for curr_frames in trajectories
                 )
             qmat = np.array(qmat)

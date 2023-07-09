@@ -4,9 +4,9 @@
 import copy
 from typing import NoReturn
 
-from GDPy.core.variable import Variable
-from GDPy.core.operation import Operation
-from GDPy.core.register import registers
+from ..core.variable import Variable
+from ..core.operation import Operation
+from ..core.register import registers
 
 from ..worker.drive import DriverBasedWorker
 from .validator import AbstractValidator
@@ -34,16 +34,16 @@ class validate(Operation):
 
     """
 
-    def __init__(self, structures, validator, worker, directory="./") -> NoReturn:
+    def __init__(self, dataset, validator, worker, directory="./") -> NoReturn:
         """Init a validate operation.
 
         Args:
             structures: A node that forwards structures.
             validator: A validator.
-            worker: A worker to run calculations.
+            worker: A worker to run calculations. TODO: Make this optional.
         
         """
-        input_nodes = [structures, validator, worker]
+        input_nodes = [dataset, validator, worker]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
         return

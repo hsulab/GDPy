@@ -15,7 +15,7 @@ from GDPy.core.placeholder import Placeholder
 from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
-from ..data.array import AtomsArray
+from ..data.array import AtomsNDArray
 
 @registers.placeholder.register
 class StructurePlaceholder(Placeholder):
@@ -59,13 +59,13 @@ class read_stru(Operation):
 
         return
     
-    def forward(self, *args, **kwargs) -> AtomsArray:
+    def forward(self, *args, **kwargs) -> AtomsNDArray:
         """"""
         super().forward()
         frames = read(self.fname, format=self.format, index=self.index, **self.kwargs)
         if isinstance(frames, Atoms):
             frames = [frames] # if index is single, then read will give Atoms
-        frames = AtomsArray(images=frames)
+        frames = AtomsNDArray(frames)
 
         self.status = "finished"
 

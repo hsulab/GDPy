@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import Union
+from typing import Union, List
 
 import numpy as np
+
+from ase import Atoms
 
 import matplotlib as mpl
 mpl.use("Agg") #silent mode
@@ -18,7 +20,7 @@ from ..utils.command import CustomTimer
 from .validator import AbstractValidator
 from .utils import wrap_traj
 from ..builder.group import create_a_group
-from ..data.array import AtomsArray, AtomsArray2D
+from ..data.array import AtomsNDArray
 
 
 def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, prefix=""):
@@ -88,6 +90,19 @@ class DiffusionCoefficientValidator(AbstractValidator):
         self.group = group
 
         return
+
+    def _process_data(self, data) -> List[List[Atoms]]:
+        """"""
+        data = AtomsNDArray(data)
+
+        if data.ndim == 1:
+            data = [data.tolist()]
+        elif data.ndim == 2: # assume it is from minimisations...
+            data = data.tolist()
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
     
     def run(self, dataset: dict, worker=None, *args, **kwargs):
         """"""
@@ -96,55 +111,46 @@ class DiffusionCoefficientValidator(AbstractValidator):
         self._print("process reference ->")
         reference = dataset.get("reference")
         if reference is not None:
-            if isinstance(reference, AtomsArray):
-                reference = AtomsArray2D(rows=[reference])
-            mdtraj = reference[0]._images
-            group_indices = create_a_group(mdtraj[0], self.group)
-
-            cache_msd = self.directory/"ref-msd.npy"
-            if not cache_msd.exists():
-                data = self._compute_msd(
-                    mdtraj, group_indices, lagmax=self.lagmax, 
-                    start=self.start, end=self.end, timeintv=self.timeintv, 
-                    prefix="ref-"
-                )
-                np.save(cache_msd, data)
-            else:
-                data = np.load(cache_msd)
-
-            lagtimes = [x[0] for x in [data]]
-            timeseries = [x[1] for x in [data]]
-            plot_msd(
-                self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, 
-                start_step=self.d_start, end_step=self.d_end, prefix="ref-"
-            )
+            self._irun(reference, "ref-")
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
-            if isinstance(prediction, AtomsArray):
-                prediction = AtomsArray2D(rows=[prediction])
-            mdtraj = prediction[0]._images
-            group_indices = create_a_group(mdtraj[0], self.group)
-            self._debug(f"group_indices: {group_indices}")
+            self._irun(prediction, "pre-")
 
-            cache_msd = self.directory/"pre-msd.npy"
-            if not cache_msd.exists():
-                data = self._compute_msd(
-                    mdtraj, group_indices, lagmax=self.lagmax, 
-                    start=self.start, end=self.end, timeintv=self.timeintv, 
-                    prefix="pre-"
-                )
-                np.save(cache_msd, data)
-            else:
-                data = np.load(cache_msd)
+        return
+    
+    def _irun(self, data, prefix=""):
+        """Test the first trajectory.
 
-            lagtimes = [x[0] for x in [data]]
-            timeseries = [x[1] for x in [data]]
-            plot_msd(
-                self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, 
-                start_step=self.d_start, end_step=self.d_end, prefix="pre-"
+        TODO: Several trajectories.
+
+        """
+        #if isinstance(prediction, AtomsArray):
+        #    prediction = AtomsArray2D(rows=[prediction])
+        #mdtraj = prediction[0]._images
+        mdtrajs = self._process_data(data)
+        #print(f"mdtraj: {mdtrajs}")
+        group_indices = create_a_group(mdtrajs[0][0], self.group)
+        self._debug(f"group_indices: {group_indices}")
+
+        cache_msd = self.directory/f"{prefix}msd.npy"
+        if not cache_msd.exists():
+            data = self._compute_msd(
+                mdtrajs[0], group_indices, lagmax=self.lagmax, 
+                start=self.start, end=self.end, timeintv=self.timeintv, 
+                prefix=prefix
             )
+            np.save(cache_msd, data)
+        else:
+            data = np.load(cache_msd)
+
+        lagtimes = [x[0] for x in [data]]
+        timeseries = [x[1] for x in [data]]
+        plot_msd(
+            self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, 
+            start_step=self.d_start, end_step=self.d_end, prefix=prefix
+        )
 
         return
     

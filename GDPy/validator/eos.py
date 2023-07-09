@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
+from typing import List
 
 import numpy as np
 
@@ -13,11 +14,12 @@ try:
 except Exception as e:
     print("Used default matplotlib style.")
 
+from ase import Atoms
 from ase.io import read, write
 from ase.eos import EquationOfState 
 
-from ..data.array import AtomsArray2D
 from .validator import AbstractValidator
+from ..data.array import AtomsNDArray
 
 """Validation on equation of states.
 """
@@ -49,15 +51,27 @@ class EquationOfStateValidator(AbstractValidator):
 
         return
     
+    def _process_data(self, data) -> List[Atoms]:
+        """"""
+        data = AtomsNDArray(data)
+
+        if data.ndim == 1:
+            data = data.tolist()
+        elif data.ndim == 2: # assume it is from minimisations...
+            data = data[:, -1]
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
+    
     def run(self, dataset, worker=None, *args, **kwargs):
         """"""
         # - preprocess the dataset
-        pre_dataset = dataset.get("prediction", None)
-        if isinstance(pre_dataset, AtomsArray2D):
-            pre_dataset = pre_dataset.get_marked_structures() # List[Atoms]
+        pre_dataset = dataset.get("prediction", None) # Assume it is ndarray
+        pre_dataset = self._process_data(pre_dataset)
+
         ref_dataset = dataset.get("reference", None)
-        if isinstance(ref_dataset, AtomsArray2D):
-            ref_dataset = ref_dataset.get_marked_structures() # List[Atoms]
+        ref_dataset = self._process_data(ref_dataset)
         
         # - 
         ref_natoms = np.array([len(a) for a in ref_dataset])

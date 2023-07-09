@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import Union
+from typing import Union, List
 
 import numpy as np
 
 from ase import units
+from ase import Atoms
 
-from ..data.array import AtomsArray2D
+from ..data.array import AtomsNDArray
 from .validator import AbstractValidator
 
 EVA2TOJNM2 = (1./(units.kJ/1000.))/((1./units.m)**2)
@@ -30,21 +31,48 @@ class SurfaceEnergyValidator(AbstractValidator):
         self.nsides = nsides
 
         return
+
+    def _process_data(self, data) -> List[List[Atoms]]:
+        """"""
+        data = AtomsNDArray(data)
+
+        if data.ndim == 1:
+            data = [data.tolist()]
+        elif data.ndim == 2: # assume it is from extract_cache...
+            data = data.tolist()
+        elif data.ndim == 3: # assume it is from a compute node...
+            data_ = []
+            for d in data[:]: # TODO: add squeeze method?
+                data_.extend(d)
+            data = data_
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
     
     def run(self, dataset, worker=None, *args, **kwargs):
         """"""
-        ref_grp = dataset["reference"]
-        ref_data = self._compute_surface_energy(ref_grp["bulk"], ref_grp["surfaces"])
-        self._write_data(ref_data, prefix="ref-")
+        ref_grp = dataset.get("reference", None)
+        if ref_grp is not None:
+            ref_data = self._compute_surface_energy(
+                self._process_data(ref_grp["bulk"]), 
+                self._process_data(ref_grp["surfaces"]),
+                self.nsides
+            )
+            self._write_data(ref_data, prefix="ref-")
 
-        pre_grp = dataset.get("prediction")
+        pre_grp = dataset.get("prediction", None)
         if pre_grp is not None:
-            pre_data = self._compute_surface_energy(pre_grp["bulk"], pre_grp["surfaces"])
+            pre_data = self._compute_surface_energy(
+                self._process_data(pre_grp["bulk"]), 
+                self._process_data(pre_grp["surfaces"]),
+                self.nsides
+            )
             self._write_data(pre_data, prefix="pre-")
 
         return
     
-    def _compute_surface_energy(self, bulk: AtomsArray2D, surfaces: AtomsArray2D, nsides=1):
+    def _compute_surface_energy(self, bulk: List[List[Atoms]], surfaces: List[List[Atoms]], nsides=1):
         """"""
         assert len(bulk) == 1, "Only support one bulk."
         bulk_ene = bulk[0][-1].get_potential_energy()
@@ -53,6 +81,7 @@ class SurfaceEnergyValidator(AbstractValidator):
         data = []
         for surf in surfaces:
             # TODO: assert z-axis is perpendicular to the surface plane
+            surf = [s for s in surf if s is not None]
             natoms_surf = len(surf[0])
             n_units = int(natoms_surf/natoms_bulk) # TODO: check integer units
             cell = surf[0].get_cell(complete=True)

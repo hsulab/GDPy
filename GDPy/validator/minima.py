@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+from typing import List
 
 import numpy as np
 
@@ -18,6 +19,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from GDPy.validator.validator import AbstractValidator
 from GDPy.worker.drive import DriverBasedWorker
 from GDPy.builder.constraints import set_constraint
+from ..data.array import AtomsNDArray
 
 """Validate minima and relative energies...
 """
@@ -54,12 +56,32 @@ class MinimaValidator(AbstractValidator):
         self.ene_shift = ene_shift
 
         return
+    
+    def _process_data(self, data) -> List[Atoms]:
+        """"""
+        data = AtomsNDArray(data)
+
+        # We need a List of Atoms (ndim=1).
+        if data.ndim == 1:
+            data = data.tolist()
+        #elif data.ndim == 2: # assume it is from extract_cache...
+        #    data = data.tolist()
+        #elif data.ndim == 3: # assume it is from a compute node...
+        #    data_ = []
+        #    for d in data[:]: # TODO: add squeeze method?
+        #        data_.extend(d)
+        #    data = data
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
 
     def run(self, dataset: dict, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         # TODO: assume dataset is a dict of frames
         pre_dataset = {}
-        for k, curr_frames in dataset.items():
+        for k, curr_data in dataset.items():
+            curr_frames = self._process_data(curr_data)
             nframes = len(curr_frames)
 
             cached_pred_fpath = self.directory/k/ "pred.xyz"

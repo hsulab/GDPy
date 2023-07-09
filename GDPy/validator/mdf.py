@@ -21,6 +21,7 @@ from ase.io import read, write
 
 from .validator import AbstractValidator
 from .utils import wrap_traj, smooth_curve
+from ..data.array import AtomsNDArray
 
 """This module is used to analyse the particle distribution in the system.
 """
@@ -54,12 +55,12 @@ def plot_mass_distribution(wdir, prefix, bincentres, mass, title):
 
     ax.legend()
 
-    plt.savefig(wdir/f"{prefix}-mdf.png")
+    plt.savefig(wdir/f"{prefix}mdf.png")
 
     data = np.vstack((bincentres_, avg_mass_, lo_mass_, hi_mass_)).T
 
     np.savetxt(
-        wdir/f"{prefix}-mdf.dat", data, 
+        wdir/f"{prefix}mdf.dat", data, 
         fmt=("%12.4f  "*4),
         header=("{:<8s}  "*4).format("r", "avg", "avg-sigma", "avg+sigma")
     )
@@ -93,15 +94,46 @@ class MassDistributionValidator(AbstractValidator):
 
         return
     
-    def run(self, dataset, worker=None, *args, **kwargs):
+    def _process_data(self, data) -> List[List[Atoms]]:
         """"""
-        ref_frames = dataset.get("reference", None)
+        data = AtomsNDArray(data)
 
-        self._irun(ref_frames, prefix="ref")
+        if data.ndim == 1:
+            data = [data.tolist()]
+        elif data.ndim == 2: # assume it is from extract_cache...
+            data = data.tolist()
+        elif data.ndim == 3: # assume it is from a compute node...
+            data_ = []
+            for d in data[:]: # TODO: add squeeze method?
+                data_.extend(d)
+            data = data_
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
+    
+    def run(self, dataset, worker=None, *args, **kwargs):
+        """Process reference and prediction data separately.
+
+        TODO:
+
+            Support average over several trajectories.
+
+        """
+        self._print("process reference ->")
+        reference = dataset.get("reference", None)
+        if reference is not None:
+            self._irun(self._process_data(reference)[0], prefix="ref-")
+
+        self._print("process prediction ->")
+        prediction = dataset.get("prediction", None)
+        if prediction is not None:
+            self._irun(self._process_data(prediction)[0], prefix="pre-")
 
         return
 
     def _irun(self, frames: List[Atoms], prefix):
+        """"""
         #pmin = np.floor(np.min(projected_distances))
         #pmax = np.ceil(np.max(projected_distances))
         bin_edges = np.linspace(self.rmin, self.rmax, self.nbins, endpoint=False).tolist()
@@ -138,7 +170,7 @@ class MassDistributionValidator(AbstractValidator):
         for i, a in enumerate(atoms):
             if a.symbol in self.symbols:
                 selected_indices.append(i)
-        selected_positions = copy.deepcopy(atoms.get_positions()[selected_indices,:])
+        selected_positions = copy.deepcopy(atoms.get_positions()[selected_indices, :])
         projected_distances = [np.dot(pos, self.vector) for pos in selected_positions]
 
         masses = atoms.get_masses()
