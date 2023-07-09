@@ -27,6 +27,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from .. import config as GDPCONFIG
 from ..computation.mixer import EnhancedCalculator
 from ..data.trajectory import Trajectory
+from ..data.array import AtomsNDArray
 from .reactor import AbstractReactor
 from GDPy.builder.constraints import parse_constraint_info
 
@@ -337,13 +338,14 @@ class MEPFinder(AbstractReactor):
         assert nimages%nimages_per_band == 0, "Inconsistent number of bands."
         nbands = int(nimages/nimages_per_band)
 
-        #reshaped_images = []
-        #for i in range(nbands):
-        #    reshaped_images.append(images[i*nimages_per_band:(i+1)*nimages_per_band])
-        #return reshaped_images
+        reshaped_images = []
+        for i in range(nbands):
+            reshaped_images.append(images[i*nimages_per_band:(i+1)*nimages_per_band])
+        return reshaped_images
 
         # TODO: Fix this!
-        return Trajectory(images=converged_nebtraj, driver_config={"task": "min", "fmax": self.setting.fmax})
+        #return Trajectory(images=converged_nebtraj, driver_config={"task": "min", "fmax": self.setting.fmax})
+        #return AtomsNDArray(data=images)
     
     def read_convergence(self, *args, **kwargs) -> bool:
         """"""
