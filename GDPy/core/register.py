@@ -144,7 +144,7 @@ ALL_MODULES = [
     # -- managers (potentials)
     ("GDPy.potential", ["managers"]),
     ("GDPy.potential.managers", [
-        "vasp", "cp2k", 
+        "vasp", "espresso", "cp2k", 
         "xtb",
         "eam", "emt", "reax", 
         "eann", "deepmd", "lasp", "nequip", "schnet"
