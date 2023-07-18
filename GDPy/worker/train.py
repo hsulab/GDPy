@@ -34,7 +34,7 @@ class TrainerBasedWorker(AbstractWorker):
 
         return
     
-    def run(self, dataset, size: int=1, init_models=None, *args, **kwargs) -> NoReturn:
+    def run(self, dataset, size: int=1, init_models=None, *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
         assert len(init_models) == size, "The number of init models is inconsistent with size."
@@ -47,32 +47,28 @@ class TrainerBasedWorker(AbstractWorker):
             self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             queued_jobs = database.search(Query().queued.exists())
-        #queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
-        #queued_frames = [q["md5"] for q in queued_jobs]
+        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
 
         # - local mode
-        job_name = str(uuid.uuid1()) + "-" + "xxx"
-        if self.scheduler.name == "local":
-            for i in range(size):
-                trainer.directory = self.directory / f"{self.TRAIN_PREFIX}{i}"
-                trainer.train(dataset, init_model=init_models[i])
-        else:
-            for i in range(size):
-                uid = str(uuid.uuid1())
-                job_name = uid + "-" + f"{self.TRAIN_PREFIX}{i}"
-                wdir = self.directory / f"{self.TRAIN_PREFIX}{i}"
-                if not wdir.exists():
-                    wdir.mkdir(parents=True)
-                else:
-                    # TODO: better check
-                    continue
+        for i in range(size):
+            uid = str(uuid.uuid1())
+            job_name = uid + "-" + f"{self.TRAIN_PREFIX}{i}"
+            wdir = self.directory / f"{self.TRAIN_PREFIX}{i}"
+            if job_name in queued_names:
+                self._print(f"{job_name} at {self.directory.name} was submitted.")
+                continue
+            wdir.mkdir(parents=True, exist_ok=True)
 
+            if self.scheduler.name == "local":
+                trainer.directory = wdir
+                trainer.train(dataset, init_model=init_models[i])
+            else:
                 # - save trainer file
                 trainer_params = {}
                 trainer_params["trainer"] = trainer.as_dict()
                 # TODO: we set a random seed for each trainer
                 #       as a committee will be trained
-                trainer_params["trainer"]["random_seed"] = np.random.randint(0,10000)
+                trainer_params["trainer"]["random_seed"] = np.random.randint(0, 10000)
 
                 trainer_params["init_model"] = init_models[i]
 
@@ -88,21 +84,20 @@ class TrainerBasedWorker(AbstractWorker):
                     self._print(f"{wdir.name}: {scheduler.submit()}")
                 else:
                     self._print(f"{wdir.name} waits to submit.")
-                
-                # - update database
-                with TinyDB(
-                    self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-                ) as database:
-                    _ = database.insert(
-                        dict(
-                            uid = uid,
-                            gdir=job_name, 
-                            group_number=i, 
-                            wdir_names=[wdir.name], 
-                            queued=True
-                        )
+
+            # - update database
+            with TinyDB(
+                self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            ) as database:
+                _ = database.insert(
+                    dict(
+                        uid = uid,
+                        gdir=job_name, 
+                        group_number=i, 
+                        wdir_names=[wdir.name], 
+                        queued=True
                     )
-            ...
+                )
 
         return
     
