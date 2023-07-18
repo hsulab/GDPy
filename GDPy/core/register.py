@@ -160,7 +160,9 @@ ALL_MODULES = [
     # -- genetic-algorithm-related
     ("GDPy.builder", ["crossover", "mutation"]),
     # -- selectors
-    ("GDPy.selector", ["invariant", "interval", "property", "descriptor"]),
+    ("GDPy.selector", [
+        "invariant", "interval", "locate", "property", "descriptor"
+    ]),
     # -- describer
     ("GDPy.describer", ["soap"]),
     # -- comparators
@@ -180,6 +182,7 @@ ALL_MODULES = [
     ("GDPy.describer", ["interface"]),
     ("GDPy.potential", ["interface"]),
     ("GDPy.reactor", ["interface"]),
+    ("GDPy.comparator", ["interface"]),
     ("GDPy.selector", ["interface"]),
     ("GDPy.scheduler", ["interface"]),
     ("GDPy.validator", ["interface"]),
