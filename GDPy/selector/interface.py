@@ -23,7 +23,6 @@ class SelectorVariable(Variable):
 
     def __init__(self, selection: List[dict], directory="./", *args, **kwargs) -> None:
         """"""
-        print("xasdasdsa", selection)
         selection = copy.deepcopy(selection)
         selectors = []
         for params in selection:
