@@ -15,17 +15,22 @@ from ase.io import read, write
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 from GDPy.data.dataset import XyzDataloader
-from GDPy.data.array import AtomsArray2D
+from GDPy.data.array import AtomsNDArray
 
 @registers.operation.register
-class end_session(Operation):
+class seqrun(Operation):
 
-    def __init__(self, *args) -> NoReturn:
-        super().__init__(args)
-    
-    def forward(self, *args):
+    def __init__(self, nodes, *args, **kwargs) -> NoReturn:
         """"""
-        return super().forward()
+        super().__init__(nodes)
+
+        return
+    
+    def forward(self, *outputs):
+        """"""
+        super().forward()
+
+        return
 
 @registers.operation.register
 class chain(Operation):
@@ -97,7 +102,26 @@ class zip_nodes(Operation):
         """"""
         super().forward()
 
-        ret = list(zip(*outputs))
+        ret = [list(x) for x in zip(*outputs)]
+
+        return ret
+
+@registers.operation.register
+class list_nodes(Operation):
+
+    status = "finished"
+
+    def __init__(self, nodes, directory="./") -> None:
+        """"""
+        super().__init__(input_nodes=nodes, directory=directory)
+
+        return
+
+    def forward(self, *outputs):
+        """"""
+        super().forward()
+
+        ret = outputs
 
         return ret
 
@@ -124,7 +148,7 @@ class transfer(Operation):
         """"""
         super().forward()
 
-        if isinstance(frames, AtomsArray2D):
+        if isinstance(frames, AtomsNDArray):
             frames = frames.get_marked_structures()
 
         self._print(f"target dir: {str(self.target_dir)}")
