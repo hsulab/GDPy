@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import itertools
 import pathlib
 import time
+import tempfile
 from typing import Union, List
 import uuid
 import warnings
@@ -12,6 +14,7 @@ from tinydb import Query, TinyDB
 from joblib import Parallel, delayed
 
 from ase import Atoms
+from ase.io import read, write
 
 from .. import config
 from ..potential.manager import AbstractPotentialManager
@@ -21,6 +24,7 @@ from ..data.array import AtomsArray2D
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
 from ..reactor.reactor import AbstractReactor
+from .utils import copy_minimal_frames, get_file_md5, read_cache_info
 
 
 class ReactorBasedWorker(AbstractWorker):
@@ -46,9 +50,68 @@ class ReactorBasedWorker(AbstractWorker):
 
         return
     
-    def _prepare_batches(self, structures: AtomsArray2D, start_confid: int):
+    def _preprocess(self, structures):
         """"""
-        nreactions = len(structures)
+        structures = AtomsNDArray(structures)
+        #print(f"structures: {structures}")
+        if structures.ndim == 3: # from extract
+            assert structures.shape[1] == 2, "Structures must have a shape of (?, 2, ?)."
+            pairs = []
+            for p in structures:
+                p = [[a for a in s if a is not None][-1] for s in p]
+                pairs.append(p)
+        elif structures.ndim == 2: # from extract
+            pairs = []
+            ...
+        else:
+            pairs = []
+            ...
+        #print([[a.get_potential_energy() for a in p] for p in pairs])
+
+        # - check difference
+        processed_dpath = self.directory/"_data"
+        processed_dpath.mkdir(exist_ok=True)
+
+        curr_frames, curr_info = copy_minimal_frames(itertools.chain(*pairs))
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
+            write(tmp.name, curr_frames, columns=["symbols", "positions", "move_mask"])
+
+            with open(tmp.name, "rb") as fopen:
+                curr_md5 = get_file_md5(fopen)
+
+        _info_data = read_cache_info(self.directory, self.UUIDLEN)
+        
+        cache_fname = f"{curr_md5}.xyz"
+        if (processed_dpath/cache_fname).exists():
+            self._print(f"Found file with md5 {curr_md5}")
+            self._info_data = _info_data
+            start_confid = 0
+            for x in self._info_data:
+                if x[1] == curr_md5:
+                    break
+                start_confid += 1
+        else:
+            write(
+                processed_dpath/cache_fname, curr_frames, 
+                columns=["symbols", "positions", "momenta", "tags", "move_mask"]
+            )
+            # - save current atoms.info and append curr_info to _info_data
+            start_confid = len(_info_data)
+            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}\n".format("#id", "MD5", "confid", "step", "wdir")
+            for i, (confid, step, wdir) in enumerate(curr_info):
+                line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}\n".format(i+start_confid, curr_md5, confid, step, wdir)
+                content += line
+                _info_data.append(line.strip().split())
+            self._info_data = _info_data
+            with open(processed_dpath/f"{curr_md5}_info.txt", "w") as fopen:
+                fopen.write(content)
+
+        return curr_md5, pairs, start_confid
+
+    def _prepare_batches(self, pairs: List[List[Atoms]], start_confid: int):
+        """"""
+        nreactions = len(pairs)
 
         wdirs = [f"{self.wdir_prefix}{i}" for i in range(nreactions)]
         
@@ -67,12 +130,10 @@ class ReactorBasedWorker(AbstractWorker):
     def run(self, structures: List[List[Atoms]], *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
-        print("structures: ", structures)
 
         # - check if the same input structures are provided
-        #identifier, frames, start_confid = self._preprocess(builder)
-        identifier = "231dsa123h8931h2kjdhs78"
-        batches = self._prepare_batches(structures, start_confid=0)
+        identifier, pairs, start_pairid = self._preprocess(structures)
+        batches = self._prepare_batches(pairs, start_confid=start_pairid)
 
         # - read metadata
         with TinyDB(
@@ -113,7 +174,7 @@ class ReactorBasedWorker(AbstractWorker):
             
             # -- run batch
             self._irun(
-                batch_name, uid, identifier, structures, curr_indices, curr_wdirs,
+                batch_name, uid, identifier, pairs, curr_indices, curr_wdirs,
                 *args, **kwargs
             )
 
@@ -136,7 +197,7 @@ class ReactorBasedWorker(AbstractWorker):
         return
     
     def _irun(
-            self, name: str, uid: str, identifier: str, structures: AtomsArray2D, 
+            self, name: str, uid: str, identifier: str, structures, 
             curr_indices, curr_wdirs, *args, **kwargs
         ) -> None:
         """"""
@@ -351,7 +412,6 @@ class ReactorBasedWorker(AbstractWorker):
         worker_params["batchsize"] = self.batchsize
 
         return worker_params
-    
 
 
 if __name__ == "__main__":

@@ -27,22 +27,12 @@ from GDPy.worker.worker import AbstractWorker
 from GDPy.builder.builder import StructureBuilder
 
 from GDPy.utils.command import CustomTimer
+from .utils import copy_minimal_frames, get_file_md5
 
 """Monitor computation tasks with Worker.
 
 """
 
-def get_file_md5(f):
-    import hashlib
-    m = hashlib.md5()
-    while True:
-        # if not using binary
-        #data = f.read(1024).encode('utf-8')
-        data = f.read(1024) # read in block
-        if not data:
-            break
-        m.update(data)
-    return m.hexdigest()
 
 def compare_atoms(a1, a2):
     """Compare structures according to cell, chemical symbols, and positions.
@@ -66,32 +56,6 @@ def compare_atoms(a1, a2):
         return False
 
     return True
-
-def copy_minimal_frames(prev_frames: List[Atoms]):
-    """Copy atoms without extra information.
-
-    Do not copy atoms.info since it is a dict and does not maitain order.
-
-    """
-    curr_frames, curr_info = [], []
-    for prev_atoms in prev_frames:
-        # - copy geometry
-        curr_atoms = Atoms(
-            symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
-            positions=copy.deepcopy(prev_atoms.get_positions()),
-            cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
-            pbc=copy.deepcopy(prev_atoms.get_pbc()),
-            momenta = prev_atoms.get_momenta(), # retain this for MD
-            tags = prev_atoms.get_tags() # retain this for molecules
-        )
-        curr_frames.append(curr_atoms)
-        # - save info
-        confid = prev_atoms.info.get("confid", -1)
-        dynstep = prev_atoms.info.get("step", -1)
-        prev_wdir = prev_atoms.info.get("wdir", "null")
-        curr_info.append((confid,dynstep,prev_wdir))
-
-    return curr_frames, curr_info
 
 
 class DriverBasedWorker(AbstractWorker):
