@@ -1,12 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
+
 import json
 import pathlib
 import yaml
 
 from GDPy import config
-from .utils import create_variable, create_operation
+from .utils import create_variable, create_operation, traverse_postorder
+
+cache_nodes = {}
+
+def instantiate_variable(vx_name, vx_params):
+    """"""
+    print(f"----- {vx_name} -----")
+    params = {}
+    for k, v in vx_params.items():
+        print(k, v)
+        ...
+
+    return
+
+def resolve_variables(variables: dict):
+    """"""
+    for vx_name, vx_params in variables.items():
+        vx = instantiate_variable(vx_name, vx_params)
+        ...
+
+    return
+
+def instantiate_operation(op_name, op_params):
+    """"""
+    #print(f"----- {op_name} -----")
+    params = {}
+    for k, v in op_params.items():
+        params[k] = v # resolve one by one...
+    op = create_operation(op_name, op_params)
+    #print(op)
+    #print(op.input_nodes)
+
+    return op
+
+def resolve_operations(config: dict):
+    """"""
+    operations = {}
+    for op_name, op_params in config.items():
+        op = instantiate_operation(op_name, op_params)
+        operations[op_name] = op
+        cache_nodes[op_name] = op
+
+    return operations
 
 def run_session(config_filepath, feed_command=None, directory="./"):
     """Configure session with omegaconfig."""
@@ -17,9 +61,13 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     # - add resolvers
     def create_vx_instance(vx_name, _root_):
         """"""
-        vx_params = OmegaConf.to_object(_root_.variables.get(vx_name))
-
-        return create_variable(vx_name, vx_params)
+        if vx_name not in cache_nodes:
+            vx_params = OmegaConf.to_object(_root_.variables.get(vx_name))
+            vx = create_variable(vx_name, vx_params)
+            cache_nodes[vx_name] = vx
+            return vx
+        else:
+            return cache_nodes[vx_name]
 
     OmegaConf.register_new_resolver(
         "vx", create_vx_instance, use_cache=False
@@ -27,9 +75,13 @@ def run_session(config_filepath, feed_command=None, directory="./"):
 
     def create_op_instance(op_name, _root_):
         """"""
-        op_params = OmegaConf.to_object(_root_.operations.get(op_name))
-
-        return create_operation(op_name, op_params)
+        if op_name not in cache_nodes:
+            op_params = OmegaConf.to_object(_root_.operations.get(op_name))
+            op = create_operation(op_name, op_params)
+            cache_nodes[op_name] = op
+            return op
+        else:
+            return cache_nodes[op_name]
 
     OmegaConf.register_new_resolver(
         "op", create_op_instance, use_cache=False
@@ -71,8 +123,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         "structure",  load_structure
     )
 
-
-    # - configure
+    # - load configuration and resolve it
     conf = OmegaConf.load(config_filepath)
 
     # - add placeholders and their directories
@@ -94,9 +145,14 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     #print("YAML: ", OmegaConf.to_yaml(conf))
 
     # - resolve sessions
-    container = OmegaConf.to_object(conf.sessions)
-    for k, v in container.items():
-        print(k, v)
+    #container = OmegaConf.to_object(conf.sessions)
+    #for k, v in container.items():
+    #    print(k, v)
+
+    operations = resolve_operations(conf["operations"])
+    container = {}
+    for k, v in conf["sessions"].items():
+        container[k] = operations[v]
 
     # - run session
     names = conf.placeholders.get("names", None)
@@ -138,6 +194,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         ...
 
     return
+
 
 if __name__ == "__main__":
     ...

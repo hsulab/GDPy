@@ -9,12 +9,15 @@ from ..operation import Operation
 def traverse_postorder(operation):
 
     nodes_postorder = []
+    identifiers = []
 
     def recurse(node):
         if isinstance(node, Operation):
             for input_node in node.input_nodes:
                 recurse(input_node)
-        nodes_postorder.append(node)
+        if id(node) not in identifiers:
+            nodes_postorder.append(node)
+            identifiers.append(id(node))
 
     recurse(operation)
 

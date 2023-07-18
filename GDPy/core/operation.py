@@ -12,6 +12,8 @@ class Operation(abc.ABC):
 
     """"""
 
+    identifier: str = "op"
+
     #: Working directory for the operation.
     _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
 

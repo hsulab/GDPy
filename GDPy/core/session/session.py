@@ -38,6 +38,10 @@ class Session:
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
+        #print(f"number_of_nodes: {len(nodes_postorder)}")
+        #for n in nodes_postorder:
+        #    print(n)
+        #exit()
         self._print(
             "[{:^24s}] NUM_NODES: {} AT MAIN: {}".format(
                 "START", len(nodes_postorder), str(self.directory)
