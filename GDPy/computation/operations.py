@@ -218,6 +218,9 @@ class extract(Operation):
 
             worker_status[i] = True
 
+        if nworkers == 1:
+            trajectories = trajectories[0]
+
         trajectories = AtomsNDArray(trajectories)
         self._debug(trajectories)
         
