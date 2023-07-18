@@ -10,7 +10,7 @@ from ase import Atoms
 from ..core.register import registers
 from ..core.variable import Variable
 from ..core.operation import Operation
-from ..data.array import AtomsArray2D
+from ..data.array import AtomsNDArray
 from ..worker.react import ReactorBasedWorker
 
 
@@ -115,13 +115,13 @@ class react(Operation):
 
         return
     
-    def forward(self, structures: List[List[Atoms]], reactors):
+    def forward(self, structures: List[AtomsNDArray], reactors):
         """"""
         super().forward()
 
         # - assume structures contain a List of trajectory/frames pair
         #   take the last frame out since it is minimised?
-        structures = [[x[-1] for x in s] for s in structures]
+        #structures = [[x[-1] for x in s] for s in structures]
         nreactions = len(structures)
 
         # - create reactors

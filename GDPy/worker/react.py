@@ -52,14 +52,16 @@ class ReactorBasedWorker(AbstractWorker):
     
     def _preprocess(self, structures):
         """"""
-        structures = AtomsNDArray(structures)
-        #print(f"structures: {structures}")
+        structures = AtomsNDArray([x.tolist() for x in structures])
+        print(f"structures: {structures}")
+        print(f"structures: {structures[0]}")
         if structures.ndim == 3: # from extract
-            assert structures.shape[1] == 2, "Structures must have a shape of (?, 2, ?)."
+            assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
             pairs = []
             for p in structures:
                 p = [[a for a in s if a is not None][-1] for s in p]
                 pairs.append(p)
+            pairs = list(zip(pairs[0], pairs[1]))
         elif structures.ndim == 2: # from extract
             pairs = []
             ...
