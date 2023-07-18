@@ -9,6 +9,8 @@ class Variable:
     """Intrinsic, changeable parameter of a graph.
     """
 
+    identifier: str = "vx"
+
     #: Working directory for the operation.
     _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
 
@@ -38,6 +40,11 @@ class Variable:
         self._directory = pathlib.Path(directory_)
 
         return
+
+
+class DummyVariable(Variable):
+
+    ...
 
 
 if __name__ == "__main__":
