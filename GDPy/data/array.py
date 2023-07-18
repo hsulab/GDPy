@@ -197,6 +197,15 @@ class AtomsNDArray:
         return len(self.shape)
     
     @property
+    def raw_markers(self):
+        """"""
+        raw_markers = np.full(self.shape, None)
+        for m in self.markers:
+            raw_markers[tuple(m)] = True
+
+        return raw_markers
+    
+    @property
     def markers(self):
         """Return markers.
 
@@ -367,6 +376,17 @@ class AtomsNDArray:
 
         return
     
+    #@classmethod
+    #def squeeze(cls, axis=0):
+    #    """Squeeze TODO: treat markers and map properly."""
+
+    #    return cls()
+
+    #def take(self, indices, axis=None):
+    #    """"""
+
+    #    return
+    
     def __getitem__(self, key):
         """"""
         if isinstance(key, numbers.Integral) or isinstance(key, slice):
@@ -374,6 +394,7 @@ class AtomsNDArray:
         elif not isinstance(key, tuple):
             raise IndexError("Index must be an integer, a slice or a tuple.")
         assert len(key) <= len(self._shape), "Out of dimension."
+        # BUG: <=?
         #print(f"key: {key}")
 
         # - get indices for each dimension
@@ -418,7 +439,7 @@ class AtomsNDArray:
         else: # tshape is empty, means this is a single atoms
             ret = ret_data[0]
 
-        return ret
+        return ret # TODO: should this also be an array?
     
     def __len__(self):
         """"""
