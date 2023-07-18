@@ -139,7 +139,7 @@ class AtomsNDArray:
         sizes = [[len(data_nd)]]
         def _flat_inhomo_data(items: list):
             """"""
-            if isinstance(items, list):
+            if isinstance(items, list) or isinstance(items, tuple):
                 if not isinstance(items[0], Atoms):
                     sizes.append([len(item) for item in items])
                     items = _flat_inhomo_data(list(itertools.chain(*items)))
