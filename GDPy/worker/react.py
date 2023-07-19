@@ -50,11 +50,8 @@ class ReactorBasedWorker(AbstractWorker):
 
         return
     
-    def _preprocess(self, structures):
+    def _preprocess(self, structures: AtomsNDArray):
         """"""
-        structures = AtomsNDArray([x.tolist() for x in structures])
-        print(f"structures: {structures}")
-        print(f"structures: {structures[0]}")
         if structures.ndim == 3: # from extract
             assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
             pairs = []
@@ -63,11 +60,12 @@ class ReactorBasedWorker(AbstractWorker):
                 pairs.append(p)
             pairs = list(zip(pairs[0], pairs[1]))
         elif structures.ndim == 2: # from extract
-            pairs = []
-            ...
+            pairs = list(zip(structures[0], structures[1]))
+            #raise RuntimeError()
         else:
             pairs = []
-            ...
+            raise RuntimeError()
+        print(f"pairs: {pairs}")
         #print([[a.get_potential_energy() for a in p] for p in pairs])
 
         # - check difference

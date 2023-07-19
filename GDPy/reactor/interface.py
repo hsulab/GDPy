@@ -105,6 +105,35 @@ class ReactorVariable(Variable):
 
 
 @registers.operation.register
+class pair(Operation):
+
+    status: str = "finished"
+
+    def __init__(self, structures, directory="./") -> None:
+        """"""
+        super().__init__(input_nodes=[structures], directory=directory)
+
+        return
+    
+    def forward(self, structures: AtomsNDArray) -> List[List[Atoms]]:
+        """"""
+        super().forward()
+
+        print(f"structures: {structures}")
+        intermediates = structures.get_marked_structures()
+        #energies = [a.get_potential_energy() for a in intermediates]
+        #print(energies)
+
+        pair_indices = [[0, 1], [1, 2]]
+
+        pair_structures = []
+        for p in pair_indices:
+            pair_structures.append([intermediates[i] for i in p])
+
+        return AtomsNDArray(pair_structures)
+
+
+@registers.operation.register
 class react(Operation):
 
     def __init__(self, structures, reactor, batchsize: Optional[int]=None, directory="./") -> None:
@@ -118,6 +147,15 @@ class react(Operation):
     def forward(self, structures: List[AtomsNDArray], reactors):
         """"""
         super().forward()
+
+        if isinstance(structures, list):
+            # - from list_nodes operation
+            structures = AtomsNDArray([x.tolist() for x in structures])
+        else:
+            # - from pair operation
+            structures = AtomsNDArray(structures)
+        print(f"structures: {structures}")
+        print(f"structures: {structures[0]}")
 
         # - assume structures contain a List of trajectory/frames pair
         #   take the last frame out since it is minimised?
