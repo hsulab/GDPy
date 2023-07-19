@@ -3,7 +3,10 @@
 
 import itertools
 
+import numpy as np
+
 from ..core.register import registers
+from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
 
 
@@ -12,41 +15,42 @@ class LocateSelector(AbstractSelector):
 
     name = "locate"
 
-    default_parameters = dict()
+    default_parameters = dict(
+        indices = ":" # can be single integer, string or a List of integers
+    )
 
     def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
         super().__init__(directory, axis, *args, **kwargs)
 
         return
     
-    def _mark_structures(self, data, *args, **kwargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
         """"""
         super()._mark_structures(data, *args, **kwargs)
 
-        print(f"data: {data}")
+        axis = self.axis
+        if axis < 0:
+            axis = data.ndim + axis
+        indices = self.indices
 
-        curr_markers = data.markers
-
-        # NOTE: CANNOT USE NEGATIVE INDEX
-        # TODO: if take axis=1 with index -1
-        keys = [slice(None) for _ in range(data.ndim)]
-        keys[1] = slice(47, 48)
-        #print(f"keys: {keys}")
-
-        indices = []
-        for i, key in enumerate(keys):
-            size = data.shape[i]
-            curr_indices = range(size)[key]
-            indices.append(curr_indices)
-        products = list(itertools.product(*indices))
-        #print(f"products: {products}")
-
-        selected_markers = []
-        for m in curr_markers:
-            if tuple(m) in products:
-                selected_markers.append(list(m))
+        # This is similar to np.take_along_axis
+        if data.ndim > 0:
+            marker_groups = {}
+            for k, v in itertools.groupby(data.markers, key=lambda x: [x[i] for i in range(data.ndim) if i != self.axis]):
+                k = tuple(k)
+                if k in marker_groups:
+                    marker_groups[k].extend(list(v))
+                else:
+                    marker_groups[k] = list(v)
+            selected_markers = []
+            for k, v in marker_groups.items():
+                v = sorted(np.array(v).tolist())
+                selected_markers.extend([v[i] for i in indices])
+            self._print(selected_markers)
+        else:
+            raise RuntimeError(f"Locator does not support array dimension with {data.ndim}")
+        
         data.markers = selected_markers
-        #print(f"markers: {data.markers}")
 
         return
 
