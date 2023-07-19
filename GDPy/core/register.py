@@ -160,6 +160,7 @@ ALL_MODULES = [
     # -- genetic-algorithm-related
     ("GDPy.builder", ["crossover", "mutation"]),
     # -- selectors
+    ("GDPy", ["selector"]),
     ("GDPy.selector", [
         "invariant", "interval", "locate", "property", "descriptor"
     ]),
