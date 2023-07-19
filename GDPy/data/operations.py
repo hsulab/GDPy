@@ -121,7 +121,7 @@ class list_nodes(Operation):
         """"""
         super().forward()
 
-        ret = outputs
+        ret = list(outputs)
 
         return ret
 
