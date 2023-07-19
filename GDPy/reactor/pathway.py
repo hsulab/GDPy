@@ -353,10 +353,11 @@ class MEPFinder(AbstractReactor):
         if self.cache_nebtraj.exists():
             nimages_per_band = self.setting.nimages
             images = read(self.cache_nebtraj, ":")
+            nimages = len(images)
             end_nebtraj = images[-nimages_per_band:]
             nt = NEBTools(end_nebtraj)
             fmax = nt.get_fmax()
-            if fmax <= self.setting.fmax:
+            if (fmax <= self.setting.fmax) or (int(nimages/nimages_per_band) >= self.setting.steps):
                 converged = True
                 self._print(f"{fmax} <=? {self.setting.fmax}")
 
