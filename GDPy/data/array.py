@@ -123,7 +123,7 @@ class AtomsNDArray:
         elif isinstance(data, AtomsNDArray):
             data = data.tolist()
         else:
-            raise ValueError("Data should be a list or a AtomsNDArray.")
+            raise ValueError(f"Data should be a list or a AtomsNDArray instead of {type(data)}.")
         
         self._shape, self._data, self._markers, self._ind_map = self._process_data(data)
         
