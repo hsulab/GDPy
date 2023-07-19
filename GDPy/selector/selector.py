@@ -214,7 +214,7 @@ class AbstractSelector(AbstractNode):
         return marked_structures
     
     @abc.abstractmethod
-    def _mark_structures(self, frames, *args, **kwargs) -> None:
+    def _mark_structures(self, data, *args, **kwargs) -> None:
         """Mark structures subject to selector's conditions."""
 
         return
