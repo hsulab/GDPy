@@ -17,6 +17,7 @@ from GDPy.core.variable import Variable
 from GDPy.core.register import registers
 
 from ..computation.driver import AbstractDriver
+from ..data.array import AtomsNDArray
 from .worker import AbstractWorker
 from .drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
@@ -185,7 +186,7 @@ def run_worker(
             res_dir.mkdir(exist_ok=True)
 
             ret = worker.retrieve()
-            ret.save_file(res_dir/"trajs.h5")
+            AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
 
             end_frames = [traj[-1] for traj in ret]
             write(res_dir/"end_frames.xyz", end_frames)
