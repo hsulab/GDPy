@@ -105,7 +105,7 @@ class ReactorVariable(Variable):
 
 
 @registers.operation.register
-class pair(Operation):
+class concat_pair(Operation):
 
     status: str = "finished"
 
@@ -119,12 +119,13 @@ class pair(Operation):
         """"""
         super().forward()
 
+        # NOTE: assume this is a 1-D array
         print(f"structures: {structures}")
         intermediates = structures.get_marked_structures()
-        #energies = [a.get_potential_energy() for a in intermediates]
-        #print(energies)
 
-        pair_indices = [[0, 1], [1, 2]]
+        nframes = len(intermediates)
+        rankings = list(range(nframes))
+        pair_indices = [rankings[:-1], rankings[1:]]
 
         pair_structures = []
         for p in pair_indices:
