@@ -249,9 +249,13 @@ class DriverBasedWorker(AbstractWorker):
             job_name = uid + "-" + batch_name
 
             # -- whether store job info
-            if batch_name in queued_names and identifier in queued_frames:
-                self._print(f"{batch_name} at {self.directory.name} was submitted.")
-                continue
+            if self.scheduler.name != "local":
+                if batch_name in queued_names and identifier in queued_frames:
+                    self._print(f"{batch_name} at {self.directory.name} was submitted.")
+                    continue
+            else:
+                # NOTE: If use local scheduler, always run it again if re-submit
+                ...
 
             # - specify which group this worker is responsible for
             #   if not, then skip
@@ -324,6 +328,7 @@ class DriverBasedWorker(AbstractWorker):
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
+                batch = doc_data["group_number"]
 
                 #self.scheduler.set(**{"job-name": job_name})
                 self.scheduler.job_name = job_name
@@ -365,6 +370,8 @@ class DriverBasedWorker(AbstractWorker):
                                 self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                             else:
                                 warnings.warn("Local scheduler does not support re-submit.", UserWarning)
+                                frames = read(self.directory/"_data"/f"{identifier}.xyz", ":")
+                                self.run(frames, batch=batch)
                 else:
                     self._print(f"{job_name} is running...")
 
