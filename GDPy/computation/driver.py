@@ -236,9 +236,15 @@ class AbstractDriver(abc.ABC):
         atoms = atoms.copy()
 
         # - set driver's atoms to the current one
-        system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
-        if len(system_changes) > 0:
-            system_changed = True
+        if isinstance(self.atoms, Atoms):
+            warnings.warn("Driver has attached atoms object.", RuntimeWarning)
+            system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
+            self._debug(f"system_changes: {system_changes}")
+            self._debug(f"atoms to compare: {self.atoms} {atoms}")
+            if len(system_changes) > 0:
+                system_changed = True
+            else:
+                system_changed = False
         else:
             system_changed = False
 
@@ -247,10 +253,12 @@ class AbstractDriver(abc.ABC):
 
         # - run dynamics
         if not self.directory.exists():
+            self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True)
             self._irun(atoms, *args, **kwargs)
         else:
             if not system_changed:
+                self._debug(f"... system changed @ {self.directory.name} ...")
                 if list(self.directory.iterdir()):
                     converged = self.read_convergence()
                     if not converged:
@@ -265,6 +273,7 @@ class AbstractDriver(abc.ABC):
                 else:
                     self._irun(atoms, *args, **kwargs)
             else:
+                self._debug(f"... clean up @ {self.directory.name} ...")
                 self._cleanup()
                 self._irun(atoms, *args, **kwargs)
         
