@@ -134,7 +134,7 @@ def plot_mep(wdir, images):
 
 def plot_bands(wdir, images, nimages: int):
     """"""
-    rxn_coords = compute_rxn_coords(images)
+    #print([a.get_potential_energy() for a in images])
     
     nframes = len(images)
 
@@ -144,6 +144,7 @@ def plot_bands(wdir, images, nimages: int):
     plt.suptitle("Nudge Elastic Band Calculation")
 
     for i in range(nbands):
+        #print(f"plot_bands {i}")
         nbt = NEBTools(images=images[i*nimages:(i+1)*nimages])
         nbt.plot_band(ax=ax)
 
@@ -354,12 +355,15 @@ class MEPFinder(AbstractReactor):
             nimages_per_band = self.setting.nimages
             images = read(self.cache_nebtraj, ":")
             nimages = len(images)
+            nsteps = int(nimages/nimages_per_band)
             end_nebtraj = images[-nimages_per_band:]
             nt = NEBTools(end_nebtraj)
             fmax = nt.get_fmax()
-            if (fmax <= self.setting.fmax) or (int(nimages/nimages_per_band) >= self.setting.steps):
+            if (fmax <= self.setting.fmax) or (nsteps >= self.setting.steps):
                 converged = True
-                self._print(f"{fmax} <=? {self.setting.fmax}")
+                self._print(
+                    f"STEP: {nsteps} >= {self.setting.steps} MAXFRC: {fmax} <=? {self.setting.fmax}"
+                )
 
         return converged
 
