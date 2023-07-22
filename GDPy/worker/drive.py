@@ -598,12 +598,13 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                     cache_wdirs = [a.info["wdir"] for a in cache_frames]
                 else:
                     cache_wdirs = []
+                temp_wdir = self.directory/"_shared"
                 for wdir, atoms in zip(curr_wdirs,curr_frames):
                     if wdir in cache_wdirs:
                         continue
-                    #if (self.directory/"_shared").exists():
-                    #    shutil.rmtree(self.directory/"_shared")
-                    self.driver.directory = self.directory/"_shared"
+                    if temp_wdir.exists():
+                        shutil.rmtree(temp_wdir)
+                    self.driver.directory = temp_wdir
                     self._print(
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                     )
