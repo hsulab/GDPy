@@ -132,26 +132,26 @@ class transfer(Operation):
     """Transfer worker results to target destination.
     """
 
-    def __init__(self, structure, target_dir, version, system="mixed", directory="./") -> NoReturn:
+    def __init__(self, structure, dataset, version, system="mixed", directory="./") -> NoReturn:
         """"""
-        input_nodes = [structure]
+        input_nodes = [structure, dataset]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
-        self.target_dir = pathlib.Path(target_dir).resolve()
         self.version = version
 
         self.system = system # molecule/cluster, surface, bulk
 
         return
     
-    def forward(self, frames: List[Atoms]):
+    def forward(self, frames: List[Atoms], dataset):
         """"""
         super().forward()
 
         if isinstance(frames, AtomsNDArray):
             frames = frames.get_marked_structures()
 
-        self._print(f"target dir: {str(self.target_dir)}")
+        target_dir = dataset.directory.resolve()
+        self._print(f"target dir: {str(target_dir)}")
 
         # - check chemical symbols
         system_dict = {} # {formula: [indices]}
@@ -166,7 +166,7 @@ class transfer(Operation):
             system_type = self.system # currently, use user input one
             # -- name = description+formula+system_type
             dirname = "-".join([self.directory.parent.name, formula, system_type])
-            target_subdir = self.target_dir/dirname
+            target_subdir = target_dir/dirname
             target_subdir.mkdir(parents=True, exist_ok=True)
 
             # -- save frames
@@ -174,14 +174,13 @@ class transfer(Operation):
             curr_nframes = len(curr_frames)
 
             strname = self.version + ".xyz"
-            target_destination = self.target_dir/dirname/strname
+            target_destination = target_dir/dirname/strname
             if not target_destination.exists():
                 write(target_destination, curr_frames)
                 self._print(f"nframes {curr_nframes} -> {target_destination.name}")
             else:
                 warnings.warn(f"{target_destination} exists.", UserWarning)
         
-        dataset = XyzDataloader(self.target_dir)
         self.status = "finished"
 
         return dataset
