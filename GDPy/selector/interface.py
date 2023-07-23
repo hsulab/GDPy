@@ -46,10 +46,10 @@ class select(Operation):
     cache_fname = "selected_frames.xyz"
 
     def __init__(
-        self, structure, selector, directory="./", *args, **kwargs
+        self, structures, selector, directory="./", *args, **kwargs
     ):
         """"""
-        super().__init__(input_nodes=[structure,selector], directory=directory)
+        super().__init__(input_nodes=[structures, selector], directory=directory)
 
         return
     
