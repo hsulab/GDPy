@@ -42,7 +42,7 @@ class BasinSelector(AbstractSelector):
         else:
             axis = self.axis
 
-        if data.ndim == 1:
+        if data.ndim >= 1:
             # assume a single trajectory
             structures = data.get_marked_structures()
             nstructures = len(structures)
@@ -89,20 +89,6 @@ class BasinSelector(AbstractSelector):
             curr_markers = data.markers
             selected_markers = [curr_markers[i] for i in selected_indices]
             data.markers = selected_markers
-
-        elif data.ndim > 1:
-            marker_groups = {}
-            for k, v in itertools.groupby(data.markers, key=lambda x: [x[i] for i in range(data.ndim) if i != self.axis]):
-                k = tuple(k)
-                if k in marker_groups:
-                    marker_groups[k].extend(list(v))
-                else:
-                    marker_groups[k] = list(v)
-            selected_markers = []
-            for k, v in marker_groups.items():
-                v = sorted(np.array(v).tolist())
-                print(f"--- {k} ---")
-                print(v)
         else:
             raise RuntimeError(f"Basin does not support array dimension with {data.ndim}")
 
