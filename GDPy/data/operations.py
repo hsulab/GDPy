@@ -132,9 +132,9 @@ class transfer(Operation):
     """Transfer worker results to target destination.
     """
 
-    def __init__(self, structure, dataset, version, system="mixed", directory="./") -> NoReturn:
+    def __init__(self, structures, dataset, version, system="mixed", directory="./") -> NoReturn:
         """"""
-        input_nodes = [structure, dataset]
+        input_nodes = [structures, dataset]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
         self.version = version
