@@ -10,6 +10,8 @@ from typing import Union, Callable, List
 
 import numpy as np
 
+from .. import config
+
 class TrainingFailed(RuntimeError):
 
     """Training unexpectedly fails."""
@@ -40,7 +42,10 @@ class AbstractTrainer(abc.ABC):
     prefix: str = "config"
 
     #: Default output function.
-    _print: Callable = print
+    _print: Callable = config._print
+
+    #: Default debug function.
+    _debug: Callable = config._debug
 
     #: Working directory.
     _directory: Union[str,pathlib.Path] = "./"
