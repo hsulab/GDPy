@@ -261,6 +261,7 @@ class AbstractDriver(abc.ABC):
                 self._debug(f"... system changed @ {self.directory.name} ...")
                 if list(self.directory.iterdir()):
                     converged = self.read_convergence()
+                    self._debug(f"... convergence {converged} ...")
                     if not converged:
                         if read_exists:
                             atoms, resume_params = self._resume(atoms, *args, **kwargs)
