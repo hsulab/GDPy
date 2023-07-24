@@ -288,8 +288,9 @@ class DeepmdTrainer(AbstractTrainer):
         curr_steps = int(lines[-1].strip().split()[0])
         
         converged = False
-        if curr_steps > numb_steps:
+        if curr_steps >= numb_steps:
             converged = True
+        self._debug(f"{curr_steps} >=? {numb_steps}")
 
         return converged
 
