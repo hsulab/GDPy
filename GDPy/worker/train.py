@@ -7,6 +7,7 @@
 import uuid
 import pathlib
 from typing import NoReturn, Callable
+import warnings
 import yaml
 
 import numpy as np
@@ -52,9 +53,10 @@ class TrainerBasedWorker(AbstractWorker):
         # - local mode
         for i in range(size):
             uid = str(uuid.uuid1())
-            job_name = uid + "-" + f"{self.TRAIN_PREFIX}{i}"
+            batch_name = f"{self.TRAIN_PREFIX}{i}"
+            job_name = uid + "-" + batch_name
             wdir = self.directory / f"{self.TRAIN_PREFIX}{i}"
-            if job_name in queued_names:
+            if batch_name in queued_names:
                 self._print(f"{job_name} at {self.directory.name} was submitted.")
                 continue
             wdir.mkdir(parents=True, exist_ok=True)
@@ -114,19 +116,34 @@ class TrainerBasedWorker(AbstractWorker):
             for job_name in running_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
+                wdir_names = doc_data["wdir_names"]
 
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory/"train.script"
 
                 if self.scheduler.is_finished():
                     # -- check if the job finished properly
-                    #self.trainer.directory = self.directory
-                    if True:
+                    is_finished = False
+                    for x in wdir_names:
+                        wdir_path = self.directory/x
+                        if not wdir_path.exists():
+                            break
+                        else:
+                            self.trainer.directory = wdir_path
+                            if not self.trainer.read_convergence():
+                                break
+                    else:
+                        is_finished = True
+                    if is_finished:
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
-                        if resubmit:
-                            jobid = self.scheduler.submit()
-                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                        warnings.warn("Trainer does not support re-submit.", UserWarning)
+                        #if resubmit:
+                        #    if self.scheduler.name != "local":
+                        #        jobid = self.scheduler.submit()
+                        #        self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                        #    else:
+                        #        warnings.warn("Local scheduler does not support re-submit.", UserWarning)
                 else:
                     self._print(f"{job_name} is running...")
 
