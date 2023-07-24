@@ -5,6 +5,7 @@ import pathlib
 from typing import Union, List
 
 import numpy as np
+from joblib import Parallel, delayed
 
 from ase import Atoms
 
@@ -32,6 +33,8 @@ def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, pref
     fig.suptitle("MSD")
 
     #ax.set_title("$51Å\times 44Å$")
+    if names is None:
+        names = [str(i) for i in range(len(lagtimes))]
 
     for name, x, y in zip(names, lagtimes, timeseries):
 
@@ -59,6 +62,47 @@ def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, pref
     plt.savefig(wdir/ f"{prefix}msd.png")
 
     return
+
+
+def compute_msd(
+        frames, group_indices, lagmax, start, end, 
+        timeintv: float, prefix=""
+    ):
+    """Compute MSD ...
+
+    Args:
+        group_func: Function used to get a group of atoms.
+
+    """
+    # -
+    frames = wrap_traj(frames)
+    frames = frames[start:end:]
+    #print("nframes: ", len(frames))
+
+    positions = []
+    for atoms in frames:
+        positions.append(atoms.get_positions()[group_indices,:])
+    positions = np.array(positions)
+
+    nframes, natoms, _ = positions.shape
+    #print("shape: ", positions.shape)
+
+    # -
+    msds_by_particle = np.zeros((lagmax, natoms))
+
+    lagtimes = np.arange(1, lagmax)
+    for lag in lagtimes:
+        disp = positions[:-lag, :, :] - positions[lag:, :, :]
+        #print("disp: ", disp.shape)
+        sqdist = np.square(disp).sum(axis=-1)
+        msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
+        timeseries = msds_by_particle.mean(axis=1)
+
+    timeintv = timeintv / 1000. # fs to ps
+    lagtimes = np.arange(lagmax)*timeintv
+
+    return lagtimes, timeseries
+
 
 class DiffusionCoefficientValidator(AbstractValidator):
 
@@ -136,62 +180,27 @@ class DiffusionCoefficientValidator(AbstractValidator):
 
         cache_msd = self.directory/f"{prefix}msd.npy"
         if not cache_msd.exists():
-            data = self._compute_msd(
-                mdtrajs[0], group_indices, lagmax=self.lagmax, 
-                start=self.start, end=self.end, timeintv=self.timeintv, 
-                prefix=prefix
+            data = Parallel(n_jobs=self.njobs)(
+                delayed(compute_msd)(
+                    frames, group_indices, lagmax=self.lagmax, 
+                    start=self.start, end=self.end, timeintv=self.timeintv, 
+                    prefix=prefix
+                ) for frames in mdtrajs
             )
             np.save(cache_msd, data)
         else:
             data = np.load(cache_msd)
 
-        lagtimes = [x[0] for x in [data]]
-        timeseries = [x[1] for x in [data]]
+        lagtimes = [x[0] for x in data]
+        timeseries = [x[1] for x in data]
         plot_msd(
-            self.directory, names=["MSD"], lagtimes=lagtimes, timeseries=timeseries, 
+            self.directory, names=None, lagtimes=lagtimes, timeseries=timeseries, 
             start_step=self.d_start, end_step=self.d_end, prefix=prefix
         )
 
         return
     
-    def _compute_msd(
-            self, frames, group_indices, lagmax, start, end, 
-            timeintv: float, prefix=""
-        ):
-        """Compute MSD ...
 
-        Args:
-            group_func: Function used to get a group of atoms.
-
-        """
-        # -
-        frames = wrap_traj(frames)
-        frames = frames[start:end:]
-        #print("nframes: ", len(frames))
-
-        positions = []
-        for atoms in frames:
-            positions.append(atoms.get_positions()[group_indices,:])
-        positions = np.array(positions)
-
-        nframes, natoms, _ = positions.shape
-        #print("shape: ", positions.shape)
-
-        # -
-        msds_by_particle = np.zeros((lagmax, natoms))
-
-        lagtimes = np.arange(1, lagmax)
-        for lag in lagtimes:
-            disp = positions[:-lag, :, :] - positions[lag:, :, :]
-            #print("disp: ", disp.shape)
-            sqdist = np.square(disp).sum(axis=-1)
-            msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
-            timeseries = msds_by_particle.mean(axis=1)
-
-        timeintv = timeintv / 1000. # fs to ps
-        lagtimes = np.arange(lagmax)*timeintv
-
-        return lagtimes, timeseries
 
 
 if __name__ == "__main__":
