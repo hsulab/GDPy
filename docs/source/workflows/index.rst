@@ -48,4 +48,5 @@ List of Workflows
 .. toctree::
     :maxdepth: 2
 
+    train.rst
     validate.rst

@@ -45,6 +45,7 @@ Supported **Expeditions**
 
    start
    potentials/index
+   trainers/index
    computations/index
    builders/index
    selections/index
