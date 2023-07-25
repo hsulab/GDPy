@@ -57,6 +57,7 @@ Supported **Expeditions**
    :caption: Advanced Guides:
 
    sessions/index
+   workflows/index
 
 .. toctree::
    :maxdepth: 2
