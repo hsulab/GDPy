@@ -4,42 +4,18 @@ expedition package
 Submodules
 ----------
 
-expedition.abstract module
---------------------------
+expedition.expedition module
+----------------------------
 
-.. automodule:: expedition.abstract
+.. automodule:: expedition.expedition
    :members:
    :undoc-members:
    :show-inheritance:
 
-expedition.adsorbate module
+expedition.interface module
 ---------------------------
 
-.. automodule:: expedition.adsorbate
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-expedition.evoSearch module
----------------------------
-
-.. automodule:: expedition.evoSearch
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-expedition.md module
---------------------
-
-.. automodule:: expedition.md
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-expedition.reaction module
---------------------------
-
-.. automodule:: expedition.reaction
+.. automodule:: expedition.interface
    :members:
    :undoc-members:
    :show-inheritance:

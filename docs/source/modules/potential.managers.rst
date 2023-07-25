@@ -20,10 +20,26 @@ potential.managers.deepmd module
    :undoc-members:
    :show-inheritance:
 
+potential.managers.eam module
+-----------------------------
+
+.. automodule:: potential.managers.eam
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 potential.managers.eann module
 ------------------------------
 
 .. automodule:: potential.managers.eann
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+potential.managers.emt module
+-----------------------------
+
+.. automodule:: potential.managers.emt
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,6 +52,14 @@ potential.managers.lasp module
    :undoc-members:
    :show-inheritance:
 
+potential.managers.mixer module
+-------------------------------
+
+.. automodule:: potential.managers.mixer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 potential.managers.nequip module
 --------------------------------
 
@@ -44,10 +68,26 @@ potential.managers.nequip module
    :undoc-members:
    :show-inheritance:
 
+potential.managers.plumed module
+--------------------------------
+
+.. automodule:: potential.managers.plumed
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 potential.managers.reax module
 ------------------------------
 
 .. automodule:: potential.managers.reax
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+potential.managers.schnet module
+--------------------------------
+
+.. automodule:: potential.managers.schnet
    :members:
    :undoc-members:
    :show-inheritance:

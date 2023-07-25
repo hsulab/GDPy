@@ -44,6 +44,14 @@ selector.interface module
    :undoc-members:
    :show-inheritance:
 
+selector.interval module
+------------------------
+
+.. automodule:: selector.interval
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 selector.invariant module
 -------------------------
 

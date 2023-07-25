@@ -1,16 +1,17 @@
 builder package
 ===============
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   builder.graph
+   builder.mutation
+
 Submodules
 ----------
-
-builder.adsorbate module
-------------------------
-
-.. automodule:: builder.adsorbate
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 builder.builder module
 ----------------------
@@ -20,10 +21,26 @@ builder.builder module
    :undoc-members:
    :show-inheritance:
 
+builder.cleave\_surface module
+------------------------------
+
+.. automodule:: builder.cleave_surface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 builder.constraints module
 --------------------------
 
 .. automodule:: builder.constraints
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+builder.crossover module
+------------------------
+
+.. automodule:: builder.crossover
    :members:
    :undoc-members:
    :show-inheritance:
@@ -40,14 +57,6 @@ builder.direct module
 ---------------------
 
 .. automodule:: builder.direct
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-builder.graph module
---------------------
-
-.. automodule:: builder.graph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -108,6 +117,14 @@ builder.region module
    :undoc-members:
    :show-inheritance:
 
+builder.repeat module
+---------------------
+
+.. automodule:: builder.repeat
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 builder.species module
 ----------------------
 
@@ -116,18 +133,10 @@ builder.species module
    :undoc-members:
    :show-inheritance:
 
-builder.system module
----------------------
+builder.zoom module
+-------------------
 
-.. automodule:: builder.system
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-builder.utils module
---------------------
-
-.. automodule:: builder.utils
+.. automodule:: builder.zoom
    :members:
    :undoc-members:
    :show-inheritance:

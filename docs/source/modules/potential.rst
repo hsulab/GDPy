@@ -28,10 +28,10 @@ potential.manager module
    :undoc-members:
    :show-inheritance:
 
-potential.register module
--------------------------
+potential.trainer module
+------------------------
 
-.. automodule:: potential.register
+.. automodule:: potential.trainer
    :members:
    :undoc-members:
    :show-inheritance:

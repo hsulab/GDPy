@@ -4,14 +4,6 @@ validator package
 Submodules
 ----------
 
-validator.calc\_eos module
---------------------------
-
-.. automodule:: validator.calc_eos
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 validator.dimer module
 ----------------------
 
@@ -28,18 +20,18 @@ validator.distribution module
    :undoc-members:
    :show-inheritance:
 
-validator.interface module
---------------------------
+validator.eos module
+--------------------
 
-.. automodule:: validator.interface
+.. automodule:: validator.eos
    :members:
    :undoc-members:
    :show-inheritance:
 
-validator.make\_eos module
+validator.interface module
 --------------------------
 
-.. automodule:: validator.make_eos
+.. automodule:: validator.interface
    :members:
    :undoc-members:
    :show-inheritance:
@@ -56,22 +48,6 @@ validator.minima module
 -----------------------
 
 .. automodule:: validator.minima
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-validator.plot\_bm module
--------------------------
-
-.. automodule:: validator.plot_bm
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-validator.pull\_initstrs module
--------------------------------
-
-.. automodule:: validator.pull_initstrs
    :members:
    :undoc-members:
    :show-inheritance:

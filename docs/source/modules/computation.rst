@@ -8,19 +8,9 @@ Subpackages
    :maxdepth: 4
 
    computation.bias
-   computation.uncertainty
-   computation.worker
 
 Submodules
 ----------
-
-computation.Morse module
-------------------------
-
-.. automodule:: computation.Morse
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 computation.asedriver module
 ----------------------------
@@ -38,10 +28,10 @@ computation.cp2k module
    :undoc-members:
    :show-inheritance:
 
-computation.dp module
----------------------
+computation.dpx module
+----------------------
 
-.. automodule:: computation.dp
+.. automodule:: computation.dpx
    :members:
    :undoc-members:
    :show-inheritance:
@@ -90,14 +80,6 @@ computation.operations module
 -----------------------------
 
 .. automodule:: computation.operations
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-computation.opt\_morse module
------------------------------
-
-.. automodule:: computation.opt_morse
    :members:
    :undoc-members:
    :show-inheritance:

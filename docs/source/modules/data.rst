@@ -20,6 +20,14 @@ data.analyser module
    :undoc-members:
    :show-inheritance:
 
+data.array module
+-----------------
+
+.. automodule:: data.array
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 data.cleave\_deviation module
 -----------------------------
 
@@ -40,6 +48,14 @@ data.database module
 --------------------
 
 .. automodule:: data.database
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+data.dataset module
+-------------------
+
+.. automodule:: data.dataset
    :members:
    :undoc-members:
    :show-inheritance:
@@ -88,6 +104,14 @@ data.test\_allsets module
 -------------------------
 
 .. automodule:: data.test_allsets
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+data.trajectory module
+----------------------
+
+.. automodule:: data.trajectory
    :members:
    :undoc-members:
    :show-inheritance:

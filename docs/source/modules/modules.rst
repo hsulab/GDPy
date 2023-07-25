@@ -5,6 +5,7 @@ GDPy
    :maxdepth: 4
 
    builder
+   comparator
    computation
    config
    data
@@ -16,3 +17,4 @@ GDPy
    selector
    trainer
    validator
+   worker
