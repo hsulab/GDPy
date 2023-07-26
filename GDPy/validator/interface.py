@@ -34,7 +34,7 @@ class validate(Operation):
 
     """
 
-    def __init__(self, dataset, validator, worker, directory="./") -> NoReturn:
+    def __init__(self, dataset, validator, worker, run_params: dict, directory="./") -> NoReturn:
         """Init a validate operation.
 
         Args:
@@ -45,6 +45,8 @@ class validate(Operation):
         """
         input_nodes = [dataset, validator, worker]
         super().__init__(input_nodes=input_nodes, directory=directory)
+
+        self.run_params = run_params
 
         return
     
@@ -64,7 +66,7 @@ class validate(Operation):
 
         # - run validation
         validator.directory = self.directory
-        validator.run(dataset, worker)
+        validator.run(dataset, worker, **self.run_params)
 
         self.status = "finished"
 
