@@ -96,7 +96,7 @@ def compute_msd(
         #print("disp: ", disp.shape)
         sqdist = np.square(disp).sum(axis=-1)
         msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
-        timeseries = msds_by_particle.mean(axis=1)
+    timeseries = msds_by_particle.mean(axis=1)
 
     timeintv = timeintv / 1000. # fs to ps
     lagtimes = np.arange(lagmax)*timeintv
@@ -138,6 +138,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
     def _process_data(self, data) -> List[List[Atoms]]:
         """"""
         data = AtomsNDArray(data)
+        self._debug(f"data: {data}")
 
         if data.ndim == 1:
             data = [data.tolist()]
@@ -152,19 +153,23 @@ class DiffusionCoefficientValidator(AbstractValidator):
         """"""
         super().run()
 
+        # - find some optional parameters
+        labels = kwargs.get("labels", None)
+
+        # - 
         self._print("process reference ->")
         reference = dataset.get("reference")
         if reference is not None:
-            self._irun(reference, "ref-")
+            self._irun(reference, "ref-", labels)
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
-            self._irun(prediction, "pre-")
+            self._irun(prediction, "pre-", labels)
 
         return
     
-    def _irun(self, data, prefix=""):
+    def _irun(self, data, prefix="", labels=None):
         """Test the first trajectory.
 
         TODO: Several trajectories.
@@ -182,7 +187,8 @@ class DiffusionCoefficientValidator(AbstractValidator):
         if not cache_msd.exists():
             data = Parallel(n_jobs=self.njobs)(
                 delayed(compute_msd)(
-                    frames, group_indices, lagmax=self.lagmax, 
+                    [a for a in frames if a is not None], # AtomsArray may have None...
+                    group_indices, lagmax=self.lagmax, 
                     start=self.start, end=self.end, timeintv=self.timeintv, 
                     prefix=prefix
                 ) for frames in mdtrajs
@@ -194,7 +200,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
         lagtimes = [x[0] for x in data]
         timeseries = [x[1] for x in data]
         plot_msd(
-            self.directory, names=None, lagtimes=lagtimes, timeseries=timeseries, 
+            self.directory, names=labels, lagtimes=lagtimes, timeseries=timeseries, 
             start_step=self.d_start, end_step=self.d_end, prefix=prefix
         )
 
