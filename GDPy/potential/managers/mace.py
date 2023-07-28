@@ -85,7 +85,7 @@ class MaceManager(AbstractPotentialManager):
                 raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.")
             calcs = []
             for m in models:
-                curr_calc = MACECalculator.from_deployed_model(
+                curr_calc = MACECalculator(
                     model_path=m, 
                     device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 )
