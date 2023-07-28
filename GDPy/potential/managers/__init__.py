@@ -4,10 +4,13 @@
 from GDPy.core.register import registers
 
 from .mixer import MixerManager
-from .plumed import PlumedManager
-
 registers.manager.register(MixerManager)
+
+from .plumed import PlumedManager
 registers.manager.register(PlumedManager)
+
+from .mace import MaceManager
+registers.manager.register(MaceManager)
 
 
 if __name__ == "__main__":
