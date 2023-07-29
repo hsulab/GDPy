@@ -94,6 +94,15 @@ class AbstractTrainer(abc.ABC):
         """"""
 
         return self._type_list
+    
+    def _update_config(self, dataset, *args, **kwargs):
+        """Some configuration parameters can only be determined after checking the dataset.
+
+        For example, MACE... This function will modify parameters in `self.config`.
+
+        """
+
+        return
 
     @abc.abstractmethod
     def _resolve_train_command(self, *args, **kwargs):
@@ -115,12 +124,15 @@ class AbstractTrainer(abc.ABC):
     
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
+        self._update_config(dataset=dataset)
+
         command = self._resolve_train_command(init_model)
         if command is None:
             raise TrainingFailed(
                 "Please set ${} environment variable "
                 .format("GDP_" + self.name.upper() + "_COMMAND") +
                 "or supply the command keyword")
+        self._print(f"COMMAND: {command}")
         
         # TODO: ...
         # TODO: restart?
@@ -171,17 +183,12 @@ class AbstractTrainer(abc.ABC):
     
     @abc.abstractmethod
     def write_input(self, dataset, *args, **kwargs):
-        """Write inputs for training.
-
-        Args:
-            reduce_system: Whether merge structures.
-
-        """
+        """Convert dataset to the target format and write the configuration file if it has."""
 
         return
     
     @abc.abstractmethod
-    def read_convergence(self):
+    def read_convergence(self) -> bool:
         """"""
 
         return
