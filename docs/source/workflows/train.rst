@@ -12,7 +12,7 @@ For the input variables,
 
 - dataset:
 
-    The dataset.
+    The dataset. See :ref:`Trainers` for more details.
 
 - trainer:
 
@@ -20,11 +20,23 @@ For the input variables,
 
 - scheduler:
 
-    Any gdp-supported scheduler. In general, the training needs a GPU-scheduler.
+    Any scheduler. In general, the training needs a GPU-scheduler.
 
 .. note::
 
     The name in `potter` and `trainer` should be the same.
+
+Extra parameters,
+
+- size:
+
+    Number of models trained at the same time. This is useful when a committee needs 
+    later for uncertainty estimation.
+
+- init_models:
+
+    A List of model checkpoints to initialise model parameters. 
+    The number should be the same as size.
 
 Session Configuration
 ---------------------
@@ -38,7 +50,8 @@ Session Configuration
         dataset_path: ./dataset
         train_ratio: 0.9
         batchsize: 16
-      dpmd:
+        # random_seed: 1112 # Set this if one wants to reproduce results
+      potter:
         type: potter
         name: deepmd
         params:
@@ -51,6 +64,7 @@ Session Configuration
         command: dp
         config: ${json:./config.json}
         train_epochs: 500
+        # random_seed: 1112 # Set this if one wants to reproduce results
       scheduler_gpu:
         type: scheduler
         backend: slurm
@@ -64,10 +78,12 @@ Session Configuration
     operations:
       train:
         type: train
-        potter: ${vx:dpmd}
+        potter: ${vx:potter}
         dataset: ${vx:dataset}
         trainer: ${vx:trainer}
         scheduler: ${vx:scheduler_gpu}
         size: 4
+        init_models:
+          - ./model.ckpt
     sessions:
-      _ensemble: train
+      _train: train
