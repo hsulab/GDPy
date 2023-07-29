@@ -1,3 +1,5 @@
+.. _Trainers:
+
 Trainers
 ========
 
@@ -26,6 +28,7 @@ The `config.yaml` requires two sections `dataset` and `trainer` to define a trai
       dataset_path: ./dataset
       train_ratio: 0.9
       batchsize: 16
+      random_seed: 1112
     trainer:
       name: deepmd
       command: dp
@@ -35,22 +38,23 @@ The `config.yaml` requires two sections `dataset` and `trainer` to define a trai
       train_epochs: 100
       random_seed: 1112
 
-In the `dataset` section, a `dataset` is defined. `gdp` will load the structures in the 
+In the `dataset` section, a `dataset` is defined. **gdp** will load the structures in the 
 dataset and convert to the proper format required by the trainer.
 
 - name:             Dataset format. (Only `xyz` is supported now.)
 - dataset_path:     Dataset filepath.
 - train_ratio:      Train-valid-split ratio.
 - batchsize:        Training batchsize.
+- random_seed:      Random seed that affects how to split structures into train and test sets.
 
 In the `trainer` section, a `trainer` is defined. The parameters related to the model 
 architecture is defined in `config`, which may be different by models. 
-`gdp` will automatically update some parameters in the `config`, which include 
+**gdp** will automatically update some parameters in the `config`, which include 
 the training dataset section and training epochs.
 
 For example, if one is training `deepmd`, `training.training_data` and `training.validation_data` 
-in the `./dpconfig.json` can be left empty. `gdp` will convert `dataset` into deepmd-format and update the file path. 
-Moreover, `deepmd` uses `numb_steps` instead of `epochs`. `gdp` will compute the 
+in the `./dpconfig.json` can be left empty. **gdp** will convert `dataset` into deepmd-format and update the file path. 
+Moreover, `deepmd` uses `numb_steps` instead of `epochs`. **gdp** will compute the 
 number of batches based on the input dataset and multiply it with `train_epochs` to give 
 the value of `numb_steps`.
 
@@ -61,6 +65,16 @@ the value of `numb_steps`.
 - type_list:      Type list of the model.
 - train_epochs:   Number of training epochs.
 - random_seed:    Random number generator to generate random numbers in the training.
+
+List of Trainers
+----------------
+
+Read notes for the training of a specific MLIP formulation.
+
+.. toctree::
+    :maxdepth: 2
+
+    mace.rst
 
 Use Scheduler
 -------------
