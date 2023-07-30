@@ -43,8 +43,14 @@ class PlumedManager(AbstractPotentialManager):
             with open(inp, "r") as fopen:
                 lines = fopen.readlines()
                 for line in lines:
-                    if not line.strip().startswith("#"):
-                        input_lines.append(line)
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        if "#" in line:
+                            line = line[:line.index("#")]
+                        else:
+                            line = line
+                        input_lines.append(line+"\n")
+            #print(f"input_lines: {input_lines}")
                 
             kT = calc_params.get("kT", 1.)
             use_charge = calc_params.get("use_charge", False)
