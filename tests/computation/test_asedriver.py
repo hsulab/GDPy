@@ -21,9 +21,9 @@ def emt_config():
     params = dict(
         potential = dict(
             name = "emt",
-            #params = dict(
-            #    backend = "emt"
-            #)
+            params = dict(
+                backend = "ase"
+            )
         ),
         driver = dict(
             backend = "ase"
@@ -38,9 +38,9 @@ def emt_md_config():
     params = dict(
         potential = dict(
             name = "emt",
-            #params = dict(
-            #    backend = "emt"
-            #)
+            params = dict(
+                backend = "ase"
+            )
         ),
         driver = dict(
             backend = "ase",
@@ -64,6 +64,9 @@ def emt_min_config():
     params = dict(
         potential = dict(
             name = "emt",
+            params = dict(
+                backend = "ase"
+            )
         ),
         driver = dict(
             backend = "ase",
