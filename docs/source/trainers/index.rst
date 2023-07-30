@@ -47,6 +47,16 @@ dataset and convert to the proper format required by the trainer.
 - batchsize:        Training batchsize.
 - random_seed:      Random seed that affects how to split structures into train and test sets.
 
+A typical `xyz` dataset looks like
+
+.. code-block:: 
+
+    $ tree ./dataset
+    ./dataset/
+    └── water-H128O64
+        ├── init_aimd.xyz
+        └── iter_dpmd.xyz
+
 In the `trainer` section, a `trainer` is defined. The parameters related to the model 
 architecture is defined in `config`, which may be different by models. 
 **gdp** will automatically update some parameters in the `config`, which include 
