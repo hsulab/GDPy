@@ -21,16 +21,18 @@ from ase.data import atomic_numbers, atomic_masses
 from ase.io import read, write
 from ase.io.lammpsrun import read_lammps_dump_text
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
+from ase.calculators.lammps import unitconvert
 from ase.calculators.calculator import (
     CalculationFailed,
     Calculator, all_changes, PropertyNotImplementedError, FileIOCalculator
 )
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.calculators.lammps import unitconvert
+from ase.calculators.mixing import LinearCombinationCalculator
 
 from GDPy import config
 from GDPy.computation.driver import AbstractDriver, DriverSetting, BACKUP_PREFIX_FORMAT 
 from GDPy.builder.constraints import parse_constraint_info
+from .plumed import Plumed, update_stride_and_file
 
 
 dataclasses.dataclass(frozen=True)
@@ -143,6 +145,8 @@ class LmpDriverSetting(DriverSetting):
 
     extra_fix: List[str] = dataclasses.field(default_factory=list)
 
+    plumed: str = None
+
     def __post_init__(self):
         """"""
         if self.task == "min":
@@ -167,6 +171,8 @@ class LmpDriverSetting(DriverSetting):
                 Tdamp = self.Tdamp,
                 press = self.press,
                 Pdamp = self.Pdamp,
+                # - ext
+                plumed = self.plumed,
             )
         
         # - shared params
@@ -229,10 +235,25 @@ class LmpDriver(AbstractDriver):
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
+        calc, params = self._check_plumed(calc=calc, params=params)
+
         super().__init__(calc, params, directory=directory, *args, **kwargs)
         self.setting = LmpDriverSetting(**params)
 
         return
+    
+    def _check_plumed(self, calc, params: dict):
+        """"""
+        new_calc = calc
+        if isinstance(calc, LinearCombinationCalculator):
+            ncalcs = len(calc.calcs)
+            assert ncalcs == 2, "Number of calculators should be 2."
+            if isinstance(calc.calcs[0], Lammps) and isinstance(calc.calcs[1], Plumed):
+                new_calc = calc.calcs[0]
+                new_params = copy.deepcopy(params)
+                new_params["plumed"] = "".join(calc.calcs[1].input)
+
+        return new_calc, new_params
 
     def _irun(self, atoms: Atoms, *args, **kwargs):
         """"""
@@ -414,7 +435,9 @@ class Lammps(FileIOCalculator):
         min_style = "fire",
         min_modify = "integrator verlet tmax 4",
         # - extra fix
-        extra_fix = []
+        extra_fix = [],
+        # - externals
+        plumed = None
     )
 
     #: Symbol to integer.
@@ -550,7 +573,7 @@ class Lammps(FileIOCalculator):
         pot_energies = [unitconvert.convert(p, "energy", self.units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
-        config._debug("nframes in lammps: ", nframes, f"traj {nframes_traj} thermo {nframes_thermo}")
+        config._debug(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
 
         # TODO: check whether steps in thermo and traj are consistent
         pot_energies = pot_energies[:nframes]
@@ -745,10 +768,15 @@ class Lammps(FileIOCalculator):
             timestep_ = unitconvert.convert(self.timestep, "time", "real", self.units)
             content += "\n"
             content += f"timestep        {timestep_}\n"
+            if self.plumed is not None:
+                plumed_inp = update_stride_and_file(self.plumed, wdir=str(self.directory), stride=self.dump_period)
+                with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
+                    fopen.write("".join(plumed_inp))
+                content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
             content += f"run             {self.maxiter}\n"
         else:
             # TODO: NEB?
-            pass
+            ...
     
         # - output file
         in_file = os.path.join(self.directory, ASELMPCONFIG.input_fname)

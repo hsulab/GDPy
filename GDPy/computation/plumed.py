@@ -167,6 +167,16 @@ def update_input_value(line: str, key: str, value, func: callable):
 
     return line
 
+def update_stride_and_file(input_lines: List[str], wdir: str, stride: int) -> List[str]:
+    """"""
+    input_lines, parsed_lines = copy.deepcopy(input_lines), []
+    for line in input_lines:
+        parsed_line = update_input_value(line, "FILE", wdir, func=lambda x,y: os.path.join(y,x))
+        parsed_line = update_input_value(parsed_line, "STRIDE", stride, func=lambda x,y: str(y))
+        parsed_lines.append(parsed_line)
+    
+    return parsed_lines
+
 
 class Plumed(Calculator):
 
