@@ -10,6 +10,7 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_properties, all_changes
 
 from ..core.register import registers
+from ..computation import register_drivers
 
 """The abstract base class of any potential manager.
 
@@ -41,15 +42,10 @@ class AbstractPotentialManager(abc.ABC):
     valid_combinations = []
 
     _calc = None
-    modifier = None
-
-    _estimator = None
 
     def __init__(self):
         """
         """
-
-        self.uncertainty = None # uncertainty estimation method
 
         return
     
@@ -78,39 +74,6 @@ class AbstractPotentialManager(abc.ABC):
             self.register_modifier(modifier_params)
 
         return
-    
-    def register_modifier(self, params, *args, **kwargs):
-        """Register a modifier.
-       
-        The modifier is also a calculator but it usually works as an add-on to slightly
-        change the host calculator. The modifier will be mixed with the host driver when
-        creating the driver by using ase Mixer or driver built-in.
-
-        """
-        params = copy.deepcopy(params)
-        backend = params.pop("backend", "plumed")
-        if backend == "plumed":
-            ...
-        elif backend == "afir":
-            from GDPy.computation.bias.afir import AFIRCalculator
-            modifier = AFIRCalculator(**params)
-        else:
-            ...
-        self.modifier = modifier
-
-        return
-
-    def register_uncertainty_estimator(self, est_params_: dict):
-        """Create an extra uncertainty estimator.
-
-        This can be used when the current calculator is not capable of 
-        estimating uncertainty.
-        
-        """
-        from GDPy.computation.uncertainty import create_estimator
-        self._estimator = create_estimator(est_params_, self.calc_params, self._create_calculator)
-
-        return
 
     def create_driver(
         self, 
@@ -124,10 +87,8 @@ class AbstractPotentialManager(abc.ABC):
 
         """
         # - check whether there is a calc
-        #if not hasattr(self, "calc") or self.calc is None:
-        #    raise AttributeError("Cant create driver before a calculator has been properly registered.")
         if not hasattr(self, "calc"):
-            raise AttributeError("Cant create driver before a calculator has been properly registered.")
+            raise AttributeError("Cannot create driver since a calculator has been properly registered.")
             
         # parse backends
         self.dyn_params = dyn_params
@@ -149,31 +110,15 @@ class AbstractPotentialManager(abc.ABC):
         else:
             merged_params.update(**dyn_params)
 
-        # - other params
+        # -- other params
         ignore_convergence = merged_params.pop("ignore_convergence", False)
 
-        # - check bias params
-        bias_params = self.dyn_params.get("bias", None)
-        
-        # create dynamics
-        calc = self.calc
-
-        if dynamics == "ase":
-            from GDPy.computation.asedriver import AseDriver as driver_cls
-        elif dynamics == "lammps":
-            from GDPy.computation.lammps import LmpDriver as driver_cls
-        elif dynamics == "lasp":
-            from GDPy.computation.lasp import LaspDriver as driver_cls
-        elif dynamics == "vasp":
-            from GDPy.computation.vasp import VaspDriver as driver_cls
-
-        # -- add PES modifier (BIAS) to the host PES
-        if self.modifier is not None:
-            from GDPy.computation.mixer import AddonCalculator
-            calc = AddonCalculator(self.calc, self.modifier, 1., 1.)
+        # - create dynamics
+        driver_cls = register_drivers[dynamics]
+        #assert driver_cls is not None, f"Cannot find a driver named {dynamics}."
 
         driver = driver_cls(
-            calc, merged_params, directory=calc.directory, 
+            self.calc, merged_params, directory=self.calc.directory, 
             ignore_convergence=ignore_convergence
         )
         driver.pot_params = self.as_dict()
@@ -238,4 +183,4 @@ class AbstractPotentialManager(abc.ABC):
 
 
 if __name__ == "__main__":
-    pass
+    ...
