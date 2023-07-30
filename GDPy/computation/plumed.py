@@ -326,7 +326,8 @@ class Plumed(Calculator):
 
         # Box for functions with PBC in plumed
         if np.any(self.atoms.pbc):
-            self.plumed.cmd("setBox", self.atoms.get_cell(complete=True))
+            cell = self.atoms.get_cell(complete=True).array
+            self.plumed.cmd("setBox", cell)
 
         self.plumed.cmd("setPositions", pos)
         self.plumed.cmd("setEnergy", 0.)
