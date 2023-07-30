@@ -174,7 +174,7 @@ class DriverBasedWorker(AbstractWorker):
             # - save structures
             write(
                 processed_dpath/stored_fname, frames, 
-                columns=["symbols", "positions", "momenta", "tags", "move_mask"]
+                # columns=["symbols", "positions", "momenta", "tags", "move_mask"]
             )
             # - save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
