@@ -174,7 +174,7 @@ class MaceManager(AbstractPotentialManager):
         type_map = {}
         for i, a in enumerate(type_list):
             type_map[a] = i
-
+        
         # - model files
         model_ = calc_params.get("model", [])
         if not isinstance(model_, list):
@@ -186,6 +186,8 @@ class MaceManager(AbstractPotentialManager):
             if not m.exists():
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
+
+        precision = calc_params.pop("precision", "float32")
 
         # - create specific calculator
         calc = DummyCalculator()
@@ -200,7 +202,8 @@ class MaceManager(AbstractPotentialManager):
             for m in models:
                 curr_calc = MACECalculator(
                     model_path=m, 
-                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                    precision=precision
                 )
                 calcs.append(curr_calc)
             if len(calcs) == 1:
