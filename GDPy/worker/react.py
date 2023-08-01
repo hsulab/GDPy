@@ -94,7 +94,7 @@ class ReactorBasedWorker(AbstractWorker):
         else:
             write(
                 processed_dpath/cache_fname, curr_frames, 
-                columns=["symbols", "positions", "momenta", "tags", "move_mask"]
+                # columns=["symbols", "positions", "momenta", "tags", "move_mask"]
             )
             # - save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
