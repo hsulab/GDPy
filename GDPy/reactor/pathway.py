@@ -156,10 +156,17 @@ def plot_bands(wdir, images, nimages: int):
 @dataclasses.dataclass
 class ReactorSetting:
 
+    #: Number of images along the pathway.
     nimages: int = 7
+
+    #: Align IS and FS based on the mic.
+    mic: bool = True
     
     #:
     optimiser: str = "bfgs"
+
+    #: Whether use CI-NEB.
+    climb: bool = False
 
     #: Convergence force tolerance.
     fmax: float = 0.05
@@ -174,9 +181,14 @@ class ReactorSetting:
         """"""
         # - ...
         opt_cls = None
-        if self.optimiser == "bfgs":
-            from ase.optimize import BFGS
-            opt_cls = BFGS
+        if self.optimiser == "bfgs": # Takes a lot of time to solve hessian.
+            from ase.optimize import BFGS as opt_cls
+        elif self.optimiser == "fire": # BUG: STRANGE BEHAVIOUR.
+            from ase.optimize import FIRE as opt_cls
+        elif self.optimiser == "mdmin":
+            from ase.optimize import MDMin as opt_cls
+        else:
+            ...
         
         self.opt_cls = opt_cls
 
@@ -287,11 +299,15 @@ class MEPFinder(AbstractReactor):
         assert np.allclose(c1, c2), "Inconsistent unit cell..."
 
         # - align structures
-        shift = fin_atoms.get_positions() - ini_atoms.get_positions()
-        curr_vectors, curr_distances = find_mic(shift, c1, pbc=True)
-        self._debug(f"curr_vectors: {curr_vectors}")
-        self._print(f"disp: {np.linalg.norm(curr_vectors)}")
-        fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+        shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
+        if self.setting.mic:
+            self._print("Align IS and FS based on MIC.")
+            curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
+            self._debug(f"curr_vectors: {curr_vectors}")
+            self._print(f"disp: {np.linalg.norm(curr_vectors)}")
+            fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+        else:
+            self._print(f"disp: {np.linalg.norm(shifts)}")
 
         ini_atoms = set_constraint(ini_atoms, self.setting.constraint)
         fin_atoms = set_constraint(fin_atoms, self.setting.constraint)
@@ -306,7 +322,7 @@ class MEPFinder(AbstractReactor):
             a.calc = self.calc
 
         neb = NEB(
-            images=images, k=0.1, climb=False,
+            images=images, k=0.1, climb=self.setting.climb,
             remove_rotation_and_translation=False, method="aseneb",
             allow_shared_calculator=True, precon=None
         )
