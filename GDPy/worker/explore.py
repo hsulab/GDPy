@@ -112,7 +112,7 @@ class ExpeditionBasedWorker(AbstractWorker):
             for job_name in running_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
-                wdir_names = self.directory/doc_data["wdir_names"]
+                wdir_names = doc_data["wdir_names"]
 
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory/f"{self._script_name}-{uid}"
