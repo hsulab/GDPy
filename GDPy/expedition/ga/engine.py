@@ -374,7 +374,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("\n\n===== Retrieve Relaxed Population =====")
-            converged_candidates = [t[0] for t in self.worker.retrieve()]
+            converged_candidates = [t[-1] for t in self.worker.retrieve()]
             for cand in converged_candidates:
                 self._print(cand)
                 self._print(cand.info)
