@@ -10,6 +10,47 @@ from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
 
 
+def convert_string_to_indices(indstr: str, length: int, convention="py"):
+    """"""
+    def _convert_string(x: str):
+        """"""
+        try:
+            x = int(x)
+        except: # == ""
+            x = None
+
+        return x
+
+    #print(f"indstr: {indstr}")
+    indices = list(range(length))
+    selected_indices = []
+    for x in indstr.strip().split():
+        curr_range = x.split(":")
+        if len(curr_range) == 1:
+            x = _convert_string(curr_range[0])
+            if x is None: # == ""
+                start, stop, step = None, None, None
+            else:
+                if x >= 0:
+                    start, stop, step = x, x+1, None
+                else:
+                    start, stop, step = x, x-1, -1
+        elif len(curr_range) == 2:
+            x, y = _convert_string(curr_range[0]), _convert_string(curr_range[1])
+            start, stop, step = x, y, None
+        elif len(curr_range) == 3:
+            x, y, z = _convert_string(curr_range[0]), _convert_string(curr_range[1]), _convert_string(curr_range[2])
+            start, stop, step = x, y, z
+        else:
+            raise RuntimeError("Fail to parse the index string.")
+        #print(f"slice: {slice(start, stop, step)}")
+        selected_indices.extend(
+            indices[slice(start, stop, step)]
+        ) 
+
+    return selected_indices
+
+
 @registers.selector.register
 class LocateSelector(AbstractSelector):
 
@@ -45,8 +86,10 @@ class LocateSelector(AbstractSelector):
             selected_markers = []
             for k, v in marker_groups.items():
                 v = sorted(np.array(v).tolist())
-                selected_markers.extend([v[i] for i in indices])
-            self._print(selected_markers)
+                selected_markers.extend(
+                    [v[i] for i in convert_string_to_indices(self.indices, len(v))]
+                )
+            #self._print(f"selected_markers: {selected_markers}")
         else:
             raise RuntimeError(f"Locator does not support array dimension with {data.ndim}")
         
