@@ -161,15 +161,17 @@ class extract(Operation):
     """Extract dynamics trajectories from a drive-node's worker.
     """
 
-    def __init__(self, compute, directory="./", *args, **kwargs) -> None:
+    def __init__(self, compute, merge_workers=False, directory="./", *args, **kwargs) -> None:
         """Init an extract operation.
 
         Args:
             compute: Any node forwards a List of workers.
-            mark_end: Whether mark th end frame of each trajectory.
+            merge_workers: Whether merge results from different workers togather.
         
         """
         super().__init__(input_nodes=[compute], directory=directory)
+
+        self.merge_workers = merge_workers
 
         return
     
@@ -221,6 +223,8 @@ class extract(Operation):
         if nworkers == 1:
             trajectories = trajectories[0]
 
+        if self.merge_workers:
+            trajectories = list(itertools.chain(*trajectories))
         trajectories = AtomsNDArray(trajectories)
         self._debug(trajectories)
         

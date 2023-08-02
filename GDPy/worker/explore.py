@@ -20,6 +20,9 @@ tracks its progress.
 
 class ExpeditionBasedWorker(AbstractWorker):
 
+    #: Prefix of the expedition folder name.
+    EXP_INDEX: str = "expedition"
+
     batchsize: int = 1
 
     _script_name: str = "run.script"
@@ -43,16 +46,23 @@ class ExpeditionBasedWorker(AbstractWorker):
         expedition = self.expedition
         scheduler = self.scheduler
 
+        # - read metadata from file or database
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            queued_jobs = database.search(Query().queued.exists())
+        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+
         size = 1
         for i in range(size):
             uid = str(uuid.uuid1())
-            job_name = uid + "-" + "expedition" + "-" + f"{i}"
-            wdir = self.directory / ("expedition" + "-" + f"{i}")
-            if not wdir.exists():
-                wdir.mkdir(parents=True)
-            else:
-                # TODO: better check
+            batch_name = f"{self.EXP_INDEX}-{i}"
+            job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
+            wdir = self.directory / (self.EXP_INDEX + "-" + f"{i}")
+            if batch_name in queued_names:
+                self._print(f"{job_name} at {self.directory.name} was submitted.")
                 continue
+            wdir.mkdir(parents=True, exist_ok=True)
 
             if self.scheduler.name == "local":
                 expedition.directory = wdir
@@ -63,7 +73,7 @@ class ExpeditionBasedWorker(AbstractWorker):
                     yaml.safe_dump(exp_params, fopen)
 
                 scheduler.job_name = job_name
-                scheduler.script = wdir/self._script_name
+                scheduler.script = wdir/f"{self._script_name}-{uid}"
                 scheduler.user_commands = "gdp explore {} --wait {}".format(
                     str(wdir/f"exp-{uid}.yaml"), self.wait_time
                 )
@@ -102,26 +112,36 @@ class ExpeditionBasedWorker(AbstractWorker):
             for job_name in running_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
-
-                wdir = self.directory/doc_data["wdir_names"][0]
+                wdir_names = self.directory/doc_data["wdir_names"]
 
                 self.scheduler.job_name = job_name
-                self.scheduler.script = wdir/"train.script"
+                self.scheduler.script = self.directory/f"{self._script_name}-{uid}"
 
                 if self.scheduler.is_finished():
                     # -- check if the job finished properly
-                    self.expedition.directory = wdir
-                    if self.expedition.read_convergence():
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-                        self._print(f"{job_name} finished.")
+                    is_finished = False
+                    for x in wdir_names:
+                        wdir_path = self.directory/x
+                        if not wdir_path.exists():
+                            break
+                        else:
+                            self.expedition.directory = wdir_path
+                            if not self.expedition.read_convergence():
+                                break
                     else:
-                        if resubmit:
-                            if self.scheduler.name != "local":
-                                jobid = self.scheduler.submit()
-                                self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                            else:
-                                self._print(f"{job_name} tries to re-run.")
-                                warnings.warn("Local scheduelr does not support re-run.", UserWarning)
+                        is_finished = True
+                    if is_finished:
+                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                        #self._print(f"{job_name} finished.")
+                    else:
+                        warnings.warn("Exploration does not support re-submit.", UserWarning)
+                        #if resubmit:
+                        #    if self.scheduler.name != "local":
+                        #        jobid = self.scheduler.submit()
+                        #        self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                        #    else:
+                        #        self._print(f"{job_name} tries to re-run.")
+                        #        warnings.warn("Local scheduelr does not support re-run.", UserWarning)
                 else:
                     self._print(f"{job_name} is running...")
 
@@ -152,7 +172,7 @@ class ExpeditionBasedWorker(AbstractWorker):
         workers = []
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-            self._debug("unretrieved_wdirs: ", unretrieved_wdirs)
+            self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
             for p in unretrieved_wdirs:
                 self.expedition.directory = p
                 workers.extend(self.expedition.get_workers())
