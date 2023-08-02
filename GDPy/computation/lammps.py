@@ -244,7 +244,7 @@ class LmpDriver(AbstractDriver):
     
     def _check_plumed(self, calc, params: dict):
         """"""
-        new_calc = calc
+        new_calc, new_params = calc, params
         if isinstance(calc, LinearCombinationCalculator):
             ncalcs = len(calc.calcs)
             assert ncalcs == 2, "Number of calculators should be 2."
