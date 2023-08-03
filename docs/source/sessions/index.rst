@@ -42,7 +42,7 @@ The `computer` variable requires three variables as the input. One can **${vx:po
 point to the required variable. **vx** means the input is in the `variables` section and 
 `potter` is just the variable name. At the first glance, this way of definition 
 is a little complicated than ones uses in `gdp compute`. However, if several different 
-`computer` are required in one workflow, `driver` and `scheduler` variables cane be 
+`computer` are required in one workflow, `driver` and `scheduler` variables can be 
 reusable.
 
 The definition for `operations` is similar. One can further use **${op:read}** to 
