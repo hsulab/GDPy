@@ -27,12 +27,13 @@ class compute(Operation):
     """
 
     def __init__(
-        self, builder, worker, batchsize: int=None, directory="./",
+        self, builder, worker, batchsize: int=None, shared: bool=False, directory="./",
     ):
         """"""
         super().__init__(input_nodes=[builder, worker], directory=directory)
 
         self.batchsize = batchsize
+        self.shared = shared
 
         return
     
@@ -60,6 +61,8 @@ class compute(Operation):
                 worker.batchsize = self.batchsize
             else:
                 worker.batchsize = nframes
+            if self.shared and worker.scheduler.name == "local":
+                worker._share_wdir = True
         nworkers = len(workers)
 
         if nworkers == 1:
