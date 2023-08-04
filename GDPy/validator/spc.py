@@ -19,138 +19,15 @@ from matplotlib import pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
-    print("Used default matplotlib style.")
+    #print("Used default matplotlib style.")
+    ...
 
 from GDPy.validator.validator import AbstractValidator
 from GDPy.worker.drive import DriverBasedWorker
 
-from GDPy.computation.utils import make_clean_atoms
-from GDPy.utils.comparasion import parity_plot_dict, rms_dict
+from ..utils.comparision import get_properties, plot_parity, plot_distribution
 
-from GDPy.validator.utils import get_properties
 from GDPy.utils.command import convert_indices
-
-
-def plot_distribution(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
-    """"""
-    x_ref, x_pred = np.array(x_ref), np.array(x_pred)
-    assert x_ref.shape[0] == x_pred.shape[0], "Input data is inconsistent."
-
-    if weights is None:
-        weights = np.ones(x_ref.shape)
-    weights = np.array(weights)
-    assert x_ref.shape[0] == weights.shape[0], "Weight is inconsistent."
-
-    # use flat shape otherwise hist will be separate
-    x_diff = (x_pred - x_ref) / weights
-    #print("x_diff: ", x_diff.shape)
-    #if len(x_diff.shape) > 1:
-    #    x_diff = np.linalg.norm(x_diff, axis=1)
-
-    pmax, pmin = np.max(x_diff), np.min(x_diff)
-
-    ax.set_ylabel("Probability Density")
-    ax.set_xlabel("$\Delta$"+x_name)
-
-    num_bins = 20
-    if x_types is None:
-        x_diff = x_diff.flatten()
-        n, bins, patches = ax.hist(x_diff, num_bins, density=True, label=x_name)
-    else:
-        # -- per type
-        x_types = np.array(x_types)
-    
-        types = sorted(set(x_types))
-        for t in types:
-            t_mask = np.array(x_types==t)
-            x_diff_t = x_diff[t_mask]
-            if len(x_diff.shape) > 1:
-                x_diff_t = x_diff_t.flatten()
-            n, bins, patches = ax.hist(x_diff_t, num_bins, density=True, label=t)
-
-    ax.legend()
-
-    return
-
-
-def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
-    """Plots the distribution of energy per atom on the output vs the input."""
-    # - convert data type
-    x_ref, x_pred = np.array(x_ref), np.array(x_pred)
-    assert x_ref.shape[0] == x_pred.shape[0], "Input data is inconsistent."
-
-    if weights is None:
-        weights = np.ones(x_ref.shape)
-    weights = np.array(weights)
-    assert x_ref.shape[0] == weights.shape[0], "Weight is inconsistent."
-
-    x_ref /= weights
-    x_pred /= weights
-
-    # - get the appropriate limits for the plot
-    pmax = np.max(np.array([x_ref,x_pred])) # property max
-    pmin = np.min(np.array([x_ref,x_pred]))
-    edge = (pmax-pmin)*0.05
-
-    plim = (pmin - edge, pmax + edge)
-    ax.set_xlim(plim)
-    ax.set_ylim(plim)
-
-    # add line of slope 1 for refrence
-    ax.plot(plim, plim, c="k")
-
-    # - set labels
-    ax.set_title(x_name)
-
-    ax.set_xlabel("Reference")
-    ax.set_ylabel("Prediction")
-
-    # - either plot points all togather or per type
-    x_rmse = [rms_dict(x_ref, x_pred)]
-    x_rmse_names = [x_name]
-
-    if x_types is None:
-        # -- all togather
-        ax.scatter(x_ref, x_pred, label=x_name)
-        # -- rmse text
-        add_rmse_text(ax, x_rmse, x_rmse_names)
-    else:
-        # -- per type
-        x_types = np.array(x_types)
-
-        types = sorted(set(x_types))
-        for t in types:
-            t_mask = np.array(x_types==t)
-            #print(t_mask)
-            x_ref_t, x_pred_t = x_ref[t_mask], x_pred[t_mask]
-            #print(t, x_ref_t.shape)
-            ax.scatter(x_ref_t, x_pred_t, label=t)
-
-            _rms = rms_dict(x_ref_t, x_pred_t)
-            x_rmse.append(_rms)
-            x_rmse_names.append(t)
-        
-        # -- rmse text
-        add_rmse_text(ax, x_rmse, x_rmse_names)
-    
-    ax.legend()
-
-    return x_rmse, x_rmse_names
-
-def add_rmse_text(ax, x_rmse, x_name):
-    """"""
-    # add text about RMSE
-    rmse_text = "RMSE:\n"
-    for _rms, name in zip(x_rmse, x_name):
-        rmse_text += "{:>6.3f}+-{:>6.3f} {:<4s}\n".format(_rms["rmse"], _rms["std"], name)
-
-    ax.text(
-        0.9, 0.1, rmse_text, transform=ax.transAxes, 
-        fontsize=18, fontweight="bold", 
-        horizontalalignment="right", verticalalignment="bottom"
-    )
-
-    return
 
 
 class SinglepointValidator(AbstractValidator):
