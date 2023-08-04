@@ -3,7 +3,7 @@
 
 from GDPy.core.register import registers
 from ..manager import AbstractPotentialManager, DummyCalculator
-from GDPy.computation.bias import bias_register
+from GDPy.bias import bias_register
 
 """This manager registers ALL jax-based bias calculators."""
 

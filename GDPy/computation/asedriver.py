@@ -27,7 +27,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
 from GDPy.computation.driver import AbstractDriver, DriverSetting
-from GDPy.computation.bias import create_bias_list
 
 from GDPy.md.md_utils import force_temperature
 
