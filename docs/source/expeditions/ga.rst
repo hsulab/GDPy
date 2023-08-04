@@ -1,3 +1,5 @@
+.. _Genetic Algorithm:
+
 Genetic Algorithm (GA)
 ======================
 
