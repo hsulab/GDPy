@@ -14,8 +14,12 @@ registers.comparator.register(InteratomicDistanceComparator)
 from .graph import GraphComparator
 registers.comparator.register("graph")(GraphComparator)
 
+from .singlepoint import SinglePointComparator
+registers.comparator.register("single_point")(SinglePointComparator)
+
 from .reaction import ReactionComparator
 registers.comparator.register("reaction")(ReactionComparator)
+
 
 
 if __name__ == "__main__":

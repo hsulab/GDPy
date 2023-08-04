@@ -55,7 +55,7 @@ def add_rmse_text(ax, x_rmse, x_name):
     return
 
 
-def get_properties(frames: List[Atoms], other_props = []):
+def get_properties(frames: List[Atoms], other_props = [], apply_constraint=False):
     """Get properties of frames for comparison.
 
     Currently, only total energy and forces are considered.
@@ -78,7 +78,7 @@ def get_properties(frames: List[Atoms], other_props = []):
         tot_energies.append(energy)
 
         # -- force
-        forces = atoms.get_forces(apply_constraint=False)
+        forces = atoms.get_forces(apply_constraint=apply_constraint)
         tot_forces.extend(forces.tolist())
 
     return tot_symbols, tot_energies, tot_forces
