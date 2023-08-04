@@ -68,11 +68,6 @@ class AbstractPotentialManager(abc.ABC):
 
         self.calc_params = copy.deepcopy(calc_params)
 
-        # - check if there were any modifiers
-        modifier_params = calc_params.pop("modifier", None)
-        if modifier_params is not None:
-            self.register_modifier(modifier_params)
-
         return
 
     def create_driver(

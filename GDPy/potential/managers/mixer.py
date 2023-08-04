@@ -41,7 +41,7 @@ class MixerManager(AbstractPotentialManager):
                 )
                 potter.register_calculator(potter_.get("params", {}))
             potters.append(potter)
-        self.potters = potters
+        self.potters = potters # Used by ASE to determine timestep, dump_period ...
         
         pot_calcs = [p.calc for p in potters]
         save_host = calc_params.get("save_host", True)

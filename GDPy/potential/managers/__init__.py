@@ -6,6 +6,9 @@ from GDPy.core.register import registers
 from .mixer import MixerManager
 registers.manager.register(MixerManager)
 
+from .bias import BiasManager
+registers.manager.register(BiasManager)
+
 from .plumed import PlumedManager
 registers.manager.register(PlumedManager)
 
