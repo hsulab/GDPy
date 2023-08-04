@@ -162,8 +162,11 @@ class ReactorSetting:
     #: Align IS and FS based on the mic.
     mic: bool = True
     
-    #:
+    #: Optimiser.
     optimiser: str = "bfgs"
+
+    #: Spring constant, eV/Ang.
+    k: float = 0.1
 
     #: Whether use CI-NEB.
     climb: bool = False
@@ -322,7 +325,7 @@ class MEPFinder(AbstractReactor):
             a.calc = self.calc
 
         neb = NEB(
-            images=images, k=0.1, climb=self.setting.climb,
+            images=images, k=self.setting.k, climb=self.setting.climb,
             remove_rotation_and_translation=False, method="aseneb",
             allow_shared_calculator=True, precon=None
         )

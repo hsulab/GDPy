@@ -105,13 +105,17 @@ class ReactorVariable(Variable):
 
 
 @registers.operation.register
-class concat_pair(Operation):
+class pair_stru(Operation):
 
     status: str = "finished"
 
-    def __init__(self, structures, directory="./") -> None:
+    def __init__(self, structures, method="couple", pairs=None, directory="./") -> None:
         """"""
         super().__init__(input_nodes=[structures], directory=directory)
+
+        assert method in ["couple", "concat", "custom"], "pair method should be either couple or concat."
+        self.method = method
+        self.pairs = pairs
 
         return
     
@@ -125,7 +129,15 @@ class concat_pair(Operation):
 
         nframes = len(intermediates)
         rankings = list(range(nframes))
-        pair_indices = [rankings[:-1], rankings[1:]]
+
+        if self.method == "couple":
+            pair_indices = [rankings[0::2], rankings[1::2]]
+        elif self.method == "concat":
+            pair_indices = [rankings[:-1], rankings[1:]]
+        elif self.method == "custom":
+            pair_indices = self.pairs
+        else:
+            ...
 
         pair_structures = []
         for p in pair_indices:
