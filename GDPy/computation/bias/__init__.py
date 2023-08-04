@@ -4,6 +4,14 @@
 
 from typing import List
 
+from GDPy.core.register import Register
+bias_register = Register("bias")
+
+from GDPy.colvar import initiate_colvar
+
+from .harmonic import HarmonicBias
+bias_register.register("harmonic")(HarmonicBias)
+
 
 """Create bias on potential energy surface.
 """
