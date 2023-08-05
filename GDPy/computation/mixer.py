@@ -8,6 +8,8 @@ import numpy as np
 from ase.calculators.calculator import all_changes
 from ase.calculators.mixing import MixedCalculator, LinearCombinationCalculator
 
+from .. import config as GDPCONFIG
+
 class AddonCalculator(MixedCalculator):
 
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
@@ -51,13 +53,22 @@ class EnhancedCalculator(LinearCombinationCalculator):
         prev_calc = atoms.calc
         atoms.calc = None
 
-        # TODO: set wdir for each subcalc
         super().calculate(atoms, properties, system_changes)
         atoms.calc = prev_calc
 
         if self.save_host:
             self.results["host_energy"] = self.calcs[0].get_property("energy", atoms)
             self.results["host_forces"] = self.calcs[0].get_property("forces", atoms)
+        
+        # - save deviation if the host calculator is a committee
+        if isinstance(self.calcs[0], CommitteeCalculator):
+            natoms = len(atoms)
+            for k, v in self.calcs[0].results.items():
+                if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS:
+                    self.results[k] = v
+            for k, v in self.calcs[0].results.items():
+                if k in GDPCONFIG.VALID_DEVI_ATOMIC_KEYS:
+                    self.results[k] = np.reshape(v, (natoms, -1))
 
         return
     
