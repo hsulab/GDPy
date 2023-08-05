@@ -83,6 +83,7 @@ def save_trajectory(atoms, log_fpath) -> NoReturn:
 
     # - save special keys and arrays from calc
     natoms = len(atoms)
+
     # -- add deviation
     for k, v in atoms.calc.results.items():
         if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS:
@@ -90,11 +91,13 @@ def save_trajectory(atoms, log_fpath) -> NoReturn:
     for k, v in atoms.calc.results.items():
         if k in GDPCONFIG.VALID_DEVI_ATOMIC_KEYS:
             atoms_to_save.arrays[k] = np.reshape(v, (natoms, -1))
+    #print(f"keys: {atoms.calc.results.keys()}")
 
     # -- check special metadata
     calc = atoms.calc
     if isinstance(calc, EnhancedCalculator):
         atoms_to_save.info["host_energy"] = copy.deepcopy(calc.results["host_energy"])
+        atoms_to_save.info["bias_energy"] = results["energy"] - calc.results["host_energy"]
         atoms_to_save.arrays["host_forces"] = copy.deepcopy(calc.results["host_forces"])
 
     # - append to traj
