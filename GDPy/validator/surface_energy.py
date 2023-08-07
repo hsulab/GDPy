@@ -24,7 +24,7 @@ class SurfaceEnergyValidator(AbstractValidator):
 
     """
 
-    def __init__(self, nsides=1, directory: str | pathlib.Path = "./", *args, **kwargs):
+    def __init__(self, nsides=1, directory: Union[str, pathlib.Path] = "./", *args, **kwargs):
         """"""
         super().__init__(directory, *args, **kwargs)
 

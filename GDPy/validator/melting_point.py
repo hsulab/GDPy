@@ -93,7 +93,7 @@ class MeltingPointValidator(AbstractValidator):
 
     """
 
-    def __init__(self, group, run_fit: bool=True, start=0, temperatures: List[float]=None, fitting="sigmoid",directory: str | pathlib.Path = "./", *args, **kwargs):
+    def __init__(self, group, run_fit: bool=True, start=0, temperatures: List[float]=None, fitting="sigmoid", directory: Union[str, pathlib.Path] = "./", *args, **kwargs):
         """"""
         super().__init__(directory, *args, **kwargs)
 

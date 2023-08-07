@@ -32,7 +32,7 @@ class AbstractReactor(AbstractNode):
 
     """
 
-    def __init__(self, calc, directory: str | pathlib.Path = "./", random_seed: int = None, *args, **kwargs):
+    def __init__(self, calc, directory: Union[str, pathlib.Path] = "./", random_seed: int = None, *args, **kwargs):
         """"""
         super().__init__(directory, random_seed, *args, **kwargs)
         self.calc = calc

@@ -116,7 +116,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
     def __init__(
             self, group, timeintv: float, lagmax: int, start: int=None, end: int=None, 
             d_start: int = 0, d_end: int = 20,
-            directory: str | pathlib.Path = "./", *args, **kwargs
+            directory: Union[str, pathlib.Path] = "./", *args, **kwargs
         ):
         """"""
         super().__init__(directory, *args, **kwargs)

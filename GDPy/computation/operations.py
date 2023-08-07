@@ -104,7 +104,7 @@ class extract_cache(Operation):
 
     """
 
-    def __init__(self, compute, cache_wdirs: List[str|pathlib.Path], directory="./") -> None:
+    def __init__(self, compute, cache_wdirs: List[Union[str, pathlib.Path]], directory="./") -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
 

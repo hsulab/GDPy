@@ -36,7 +36,7 @@ def set_constraint(atoms, cons_text):
 
 class SinglePointComparator(AbstractNode):
 
-    def __init__(self, directory: str | pathlib.Path = "./", random_seed: int = None, *args, **kwargs):
+    def __init__(self, directory: Union[str, pathlib.Path] = "./", random_seed: int = None, *args, **kwargs):
         super().__init__(directory, random_seed, *args, **kwargs)
 
         return
