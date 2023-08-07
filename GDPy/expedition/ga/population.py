@@ -10,6 +10,8 @@ from ase.io import read, write
 from ase.ga.population import Population
 from ase.ga.data import DataConnection
 
+#: Retained keys in key_value_pairs when get_atoms from the database.
+RETAINED_KEYS: List[str] = ["extinct", "origin"]
 
 class AbstractPopulationManager():
 
@@ -107,8 +109,13 @@ class AbstractPopulationManager():
                 curr_rows = sorted(database.c.select(f"relaxed=0,gaid={confid}"), key=lambda x: x.mtime)
                 curr_rows = [x for x in curr_rows if x.formula]
                 # - get atoms
-                curr_atoms = database.get_atoms(curr_rows[-1].id)
-                curr_atoms.info["confid"] = curr_atoms.info["key_value_pairs"]["gaid"]
+                curr_atoms = database.get_atoms(curr_rows[-1].id, add_info=True)
+                # NOTE: candidates should not have description info...
+                #       otherwise, queued row also has them and failed in
+                #       database.c.get_participation_in_pairing()
+                kvp = {k: v for k, v in curr_atoms.info["key_value_pairs"].items() if k in RETAINED_KEYS}
+                data = curr_atoms.info.get("data", {}) # not every cand has data that stores parents
+                curr_atoms.info = {"key_value_pairs": kvp, "data": data, "confid": confid}
                 #print(curr_atoms)
                 # - count and add atoms
                 if "Pairing" in curr_rows[0]["origin"]:
@@ -222,9 +229,12 @@ class AbstractPopulationManager():
                 if frames:
                     atoms = frames[0]
                     self._print("  reproduce randomly ")
-                    atoms.info["key_value_pairs"] = {"origin": "RandomCandidateUnrelaxed"}
+                    atoms.info["key_value_pairs"] = {
+                        "extinct": 0, "origin": "RandomCandidateUnrelaxed"
+                    }
                     atoms.info["data"] = {}
-                    confid = database.c.write(atoms, origin="RandomCandidateUnrelaxed",
+                    confid = database.c.write(
+                        atoms, origin="RandomCandidateUnrelaxed",
                         relaxed=0, extinct=0, generation=curr_gen, 
                         key_value_pairs=atoms.info["key_value_pairs"], 
                         data=atoms.info["data"]
@@ -310,7 +320,8 @@ class AbstractPopulationManager():
                 ) # if mutation happens, it will not be relaxed
 
                 mut_desc = ""
-                if np.random.random() < self.pmut:
+                curr_prob = np.random.random()
+                if curr_prob < self.pmut:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
                     if a3_mut is not None:
                         self._print(f"a3_mut: {a3_mut.info}")
@@ -320,7 +331,7 @@ class AbstractPopulationManager():
                         a3 = a3_mut
                     else:
                         mut_desc = ""
-                self._print(f"  reproduce offspring with {desc} {mut_desc} after {i+1} attempts..." )
+                self._print(f"  reproduce offspring with {desc} and ({curr_prob}) {mut_desc} after {i+1} attempts..." )
                 break
             else:
                 mut_desc = ""

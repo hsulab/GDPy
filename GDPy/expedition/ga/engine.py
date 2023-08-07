@@ -343,6 +343,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
                 database=self.da, curr_gen=self.cur_gen
             )
+            #candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+            #    database=self.da, curr_gen=self.cur_gen-1
+            #)
+            #for a in candidate_groups["paired"]:
+            #    print(a.info)
 
             current_population = Population(
                 data_connection = self.da,
@@ -379,9 +384,20 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                     )
                 else:
                     ...
+                
+            # -- validate current candidates
+            #candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+            #    database=self.da, curr_gen=self.cur_gen
+            #)
+            #for ia, a in enumerate(candidate_groups["paired"]):
+            #    self._print(f"{ia} {a.info}")
 
             # TODO: send candidates directly to worker that respects the batchsize
-            self._print("\n\n===== Optimisation =====")
+            self._print("\n")
+            self._print("\n")
+            self._print("===== Optimisation =====")
+            for ia, a in enumerate(current_candidates):
+                self._print(f"{ia} {a.info}")
             if not (self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}").exists():
                 frames_to_work = []
                 for atoms in current_candidates:
