@@ -159,6 +159,9 @@ class RdfValidator(AbstractValidator):
             Support average over several trajectories.
 
         """
+        # - get custom volume
+        volume = kwargs.get("volume", None)
+
         # - process dataset
         self._print("process reference ->")
         reference = dataset.get("reference", None)
@@ -167,7 +170,8 @@ class RdfValidator(AbstractValidator):
             self._debug(f"reference  nframes: {len(ref_frames)}")
             ref_data = self._compute_rdf(
                 self.directory/("-".join(self.pair)+"_ref.dat"), 
-                ref_frames, self.pair, self.cutoff, self.nbins
+                ref_frames, self.pair, self.cutoff, self.nbins,
+                volume=volume
             )
         else:
             ref_data = None
@@ -179,7 +183,8 @@ class RdfValidator(AbstractValidator):
             self._debug(f"prediction nframes: {len(pre_frames)}")
             pre_data = self._compute_rdf(
                 self.directory/("-".join(self.pair)+"_pre.dat"), 
-                pre_frames, self.pair, self.cutoff, self.nbins
+                pre_frames, self.pair, self.cutoff, self.nbins,
+                volume=volume
             )
         else:
             pre_data = None
@@ -191,11 +196,15 @@ class RdfValidator(AbstractValidator):
 
         return
     
-    def _compute_rdf(self, dat_fpath, frames: List[Atoms], pair, cutoff, nbins):
+    def _compute_rdf(self, dat_fpath, frames: List[Atoms], pair, cutoff, nbins, volume: float=None):
         """"""
-        # -
+        # - treat pbc
         if any(frames[0].pbc):
             frames = wrap_traj(frames)
+        
+        # - volume
+        if volume is None:
+            volume = frames[0].get_volume()
 
         # NOTE: the atom order should be consistent in the entire trajectory
         #       i.e. this does not work for variable-composition system
@@ -212,9 +221,9 @@ class RdfValidator(AbstractValidator):
         self._debug(f"second: {second_indices}")
 
         if pair[0] == pair[1]:
-            avg_density = len(first_indices)/frames[0].get_volume()
+            avg_density = len(first_indices)/volume
         else:
-            avg_density = (len(first_indices)+len(second_indices))/frames[0].get_volume()
+            avg_density = (len(first_indices)+len(second_indices))/volume
 
         if not dat_fpath.exists():
             data = calc_rdf(
