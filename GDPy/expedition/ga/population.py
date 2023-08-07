@@ -8,6 +8,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 from ase.ga.population import Population
+from ase.ga.data import DataConnection
 
 
 class AbstractPopulationManager():
@@ -34,7 +35,7 @@ class AbstractPopulationManager():
 
     """
 
-    pfunc = print
+    _print = print
 
     #: Reproduction and mutation.
     MAX_REPROC_TRY: int = 1
@@ -84,15 +85,55 @@ class AbstractPopulationManager():
 
         return
     
+    def _get_current_candidates(self, database: DataConnection, curr_gen: int):
+        """Get offsprings in the current generation.
+
+        Mutataed candidates do not have `generation` keyword.
+
+        Args:
+            database: DataConnection.
+            curr_gen: The current generation number.
+
+        """
+        candidate_groups = {"paired": [], "random": [], "mutated": []}
+        num_paired, num_mutated, num_random = 0, 0, 0
+
+        #unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0"))
+        unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0,generation={curr_gen}"))
+        for row in unrelaxed_strus_gen_:
+            if row.formula:
+                #print(row["gaid"], row)
+                confid = row["gaid"]
+                curr_rows = sorted(database.c.select(f"relaxed=0,gaid={confid}"), key=lambda x: x.mtime)
+                curr_rows = [x for x in curr_rows if x.formula]
+                # - get atoms
+                curr_atoms = database.get_atoms(curr_rows[-1].id)
+                curr_atoms.info["confid"] = curr_atoms.info["key_value_pairs"]["gaid"]
+                #print(curr_atoms)
+                # - count and add atoms
+                if "Pairing" in curr_rows[0]["origin"]:
+                    num_paired += 1
+                    candidate_groups["paired"].append(curr_atoms)
+                elif "Mutation" in curr_rows[0]["origin"]:
+                    num_mutated += 1
+                    candidate_groups["mutated"].append(curr_atoms)
+                elif "Random" in curr_rows[0]["origin"]:
+                    num_random += 1
+                    candidate_groups["random"].append(curr_atoms)
+                else:
+                    ...
+
+        return candidate_groups, num_paired, num_mutated, num_random
+    
     def _prepare_initial_population(
             self, generator
         ) -> List[Atoms]:
-        self.pfunc("\n\n===== Prepare Initial Population =====")
+        self._print("\n\n===== Prepare Initial Population =====")
         starting_population = []
 
         # - try to read seed structures
         # NOTE: seed structures would be re-optimised by the worker
-        self.pfunc("\n----- try to add seed structures -----")
+        self._print("\n----- try to add seed structures -----")
         seed_frames = []
         if self.init_seed_file is not None:
             seed_frames = read(self.init_seed_file, ":")
@@ -110,19 +151,19 @@ class AbstractPopulationManager():
             atoms.info["key_value_pairs"]["origin"] = "seed {}".format(i)
             atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
             # TODO: check geometric convergence
-        self.pfunc(f"number of seed structures: {len(seed_frames)}")
+        self._print(f"number of seed structures: {len(seed_frames)}")
         starting_population.extend(seed_frames)
 
         # - generate random structures
-        self.pfunc("\n----- try to generate random structures -----")
+        self._print("\n----- try to generate random structures -----")
         random_frames = generator.run(size=self.init_size - seed_size)
-        self.pfunc(f"number of random structures: {len(random_frames)}")
+        self._print(f"number of random structures: {len(random_frames)}")
         starting_population.extend(random_frames)
 
         if len(starting_population) != self.init_size:
             raise RuntimeError("It fails to generate the initial population. Check the seed file and the system setting.")
 
-        self.pfunc(f"finished creating initial population...")
+        self._print(f"finished creating initial population...")
 
         #self.init_seed_size = seed_size
         #self.init_ran_size = len(random_frames)
@@ -130,7 +171,8 @@ class AbstractPopulationManager():
         return starting_population
 
     def _prepare_current_population(
-        self, cur_gen, database, population, generator, pairing, mutations
+        self, database: DataConnection, curr_gen, population, generator, pairing, mutations,
+        candidate_groups: dict={}, num_paired=0, num_mutated=0, num_random=0,
     ):
         """Prepare current population.
 
@@ -141,78 +183,96 @@ class AbstractPopulationManager():
         current_candidates = []
 
         # - reproduction and then mutation
+        rest_rep_size = self.gen_rep_size - num_paired
         paired_structures = []
-        for i in range(self.gen_rep_max_try):
-            atoms = self._reproduce(database, population, pairing, mutations)
-            if atoms is not None:
-                paired_structures.append(atoms)
-                self.pfunc("  --> confid %d\n" %(atoms.info["confid"]))
-            if len(paired_structures) == self.gen_rep_size:
-                break
+        paired_structures.extend(candidate_groups.get("paired", []))
+        if rest_rep_size > 0 and num_random == 0: 
+            # pair finished but not enough, random already starts...
+            for i in range(self.gen_rep_max_try):
+                atoms = self._reproduce(database, population, pairing, mutations)
+                if atoms is not None:
+                    paired_structures.append(atoms)
+                    self._print(f"  --> {atoms.info}")
+                    self._print("  --> confid %d\n" %(atoms.info["confid"]))
+                if len(paired_structures) == self.gen_rep_size:
+                    break
+            else:
+                self._print(f"There is not enough paired structures after {self.gen_rep_max_try} attempts.")
         else:
-            self.pfunc(f"There is not enough paired structures after {self.gen_rep_max_try} attempts.")
+            ...
         current_candidates.extend(paired_structures)
 
-        if len(paired_structures) < self.gen_rep_size:
-            self.pfunc("There is not enough reproduced (paired) structures.")
-            self.pfunc(f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly.")
-            cur_ran_size = self.gen_size - len(paired_structures) - self.gen_mut_size
-        else:
-            cur_ran_size = self.gen_ran_size
-
         # - random
-        random_structures = []
-        for i in range(self.gen_ran_max_try):
-            frames = generator.run(size=1, soft_error=True)
-            if frames:
-                atoms = frames[0]
-                self.pfunc("  reproduce randomly ")
-                atoms.info["key_value_pairs"] = {}
-                atoms.info["data"] = {}
-                confid = database.c.write(atoms, origin="RandomCandidateUnrelaxed",
-                    relaxed=0, extinct=0, generation=cur_gen, 
-                    key_value_pairs=atoms.info["key_value_pairs"], 
-                    data=atoms.info["data"]
-                )
-                database.c.update(confid, gaid=confid)
-                atoms.info["confid"] = confid
-
-                self.pfunc("  --> confid %d\n" %(atoms.info["confid"]))
-                random_structures.append(atoms)
-            if len(random_structures) == cur_ran_size:
-                break
+        if len(paired_structures) < self.gen_rep_size:
+            self._print("There is not enough reproduced (paired) structures.")
+            self._print(f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly.")
+            curr_ran_size = self.gen_size - len(paired_structures) - self.gen_mut_size
         else:
-            if self.gen_ran_size > 0: # NOTE: no break when random size is 0
-                self.pfunc(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
+            curr_ran_size = self.gen_ran_size
+
+        rest_ran_size = curr_ran_size - num_random
+        gen_ran_max_try = rest_ran_size*self.MAX_ATTEMPTS_MULTIPLIER
+
+        random_structures = []
+        random_structures.extend(candidate_groups.get("random", []))
+        if rest_ran_size > 0 and num_mutated == 0:
+            # random finished but not enough, mutation already starts...
+            for i in range(gen_ran_max_try):
+                frames = generator.run(size=1, soft_error=True)
+                if frames:
+                    atoms = frames[0]
+                    self._print("  reproduce randomly ")
+                    atoms.info["key_value_pairs"] = {"origin": "RandomCandidateUnrelaxed"}
+                    atoms.info["data"] = {}
+                    confid = database.c.write(atoms, origin="RandomCandidateUnrelaxed",
+                        relaxed=0, extinct=0, generation=curr_gen, 
+                        key_value_pairs=atoms.info["key_value_pairs"], 
+                        data=atoms.info["data"]
+                    )
+                    database.c.update(confid, gaid=confid)
+                    atoms.info["confid"] = confid
+
+                    self._print("  --> confid %d\n" %(atoms.info["confid"]))
+                    random_structures.append(atoms)
+                if len(random_structures) == curr_ran_size:
+                    break
+            else:
+                if self.gen_ran_size > 0: # NOTE: no break when random size is 0
+                    self._print(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
+        else:
+            ...
         current_candidates.extend(random_structures)
 
+        # - mutate
         if len(current_candidates) < (self.gen_rep_size+self.gen_ran_size):
-            self.pfunc("There is not enough reproduced+random structures.")
-            self.pfunc(f"Only {len(current_candidates)} are generated. The rest would be generated by mutations.")
-            curr_mut_size = (self.gen_size - len(current_candidates)) + self.gen_mut_size
+            self._print("There is not enough reproduced+random structures.")
+            self._print(f"Only {len(current_candidates)} are generated. The rest would be generated by mutations.")
+            curr_mut_size = self.gen_size - len(current_candidates)
         else:
             curr_mut_size = self.gen_mut_size
-        gen_mut_max_try = curr_mut_size*self.MAX_ATTEMPTS_MULTIPLIER
 
-        # - mutate
+        rest_mut_size = curr_mut_size - num_mutated
+        gen_mut_max_try = rest_mut_size*self.MAX_ATTEMPTS_MULTIPLIER
+
         mutated_structures = []
+        mutated_structures.extend(candidate_groups.get("mutated", []))
         for i in range(gen_mut_max_try):
             atoms = population.get_one_candidate(with_history=True)
             a3, desc = mutations.get_new_individual([atoms])
             if atoms is not None:
                 database.add_unrelaxed_step(a3, desc)
-                self.pfunc("  Mutate cand{} by {}".format(atoms.info["confid"], desc))
-                self.pfunc("  --> confid %d\n" %(a3.info["confid"]))
+                self._print("  Mutate cand{} by {}".format(atoms.info["confid"], desc))
+                self._print("  --> confid %d\n" %(a3.info["confid"]))
                 mutated_structures.append(a3)
             if len(mutated_structures) == curr_mut_size:
                 break
         else:
             if self.gen_mut_size > 0: # NOTE: no break when random size is 0
-                self.pfunc(f"There is not enough mutated structures after {gen_mut_max_try} attempts.")
+                self._print(f"There is not enough mutated structures after {gen_mut_max_try} attempts.")
         current_candidates.extend(mutated_structures)
 
         if len(current_candidates) != self.gen_size:
-            self.pfunc("Not enough candidates for the next generation.")
+            self._print("Not enough candidates for the next generation.")
             raise RuntimeError("Not enough candidates for the next generation.")
 
         return current_candidates
@@ -227,13 +287,13 @@ class AbstractPopulationManager():
             #if issubclass(mut, StrainMutation):
             #    find_strain = True
             #    mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-            #    self.pfunc(f"StrainMutation Scaling Volume: {mut.scaling_volume}")
+            #    self._print(f"StrainMutation Scaling Volume: {mut.scaling_volume}")
             if hasattr(mut, "update_scaling_volume"):
                 mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-                self.pfunc(f"{mut.__class__.__name__} Scaling Volume: {mut.scaling_volume}")
+                self._print(f"{mut.__class__.__name__} Scaling Volume: {mut.scaling_volume}")
         if hasattr(pairing, "update_scaling_volume"):
             pairing.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-            self.pfunc(f"{pairing.__class__.__name__} Scaling Volume: {pairing.scaling_volume}")
+            self._print(f"{pairing.__class__.__name__} Scaling Volume: {pairing.scaling_volume}")
         
         return
     
@@ -252,18 +312,21 @@ class AbstractPopulationManager():
                 mut_desc = ""
                 if np.random.random() < self.pmut:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
-                    #self.pfunc("a3_mut: ", a3_mut.info)
-                    #self.pfunc("mut_desc: ", mut_desc)
                     if a3_mut is not None:
+                        self._print(f"a3_mut: {a3_mut.info}")
                         database.add_unrelaxed_step(a3_mut, mut_desc)
+                        #write("./pairs.xyz", a3, append=True)
+                        #write("./muts.xyz", a3_mut, append=True)
                         a3 = a3_mut
-                self.pfunc(f"  reproduce offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
+                    else:
+                        mut_desc = ""
+                self._print(f"  reproduce offspring with {desc} {mut_desc} after {i+1} attempts..." )
                 break
             else:
                 mut_desc = ""
-                self.pfunc(f"  failed to reproduce offspring with {desc} \n  {mut_desc} after {i+1} attempts..." )
+                self._print(f"  failed to reproduce offspring with {desc} {mut_desc} after {i+1} attempts..." )
         else:
-            self.pfunc("cannot reproduce offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
+            self._print("cannot reproduce offspring a3 after {0} attempts".format(self.MAX_REPROC_TRY))
 
         return a3
 

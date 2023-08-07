@@ -227,7 +227,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         """
         # - outputs
         self.worker.directory = self.directory / self.CALC_DIRNAME
-        self.pop_manager.pfunc = self._print
+        self.pop_manager._print = self._print
 
         # - search target
         self._print(f"\n\n===== Genetic Algorithm =====")
@@ -339,34 +339,62 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         else:
             # --- update population
             self._print("\n\n===== Update Population =====")
-            if self.beg_of_gen:
-                # - create the population used for crossover and mutation
-                current_population = Population(
-                    data_connection = self.da,
-                    population_size = self.pop_manager.gen_size,
-                    comparator = self.comparing
-                )
-                # - 
-                self.pop_manager._update_generation_settings(current_population, self.mutations, self.pairing)
+            # - create the population used for crossover and mutation
+            candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+                database=self.da, curr_gen=self.cur_gen
+            )
+
+            current_population = Population(
+                data_connection = self.da,
+                population_size = self.pop_manager.gen_size,
+                comparator = self.comparing
+            )
+            self.pop_manager._update_generation_settings(current_population, self.mutations, self.pairing)
+
+            # ----
+            current_candidates = []
+            if self.beg_of_gen: # (num_relaxed == num_unrelaxed == 0)
                 # - 
                 current_candidates = self.pop_manager._prepare_current_population(
-                    cur_gen=self.cur_gen, database=self.da, population=current_population, 
+                    database=self.da, curr_gen=self.cur_gen, population=current_population, 
                     generator=self.generator, pairing=self.pairing, mutations=self.mutations
                 )
+            else:
+                self._print("Current generation has not finished...")
+                # NOTE: The current candidates have not been created completely.
+                #       For example, num_relaxed != num_unrelaxed,
+                #       need create more candidates...
+                if self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen < self.pop_manager.gen_size):
+                    current_candidates = self.pop_manager._prepare_current_population(
+                        database=self.da, curr_gen=self.cur_gen, population=current_population, 
+                        generator=self.generator, pairing=self.pairing, mutations=self.mutations,
+                        candidate_groups=candidate_groups, num_paired=num_paired, num_mutated=num_mutated, num_random=num_random
+                    )
+                elif self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen == self.pop_manager.gen_size):
+                    # no relaxed, and finished creation, num_relaxed == gen_size?
+                    current_candidates = self.pop_manager._prepare_current_population(
+                        database=self.da, curr_gen=self.cur_gen, population=current_population, 
+                        generator=self.generator, pairing=self.pairing, mutations=self.mutations,
+                        candidate_groups=candidate_groups, num_paired=num_paired, num_mutated=num_mutated, num_random=num_random
+                    )
+                else:
+                    ...
 
-                self._print("\n\n===== Optimisation =====")
-                # TODO: send candidates directly to worker that respects the batchsize
+            # TODO: send candidates directly to worker that respects the batchsize
+            self._print("\n\n===== Optimisation =====")
+            if not (self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}").exists():
                 frames_to_work = []
                 for atoms in current_candidates:
+                    print(atoms.info)
                     frames_to_work.append(atoms)
                     self.da.mark_as_queued(atoms) # this marks relaxation is in the queue
-                confids = [a.info["confid"] for a in frames_to_work]
-                self._print(f"start to run structure {convert_indices(confids)}")
                 if frames_to_work:
+                    confids = [a.info["confid"] for a in frames_to_work]
+                    self._print(f"start to run structure {convert_indices(confids)}")
                     self.worker.directory = self.directory/self.CALC_DIRNAME/f"gen{self.cur_gen}"
                     _ = self.worker.run(frames_to_work) # retrieve later
             else:
-                self._print("Current generation has not finished...")
+                self._print(f"calculation directory for generation {self.cur_gen} exists.")
 
         # --- check if there were finished jobs
         curr_convergence = False
