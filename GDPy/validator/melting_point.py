@@ -7,6 +7,7 @@ from typing import NoReturn, List, Union
 import numpy as np
 import scipy as sp
 from scipy.optimize import curve_fit
+from scipy.spatial import distance_matrix
 
 from joblib import Parallel, delayed
 
@@ -25,6 +26,7 @@ from ..utils.command import CustomTimer
 from .validator import AbstractValidator
 from .utils import wrap_traj
 from ..data.array import AtomsNDArray
+from ..builder.group import create_a_group
 
 """Measure melting point.
 
@@ -40,12 +42,15 @@ def sigmoid_func(T, Tm, x1, x2, x4):
 
     return x1/(1+np.exp(-x2*(T-Tm)))+x4
 
-def get_distance_matrix(atoms: Atoms):
+def get_distance_matrix(atoms: Atoms, indices=None):
     """"""
+    if indices is None:
+        return atoms.get_all_distances(mic=False,vector=False)
+    else:
+        selected_positions = atoms.positions[indices, :]
+        return distance_matrix(selected_positions, selected_positions)
 
-    return atoms.get_all_distances(mic=False,vector=False)
-
-def _icalc_local_lindemann_index(frames, n_jobs=1):
+def _icalc_local_lindemann_index(frames, group, n_jobs=1):
     """Calculate Lindemann Index of each atom.
 
     Returns:
@@ -55,12 +60,12 @@ def _icalc_local_lindemann_index(frames, n_jobs=1):
     # NOTE: Use unwrapped positions when under PBC?
     frames = wrap_traj(frames) # align structures
 
-    nframes = len(frames)
-    natoms = len(frames[0])
+    group_indices = create_a_group(frames[0], group)
+    natoms = len(group_indices)
 
     with CustomTimer("Lindemann Index"):
         distances = Parallel(n_jobs=n_jobs)(
-            delayed(get_distance_matrix)(atoms) 
+            delayed(get_distance_matrix)(atoms, group_indices) 
             for atoms in frames
         )
     distances = np.array(distances)
@@ -88,9 +93,13 @@ class MeltingPointValidator(AbstractValidator):
 
     """
 
-    def __init__(self, start=0, temperatures: List[float]=None, fitting="sigmoid",directory: str | pathlib.Path = "./", *args, **kwargs):
+    def __init__(self, group, run_fit: bool=True, start=0, temperatures: List[float]=None, fitting="sigmoid",directory: str | pathlib.Path = "./", *args, **kwargs):
         """"""
         super().__init__(directory, *args, **kwargs)
+
+        self.group = group
+
+        self.run_fit = run_fit
 
         self.start = start
 
@@ -130,14 +139,14 @@ class MeltingPointValidator(AbstractValidator):
         if reference is not None:
             reference = self._process_data(reference)
             data = self._compute_melting_point(reference, prefix="ref-")
-            self._plot_figure(data[:, 1], data[:, 0], prefix="ref-")
+            self._plot_figure(data[:, 1], data[:, 0], prefix="ref-", run_fit=self.run_fit)
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
             prediction = self._process_data(prediction)
             data = self._compute_melting_point(prediction, prefix="pre-")
-            self._plot_figure(data[:, 1], data[:, 0], prefix="pre-")
+            self._plot_figure(data[:, 1], data[:, 0], prefix="pre-", run_fit=self.run_fit)
 
         return
     
@@ -155,7 +164,8 @@ class MeltingPointValidator(AbstractValidator):
             with CustomTimer("joblib", func=self._print):
                 qmat = Parallel(n_jobs=1)(
                     delayed(_icalc_local_lindemann_index)(
-                        curr_frames[start::], n_jobs=self.njobs
+                        [a for a in curr_frames[start::] if a is not None], 
+                        self.group, n_jobs=self.njobs
                     ) for curr_frames in trajectories
                 )
             qmat = np.array(qmat)
@@ -194,39 +204,35 @@ class MeltingPointValidator(AbstractValidator):
 
         return data
 
-    def _plot_figure(self, q, t: List[float], prefix=""):
+    def _plot_figure(self, q, t: List[float], prefix="", run_fit=True):
         """"""
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
-        fig.suptitle("Melting Temperature")
 
-        if self.fitting == "sigmoid":
-            func = sigmoid_func
-            initial_guess = [np.median(t), np.max(q), 1., np.min(q)]
-        elif self.fitting == "jpcc2020":
-            func = jpcc2020_func
-            initial_guess = [np.median(t), np.max(q), 1., 0., np.min(q)]
-
-        coefs, cov = curve_fit(func, t, q, initial_guess, method="dogbox")
-        self._debug(coefs)
-
-        # - fitted curve
-        t_ = np.arange(np.min(t), np.max(t), 2.)
-        q_ = func(t_, *coefs)
-
-        ax.scatter(t, q)
-        ax.plot(t_, q_, label=f"$T_m={coefs[0]:>8.2f}$")
+        # - text
+        fig.suptitle("Lindemann Index")
 
         ax.set_xlabel("Temperature [K]")
         ax.set_ylabel("$<q(T)>$")
 
-        # - add Huttig and Tamman
-        #y = [0., 0.2]
-        #x = [1358*0.3]*len(y)
-        #ax.plot(x, y, ls="--", label="Hüttig", zorder=100)
-        #x = [1358*0.5]*len(y)
-        #ax.plot(x, y, ls="--", label="Tamman", zorder=100)
+        # - 
+        ax.scatter(t, q)
 
-        ax.legend(loc="upper left")
+        # - fitted curve
+        if run_fit:
+            if self.fitting == "sigmoid":
+                func = sigmoid_func
+                initial_guess = [np.median(t), np.max(q), 1., np.min(q)]
+            elif self.fitting == "jpcc2020":
+                func = jpcc2020_func
+                initial_guess = [np.median(t), np.max(q), 1., 0., np.min(q)]
+            coefs, cov = curve_fit(func, t, q, initial_guess, method="dogbox")
+            self._debug(coefs)
+
+            t_ = np.arange(np.min(t), np.max(t), 2.)
+            q_ = func(t_, *coefs)
+            ax.plot(t_, q_, label=f"$T_m={coefs[0]:>8.2f}$")
+
+            ax.legend(loc="upper left")
 
         plt.savefig(self.directory/f"{prefix}mp.png")
 
