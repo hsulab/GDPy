@@ -27,6 +27,8 @@ from GDPy.computation.utils import create_single_point_calculator
 from GDPy.computation.driver import AbstractDriver, DriverSetting
 
 """Driver for VASP."""
+#: str
+ASE_VASP_SORT_FNAME = "ase-sort.dat"
 
 def run_vasp(name, command, directory):
     """Run vasp from the command. 
@@ -59,14 +61,13 @@ def run_vasp(name, command, directory):
 
     return
 
-# vasp utils
-def read_sort(directory):
+def read_sort(directory: pathlib.Path):
     """Create the sorting and resorting list from ase-sort.dat.
 
     If the ase-sort.dat file does not exist, the sorting is redone.
 
     """
-    sortfile = directory / 'ase-sort.dat'
+    sortfile = directory / ASE_VASP_SORT_FNAME
     if os.path.isfile(sortfile):
         sort = []
         resort = []
@@ -318,11 +319,15 @@ class VaspDriver(AbstractDriver):
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 traj_frames_.extend(read(vasprun, ":")) # read current
             nframes = len(traj_frames_)
+            natoms = len(traj_frames_[0])
 
             # - sort frames
             traj_frames = []
             if nframes > 0:
-                sort, resort = read_sort(self.directory)
+                if (self.directory/ASE_VASP_SORT_FNAME).exists():
+                    sort, resort = read_sort(self.directory)
+                else: # without sort file, use default order
+                    sort, resort = list(range(natoms)), list(range(natoms))
                 for i, sorted_atoms in enumerate(traj_frames_):
                     input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
                     #if input_atoms is None:

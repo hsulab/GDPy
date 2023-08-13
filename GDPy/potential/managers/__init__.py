@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
+import warnings
+
 from GDPy.core.register import registers
 
 from .mixer import MixerManager
 registers.manager.register(MixerManager)
 
-from .bias import BiasManager
-registers.manager.register(BiasManager)
+try:
+    from .bias import BiasManager
+    registers.manager.register(BiasManager)
+except ImportError as e:
+    warnings.warn("Module {} import failed: {}".format("bias", e), UserWarning)
 
 from .plumed import PlumedManager
 registers.manager.register(PlumedManager)
