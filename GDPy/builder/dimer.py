@@ -28,6 +28,8 @@ class DimerBuilder(StructureBuilder):
 
     def run(self, *args, **kwargs) -> List[Atoms]:
         """"""
+        super().run(*args, **kwargs)
+
         dmin, dmax, intv = self.distances
         distances = np.arange(dmin, dmax+intv, intv)
 
@@ -39,7 +41,8 @@ class DimerBuilder(StructureBuilder):
                     [0., 0., 0.],
                     [0., 0., dis]
                 ],
-                cell = 20.*np.eye(3),
+                #cell = 20.*np.eye(3),
+                cell = [[19., 0., 0.], [0., 20., 0.], [0., 0., 21.]],
                 pbc=[True,True,True]
             )
             atoms.set_constraint(FixAtoms(indices=[0]))
