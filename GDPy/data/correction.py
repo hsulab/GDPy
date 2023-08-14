@@ -73,7 +73,7 @@ class correct(Operation):
         if all(computer_status):
             self._print("correction computation finished...")
             self.status = "finished"
-            #new_structures = []
+            new_structures = []
             for i, (curr_name, curr_frames) in enumerate(structures):
                 computer.directory = self.directory/curr_name
                 # TODO: neew a better unified interface
@@ -81,10 +81,10 @@ class correct(Operation):
                 if not computer._share_wdir:
                     curr_corr_frames = itertools.chain(*curr_corr_frames)
                 curr_new_frames = merge_results(curr_frames, curr_corr_frames)
-                #new_structures.append([curr_name, curr_new_frames])
                 write(self.directory/f"{curr_name}"/"merged.xyz", curr_new_frames)
+                new_structures.append([curr_name, curr_new_frames])
 
-        return
+        return new_structures
 
 
 if __name__ == "__main__":
