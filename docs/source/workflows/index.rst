@@ -13,3 +13,4 @@ List of Workflows
     explore_GA.rst
     train.rst
     validate.rst
+    correct.rst
