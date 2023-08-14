@@ -285,19 +285,20 @@ class DriverBasedWorker(AbstractWorker):
             )
 
             # - save this batch job to the database
-            with TinyDB(
-                self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-            ) as database:
-                _ = database.insert(
-                    dict(
-                        uid = uid,
-                        md5 = identifier,
-                        gdir=job_name, 
-                        group_number=ig, 
-                        wdir_names=wdirs, 
-                        queued=True
+            if identifier not in queued_frames:
+                with TinyDB(
+                    self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+                ) as database:
+                    _ = database.insert(
+                        dict(
+                            uid = uid,
+                            md5 = identifier,
+                            gdir=job_name, 
+                            group_number=ig, 
+                            wdir_names=wdirs, 
+                            queued=True
+                        )
                     )
-                )
 
         return
     
