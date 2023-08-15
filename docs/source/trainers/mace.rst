@@ -1,4 +1,4 @@
-MACE
+mace
 ====
 
 **gdp** writes `./_train.xyz` and `./_test.xyz` into the training directory based on 
