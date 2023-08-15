@@ -103,7 +103,9 @@ def main():
 
     # --- compute interface
     parser_compute = subparsers.add_parser(
-        "compute", help="compute structures with basic methods (MD, MIN, and ...)"
+        "compute", help="compute structures with basic methods (MD, MIN, and ...)",
+        description=str(registers.manager),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_compute.add_argument(
         "STRUCTURE",

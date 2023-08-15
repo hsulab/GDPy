@@ -5,3 +5,10 @@
     general potential format: deepmd, eann, lasp, vasp
     dynamics backend: ase, lammps, lasp, vasp
 """
+
+
+from ..core.register import registers
+
+
+if __name__ == "__main__":
+    ...

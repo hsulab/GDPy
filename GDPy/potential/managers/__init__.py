@@ -4,10 +4,16 @@
 
 import warnings
 
-from GDPy.core.register import registers
+from .. import registers
 
 from .mixer import MixerManager
 registers.manager.register(MixerManager)
+
+try:
+    from .dftd3 import Dftd3Manager
+    registers.manager.register(Dftd3Manager)
+except ImportError as e:
+    warnings.warn("Module {} import failed: {}".format("dftd3", e), UserWarning)
 
 try:
     from .bias import BiasManager

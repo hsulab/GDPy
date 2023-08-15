@@ -123,19 +123,10 @@ class extract_cache(Operation):
         assert (nwdirs == nworkers) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
 
         # - use driver to read results
-        # -- serial
-        #trajectories = Trajectories()
-        #for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0]):
-        #    # -- assume the wdir stores the calculation/simulation results
-        #    curr_worker.driver.directory = curr_wdir # TODO: set worker wdir, also for driver
-        #    # TODO: whether check convergence?
-        #    curr_traj = curr_worker.driver.read_trajectory() # TODO: try error?
-        #    self._debug(curr_traj)
-        #    trajectories.extend([curr_traj]) # TODO: add append method to Trajectories
-
         cache_data = self.directory/"cache_data.h5"
         if not cache_data.exists():
             from joblib import Parallel, delayed
+            # TODO: whether check convergence?
             trajectories = Parallel(n_jobs=config.NJOBS)(
                 delayed(self._read_trajectory)(curr_wdir, curr_worker) 
                 for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])

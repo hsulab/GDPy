@@ -178,6 +178,7 @@ ALL_MODULES = [
     ("GDPy.builder", ["interface"]),
     ("GDPy.computation", ["interface"]),
     ("GDPy.computation", ["operations"]),
+    ("GDPy", ["data"]),
     ("GDPy.data", ["interface"]),
     ("GDPy.data", ["operations"]), 
     ("GDPy.describer", ["interface"]),

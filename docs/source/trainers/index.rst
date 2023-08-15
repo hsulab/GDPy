@@ -84,6 +84,7 @@ Read notes for the training of a specific MLIP formulation.
 .. toctree::
     :maxdepth: 2
 
+    deepmd.rst
     mace.rst
 
 Use Scheduler
