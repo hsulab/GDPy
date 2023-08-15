@@ -30,7 +30,11 @@ DEFAULT_MAIN_DIRNAME = "MyWorker"
 @registers.variable.register
 class ComputerVariable(Variable):
 
-    def __init__(self, potter, driver={}, scheduler={}, batchsize: int=1, custom_wdirs=None, use_single=False, *args, **kwargs):
+    def __init__(
+        self, potter, driver={}, scheduler={}, batchsize: int=1, 
+        share_wdir: bool= False, use_single=False, custom_wdirs=None, 
+        *args, **kwargs
+    ):
         """"""
         # - save state by all nodes
         self.potter = self._load_potter(potter)
@@ -41,7 +45,7 @@ class ComputerVariable(Variable):
 
         workers = self._create_workers(
             self.potter, self.driver, self.scheduler, self.batchsize,
-            custom_wdirs, use_single=use_single
+            share_wdir=share_wdir, use_single=use_single, custom_wdirs=custom_wdirs
         )
         super().__init__(workers)
 
@@ -124,7 +128,10 @@ class ComputerVariable(Variable):
 
         return
     
-    def _create_workers(self, potter, drivers, scheduler, batchsize: int=1, custom_wdirs=None, use_single=False):
+    def _create_workers(
+        self, potter, drivers, scheduler, batchsize: int=1, 
+        share_wdir: bool=False, use_single: bool=False, custom_wdirs=None
+    ):
         """Create a list of workers."""
         # - check if there were custom wdirs, and zip longest
         ndrivers = len(drivers)
@@ -150,6 +157,7 @@ class ComputerVariable(Variable):
                     worker = QueueDriverBasedWorker(potter, driver, scheduler)
             else:
                 worker = SingleWorker(potter, driver, scheduler)
+            worker._share_wdir = share_wdir
             # wdir is temporary as it may be reset by drive operation
             worker.directory = wdir
             workers.append(worker)
