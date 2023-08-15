@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import warnings
+
 from .interface import create_builder
 
 from ..core.register import registers
@@ -43,7 +46,11 @@ try:
     from .hypercube import HypercubeBuilder
     registers.builder.register("hypercube")(HypercubeBuilder)
 except ImportError as e:
-    ...
+    warnings.warn("Module {} import failed: {}".format("hypercube", e), UserWarning)
+
+# - extra utilities
+from .utils import remove_vacuum
+registers.operation.register(remove_vacuum)
 
 
 if __name__ == "__main__":
