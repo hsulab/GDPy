@@ -20,7 +20,6 @@ from .. import config
 from ..potential.manager import AbstractPotentialManager
 from .worker import AbstractWorker
 from .drive import DriverBasedWorker
-from ..data.array import AtomsArray2D
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
 from ..reactor.reactor import AbstractReactor

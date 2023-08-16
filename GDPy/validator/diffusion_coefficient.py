@@ -175,11 +175,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
         TODO: Several trajectories.
 
         """
-        #if isinstance(prediction, AtomsArray):
-        #    prediction = AtomsArray2D(rows=[prediction])
-        #mdtraj = prediction[0]._images
         mdtrajs = self._process_data(data)
-        #print(f"mdtraj: {mdtrajs}")
         group_indices = create_a_group(mdtrajs[0][0], self.group)
         self._debug(f"group_indices: {group_indices}")
 
@@ -187,7 +183,7 @@ class DiffusionCoefficientValidator(AbstractValidator):
         if not cache_msd.exists():
             data = Parallel(n_jobs=self.njobs)(
                 delayed(compute_msd)(
-                    [a for a in frames if a is not None], # AtomsArray may have None...
+                    [a for a in frames if a is not None], # AtomsNDArray may have None...
                     group_indices, lagmax=self.lagmax, 
                     start=self.start, end=self.end, timeintv=self.timeintv, 
                     prefix=prefix

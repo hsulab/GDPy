@@ -11,8 +11,6 @@ from ase import Atoms
 from GDPy.core.node import AbstractNode
 from GDPy.builder.builder import StructureBuilder
 
-from ..data.array import AtomsArray, AtomsArray2D
-
 
 """Find possible reaction pathways in given structures.
 """
@@ -46,7 +44,7 @@ class AbstractReactor(AbstractNode):
         return
 
     @abc.abstractmethod
-    def run(self, structures: AtomsArray, read_cache: bool=True, *args, **kwargs):
+    def run(self, structures, read_cache: bool=True, *args, **kwargs):
         """"""
         if not self.directory.exists():
             self.directory.mkdir(parents=True)

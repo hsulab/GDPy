@@ -186,10 +186,11 @@ def run_worker(
             res_dir.mkdir(exist_ok=True)
 
             ret = worker.retrieve()
-            AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
 
             end_frames = [traj[-1] for traj in ret]
             write(res_dir/"end_frames.xyz", end_frames)
+
+            AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
         else:
             print("Results have already been retrieved.")
 
