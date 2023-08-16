@@ -44,20 +44,25 @@ def set_constraint(atoms, cons_text):
 
 def compute_rxn_coords(frames):
     """Compute reaction coordinates."""
-    rxn_coords = []
-
-    cell = frames[0].get_cell(complete=True)
+    # - avoid change atoms positions and lost energy properties...
     nframes = len(frames)
-    for i in range(1,nframes):
-        prev_positions = frames[i-1].get_positions()
-        curr_positions = frames[i].get_positions()
+    natoms = len(frames[0])
+    coordinates = np.zeros((nframes, natoms, 3))
+    for i, a in enumerate(frames):
+        coordinates[i, :, :] = copy.deepcopy(frames[i].get_positions())
+
+    rxn_coords = []
+    cell = frames[0].get_cell(complete=True)
+    for i in range(1, nframes):
+        prev_positions = coordinates[i-1]
+        curr_positions = coordinates[i]
         shift = curr_positions - prev_positions
         curr_vectors, curr_distances = find_mic(shift, cell, pbc=True)
-        frames[i].positions = prev_positions + curr_vectors
+        coordinates[i] = prev_positions + curr_vectors
         rxn_coords.append(np.linalg.norm(curr_vectors))
 
     rxn_coords = np.cumsum(rxn_coords)
-    rxn_coords = np.hstack(([0.],rxn_coords))
+    rxn_coords = np.hstack(([0.], rxn_coords))
 
     return rxn_coords
 
@@ -347,6 +352,9 @@ class MEPFinder(AbstractReactor):
         if self.cache_nebtraj.exists():
             images = read(self.cache_nebtraj, ":")
             converged_nebtraj = images[-nimages_per_band:]
+            #print(self.directory)
+            #for a in converged_nebtraj:
+            #    print(a.get_potential_energy())
             plot_mep(self.directory, converged_nebtraj)
             plot_bands(self.directory, images, nimages=nimages_per_band)
             write(self.directory/"end_nebtraj.xyz", converged_nebtraj)
