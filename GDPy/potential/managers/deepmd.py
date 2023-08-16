@@ -319,10 +319,10 @@ def convert_groups(
     for name, frames, batchsize in zip(names, groups, batchsizes):
         nframes = len(frames)
         nbatch = int(np.ceil(nframes / batchsize))
-        print(f"{suffix} system {name} nframes {nframes} nbatch {nbatch}")
+        print(f"{suffix} system {name} nframes {nframes} nbatch {nbatch} batchsize {batchsize}")
         # --- check composition consistent
         compositions = [get_formula_from_atoms(a) for a in frames]
-        assert len(set(compositions)) == 1, "Inconsistent composition..."
+        assert len(set(compositions)) == 1, f"Inconsistent composition {len(set(compositions))} =? 1..."
         curr_composition = compositions[0]
 
         cum_batchsizes += nbatch
