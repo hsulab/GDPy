@@ -40,8 +40,12 @@ class MonteCarloVariable(Variable):
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
             worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
-        else: # computer variable
+        elif isinstance(worker, Variable): # computer variable
             worker = worker.value[0]
+        elif isinstance(worker, SingleWorker): # assume it is a DriverBasedWorker
+            worker = worker
+        else:
+            raise RuntimeError(f"MonteCarlo needs a SingleWorker instead of a {worker}")
         engine = self._create_engine(builder, worker, *args, **kwargs)
         engine.directory = directory
         super().__init__(initial_value=engine, directory=directory)
