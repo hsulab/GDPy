@@ -71,7 +71,7 @@ only apply to atoms in the surface region including Cu and O.
   method: monte_carlo
   random_seed: 1112
   builder:
-    method: read
+    method: reader
     fname: ./fcc-s111p44.xyz
   operators:
     - method: exchange
@@ -104,7 +104,7 @@ For the `worker.yaml`, the parameter **`use_single`** must be **true** as
 .. code-block:: yaml
 
   use_single: true
-  potter:
+  potential:
     name: deepmd
     params:
       backend: lammps
