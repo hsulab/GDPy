@@ -17,6 +17,13 @@ from .builder import StructureBuilder
 
 def compute_number_ideal_gas_molecules(pressure: float, volume: float, temperature: float):
     """Compute number of gas molecules by pV = nRT.
+
+    1 eV/Ang3 = 160.21766208 GPa
+    1 eV/Ang3 = 1581225.3844559586 atm
+    1 atm = 1.01325 bar = 0.000101325 GPa
+    1 atm = 6.32420912180121e-07 eV/Ang3
+    1 Pa = 6.241509125883257e-12 eV/Ang3
+
     """
     #R = 8.314
     #nspecies = (pressure*volume) / (R*temperature) * 6.0221367e23
