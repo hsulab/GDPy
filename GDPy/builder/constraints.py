@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 from typing import List, Union
 from itertools import groupby
 from operator import itemgetter
+
+import numpy as np
 
 from ase.constraints import constrained_indices, FixAtoms
 
@@ -100,7 +103,19 @@ def parse_constraint_info(atoms, cons_text, ignore_ase_constraints=True, ret_tex
             elif cons_type == "lmp":
                 frozen_indices = convert_indices(cons_info, index_convention="lmp")
             elif cons_type == "lowest":
-                frozen_indices = sorted(aindices, key=lambda x:atoms.positions[x][2])[:int(cons_info)]
+                if atoms.pbc[2]:
+                    z_coordinates = atoms.get_scaled_positions()[:, 2]
+                    wrapped_coordinates = []
+                    for z in z_coordinates: # wrap to [-0.1, 0.9)
+                        z_ = np.modf(z)[0]
+                        if z_ < -0.1:
+                            z_ += 1.0
+                        elif z >= 0.9:
+                            z_ -= 1.0
+                        wrapped_coordinates.append(z_)
+                    frozen_indices = sorted(aindices, key=lambda x: wrapped_coordinates[x])[:int(cons_info)]
+                else:
+                    frozen_indices = sorted(aindices, key=lambda x:atoms.positions[x][2])[:int(cons_info)]
             elif cons_type == "zpos":
                 frozen_indices = [i for i in aindices if atoms.positions[i][2] <= float(cons_info)]
             else:
