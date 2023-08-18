@@ -271,7 +271,7 @@ class VaspDriver(AbstractDriver):
             target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
             if target_steps > 0: # not a spc 
                 steps = target_steps + dump_period - nframes*dump_period
-                assert steps > 0, "Steps should be greater than 0."
+                assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
                 resume_params.update(steps=steps)
         else:
             resume_atoms = atoms
