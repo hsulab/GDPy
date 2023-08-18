@@ -356,11 +356,12 @@ class AbstractDriver(abc.ABC):
                     if frozen_indices:
                         atoms._del_constraints()
                         atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                    # TODO: Different codes have different definition for the max force
                     maxfrc = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
-                    if maxfrc <= self.setting.fmax or step+1 > self.setting.steps:
+                    if maxfrc <= self.setting.fmax or step+1 >= self.setting.steps:
                         converged = True
                     self._debug(
-                        f"MIN convergence: {converged} STEP: {step} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
+                        f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
                     )
                 elif self.setting.task == "md":
                     #print("steps: ", step, self.setting.steps)
