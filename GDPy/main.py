@@ -197,7 +197,9 @@ def main():
         params = parse_input_file(input_fpath=args.potential)
         potter = ComputerVariable(
             params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-            batchsize=params.get("batchsize", 1), use_single=params.get("use_single", False), 
+            batchsize=params.get("batchsize", 1), 
+            share_wdir=params.get("share_wdir", False),
+            use_single=params.get("use_single", False), 
         ).value[0]
 
     # - use subcommands

@@ -365,6 +365,8 @@ class DriverBasedWorker(AbstractWorker):
                     else:
                         # NOTE: no need to remove unfinished structures
                         #       since the driver would check it
+                        # BUG: If batchsize == 1, the resbumit run many times
+                        #      This is not as expected.
                         if resubmit:
                             if self.scheduler.name != "local":
                                 jobid = self.scheduler.submit()
@@ -437,7 +439,9 @@ class DriverBasedWorker(AbstractWorker):
                         read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
                     )
                 wdir_names = [x.name for x in unretrieved_wdirs]
-                results = [a for a in cache_frames if a.info["wdir"] in wdir_names]
+                results_ = [a for a in cache_frames if a.info["wdir"] in wdir_names]
+                # - convert to a List[List[Atoms]] as non-shared run
+                results = [[a] for a in results_]
         else:
             results = []
 

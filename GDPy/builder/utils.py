@@ -52,7 +52,7 @@ class remove_vacuum(Operation):
         
         self.status = "finished"
 
-        return structures
+        return frames
 
 
 if __name__ == "__main__":
