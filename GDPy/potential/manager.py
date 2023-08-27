@@ -91,7 +91,7 @@ class AbstractPotentialManager(abc.ABC):
         if dynamics == "external":
             dynamics = self.calc_backend
 
-        if [self.calc_backend, dynamics] not in self.valid_combinations:
+        if (self.calc_backend, dynamics) not in self.valid_combinations:
             raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
         
         # - merge params for compat

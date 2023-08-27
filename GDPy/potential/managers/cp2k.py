@@ -14,10 +14,12 @@ class Cp2kManager(AbstractPotentialManager):
     name = "cp2k"
 
     implemented_backends = ["cp2k", "cp2k_shell"]
-    valid_combinations = [
-        ["cp2k", "ase"], # calculator, dynamics
-        ["cp2k_shell", "ase"] # calculator, dynamics
-    ]
+    valid_combinations = (
+        # calculator, dynamics
+        ("cp2k", "ase"),
+        ("cp2k", "cp2k"), 
+        ("cp2k_shell", "ase")
+    )
 
     def __init__(self, *args, **kwargs):
         """"""

@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import dataclasses
 from typing import List
 import pathlib
+import traceback
 import warnings
 
 import numpy as np
@@ -14,6 +16,10 @@ from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.cp2k import CP2K, parse_input, InputSection
+from ase.constraints import FixAtoms
+
+from .driver import DriverSetting, AbstractDriver
+from ..builder.constraints import parse_constraint_info
 
 """Convert cp2k md outputs to ase xyz file.
 """
@@ -107,31 +113,162 @@ def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
     #write(wdir/(prefix+"-MDtraj.xyz"), frames)
 
     return frames
+
+@dataclasses.dataclass
+class Cp2kDriverSetting(DriverSetting):
+
+    def __post_init__(self):
+        """"""
+        pairs = [] # key-value pairs that avoid conflicts by same keys
+        if self.task == "min":
+            # - fmax and steps can be set on-the-fly, see get_run_params
+            method = self.min_style.upper()
+            pairs.extend(
+                [
+                    ("GLOBAL", "RUN_TYPE GEO_OPT"),
+                    ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
+                    #("MOTION/GEO_OPT", f"MAX_ITER {self.steps}"),
+                    ("MOTION/GEO_OPT", f"OPTIMIZER {method}"),
+                    ("MOTION/PRINT/RESTART_HISTORY/EACH", f"GEO_OPT {self.dump_period}"),
+                ]
+            )
+            #if self.fmax is not None:
+            #    pairs.append(
+            #        ("MOTION/GEO_OPT", f"MAX_FORCE {self.fmax/(units.Hartree/units.Bohr)}")
+            #    )
+        
+        if self.task == "md":
+            # TODO:
+            ... 
+        
+        # TODO: Move to manager? as we always need this outputs to convert calculation
+        #       to a trajectory
+        pairs.extend(
+            [
+                ("MOTION/PRINT/CELL", "_SECTION_PARAMETERS_ ON"),
+                ("MOTION/PRINT/TRAJECTORY", "_SECTION_PARAMETERS_ ON"),
+                ("MOTION/PRINT/FORCES", "_SECTION_PARAMETERS_ ON"),
+            ]
+        )
+        self._internals["pairs"] = pairs
+
+        return
+    
+    def get_run_params(self, *args, **kwargs):
+        """"""
+        # - convergence criteria
+        fmax_ = kwargs.get("fmax", self.fmax)
+        steps_ = kwargs.get("steps", self.steps)
+
+        run_pairs = []
+        if self.task == "min":
+            run_pairs.append(
+                ("MOTION/GEO_OPT", f"MAX_ITER {steps_}"),
+            )
+            if fmax_ is not None:
+                run_pairs.append(
+                    ("MOTION/GEO_OPT", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}")
+                )
+        if self.task == "md":
+            ...
+
+        # - add constraint
+        run_params = dict(
+            constraint = kwargs.get("constraint", self.constraint),
+            run_pairs = run_pairs
+        )
+
+        return run_params
+
+class Cp2kDriver(AbstractDriver):
+
+    name = "cp2k"
+
+    default_task = "min"
+    supported_tasks = ["min", "md"]
+
+    saved_fnames = []
+
+    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+        """"""
+        super().__init__(calc, params, directory, *args, **kwargs)
+
+        self.setting = Cp2kDriverSetting(**params)
+
+        return
+    
+    def _irun(self, atoms: Atoms, *args, **kwargs):
+        """"""
+        try:
+            run_params = self.setting.get_run_params(**kwargs)
+            run_params.update(**self.setting.get_init_params())
+
+            # - update input template
+            # GLOBAL section is automatically created...
+            # FORCE_EVAL.(METHOD, POISSON)
+            inp = self.calc.parameters.inp # string
+            sec = parse_input(inp)
+            for (k, v) in run_params["pairs"]:
+                sec.add_keyword(k, v)
+            for (k, v) in run_params["run_pairs"]:
+                sec.add_keyword(k, v)
+
+            # -- check constraint
+            cons_text = run_params.pop("constraint", None)
+            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+            if frozen_indices:
+                #atoms._del_constraints()
+                #atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                frozen_indices = sorted(frozen_indices)
+                sec.add_keyword(
+                    "MOTION/CONSTRAINT/FIXED_ATOMS", 
+                    "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
+                )
+
+            self.calc.parameters.inp = "\n".join(sec.write())
+
+            #self.calc.set(**run_params)
+            atoms.calc = self.calc
+
+            _ = atoms.get_forces()
+
+        except Exception as e:
+            self._debug(e)
+            self._debug(traceback.print_exc())
+
+        return
+    
+    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+        """"""
+        super().read_trajectory(*args, **kwargs)
+
+        return
+
     
 class Cp2kFileIO(FileIOCalculator):
 
-    implemented_properties = ['energy', 'free_energy', 'forces', 'stress']
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
     command = None
 
     default_parameters = dict(
         auto_write=False,
-        basis_set='DZVP-MOLOPT-SR-GTH',
-        basis_set_file='BASIS_MOLOPT',
-        charge=0,
-        cutoff=400 * units.Rydberg,
+        basis_set="DZVP-MOLOPT-SR-GTH",
+        basis_set_file="BASIS_MOLOPT",
+        pseudo_potential="GTH-PBE",
+        potential_file="POTENTIAL",
+        inp="",
         force_eval_method="Quickstep",
-        inp='',
-        max_scf=50,
-        potential_file='POTENTIAL',
-        pseudo_potential='auto',
-        stress_tensor=True,
+        charge=0,
         uks=False,
-        poisson_solver='auto',
-        xc='LDA',
-        print_level='LOW'
+        stress_tensor=False,
+        poisson_solver="auto",
+        xc="PBE",
+        max_scf=50,
+        cutoff=400 * units.Rydberg,
+        print_level="LOW"
     )
 
-    """This calculator is consistent with cp2k-v9.1.
+    """This calculator is consistent with v9.1 and v2022.1.
     """
 
     def __init__(self, restart=None, label="cp2k", atoms=None, command="cp2k.psmp", **kwargs):
@@ -160,7 +297,7 @@ class Cp2kFileIO(FileIOCalculator):
         if run_type.upper() == "MD":
             trajectory = read_cp2k_md_outputs(self.directory, prefix=label_name)
         else:
-            ... # GEO_OPT
+            ... # GEO_OPT, CELL_OPT
         
         atoms = trajectory[-1]
         self.results["energy"] = atoms.get_potential_energy()
@@ -189,11 +326,13 @@ class Cp2kFileIO(FileIOCalculator):
     def _generate_input(self):
         """Generates a CP2K input file"""
         p = self.parameters
+        print(p)
         root = parse_input(p.inp)
         label_name = pathlib.Path(self.label).name
         root.add_keyword('GLOBAL', 'PROJECT ' + label_name)
         if p.print_level:
             root.add_keyword('GLOBAL', 'PRINT_LEVEL ' + p.print_level)
+        #root.add_keyword("GLOBAL", "RUN_TYPE " + "CELL_OPT")
         if p.force_eval_method:
             root.add_keyword('FORCE_EVAL', 'METHOD ' + p.force_eval_method)
         if p.stress_tensor:
