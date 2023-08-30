@@ -44,7 +44,8 @@ def read_cp2k_xyz(fpath):
             natoms = int(line.strip().split()[0])
             symbols, properties = [], []
             line = fopen.readline() # energy line
-            frame_energies.append(line.strip().split()[-1])
+            info_data = line.strip().split()
+            frame_energies.append(info_data[-1])
             for i in range(natoms):
                 line = fopen.readline()
                 data_line = line.strip().split()
@@ -56,7 +57,7 @@ def read_cp2k_xyz(fpath):
     return frame_symbols, frame_energies, frame_properties
 
 
-def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
+def read_cp2k_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
     """"""
     wdir = pathlib.Path(wdir)
 
@@ -69,7 +70,7 @@ def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
     # NOTE: cp2k uses AA the same as we do
     frame_positions = np.array(frame_positions, dtype=np.float64)
     #frame_positions *= 5.29177208590000E-01
-    print("shape of positions: ", frame_positions.shape)
+    #print("shape of positions: ", frame_positions.shape)
 
     # - forces
     frc_fpath = wdir / (prefix+"-frc-1.xyz")
@@ -77,7 +78,7 @@ def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
     # NOTE: cp2k uses a.u. and we use eV/AA
     frame_forces = np.array(frame_forces, dtype=np.float64)
     frame_forces *= units.Hartree/units.Bohr #(2.72113838565563E+01/5.29177208590000E-01)
-    print("shape of forces: ", frame_forces.shape)
+    #print("shape of forces: ", frame_forces.shape)
 
     # - simulation box
     # TODO: parse cell from inp or out
@@ -89,20 +90,22 @@ def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
         # Cx [Angstrom]       Cy [Angstrom]       Cz [Angstrom]      Volume [Angstrom^3]
         lines = fopen.readlines()
         data = np.array(
-            [line.strip().split()[2:-1] for line in lines[1:]], dtype=np.float64
+            [line.strip().split() for line in lines[1:]], dtype=np.float64
         )
-    boxes = data
+    steps = data[:, 0]
+    boxes = data[:, 2:-1]
 
     # attach forces to frames, zip the shortest
     frames = []
-    for symbols, box, positions, energy, forces in zip(
-        frame_symbols, boxes, frame_positions, frame_energies, frame_forces
+    for step, symbols, box, positions, energy, forces in zip(
+        steps, frame_symbols, boxes, frame_positions, frame_energies, frame_forces
     ):
         atoms = Atoms(
             symbols, positions=positions,
             cell=box.reshape(3,3), 
             pbc=[1,1,1] # TODO: should determine in the cp2k input file
         )
+        atoms.info["step"] = step
         spc = SinglePointCalculator(
             atoms=atoms, energy=energy, 
             free_energy=energy, # TODO: depand on electronic method used
@@ -110,12 +113,13 @@ def read_cp2k_md_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
         )
         atoms.calc = spc
         frames.append(atoms)
-    #write(wdir/(prefix+"-MDtraj.xyz"), frames)
 
     return frames
 
 @dataclasses.dataclass
 class Cp2kDriverSetting(DriverSetting):
+
+    fmax: float = 4.5e-4*(units.Hartree/units.Bohr)
 
     def __post_init__(self):
         """"""
@@ -187,7 +191,10 @@ class Cp2kDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    saved_fnames = []
+    saved_fnames = [
+        "cp2k.inp", "cp2k.out", "cp2k-1.cell", "cp2k-pos-1.xyz", "cp2k-frc-1.xyz",
+        "cp2k-BFGS.Hessian"
+    ]
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
@@ -242,7 +249,14 @@ class Cp2kDriver(AbstractDriver):
         """"""
         super().read_trajectory(*args, **kwargs)
 
-        return
+        # TODO: support restart!!!
+        try:
+            trajectory = read_cp2k_outputs(self.directory, prefix=self.name)
+        except Exception as e:
+            self._debug(e)
+            self._debug(traceback.print_exc())
+
+        return trajectory
 
     
 class Cp2kFileIO(FileIOCalculator):
@@ -293,11 +307,12 @@ class Cp2kFileIO(FileIOCalculator):
         label_name = pathlib.Path(self.label).name
 
         # check run_type
-        run_type = "md"
-        if run_type.upper() == "MD":
-            trajectory = read_cp2k_md_outputs(self.directory, prefix=label_name)
-        else:
-            ... # GEO_OPT, CELL_OPT
+        #run_type = "md"
+        #if run_type.upper() == "MD":
+        #    trajectory = read_cp2k_outputs(self.directory, prefix=label_name)
+        #else:
+        #    ... # GEO_OPT, CELL_OPT
+        trajectory = read_cp2k_outputs(self.directory, prefix=label_name)
         
         atoms = trajectory[-1]
         self.results["energy"] = atoms.get_potential_energy()
@@ -326,7 +341,6 @@ class Cp2kFileIO(FileIOCalculator):
     def _generate_input(self):
         """Generates a CP2K input file"""
         p = self.parameters
-        print(p)
         root = parse_input(p.inp)
         label_name = pathlib.Path(self.label).name
         root.add_keyword('GLOBAL', 'PROJECT ' + label_name)
@@ -450,15 +464,4 @@ class Cp2kFileIO(FileIOCalculator):
 
 
 if __name__ == "__main__":
-    # TODO: add an interface in main
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-w", "--wdir", default="./")
-    parser.add_argument("-p", "--prefix", default="cp2k")
-    args = parser.parse_args()
-
-    wdir = pathlib.Path(args.wdir)
-    prefix = args.prefix
-    frames = read_cp2k_md_outputs(wdir, prefix)
-    write(wdir/f"{prefix}-MDtraj.xyz", frames)
     ...
