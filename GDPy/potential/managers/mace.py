@@ -151,9 +151,9 @@ class MaceManager(AbstractPotentialManager):
     name = "mace"
     implemented_backends = ["ase"]
 
-    valid_combinations = [
-        ["ase", "ase"]
-    ]
+    valid_combinations = (
+        ("ase", "ase")
+    )
 
     def __init__(self):
         """"""

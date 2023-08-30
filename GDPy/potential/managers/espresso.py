@@ -16,9 +16,9 @@ class EspressoManager(AbstractPotentialManager):
     name = "espresso"
 
     implemented_backends = ["espresso"]
-    valid_combinations = [
-        ["espresso", "ase"]
-    ]
+    valid_combinations = (
+        ("espresso", "ase")
+    )
 
     def __init__(self, *args, **kwargs):
         """"""

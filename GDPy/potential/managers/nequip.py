@@ -155,11 +155,11 @@ class NequipManager(AbstractPotentialManager):
     name = "nequip"
     implemented_backends = ["ase", "lammps"]
 
-    valid_combinations = [
-        ["ase", "ase"], # calculator, dynamics
-        ["lammps", "ase"],
-        ["lammps", "lammps"]
-    ]
+    valid_combinations = (
+        ("ase", "ase"), # calculator, dynamics
+        ("lammps", "ase"),
+        ("lammps", "lammps")
+    )
     
     def __init__(self):
         """"""

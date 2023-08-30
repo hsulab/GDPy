@@ -18,11 +18,12 @@ class EannManager(AbstractPotentialManager):
     name = "eann"
     implemented_backends = ["ase", "lammps"]
 
-    valid_combinations = [
-        ["ase", "ase"], # calculator, dynamics
-        ["lammps", "ase"],
-        ["lammps", "lammps"],
-    ]
+    valid_combinations = (
+        # calculator, dynamics
+        ("ase", "ase"), 
+        ("lammps", "ase"),
+        ("lammps", "lammps"),
+    )
 
     TRAIN_INPUT_NAME = "input_nn.json"
     

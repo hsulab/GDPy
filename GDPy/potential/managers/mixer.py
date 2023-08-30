@@ -11,9 +11,10 @@ class MixerManager(AbstractPotentialManager):
     name = "mixer"
     implemented_backends = ["ase"]
 
-    valid_combinations = [ # calculator, dynamics
-        ["ase", "ase"],
-        ["ase", "lammps"],
+    valid_combinations = [ 
+        # calculator, dynamics
+        ("ase", "ase"),
+        ("ase", "lammps"),
     ]
 
     def __init__(self) -> None:

@@ -14,9 +14,9 @@ class EmtManager(AbstractPotentialManager):
     name = "emt"
 
     implemented_backends = ["ase"]
-    valid_combinations = [
-        ["ase", "ase"]
-    ]
+    valid_combinations = (
+        ("ase", "ase")
+    )
 
     """See ASE documentation for calculator parameters.
     """

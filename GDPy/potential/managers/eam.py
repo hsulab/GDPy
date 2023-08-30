@@ -14,9 +14,9 @@ class EamManager(AbstractPotentialManager):
     name = "eam"
 
     implemented_backends = ["lammps"]
-    valid_combinations = [
-        ["lammps", "lammps"]
-    ]
+    valid_combinations = (
+        ("lammps", "lammps")
+    )
 
     """See LAMMPS documentation for calculator parameters.
     """

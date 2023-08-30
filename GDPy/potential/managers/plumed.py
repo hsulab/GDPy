@@ -13,9 +13,10 @@ class PlumedManager(AbstractPotentialManager):
 
     implemented_backends = ["ase"]
 
-    valid_combinations = [
-        ["ase", "ase"], # calculator, dynamics
-    ]
+    valid_combinations = (
+        # calculator, dynamics
+        ("ase", "ase"),
+    )
 
     def __init__(self) -> None:
         """"""

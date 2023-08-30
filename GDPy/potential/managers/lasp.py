@@ -11,10 +11,10 @@ class LaspManager(AbstractPotentialManager):
 
     name = "lasp"
     implemented_backends = ["lasp"]
-    valid_combinations = [
-        ["lasp", "lasp"], # calculator, dynamics
-        ["lasp", "ase"]
-    ]
+    valid_combinations = (
+        ("lasp", "lasp"), # calculator, dynamics
+        ("lasp", "ase")
+    )
 
     def __init__(self):
 

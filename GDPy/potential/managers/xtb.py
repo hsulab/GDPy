@@ -14,9 +14,9 @@ class XtbManager(AbstractPotentialManager):
     name = "xtb"
 
     implemented_backends = ["xtb"]
-    valid_combinations = [
-        ["xtb", "ase"]
-    ]
+    valid_combinations = (
+        ("xtb", "ase")
+    )
 
     """See XTB documentation for calculator parameters.
 

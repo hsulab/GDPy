@@ -12,10 +12,10 @@ class ReaxManager(AbstractPotentialManager):
     name = "reax"
     implemented_backends = ["lammps"]
 
-    valid_combinations = [
-        ["lammps", "ase"],
-        ["lammps", "lammps"]
-    ]
+    valid_combinations = (
+        ("lammps", "ase"),
+        ("lammps", "lammps")
+    )
 
     def __init__(self, *args, **kwargs):
         """"""

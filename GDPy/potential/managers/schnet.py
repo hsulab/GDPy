@@ -230,9 +230,9 @@ class SchnetManager(AbstractPotentialManager):
 
     implemented_backends = ["ase"]
 
-    valid_combinations = [
-        ["ase", "ase"]
-    ]
+    valid_combinations = (
+        ("ase", "ase")
+    )
 
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
