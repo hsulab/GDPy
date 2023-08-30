@@ -16,6 +16,7 @@ from GDPy.core.variable import Variable
 from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 from ..data.array import AtomsNDArray
+from .builder import StructureBuilder
 
 @registers.placeholder.register
 class StructurePlaceholder(Placeholder):
@@ -162,7 +163,7 @@ class modify(Operation):
 
         return frames
 
-def create_builder(config: Union[str, dict]):
+def create_builder(config: Union[str, dict]) -> StructureBuilder:
     """"""
     supproted_configtypes = ["json", "yaml"]
     if isinstance(config, (str,pathlib.Path)):

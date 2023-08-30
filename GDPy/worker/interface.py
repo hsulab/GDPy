@@ -179,13 +179,16 @@ def run_worker(
 
     # - read structures
     from GDPy.builder import create_builder
-    builder = create_builder(structure)
-    builder.directory = directory/"init"
+    frames = []
+    for i, s in enumerate(structure):
+        builder = create_builder(s)
+        builder.directory = directory/"init"/f"s{i}"
+        frames.extend(builder.run())
 
     # - find input frames
     worker.directory = directory
 
-    _ = worker.run(builder, batch=batch)
+    _ = worker.run(frames, batch=batch)
     worker.inspect(resubmit=True)
     if worker.get_number_of_running_jobs() == 0:
         # - report
@@ -193,7 +196,7 @@ def run_worker(
         if not res_dir.exists():
             res_dir.mkdir(exist_ok=True)
 
-            ret = worker.retrieve()
+            ret = worker.retrieve(include_retrieved=True)
 
             end_frames = [traj[-1] for traj in ret]
             write(res_dir/"end_frames.xyz", end_frames)

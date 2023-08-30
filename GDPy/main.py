@@ -108,7 +108,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_compute.add_argument(
-        "STRUCTURE",
+        "STRUCTURE", nargs="*",
         help="a structure file that stores one or more structures"
     )
     parser_compute.add_argument(
