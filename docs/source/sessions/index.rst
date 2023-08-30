@@ -116,6 +116,8 @@ Variables
 Operations
 ----------
 
+See :ref:`operations`.
+
 .. +--------+---------+
 .. | build  | modify  |
 .. +--------+---------+
