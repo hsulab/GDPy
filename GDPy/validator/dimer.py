@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import itertools
 from typing import List
 import warnings
 
@@ -62,9 +63,10 @@ class DimerValidator(AbstractValidator):
                 worker.run(ref_frames)
                 worker.inspect(resubmit=True)
                 if worker.get_number_of_running_jobs() == 0:
-                    pred_frames = worker.retrieve(
+                    ret = worker.retrieve(
                         include_retrieved=True,
                     )
+                    pred_frames = itertools.chain(*ret)
                 else:
                     # TODO: ...
                     ...

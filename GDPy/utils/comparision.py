@@ -130,12 +130,12 @@ def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
     """Plots the distribution of energy per atom on the output vs the input."""
     # - convert data type
     x_ref, x_pred = np.array(x_ref), np.array(x_pred)
-    assert x_ref.shape[0] == x_pred.shape[0], "Input data is inconsistent."
+    assert x_ref.shape[0] == x_pred.shape[0], f"Input data is inconsistent {x_ref.shape} vs. {x_pred.shape}."
 
     if weights is None:
         weights = np.ones(x_ref.shape)
     weights = np.array(weights)
-    assert x_ref.shape[0] == weights.shape[0], "Weight is inconsistent."
+    assert x_ref.shape[0] == weights.shape[0], f"Weight is inconsistent {x_ref.shape} vs. {weights.shape}."
 
     x_ref /= weights
     x_pred /= weights
