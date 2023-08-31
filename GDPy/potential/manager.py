@@ -137,8 +137,10 @@ class AbstractPotentialManager(abc.ABC):
         if reaction == "external":
             reaction = self.calc_backend
 
-        if [self.calc_backend, reaction] not in self.valid_combinations:
-            raise RuntimeError(f"Invalid reaction backend {reaction} based on {self.calc_backend} calculator")
+        if (self.calc_backend, reaction) not in self.valid_combinations:
+            raise RuntimeError(
+                f"Invalid reaction backend {reaction} based on {self.calc_backend} calculator. Valid combinations are {self.valid_combinations}"
+            )
         
         # - merge params for compat
         merged_params = {}
