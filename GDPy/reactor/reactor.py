@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
+import dataclasses
 import pathlib
 import logging
 from typing import Union
 
+import numpy as np
+
 from ase import Atoms
 
-from GDPy.core.node import AbstractNode
-from GDPy.builder.builder import StructureBuilder
+from ..core.node import AbstractNode
 
 
 """Find possible reaction pathways in given structures.

@@ -14,6 +14,9 @@ from ..core.register import registers
 from .pathway import MEPFinder
 registers.reactor.register("ase")(MEPFinder)
 
+from .cp2k import Cp2kStringReactor
+registers.reactor.register("cp2k")(Cp2kStringReactor)
+
 
 if __name__ == "__main__":
     ...
