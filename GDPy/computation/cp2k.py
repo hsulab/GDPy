@@ -279,7 +279,7 @@ class Cp2kFileIO(FileIOCalculator):
         xc="PBE",
         max_scf=50,
         cutoff=400 * units.Rydberg,
-        print_level="LOW"
+        print_level="MEDIUM"
     )
 
     """This calculator is consistent with v9.1 and v2022.1.
