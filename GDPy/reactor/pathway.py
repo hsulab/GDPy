@@ -14,7 +14,7 @@ from matplotlib import pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
-    print("Used default matplotlib style.")
+    ...
 
 from ase import Atoms
 from ase.io import read, write
@@ -28,6 +28,7 @@ from .. import config as GDPCONFIG
 from ..computation.mixer import EnhancedCalculator
 from ..data.array import AtomsNDArray
 from .reactor import AbstractReactor
+from .utils import plot_bands, plot_mep
 from GDPy.builder.constraints import parse_constraint_info
 
 def set_constraint(atoms, cons_text):
@@ -40,31 +41,6 @@ def set_constraint(atoms, cons_text):
         atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
     return atoms
-
-
-def compute_rxn_coords(frames):
-    """Compute reaction coordinates."""
-    # - avoid change atoms positions and lost energy properties...
-    nframes = len(frames)
-    natoms = len(frames[0])
-    coordinates = np.zeros((nframes, natoms, 3))
-    for i, a in enumerate(frames):
-        coordinates[i, :, :] = copy.deepcopy(frames[i].get_positions())
-
-    rxn_coords = []
-    cell = frames[0].get_cell(complete=True)
-    for i in range(1, nframes):
-        prev_positions = coordinates[i-1]
-        curr_positions = coordinates[i]
-        shift = curr_positions - prev_positions
-        curr_vectors, curr_distances = find_mic(shift, cell, pbc=True)
-        coordinates[i] = prev_positions + curr_vectors
-        rxn_coords.append(np.linalg.norm(curr_vectors))
-
-    rxn_coords = np.cumsum(rxn_coords)
-    rxn_coords = np.hstack(([0.], rxn_coords))
-
-    return rxn_coords
 
 def save_nebtraj(neb, log_fpath) -> None:
     """Create a clean atoms from the input and save simulation trajectory.
@@ -115,44 +91,6 @@ def save_nebtraj(neb, log_fpath) -> None:
     for atoms in neb.iterimages():
         atoms_to_save = _convert_atoms(atoms)
         write(log_fpath, atoms_to_save, append=True)
-
-    return
-
-
-def plot_mep(wdir, images):
-    """"""
-    print("nimages: ", len(images))
-    rxn_coords = compute_rxn_coords(images)
-    print("rxn_coords: ", rxn_coords)
-
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-    plt.suptitle("Nudge Elastic Band Calculation")
-
-    nbt = NEBTools(images=images)
-    nbt.plot_band(ax=ax)
-
-    plt.savefig(wdir/"neb.png")
-
-    return
-
-
-def plot_bands(wdir, images, nimages: int):
-    """"""
-    #print([a.get_potential_energy() for a in images])
-    
-    nframes = len(images)
-
-    nbands = int(nframes/nimages)
-
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-    plt.suptitle("Nudge Elastic Band Calculation")
-
-    for i in range(nbands):
-        #print(f"plot_bands {i}")
-        nbt = NEBTools(images=images[i*nimages:(i+1)*nimages])
-        nbt.plot_band(ax=ax)
-
-    plt.savefig(wdir/"bands.png")
 
     return
 
