@@ -55,10 +55,11 @@ class AbstractReactor(AbstractNode):
         return 
     
     @abc.abstractmethod
-    def read_convergence(self, *args, **kwargs):
+    def read_convergence(self, *args, **kwargs) -> bool:
         """"""
+        converged = False
 
-        return
+        return converged
 
 
 if __name__ == "__main__":
