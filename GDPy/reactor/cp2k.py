@@ -71,8 +71,13 @@ class Cp2kStringReactorSetting(StringReactorSetting):
             ("MOTION/BAND/OPTIMIZE_BAND/DIIS", f"MAX_STEPS {self.steps}")
         )
         if fmax_ is not None:
-            run_pairs.append(
-                ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}")
+            run_pairs.extend(
+                [
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}"),
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_DR 1.0"),
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_FORCE 0.005"),
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_DR 1.0"),
+                ]
             )
 
         # - add constraint
@@ -130,6 +135,7 @@ class Cp2kStringReactor(AbstractStringReactor):
 
         # -
         if not self._verify_checkpoint(): # is not a []
+            self.directory.mkdir(parents=True, exist_ok=True)
             self._irun([ini_atoms, fin_atoms])
         else:
             # - check if converged
@@ -154,6 +160,7 @@ class Cp2kStringReactor(AbstractStringReactor):
             energies = [a.get_potential_energy() for a in last_band]
             imax = 1 + np.argsort(energies[1:-1])[-1]
             print(f"imax: {imax}")
+            # NOTE: maxforce in cp2k is norm(atomic_forces)
             maxfrc = np.max(last_band[imax].get_forces(apply_constraint=True))
             print(f"maxfrc: {maxfrc}")
         else:
@@ -237,9 +244,11 @@ class Cp2kStringReactor(AbstractStringReactor):
 
         """
         self._debug(f"***** read_trajectory *****")
+        self._debug(f"{str(self.directory)}")
         cell = None # TODO: if no pbc?
         natoms = None
         nimages = None
+        temp_forces, temp_energies = [], []
         energies, forces = [], []
         with open(self.directory/"cp2k.out", "r") as fopen:
             while True:
@@ -291,6 +300,8 @@ class Cp2kStringReactor(AbstractStringReactor):
                         self._debug(f"nimages: {nimages}")
                     except Exception as e:
                         self._debug("nimages is not found.")
+                # NOTE: For method with LineSearch, several SCF may be performed at one step
+                """
                 #if "Computing Energies and Forces" in line:
                 if "REPLICA Nr." in line:
                     assert natoms is not None and nimages is not None, f"natoms: {natoms}, nimages: {nimages}"
@@ -312,6 +323,42 @@ class Cp2kStringReactor(AbstractStringReactor):
                         forces.append(curr_forces)
                     else:
                         break
+                """
+                if "Computing Energies and Forces" in line:
+                    # NEB| REPLICA Nr.    1- Energy and Forces
+                    # NEB|                                     Total energy:       -2940.286865478840
+                    # NEB|    ATOM                            X                Y                Z
+                    curr_data = []
+                    found_replica_forces = False
+                    for i in range((natoms+3)*nimages):
+                        line = fopen.readline()
+                        if line:
+                            curr_data.append(line)
+                        else:
+                            break
+                    else:
+                        # current replica's forces are complete...
+                        found_replica_forces = True
+                    if found_replica_forces:
+                        curr_energies = [
+                            float(curr_data[i].strip().split()[-1]) for i in range(1, len(curr_data), natoms+3)
+                        ]
+                        temp_energies.append(curr_energies)
+                        curr_forces = []
+                        for ir in range(nimages):
+                            curr_forces.append(
+                                [curr_data[i].strip().split()[2:] for i in range((natoms+3)*ir+3, (natoms+3)*ir+3+natoms)]
+                            )
+                        temp_forces.append(curr_forces)
+                    else:
+                        break
+                if "BAND TOTAL ENERGY" in line:
+                    if temp_energies and temp_forces: # if the step completed...
+                        #print("temp_energies: ", len(temp_energies))
+                        #print("temp_forces: ", np.array(temp_forces, dtype=np.float64).shape)
+                        energies.append(temp_energies[-1])
+                        forces.extend(temp_forces[-1])
+                        temp_forces, temp_energies = [], []
 
         # - truncate to the last complete band
         frames = [] # shape (nbands, nimages)
