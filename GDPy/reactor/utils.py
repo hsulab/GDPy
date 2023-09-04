@@ -62,7 +62,7 @@ def plot_mep(wdir, images):
     print("rxn_coords: ", rxn_coords)
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-    plt.suptitle("Nudge Elastic Band Calculation")
+    plt.suptitle("Nudged Elastic Band Calculation")
 
     nbt = NEBTools(images=images)
     nbt.plot_band(ax=ax)
@@ -80,7 +80,7 @@ def plot_bands(wdir, images, nimages: int):
     nbands = int(nframes/nimages)
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-    plt.suptitle("Nudge Elastic Band Calculation")
+    plt.suptitle("Nudged Elastic Band Calculation")
 
     for i in range(nbands):
         #print(f"plot_bands {i}")

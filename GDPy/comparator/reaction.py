@@ -63,7 +63,7 @@ class ReactionComparator(AbstractNode):
         dene = prediction[0].get_potential_energy() - reference[0].get_potential_energy()
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-        plt.suptitle("Nudge Elastic Band Calculation")
+        plt.suptitle("Nudged Elastic Band Calculation")
 
         ax.set_xlabel("Reaction Coordinate [Å]")
         ax.set_ylabel("Potential Energy [eV]")

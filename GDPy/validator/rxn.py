@@ -52,7 +52,7 @@ def get_forcefit(images):
 def plot_results(images, prefix, wdir):
     """"""
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-    plt.suptitle("Nudge Elastic Band Calculation")
+    plt.suptitle("Nudged Elastic Band Calculation")
 
     ax.set_xlabel("Reaction Coordinate [Å]")
     ax.set_ylabel("Potential Energy [eV]")
