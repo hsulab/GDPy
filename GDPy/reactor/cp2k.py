@@ -45,6 +45,8 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 ("MOTION/BAND", "ALIGN_FRAMES F"),
                 ("MOTION/BAND/CI_NEB", "NSTEPS_IT 2"),
                 ("MOTION/BAND/OPTIMIZE_BAND", "OPT_TYPE DIIS"),
+                ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "NO_LS T"),
+                ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "N_DIIS 3"),
                 ("MOTION/PRINT/RESTART_HISTORY/EACH", f"BAND {self.restart_period}"),
             ]
         )
@@ -381,10 +383,16 @@ class Cp2kStringReactor(AbstractStringReactor):
 
             # - read positions
             frames_ = [] # shape (nimages, nbands)
-            for i in range(nimages):
-                curr_xyzfile = self.directory/f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
-                curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
-                frames_.append(curr_frames)
+            if nimages < 10:
+                for i in range(nimages):
+                    curr_xyzfile = self.directory/f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
+                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
+                    frames_.append(curr_frames)
+            else:
+                for i in range(nimages):
+                    curr_xyzfile = self.directory/f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
+                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
+                    frames_.append(curr_frames)
             for j in range(nbands):
                 curr_band = []
                 for i in range(nimages):
