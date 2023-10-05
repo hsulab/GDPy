@@ -170,6 +170,11 @@ class Cp2kStringReactor(AbstractStringReactor):
 
         return last_band
     
+    def _backup(self):
+        """"""
+
+        return
+    
     def _irun(self, structures: List[Atoms], *args, **kwargs):
         """"""
         images = self._align_structures(structures)
@@ -294,11 +299,12 @@ class Cp2kStringReactor(AbstractStringReactor):
                     else:
                         break
                 if "Number of Images" in line:
-                    line = fopen.readline()
+                    # line = fopen.readline() # BUG: inconsistent Images and Replicas?
                     if not line:
                         break
                     try:
                         nimages = int(line.strip().split()[-2])
+                        self._debug(line)
                         self._debug(f"nimages: {nimages}")
                     except Exception as e:
                         self._debug("nimages is not found.")

@@ -15,7 +15,8 @@ class VaspManager(AbstractPotentialManager):
 
     implemented_backends = ["vasp"]
     valid_combinations = (
-        ("vasp", "vasp") # calculator, dynamics
+        # calculator, dynamics
+        ("vasp", "vasp"), 
     )
 
     def __init__(self):
