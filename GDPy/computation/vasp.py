@@ -85,7 +85,7 @@ def read_sort(directory: pathlib.Path):
 @dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
 
-    etol: float = 1e-4
+    etol: float = None
     fmax: float = 0.05 
 
     def __post_init__(self):
@@ -106,6 +106,22 @@ class VaspDriverSetting(DriverSetting):
                 ...
 
             self._internals.update(
+                ibrion = ibrion,
+                potim = self.maxstep
+            )
+
+        # -- cmin: cell minimisation
+        if self.task == "cmin":
+            if self.min_style == "bfgs":
+                ibrion = 1
+            elif self.min_style == "cg":
+                ibrion = 2
+            else:
+                #raise ValueError(f"Unknown minimisation {self.min_style} for vasp".)
+                ...
+
+            self._internals.update(
+                isif = 3,
                 ibrion = ibrion,
                 potim = self.maxstep
             )
@@ -181,11 +197,12 @@ class VaspDriverSetting(DriverSetting):
         fmax_ = kwargs.get("fmax", self.fmax)
         etol_ = kwargs.get("etol", self.etol)
 
-        if fmax_ is not None:
-            ediffg = -1.*fmax_
+        # etol is prioritised
+        if etol_ is not None:
+            ediffg = etol_
         else:
-            if etol_ is not None:
-                ediffg = etol_
+            if fmax_ is not None:
+                ediffg = -1.*fmax_
             else:
                 ediffg = -5e-2
 
@@ -205,7 +222,7 @@ class VaspDriver(AbstractDriver):
 
     # - defaults
     default_task = "min"
-    supported_tasks = ["min", "md", "freq"]
+    supported_tasks = ["min", "cmin", "md", "freq"]
 
     # - system depandant params
     syswise_keys: List[str] = ["system", "kpts", "kspacing"]
