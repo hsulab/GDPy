@@ -17,6 +17,9 @@ registers.reactor.register("ase")(MEPFinder)
 from .cp2k import Cp2kStringReactor
 registers.reactor.register("cp2k")(Cp2kStringReactor)
 
+from .vasp import VaspStringReactor
+registers.reactor.register("vasp")(VaspStringReactor)
+
 
 if __name__ == "__main__":
     ...
