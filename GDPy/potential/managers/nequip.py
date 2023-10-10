@@ -121,6 +121,8 @@ class NequipTrainer(AbstractTrainer):
 
         train_config["chemical_symbols"] = self.type_list
 
+        train_config["batch_size"] = dataset.batchsize
+
         train_config["n_train"] = n_train
         train_config["n_val"] = n_val
 
