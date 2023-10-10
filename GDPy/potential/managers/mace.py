@@ -152,7 +152,7 @@ class MaceManager(AbstractPotentialManager):
     implemented_backends = ["ase"]
 
     valid_combinations = (
-        ("ase", "ase")
+        ("ase", "ase"),
     )
 
     def __init__(self):
@@ -197,13 +197,14 @@ class MaceManager(AbstractPotentialManager):
                 import torch
                 from mace.calculators import MACECalculator
             except:
-                raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.")
+                raise ModuleNotFoundError("Please install mace and torch to use the ase interface.")
             calcs = []
             for m in models:
+                #print("device", torch.device("cuda" if torch.cuda.is_available() else torch.device("cpu")))
                 curr_calc = MACECalculator(
                     model_path=m, 
-                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-                    precision=precision
+                    device=torch.device("cuda" if torch.cuda.is_available() else torch.device("cpu")),
+                    default_dtype=precision
                 )
                 calcs.append(curr_calc)
             if len(calcs) == 1:
@@ -223,4 +224,4 @@ class MaceManager(AbstractPotentialManager):
 
 
 if __name__ == "__main__":
-    ...
+    ..
