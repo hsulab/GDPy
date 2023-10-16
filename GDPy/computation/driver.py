@@ -79,8 +79,11 @@ class DriverSetting:
     pend: float = None # bar
     Pdamp: float = 100.
 
-    #: Shared parameters among tasks.
+    #: The interval steps to dump output files (e.g. trajectory).
     dump_period: int = 1
+
+    #: The interval steps to save a check point that is used for restart.
+    ckpt_period: int = 100
 
     #: run params
     etol: float = None # 5e-2

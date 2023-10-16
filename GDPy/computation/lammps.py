@@ -178,7 +178,8 @@ class LmpDriverSetting(DriverSetting):
         # - shared params
         self._internals.update(
             task = self.task,
-            dump_period = self.dump_period
+            dump_period = self.dump_period,
+            ckpt_period = self.ckpt_period
         )
 
         # - special params
@@ -418,6 +419,7 @@ class Lammps(FileIOCalculator):
         neigh_modify = None,
         mass = "* 1.0",
         dump_period = 1,
+        ckpt_period = 100,
         # - md
         md_style = "nvt",
         md_steps = 0,
@@ -620,7 +622,7 @@ class Lammps(FileIOCalculator):
     def _write_input(self, atoms) -> NoReturn:
         """Write input file in.lammps"""
         # - write in.lammps
-        content = ""
+        content =  f"restart         {self.ckpt_period}  restart.*.data\n"
         content += "units           %s\n" %self.units
         content += "atom_style      %s\n" %self.atom_style
 
