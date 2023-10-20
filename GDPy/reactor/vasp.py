@@ -5,7 +5,9 @@
 import copy
 import itertools
 import dataclasses
+import os
 import pathlib
+import shutil
 import traceback
 
 from typing import Union, List
@@ -23,6 +25,38 @@ from ase.neb import NEB
 from .string import AbstractStringReactor, StringReactorSetting
 from ..builder.constraints import parse_constraint_info
 from .utils import plot_bands, plot_mep
+
+
+def run_vasp(name, command, directory):
+    """Run vasp from the command. 
+    
+    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run 
+    directly from the command if INCAR aready exists.
+    
+    """
+    import subprocess
+    from ase.calculators.calculator import EnvironmentError, CalculationFailed
+
+    try:
+        proc = subprocess.Popen(command, shell=True, cwd=directory)
+    except OSError as err:
+        # Actually this may never happen with shell=True, since
+        # probably the shell launches successfully.  But we soon want
+        # to allow calling the subprocess directly, and then this
+        # distinction (failed to launch vs failed to run) is useful.
+        msg = 'Failed to execute "{}"'.format(command)
+        raise EnvironmentError(msg) from err
+
+    errorcode = proc.wait()
+
+    if errorcode:
+        path = os.path.abspath(directory)
+        msg = ('Calculator "{}" failed with command "{}" failed in '
+               '{} with error code {}'.format(name, command,
+                                              path, errorcode))
+        raise CalculationFailed(msg)
+
+    return
 
 
 @dataclasses.dataclass
@@ -99,8 +133,12 @@ class VaspStringReactor(AbstractStringReactor):
 
         # - Double-Ended Methods...
         ini_atoms, fin_atoms = structures
-        self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-        self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
+        try:
+            self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
+            self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
+        except RuntimeError:
+            # RuntimeError: Atoms object has no calculator.
+            self._print("Not energies attached to IS and FS.")
 
         # - backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
@@ -189,7 +227,10 @@ class VaspStringReactor(AbstractStringReactor):
             atoms.calc = self.calc
 
             # - run calculation
-            _ = atoms.get_forces()
+            self.calc.write_input(atoms)
+            if (self.directory/"POSCAR").exists():
+                os.remove(self.directory/"POSCAR")
+            run_vasp("vasp", atoms.calc.command, self.directory)
 
         except Exception as e:
             self._debug(e)
@@ -238,6 +279,16 @@ class VaspStringReactor(AbstractStringReactor):
             frames.append(curr_frames)
 
         return frames
+
+    def as_dict(self) -> dict:
+        """"""
+        params = super().as_dict()
+
+        for k, v in dataclasses.asdict(self.setting).items():
+            if not k.startswith("_"):
+                params[k] = v
+
+        return params
 
 
 if __name__ == "__main__":

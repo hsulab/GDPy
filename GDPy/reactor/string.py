@@ -153,6 +153,12 @@ class AbstractStringReactor(AbstractReactor):
         )
 
         return images
+    
+    def as_dict(self) -> dict:
+        """"""
+        params = {}
+
+        return params
 
 
 if __name__ == "__main__":
