@@ -8,6 +8,7 @@ import tempfile
 from typing import Union, List
 import uuid
 import warnings
+import yaml
 
 from tinydb import Query, TinyDB
 
@@ -49,29 +50,50 @@ class ReactorBasedWorker(AbstractWorker):
 
         return
     
-    def _preprocess(self, structures: AtomsNDArray):
+    def _preprocess(self, structures: Union[List[Atoms], AtomsNDArray]):
         """"""
-        if structures.ndim == 3: # from extract
-            assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
-            pairs = []
-            for p in structures:
-                p = [[a for a in s if a is not None][-1] for s in p]
-                pairs.append(p)
-            pairs = list(zip(pairs[0], pairs[1]))
-        elif structures.ndim == 2: # from extract
-            pairs = list(zip(structures[0], structures[1]))
-            #raise RuntimeError()
+        # TODO: For now, this only support double-ended methods, 
+        #       which means the number of input structures should be even.
+        if isinstance(structures, list):
+            nstructures = len(structures)
+            assert nstructures%2 == 0, "The number of structures should be even."
+            pairs = list(
+                zip(
+                    [structures[i] for i in range(0, nstructures, 2)], 
+                    [structures[i] for i in range(1, nstructures, 2)]
+                )
+            )
+        elif isinstance(structures, AtomsNDArray):
+            if structures.ndim == 3: # from extract
+                assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
+                pairs = []
+                for p in structures:
+                    p = [[a for a in s if a is not None][-1] for s in p]
+                    pairs.append(p)
+                pairs = list(zip(pairs[0], pairs[1]))
+            elif structures.ndim == 2: # from extract
+                pairs = list(zip(structures[0], structures[1]))
+                #raise RuntimeError()
+            else:
+                pairs = []
+                raise RuntimeError()
         else:
-            pairs = []
-            raise RuntimeError()
-        print(f"pairs: {pairs}")
-        #print([[a.get_potential_energy() for a in p] for p in pairs])
+            ...
 
         # - check difference
         processed_dpath = self.directory/"_data"
         processed_dpath.mkdir(exist_ok=True)
 
         curr_frames, curr_info = copy_minimal_frames(itertools.chain(*pairs))
+
+        # NOTE: handle atoms.info as some codes need energies for IS and FS...
+        energies = []
+        for i, a in enumerate(itertools.chain(*pairs)):
+            try:
+                ene = a.get_potential_energy()
+                curr_frames.info["energy"] = ene
+            except:
+                ...
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
             write(tmp.name, curr_frames, columns=["symbols", "positions", "move_mask"])
@@ -200,15 +222,49 @@ class ReactorBasedWorker(AbstractWorker):
             curr_indices, curr_wdirs, *args, **kwargs
         ) -> None:
         """"""
-        with CustomTimer(name="run-reactor", func=self._print):
-            # - here the driver is the reactor
-            for i, wdir in zip(curr_indices, curr_wdirs):
-                self._print(
-                    f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                )
-                self.driver.directory = self.directory/wdir
-                self.driver.reset()
-                _ = self.driver.run(structures[i], read_cache=True)
+        batch_number = int(name.split("-")[-1])
+        if self.scheduler.name == "local":
+            with CustomTimer(name="run-reactor", func=self._print):
+                # - here the driver is the reactor
+                for i, wdir in zip(curr_indices, curr_wdirs):
+                    self._print(
+                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                    )
+                    self.driver.directory = self.directory/wdir
+                    self.driver.reset()
+                    _ = self.driver.run(structures[i], read_cache=True)
+        else:
+            # - save worker file
+            worker_params = {}
+            worker_params["type"] = "reactor"
+            worker_params["driver"] = self.driver.as_dict()
+            worker_params["potter"] = self.potter.as_dict()
+            worker_params["batchsize"] = self.batchsize
+
+            with open(self.directory/f"worker-{uid}.yaml", "w") as fopen:
+                yaml.dump(worker_params, fopen)
+
+            # - save structures
+            dataset_path = str((self.directory/"_data"/f"{identifier}.xyz").resolve())
+
+            # - save scheduler file
+            jobscript_fname = f"run-{uid}.script"
+            self.scheduler.job_name = uid + "-" + name
+            self.scheduler.script = self.directory/jobscript_fname
+
+            self.scheduler.user_commands = "gdp -p {} compute {} --batch {}\n".format(
+                (self.directory/f"worker-{uid}.yaml").name, 
+                #(self.directory/structure_fname).name
+                dataset_path, batch_number
+            )
+
+            # - TODO: check whether params for scheduler is changed
+            self.scheduler.write()
+            if self._submit:
+                self._print(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
+            else:
+                self._print(f"{self.directory.name} waits to submit.")
+                ...
 
         return
 

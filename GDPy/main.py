@@ -191,16 +191,26 @@ def main():
 
     # - potential
     from GDPy.utils.command import parse_input_file
-    from GDPy.worker.interface import ComputerVariable
     potter = None
     if args.potential:
         params = parse_input_file(input_fpath=args.potential)
-        potter = ComputerVariable(
-            params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-            batchsize=params.get("batchsize", 1), 
-            share_wdir=params.get("share_wdir", False),
-            use_single=params.get("use_single", False), 
-        ).value[0]
+        ptype = params.pop("type", "computer")
+        if ptype == "computer":
+            from GDPy.worker.interface import ComputerVariable
+            potter = ComputerVariable(
+                params["potential"], params.get("driver", {}), params.get("scheduler", {}),
+                batchsize=params.get("batchsize", 1), 
+                share_wdir=params.get("share_wdir", False),
+                use_single=params.get("use_single", False), 
+            ).value[0]
+        elif ptype == "reactor":
+            from GDPy.reactor.interface import ReactorVariable
+            potter = ReactorVariable(
+                potter=params["potter"], driver=params.get("driver", None), 
+                scheduler=params.get("scheduler", {}), batchsize=params.get("batchsize", 1)
+            ).value[0]
+        else:
+            ...
 
     # - use subcommands
     if args.subcommand == "session":
