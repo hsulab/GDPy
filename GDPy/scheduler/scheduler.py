@@ -124,7 +124,7 @@ class AbstractScheduler(ABC):
 
         return
 
-    def write(self) -> NoReturn:
+    def write(self) -> None:
         """Write self to the path of the job script."""
         with open(self.script, "w") as fopen:
             fopen.write(str(self))
