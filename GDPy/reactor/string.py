@@ -122,35 +122,40 @@ class AbstractStringReactor(AbstractReactor):
 
     def _align_structures(self, structures, *args, **kwargs) -> List[Atoms]:
         """"""
-        # - check lattice consistency
-        ini_atoms, fin_atoms = structures
-        c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(complete=True)
-        assert np.allclose(c1, c2), "Inconsistent unit cell..."
+        nstructures = len(structures)
+        if nstructures == 2:
+            # - check lattice consistency
+            ini_atoms, fin_atoms = structures
+            c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(complete=True)
+            assert np.allclose(c1, c2), "Inconsistent unit cell..."
 
-        # - align structures
-        shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
-        if self.setting.mic:
-            self._print("Align IS and FS based on MIC.")
-            curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
-            self._debug(f"curr_vectors: {curr_vectors}")
-            self._print(f"disp: {np.linalg.norm(curr_vectors)}")
-            fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+            # - align structures
+            shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
+            if self.setting.mic:
+                self._print("Align IS and FS based on MIC.")
+                curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
+                self._debug(f"curr_vectors: {curr_vectors}")
+                self._print(f"disp: {np.linalg.norm(curr_vectors)}")
+                fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+            else:
+                self._print(f"disp: {np.linalg.norm(shifts)}")
+
+            ini_atoms = set_constraint(ini_atoms, self.setting.constraint)
+            fin_atoms = set_constraint(fin_atoms, self.setting.constraint)
+
+            # - find mep
+            nimages = self.setting.nimages
+            images = [ini_atoms]
+            images += [ini_atoms.copy() for i in range(nimages-2)]
+            images.append(fin_atoms)
+
+            interpolate(
+                images=images, mic=False, interpolate_cell=False, 
+                use_scaled_coord=False, apply_constraint=None
+            )
         else:
-            self._print(f"disp: {np.linalg.norm(shifts)}")
-
-        ini_atoms = set_constraint(ini_atoms, self.setting.constraint)
-        fin_atoms = set_constraint(fin_atoms, self.setting.constraint)
-
-        # - find mep
-        nimages = self.setting.nimages
-        images = [ini_atoms]
-        images += [ini_atoms.copy() for i in range(nimages-2)]
-        images.append(fin_atoms)
-
-        interpolate(
-            images=images, mic=False, interpolate_cell=False, 
-            use_scaled_coord=False, apply_constraint=None
-        )
+            self._print("Use a pre-defined pathway.")
+            images = [a.copy() for a in structures]
 
         return images
     
