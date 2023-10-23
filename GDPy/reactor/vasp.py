@@ -7,6 +7,7 @@ import itertools
 import dataclasses
 import os
 import pathlib
+import re
 import shutil
 import traceback
 
@@ -153,7 +154,8 @@ class VaspStringReactor(AbstractStringReactor):
             converged = self.read_convergence()
             if not converged:
                 if read_cache:
-                    ...
+                    structures, resume_params = self._resume(structures, *args, **kwargs)
+                    kwargs.update(**resume_params)
                 self._irun(structures, *args, **kwargs)
             else:
                 ...
@@ -184,6 +186,51 @@ class VaspStringReactor(AbstractStringReactor):
 
         return
     
+    def _resume(self, structures: List[Atoms], *args, **kwargs):
+        """"""
+        # - update structures
+        rep_dirs = sorted([x.name for x in sorted(self.directory.glob(r"[0-9][0-9]"))])
+        print(f"rep_dirs: {rep_dirs}")
+
+        frames_ = []
+        for x in rep_dirs[1:-1]:
+            frames_.append(read(self.directory/x/"OUTCAR", ":"))
+        nframes = min([len(x) for x in frames_])
+        assert nframes > 0, "At least one step finished before resume..."
+        intermediates_ = [x[nframes-1] for x in frames_]
+        intermediates = [structures[0]] + intermediates_ + [structures[-1]]
+
+        params = dict( # TODO: dump_/ckpt_period?
+            steps = self.setting.steps - nframes
+        )
+
+        # - find runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        print(f"prev_wdirs: {prev_wdirs}")
+        curr_index = len(prev_wdirs)
+
+        curr_wdir = self.directory/f"{str(curr_index).zfill(4)}.run"
+        print(f"curr_wdir: {curr_wdir}")
+
+        # - backup files
+        curr_wdir.mkdir()
+
+        backups = [
+            "INCAR", "POTCAR", "KPOINTS", "vasprun.xml", 
+            "images.xyz", "ase-sort.dat", "vasp.out"
+        ]
+        backups.extend(rep_dirs)
+        for x in self.directory.iterdir():
+            if not re.match(r"[0-9]{4}\.run", x.name):
+                if x.name in backups:
+                    shutil.move(x, curr_wdir)
+                else:
+                    x.unlink()
+            else:
+                ...
+
+        return intermediates, params
+    
     def _irun(self, structures: List[Atoms], *args, **kwargs):
         """"""
         images = self._align_structures(structures)
@@ -191,18 +238,9 @@ class VaspStringReactor(AbstractStringReactor):
 
         atoms = images[0] # use the initial state
         try:
+            # --
             run_params = self.setting.get_run_params(**kwargs)
             run_params.update(**self.setting.get_init_params())
-
-            # - update input template
-            # GLOBAL section is automatically created...
-            # FORCE_EVAL.(METHOD, POISSON)
-            #inp = self.calc.parameters.inp # string
-            #sec = parse_input(inp)
-            #for (k, v) in run_params["pairs"]:
-            #    sec.add_keyword(k, v)
-            #for (k, v) in run_params["run_pairs"]:
-            #    sec.add_keyword(k, v)
 
             # -- check constraint
             cons_text = run_params.pop("constraint", None)
@@ -261,18 +299,30 @@ class VaspStringReactor(AbstractStringReactor):
         self._debug(f"***** read_trajectory *****")
         self._debug(f"{str(self.directory)}")
 
-
-        #ini_atoms = read(self.directory/"00"/"POSCAR")
-        #fin_atoms = read(self.directory/f"{str(self.setting.nimages-1).zfill(2)}"/"POSCAR")
         images = read(self.directory/"images.xyz", ":")
         ini_atoms, fin_atoms = images[0], images[-1]
 
+        # TODO: energy and forces of IS and FS?
+        calc = SinglePointCalculator(
+            ini_atoms, energy=ini_atoms.info["energy"], forces=np.zeros((len(ini_atoms), 3))
+        )
+        ini_atoms.calc = calc
+        calc = SinglePointCalculator(
+            fin_atoms, energy=fin_atoms.info["energy"], forces=np.zeros((len(fin_atoms), 3))
+        )
+        fin_atoms.calc = calc
+
+        # - read OUTCARs
         frames_ = []
         for i in range(1, self.setting.nimages-1):
             curr_frames = read(self.directory/f"{str(i).zfill(2)}"/"OUTCAR", ":")
             frames_.append(curr_frames)
-        
-        nsteps = len(frames_[0])
+
+        # nframes may not consistent across replicas 
+        # due to unfinished calculations
+        nframes_list = [len(x) for x in frames_]
+        nsteps = min(nframes_list) 
+
         frames = []
         for i in range(nsteps):
             curr_frames = [ini_atoms] + [frames_[j][i] for j in range(self.setting.nimages-2)] + [fin_atoms]
