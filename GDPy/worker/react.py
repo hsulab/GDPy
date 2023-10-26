@@ -91,7 +91,7 @@ class ReactorBasedWorker(AbstractWorker):
         for i, a in enumerate(itertools.chain(*pairs)):
             try:
                 ene = a.get_potential_energy()
-                curr_frames.info["energy"] = ene
+                curr_frames[i].info["energy"] = ene
             except:
                 ...
 
