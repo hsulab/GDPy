@@ -34,7 +34,7 @@ def set_constraint(atoms, cons_text):
 class StringReactorSetting:
 
     #: Period to save the restart file.
-    restart_period: int = 100
+    ckpt_period: int = 100
 
     #: Number of images along the pathway.
     nimages: int = 7
@@ -46,10 +46,19 @@ class StringReactorSetting:
     optimiser: str = "bfgs"
 
     #: Spring constant, eV/Ang2.
-    k: float = 0.1
+    k: float = 5.0
 
     #: Whether use CI-NEB.
     climb: bool = False
+
+    #: Convergence coordinate RMS.
+    rrms: float = 0.5
+
+    #: Convergence coordinate MAX.
+    rmax: float = 0.5
+
+    #: Convergence force RMS.
+    frms: float = 0.25
 
     #: Convergence force tolerance.
     fmax: float = 0.05
@@ -159,9 +168,15 @@ class AbstractStringReactor(AbstractReactor):
 
         return images
     
+
     def as_dict(self) -> dict:
         """"""
+        #params = super().as_dict()
         params = {}
+
+        for k, v in dataclasses.asdict(self.setting).items():
+            if not k.startswith("_"):
+                params[k] = v
 
         return params
 

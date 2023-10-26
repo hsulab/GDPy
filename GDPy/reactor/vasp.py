@@ -330,16 +330,6 @@ class VaspStringReactor(AbstractStringReactor):
 
         return frames
 
-    def as_dict(self) -> dict:
-        """"""
-        params = super().as_dict()
-
-        for k, v in dataclasses.asdict(self.setting).items():
-            if not k.startswith("_"):
-                params[k] = v
-
-        return params
-
 
 if __name__ == "__main__":
     ...
