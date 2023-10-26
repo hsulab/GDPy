@@ -40,14 +40,14 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 ("MOTION/BAND", "BAND_TYPE CI-NEB"),
                 ("MOTION/BAND", f"NPROC_REP {self.ntasks_per_image}"),
                 ("MOTION/BAND", f"NUMBER_OF_REPLICA {self.nimages}"),
-                ("MOTION/BAND", f"K_SPRING {self.k}"),
+                ("MOTION/BAND", f"K_SPRING {self.k/(units.Hartree/units.Bohr**2)}"),
                 ("MOTION/BAND", "ROTATE_FRAMES F"),
                 ("MOTION/BAND", "ALIGN_FRAMES F"),
                 ("MOTION/BAND/CI_NEB", "NSTEPS_IT 2"),
                 ("MOTION/BAND/OPTIMIZE_BAND", "OPT_TYPE DIIS"),
                 ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "NO_LS T"),
                 ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "N_DIIS 3"),
-                ("MOTION/PRINT/RESTART_HISTORY/EACH", f"BAND {self.restart_period}"),
+                ("MOTION/PRINT/RESTART_HISTORY/EACH", f"BAND {self.ckpt_period}"),
             ]
         )
 
@@ -65,20 +65,23 @@ class Cp2kStringReactorSetting(StringReactorSetting):
     def get_run_params(self, *args, **kwargs):
         """"""
         # - convergence criteria
+        rmax_ = kwargs.get("rmax", self.rmax)
+        rrms_ = kwargs.get("rrms", self.rrms)
         fmax_ = kwargs.get("fmax", self.fmax)
+        frms_ = kwargs.get("frms", self.frms)
         steps_ = kwargs.get("steps", self.steps)
 
         run_pairs = []
         run_pairs.append(
-            ("MOTION/BAND/OPTIMIZE_BAND/DIIS", f"MAX_STEPS {self.steps}")
+            ("MOTION/BAND/OPTIMIZE_BAND/DIIS", f"MAX_STEPS {steps_}")
         )
         if fmax_ is not None:
             run_pairs.extend(
                 [
                     ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}"),
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_DR 1.0"),
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_FORCE 0.005"),
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_DR 1.0"),
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_DR {rmax_/(units.Bohr)}"),
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_FORCE {frms_/(units.Hartree/units.Bohr)}"),
+                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_DR {rrms_/(units.Bohr)}"),
                 ]
             )
 
@@ -418,7 +421,7 @@ class Cp2kStringReactor(AbstractStringReactor):
             ...
 
         return frames
-
+    
 
 if __name__ == "__main__":
     ...
