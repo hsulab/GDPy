@@ -11,6 +11,10 @@ from ..core.register import registers
     various advanced algorithms.
 """
 
+# - string methods...
+from .grid import ZeroStringReactor
+registers.reactor.register("grid")(ZeroStringReactor)
+
 from .pathway import MEPFinder
 registers.reactor.register("ase")(MEPFinder)
 
