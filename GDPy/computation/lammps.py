@@ -622,7 +622,7 @@ class Lammps(FileIOCalculator):
     def _write_input(self, atoms) -> NoReturn:
         """Write input file in.lammps"""
         # - write in.lammps
-        content =  f"restart         {self.ckpt_period}  restart.*.data\n"
+        content =  f"restart         {self.ckpt_period}  restart.*.data\n\n"
         content += "units           %s\n" %self.units
         content += "atom_style      %s\n" %self.atom_style
 
