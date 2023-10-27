@@ -6,6 +6,9 @@ import warnings
 
 from .. import registers
 
+from .grid import GridManager
+registers.manager.register(GridManager)
+
 from .mixer import MixerManager
 registers.manager.register(MixerManager)
 
