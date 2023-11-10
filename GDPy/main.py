@@ -90,6 +90,14 @@ def main():
         "-n", "--number", default=1, type=int,
         help="number of structures to build"
     )
+
+    # - convert dataset format
+    parser_convert = subparsers.add_parser(
+        "convert", help="convert dataset formats",
+    )
+    parser_convert.add_argument(
+        "INPUT", help="path of the input dataset"
+    )
     
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -216,6 +224,9 @@ def main():
     if args.subcommand == "session":
         from GDPy.core.session import run_session
         run_session(args.SESSION, args.feed, args.directory)
+    elif args.subcommand == "convert":
+        from GDPy.data import convert_dataset
+        convert_dataset(args.INPUT)
     elif args.subcommand == "train":
         from GDPy.trainer import run_newtrainer
         run_newtrainer(args.CONFIG, args.directory)
