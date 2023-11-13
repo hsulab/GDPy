@@ -131,6 +131,80 @@ def parse_thermo_data(logfile_path) -> dict:
 
     return thermo_dict, end_info
 
+def read_single_simulation(directory, prefix, units, add_step_info=True):
+    """"""
+    # skip last frame
+    curr_traj_frames = read(
+        directory/(prefix+ASELMPCONFIG.trajectory_filename), 
+        index=":", format="lammps-dump-text", units=units
+    )
+    nframes_traj = len(curr_traj_frames)
+
+    # - read thermo data
+    thermo_dict, end_info = parse_thermo_data(directory/(prefix+ASELMPCONFIG.log_filename))
+
+    # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
+    #       if there were any error, 
+    pot_energies = [unitconvert.convert(p, "energy", units, "ASE") for p in thermo_dict["PotEng"]]
+    nframes_thermo = len(pot_energies)
+    nframes = min([nframes_traj, nframes_thermo])
+    config._debug(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
+
+    # TODO: check whether steps in thermo and traj are consistent
+    pot_energies = pot_energies[:nframes]
+    curr_traj_frames = curr_traj_frames[:nframes]
+    assert len(pot_energies) == len(curr_traj_frames), f"Number of pot energies and frames are inconsistent at {str(directory)}."
+
+    for pot_eng, atoms in zip(pot_energies, curr_traj_frames):
+        forces = atoms.get_forces()
+        # NOTE: forces have already been converted in ase read, so velocities are
+        #forces = unitconvert.convert(forces, "force", self.units, "ASE")
+        sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
+        atoms.calc = sp_calc
+
+    # - label steps
+    if add_step_info:
+        for i, atoms in enumerate(curr_traj_frames):
+            atoms.info["source"] = directory.name
+            atoms.info["step"] = int(thermo_dict["Step"][i])
+
+    # - check model_devi.out
+    # TODO: convert units?
+    devi_path = directory / (prefix+ASELMPCONFIG.deviation_filename)
+    if devi_path.exists():
+        with open(devi_path, "r") as fopen:
+            lines = fopen.readlines()
+        dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
+        dkeys = [x.strip() for x in dkeys][1:]
+        data = np.loadtxt(devi_path, dtype=float)
+        ncols = data.shape[-1]
+        data = data.reshape(-1,ncols)
+        data = data.transpose()[1:,:nframes]
+
+        for i, atoms in enumerate(curr_traj_frames):
+            for j, k in enumerate(dkeys):
+                try:
+                    atoms.info[k] = data[j,i]
+                except IndexError:
+                    # NOTE: Some potentials donot print last frames of min
+                    #       for exaple, lammps
+                    atoms.info[k] = 0.
+    
+    # - check COLVAR
+    colvar_path = directory / "COLVAR"
+    if colvar_path.exists():
+        # - read latest COLVAR Files
+        with open(colvar_path, "r") as fopen:
+            names = fopen.readline().split()[2:]
+        colvars = np.loadtxt(colvar_path)
+        print("colvars: ", colvars.shape)
+        curr_colvars = colvars[-nframes_traj:, :]
+        for i, atoms in enumerate(curr_traj_frames):
+            for k, v in zip(names, curr_colvars[i, :]):
+                atoms.info[k] = v
+
+    return curr_traj_frames
+
 @dataclasses.dataclass
 class LmpDriverSetting(DriverSetting):
 
@@ -278,7 +352,7 @@ class LmpDriver(AbstractDriver):
         """Get run_params, respect steps and fmax from kwargs.
         """
         # - update atoms and driver
-        traj = self.read_trajectory()
+        traj = self.read_trajectory() # we only need the last frame or use restart?
         nframes = len(traj)
         if nframes > 0:
             # --- update atoms
@@ -303,91 +377,53 @@ class LmpDriver(AbstractDriver):
             self.calc.type_list = type_list
         curr_units = self.calc.units
 
+        # - find runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        print(f"prev_wdirs: {prev_wdirs}")
+        nwdirs = len(prev_wdirs)
+
         traj_frames = []
-        target_fpath = self.directory/ASELMPCONFIG.trajectory_filename
-        if target_fpath.exists() and target_fpath.stat().st_size != 0:
-            # - read trajectory that contains positions, forces, and velocities
-            traj_frames = self._read_backups(curr_units)
+        if nwdirs == 0:
+            target_fpath = self.directory/ASELMPCONFIG.trajectory_filename
+            if target_fpath.exists() and target_fpath.stat().st_size != 0:
+                # - read trajectory that contains positions, forces, and velocities
+                curr_frames = read_single_simulation(
+                    directory=curr_wdir, prefix="", 
+                    units=curr_units, add_step_info=add_step_info
+                )
+                print("number of current frames: ", len(curr_frames))
         
-            # - label steps
-            init_params = self.setting.get_init_params()
-            for i, atoms in enumerate(traj_frames):
-                atoms.info["step"] = int(i)*init_params["dump_period"]
+                # - label steps
+                init_params = self.setting.get_init_params()
+                for i, atoms in enumerate(traj_frames):
+                    atoms.info["step"] = int(i)*init_params["dump_period"]
+        else:
+            for idir, curr_wdir in enumerate(prev_wdirs):
+                print(curr_wdir)
+                target_fpath = curr_wdir/ASELMPCONFIG.trajectory_filename
+                if target_fpath.exists() and target_fpath.stat().st_size != 0:
+                    # - read trajectory that contains positions, forces, and velocities
+                    curr_frames = read_single_simulation(
+                        directory=curr_wdir, prefix="", 
+                        units=curr_units, add_step_info=add_step_info
+                    )
+                    print("number of current frames: ", len(curr_frames))
+        
+                    # - label steps
+                    init_params = self.setting.get_init_params()
+                    for i, atoms in enumerate(curr_frames):
+                        atoms.info["step"] = int(i)*init_params["dump_period"]
+                    # - concat
+                    if idir == 0:
+                        traj_frames.extend(curr_frames)
+                    else:
+                        traj_frames.extend(curr_frames[1:])
+                else:
+                    ...
+            print("number of frames in total: ", len(traj_frames))
+        write("./xxx.xyz", traj_frames)
 
         return traj_frames
-    
-    def _read_backups(self, units: str):
-        """"""
-        traj_frames = []
-        idx = 0
-        while True:
-            backup_prefix = BACKUP_PREFIX_FORMAT.format(idx)
-            backup_fpath = self.directory/(backup_prefix+ ASELMPCONFIG.trajectory_filename)
-            if backup_fpath.exists():
-                traj_frames.extend(self._construct_frames(backup_prefix, units)[:-1])
-            else:
-                break
-            idx += 1
-
-        # read current
-        traj_frames.extend(self._construct_frames("", units))
-
-        return traj_frames
-    
-    def _construct_frames(self, prefix: str, units: str) -> List[Atoms]:
-        """"""
-        # skip last frame
-        curr_traj_frames = read(
-            self.directory/(prefix+ASELMPCONFIG.trajectory_filename), 
-            index=":", format="lammps-dump-text", units=units
-        )
-        nframes_traj = len(curr_traj_frames)
-
-        # - read thermo data
-        thermo_dict, end_info = parse_thermo_data(self.directory/(prefix+ASELMPCONFIG.log_filename))
-
-        # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        #       if there were any error, 
-        pot_energies = [unitconvert.convert(p, "energy", units, "ASE") for p in thermo_dict["PotEng"]]
-        nframes_thermo = len(pot_energies)
-        nframes = min([nframes_traj, nframes_thermo])
-        config._debug(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
-
-        # TODO: check whether steps in thermo and traj are consistent
-        pot_energies = pot_energies[:nframes]
-        curr_traj_frames = curr_traj_frames[:nframes]
-        assert len(pot_energies) == len(curr_traj_frames), f"Number of pot energies and frames are inconsistent at {str(self.directory)}."
-
-        for pot_eng, atoms in zip(pot_energies, curr_traj_frames):
-            forces = atoms.get_forces()
-            # NOTE: forces have already been converted in ase read, so velocities are
-            #forces = unitconvert.convert(forces, "force", self.units, "ASE")
-            sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
-            atoms.calc = sp_calc
-
-        # - check model_devi.out
-        # TODO: convert units?
-        devi_path = self.directory / (prefix+ASELMPCONFIG.deviation_filename)
-        if devi_path.exists():
-            with open(devi_path, "r") as fopen:
-                lines = fopen.readlines()
-            dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-            dkeys = [x.strip() for x in dkeys][1:]
-            data = np.loadtxt(devi_path, dtype=float)
-            ncols = data.shape[-1]
-            data = data.reshape(-1,ncols)
-            data = data.transpose()[1:,:nframes]
-
-            for i, atoms in enumerate(curr_traj_frames):
-                for j, k in enumerate(dkeys):
-                    try:
-                        atoms.info[k] = data[j,i]
-                    except IndexError:
-                        # NOTE: Some potentials donot print last frames of min
-                        #       for exaple, lammps
-                        atoms.info[k] = 0.
-
-        return curr_traj_frames
     
 
 class Lammps(FileIOCalculator):
@@ -480,7 +516,7 @@ class Lammps(FileIOCalculator):
 
         return
     
-    def write_input(self, atoms, properties=None, system_changes=None) -> NoReturn:
+    def write_input(self, atoms, properties=None, system_changes=None) -> None:
         """Write input file and input structure."""
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
@@ -541,7 +577,10 @@ class Lammps(FileIOCalculator):
 
         # - Be careful with UNITS
         # read forces from dump file
-        self.cached_traj_frames = self._read_trajectory()
+        self.cached_traj_frames = read_single_simulation(
+            directory=pathlib.Path(self.directory), prefix="", 
+            units=self.units, add_step_info=True
+        )
         converged_frame = self.cached_traj_frames[-1]
 
         self.results["forces"] = converged_frame.get_forces().copy()
@@ -554,71 +593,6 @@ class Lammps(FileIOCalculator):
 
         return
 
-    def _read_trajectory(self, add_step_info: bool=True) -> List[Atoms]:
-        """Read the trajectory and its corresponding thermodynamics data."""
-        # NOTE: always use dynamics calc
-        # - read trajectory that contains positions and forces
-        _directory_path = Path(self.directory)
-        # NOTE: forces would be zero if setforce 0 is set
-        traj_frames = read(
-            _directory_path / ASELMPCONFIG.trajectory_filename, ":", "lammps-dump-text", 
-            #specorder=self.type_list, # NOTE: elements are written to dump file
-            units=self.units
-        )
-        nframes_traj = len(traj_frames)
-
-        # - read thermo data
-        thermo_dict, end_info = parse_thermo_data(_directory_path / ASELMPCONFIG.log_filename)
-
-        # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        #       if there were any error, 
-        pot_energies = [unitconvert.convert(p, "energy", self.units, "ASE") for p in thermo_dict["PotEng"]]
-        nframes_thermo = len(pot_energies)
-        nframes = min([nframes_traj, nframes_thermo])
-        config._debug(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
-
-        # TODO: check whether steps in thermo and traj are consistent
-        pot_energies = pot_energies[:nframes]
-        traj_frames = traj_frames[:nframes]
-        assert len(pot_energies) == len(traj_frames), f"Number of pot energies and frames are inconsistent at {str(self.directory)}."
-
-        for pot_eng, atoms in zip(pot_energies, traj_frames):
-            forces = atoms.get_forces()
-            # NOTE: forces have already been converted in ase read, so velocities are
-            #forces = unitconvert.convert(forces, "force", self.units, "ASE")
-            sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
-            atoms.calc = sp_calc
-        
-        # - check model_devi.out
-        # TODO: convert units?
-        devi_path = _directory_path / ASELMPCONFIG.deviation_filename
-        if devi_path.exists():
-            with open(devi_path, "r") as fopen:
-                lines = fopen.readlines()
-            dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-            dkeys = [x.strip() for x in dkeys][1:]
-            data = np.loadtxt(devi_path, dtype=float)
-            ncols = data.shape[-1]
-            data = data.reshape(-1,ncols)
-            data = data.transpose()[1:,:len(traj_frames)]
-
-            for i, atoms in enumerate(traj_frames):
-                for j, k in enumerate(dkeys):
-                    try:
-                        atoms.info[k] = data[j,i]
-                    except IndexError:
-                        # NOTE: Some potentials donot print last frames of min
-                        #       for exaple, lammps
-                        atoms.info[k] = 0.
-        
-        # - label steps
-        if add_step_info:
-            for i, atoms in enumerate(traj_frames):
-                atoms.info["source"] = _directory_path.name
-                atoms.info["step"] = int(thermo_dict["Step"][i])
-
-        return traj_frames
-    
     def _write_input(self, atoms) -> NoReturn:
         """Write input file in.lammps"""
         # - write in.lammps
