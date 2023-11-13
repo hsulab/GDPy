@@ -27,13 +27,15 @@ class compute(Operation):
     """
 
     def __init__(
-        self, builder, worker, batchsize: int=None, shared: bool=False, directory="./",
+        self, builder, worker, batchsize: int=None, 
+        shared: bool=False, retain_info: bool=False, directory="./",
     ):
         """"""
         super().__init__(input_nodes=[builder, worker], directory=directory)
 
         self.batchsize = batchsize
         self.shared = shared
+        self.retain_info = retain_info
 
         return
     
@@ -63,6 +65,8 @@ class compute(Operation):
                 worker.batchsize = nframes
             if self.shared and worker.scheduler.name == "local":
                 worker._share_wdir = True
+            if self.retain_info:
+                worker._retain_info = True
         nworkers = len(workers)
 
         if nworkers == 1:
@@ -77,11 +81,16 @@ class compute(Operation):
                 worker.run(frames)
                 worker.inspect(resubmit=True) # if not running, resubmit
                 if worker.get_number_of_running_jobs() == 0:
+                    # -- save flag
                     with open(flag_fpath, "w") as fopen:
                         fopen.write(
                             f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
                         )
                     worker_status.append(True)
+                    # -- gather results
+                    ret = worker.retrieve(include_retrieved=True)
+                    end_frames = [traj[-1] for traj in ret]
+                    write(worker.directory/"end_frames.xyz", end_frames)
                 else:
                     worker_status.append(False)
             else:

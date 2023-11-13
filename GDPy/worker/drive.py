@@ -71,10 +71,16 @@ class DriverBasedWorker(AbstractWorker):
 
     batchsize = 1 # how many structures performed in one job
 
+    #: Reserved keys in atoms.info by gdp.
+    reserved_keys: List["str"] = ["energy", "step", "wdir"]
+
     _driver = None
 
     #: Whether share calc dir for each candidate. Only for command run and spc.
     _share_wdir: bool = False
+
+    #: Whether retain the info stored in atoms and add to trajectory.
+    _retain_info: bool = False
 
     def __init__(self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs):
         """"""
@@ -131,6 +137,22 @@ class DriverBasedWorker(AbstractWorker):
         _info_data = sorted(_info_data, key=lambda x: int(x[0]))
 
         return _info_data
+
+    def _read_cached_xinfo(self):
+        # - read extra info data
+        info_keys, _info_data = [], []
+        for p in (self.directory/"_data").glob("*_xinfo.txt"):
+            identifier = p.name[:self.UUIDLEN] # MD5
+            with open(p, "r") as fopen:
+                lines = fopen.readlines()
+                info_keys = lines[0].split()[1:]
+                for line in lines:
+                    if not line.startswith("#"):
+                        _info_data.append(line.strip().split()[1:])
+        #_info_data = sorted(_info_data, key=lambda x: int(x[0]))
+        assert info_keys, f"info_keys must not be empty."
+
+        return info_keys, _info_data
     
     def _preprocess(self, builder, *args, **kwargs):
         """"""
@@ -141,23 +163,37 @@ class DriverBasedWorker(AbstractWorker):
         else:
             assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
             frames = builder
-
-        # - NOTE: atoms.info is a dict that does not maintain order
-        #         thus, the saved file maybe different
-        frames, curr_info = copy_minimal_frames(frames)
+        prev_frames = frames
 
         # - check differences of input structures
         processed_dpath = self.directory/"_data"
         processed_dpath.mkdir(exist_ok=True)
 
+        # - NOTE: atoms.info is a dict that does not maintain order
+        #         thus, the saved file maybe different
+        curr_frames, curr_info = copy_minimal_frames(prev_frames)
+
         # -- get MD5 of current input structures
         # NOTE: if two jobs start too close,
         #       there may be conflicts in checking structures
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
-            write(tmp.name, frames, columns=["symbols", "positions", "move_mask"])
+            write(tmp.name, curr_frames, columns=["symbols", "positions", "move_mask"])
 
             with open(tmp.name, "rb") as fopen:
                 curr_md5 = get_file_md5(fopen)
+
+        # --
+        if self._retain_info:
+            info_keys = []
+            for a in prev_frames:
+                info_keys.extend(list(a.info.keys()))
+            info_keys = sorted(set(info_keys))
+            content = f'{"#id":<12s}  ' + ("{:<24s}  "*len(info_keys)).format(*info_keys) + "\n"
+            for i, a in enumerate(prev_frames):
+                line = f"{i:<24d}  " + "  ".join([f"{str(a.info.get(k)):<24s}" for k in info_keys]) + "\n"
+                content += line
+            with open(processed_dpath/f"{curr_md5}_xinfo.txt", "w") as fopen:
+                fopen.write(content)
 
         _info_data = self._read_cached_info()
 
@@ -173,7 +209,7 @@ class DriverBasedWorker(AbstractWorker):
         else:
             # - save structures
             write(
-                processed_dpath/stored_fname, frames, 
+                processed_dpath/stored_fname, curr_frames, 
                 # columns=["symbols", "positions", "momenta", "tags", "move_mask"]
             )
             # - save current atoms.info and append curr_info to _info_data
@@ -187,7 +223,7 @@ class DriverBasedWorker(AbstractWorker):
             with open(processed_dpath/f"{curr_md5}_info.txt", "w") as fopen:
                 fopen.write(content)
 
-        return curr_md5, frames, start_confid
+        return curr_md5, curr_frames, start_confid
     
     def _prepare_batches(self, frames: List[Atoms], start_confid: int):
         # - check wdir
@@ -231,8 +267,8 @@ class DriverBasedWorker(AbstractWorker):
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, frames, curr_info = self._preprocess(builder)
-        batches = self._prepare_batches(frames, curr_info)
+        identifier, frames, start_confid = self._preprocess(builder)
+        batches = self._prepare_batches(frames, start_confid)
 
         # - read metadata from file or database
         with TinyDB(
@@ -441,7 +477,18 @@ class DriverBasedWorker(AbstractWorker):
                 wdir_names = [x.name for x in unretrieved_wdirs]
                 results_ = [a for a in cache_frames if a.info["wdir"] in wdir_names]
                 # - convert to a List[List[Atoms]] as non-shared run
-                results = [[a] for a in results_]
+                results_ = [[a] for a in results_]
+                # -- re-add info
+                if self._retain_info:
+                    info_keys, info_data = self._read_cached_xinfo()
+                    retained_keys = [k for k in info_keys if k not in self.reserved_keys]
+                    for i, traj_frames in enumerate(results_):
+                        retained_dict = {
+                            k: v for k, v in zip(info_keys, info_data[i]) 
+                            if k in retained_keys and v is not None
+                        }
+                        traj_frames[0].info.update(retained_dict)
+                results = results_
         else:
             results = []
 
@@ -471,6 +518,17 @@ class DriverBasedWorker(AbstractWorker):
                 ) 
                 for wdir in unretrieved_wdirs
             )
+
+            # -- re-add info
+            if self._retain_info:
+                info_keys, info_data = self._read_cached_xinfo()
+                retained_keys = [k for k in info_keys if k not in self.reserved_keys]
+                for i, traj_frames in enumerate(results_):
+                    retained_dict = {
+                        k: v for k, v in zip(info_keys, info_data[i]) 
+                        if k in retained_keys and v is not None
+                    }
+                    traj_frames[0].info.update(retained_dict)
 
             # NOTE: Failed Calcution, One fail, traj fails
             results = []
