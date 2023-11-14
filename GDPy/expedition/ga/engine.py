@@ -9,7 +9,6 @@ import pathlib
 from pathlib import Path
 from typing import Callable, List
 import warnings
-import logging
 
 import numpy as np
 

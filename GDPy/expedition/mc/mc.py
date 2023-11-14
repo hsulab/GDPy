@@ -7,8 +7,6 @@ import shutil
 import pathlib
 from typing import NoReturn, List
 
-import logging
-
 import numpy as np
 
 from ase import Atoms

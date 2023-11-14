@@ -188,8 +188,8 @@ class StructureDatabase:
         ch.setLevel(log_level)
         #ch.setFormatter(formatter)
 
-        self.logger.addHandler(ch)
-        self.logger.addHandler(fh)
+        #self.logger.addHandler(ch)
+        #self.logger.addHandler(fh)
 
         # begin!
         self.logger.info(

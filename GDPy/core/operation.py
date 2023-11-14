@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import abc
-import logging
 import pathlib
 from typing import NoReturn, Union, Callable
 
