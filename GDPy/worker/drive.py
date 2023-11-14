@@ -182,19 +182,6 @@ class DriverBasedWorker(AbstractWorker):
             with open(tmp.name, "rb") as fopen:
                 curr_md5 = get_file_md5(fopen)
 
-        # --
-        if self._retain_info:
-            info_keys = []
-            for a in prev_frames:
-                info_keys.extend(list(a.info.keys()))
-            info_keys = sorted(set(info_keys))
-            content = f'{"#id":<12s}  ' + ("{:<24s}  "*len(info_keys)).format(*info_keys) + "\n"
-            for i, a in enumerate(prev_frames):
-                line = f"{i:<24d}  " + "  ".join([f"{str(a.info.get(k)):<24s}" for k in info_keys]) + "\n"
-                content += line
-            with open(processed_dpath/f"{curr_md5}_xinfo.txt", "w") as fopen:
-                fopen.write(content)
-
         _info_data = self._read_cached_info()
 
         stored_fname = f"{curr_md5}.xyz"
@@ -207,6 +194,17 @@ class DriverBasedWorker(AbstractWorker):
                     break
                 start_confid += 1
         else:
+            if self._retain_info:
+                info_keys = []
+                for a in prev_frames:
+                    info_keys.extend(list(a.info.keys()))
+                info_keys = sorted(set(info_keys))
+                content = f'{"#id":<12s}  ' + ("{:<24s}  "*len(info_keys)).format(*info_keys) + "\n"
+                for i, a in enumerate(prev_frames):
+                    line = f"{i:<24d}  " + "  ".join([f"{str(a.info.get(k)):<24s}" for k in info_keys]) + "\n"
+                    content += line
+                with open(processed_dpath/f"{curr_md5}_xinfo.txt", "w") as fopen:
+                    fopen.write(content)
             # - save structures
             write(
                 processed_dpath/stored_fname, curr_frames, 
@@ -601,6 +599,8 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         worker_params["driver"] = self.driver.as_dict()
         worker_params["potential"] = self.potter.as_dict()
         worker_params["batchsize"] = self.batchsize
+        worker_params["share_wdir"] = self._share_wdir
+        worker_params["retain_info"] = self._retain_info
 
         with open(self.directory/f"worker-{uid}.yaml", "w") as fopen:
             yaml.dump(worker_params, fopen)

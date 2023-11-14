@@ -210,6 +210,7 @@ def main():
                 batchsize=params.get("batchsize", 1), 
                 share_wdir=params.get("share_wdir", False),
                 use_single=params.get("use_single", False), 
+                retain_info=params.get("retain_info", False), 
             ).value[0]
         elif ptype == "reactor":
             from GDPy.reactor.interface import ReactorVariable
