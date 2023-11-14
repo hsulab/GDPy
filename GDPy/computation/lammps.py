@@ -387,11 +387,13 @@ class LmpDriver(AbstractDriver):
             target_fpath = self.directory/ASELMPCONFIG.trajectory_filename
             if target_fpath.exists() and target_fpath.stat().st_size != 0:
                 # - read trajectory that contains positions, forces, and velocities
+                curr_wdir = self.directory
                 curr_frames = read_single_simulation(
                     directory=curr_wdir, prefix="", 
                     units=curr_units, add_step_info=add_step_info
                 )
                 print("number of current frames: ", len(curr_frames))
+                traj_frames.extend(curr_frames)
         
                 # - label steps
                 init_params = self.setting.get_init_params()
