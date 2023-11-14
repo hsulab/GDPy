@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import importlib
+import logging
 import warnings
+
+from .. import config
 
 class Register:
 
@@ -196,11 +199,13 @@ def _handle_errors(errors):
     """Log out and possibly reraise errors during import."""
     if not errors:
         return
-    for name, err in errors:
-        warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
-        ...
     
-    return
+    names = [] # unimported module names
+    for name, err in errors:
+        #warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+        names.append(name)
+    
+    return names
 
 
 def import_all_modules_for_register(custom_module_paths=None) -> str:
@@ -219,7 +224,30 @@ def import_all_modules_for_register(custom_module_paths=None) -> str:
             importlib.import_module(module)
         except ImportError as error:
             errors.append((module, error))
-    _handle_errors(errors)
+    names = _handle_errors(errors)
+
+    # - some imported packages change `logging.basicConfig` 
+    #   and accidently add a StreamHandler to logging.root
+    #   so remove it...
+    for h in logging.root.handlers:
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+            logging.root.removeHandler(h)
+
+    keys = sorted(names)
+    nkeys = len(keys)
+    ncols = 3
+    nrows = int(nkeys/ncols)
+
+    lines = ["FAILED TO IMPORT: "]
+    for i in range(nrows):
+        lines.append(("  "+"{:<48s}"*ncols+"").format(*keys[i*ncols:i*ncols+ncols]))
+
+    nrest = nkeys - nrows*ncols
+    if nrest > 0:
+        lines.append(("  "+"{:<48s}"*nrest+"").format(*keys[nrows*ncols:]))
+    
+    for line in lines:
+        config._print(line)
 
     return
 

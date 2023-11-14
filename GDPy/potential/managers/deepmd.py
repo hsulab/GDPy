@@ -427,6 +427,17 @@ class DeepmdManager(AbstractPotentialManager):
             try:
                 #from deepmd.calculator import DP
                 from GDPy.computation.dpx import DP
+                #import logging
+                #for k, v in logging.root.manager.loggerDict.items():
+                #    if k != "GDP":
+                #        curr_logger = logging.getLogger(k)
+                #        for h in curr_logger.handlers:
+                #            if (
+                #                isinstance(h, logging.StreamHandler) and 
+                #                not isinstance(h, logging.FileHandler)
+                #            ):
+                #                curr_logger.removeHandler(h)
+
             except:
                 raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
             #if models and type_map:

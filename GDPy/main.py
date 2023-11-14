@@ -187,7 +187,7 @@ def main():
             fh = logging.FileHandler(logfpath, mode="w")
         fh.setFormatter(config.formatter)
         config.logger.addHandler(fh)
-    
+
     # -- set LOGO
     for line in config.LOGO_LINES:
         config._print(line)
@@ -251,6 +251,21 @@ def main():
         run_validation(params, args.directory, potter)
     else:
         ...
+    
+    #print("root")
+    #print(logging.root.handlers)
+    #for k, v in logging.root.manager.loggerDict.items():
+    #    print(k)
+    #    curr_logger = logging.getLogger(k)
+    #    for h in curr_logger.handlers:
+    #        #if (
+    #        #    isinstance(h, logging.StreamHandler) and 
+    #        #    not isinstance(h, logging.FileHandler)
+    #        #):
+    #        #    curr_logger.removeHandler(h)
+    #        print(h)
+
+    return
 
 
 if __name__ == "__main__":

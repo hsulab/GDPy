@@ -4,9 +4,9 @@
 import abc
 import uuid
 import copy
+import logging
 import pathlib
 from typing import NoReturn, Callable, List, Tuple
-import logging
 
 import numpy as np
 
@@ -129,6 +129,12 @@ class AbstractWorker(abc.ABC):
     def run(self, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
+        # - some imported packages change `logging.basicConfig` 
+        #   and accidently add a StreamHandler to logging.root
+        #   so remove it...
+        #for h in logging.root.handlers:
+        #    if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+        #        logging.root.removeHandler(h)
         self._print(f"~~~{self.__class__.__name__}+run")
         return
 

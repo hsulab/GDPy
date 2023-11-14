@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import copy
-
 import json
+import logging
 import pathlib
 import yaml
 
@@ -160,6 +160,13 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         session_names = [x.strip() for x in names.strip().split(",")]
     else:
         session_names =[None]*len(container)
+    
+    # - some imported packages change `logging.basicConfig` 
+    #   and accidently add a StreamHandler to logging.root
+    #   so remove it...
+    for h in logging.root.handlers:
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+            logging.root.removeHandler(h)
 
     exec_mode = conf.get("mode", "seq")
     if exec_mode == "seq":
