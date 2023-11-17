@@ -238,7 +238,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> str:
     ncols = 3
     nrows = int(nkeys/ncols)
 
-    lines = ["FAILED TO IMPORT: "]
+    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
     for i in range(nrows):
         lines.append(("  "+"{:<48s}"*ncols+"").format(*keys[i*ncols:i*ncols+ncols]))
 
