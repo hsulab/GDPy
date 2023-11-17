@@ -379,7 +379,7 @@ class LmpDriver(AbstractDriver):
 
         # - find runs...
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-        print(f"prev_wdirs: {prev_wdirs}")
+        #print(f"prev_wdirs: {prev_wdirs}")
         nwdirs = len(prev_wdirs)
 
         traj_frames = []
@@ -392,7 +392,7 @@ class LmpDriver(AbstractDriver):
                     directory=curr_wdir, prefix="", 
                     units=curr_units, add_step_info=add_step_info
                 )
-                print("number of current frames: ", len(curr_frames))
+                #print("number of current frames: ", len(curr_frames))
                 traj_frames.extend(curr_frames)
         
                 # - label steps
@@ -401,7 +401,7 @@ class LmpDriver(AbstractDriver):
                     atoms.info["step"] = int(i)*init_params["dump_period"]
         else:
             for idir, curr_wdir in enumerate(prev_wdirs):
-                print(curr_wdir)
+                #print(curr_wdir)
                 target_fpath = curr_wdir/ASELMPCONFIG.trajectory_filename
                 if target_fpath.exists() and target_fpath.stat().st_size != 0:
                     # - read trajectory that contains positions, forces, and velocities
@@ -409,7 +409,7 @@ class LmpDriver(AbstractDriver):
                         directory=curr_wdir, prefix="", 
                         units=curr_units, add_step_info=add_step_info
                     )
-                    print("number of current frames: ", len(curr_frames))
+                    #print("number of current frames: ", len(curr_frames))
         
                     # - label steps
                     init_params = self.setting.get_init_params()
@@ -422,8 +422,8 @@ class LmpDriver(AbstractDriver):
                         traj_frames.extend(curr_frames[1:])
                 else:
                     ...
-            print("number of frames in total: ", len(traj_frames))
-        write("./xxx.xyz", traj_frames)
+            #print("number of frames in total: ", len(traj_frames))
+        #write("./xxx.xyz", traj_frames)
 
         return traj_frames
     
