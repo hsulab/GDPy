@@ -5,6 +5,7 @@ import abc
 import copy
 import dataclasses
 import pathlib
+import re
 import shutil
 import warnings
 
@@ -226,14 +227,22 @@ class AbstractDriver(abc.ABC):
 
         return
 
-    def run(self, atoms, read_exists: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
+    def run(self, atoms, read_ckpt: bool=True, extra_info: dict=None, *args, **kwargs) -> Atoms:
         """Return the last frame of the simulation.
 
         Copy input atoms, and return a new atoms. Check whether the simulation is
         finished and retrieve stored results. If necessary, extra information could 
-        be added to the atoms.info
+        be added to the atoms.info.
+
+        The simulation should either run from the scratch or restart from a given 
+        checkpoint...
 
         """
+        # - compatibility
+        read_exists = kwargs.get("read_exists", None)
+        if read_exists is not None:
+            read_ckpt = read_exists
+
         # - NOTE: input atoms from WORKER may have minimal properties as
         #         cell, pbc, positions, symbols, tags, momenta...
         atoms = atoms.copy()
@@ -255,31 +264,34 @@ class AbstractDriver(abc.ABC):
         params_old = copy.deepcopy(self.calc.parameters)
 
         # - run dynamics
-        if not self.directory.exists():
+        curr_traj = None
+        if not self._verify_checkpoint():
+            # If there is no valid checkpoint, just run the simulation from the scratch
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
-            self.directory.mkdir(parents=True)
+            self.directory.mkdir(parents=True, exist_ok=True)
             self._irun(atoms, *args, **kwargs)
         else:
+            # If there is valid checkpoints...
             if not system_changed:
-                self._debug(f"... system changed @ {self.directory.name} ...")
-                if list(self.directory.iterdir()):
-                    converged = self.read_convergence()
-                    self._debug(f"... convergence {converged} ...")
-                    if not converged:
-                        if read_exists:
-                            atoms, resume_params = self._resume(atoms, *args, **kwargs)
-                            kwargs.update(**resume_params)
-                            self._backup()
-                        self._cleanup()
-                        self._irun(atoms, *args, **kwargs)
-                    else:
-                        ...
-                else:
+                self._debug(f"... system not changed @ {self.directory.name} ...")
+                converged = self.read_convergence() # TODO: this will read_trajectory?
+                self._debug(f"... convergence {converged} ...")
+                if not converged:
+                    if read_ckpt:
+                        ckpt_wdir = self._save_checkpoint()
+                        # TODO: load_ckpt will read_trajectory?
+                        atoms, resume_params = self._load_checkpoint(ckpt_wdir, *args, **kwargs)
+                        kwargs.update(**resume_params)
+                    self._cleanup()
                     self._irun(atoms, *args, **kwargs)
+                else:
+                    ...
             else:
                 self._debug(f"... clean up @ {self.directory.name} ...")
                 self._cleanup()
                 self._irun(atoms, *args, **kwargs)
+        
+        # - if the simulation still failed?
         
         # - get results
         traj = self.read_trajectory()
@@ -297,6 +309,46 @@ class AbstractDriver(abc.ABC):
         self.calc.reset()
 
         return new_atoms
+    
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """Check whether there is a previous calculation in the `self.directory`."""
+
+        return self.directory.exists()
+    
+    def _save_checkpoint(self, *args, **kwargs):
+        """Save the previous simulation to a checkpoint directory."""
+        # - find previous runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+        curr_index = len(prev_wdirs)
+
+        curr_wdir = self.directory/f"{str(curr_index).zfill(4)}.run"
+        self._debug(f"curr_wdir: {curr_wdir}")
+
+        # - backup files
+        curr_wdir.mkdir()
+        for x in self.directory.iterdir():
+            if not re.match(r"[0-9]{4}\.run", x.name):
+                if x.name in self.saved_fnames:
+                    shutil.move(x, curr_wdir)
+                else:
+                    x.unlink()
+            else:
+                ...
+
+        return curr_wdir
+    
+    def _load_checkpoint(self, atoms, *args, **kwargs):
+        """"""
+        atoms, resume_params = self._resume(atoms, *args, **kwargs)
+
+        return atoms, resume_params
+    
+    @abc.abstractmethod
+    def _irun(self, atoms: Atoms, *args, **kwargs):
+        """Prepare input structure (atoms) and parameters and run the simulation."""
+
+        return
 
     def _backup(self):
         """Backup output files and continue with lastest atoms."""

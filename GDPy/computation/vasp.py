@@ -228,7 +228,11 @@ class VaspDriver(AbstractDriver):
     syswise_keys: List[str] = ["system", "kpts", "kspacing"]
 
     # - file names would be copied when continuing a calculation
-    saved_fnames = ["OSZICAR", "OUTCAR", "POSCAR", "CONTCAR", "vasprun.xml", "REPORT"]
+    saved_fnames = [
+        "ase-sort.dat",
+        "INCAR", "POSCAR","KPOINTS", "POTCAR",
+        "OSZICAR", "OUTCAR", "CONTCAR", "vasprun.xml", "REPORT"
+    ]
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
@@ -237,6 +241,24 @@ class VaspDriver(AbstractDriver):
         self.setting = VaspDriverSetting(**params)
 
         return
+
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """Check whether there is a previous calculation in the `self.directory`."""
+        verified = True
+        if self.directory.exists():
+            vasprun = self.directory/"vasprun.xml"
+            if (vasprun.exists() and vasprun.stat().st_size != 0):
+                temp_frames = read(vasprun, ":")
+                try: 
+                    _ = temp_frames[0].get_forces()
+                except: # `RuntimeError: Atoms object has no calculator.`
+                    verified = False
+            else:
+                verified = False
+        else:
+            verified = False
+
+        return verified
     
     def _irun(self, atoms: Atoms, *args, **kwargs):
         """"""
@@ -273,6 +295,14 @@ class VaspDriver(AbstractDriver):
             self._debug(e)
 
         return
+    
+    def _load_checkpoint(self, ckpt_wdir, *args, **kwargs):
+        """"""
+        # TODO: ...
+        atoms = read(ckpt_wdir/"vasprun.xml", index="-1")
+        params = {} # steps
+
+        return atoms, params
     
     def _resume(self, atoms: Atoms, *args, **kwargs):
         """"""
