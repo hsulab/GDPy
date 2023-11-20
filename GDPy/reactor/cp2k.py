@@ -6,6 +6,7 @@ import copy
 import itertools
 import dataclasses
 import pathlib
+import shutil
 import traceback
 
 from typing import Union, List
@@ -21,7 +22,6 @@ from ase.neb import NEB
 
 from .string import AbstractStringReactor, StringReactorSetting
 from ..builder.constraints import parse_constraint_info
-from .utils import plot_bands, plot_mep
 
 
 @dataclasses.dataclass
@@ -116,109 +116,99 @@ class Cp2kStringReactor(AbstractStringReactor):
         return
     
     def _verify_checkpoint(self):
-        """Check if the current directory has any valid outputs or it just created 
-            the input files.
+        """Check if the current directory has any valid outputs or 
+            it just created the input files.
 
         """
-        checkpoints = list(self.directory.glob("*.restart"))
-        print(f"checkpoints: {checkpoints}")
-
-        return checkpoints
-
-    def run(self, structures: List[Atoms], read_cache=True, *args, **kwargs):
-        """"""
-        #super().run(structures=structures, *args, **kwargs)
-
-        # - Double-Ended Methods...
-        ini_atoms, fin_atoms = structures
-        self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-        self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
-
-        # - backup old parameters
-        prev_params = copy.deepcopy(self.calc.parameters)
-        print(f"prev_params: {prev_params}")
-
-        # -
-        if not self._verify_checkpoint(): # is not a []
-            self.directory.mkdir(parents=True, exist_ok=True)
-            self._irun([ini_atoms, fin_atoms])
+        verified = super()._verify_checkpoint()
+        if verified:
+            checkpoints = list(self.directory.glob("*.restart"))
+            self._debug(f"checkpoints: {checkpoints}")
+            if not checkpoints:
+                verified = False
         else:
-            # - check if converged
-            converged = self.read_convergence()
-            if not converged:
-                if read_cache:
-                    ...
-                self._irun(structures, *args, **kwargs)
-            else:
-                ...
-        
-        self.calc.set(**prev_params)
-        
-        # - get results
-        band_frames = self.read_trajectory() # (nbands, nimages)
-        if band_frames:
-            plot_mep(self.directory, band_frames[-1])
-            #plot_bands(self.directory, images, nimages=nimages_per_band)
-            write(self.directory/"nebtraj.xyz", itertools.chain(*band_frames))
-            # --
-            last_band = band_frames[-1]
-            energies = [a.get_potential_energy() for a in last_band]
-            imax = 1 + np.argsort(energies[1:-1])[-1]
-            print(f"imax: {imax}")
-            # NOTE: maxforce in cp2k is norm(atomic_forces)
-            maxfrc = np.max(last_band[imax].get_forces(apply_constraint=True))
-            print(f"maxfrc: {maxfrc}")
-        else:
-            last_band = []
+            ...
 
-        return last_band
+        return verified
     
-    def _backup(self):
+    def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
-
-        return
-    
-    def _irun(self, structures: List[Atoms], *args, **kwargs):
-        """"""
-        images = self._align_structures(structures)
-        write(self.directory/"images.xyz", images)
-
-        atoms = images[0] # use the initial state
         try:
-            run_params = self.setting.get_run_params(**kwargs)
-            run_params.update(**self.setting.get_init_params())
+            if ckpt_wdir is None: # start from the scratch
+                images = self._align_structures(structures)
+                write(self.directory/"images.xyz", images)
+                atoms = images[0] # use the initial state
 
-            # - update input template
-            # GLOBAL section is automatically created...
-            # FORCE_EVAL.(METHOD, POISSON)
-            inp = self.calc.parameters.inp # string
-            sec = parse_input(inp)
-            for (k, v) in run_params["pairs"]:
-                sec.add_keyword(k, v)
-            for (k, v) in run_params["run_pairs"]:
-                sec.add_keyword(k, v)
+                run_params = self.setting.get_run_params(**kwargs)
+                run_params.update(**self.setting.get_init_params())
 
-            # -- check constraint
-            cons_text = run_params.pop("constraint", None)
-            mobile_indices, frozen_indices = parse_constraint_info(
-                atoms, cons_text=cons_text, ignore_ase_constraints=True, ret_text=False
-            )
-            if frozen_indices:
-                #atoms._del_constraints()
-                #atoms.set_constraint(FixAtoms(indices=frozen_indices))
-                frozen_indices = sorted(frozen_indices)
-                sec.add_keyword(
-                    "MOTION/CONSTRAINT/FIXED_ATOMS", 
-                    "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
+                # - update input template
+                # GLOBAL section is automatically created...
+                # FORCE_EVAL.(METHOD, POISSON)
+                inp = self.calc.parameters.inp # string
+                sec = parse_input(inp)
+                for (k, v) in run_params["pairs"]:
+                    sec.add_keyword(k, v)
+                for (k, v) in run_params["run_pairs"]:
+                    sec.add_keyword(k, v)
+
+                # -- check constraint
+                cons_text = run_params.pop("constraint", None)
+                mobile_indices, frozen_indices = parse_constraint_info(
+                    atoms, cons_text=cons_text, ignore_ase_constraints=True, ret_text=False
                 )
+                if frozen_indices:
+                    #atoms._del_constraints()
+                    #atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                    frozen_indices = sorted(frozen_indices)
+                    sec.add_keyword(
+                        "MOTION/CONSTRAINT/FIXED_ATOMS", 
+                        "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
+                    )
             
-            # -- add replica information
-            band_section = sec.get_subsection("MOTION/BAND")
-            for replica in images:
-                cur_rep = InputSection(name="REPLICA")
-                for pos in replica.positions:
-                    cur_rep.add_keyword("COORD", ("{:.18e} "*3).format(*pos), unique=False)
-                band_section.subsections.append(cur_rep)
+                # -- add replica information
+                band_section = sec.get_subsection("MOTION/BAND")
+                for replica in images:
+                    cur_rep = InputSection(name="REPLICA")
+                    for pos in replica.positions:
+                        cur_rep.add_keyword("COORD", ("{:.18e} "*3).format(*pos), unique=False)
+                    band_section.subsections.append(cur_rep)
+            else: # start from a checkpoint
+                atoms  = read(ckpt_wdir/"images.xyz", "0")
+                with open(ckpt_wdir/"cp2k.inp", "r") as fopen:
+                    inp = "".join(fopen.readlines())
+                sec = parse_input(inp)
+
+                def remove_keyword(section, keywords):
+                    """"""
+                    for kw in keywords:
+                        parts = kw.upper().split("/")
+                        subsection = section.get_subsection("/".join(parts[0:-1]))
+                        new_subkeywords = []
+                        for subkw in subsection.keywords:
+                            if parts[-1] not in subkw:
+                                new_subkeywords.append(subkw)
+                        subsection.keywords = new_subkeywords
+
+                    return
+                
+                remove_keyword(
+                    sec, 
+                    keywords=[ # avoid conflicts
+                        "GLOBAL/PROJECT", "GLOBAL/PRINT_LEVEL", "FORCE_EVAL/METHOD", 
+                        "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME", "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
+                        "FORCE_EVAL/SUBSYS/CELL/PERIODIC", 
+                        "FORCE_EVAL/SUBSYS/CELL/A", "FORCE_EVAL/SUBSYS/CELL/B", "FORCE_EVAL/SUBSYS/CELL/C"
+                    ]
+                )
+
+                sec.add_keyword("EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir/"cp2k-1.restart"))
+                sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
+
+                # - copy wavefunctions...
+                restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
+                for wfn in restart_wfns:
+                    (self.directory/wfn.name).symlink_to(wfn, target_is_directory=False)
 
             # - update input
             self.calc.parameters.inp = "\n".join(sec.write())
@@ -247,20 +237,20 @@ class Cp2kStringReactor(AbstractStringReactor):
 
         return converged
     
-    def read_trajectory(self, *args, **kwargs):
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """
 
         NOTE: Fixed atoms have zero forces.
 
         """
         self._debug(f"***** read_trajectory *****")
-        self._debug(f"{str(self.directory)}")
+        self._debug(f"{str(wdir)}")
         cell = None # TODO: if no pbc?
         natoms = None
         nimages = None
         temp_forces, temp_energies = [], []
         energies, forces = [], []
-        with open(self.directory/"cp2k.out", "r") as fopen:
+        with open(wdir/"cp2k.out", "r") as fopen:
             while True:
                 line = fopen.readline()
                 if not line:
@@ -394,12 +384,12 @@ class Cp2kStringReactor(AbstractStringReactor):
             frames_ = [] # shape (nimages, nbands)
             if nimages < 10:
                 for i in range(nimages):
-                    curr_xyzfile = self.directory/f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
+                    curr_xyzfile = wdir/f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
                     curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
                     frames_.append(curr_frames)
             else:
                 for i in range(nimages):
-                    curr_xyzfile = self.directory/f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
+                    curr_xyzfile = wdir/f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
                     curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
                     frames_.append(curr_frames)
             for j in range(nbands):
@@ -421,6 +411,21 @@ class Cp2kStringReactor(AbstractStringReactor):
             ...
 
         return frames
+
+    def read_trajectory(self, *args, **kwargs):
+        """"""
+        # - find previous runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+
+        frames = []
+        for w in prev_wdirs:
+            curr_frames = self._read_a_single_trajectory(w)
+            frames.extend(curr_frames[:-1])
+        
+        frames.extened(self._read_a_single_trajectory(self.directory))
+
+        return
     
 
 if __name__ == "__main__":

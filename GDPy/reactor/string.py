@@ -2,20 +2,26 @@
 # -*- coding: utf-8 -*-
 
 
+import abc
 import copy
 import dataclasses
+import itertools
 import pathlib
+import re
+import shutil
 from typing import List
 
 import numpy as np
 
 from ase import Atoms
+from ase.io import read, write
 from ase.geometry import find_mic
 from ase.constraints import FixAtoms
 from ase.neb import interpolate, idpp_interpolate
 
 from .reactor import AbstractReactor
 from GDPy.builder.constraints import parse_constraint_info
+from .utils import plot_bands, plot_mep
 
 
 def set_constraint(atoms, cons_text):
@@ -97,37 +103,110 @@ class AbstractStringReactor(AbstractReactor):
 
         return
 
-    def run(self, structures: List[Atoms], read_cache=True, *args, **kwargs):
+    def run(self, structures: List[Atoms], read_ckpt=True, *args, **kwargs):
         """"""
         super().run(structures=structures, *args, **kwargs)
 
+        # - compatibility
+        read_cache = kwargs.get("read_cache", None)
+        if read_cache is not None:
+            read_ckpt = read_cache
+
         # - Double-Ended Methods...
         ini_atoms, fin_atoms = structures
-        self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-        self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
+        try:
+            self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
+            self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
+        except RuntimeError:
+            # RuntimeError: Atoms object has no calculator.
+            self._print("Not energies attached to IS and FS.")
 
         # - backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
 
         # -
-        if not self.cache_nebtraj.exists():
+        if not self._verify_checkpoint():
+            self._debug(f"... start from the scratch @ {self.directory.name} ...")
+            self.directory.mkdir(parents=True, exist_ok=True)
             self._irun([ini_atoms, fin_atoms])
         else:
+            self._debug(f"... restart @ {self.directory.name} ...")
             # - check if converged
             converged = self.read_convergence()
             if not converged:
-                if read_cache:
-                    ...
-                self._irun(structures, *args, **kwargs)
+                self._debug(f"... unconverged @ {self.directory.name} ...")
+                ckpt_wdir = self._save_checkpoint() if read_ckpt else None
+                self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
+                self._irun(structures, ckpt_wdir=ckpt_wdir, *args, **kwargs)
             else:
+                self._debug(f"... converged @ {self.directory.name} ...")
+        
+        self.calc.parameters = prev_params
+        self.calc.reset()
+
+        # - check again
+        curr_band, converged = None, self.read_convergence()
+        if converged:
+            self._debug(f"... 2. converged @ {self.directory.name} ...")
+            band_frames = self.read_trajectory() # (nbands, nimages)
+            if band_frames:
+                plot_mep(self.directory, band_frames[-1])
+                #plot_bands(self.directory, images, nimages=nimages_per_band)
+                write(self.cache_nebtraj, itertools.chain(*band_frames))
+                # --
+                curr_band = band_frames[-1]
+                energies = [a.get_potential_energy() for a in curr_band]
+                imax = 1 + np.argsort(energies[1:-1])[-1]
+                print(f"imax: {imax}")
+                # NOTE: maxforce in cp2k is norm(atomic_forces)
+                maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
+                print(f"maxfrc: {maxfrc}")
+            else:
+                self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
                 ...
-        
-        #self.calc.set(**prev_params)
-        
-        # - get results
-        _ = self.read_trajectory()
+        else:
+            self._debug(f"... 2. unconverged @ {self.directory.name} ...")
+
+        return curr_band
+    
+    @abc.abstractmethod
+    def _irun(self, structures: List[Atoms], *args, **kwargs):
+        """"""
 
         return
+
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """Check if the current directory has any valid outputs or it just created 
+            the input files.
+
+        """
+
+        return self.directory.exists()
+    
+    def _save_checkpoint(self, *args, **kwargs):
+        """"""
+        # - find previous runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+        curr_index = len(prev_wdirs)
+
+        curr_wdir = self.directory/f"{str(curr_index).zfill(4)}.run"
+        self._debug(f"curr_wdir: {curr_wdir}")
+
+        # - backup files
+        curr_wdir.mkdir()
+        for x in self.directory.iterdir():
+            if not re.match(r"[0-9]{4}\.run", x.name):
+                # NOTE: default is to move everything to the new folder
+                #if x.name in self.saved_fnames:
+                #    shutil.move(x, curr_wdir)
+                #else:
+                #    x.unlink()
+                shutil.move(x, curr_wdir)
+            else:
+                ...
+
+        return curr_wdir
 
     def _align_structures(self, structures, *args, **kwargs) -> List[Atoms]:
         """"""
