@@ -128,7 +128,7 @@ class AbstractStringReactor(AbstractReactor):
         if not self._verify_checkpoint():
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True, exist_ok=True)
-            self._irun([ini_atoms, fin_atoms])
+            self._irun([ini_atoms, fin_atoms], *args, **kwargs)
         else:
             self._debug(f"... restart @ {self.directory.name} ...")
             # - check if converged
