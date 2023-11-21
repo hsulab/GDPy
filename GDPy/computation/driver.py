@@ -277,38 +277,38 @@ class AbstractDriver(abc.ABC):
                 converged = self.read_convergence() # TODO: this will read_trajectory?
                 self._debug(f"... convergence {converged} ...")
                 if not converged:
-                    if read_ckpt:
-                        ckpt_wdir = self._save_checkpoint()
-                        # TODO: load_ckpt will read_trajectory?
-                        atoms, resume_params = self._load_checkpoint(ckpt_wdir, *args, **kwargs)
-                        kwargs.update(**resume_params)
+                    self._debug(f"... unconverged @ {self.directory.name} ...")
+                    ckpt_wdir = self._save_checkpoint() if read_ckpt else None
+                    self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
                     self._cleanup()
-                    self._irun(atoms, *args, **kwargs)
+                    self._irun(atoms, ckpt_wdir=ckpt_wdir, *args, **kwargs)
                 else:
-                    ...
+                    self._debug(f"... converged @ {self.directory.name} ...")
             else:
                 self._debug(f"... clean up @ {self.directory.name} ...")
                 self._cleanup()
                 self._irun(atoms, *args, **kwargs)
-        
-        # - if the simulation still failed?
-        
-        # - get results
-        traj = self.read_trajectory()
-        nframes = len(traj)
-        if nframes > 0:
-            new_atoms = traj[-1]
-            if extra_info is not None:
-                new_atoms.info.update(**extra_info)
-        else:
-            warnings.warn(f"The calculation at {self.directory.name} performed but failed.", RuntimeWarning)
-            new_atoms = None
 
-        # - reset params
         self.calc.parameters = params_old
         self.calc.reset()
+        
+        # - check again
+        curr_atoms, converged = None, self.read_convergence() # NOTE: This will read_trajectory
+        if converged:
+            self._debug(f"... 2. converged @ {self.directory.name} ...")
+            traj = self.read_trajectory() # List[Atoms]
+            nframes = len(traj)
+            if nframes > 0:
+                curr_atoms = traj[-1]
+                if extra_info is not None:
+                    curr_atoms.info.update(**extra_info)
+            else:
+                warnings.warn(f"The calculation at {self.directory.name} performed but failed.", RuntimeWarning)
+                curr_atoms = None
+        else:
+            self._debug(f"... 2. unconverged @ {self.directory.name} ...")
 
-        return new_atoms
+        return curr_atoms
     
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
@@ -337,12 +337,6 @@ class AbstractDriver(abc.ABC):
                 ...
 
         return curr_wdir
-    
-    def _load_checkpoint(self, atoms, *args, **kwargs):
-        """"""
-        atoms, resume_params = self._resume(atoms, *args, **kwargs)
-
-        return atoms, resume_params
     
     @abc.abstractmethod
     def _irun(self, atoms: Atoms, *args, **kwargs):
@@ -468,4 +462,4 @@ class AbstractDriver(abc.ABC):
 
 
 if __name__ == "__main__":
-    pass
+    ...

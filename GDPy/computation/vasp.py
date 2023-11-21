@@ -9,8 +9,9 @@ import dataclasses
 import json
 import warnings
 import pathlib
-from typing import Union, List, NoReturn
+import traceback
 from collections import Counter
+from typing import Union, List, NoReturn
 
 import shutil
 
@@ -260,71 +261,55 @@ class VaspDriver(AbstractDriver):
 
         return verified
     
-    def _irun(self, atoms: Atoms, *args, **kwargs):
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
         try:
-            # - merge params
-            run_params = self.setting.get_run_params(**kwargs)
-            run_params.update(**self.setting.get_init_params())
+            if ckpt_wdir is None: # start from the scratch
+                # - merge params
+                run_params = self.setting.get_run_params(**kwargs)
+                run_params.update(**self.setting.get_init_params())
 
-            # - update some system-dependant params
-            if "langevin_gamma" in run_params:
-                ntypes = len(set(atoms.get_chemical_symbols()))
-                run_params["langevin_gamma"] = [run_params["langevin_gamma"]]*ntypes
-            run_params["system"] = self.directory.name
+                # - update some system-dependant params
+                if "langevin_gamma" in run_params:
+                    ntypes = len(set(atoms.get_chemical_symbols()))
+                    run_params["langevin_gamma"] = [run_params["langevin_gamma"]]*ntypes
+                run_params["system"] = self.directory.name
 
-            # - check constraint
-            cons_text = run_params.pop("constraint", None)
-            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
-            if frozen_indices:
-                atoms._del_constraints()
-                atoms.set_constraint(FixAtoms(indices=frozen_indices))
-            #print("constraints: ", atoms.constraints)
-            self.calc.set(**run_params)
-            atoms.calc = self.calc
+                # - check constraint
+                cons_text = run_params.pop("constraint", None)
+                mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+                if frozen_indices:
+                    atoms._del_constraints()
+                    atoms.set_constraint(FixAtoms(indices=frozen_indices))
+
+                self.calc.set(**run_params)
+                atoms.calc = self.calc
+            else:
+                self.calc.read_incar(ckpt_wdir/"INCAR") # read previous incar
+                traj = self.read_trajectory()
+                nframes = len(traj)
+                assert nframes > 0, "VaspDriver restarts with a zero-frame trajectory."
+                dump_period = 1 # since we read vasprun.xml, every frame is dumped
+                target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
+                if target_steps > 0: # not a spc 
+                    steps = target_steps + dump_period - nframes*dump_period
+                    assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
+                    self.calc.set(nsw=steps)
+                shutil.copy(ckpt_wdir/"CONTCAR", self.directory/"POSCAR")
 
             # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
             #       thus we manually call the function to write input files and
             #       run the calculation
             self.calc.write_input(atoms)
-            if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
-                shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+            #if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
+            #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
             run_vasp("vasp", atoms.calc.command, self.directory)
 
         except Exception as e:
             self._debug(e)
+            self._debug(traceback.print_exc())
 
         return
-    
-    def _load_checkpoint(self, ckpt_wdir, *args, **kwargs):
-        """"""
-        # TODO: ...
-        atoms = read(ckpt_wdir/"vasprun.xml", index="-1")
-        params = {} # steps
-
-        return atoms, params
-    
-    def _resume(self, atoms: Atoms, *args, **kwargs):
-        """"""
-        # - update atoms and driver
-        traj = self.read_trajectory()
-        nframes = len(traj)
-        if nframes > 0:
-            # --- update atoms
-            resume_atoms = traj[-1]
-            resume_params = {}
-            # --- update run_params in settings
-            dump_period = 1
-            target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
-            if target_steps > 0: # not a spc 
-                steps = target_steps + dump_period - nframes*dump_period
-                assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
-                resume_params.update(steps=steps)
-        else:
-            resume_atoms = atoms
-            resume_params = {}
-
-        return resume_atoms, resume_params
     
     def read_force_convergence(self, *args, **kwargs) -> bool:
         """"""
@@ -341,28 +326,31 @@ class VaspDriver(AbstractDriver):
 
         return scf_converged
     
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+        """"""
+        vasprun = wdir / "vasprun.xml"
+        frames = read(vasprun, ":")
+
+        return frames
+    
     def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory.
 
         If the calculation failed, an empty atoms with errof info would be returned.
 
         """
-        vasprun = self.directory / "vasprun.xml"
-        backup_fmt = ("gbak.{:d}."+"vasprun.xml")
-
         # - read structures
         try:
-            traj_frames_ = []
             # -- read backups
-            idx = 0
-            while True:
-                backup_fname = backup_fmt.format(idx)
-                backup_fpath = self.directory/backup_fname
-                if Path(backup_fpath).exists():
-                    traj_frames_.extend(read(backup_fpath, index=":", format="vasp-xml"))
-                else:
-                    break
-                idx += 1
+            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+            self._debug(f"prev_wdirs: {prev_wdirs}")
+
+            traj_frames_ = []
+            for w in prev_wdirs:
+                curr_frames = self._read_a_single_trajectory(w)
+                traj_frames_.extend(curr_frames[:-1])
+
+            vasprun = self.directory / "vasprun.xml"
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 traj_frames_.extend(read(vasprun, ":")) # read current
             nframes = len(traj_frames_)
@@ -376,6 +364,7 @@ class VaspDriver(AbstractDriver):
                 else: # without sort file, use default order
                     sort, resort = list(range(natoms)), list(range(natoms))
                 for i, sorted_atoms in enumerate(traj_frames_):
+                    # NOTE: calculation with only one unfinished step does not have forces
                     input_atoms = create_single_point_calculator(sorted_atoms, resort, "vasp")
                     #if input_atoms is None:
                     #    input_atoms = Atoms()
@@ -398,7 +387,6 @@ class VaspDriver(AbstractDriver):
             ret[0].info["error"] = str(self.directory)
 
         return ret
-
 
 
 if __name__ == "__main__": 
