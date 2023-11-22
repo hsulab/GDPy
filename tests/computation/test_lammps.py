@@ -3,17 +3,20 @@
 
 
 import copy
+import logging
 import pytest
 import pathlib
 import tempfile
 
 from ase.io import read, write
 
+from GDPy import config
 from GDPy.core.register import import_all_modules_for_register
 from GDPy.worker.interface import ComputerVariable
 
 
 import_all_modules_for_register()
+config.logger.setLevel(logging.DEBUG)
 
 
 @pytest.fixture
@@ -159,47 +162,101 @@ def test_finished_md(deepmd_lammps_config):
 
 def test_restart_md(deepmd_lammps_config):
     """"""
-    config = deepmd_lammps_config
-    #atoms = read("../assets/methanol.xyz")
+    dpconfig = deepmd_lammps_config
+    dpconfig["driver"]["init"]["ckpt_period"] = 3
     atoms = read("../assets/Cu-fcc-s111p22.xyz")
+
     # - run 10 steps
     with tempfile.TemporaryDirectory() as tmpdir:
         #tmpdir = "./xxx"
 
-        config = copy.deepcopy(config)
-        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
+        dpconfig = copy.deepcopy(dpconfig)
+        worker = ComputerVariable(dpconfig["potential"], dpconfig["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
 
         converged = driver.read_convergence()
-        print("before: ", converged)
+        config._print(f"before: {converged}")
 
         new_atoms = driver.run(atoms, read_exists=True)
-        print("10 steps: ", driver.read_convergence())
+        config._print(f"10 steps: {driver.read_convergence()}")
         traj = driver.read_trajectory()
-        print("nframes: ", len(traj))
-        print(new_atoms.get_potential_energy())
+        config._print(f"nframes: {len(traj)}")
+        config._print(new_atoms.get_potential_energy())
 
         # - run extra 10 steps within the same dir
-        config = copy.deepcopy(config)
-        config["driver"]["run"]["steps"] = 20
-        print("new: ", config)
+        dpconfig = copy.deepcopy(dpconfig)
+        dpconfig["driver"]["run"]["steps"] = 20
+        config._print(f"new: {dpconfig}")
 
-        worker = ComputerVariable(config["potential"], config["driver"]).value[0]
+        worker = ComputerVariable(dpconfig["potential"], dpconfig["driver"]).value[0]
 
         driver = worker.driver
         driver.directory = tmpdir
 
         converged = driver.read_convergence()
-        print("restart: ", converged)
+        config._print(f"restart: {converged}")
 
         new_atoms = driver.run(atoms, read_exists=True)
-        print(driver.read_convergence())
-        print("config: ", driver.setting)
+        config._print(driver.read_convergence())
+        config._print(f"config: {driver.setting}")
 
         traj = driver.read_trajectory()
-        #print(traj[10].get_kinetic_energy())
+        config._debug(f"nframes::: {len(traj)}")
+        
+        write(pathlib.Path(tmpdir)/"out.xyz", traj)
+
+        assert pytest.approx(1.117415e-02) == traj[-1].info["max_devi_f"]
+
+    
+@pytest.mark.parametrize("dump_period,ckpt_period", [(2, 2), (2, 3), (4, 7)])
+#@pytest.mark.parametrize("dump_period,ckpt_period", [(4, 7)])
+def test_restart_md_steps(deepmd_lammps_config, dump_period, ckpt_period):
+    """"""
+    dpconfig = deepmd_lammps_config
+    dpconfig["driver"]["init"]["ckpt_period"] = ckpt_period
+    dpconfig["driver"]["init"]["dump_period"] = dump_period
+
+    atoms = read("../assets/Cu-fcc-s111p22.xyz")
+
+    # - run 10 steps
+    with tempfile.TemporaryDirectory() as tmpdir:
+        #tmpdir = "./xxx"
+
+        dpconfig = copy.deepcopy(dpconfig)
+        worker = ComputerVariable(dpconfig["potential"], dpconfig["driver"]).value[0]
+
+        driver = worker.driver
+        driver.directory = tmpdir
+
+        converged = driver.read_convergence()
+        config._print(f"before: {converged}")
+
+        new_atoms = driver.run(atoms, read_exists=True)
+        config._print(f"10 steps: {driver.read_convergence()}")
+        traj = driver.read_trajectory()
+        config._print(f"nframes: {len(traj)}")
+
+        # - run extra 10 steps within the same dir
+        dpconfig = copy.deepcopy(dpconfig)
+        dpconfig["driver"]["run"]["steps"] = 20
+        config._print(f"new: {dpconfig}")
+
+        worker = ComputerVariable(dpconfig["potential"], dpconfig["driver"]).value[0]
+
+        driver = worker.driver
+        driver.directory = tmpdir
+
+        converged = driver.read_convergence()
+        config._print(f"restart: {converged}")
+
+        new_atoms = driver.run(atoms, read_exists=True)
+        config._print(driver.read_convergence())
+        config._print(f"config: {driver.setting}")
+
+        traj = driver.read_trajectory()
+        config._debug(f"nframes::: {len(traj)}")
         
         write(pathlib.Path(tmpdir)/"out.xyz", traj)
 

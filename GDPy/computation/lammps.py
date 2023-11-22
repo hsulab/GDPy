@@ -133,12 +133,23 @@ def parse_thermo_data(logfile_path) -> dict:
 
 def read_single_simulation(directory, prefix, units, add_step_info=True):
     """"""
+    # - read timesteps
+    timesteps = []
+    with open(directory/ASELMPCONFIG.trajectory_filename, "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if "TIMESTEP" in line:
+                timesteps.append(int(fopen.readline().strip()))
+            if not line:
+                break
+
     # skip last frame
-    curr_traj_frames = read(
+    curr_traj_frames_ = read(
         directory/(prefix+ASELMPCONFIG.trajectory_filename), 
         index=":", format="lammps-dump-text", units=units
     )
-    nframes_traj = len(curr_traj_frames)
+    nframes_traj = len(curr_traj_frames_)
+    timesteps = timesteps[:nframes_traj] # avoid incomplete structure
 
     # - read thermo data
     thermo_dict, end_info = parse_thermo_data(directory/(prefix+ASELMPCONFIG.log_filename))
@@ -150,23 +161,24 @@ def read_single_simulation(directory, prefix, units, add_step_info=True):
     nframes = min([nframes_traj, nframes_thermo])
     config._debug(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
 
-    # TODO: check whether steps in thermo and traj are consistent
-    pot_energies = pot_energies[:nframes]
-    curr_traj_frames = curr_traj_frames[:nframes]
-    assert len(pot_energies) == len(curr_traj_frames), f"Number of pot energies and frames are inconsistent at {str(directory)}."
+    # NOTE: check whether steps in thermo and traj are consistent
+    #pot_energies = pot_energies[:nframes]
+    #curr_traj_frames = curr_traj_frames[:nframes]
+    #assert len(pot_energies) == len(curr_traj_frames), f"Number of pot energies and frames are inconsistent at {str(directory)}."
 
-    for pot_eng, atoms in zip(pot_energies, curr_traj_frames):
+    curr_traj_frames, curr_energies = [], []
+    for i, t in enumerate(timesteps):
+        if t in thermo_dict["Step"]:
+            curr_atoms = curr_traj_frames_[i]
+            curr_atoms.info["step"] = t
+            curr_traj_frames.append(curr_atoms)
+            curr_energies.append(pot_energies[thermo_dict["Step"].tolist().index(t)])
+
+    for pot_eng, atoms in zip(curr_energies, curr_traj_frames):
         forces = atoms.get_forces()
         # NOTE: forces have already been converted in ase read, so velocities are
-        #forces = unitconvert.convert(forces, "force", self.units, "ASE")
         sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
         atoms.calc = sp_calc
-
-    # - label steps
-    if add_step_info:
-        for i, atoms in enumerate(curr_traj_frames):
-            atoms.info["source"] = directory.name
-            atoms.info["step"] = int(thermo_dict["Step"][i])
 
     # - check model_devi.out
     # TODO: convert units?
@@ -174,12 +186,21 @@ def read_single_simulation(directory, prefix, units, add_step_info=True):
     if devi_path.exists():
         with open(devi_path, "r") as fopen:
             lines = fopen.readlines()
-        dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-        dkeys = [x.strip() for x in dkeys][1:]
+        if "#" in lines[0]: # the first file
+            dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
+            dkeys = [x.strip() for x in dkeys][1:]
+        else: # restart file, deepmd...
+            devi_path_0 = directory/"0000.run"/ASELMPCONFIG.deviation_filename
+            if not devi_path_0.exists():
+                devi_path_0 = directory.parent/"0000.run"/ASELMPCONFIG.deviation_filename
+            with open(devi_path_0, "r") as fopen:
+                line = fopen.readline()
+            dkeys = ("".join([x for x in line if x != "#"])).strip().split()
+            dkeys = [x.strip() for x in dkeys][1:]
         data = np.loadtxt(devi_path, dtype=float)
         ncols = data.shape[-1]
-        data = data.reshape(-1,ncols)
-        data = data.transpose()[1:,:nframes]
+        data = data.reshape(-1, ncols)
+        data = data.transpose()[1:, :nframes]
 
         for i, atoms in enumerate(curr_traj_frames):
             for j, k in enumerate(dkeys):
@@ -187,7 +208,7 @@ def read_single_simulation(directory, prefix, units, add_step_info=True):
                     atoms.info[k] = data[j,i]
                 except IndexError:
                     # NOTE: Some potentials donot print last frames of min
-                    #       for exaple, lammps
+                    #       for example, lammps
                     atoms.info[k] = 0.
     
     # - check COLVAR
@@ -329,13 +350,37 @@ class LmpDriver(AbstractDriver):
                 new_params["plumed"] = "".join(calc.calcs[1].input)
 
         return new_calc, new_params
+    
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """"""
+        verified = super()._verify_checkpoint(*args, **kwargs)
+        if verified:
+            checkpoints = list(self.directory.glob("restart.*"))
+            self._debug(f"checkpoints: {checkpoints}")
+            if not checkpoints:
+                verified = False
+        else:
+            ...
 
-    def _irun(self, atoms: Atoms, *args, **kwargs):
+        return verified
+
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
         try:
             # - params
             run_params = self.setting.get_init_params()
             run_params.update(**self.setting.get_run_params(**kwargs))
+
+            if ckpt_wdir is None: # start from the scratch
+                ...
+            else:
+                checkpoints = sorted(list(ckpt_wdir.glob("restart.*")), key=lambda x: int(x.name.split(".")[1]))
+                self._debug(f"checkpoints to restart: {checkpoints}")
+                target_steps = run_params["maxiter"]
+                run_params.update(
+                    read_restart = str(checkpoints[-1].resolve()),
+                    maxiter = target_steps - int(checkpoints[-1].name.split(".")[1])
+                )
 
             # - check constraint
             self.calc.set(**run_params)
@@ -347,29 +392,6 @@ class LmpDriver(AbstractDriver):
             config._debug(e)
 
         return
-
-    def _resume(self, atoms: Atoms, *args, **kwargs) -> Tuple[Atoms,dict]:
-        """Get run_params, respect steps and fmax from kwargs.
-        """
-        # - update atoms and driver
-        traj = self.read_trajectory() # we only need the last frame or use restart?
-        nframes = len(traj)
-        if nframes > 0:
-            # --- update atoms
-            resume_atoms = traj[-1]
-            resume_params = {}
-            # --- update run_params in settings
-            dump_period = self.setting.get_init_params()["dump_period"]
-            target_steps = self.setting.get_run_params(*args, **kwargs)["maxiter"]
-            if target_steps > 0:
-                steps = target_steps + dump_period - nframes*dump_period
-            assert steps > 0, "Steps should be greater than 0."
-            resume_params.update(steps=steps)
-        else:
-            resume_atoms = atoms
-            resume_params = {}
-
-        return resume_atoms, resume_params
     
     def read_trajectory(self, type_list=None, add_step_info=True, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
@@ -379,51 +401,35 @@ class LmpDriver(AbstractDriver):
 
         # - find runs...
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-        #print(f"prev_wdirs: {prev_wdirs}")
-        nwdirs = len(prev_wdirs)
+        self._debug(f"prev_wdirs: {prev_wdirs}")
 
-        traj_frames = []
-        if nwdirs == 0:
-            target_fpath = self.directory/ASELMPCONFIG.trajectory_filename
-            if target_fpath.exists() and target_fpath.stat().st_size != 0:
-                # - read trajectory that contains positions, forces, and velocities
-                curr_wdir = self.directory
-                curr_frames = read_single_simulation(
-                    directory=curr_wdir, prefix="", 
-                    units=curr_units, add_step_info=add_step_info
+        traj_list = []
+        for w in prev_wdirs:
+            curr_frames = read_single_simulation(
+                directory=w, prefix="", units=curr_units, 
+                add_step_info=add_step_info
+            )
+            traj_list.append(curr_frames)
+        
+        lmprun = self.directory / ASELMPCONFIG.trajectory_filename
+        if lmprun.exists() and lmprun.stat().st_size != 0:
+            traj_list.append(
+                read_single_simulation(
+                    directory=self.directory, prefix="", units=curr_units, 
+                    add_step_info=add_step_info
                 )
-                #print("number of current frames: ", len(curr_frames))
-                traj_frames.extend(curr_frames)
-        
-                # - label steps
-                init_params = self.setting.get_init_params()
-                for i, atoms in enumerate(traj_frames):
-                    atoms.info["step"] = int(i)*init_params["dump_period"]
+            )
+
+        # -- concatenate
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive in positions."
+                assert np.allclose(traj_list[i-1][-1].get_potential_energy(), traj_list[i][0].get_potential_energy()), f"Traj {i-1} and traj {i} are not consecutive in energy."
+                traj_frames.extend(traj_list[i][1:])
         else:
-            for idir, curr_wdir in enumerate(prev_wdirs):
-                #print(curr_wdir)
-                target_fpath = curr_wdir/ASELMPCONFIG.trajectory_filename
-                if target_fpath.exists() and target_fpath.stat().st_size != 0:
-                    # - read trajectory that contains positions, forces, and velocities
-                    curr_frames = read_single_simulation(
-                        directory=curr_wdir, prefix="", 
-                        units=curr_units, add_step_info=add_step_info
-                    )
-                    #print("number of current frames: ", len(curr_frames))
-        
-                    # - label steps
-                    init_params = self.setting.get_init_params()
-                    for i, atoms in enumerate(curr_frames):
-                        atoms.info["step"] = int(i)*init_params["dump_period"]
-                    # - concat
-                    if idir == 0:
-                        traj_frames.extend(curr_frames)
-                    else:
-                        traj_frames.extend(curr_frames[1:])
-                else:
-                    ...
-            #print("number of frames in total: ", len(traj_frames))
-        #write("./xxx.xyz", traj_frames)
+            ...
 
         return traj_frames
     
@@ -446,6 +452,7 @@ class Lammps(FileIOCalculator):
         constraint = None, # index of atoms, start from 0
         ignore_atoms_velocities = False,
         # --- lmp params ---
+        read_restart = None,
         units = "metal",
         atom_style = "atomic",
         processors = "* * 1",
@@ -618,7 +625,11 @@ class Lammps(FileIOCalculator):
         if self.newton:
             content += "newton {}\n".format(self.newton)
         content += "box             tilt large\n"
-        content += "read_data	    %s\n" %ASELMPCONFIG.inputstructure_filename
+        if self.read_restart is None:
+            content += "read_data	    %s\n" %ASELMPCONFIG.inputstructure_filename
+        else:
+            content += f"read_restart    {self.read_restart}\n"
+            #os.remove(ASELMPCONFIG.inputstructure_filename)
         content += "change_box      all triclinic\n"
 
         # - particle masses
@@ -714,7 +725,7 @@ class Lammps(FileIOCalculator):
                 self.maxiter, self.maxeval
             )
         elif self.task == "md":
-            if not self.write_velocities:
+            if not self.write_velocities and self.read_restart is None:
                 velocity_seed = self.velocity_seed
                 if velocity_seed is None:
                     velocity_seed = np.random.randint(0,10000)

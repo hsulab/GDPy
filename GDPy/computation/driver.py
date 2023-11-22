@@ -194,20 +194,6 @@ class AbstractDriver(abc.ABC):
 
         return
     
-    def _map_params(self, params):
-        """Map params, avoid conflicts."""
-        if hasattr(self, "param_mapping"):
-            params_ = {}
-            for key, value in params.items():
-                new_key = self.param_mapping.get(key, None)
-                if new_key is not None:
-                    key = new_key
-                params_[key] = value
-        else:
-            params_ = params
-
-        return params_
-    
     def get(self, key):
         """Get param value from init/run params by a mapped key name."""
         parameters = copy.deepcopy(self.init_params)
@@ -308,7 +294,7 @@ class AbstractDriver(abc.ABC):
         else:
             self._debug(f"... 2. unconverged @ {self.directory.name} ...")
 
-        return curr_atoms
+        return curr_atoms # TODO: change None to ...
     
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
