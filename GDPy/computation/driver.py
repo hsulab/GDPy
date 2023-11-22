@@ -343,24 +343,6 @@ class AbstractDriver(abc.ABC):
         """Prepare input structure (atoms) and parameters and run the simulation."""
 
         return
-
-    def _backup(self):
-        """Backup output files and continue with lastest atoms."""
-        for fname in self.saved_fnames:
-            curr_fpath = self.directory/fname
-            if curr_fpath.exists(): # TODO: check if file is empty?
-                backup_fmt = (BACKUP_PREFIX_FORMAT+fname)
-                # --- check backups
-                idx = 0
-                while True:
-                    backup_fpath = self.directory/(backup_fmt.format(idx))
-                    if not pathlib.Path(backup_fpath).exists():
-                        shutil.copy(curr_fpath, backup_fpath)
-                        break
-                    else:
-                        idx += 1
-
-        return
     
     def _cleanup(self):
         """Remove unnecessary files.
