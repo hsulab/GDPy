@@ -3,16 +3,19 @@
 
 
 import copy
+import logging
 import pytest
 import tempfile
 
 from ase.io import read, write
 
+from GDPy import config
 from GDPy.core.register import import_all_modules_for_register
 from GDPy.worker.interface import ComputerVariable
 
 
 import_all_modules_for_register()
+config.logger.setLevel(logging.DEBUG)
 
 
 @pytest.fixture
@@ -103,7 +106,7 @@ def test_broken_spc(emt_config):
     #print("broken: ", driver.read_convergence())
 
     #atoms = read("../assets/Cu-fcc-s111p22.xyz")
-    #new_atoms = driver.run(atoms, read_exists=True)
+    #new_atoms = driver.run(atoms, read_ckpt=True)
     #print(driver.read_convergence())
 
     converged = driver.read_convergence()
@@ -120,7 +123,7 @@ def test_finished_spc(emt_config):
     converged = driver.read_convergence()
 
     #atoms = read("../assets/Cu-fcc-s111p22.xyz")
-    #new_atoms = driver.run(atoms, read_exists=True)
+    #new_atoms = driver.run(atoms, read_ckpt=True)
     #print(driver.read_convergence())
 
     assert converged
@@ -129,6 +132,7 @@ def test_finished_spc(emt_config):
 def test_finished_md(emt_md_config):
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
+        #tmpdir = "./xxx"
         # - run 10 steps
         config = copy.deepcopy(emt_md_config)
         worker = ComputerVariable(config["potential"], config["driver"]).value[0]
@@ -141,7 +145,7 @@ def test_finished_md(emt_md_config):
 
         atoms = read("../assets/Cu-fcc-s111p22.xyz")
 
-        new_atoms = driver.run(atoms, read_exists=True)
+        new_atoms = driver.run(atoms, read_ckpt=True)
         print(driver.read_convergence())
 
     return
@@ -163,18 +167,20 @@ def test_finished_min(emt_min_config):
 
         atoms = read("../assets/Cu-fcc-s111p22.xyz")
 
-        new_atoms = driver.run(atoms, read_exists=True)
+        new_atoms = driver.run(atoms, read_ckpt=True)
         print(driver.read_convergence())
 
     return
 
 
-def test_restart_md(emt_md_config):
+@pytest.mark.parametrize("dump_period,nframes", [(1, 21), (3, 7), (5, 5)])
+def test_restart_md(emt_md_config, dump_period, nframes):
     """"""
     # - run 10 steps
     with tempfile.TemporaryDirectory() as tmpdir:
         #tmpdir = "./xxx"
         config = copy.deepcopy(emt_md_config)
+        config["driver"]["init"]["dump_period"] = dump_period
         worker = ComputerVariable(config["potential"], config["driver"]).value[0]
 
         driver = worker.driver
@@ -185,11 +191,12 @@ def test_restart_md(emt_md_config):
 
         atoms = read("../assets/Cu-fcc-s111p22.xyz")
 
-        new_atoms = driver.run(atoms, read_exists=True)
+        new_atoms = driver.run(atoms, read_ckpt=True)
         print("10 steps: ", driver.read_convergence())
 
         # - run extra 10 steps within the same dir
         config = copy.deepcopy(emt_md_config)
+        config["driver"]["init"]["dump_period"] = dump_period
         config["driver"]["run"]["steps"] = 20
         print("new: ", config)
 
@@ -203,13 +210,13 @@ def test_restart_md(emt_md_config):
 
         atoms = read("../assets/Cu-fcc-s111p22.xyz")
 
-        new_atoms = driver.run(atoms, read_exists=True)
+        new_atoms = driver.run(atoms, read_ckpt=True)
         print(driver.read_convergence())
 
         traj = driver.read_trajectory()
-        print(traj[5].get_kinetic_energy())
+        #print(traj[5].get_kinetic_energy())
 
-        assert len(traj) == 21
+        assert len(traj) == nframes
 
 
 if __name__ == "__main__":

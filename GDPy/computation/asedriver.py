@@ -330,10 +330,49 @@ class AseDriver(AbstractDriver):
             raise NotImplementedError(f"Unknown task {self.task}.")
         
         return driver, run_params
+    
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """"""
+        verified = super()._verify_checkpoint()
+        if verified:
+            asetraj = self.directory/self.xyz_fname
+            if (asetraj.exists() and asetraj.stat().st_size != 0):
+                temp_frames = read(asetraj, ":")
+                try: 
+                    _ = temp_frames[0].get_forces()
+                except: # `RuntimeError: Atoms object has no calculator.`
+                    verified = False
+            else:
+                verified = False
+        else:
+            ...
 
-    def _irun(self, atoms: Atoms, *args, **kwargs):
+        return verified
+
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """Run the simulation."""
         try:
+            # To restart, velocities are always retained 
+            prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
+            if ckpt_wdir is None: # start from the scratch
+                ...
+            else: # restart ...
+                traj = self.read_trajectory()
+                nframes = len(traj)
+                assert nframes > 0, "AseDriver restarts with a zero-frame trajectory."
+                atoms = traj[-1]
+                self._debug(f"fuck: {nframes}")
+                # --- update run_params in settings
+                dump_period = self.setting.get_init_params()["loginterval"]
+                target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
+                if target_steps > 0:
+                    steps = target_steps + dump_period - nframes*dump_period
+                assert steps > 0, "Steps should be greater than 0."
+                kwargs.update(steps=steps)
+
+                # To restart, velocities are always retained 
+                self.setting.ignore_atoms_velocities = False
+
             # - set calculator
             atoms.calc = self.calc
 
@@ -352,34 +391,13 @@ class AseDriver(AbstractDriver):
                 atoms=atoms, devi_fpath=self.directory/self.devi_fname
             )
             dynamics.run(**run_params)
+            # To restart, velocities are always retained 
+            self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
             self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
 
         return
-    
-    def _resume(self, atoms: Atoms, *args, **kwargs) -> Tuple[Atoms,dict]:
-        """Get run_params, respect steps and fmax from kwargs.
-        """
-        # - update atoms and driver
-        traj = self.read_trajectory()
-        nframes = len(traj)
-        if nframes > 0:
-            # --- update atoms
-            resume_atoms = traj[-1]
-            resume_params = {}
-            # --- update run_params in settings
-            dump_period = self.setting.get_init_params()["loginterval"]
-            target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
-            if target_steps > 0:
-                steps = target_steps + dump_period - nframes*dump_period
-            assert steps > 0, "Steps should be greater than 0."
-            resume_params.update(steps=steps)
-        else:
-            resume_atoms = atoms
-            resume_params = {}
-
-        return resume_atoms, resume_params
     
     def read_force_convergence(self, *args, **kwargs) -> bool:
         """Check if the force is converged.
@@ -401,59 +419,70 @@ class AseDriver(AbstractDriver):
 
         return scf_convergence
     
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+        """"""
+        frames = read(wdir/self.xyz_fname, ":")
+
+        return frames
+    
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
-        traj_frames = []
+        # -
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+        
+        traj_list = []
+        for w in prev_wdirs:
+            curr_frames = self._read_a_single_trajectory(w)
+            traj_list.append(curr_frames)
+        
         target_fpath = self.directory/self.xyz_fname
-        backup_fmt = ("gbak.{:d}."+self.xyz_fname)
         if target_fpath.exists() and target_fpath.stat().st_size != 0:
-            # read backups
-            traj_frames = []
-            idx = 0
-            while True:
-                backup_fname = backup_fmt.format(idx)
-                backup_fpath = self.directory/backup_fname
-                if backup_fpath.exists():
-                    # skip last frame
-                    traj_frames.extend(read(backup_fpath, index=":-1"))
-                else:
-                    break
-                idx += 1
             # read current
-            traj_frames.extend(read(self.directory/self.xyz_fname, index=":"))
-
-            # - add some info
-            init_params = self.setting.get_init_params()
-            if self.setting.task == "md":
-                #Time[ps]      Etot[eV]     Epot[eV]     Ekin[eV]    T[K]
-                #0.0000           3.4237       2.8604       0.5633   272.4
-                #data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
-                #if len(data.shape) == 1:
-                #    data = data[np.newaxis,:]
-                #timesteps = data[:, 0] # ps
-                #steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
-                # ... infer from input settings
-                for i, atoms in enumerate(traj_frames):
-                    atoms.info["time"] = i*init_params["timestep"]*init_params["loginterval"]
-            elif self.setting.task == "min":
-                # Method - Step - Time - Energy - fmax
-                # BFGS:    0 22:18:46    -1024.329999        3.3947
-                #data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
-                #if len(data.shape) == 1:
-                #    data = data[np.newaxis,:]
-                #steps = [int(s) for s in data[:, 1]]
-                #fmaxs = [float(fmax) for fmax in data[:, 4]]
-                for atoms in traj_frames:
-                    atoms.info["fmax"] = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
-            #assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
-            for step, atoms in enumerate(traj_frames):
-                atoms.info["step"] = int(step)*init_params["loginterval"]
-
-            # - deviation stored in traj, no need to read from file
+            traj_list.append(read(self.directory/self.xyz_fname, index=":"))
         else:
             ...
         
-        ret = traj_frames
+        # -- concatenate
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                traj_frames.extend(traj_list[i][1:])
+        else:
+            ...
+
+        # - add some info
+        init_params = self.setting.get_init_params()
+        if self.setting.task == "md":
+            #Time[ps]      Etot[eV]     Epot[eV]     Ekin[eV]    T[K]
+            #0.0000           3.4237       2.8604       0.5633   272.4
+            #data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
+            #if len(data.shape) == 1:
+            #    data = data[np.newaxis,:]
+            #timesteps = data[:, 0] # ps
+            #steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
+            # ... infer from input settings
+            for i, atoms in enumerate(traj_frames):
+                atoms.info["time"] = i*init_params["timestep"]*init_params["loginterval"]
+        elif self.setting.task == "min":
+            # Method - Step - Time - Energy - fmax
+            # BFGS:    0 22:18:46    -1024.329999        3.3947
+            #data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+            #if len(data.shape) == 1:
+            #    data = data[np.newaxis,:]
+            #steps = [int(s) for s in data[:, 1]]
+            #fmaxs = [float(fmax) for fmax in data[:, 4]]
+            for atoms in traj_frames:
+                atoms.info["fmax"] = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+        #assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
+        for step, atoms in enumerate(traj_frames):
+            atoms.info["step"] = int(step)*init_params["loginterval"]
+
+        # - deviation stored in traj, no need to read from file
+        
+        nframes = len(traj_frames)
 
         # calculation happens but some errors in calculation
         if self.directory.exists():
@@ -465,11 +494,11 @@ class AseDriver(AbstractDriver):
                 scf_convergence = True
             if not scf_convergence:
                 warnings.warn(f"{self.name} at {self.directory.name} failed to converge at SCF.", RuntimeWarning)
-                if len(ret) > 0: # for compat
-                    ret[0].info["error"] = f"Unconverged SCF at {self.directory}."
-                ret.error = True
+                if nframes > 0: # for compat
+                    traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
+                traj_frames.error = True
 
-        return ret
+        return traj_frames
 
 
 if __name__ == "__main__":
