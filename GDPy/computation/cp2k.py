@@ -133,7 +133,7 @@ class Cp2kDriverSetting(DriverSetting):
                     ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
                     #("MOTION/GEO_OPT", f"MAX_ITER {self.steps}"),
                     ("MOTION/GEO_OPT", f"OPTIMIZER {method}"),
-                    ("MOTION/PRINT/RESTART_HISTORY/EACH", f"GEO_OPT {self.dump_period}"),
+                    ("MOTION/PRINT/RESTART_HISTORY/EACH", f"GEO_OPT {self.ckpt_period}"),
                 ]
             )
             #if self.fmax is not None:
@@ -142,8 +142,44 @@ class Cp2kDriverSetting(DriverSetting):
             #    )
         
         if self.task == "md":
-            # TODO:
-            ... 
+            # - steps can be set on-the-fly, see get_run_params
+            md_style = self.md_style.upper()
+            pairs.extend(
+                [
+                    ("GLOBAL", "RUN_TYPE MD"),
+                    ("MOTION/MD", f"TIMESTEP {self.timestep}"),
+                    ("MOTION/PRINT/RESTART_HISTORY/EACH", f"MD {self.ckpt_period}"),
+                ]
+            )
+            if self.md_style == "nve":
+                pairs.extend(
+                    [
+                        ("MOTION/MD", "ENSEMBLE NVE"),
+                        ("MOTION/MD", f"TEMPERATURE {self.temp}"),
+                    ]
+                )
+            elif self.md_style == "nvt":
+                # TODO: support different thermostats...
+                pairs.extend(
+                    [
+                        ("MOTION/MD", "ENSEMBLE NVT"),
+                        ("MOTION/MD", f"TEMPERATURE {self.temp}"),
+                        #("MOTION/MD/THERMOSTAT/NOSE/TIMECON", "13.34")
+                        ("MOTION/MD/THERMOSTAT/CSVR", f"TIMECON {self.Tdamp}")
+                    ]
+                )
+            elif self.md_style == "npt":
+                pairs.extend(
+                    [
+                        ("MOTION/MD", "ENSEMBLE NPT_I"),
+                        ("MOTION/MD", f"TEMPERATURE {self.temp}"),
+                        ("MOTION/MD/THERMOSTAT/NOSE", f"TIMECON {self.Tdamp}"),
+                        ("MOTION/MD/BAROSTAT", f"PRESSURE {self.press}"),
+                        ("MOTION/MD/BAROSTAT", f"TIMECON {self.Pdamp}"),
+                    ]
+                )
+            else:
+                ...
         
         # TODO: Move to manager? as we always need this outputs to convert calculation
         #       to a trajectory
@@ -174,7 +210,9 @@ class Cp2kDriverSetting(DriverSetting):
                     ("MOTION/GEO_OPT", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}")
                 )
         if self.task == "md":
-            ...
+            run_pairs.append(
+                ("MOTION/MD", f"STEPS {steps_}"),
+            )
 
         # - add constraint
         run_params = dict(
