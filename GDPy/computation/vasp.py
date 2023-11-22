@@ -295,6 +295,7 @@ class VaspDriver(AbstractDriver):
                     steps = target_steps + dump_period - nframes*dump_period
                     assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
                     self.calc.set(nsw=steps)
+                # To restart, velocities are always retained 
                 shutil.copy(ckpt_wdir/"CONTCAR", self.directory/"POSCAR")
 
             # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
@@ -345,14 +346,25 @@ class VaspDriver(AbstractDriver):
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
             self._debug(f"prev_wdirs: {prev_wdirs}")
 
-            traj_frames_ = []
+            traj_list = []
             for w in prev_wdirs:
                 curr_frames = self._read_a_single_trajectory(w)
-                traj_frames_.extend(curr_frames[:-1])
+                traj_list.append(curr_frames)
 
             vasprun = self.directory / "vasprun.xml"
             if vasprun.exists() and vasprun.stat().st_size != 0:
-                traj_frames_.extend(read(vasprun, ":")) # read current
+                traj_list.append(read(vasprun, ":")) # read current
+
+            # -- concatenate
+            traj_frames_, ntrajs = [], len(traj_list)
+            if ntrajs > 0:
+                traj_frames_.extend(traj_list[0])
+                for i in range(1, ntrajs):
+                    assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                    traj_frames_.extend(traj_list[i][1:])
+            else:
+                ...
+
             nframes = len(traj_frames_)
             natoms = len(traj_frames_[0])
 
