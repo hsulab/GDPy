@@ -191,10 +191,10 @@ class Cp2kDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    saved_fnames = [
-        "cp2k.inp", "cp2k.out", "cp2k-1.cell", "cp2k-pos-1.xyz", "cp2k-frc-1.xyz",
-        "cp2k-BFGS.Hessian"
-    ]
+    #saved_fnames = [
+    #    "cp2k.inp", "cp2k.out", "cp2k-1.cell", "cp2k-pos-1.xyz", "cp2k-frc-1.xyz",
+    #    "cp2k-BFGS.Hessian"
+    #]
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
@@ -204,37 +204,84 @@ class Cp2kDriver(AbstractDriver):
 
         return
     
-    def _irun(self, atoms: Atoms, *args, **kwargs):
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """"""
+        verified = super()._verify_checkpoint(*args, **kwargs)
+        if verified:
+            checkpoints = list(self.directory.glob("*.restart"))
+            self._debug(f"checkpoints: {checkpoints}")
+            if not checkpoints:
+                verified = False
+        else:
+            ...
+
+        return verified
+    
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
         try:
-            run_params = self.setting.get_run_params(**kwargs)
-            run_params.update(**self.setting.get_init_params())
+            if ckpt_wdir is None: # start from the scratch
+                run_params = self.setting.get_run_params(**kwargs)
+                run_params.update(**self.setting.get_init_params())
 
-            # - update input template
-            # GLOBAL section is automatically created...
-            # FORCE_EVAL.(METHOD, POISSON)
-            inp = self.calc.parameters.inp # string
-            sec = parse_input(inp)
-            for (k, v) in run_params["pairs"]:
-                sec.add_keyword(k, v)
-            for (k, v) in run_params["run_pairs"]:
-                sec.add_keyword(k, v)
+                # - update input template
+                # GLOBAL section is automatically created...
+                # FORCE_EVAL.(METHOD, POISSON)
+                inp = self.calc.parameters.inp # string
+                sec = parse_input(inp)
+                for (k, v) in run_params["pairs"]:
+                    sec.add_keyword(k, v)
+                for (k, v) in run_params["run_pairs"]:
+                    sec.add_keyword(k, v)
 
-            # -- check constraint
-            cons_text = run_params.pop("constraint", None)
-            mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
-            if frozen_indices:
-                #atoms._del_constraints()
-                #atoms.set_constraint(FixAtoms(indices=frozen_indices))
-                frozen_indices = sorted(frozen_indices)
-                sec.add_keyword(
-                    "MOTION/CONSTRAINT/FIXED_ATOMS", 
-                    "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
+                # -- check constraint
+                cons_text = run_params.pop("constraint", None)
+                mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+                if frozen_indices:
+                    #atoms._del_constraints()
+                    #atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                    frozen_indices = sorted(frozen_indices)
+                    sec.add_keyword(
+                        "MOTION/CONSTRAINT/FIXED_ATOMS", 
+                        "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
+                    )
+            else:
+                with open(ckpt_wdir/"cp2k.inp", "r") as fopen:
+                    inp = "".join(fopen.readlines())
+                sec = parse_input(inp)
+
+                def remove_keyword(section, keywords):
+                    """"""
+                    for kw in keywords:
+                        parts = kw.upper().split("/")
+                        subsection = section.get_subsection("/".join(parts[0:-1]))
+                        new_subkeywords = []
+                        for subkw in subsection.keywords:
+                            if parts[-1] not in subkw:
+                                new_subkeywords.append(subkw)
+                        subsection.keywords = new_subkeywords
+
+                    return
+                
+                remove_keyword(
+                    sec, 
+                    keywords=[ # avoid conflicts
+                        "GLOBAL/PROJECT", "GLOBAL/PRINT_LEVEL", "FORCE_EVAL/METHOD", 
+                        "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME", "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
+                        "FORCE_EVAL/SUBSYS/CELL/PERIODIC", 
+                        "FORCE_EVAL/SUBSYS/CELL/A", "FORCE_EVAL/SUBSYS/CELL/B", "FORCE_EVAL/SUBSYS/CELL/C"
+                    ]
                 )
 
-            self.calc.parameters.inp = "\n".join(sec.write())
+                sec.add_keyword("EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir/"cp2k-1.restart"))
+                sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
 
-            #self.calc.set(**run_params)
+                # - copy wavefunctions...
+                restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
+                for wfn in restart_wfns:
+                    (self.directory/wfn.name).symlink_to(wfn, target_is_directory=False)
+
+            self.calc.parameters.inp = "\n".join(sec.write())
             atoms.calc = self.calc
 
             _ = atoms.get_forces()
@@ -245,18 +292,45 @@ class Cp2kDriver(AbstractDriver):
 
         return
     
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+        """"""
+        frames = read_cp2k_outputs(wdir, prefix=self.name)
+
+        return frames
+    
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
         """"""
         super().read_trajectory(*args, **kwargs)
 
         # TODO: support restart!!!
         try:
-            trajectory = read_cp2k_outputs(self.directory, prefix=self.name)
+            # -- read backups
+            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+            self._debug(f"prev_wdirs: {prev_wdirs}")
+
+            traj_list = []
+            for w in prev_wdirs:
+                curr_frames = self._read_a_single_trajectory(w)
+                traj_list.append(curr_frames)
+            
+            cp2ktraj = self.directory / "cp2k-pos-1.xyz"
+            if cp2ktraj.exists() and cp2ktraj.stat().st_size != 0:
+                traj_list.append(read_cp2k_outputs(self.directory, prefix=self.name))
+
+            # -- concatenate
+            traj_frames, ntrajs = [], len(traj_list)
+            if ntrajs > 0:
+                traj_frames.extend(traj_list[0])
+                for i in range(1, ntrajs):
+                    assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                    traj_frames.extend(traj_list[i][1:])
+            else:
+                ...
         except Exception as e:
             self._debug(e)
             self._debug(traceback.print_exc())
 
-        return trajectory
+        return traj_frames 
 
     
 class Cp2kFileIO(FileIOCalculator):
