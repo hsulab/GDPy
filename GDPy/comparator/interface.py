@@ -22,6 +22,8 @@ class ComparatorVariable(Variable):
 @registers.operation.register
 class compare(Operation):
 
+    status = "finished" # Always finished since it is not time-consuming
+
     def __init__(self, reference, prediction = DummyVariable(), comparator = DummyVariable(), directory="./") -> None:
         """"""
         super().__init__(input_nodes=[reference, prediction, comparator], directory=directory)
