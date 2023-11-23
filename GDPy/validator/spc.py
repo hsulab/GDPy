@@ -112,7 +112,7 @@ class SinglepointValidator(AbstractValidator):
         
         with open(self.directory/fname, "w") as fopen:
             fopen.write(content)
-        self._print(content)
+        self._print("\n"+content)
 
         return
 
@@ -137,17 +137,19 @@ class SinglepointValidator(AbstractValidator):
                     ret = worker.retrieve(
                         include_retrieved=True,
                     )
-                    pred_frames = itertools.chain(*ret)
+                    pred_frames = list(itertools.chain(*ret))
                 else:
                     # TODO: ...
                     ...
                 write(cached_pred_fpath, pred_frames)
             else:
                 pred_frames = read(cached_pred_fpath, ":")
+        else:
+            ...
         
         return pred_frames
     
-    def _plot_comparison(self, prefix, ref_frames, pred_frames: List[Atoms]):
+    def _plot_comparison(self, prefix, ref_frames: List[Atoms], pred_frames: List[Atoms]):
         """"""
         if not (self.directory/prefix).exists():
             (self.directory/prefix).mkdir(parents=True)

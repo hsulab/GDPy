@@ -8,6 +8,7 @@ from ..core.variable import Variable
 from ..core.operation import Operation
 from ..core.register import registers
 
+from ..data.dataset import AbstractDataloader
 from ..worker.drive import DriverBasedWorker
 from .validator import AbstractValidator
 
@@ -58,11 +59,27 @@ class validate(Operation):
 
         """
         super().forward()
+
         # - create a worker
         nworkers = len(workers)
         assert nworkers == 1, "Validator only accepts one worker."
         worker = workers[0]
         worker.directory = self.directory
+
+        # NOTE: In an active session, the dataset is dynamic, thus, 
+        #       we need load the dataset before run...
+        #       Validator accepts dict(reference=[], prediction=[])
+        dataset_ = {}
+        for k, v in dataset.items():
+            if isinstance(v, dict):
+                ...
+            elif isinstance(v, AbstractDataloader):
+                v = v.load_frames()
+                self._print(f"data_dirs: {v}")
+            else:
+                raise RuntimeError(f"{k} Dataset {dataset.__class__.__name__} is not a dict or loader.")
+            dataset_[k] = v
+        dataset = dataset_
 
         # - run validation
         validator.directory = self.directory
@@ -71,6 +88,15 @@ class validate(Operation):
         self.status = "finished"
 
         return # TODO: forward a reference-prediction pair?
+    
+    def report_convergence(self, *args, **kwargs) -> bool:
+        """"""
+        self._print("asdashfkdsqhfiuwehfuiqwhefiwu1!!")
+
+        converged = True
+
+        return converged
+
 
 if __name__ == "__main__":
     ...
