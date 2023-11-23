@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import NoReturn, Union
+from typing import Callable, NoReturn, Union
+
+from .. import config
 
 class Variable:
 
@@ -16,6 +18,12 @@ class Variable:
 
     #: Working status that should be always finished.
     status = "finished"
+
+    #: Standard print function.
+    _print: Callable = config._print
+
+    #: Standard debug function.
+    _debug: Callable = config._debug
 
     def __init__(self, initial_value=None, directory="./"):
         """"""
