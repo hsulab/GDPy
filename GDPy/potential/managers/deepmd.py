@@ -338,6 +338,8 @@ def convert_groups(
                 # TODO: dpdata doesnot support read tags
                 if "tags" in atoms.arrays:
                     del atoms.arrays["tags"]
+                if "momenta" in atoms.arrays:
+                    del atoms.arrays["momenta"]
                 if "initial_charges" in atoms.arrays:
                     del atoms.arrays["initial_charges"]
             except:
