@@ -167,8 +167,11 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     for h in logging.root.handlers:
         if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
             logging.root.removeHandler(h)
+    
+    # - get session general configs
+    sconfigs = conf.get("configs", {})
 
-    exec_mode = conf.get("mode", "seq")
+    exec_mode = sconfigs.get("mode", "seq")
     if exec_mode == "seq":
         from .session import Session
         # -- sequential
@@ -178,6 +181,18 @@ def run_session(config_filepath, feed_command=None, directory="./"):
                 n = k
             entry_operation = v
             session = Session(directory=directory/n)
+            session.run(entry_operation, feed_dict={})
+    elif exec_mode == "act":
+        from .otf import ActiveSession
+        assert len(container) == 1, "ActiveSession only accepts one operation."
+        for i, (k, v) in enumerate(container.items()):
+            n = session_names[i]
+            if n is None:
+                n = k
+            entry_operation = v
+            session = ActiveSession(
+                steps=sconfigs.get("steps", 2), directory=directory/n
+            )
             session.run(entry_operation, feed_dict={})
     elif exec_mode == "cyc":
         from .otf import CyclicSession

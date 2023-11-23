@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import copy
 import itertools
 import pathlib
 import re
@@ -12,10 +14,45 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.core.operation import Operation
-from GDPy.core.register import registers
-from GDPy.data.dataset import XyzDataloader
-from GDPy.data.array import AtomsNDArray
+from ..core.register import registers
+from ..core.variable import Variable
+from ..core.operation import Operation
+from .dataset import XyzDataloader
+from .array import AtomsNDArray
+
+@registers.operation.register
+class assemble(Operation):
+
+    status = "finished" # Always finished since it is not time-consuming
+    
+    def __init__(self, variable, directory="./", **kwargs) -> None:
+        """"""
+        vkwargs = {} # variable non-variable/operation kwargs
+        node_names, input_nodes = [], []
+        for k, v in kwargs.items():
+            if isinstance(v, (Variable, Operation)):
+                node_names.append(k)
+                input_nodes.append(v)
+            else:
+                vkwargs[k] = v
+        super().__init__(input_nodes, directory)
+
+        self.variable = variable
+        self.vkwargs = vkwargs
+        self.node_names = node_names
+
+        return
+    
+    def forward(self, *outputs):
+        """"""
+        super().forward()
+        params = copy.deepcopy(self.vkwargs)
+        params.update({k: v for k, v in zip(self.node_names, outputs)})
+
+        variable = registers.create("variable", self.variable, **params)
+        #print(variable, variable.value)
+
+        return variable.value
 
 @registers.operation.register
 class seqrun(Operation):
@@ -132,13 +169,17 @@ class transfer(Operation):
     """Transfer worker results to target destination.
     """
 
-    def __init__(self, structures, dataset, version, system="mixed", directory="./") -> NoReturn:
+    def __init__(
+        self, structures, dataset, version, 
+        prefix: str="", system: str="mixed", directory="./"
+    ) -> None:
         """"""
         input_nodes = [structures, dataset]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
         self.version = version
 
+        self.prefix = prefix
         self.system = system # molecule/cluster, surface, bulk
 
         return
@@ -165,7 +206,9 @@ class transfer(Operation):
             # -- TODO: check system type
             system_type = self.system # currently, use user input one
             # -- name = description+formula+system_type
-            dirname = "-".join([self.directory.parent.name, formula, system_type])
+            #dirname = "-".join([self.directory.parent.name, formula, system_type])
+            dirname = "-".join([self.prefix, formula, system_type])
+
             target_subdir = target_dir/dirname
             target_subdir.mkdir(parents=True, exist_ok=True)
 
