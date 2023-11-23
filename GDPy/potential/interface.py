@@ -8,6 +8,7 @@ from GDPy.core.operation import Operation
 from GDPy.core.register import registers
 
 from GDPy.worker.train import TrainerBasedWorker
+from ..scheduler.interface import SchedulerVariable
 
 
 @registers.variable.register
@@ -51,9 +52,13 @@ class TrainerVariable(Variable):
 class train(Operation):
 
     def __init__(
-        self, dataset, trainer, scheduler, potter, size: int=1, init_models=None, directory="./", *args, **kwargs
-    ) -> NoReturn:
+        self, dataset, trainer, potter, scheduler=None, size: int=1, init_models=None, 
+        directory="./", *args, **kwargs
+    ) -> None:
         """"""
+        if scheduler is None:
+            scheduler = SchedulerVariable()
+
         input_nodes = [dataset, trainer, scheduler, potter]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
