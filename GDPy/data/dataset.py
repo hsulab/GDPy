@@ -16,9 +16,33 @@ from ..core.register import registers
 from ..core.variable import Variable
 from ..core.node import AbstractNode
 
+def traverse_xyzdirs(wdir):
+    """"""
+    data_dirs = []
+
+    def recursive_traverse(wdir):
+        for p in wdir.iterdir():
+            if p.is_dir():
+                xyzpaths = list(p.glob("*.xyz"))
+                if len(xyzpaths) > 0:
+                    data_dirs.append(p)
+                recursive_traverse(p)
+            else:
+                ...
+        return
+
+    recursive_traverse(wdir)
+
+    return data_dirs
+
+
+class AbstractDataloader(AbstractNode):
+
+    ...
+
 
 @registers.dataloader.register
-class XyzDataloader(AbstractNode):
+class XyzDataloader(AbstractDataloader):
 
     name = "xyz"
 
@@ -51,25 +75,33 @@ class XyzDataloader(AbstractNode):
             * Other file formats.
 
         """
-        data_dirs = []
-        def traverse_dirs(wdir):
-            """"""
-            for p in wdir.iterdir():
-                if p.is_dir():
-                    xyzpaths = list(p.glob("*.xyz"))
-                    if len(xyzpaths) > 0:
-                        data_dirs.append(p)
-                    else:
-                        traverse_dirs(p)
-                else:
-                    ...
-
-            return
-
-        traverse_dirs(self.directory)
+        data_dirs = traverse_xyzdirs(self.directory)
         data_dirs = sorted(data_dirs)
 
         return data_dirs
+    
+    def load_frames(self, *args, **kwargs):
+        """"""
+        data_dirs = traverse_xyzdirs(self.directory)
+        data_dirs = sorted(data_dirs)
+
+        names = [
+            "+".join(str(x.relative_to(self.directory)).split("/")) for x in data_dirs
+        ]
+
+        frames_list = []
+        for p in data_dirs:
+            curr_frames = []
+            xyzpaths = sorted(list(p.glob("*.xyz")))
+            for x in xyzpaths:
+                curr_frames.extend(read(x, ":"))
+            frames_list.append(curr_frames)
+        
+        pairs = []
+        for n, x in zip(names, frames_list):
+            pairs.append([n, x])
+
+        return pairs
 
     def split_train_test(self, reduce_system=False):
         """Read structures and split them into train and test.

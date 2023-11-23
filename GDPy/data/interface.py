@@ -33,7 +33,7 @@ class TempdataVariable(Variable):
             xyzpaths = sorted(list(s.glob("*.xyz")))
             for p in xyzpaths:
                 curr_frames.extend(read(p, ":"))
-            dataset.append([prefix,curr_frames])
+            dataset.append([prefix, curr_frames])
 
         return dataset
 
