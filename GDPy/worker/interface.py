@@ -12,12 +12,14 @@ from ase import Atoms
 from ase.io import read, write
 from ase.geometry import find_mic
 
-from GDPy.core.operation import Operation
-from GDPy.core.variable import Variable
-from GDPy.core.register import registers
+from ..core.operation import Operation
+from ..core.variable import Variable
+from ..core.register import registers
 
 from ..computation.driver import AbstractDriver
 from ..data.array import AtomsNDArray
+from ..potential.manager import AbstractPotentialManager
+from ..scheduler.scheduler import AbstractScheduler
 from .worker import AbstractWorker
 from .drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
@@ -59,7 +61,9 @@ class ComputerVariable(Variable):
     def _load_potter(self, inp):
         """"""
         potter = None
-        if isinstance(inp, Variable):
+        if isinstance(inp, AbstractPotentialManager):
+            potter = inp
+        elif isinstance(inp, Variable):
             potter = inp.value
         elif isinstance(inp, dict):
             potter_params = copy.deepcopy(inp)
@@ -80,6 +84,8 @@ class ComputerVariable(Variable):
         drivers = [] # params
         if isinstance(inp, Variable):
             drivers = inp.value
+        elif isinstance(inp, list): # assume it contains a List of dicts
+            drivers = inp
         elif isinstance(inp, dict): # assume it only contains one driver
             driver_params = copy.deepcopy(inp)
             #driver = self.potter.create_driver(driver_params) # use external backend
@@ -92,7 +98,9 @@ class ComputerVariable(Variable):
     def _load_scheduler(self, inp):
         """"""
         scheduler = None
-        if isinstance(inp, Variable):
+        if isinstance(inp, AbstractScheduler):
+            scheduler = inp
+        elif isinstance(inp, Variable):
             scheduler = inp.value
         elif isinstance(inp, dict):
             scheduler_params = copy.deepcopy(inp)
