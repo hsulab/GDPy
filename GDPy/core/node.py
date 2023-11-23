@@ -30,7 +30,7 @@ class AbstractNode(abc.ABC):
     #: Default parameters.
     default_parameters: dict = dict()
 
-    def __init__(self, directory: Union[str,pathlib.Path]="./", random_seed: int=None, *args, **kwargs):
+    def __init__(self, directory: Union[str,pathlib.Path]="./", random_seed: Union[int, dict]=None, *args, **kwargs):
         """"""
         # - set working directory
         self.directory = directory
@@ -71,11 +71,17 @@ class AbstractNode(abc.ABC):
         """"""
         # - save random seed
         if seed is None:
-            seed = np.random.randint(0, 10000)
+            seed = np.random.randint(0, 1e8)
         self.random_seed = seed
 
         # - assign random seeds
-        self.rng = np.random.Generator(np.random.PCG64(seed))
+        if isinstance(seed, int):
+            self.rng = np.random.Generator(np.random.PCG64(seed))
+        elif isinstance(seed, dict):
+            self.rng = np.random.Generator(np.random.PCG64())
+            self.rng.bit_generator.state = seed
+        else:
+            ...
 
         return
 

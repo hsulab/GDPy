@@ -45,8 +45,10 @@ class AbstractPopulationManager():
     #: Maximum attempts to generate new structures.
     MAX_ATTEMPTS_MULTIPLIER: int = 10
 
-    def __init__(self, params: dict) -> None:
+    def __init__(self, params: dict, rng=np.random.default_rng()) -> None:
         """"""
+        self.rng = rng
+
         # - gen params
         gen_params = params.get(
             "gen", dict(
@@ -320,7 +322,7 @@ class AbstractPopulationManager():
                 ) # if mutation happens, it will not be relaxed
 
                 mut_desc = ""
-                curr_prob = np.random.random()
+                curr_prob = self.rng.random()
                 if curr_prob < self.pmut:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
                     if a3_mut is not None:

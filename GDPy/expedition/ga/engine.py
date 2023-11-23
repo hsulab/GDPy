@@ -64,15 +64,22 @@ class GeneticAlgorithmVariable(Variable):
 
     def __init__(self, builder, worker, params: dict, directory="./", *args, **kwargs) -> None:
         """"""
+        random_seed = kwargs.get("random_seed", None)
+        if random_seed is None:
+            random_seed = np.random.randint(0, 1e8)
+
         # - builder
         if isinstance(builder, dict):
             builder_params = copy.deepcopy(builder)
+            builder_params.update(random_seed=random_seed)
             builder_method = builder_params.pop("method")
             builder = registers.create(
                 "builder", builder_method, convert_name=False, **builder_params
             )
         else: # variable
             builder = builder.value
+            np.random.seed(random_seed)
+
         # - worker
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
@@ -123,25 +130,30 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         # - 
         self.directory = directroy
 
-        if random_seed is None:
-            random_seed = np.random.randint(0, 10000)
-        self.random_seed = random_seed
-        self.rng = np.random.default_rng(seed=random_seed)
-        #np.random.seed(random_seed)
-        #self.rng = np.random # for compatibility
-
         # - 
         self.ga_dict = copy.deepcopy(ga_dict)
 
+        # - random consistency, generator and population
+        if random_seed is None:
+            random_seed = np.random.randint(0, 1e8)
+        self._print(f"GA RANDOM SEED {random_seed}")
+        self.rng = np.random.Generator(np.random.PCG64(seed=random_seed))
+
         # - check system type
         if isinstance(builder, dict):
+            # -- generator will reset np.random by the given random_seed
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
+            prev_seed = builder_params.get("random_seed")
+            builder_params.update(random_seed=random_seed)
             self.generator = registers.create(
                 "builder", builder_method, convert_name=False, **builder_params
             )
         else:
+            prev_seed = builder.random_seed
             self.generator = builder
+            np.random.seed(random_seed)
+        self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {random_seed}")
 
         # - worker info
         #self._print("\n\n===== register worker =====")
@@ -153,7 +165,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self.worker = worker
 
         # --- population ---
-        self.pop_manager = AbstractPopulationManager(ga_dict["population"])
+        self.pop_manager = AbstractPopulationManager(
+            ga_dict["population"], rng=self.rng
+        )
 
         # --- property ---
         self.prop_dict = ga_dict["property"]
@@ -239,6 +253,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         # - generator info
         self._print("\n\n===== register builder =====")
         self._print(self.generator)
+        self._print(f"random_state: f{self.generator.random_seed}")
 
         # NOTE: check database existence and generation number to determine restart
         self._debug(f"database path: {str(self.db_path)}")
@@ -348,12 +363,16 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             #for a in candidate_groups["paired"]:
             #    print(a.info)
 
+            # TODO: random seed...
             current_population = Population(
                 data_connection = self.da,
                 population_size = self.pop_manager.gen_size,
-                comparator = self.comparing
+                comparator = self.comparing, 
+                rng = np.random # This is set when the generator is created
             )
-            self.pop_manager._update_generation_settings(current_population, self.mutations, self.pairing)
+            self.pop_manager._update_generation_settings(
+                current_population, self.mutations, self.pairing
+            )
 
             # ----
             current_candidates = []

@@ -81,6 +81,14 @@ class RandomBuilder(StructureModifier):
             random_seed = random_seed
         )
 
+        # - set random seed for generators due to compatibility
+        if isinstance(self.random_seed, int):
+            np.random.seed(self.random_seed)
+        elif isinstance(self.random_seed, dict):
+            np.random.set_state(self.random_seed)
+        else:
+            ...
+
         # - create region
         region = copy.deepcopy(region)
         shape = region.pop("method", "auto")
@@ -172,9 +180,6 @@ class RandomBuilder(StructureModifier):
             self._update_settings(substrates[0])
         else:
             self._update_settings()
-
-        # - create the starting population
-        np.random.seed(self.random_seed)
 
         generator = StartGenerator(
             self._substrate, 
