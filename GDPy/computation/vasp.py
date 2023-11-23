@@ -261,7 +261,7 @@ class VaspDriver(AbstractDriver):
 
         return verified
     
-    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, cache_traj: List[Atoms]=None, *args, **kwargs):
         """"""
         try:
             if ckpt_wdir is None: # start from the scratch
@@ -286,7 +286,10 @@ class VaspDriver(AbstractDriver):
                 atoms.calc = self.calc
             else:
                 self.calc.read_incar(ckpt_wdir/"INCAR") # read previous incar
-                traj = self.read_trajectory()
+                if cache_traj is None:
+                    traj = self.read_trajectory()
+                else:
+                    traj = cache_traj
                 nframes = len(traj)
                 assert nframes > 0, "VaspDriver restarts with a zero-frame trajectory."
                 dump_period = 1 # since we read vasprun.xml, every frame is dumped

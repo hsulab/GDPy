@@ -88,10 +88,6 @@ class compute(Operation):
                             f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
                         )
                     worker_status.append(True)
-                    # -- gather results
-                    ret = worker.retrieve(include_retrieved=True)
-                    end_frames = [traj[-1] for traj in ret]
-                    write(worker.directory/"end_frames.xyz", end_frames)
                 else:
                     worker_status.append(False)
             else:

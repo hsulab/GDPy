@@ -113,6 +113,7 @@ class DriverBasedWorker(AbstractWorker):
     def _split_groups(self, nframes: int) -> Tuple[List[int],List[int]]:
         """Split nframes into groups."""
         # - split frames
+        self._debug(f"split_groups for {nframes} nframes and {self.batchsize} batchsize.")
         ngroups = int(np.floor(1.*nframes/self.batchsize))
         group_indices = [0]
         for i in range(ngroups):
