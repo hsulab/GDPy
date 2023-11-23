@@ -225,7 +225,7 @@ class AbstractDriver(abc.ABC):
 
         """
         # - compatibility
-        read_exists = kwargs.get("read_exists", None)
+        read_exists = kwargs.pop("read_exists", None)
         if read_exists is not None:
             read_ckpt = read_exists
 
