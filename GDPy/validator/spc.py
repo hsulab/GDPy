@@ -5,6 +5,7 @@ import copy
 import itertools
 import warnings
 import pathlib
+import re
 from typing import List, Union
 
 import numpy as np
@@ -35,7 +36,7 @@ class SinglepointValidator(AbstractValidator):
     """Calculate energies on each structures and save them to file.
     """
 
-    def __init__(self, groups: dict=None, *args, **kwargs):
+    def __init__(self, groups: dict=None, convergence: dict=None, *args, **kwargs):
         """Init a spc validator.
 
         Args:
@@ -44,6 +45,7 @@ class SinglepointValidator(AbstractValidator):
         """
         super().__init__(*args, **kwargs)
         self.groups = groups
+        self.convergence = convergence
 
         return
 
@@ -210,6 +212,46 @@ class SinglepointValidator(AbstractValidator):
             rmse_ret[rms_name] = _rms
 
         return nframes, rmse_ret
+    
+    def report_convergence(self, *args, **kwargs):
+        """"""
+        converged = True
+
+        rmse_fpath = self.directory/"rmse.dat"
+        if rmse_fpath.exists():
+            with open(rmse_fpath, "r") as fopen:
+                lines = fopen.readlines()
+            col_names = lines[0].strip()[1:].split()[1:]
+            row_names = [x.strip().split()[0] for x in lines[1:]]
+            data = np.array([x.strip().split()[1:] for x in lines[1:]], dtype=np.float32)
+
+            # --
+            convergence = copy.deepcopy(self.convergence)
+            pattern = convergence.pop("pattern", None)
+            if pattern is not None:
+                matched_names = [x for x in row_names if re.match(pattern, x)]
+            else:
+                matched_names = row_names
+            
+            assert all([x in col_names for x in convergence.keys()]), "Unavailable keys for convergence."
+
+            converged = True
+            for name in matched_names:
+                self._print(name)
+                iname = row_names.index(name)
+                for k, v in convergence.items():
+                    ik = col_names.index(k)
+                    self._print(f"{data[iname, ik]} <=? {v}")
+                    if data[iname, ik] <= v:
+                        converged = True
+                    else:
+                        converged = False
+        else:
+            self._print("No rmse data is available and set convergence to True.")
+        
+        self._print(f"    >>> {converged}")
+
+        return converged
 
 
 if __name__ == "__main__":

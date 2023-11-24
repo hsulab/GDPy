@@ -75,7 +75,6 @@ class validate(Operation):
                 ...
             elif isinstance(v, AbstractDataloader):
                 v = v.load_frames()
-                self._print(f"data_dirs: {v}")
             else:
                 raise RuntimeError(f"{k} Dataset {dataset.__class__.__name__} is not a dict or loader.")
             dataset_[k] = v
@@ -91,9 +90,16 @@ class validate(Operation):
     
     def report_convergence(self, *args, **kwargs) -> bool:
         """"""
-        self._print("asdashfkdsqhfiuwehfuiqwhefiwu1!!")
+        input_nodes = self.input_nodes
+        assert hasattr(input_nodes[1], "output"), "Operation cannot report convergence without forwarding."
+        validator = input_nodes[1].output
 
-        converged = True
+        self._print(f"{validator.__class__.__name__} Convergence")
+        if hasattr(validator, "report_convergence"):
+            converged = validator.report_convergence()
+        else:
+            self._print("No report available and set convergence to True.")
+            converged = True
 
         return converged
 
