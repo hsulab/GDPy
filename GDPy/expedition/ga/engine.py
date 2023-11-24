@@ -136,6 +136,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         # - random consistency, generator and population
         if random_seed is None:
             random_seed = np.random.randint(0, 1e8)
+        self.random_seed = random_seed
         self._print(f"GA RANDOM SEED {random_seed}")
         self.rng = np.random.Generator(np.random.PCG64(seed=random_seed))
 
@@ -649,6 +650,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
     def as_dict(self) -> dict:
         """"""
         engine_params = {}
+        engine_params["random_seed"] = self.random_seed
         engine_params["method"] = "genetic_algorithm"
         engine_params["builder"] = self.generator.as_dict()
         engine_params["worker"] = self.worker.as_dict()
