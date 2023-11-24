@@ -34,8 +34,9 @@ class ActiveSession():
         for curr_step in range(self.steps):
             curr_wdir = self.directory/f"iter.{str(curr_step).zfill(4)}"
             # -- run operation
+            nodes_postorder = traverse_postorder(operation)
             finished = self._irun(
-                wdir=curr_wdir, operation=operation, feed_dict=feed_dict, 
+                wdir=curr_wdir, nodes_postorder=nodes_postorder, feed_dict=feed_dict, 
             )
             if not finished:
                 self._print("wait current iteration to finish...")
@@ -45,18 +46,28 @@ class ActiveSession():
                     fopen.write(
                         f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
                     )
+                # --- report
+                self._print("[{:^24s}]".format("CONVERGENCE"))
+                converged_list = []
+                for node in nodes_postorder:
+                    if hasattr(node, "report_convergence"):
+                        converged = node.report_convergence()
+                        converged_list.append(converged)
+                if all(converged_list):
+                    self._print(f"Active Session converged at step {curr_step}.")
+                    break
+                ...
         else:
             ... # ALL iterations finished...
 
         return
     
-    def _irun(self, wdir, operation, feed_dict: dict={}) -> bool:
+    def _irun(self, wdir, nodes_postorder, feed_dict: dict={}) -> bool:
         """"""
         if (wdir/"FINISHED").exists():
             return True
 
         # - find forward order
-        nodes_postorder = traverse_postorder(operation)
         self._print(
             "[{:^24s}] NUM_NODES: {} AT MAIN: {}".format(
                 "START", len(nodes_postorder), str(wdir)
@@ -71,10 +82,10 @@ class ActiveSession():
                 node.version = wdir.name
 
             # NOTE: reset directory since it maybe changed
-            #prev_name = node.directory.name
-            #if not prev_name:
-            #    prev_name = node.__class__.__name__
-            prev_name = node.__class__.__name__
+            prev_name = node.directory.name
+            if not prev_name:
+                prev_name = node.__class__.__name__
+            #prev_name = node.__class__.__name__
             node.directory = wdir/f"{str(i).zfill(4)}.{prev_name}"
             if node.__class__.__name__.endswith("Variable"):
                 node_type = "VX"
