@@ -1,17 +1,57 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import copy
 from typing import List
 
 import numpy as np
 
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 from ase.ga.population import Population
 from ase.ga.data import DataConnection
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: List[str] = ["extinct", "origin"]
+
+def clean_seed_structures(prev_frames: List[Atoms]):
+    """"""
+    curr_frames = []
+    energies, forces = [], []
+    for i, prev_atoms in enumerate(prev_frames):
+        # - copy geometry
+        curr_atoms = Atoms(
+            symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
+            positions=copy.deepcopy(prev_atoms.get_positions()),
+            cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
+            pbc=copy.deepcopy(prev_atoms.get_pbc()),
+            tags = prev_atoms.get_tags() # retain this for molecules
+        )
+        #if prev_atoms.get_kinetic_energy() > 0.: # retain this for MD
+        #    curr_atoms.set_momenta(prev_atoms.get_momenta()) 
+        curr_frames.append(curr_atoms)
+
+        # - save properties
+        try:
+            ene = prev_atoms.get_potential_energy()
+            energies.append(ene)
+        except:
+            raise RuntimeError(f"Cannot get energy for seed structure {i}.")
+
+        try:
+            frc = prev_atoms.get_forces()
+            forces.append(frc)
+        except:
+            raise RuntimeError(f"Cannot get forces for seed structure {i}.")
+    
+    for a, e, f in zip(curr_frames, energies, forces):
+        calc = SinglePointCalculator(a, energy=e, forces=f)
+        a.calc = calc
+
+    return curr_frames
+
 
 class AbstractPopulationManager():
 
@@ -146,12 +186,13 @@ class AbstractPopulationManager():
         seed_frames = []
         if self.init_seed_file is not None:
             seed_frames = read(self.init_seed_file, ":")
+            seed_frames = clean_seed_structures(seed_frames)
             seed_size = len(seed_frames)
             assert (seed_size > 0 and seed_size <= self.init_size), "The number of seed structures is invalid."
         else:
             seed_size = 0
 
-        # TODO: check force convergence and only add converged structures
+        # TODO: seed structures will be calculated again??
         # TODO: check atom permutation
         for i, atoms in enumerate(seed_frames):
             # TODO: check atom order
@@ -173,9 +214,6 @@ class AbstractPopulationManager():
             raise RuntimeError("It fails to generate the initial population. Check the seed file and the system setting.")
 
         self._print(f"finished creating initial population...")
-
-        #self.init_seed_size = seed_size
-        #self.init_ran_size = len(random_frames)
 
         return starting_population
 
