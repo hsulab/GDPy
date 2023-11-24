@@ -173,12 +173,13 @@ class DeepmdTrainer(AbstractTrainer):
         train_size, test_size = [], []
         train_frames, test_frames = [], []
         adjusted_batchsizes = [] # auto-adjust batchsize based on nframes
-        for i, (cur_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
-            cur_system = pathlib.Path(cur_system)
-            set_names.append(cur_system.name)
-            self._print(f"System {cur_system.stem} Batchsize {curr_batchsize}\n")
+        for i, (curr_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
+            curr_system = pathlib.Path(curr_system)
+            set_name = "+".join(str(curr_system.relative_to(dataset.directory)).split("/"))
+            set_names.append(set_name)
+            self._print(f"System {set_name} Batchsize {curr_batchsize}\n")
             frames = [] # all frames in this subsystem
-            subsystems = list(cur_system.glob("*.xyz"))
+            subsystems = list(curr_system.glob("*.xyz"))
             subsystems.sort() # sort by alphabet
             for p in subsystems:
                 # read and split dataset
