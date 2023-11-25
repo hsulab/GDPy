@@ -483,6 +483,20 @@ class DeepmdManager(AbstractPotentialManager):
         self.calc = self._create_calculator(self.calc_params)
 
         return
+    
+    def remove_loaded_models(self, *args, **kwargs):
+        """Loaded TF models should be removed before any copy.deepcopy operations."""
+        self.calc.reset()
+        if self.calc_backend == "ase":
+            if isinstance(self.calc, CommitteeCalculator):
+                for c in self.calc.calcs:
+                    c.dp = None
+            else:
+                self.calc.dp = None
+        else:
+            ...
+
+        return
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ from GDPy.core.register import registers
 from GDPy.utils.command import convert_indices
 from GDPy.worker.interface import ComputerVariable
 from GDPy.worker.drive import DriverBasedWorker, CommandDriverBasedWorker
+from GDPy.potential.managers.deepmd import DeepmdManager
 from ..expedition import AbstractExpedition
 
 """
@@ -501,6 +502,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         num_gen = self.cur_gen
         if self.end_of_gen:
             num_gen += 1
+
+        if hasattr(self.worker.potter, "remove_loaded_models"):
+            self.worker.potter.remove_loaded_models()
         
         workers = []
         for i in range(num_gen):
