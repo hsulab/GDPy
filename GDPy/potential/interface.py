@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import re
 from typing import NoReturn
 
-from GDPy.core.variable import Variable
-from GDPy.core.operation import Operation
-from GDPy.core.register import registers
+from ..core.variable import Variable, DummyVariable
+from ..core.operation import Operation
+from ..core.register import registers
 
-from GDPy.worker.train import TrainerBasedWorker
+from ..potential.manager import AbstractPotentialManager
+from ..potential.trainer import AbstractTrainer
+from ..worker.train import TrainerBasedWorker
 from ..scheduler.interface import SchedulerVariable
+from ..scheduler.scheduler import AbstractScheduler
 
 
 @registers.variable.register
@@ -51,14 +56,14 @@ class TrainerVariable(Variable):
 @registers.operation.register
 class train(Operation):
 
+    #: Whether to actively update some attrs.
+    _active: bool = False
+
     def __init__(
-        self, dataset, trainer, potter, scheduler=None, size: int=1, init_models=None, 
+        self, dataset, trainer, potter, scheduler=DummyVariable(), size: int=1, init_models=None, 
         directory="./", *args, **kwargs
     ) -> None:
         """"""
-        if scheduler is None:
-            scheduler = SchedulerVariable()
-
         input_nodes = [dataset, trainer, scheduler, potter]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
@@ -74,9 +79,35 @@ class train(Operation):
 
         return
     
-    def forward(self, dataset, trainer, scheduler, potter):
+    def forward(
+        self, dataset, trainer: AbstractTrainer, 
+        scheduler: AbstractScheduler, potter: AbstractPotentialManager
+    ):
         """"""
         super().forward()
+
+        init_models = self.init_models
+        if self._active:
+            curr_iter = int(self.directory.parent.name.split(".")[-1])
+            if curr_iter > 0:
+                self._print("    >>> Update init_models...")
+                prev_wdir = (
+                    self.directory.parent.parent / 
+                    f"iter.{str(curr_iter-1).zfill(4)}" / 
+                    self.directory.name
+                )
+                prev_mdirs = [] # model dirs
+                for p in prev_wdir.iterdir():
+                    if p.is_dir() and re.match("m[0-9]+", p.name):
+                        prev_mdirs.append(p)
+                init_models = [(p/trainer.frozen_name).resolve() for p in prev_mdirs]
+                for p in init_models:
+                    self._print(str(p))
+                assert init_models, "No previous models found."
+        
+        # - 
+        if scheduler is None:
+            scheduler = SchedulerVariable().value
 
         # - update dir
         worker = TrainerBasedWorker(trainer, scheduler, directory=self.directory)
@@ -84,28 +115,15 @@ class train(Operation):
         # - run
         manager = None
 
-        _ = worker.run(dataset, size=self.size, init_models=self.init_models)
+        _ = worker.run(dataset, size=self.size, init_models=init_models)
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
             models = worker.retrieve(include_retrieved=True)
-            print("frozen models: ", models)
-            #manager = registers.create(
-            #    "manager", trainer.name, convert_name=True
-            #)
-            #potter_params = dict(
-            #    backend = "ase",
-            #    #backend = "lammps",
-            #    #command = "lmp -in in.lammps 2>&1 > lmp.out",
-            #    type_list = trainer.type_list,
-            #    model = models
-            #)
-            #manager.register_calculator(potter_params)
+            self._print(f"frozen models: {models}")
             potter_params = potter.as_dict()
             potter_params["params"]["model"] = models
-            #print("potter: ", potter_params)
             potter.register_calculator(potter_params["params"])
             manager = potter
-            #print("manager: ", manager.calc)
         else:
             ...
         
@@ -113,6 +131,13 @@ class train(Operation):
             self.status = "finished"
 
         return manager
+    
+    def enable_active(self, *args, **kwargs):
+        """"""
+        self._active = True
+
+        return
+
 
 if __name__ == "__main__":
     ...

@@ -31,6 +31,13 @@ class ActiveSession():
     
     def run(self, operation, feed_dict: dict={}, *args, **kwargs) -> None:
         """"""
+        # - update nodes' attrs based on the previous iteration
+        nodes_postorder = traverse_postorder(operation)
+        for node in nodes_postorder:
+            if hasattr(node, "enable_active"):
+                node.enable_active()
+
+        # -
         for curr_step in range(self.steps):
             curr_wdir = self.directory/f"iter.{str(curr_step).zfill(4)}"
             # -- run operation
@@ -84,7 +91,7 @@ class ActiveSession():
                 node.version = wdir.name
 
             # NOTE: reset directory since it maybe changed
-            prev_name = node.directory.name
+            prev_name = node.directory.name.split(".")[-1] # remove previous orders
             if not prev_name:
                 prev_name = node.__class__.__name__
             #prev_name = node.__class__.__name__
@@ -99,6 +106,7 @@ class ActiveSession():
                 )
             )
 
+            # -- forward
             if isinstance(node, Placeholder):
                 node.output = feed_dict[node]
             elif isinstance(node, Variable):
