@@ -56,6 +56,8 @@ class ActiveSession():
                 if all(converged_list):
                     self._print(f"Active Session converged at step {curr_step}.")
                     break
+                else:
+                    self._print(f"Active Session UNconverged at step {curr_step}.")
                 ...
         else:
             ... # ALL iterations finished...

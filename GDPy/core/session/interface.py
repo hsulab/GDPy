@@ -132,6 +132,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     if feed_command is not None:
         pairs = [x.split("=") for x in feed_command]
         for k, v in pairs:
+            if v.isdigit():
+                v = int(v)
             conf.placeholders[k] = v
     config._debug(f"YAML: {OmegaConf.to_yaml(conf)}")
 
