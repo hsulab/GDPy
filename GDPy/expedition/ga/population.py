@@ -185,6 +185,7 @@ class AbstractPopulationManager():
         self._print("\n----- try to add seed structures -----")
         seed_frames = []
         if self.init_seed_file is not None:
+            self._print(str(self.init_seed_file))
             seed_frames = read(self.init_seed_file, ":")
             seed_frames = clean_seed_structures(seed_frames)
             seed_size = len(seed_frames)
