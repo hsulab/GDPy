@@ -8,6 +8,7 @@ from ..utils.command import parse_input_file
 from ..core.operation import Operation
 from ..core.register import registers
 from ..worker.explore import ExpeditionBasedWorker
+from ..scheduler.interface import SchedulerVariable
 
 
 """
@@ -15,16 +16,18 @@ from ..worker.explore import ExpeditionBasedWorker
 
 class explore(Operation):
 
-    def __init__(self, expedition, scheduler, wait_time=60, directory="./", *args, **kwargs) -> None:
+    def __init__(self, expedition, worker, scheduler=None, wait_time=60, directory="./", *args, **kwargs) -> None:
         """"""
-        input_nodes = [expedition, scheduler]
+        if scheduler is None:
+            scheduler = SchedulerVariable()
+        input_nodes = [expedition, worker, scheduler]
         super().__init__(input_nodes, directory)
 
         self.wait_time = wait_time
 
         return
 
-    def forward(self, expedition, scheduler):
+    def forward(self, expedition, dyn_worker, scheduler):
         """Explore an expedition and forward results for further analysis.
 
         Returns:
@@ -33,8 +36,9 @@ class explore(Operation):
         """
         super().forward()
 
-        # - 
-        basic_workers = []
+        # -
+        if hasattr(expedition, "register_worker"):
+            expedition.register_worker(dyn_worker)
         
         # - run expedition with a worker
         worker = ExpeditionBasedWorker(expedition, scheduler)
@@ -43,6 +47,8 @@ class explore(Operation):
 
         worker.run()
         worker.inspect(resubmit=True)
+
+        basic_workers = []
         if worker.get_number_of_running_jobs() == 0:
             basic_workers = worker.retrieve(include_retrieved=True)
             self._debug(f"basic_workers: {basic_workers}")
@@ -65,6 +71,8 @@ def run_expedition(config_params: dict, wait: float=None, directory="./", potter
 
     expedition = registers.create("variable", method, convert_name=True, **config_params).value
     expedition.directory = directory
+    if hasattr(expedition, "register_worker"):
+        expedition.register_worker(config_params["worker"])
 
     if wait is not None:
         for i in range(1000):

@@ -26,7 +26,8 @@ from .population import AbstractPopulationManager
 from GDPy.core.variable import Variable
 from GDPy.core.register import registers
 from GDPy.utils.command import convert_indices
-from GDPy.worker.drive import DriverBasedWorker
+from GDPy.worker.interface import ComputerVariable
+from GDPy.worker.drive import DriverBasedWorker, CommandDriverBasedWorker
 from ..expedition import AbstractExpedition
 
 """
@@ -62,7 +63,7 @@ Operators
 
 class GeneticAlgorithmVariable(Variable):
 
-    def __init__(self, builder, worker, params: dict, directory="./", *args, **kwargs) -> None:
+    def __init__(self, builder, params: dict, directory="./", *args, **kwargs) -> None:
         """"""
         random_seed = kwargs.get("random_seed", None)
         if random_seed is None:
@@ -81,23 +82,24 @@ class GeneticAlgorithmVariable(Variable):
             np.random.seed(random_seed)
 
         # - worker
-        if isinstance(worker, dict):
-            worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
-        elif isinstance(worker, DriverBasedWorker):
-            worker = worker
-        else: # computer variable
-            worker = worker.value[0]
-        engine = self._create_engine(builder, worker, params, directory, *args, **kwargs)
+        #if isinstance(worker, dict):
+        #    worker_params = copy.deepcopy(worker)
+        #    worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
+        #elif isinstance(worker, DriverBasedWorker):
+        #    worker = worker
+        #else: # computer variable
+        #    worker = worker.value[0]
+        engine = self._create_engine(builder, params, directory, *args, **kwargs)
         super().__init__(initial_value=engine, directory=directory)
 
         return
     
-    def _create_engine(self, builder, worker, params, directory, *args, **kwargs):
+    def _create_engine(self, builder, params, directory, *args, **kwargs):
         """"""
-        engine = GeneticAlgorithemEngine(builder, worker, params, directory, *args, **kwargs)
+        engine = GeneticAlgorithemEngine(builder, params, directory, *args, **kwargs)
 
         return engine
+
 
 class GeneticAlgorithemEngine(AbstractExpedition):
 
@@ -117,7 +119,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
     find_neighbors = None
     perform_parametrization = None
 
-    def __init__(self, builder: dict, worker: dict, ga_dict: dict, directroy="./", random_seed=None, *args, **kwargs):
+    def __init__(self, builder: dict, ga_dict: dict, directroy="./", random_seed=None, *args, **kwargs):
         """Initialise engine.
 
         Args:
@@ -157,13 +159,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {random_seed}")
 
         # - worker info
-        #self._print("\n\n===== register worker =====")
-        if isinstance(worker, dict):
-            worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
-        else:
-            ...
-        self.worker = worker
+        self.worker = None
 
         # --- population ---
         self.pop_manager = AbstractPopulationManager(
@@ -232,6 +228,26 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         return
     
+    def register_worker(self, worker: dict, *args, **kwargs):
+        """"""
+        if isinstance(worker, dict):
+            worker_params = copy.deepcopy(worker)
+            worker = registers.create(
+                "variable", "computer", convert_name=True, **worker_params
+            ).value[0]
+        elif isinstance(worker, list): # assume it is from a computervariable
+            worker = worker[0]
+        elif isinstance(worker, ComputerVariable):
+            worker = worker.value[0]
+        elif isinstance(worker, DriverBasedWorker):
+            worker = worker
+        else:
+            raise RuntimeError(f"Unknown worker type {worker}")
+        
+        self.worker = worker
+
+        return
+    
     def run(self, *args, **kwargs):
         """Run the GA procedure several steps.
 
@@ -240,6 +256,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         """
         # - outputs
+        assert self.worker is not None, "GA has not set its worker properly."
         self.worker.directory = self.directory / self.CALC_DIRNAME
         self.pop_manager._print = self._print
 
