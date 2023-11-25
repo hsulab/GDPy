@@ -4,10 +4,11 @@
 import copy
 from typing import NoReturn
 
-from ..core.variable import Variable
+from ..core.variable import Variable, DummyVariable
 from ..core.operation import Operation
 from ..core.register import registers
 
+from ..data.array import AtomsNDArray
 from ..data.dataset import AbstractDataloader
 from ..worker.drive import DriverBasedWorker
 from .validator import AbstractValidator
@@ -35,7 +36,7 @@ class validate(Operation):
 
     """
 
-    def __init__(self, structures, validator, worker, run_params: dict={}, directory="./") -> NoReturn:
+    def __init__(self, structures, validator, worker=DummyVariable(), run_params: dict={}, directory="./") -> None:
         """Init a validate operation.
 
         Args:
@@ -61,10 +62,13 @@ class validate(Operation):
         super().forward()
 
         # - create a worker
-        nworkers = len(workers)
-        assert nworkers == 1, "Validator only accepts one worker."
-        worker = workers[0]
-        worker.directory = self.directory
+        if workers is not None:
+            nworkers = len(workers)
+            assert nworkers == 1, "Validator only accepts one worker."
+            worker = workers[0]
+            worker.directory = self.directory
+        else:
+            worker = None
 
         # NOTE: In an active session, the dataset is dynamic, thus, 
         #       we need load the dataset before run...
@@ -73,10 +77,12 @@ class validate(Operation):
         for k, v in dataset.items():
             if isinstance(v, dict):
                 ...
+            elif isinstance(v, AtomsNDArray):
+                ...
             elif isinstance(v, AbstractDataloader):
                 v = v.load_frames()
             else:
-                raise RuntimeError(f"{k} Dataset {dataset.__class__.__name__} is not a dict or loader.")
+                raise RuntimeError(f"{k} Dataset {type(v)} is not a dict or loader.")
             dataset_[k] = v
         dataset = dataset_
 
@@ -98,7 +104,7 @@ class validate(Operation):
         if hasattr(validator, "report_convergence"):
             converged = validator.report_convergence()
         else:
-            self._print("No report available and set convergence to True.")
+            self._print("    >>> True  (No report available)")
             converged = True
 
         return converged

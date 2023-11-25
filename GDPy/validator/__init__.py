@@ -35,6 +35,9 @@ registers.validator.register("surface_energy")(SurfaceEnergyValidator)
 from .diffusion_coefficient import DiffusionCoefficientValidator
 registers.validator.register("diffusion_coefficient")(DiffusionCoefficientValidator)
 
+from .rank import RankValidator
+registers.validator.register("rank")(RankValidator)
+
 from .rxn import PathwayValidator
 registers.validator.register("mep")(PathwayValidator)
 
