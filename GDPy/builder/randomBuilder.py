@@ -62,7 +62,7 @@ class RandomBuilder(StructureModifier):
 
     def __init__(
         self, composition: Mapping[str,int], substrates = None,
-        region: dict={}, cell=None, covalent_ratio=[1.0, 2.0], 
+        region: dict={}, cell=None, covalent_ratio=[1.0, 2.0], max_times_size: int=5,
         random_seed=None, *args, **kwargs
     ):
         super().__init__(substrates=substrates, random_seed=random_seed, *args, **kwargs)
@@ -73,6 +73,7 @@ class RandomBuilder(StructureModifier):
             region = region,
             cell = cell,
             covalent_ratio = covalent_ratio,
+            max_times_size = max_times_size,
             test_too_far = kwargs.get("test_too_far", True), # test_too_far
             test_dist_to_slab = kwargs.get("test_dist_to_slab", True), # test_dist_to_slab
             cell_volume = kwargs.get("cell_volume", None),
@@ -88,6 +89,9 @@ class RandomBuilder(StructureModifier):
             np.random.set_state(self.random_seed)
         else:
             ...
+        
+        # - 
+        self.MAX_TIMES_SIZE = max_times_size
 
         # - create region
         region = copy.deepcopy(region)
