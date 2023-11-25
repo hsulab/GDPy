@@ -116,12 +116,12 @@ class DeepmdTrainer(AbstractTrainer):
         cum_batchsizes, train_sys_dirs = convert_groups(
             set_names, train_frames, batchsizes, 
             self.config["model"]["type_map"],
-            "train", train_dir
+            "train", train_dir, self._print
         )
         _, valid_sys_dirs = convert_groups(
             set_names, test_frames, batchsizes,
             self.config["model"]["type_map"], 
-            "valid", train_dir
+            "valid", train_dir, self._print
         )
         self._print(f"accumulated number of batches: {cum_batchsizes}")
 
@@ -298,7 +298,7 @@ class DeepmdTrainer(AbstractTrainer):
 
 def convert_groups(
     names: List[str], groups: List[List[Atoms]], batchsizes: Union[List[int],int],
-    type_map: List[str], suffix, dest_dir="./"
+    type_map: List[str], suffix, dest_dir="./", pfunc=print
 ):
     """"""
     nsystems = len(groups)
@@ -320,7 +320,7 @@ def convert_groups(
     for name, frames, batchsize in zip(names, groups, batchsizes):
         nframes = len(frames)
         nbatch = int(np.ceil(nframes / batchsize))
-        print(f"{suffix} system {name} nframes {nframes} nbatch {nbatch} batchsize {batchsize}")
+        pfunc(f"{suffix} system {name} nframes {nframes} nbatch {nbatch} batchsize {batchsize}")
         # --- check composition consistent
         compositions = [get_formula_from_atoms(a) for a in frames]
         assert len(set(compositions)) == 1, f"Inconsistent composition {len(set(compositions))} =? 1..."
@@ -336,13 +336,16 @@ def convert_groups(
                 forces = atoms.get_forces().copy()
                 del atoms.arrays["forces"]
                 atoms.arrays["force"] = forces
-                # TODO: dpdata doesnot support read tags
-                if "tags" in atoms.arrays:
-                    del atoms.arrays["tags"]
-                if "momenta" in atoms.arrays:
-                    del atoms.arrays["momenta"]
-                if "initial_charges" in atoms.arrays:
-                    del atoms.arrays["initial_charges"]
+                keys = copy.deepcopy(list(atoms.arrays.keys()))
+                for k in keys:
+                    if k not in ["numbers", "positions", "force"]:
+                        del atoms.arrays[k]
+                #if "tags" in atoms.arrays:
+                #    del atoms.arrays["tags"]
+                #if "momenta" in atoms.arrays:
+                #    del atoms.arrays["momenta"]
+                #if "initial_charges" in atoms.arrays:
+                #    del atoms.arrays["initial_charges"]
             except:
                 pass
             finally:
