@@ -153,7 +153,7 @@ class SingleWorker(AbstractWorker):
             results = []
             if unretrieved_wdirs:
                 unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-                self._debug("unretrieved_wdirs: ", unretrieved_wdirs)
+                self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
                 for p in unretrieved_wdirs:
                     self.driver.directory = self.directory
                     results.append(self.driver.read_trajectory())

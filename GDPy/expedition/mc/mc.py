@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import logging
 import os
 import shutil
 import pathlib
@@ -204,6 +205,13 @@ class MonteCarlo(AbstractExpedition):
 
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
+        # - some imported packages change `logging.basicConfig` 
+        #   and accidently add a StreamHandler to logging.root
+        #   so remove it...
+        for h in logging.root.handlers:
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+                logging.root.removeHandler(h)
+
         # - prepare logger and output some basic info...
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
