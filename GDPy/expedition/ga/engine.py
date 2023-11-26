@@ -249,6 +249,15 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         return
     
+    def update_active_params(self, prev_wdir, *args, **kwargs):
+        """"""
+        candidates = read(prev_wdir/"results"/"all_candidates.xyz", ":")
+
+        init_size = self.pop_manager.init_size
+        self.pop_manager.init_seed_file = candidates[:init_size]
+
+        return
+    
     def run(self, *args, **kwargs):
         """Run the GA procedure several steps.
 

@@ -3,6 +3,7 @@
 
 
 import copy
+import pathlib
 from typing import List
 
 import numpy as np
@@ -186,9 +187,17 @@ class AbstractPopulationManager():
         seed_frames = []
         if self.init_seed_file is not None:
             self._print(str(self.init_seed_file))
-            seed_frames = read(self.init_seed_file, ":")
+            if isinstance(self.init_seed_file, str):
+                seed_frames = read(self.init_seed_file, ":")
+            elif isinstance(self.init_seed_file, pathlib.Path):
+                seed_frames = read(self.init_seed_file, ":")
+            elif isinstance(self.init_seed_file, list): # List[Atoms]
+                seed_frames = self.init_seed_file
+            else:
+                raise RuntimeError(f"Init_seed_file {self.init_seed_file} formst is unsuppoted.")
             seed_frames = clean_seed_structures(seed_frames)
             seed_size = len(seed_frames)
+            self._print(f"number of seed frames: {seed_size}")
             assert (seed_size > 0 and seed_size <= self.init_size), "The number of seed structures is invalid."
         else:
             seed_size = 0

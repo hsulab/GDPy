@@ -16,7 +16,13 @@ from ..scheduler.interface import SchedulerVariable
 
 class explore(Operation):
 
-    def __init__(self, expedition, worker, scheduler=None, wait_time=60, directory="./", *args, **kwargs) -> None:
+    #: Whether to actively update some attrs.
+    _active: bool = False
+
+    def __init__(
+        self, expedition, worker, scheduler=None, wait_time=60, 
+        active: bool=False, directory="./", *args, **kwargs
+    ) -> None:
         """"""
         if scheduler is None:
             scheduler = SchedulerVariable()
@@ -24,6 +30,8 @@ class explore(Operation):
         super().__init__(input_nodes, directory)
 
         self.wait_time = wait_time
+
+        self._active = active
 
         return
 
@@ -35,6 +43,21 @@ class explore(Operation):
         
         """
         super().forward()
+
+        expeditions = [expedition]
+        nexpeditions = len(expeditions)
+        if self._active:
+            curr_iter = int(self.directory.parent.name.split(".")[-1])
+            if curr_iter > 0:
+                self._print("    >>> Update seed_file...")
+                for i in range(nexpeditions):
+                    prev_wdir = (
+                        self.directory.parent.parent / 
+                        f"iter.{str(curr_iter-1).zfill(4)}" / 
+                        self.directory.name
+                    ) / f"expedition-{i}"
+                    if hasattr(expedition, "update_active_params"):
+                        expedition.update_active_params(prev_wdir)
 
         # -
         if hasattr(expedition, "register_worker"):
