@@ -97,7 +97,7 @@ class validate(Operation):
     def report_convergence(self, *args, **kwargs) -> bool:
         """"""
         input_nodes = self.input_nodes
-        assert hasattr(input_nodes[1], "output"), "Operation cannot report convergence without forwarding."
+        assert hasattr(input_nodes[1], "output"), f"Operation {self.directory.name} cannot report convergence without forwarding."
         validator = input_nodes[1].output
 
         self._print(f"{validator.__class__.__name__} Convergence")
