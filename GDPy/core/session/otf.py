@@ -32,10 +32,10 @@ class ActiveSession():
     def run(self, operation, feed_dict: dict={}, *args, **kwargs) -> None:
         """"""
         # - update nodes' attrs based on the previous iteration
-        nodes_postorder = traverse_postorder(operation)
-        for node in nodes_postorder:
-            if hasattr(node, "enable_active"):
-                node.enable_active()
+        #nodes_postorder = traverse_postorder(operation)
+        #for node in nodes_postorder:
+        #    if hasattr(node, "enable_active"):
+        #        node.enable_active()
 
         # -
         for curr_step in range(self.steps):

@@ -60,8 +60,8 @@ class train(Operation):
     _active: bool = False
 
     def __init__(
-        self, dataset, trainer, potter, scheduler=DummyVariable(), size: int=1, init_models=None, 
-        directory="./", *args, **kwargs
+        self, dataset, trainer, potter, scheduler=DummyVariable(), size: int=1, 
+        init_models=None, active: bool=False, directory="./", *args, **kwargs
     ) -> None:
         """"""
         input_nodes = [dataset, trainer, scheduler, potter]
@@ -76,6 +76,8 @@ class train(Operation):
         else:
             self.init_models = [None]*self.size
         assert len(self.init_models) == self.size, f"The number of init models {self.init_models} is inconsistent with size {self.size}."
+
+        self._active = active
 
         return
     
@@ -102,7 +104,7 @@ class train(Operation):
                         prev_mdirs.append(p)
                 init_models = [(p/trainer.frozen_name).resolve() for p in prev_mdirs]
                 for p in init_models:
-                    self._print(str(p))
+                    self._print(" "*8+str(p))
                 assert init_models, "No previous models found."
         
         # - 
@@ -131,12 +133,6 @@ class train(Operation):
             self.status = "finished"
 
         return manager
-    
-    def enable_active(self, *args, **kwargs):
-        """"""
-        self._active = True
-
-        return
 
 
 if __name__ == "__main__":
