@@ -166,10 +166,13 @@ class RandomBuilder(StructureModifier):
             else:
                 break
         else:
-            if soft_error:
-                warnings.warn(f"Failed to create {size} structures, only {nframes} are created.", UserWarning)
+            if size > 0:
+                if soft_error:
+                    warnings.warn(f"Failed to create {size} structures, only {nframes} are created.", UserWarning)
+                else:
+                    raise RuntimeError(f"Failed to create {size} structures, only {nframes} are created.")
             else:
-                raise RuntimeError(f"Failed to create {size} structures, only {nframes} are created.")
+                ...
         
         return frames
     
