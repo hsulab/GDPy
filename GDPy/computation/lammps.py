@@ -81,40 +81,34 @@ def parse_thermo_data(logfile_path) -> dict:
             break
     else:
         end_idx = idx
-    config._debug(f"lammps LOG index: {start_idx} {end_idx}")
+    config._debug(f"Initial lammps LOG index: {start_idx} {end_idx}")
     
     # - check valid lines
     #   sometimes the line may not be complete
     ncols = len(lines[start_idx].strip().split())
-    for i in range(end_idx,start_idx,-1):
+    for i in range(end_idx, start_idx, -1):
         curr_data = lines[i].strip().split()
         curr_ncols = len(curr_data)
+        config._debug(f"Error: {lines[i]}")
         if curr_ncols == ncols: # still log step info and no LOOP
             try:
                 step = int(curr_data[0])
                 end_idx = i+1
             except ValueError:
-                ...
+                config._debug(f"Error: {lines[i]}")
             finally:
                 break
+        else:
+            ...
     else:
         end_idx = None # even not one single complete line
-    config._debug(f"lammps LOG index: {start_idx} {end_idx}")
-    
+    config._debug(f"Sanitised lammps LOG index: {start_idx} {end_idx}")
+
     if start_idx is None or end_idx is None:
         raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
     config._debug(f"lammps END info: {end_info}")
 
-    #try: # The last sentence may have the same number of columns as thermo data does.
-    #    if end_info.strip():
-    #        first_col = float(end_info.strip().split()[0])
-    #    else:
-    #        end_idx -= 1
-    #except ValueError:
-    #    end_idx -= 1
-    #finally:
-    #    ...
     config._debug(f"lammps LOG index: {start_idx} {end_idx}")
 
     # -- parse index of PotEng
@@ -122,8 +116,13 @@ def parse_thermo_data(logfile_path) -> dict:
     thermo_keywords = lines[start_idx].strip().split()
     if "PotEng" not in thermo_keywords:
         raise RuntimeError(f"Cant find PotEng in lammps output of {str(logfile_path)}.")
-    thermo_data = lines[start_idx+1:end_idx]
-    thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
+    thermo_data = []
+    for x in lines[start_idx+1:end_idx]:
+        x_data = x.strip().split()
+        if x_data[0].isdigit(): # There may have some extra warnings... such as restart
+            thermo_data.append(x_data)
+    #thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
+    thermo_data = np.array(thermo_data, dtype=float).transpose() 
     #config._debug(thermo_data)
     thermo_dict = {}
     for i, k in enumerate(thermo_keywords):
