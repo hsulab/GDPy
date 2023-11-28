@@ -15,8 +15,8 @@ from ..core.register import registers
 from .grid import ZeroStringReactor
 registers.reactor.register("grid")(ZeroStringReactor)
 
-from .pathway import MEPFinder
-registers.reactor.register("ase")(MEPFinder)
+from .pathway import AseStringReactor
+registers.reactor.register("ase")(AseStringReactor)
 
 from .cp2k import Cp2kStringReactor
 registers.reactor.register("cp2k")(Cp2kStringReactor)

@@ -8,14 +8,6 @@ from typing import Callable, List
 
 import numpy as np
 
-import matplotlib as mpl
-mpl.use("Agg") #silent mode
-from matplotlib import pyplot as plt
-try:
-    plt.style.use("presentation")
-except Exception as e:
-    ...
-
 from ase import Atoms
 from ase.io import read, write
 from ase.geometry import find_mic
@@ -27,9 +19,9 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from .. import config as GDPCONFIG
 from ..computation.mixer import EnhancedCalculator
 from ..data.array import AtomsNDArray
-from .reactor import AbstractReactor
+from .string import AbstractStringReactor, StringReactorSetting
 from .utils import plot_bands, plot_mep
-from GDPy.builder.constraints import parse_constraint_info
+from ..builder.constraints import parse_constraint_info
 
 def set_constraint(atoms, cons_text):
     """"""
@@ -96,31 +88,7 @@ def save_nebtraj(neb, log_fpath) -> None:
 
 
 @dataclasses.dataclass
-class ReactorSetting:
-
-    #: Number of images along the pathway.
-    nimages: int = 7
-
-    #: Align IS and FS based on the mic.
-    mic: bool = True
-    
-    #: Optimiser.
-    optimiser: str = "bfgs"
-
-    #: Spring constant, eV/Ang.
-    k: float = 0.1
-
-    #: Whether use CI-NEB.
-    climb: bool = False
-
-    #: Convergence force tolerance.
-    fmax: float = 0.05
-
-    #: Maximum number of steps.
-    steps: int = 100
-
-    #: FixAtoms.
-    constraint: str = None
+class AseStringReactorSetting(StringReactorSetting):
 
     def __post_init__(self):
         """"""
@@ -149,7 +117,7 @@ class ReactorSetting:
         return run_params
 
 
-class MEPFinder(AbstractReactor):
+class AseStringReactor(AbstractStringReactor):
 
     """Find the minimum energy path based on input structures.
 
@@ -158,14 +126,6 @@ class MEPFinder(AbstractReactor):
     """
 
     name = "ase"
-
-    #: Standard print.
-    _print: Callable = GDPCONFIG._print
-
-    #: Standard debug.
-    _debug: Callable = GDPCONFIG._debug
-
-    _directory = "./"
 
     traj_name: str = "nebtraj.xyz"
 
@@ -181,23 +141,12 @@ class MEPFinder(AbstractReactor):
         self.cache_nebtraj = self.directory/self.traj_name
 
         # - parse params
-        self.setting = ReactorSetting(**params)
+        self.setting = AseStringReactorSetting(**params)
         self._debug(self.setting)
 
         return
-
-    @property
-    def directory(self):
-        """Set working directory of this driver.
-
-        Note:
-            The attached calculator's directory would be set as well.
-        
-        """
-
-        return self._directory
     
-    @directory.setter
+    @AbstractStringReactor.directory.setter
     def directory(self, directory_):
         self._directory = pathlib.Path(directory_)
         self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
@@ -206,89 +155,59 @@ class MEPFinder(AbstractReactor):
 
         return
     
-    def run(self, structures: List[Atoms], read_cache=True, *args, **kwargs):
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """"""
-        super().run(structures=structures, *args, **kwargs)
-
-        # - Double-Ended Methods...
-        ini_atoms, fin_atoms = structures
-        self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-        self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
-
-        # - backup old parameters
-        prev_params = copy.deepcopy(self.calc.parameters)
-
-        # -
-        if not self.cache_nebtraj.exists():
-            self._irun([ini_atoms, fin_atoms])
-        else:
-            # - check if converged
-            converged = self.read_convergence()
-            if not converged:
-                if read_cache:
-                    ...
-                self._irun(structures, *args, **kwargs)
+        verified = super()._verify_checkpoint(*args, **kwargs)
+        if verified:
+            if self.cache_nebtraj.exists() and self.cache_nebtraj.stat().st_size != 0:
+                verified = True
             else:
-                ...
-        
-        # - get results
-        _ = self.read_trajectory()
-
-        return
-    
-    def _irun(self, structures, *args, **kwargs):
-        """"""
-        # - check lattice consistency
-        ini_atoms, fin_atoms = structures
-        c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(complete=True)
-        assert np.allclose(c1, c2), "Inconsistent unit cell..."
-
-        # - align structures
-        shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
-        if self.setting.mic:
-            self._print("Align IS and FS based on MIC.")
-            curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
-            self._debug(f"curr_vectors: {curr_vectors}")
-            self._print(f"disp: {np.linalg.norm(curr_vectors)}")
-            fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+                verified = False
         else:
-            self._print(f"disp: {np.linalg.norm(shifts)}")
+            ...
 
-        ini_atoms = set_constraint(ini_atoms, self.setting.constraint)
-        fin_atoms = set_constraint(fin_atoms, self.setting.constraint)
+        return verified
+    
+    def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
+        """"""
+        try:
+            if ckpt_wdir is None: # start from the scratch
+                images = self._align_structures(structures)
+                write(self.directory/"images.xyz", images)
+            else:
+                images = read(ckpt_wdir/self.traj_name, f"-{self.setting.nimages}:")
+                # TODO: update steps
 
-        # - find mep
-        nimages = self.setting.nimages
-        images = [ini_atoms]
-        images += [ini_atoms.copy() for i in range(nimages-2)]
-        images.append(fin_atoms)
+            for a in images:
+                set_constraint(a, self.setting.constraint)
+                a.calc = self.calc
 
-        for a in images:
-            a.calc = self.calc
+            neb = NEB(
+                images=images, k=self.setting.k, climb=self.setting.climb,
+                remove_rotation_and_translation=False, method="aseneb",
+                allow_shared_calculator=True, precon=None
+            )
+            #neb.interpolate(apply_constraint=True)
 
-        neb = NEB(
-            images=images, k=self.setting.k, climb=self.setting.climb,
-            remove_rotation_and_translation=False, method="aseneb",
-            allow_shared_calculator=True, precon=None
-        )
-        neb.interpolate(apply_constraint=True)
+            driver = self.setting.opt_cls(neb, logfile="-", trajectory=None)
+            driver.attach(
+                save_nebtraj, interval=1,
+                neb=neb, log_fpath=self.cache_nebtraj
+            )
 
-        driver = self.setting.opt_cls(neb, logfile="-", trajectory=None)
-        driver.attach(
-            save_nebtraj, interval=1,
-            neb=neb, log_fpath=self.cache_nebtraj
-        )
-
-        run_params = self.setting.get_run_params()
-        driver.run(steps=run_params["steps"], fmax=run_params["fmax"])
+            run_params = self.setting.get_run_params()
+            driver.run(steps=run_params["steps"], fmax=run_params["fmax"])
+        except Exception as e:
+            self._debug(e)
 
         return
     
-    def read_trajectory(self, *args, **kwargs):
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """"""
+        cache_nebtraj = wdir/self.traj_name
         nimages_per_band = self.setting.nimages
-        if self.cache_nebtraj.exists():
-            images = read(self.cache_nebtraj, ":")
+        if cache_nebtraj.exists():
+            images = read(cache_nebtraj, ":")
             converged_nebtraj = images[-nimages_per_band:]
             #print(self.directory)
             #for a in converged_nebtraj:
@@ -297,7 +216,7 @@ class MEPFinder(AbstractReactor):
             plot_bands(self.directory, images, nimages=nimages_per_band)
             write(self.directory/"end_nebtraj.xyz", converged_nebtraj)
         else:
-            raise FileNotFoundError(f"No cache trajectory {str(self.cache_nebtraj)}.")
+            raise FileNotFoundError(f"No cache trajectory {str(cache_nebtraj)}.")
         
         nimages = len(images)
         assert nimages%nimages_per_band == 0, "Inconsistent number of bands."
@@ -306,7 +225,36 @@ class MEPFinder(AbstractReactor):
         reshaped_images = []
         for i in range(nbands):
             reshaped_images.append(images[i*nimages_per_band:(i+1)*nimages_per_band])
+
         return reshaped_images
+    
+    def read_trajectory(self, *args, **kwargs):
+        """"""
+        # - find previous runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+
+        traj_list = []
+        for w in prev_wdirs:
+            curr_frames = self._read_a_single_trajectory(wdir=w)
+            traj_list.append(curr_frames)
+        
+        cache_nebtraj = self.directory / self.traj_name
+        if cache_nebtraj.exists() and cache_nebtraj.stat().st_size != 0:
+            traj_list.append(self._read_a_single_trajectory(wdir=self.directory))
+        
+        # - concatenate
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                for j, (a, b) in enumerate(zip(traj_list[i-1][-1], traj_list[i][0])):
+                    assert np.allclose(a.positions, b.positions), f"Traj {i-1} and traj {i} are not consecutive in positions."
+                traj_frames.extend(traj_list[i][1:])
+        else:
+            ...
+
+        return traj_frames
     
     def read_convergence(self, *args, **kwargs) -> bool:
         """"""
