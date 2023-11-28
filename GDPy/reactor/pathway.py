@@ -107,10 +107,13 @@ class AseStringReactorSetting(StringReactorSetting):
 
         return
 
-    def get_run_params(self):
+    def get_run_params(self, *args, **kwargs):
         """"""
+        steps_ = kwargs.get("steps", self.steps)
+        if steps_ <= 0:
+            steps_ = -1
         run_params = dict(
-            steps = self.steps,
+            steps = steps_,
             fmax = self.fmax
         )
 
@@ -175,7 +178,7 @@ class AseStringReactor(AbstractStringReactor):
                 images = self._align_structures(structures)
                 write(self.directory/"images.xyz", images)
             else:
-                images = read(ckpt_wdir/self.traj_name, f"-{self.setting.nimages}:")
+                images = read(ckpt_wdir/self.traj_name, f"-{self.setting.nimages}::-1")
                 # TODO: update steps
 
             for a in images:
@@ -248,7 +251,8 @@ class AseStringReactor(AbstractStringReactor):
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
-                for j, (a, b) in enumerate(zip(traj_list[i-1][-1], traj_list[i][0])):
+                prev_end_band, curr_beg_band = traj_list[i-1][-1], traj_list[i][0]
+                for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
                     assert np.allclose(a.positions, b.positions), f"Traj {i-1} and traj {i} are not consecutive in positions."
                 traj_frames.extend(traj_list[i][1:])
         else:
