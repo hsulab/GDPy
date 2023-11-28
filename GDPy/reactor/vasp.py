@@ -101,6 +101,8 @@ class VaspStringReactor(AbstractStringReactor):
 
     name: str = "vasp"
 
+    traj_name: str = "01/OUTCAR"
+
     def __init__(self, calc=None, params={}, ignore_convergence=False, directory="./", *args, **kwargs) -> None:
         """"""
         self.calc = calc
@@ -110,7 +112,6 @@ class VaspStringReactor(AbstractStringReactor):
         self.ignore_convergence = ignore_convergence
 
         self.directory = directory
-        self.cache_nebtraj = self.directory/self.traj_name
 
         # - parse params
         self.setting = VaspStringReactorSetting(**params)
@@ -123,126 +124,45 @@ class VaspStringReactor(AbstractStringReactor):
             the input files.
 
         """
-        checkpoints = list(self.directory.glob("*vasprun.xml"))
-        print(f"checkpoints: {checkpoints}")
-
-        return checkpoints
-
-    def run(self, structures: List[Atoms], read_cache=True, *args, **kwargs):
-        """"""
-        #super().run(structures=structures, *args, **kwargs)
-
-        # - Double-Ended Methods...
-        ini_atoms, fin_atoms = structures
-        try:
-            self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-            self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
-        except RuntimeError:
-            # RuntimeError: Atoms object has no calculator.
-            self._print("Not energies attached to IS and FS.")
-
-        # - backup old parameters
-        prev_params = copy.deepcopy(self.calc.parameters)
-        print(f"prev_params: {prev_params}")
-
-        # -
-        if not self._verify_checkpoint(): # is not a []
-            self.directory.mkdir(parents=True, exist_ok=True)
-            self._irun([ini_atoms, fin_atoms])
+        verified = super()._verify_checkpoint()
+        if verified:
+            checkpoints = list(self.directory.glob("*vasprun.xml"))
+            self._debug(f"checkpoints: {checkpoints}")
+            if not checkpoints:
+                verified = False
         else:
-            # - check if converged
-            converged = self.read_convergence()
-            if not converged:
-                if read_cache:
-                    structures, resume_params = self._resume(structures, *args, **kwargs)
-                    kwargs.update(**resume_params)
-                self._irun(structures, *args, **kwargs)
-            else:
-                ...
-        
-        self.calc.set(**prev_params)
-        
-        # - get results
-        band_frames = self.read_trajectory() # (nbands, nimages)
-        if band_frames:
-            plot_mep(self.directory, band_frames[-1])
-            #plot_bands(self.directory, images, nimages=nimages_per_band)
-            write(self.directory/"nebtraj.xyz", itertools.chain(*band_frames))
-            # --
-            last_band = band_frames[-1]
-            energies = [a.get_potential_energy() for a in last_band]
-            imax = 1 + np.argsort(energies[1:-1])[-1]
-            print(f"imax: {imax}")
-            # NOTE: maxforce in cp2k is norm(atomic_forces)
-            maxfrc = np.max(last_band[imax].get_forces(apply_constraint=True))
-            print(f"maxfrc: {maxfrc}")
-        else:
-            last_band = []
+            ...
 
-        return last_band
+        return verified
     
-    def _backup(self):
+    def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
-
-        return
-    
-    def _resume(self, structures: List[Atoms], *args, **kwargs):
-        """"""
-        # - update structures
-        rep_dirs = sorted([x.name for x in sorted(self.directory.glob(r"[0-9][0-9]"))])
-        print(f"rep_dirs: {rep_dirs}")
-
-        frames_ = []
-        for x in rep_dirs[1:-1]:
-            frames_.append(read(self.directory/x/"OUTCAR", ":"))
-        nframes = min([len(x) for x in frames_])
-        assert nframes > 0, "At least one step finished before resume..."
-        intermediates_ = [x[nframes-1] for x in frames_]
-        intermediates = [structures[0]] + intermediates_ + [structures[-1]]
-
-        params = dict( # TODO: dump_/ckpt_period?
-            steps = self.setting.steps - nframes
-        )
-
-        # - find runs...
-        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-        print(f"prev_wdirs: {prev_wdirs}")
-        curr_index = len(prev_wdirs)
-
-        curr_wdir = self.directory/f"{str(curr_index).zfill(4)}.run"
-        print(f"curr_wdir: {curr_wdir}")
-
-        # - backup files
-        curr_wdir.mkdir()
-
-        backups = [
-            "INCAR", "POTCAR", "KPOINTS", "vasprun.xml", 
-            "images.xyz", "ase-sort.dat", "vasp.out"
-        ]
-        backups.extend(rep_dirs)
-        for x in self.directory.iterdir():
-            if not re.match(r"[0-9]{4}\.run", x.name):
-                if x.name in backups:
-                    shutil.move(x, curr_wdir)
-                else:
-                    x.unlink()
-            else:
-                ...
-
-        return intermediates, params
-    
-    def _irun(self, structures: List[Atoms], *args, **kwargs):
-        """"""
-        images = self._align_structures(structures)
-        write(self.directory/"images.xyz", images)
-
-        atoms = images[0] # use the initial state
         try:
             # --
             run_params = self.setting.get_run_params(**kwargs)
             run_params.update(**self.setting.get_init_params())
 
+            if ckpt_wdir is None: # start from the scratch
+                images = self._align_structures(structures)
+                write(self.directory/"images.xyz", images)
+            else:
+                # - update structures
+                rep_dirs = sorted([x.name for x in sorted(self.directory.glob(r"[0-9][0-9]"))])
+
+                frames_ = []
+                for x in rep_dirs[1:-1]:
+                    frames_.append(read(self.directory/x/"OUTCAR", ":"))
+                nframes = min([len(x) for x in frames_])
+                assert nframes > 0, "At least one step finished before resume..."
+                intermediates_ = [x[nframes-1] for x in frames_]
+                images = [structures[0]] + intermediates_ + [structures[-1]]
+
+                run_params.update(
+                    steps = self.setting.steps - nframes
+                )
+
             # -- check constraint
+            atoms = images[0] # use the initial state
             cons_text = run_params.pop("constraint", None)
             mobile_indices, frozen_indices = parse_constraint_info(
                 atoms, cons_text=cons_text, ignore_ase_constraints=True, ret_text=False
@@ -290,16 +210,16 @@ class VaspStringReactor(AbstractStringReactor):
 
         return converged
     
-    def read_trajectory(self, *args, **kwargs):
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """
 
         NOTE: Fixed atoms have zero forces.
 
         """
         self._debug(f"***** read_trajectory *****")
-        self._debug(f"{str(self.directory)}")
+        self._debug(f"{str(wdir)}")
 
-        images = read(self.directory/"images.xyz", ":")
+        images = read(wdir/"images.xyz", ":")
         ini_atoms, fin_atoms = images[0], images[-1]
 
         # TODO: energy and forces of IS and FS?
@@ -315,7 +235,7 @@ class VaspStringReactor(AbstractStringReactor):
         # - read OUTCARs
         frames_ = []
         for i in range(1, self.setting.nimages-1):
-            curr_frames = read(self.directory/f"{str(i).zfill(2)}"/"OUTCAR", ":")
+            curr_frames = read(wdir/f"{str(i).zfill(2)}"/"OUTCAR", ":")
             frames_.append(curr_frames)
 
         # nframes may not consistent across replicas 

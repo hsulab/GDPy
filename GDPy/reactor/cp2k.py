@@ -98,6 +98,8 @@ class Cp2kStringReactor(AbstractStringReactor):
 
     name: str = "cp2k"
 
+    traj_name: str = "cp2k.out"
+
     def __init__(self, calc=None, params={}, ignore_convergence=False, directory="./", *args, **kwargs) -> None:
         """"""
         self.calc = calc
@@ -107,7 +109,6 @@ class Cp2kStringReactor(AbstractStringReactor):
         self.ignore_convergence = ignore_convergence
 
         self.directory = directory
-        self.cache_nebtraj = self.directory/self.traj_name
 
         # - parse params
         self.setting = Cp2kStringReactorSetting(**params)
@@ -411,21 +412,6 @@ class Cp2kStringReactor(AbstractStringReactor):
             ...
 
         return frames
-
-    def read_trajectory(self, *args, **kwargs):
-        """"""
-        # - find previous runs...
-        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-        self._debug(f"prev_wdirs: {prev_wdirs}")
-
-        frames = []
-        for w in prev_wdirs:
-            curr_frames = self._read_a_single_trajectory(w)
-            frames.extend(curr_frames[:-1])
-        
-        frames.extened(self._read_a_single_trajectory(self.directory))
-
-        return
     
 
 if __name__ == "__main__":
