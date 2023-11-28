@@ -17,11 +17,9 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 
 from .. import config as GDPCONFIG
-from ..computation.mixer import EnhancedCalculator
-from ..data.array import AtomsNDArray
+from .. import EnhancedCalculator
+from .. import parse_constraint_info
 from .string import AbstractStringReactor, StringReactorSetting
-from .utils import plot_bands, plot_mep
-from ..builder.constraints import parse_constraint_info
 
 def set_constraint(atoms, cons_text):
     """"""

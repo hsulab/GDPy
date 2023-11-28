@@ -21,7 +21,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.neb import NEB
 
 from .string import AbstractStringReactor, StringReactorSetting
-from ..builder.constraints import parse_constraint_info
+from .. import parse_constraint_info
 
 
 @dataclasses.dataclass

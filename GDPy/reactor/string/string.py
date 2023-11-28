@@ -19,9 +19,9 @@ from ase.geometry import find_mic
 from ase.constraints import FixAtoms
 from ase.neb import interpolate, idpp_interpolate
 
-from .reactor import AbstractReactor
-from GDPy.builder.constraints import parse_constraint_info
-from .utils import plot_bands, plot_mep
+from .. import parse_constraint_info
+from ..reactor import AbstractReactor
+from ..utils import plot_bands, plot_mep
 
 
 def set_constraint(atoms, cons_text):

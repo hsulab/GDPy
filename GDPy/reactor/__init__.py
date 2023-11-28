@@ -3,7 +3,11 @@
 
 import copy
 
+from .. import config
 from ..core.register import registers
+
+from ..builder.constraints import parse_constraint_info
+from ..computation.mixer import EnhancedCalculator
 
 
 """ This submodule is for exploring, sampling, 
@@ -12,17 +16,14 @@ from ..core.register import registers
 """
 
 # - string methods...
-from .grid import ZeroStringReactor
-registers.reactor.register("grid")(ZeroStringReactor)
-
-from .pathway import AseStringReactor
+from .string import (
+    AseStringReactor, Cp2kStringReactor, VaspStringReactor,
+    ZeroStringReactor
+)
 registers.reactor.register("ase")(AseStringReactor)
-
-from .cp2k import Cp2kStringReactor
 registers.reactor.register("cp2k")(Cp2kStringReactor)
-
-from .vasp import VaspStringReactor
 registers.reactor.register("vasp")(VaspStringReactor)
+registers.reactor.register("grid")(ZeroStringReactor)
 
 
 if __name__ == "__main__":

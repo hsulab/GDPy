@@ -24,8 +24,7 @@ from ase.constraints import FixAtoms
 from ase.neb import NEB
 
 from .string import AbstractStringReactor, StringReactorSetting
-from ..builder.constraints import parse_constraint_info
-from .utils import plot_bands, plot_mep
+from .. import parse_constraint_info
 
 
 def run_vasp(name, command, directory):
