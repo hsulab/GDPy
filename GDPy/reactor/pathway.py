@@ -34,6 +34,12 @@ def set_constraint(atoms, cons_text):
 
     return atoms
 
+def print_step(neb, pfunc):
+    """"""
+    content = "{} {}"
+
+    return
+
 def save_nebtraj(neb, log_fpath) -> None:
     """Create a clean atoms from the input and save simulation trajectory.
 
@@ -174,12 +180,15 @@ class AseStringReactor(AbstractStringReactor):
     def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
         try:
+            run_params = self.setting.get_run_params()
+
             if ckpt_wdir is None: # start from the scratch
                 images = self._align_structures(structures)
                 write(self.directory/"images.xyz", images)
             else:
-                images = read(ckpt_wdir/self.traj_name, f"-{self.setting.nimages}::-1")
-                # TODO: update steps
+                nebtraj = self.read_trajectory()
+                images = nebtraj[-1]
+                run_params["steps"] = run_params["steps"] - (len(nebtraj)-1)
 
             for a in images:
                 set_constraint(a, self.setting.constraint)
@@ -188,7 +197,7 @@ class AseStringReactor(AbstractStringReactor):
             neb = NEB(
                 images=images, k=self.setting.k, climb=self.setting.climb,
                 remove_rotation_and_translation=False, method="aseneb",
-                allow_shared_calculator=True, precon=None
+                allow_shared_calculator=True, precon=None,
             )
             #neb.interpolate(apply_constraint=True)
 
@@ -198,7 +207,6 @@ class AseStringReactor(AbstractStringReactor):
                 neb=neb, log_fpath=self.cache_nebtraj
             )
 
-            run_params = self.setting.get_run_params()
             driver.run(steps=run_params["steps"], fmax=run_params["fmax"])
         except Exception as e:
             self._debug(e)
@@ -211,13 +219,6 @@ class AseStringReactor(AbstractStringReactor):
         nimages_per_band = self.setting.nimages
         if cache_nebtraj.exists():
             images = read(cache_nebtraj, ":")
-            converged_nebtraj = images[-nimages_per_band:]
-            #print(self.directory)
-            #for a in converged_nebtraj:
-            #    print(a.get_potential_energy())
-            plot_mep(self.directory, converged_nebtraj)
-            plot_bands(self.directory, images, nimages=nimages_per_band)
-            write(self.directory/"end_nebtraj.xyz", converged_nebtraj)
         else:
             raise FileNotFoundError(f"No cache trajectory {str(cache_nebtraj)}.")
         
@@ -265,13 +266,11 @@ class AseStringReactor(AbstractStringReactor):
         converged = False
         if self.cache_nebtraj.exists():
             nimages_per_band = self.setting.nimages
-            images = read(self.cache_nebtraj, ":")
-            nimages = len(images)
-            nsteps = int(nimages/nimages_per_band)
-            end_nebtraj = images[-nimages_per_band:]
-            nt = NEBTools(end_nebtraj)
+            images = self.read_trajectory()
+            nsteps = len(images)
+            nt = NEBTools(images[-1])
             fmax = nt.get_fmax()
-            if (fmax <= self.setting.fmax) or (nsteps >= self.setting.steps):
+            if (fmax <= self.setting.fmax) or (nsteps >= self.setting.steps+1):
                 converged = True
                 self._print(
                     f"STEP: {nsteps} >= {self.setting.steps} MAXFRC: {fmax} <=? {self.setting.fmax}"

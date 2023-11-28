@@ -99,8 +99,6 @@ class AbstractStringReactor(AbstractReactor):
         self._directory = pathlib.Path(directory_)
         self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
 
-        self.cache_nebtraj = self.directory/self.traj_name
-
         return
 
     def run(self, structures: List[Atoms], read_ckpt=True, *args, **kwargs):
@@ -152,7 +150,7 @@ class AbstractStringReactor(AbstractReactor):
             if band_frames:
                 plot_mep(self.directory, band_frames[-1])
                 #plot_bands(self.directory, images, nimages=nimages_per_band)
-                write(self.cache_nebtraj, itertools.chain(*band_frames))
+                write(self.directory/"temptraj.xyz", itertools.chain(*band_frames))
                 # --
                 curr_band = band_frames[-1]
                 energies = [a.get_potential_energy() for a in curr_band]
