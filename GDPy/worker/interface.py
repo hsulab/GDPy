@@ -3,6 +3,7 @@
 
 import copy
 import itertools
+import logging
 import pathlib
 from typing import NoReturn, List
 
@@ -19,6 +20,7 @@ from ..core.register import registers
 from ..computation.driver import AbstractDriver
 from ..data.array import AtomsNDArray
 from ..potential.manager import AbstractPotentialManager
+from ..reactor.reactor import AbstractReactor
 from ..scheduler.scheduler import AbstractScheduler
 from .worker import AbstractWorker
 from .drive import (
@@ -185,6 +187,13 @@ def run_worker(
     worker: DriverBasedWorker=None, output: str=None, batch: int=None
 ):
     """"""
+    # - some imported packages change `logging.basicConfig` 
+    #   and accidently add a StreamHandler to logging.root
+    #   so remove it...
+    for h in logging.root.handlers:
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+            logging.root.removeHandler(h)
+
     directory = pathlib.Path(directory)
     if not directory.exists():
         directory.mkdir()
@@ -209,9 +218,11 @@ def run_worker(
             res_dir.mkdir(exist_ok=True)
 
             ret = worker.retrieve(include_retrieved=True)
-
-            end_frames = [traj[-1] for traj in ret]
-            write(res_dir/"end_frames.xyz", end_frames)
+            if not isinstance(worker.driver, AbstractReactor):
+                end_frames = [traj[-1] for traj in ret]
+                write(res_dir/"end_frames.xyz", end_frames)
+            else:
+                ...
 
             AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
         else:
