@@ -12,8 +12,6 @@ from ase import Atoms
 from ase.data import covalent_radii
 from ase.calculators.calculator import Calculator
 
-from GDPy.builder.group import create_a_group
-
 
 """Some calculators of external forces.
 """
@@ -68,7 +66,6 @@ class AFIRCalculator(Calculator):
     def __init__(self, restart=None, label=None, atoms=None, directory='.', **kwargs):
         """"""
         super().__init__(restart=restart, label=label, atoms=atoms, directory=directory, **kwargs)
-        print("params: ", self.parameters)
 
         return
     
@@ -81,12 +78,12 @@ class AFIRCalculator(Calculator):
         atomic_radii = np.array([covalent_radii[i] for i in atomic_numbers])
 
         # - find reactive groups
-        groups = []
-        for group_command in self.parameters["groups"]:
-            curr_group = create_a_group(atoms, group_command)
-            assert len(curr_group) > 0, f"No atoms in group {group_command}."
-            groups.append(curr_group)
-        frag_indices = groups
+        #groups = []
+        #for group_command in self.parameters["groups"]:
+        #    curr_group = create_a_group(atoms, group_command)
+        #    assert len(curr_group) > 0, f"No atoms in group {group_command}."
+        #    groups.append(curr_group)
+        frag_indices = self.parameters["groups"]
         #print("groups: ", groups)
 
         pair_indices = list(product(*frag_indices))
