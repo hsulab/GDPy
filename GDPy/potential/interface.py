@@ -10,6 +10,7 @@ from ..core.operation import Operation
 from ..core.register import registers
 
 from ..potential.manager import AbstractPotentialManager
+from ..potential.managers.mixer import MixerManager
 from ..potential.trainer import AbstractTrainer
 from ..worker.train import TrainerBasedWorker
 from ..scheduler.interface import SchedulerVariable
@@ -36,6 +37,20 @@ class PotterVariable(Variable):
         super().__init__(initial_value=potter, directory=directory)
 
         return
+
+
+def create_mixer(basic_params, *args, **kwargs):
+    """"""
+    potters = [basic_params]
+    for x in args:
+        potters.append(x)
+    calc_params = dict(backend="ase", potters=potters)
+
+    mixer = MixerManager()
+    mixer.register_calculator(calc_params=calc_params)
+
+    return mixer
+
 
 @registers.variable.register
 class TrainerVariable(Variable):

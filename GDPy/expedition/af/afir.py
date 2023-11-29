@@ -23,10 +23,9 @@ from .. import StructureBuilder
 from .. import ComputerVariable, DriverBasedWorker
 from ..expedition import AbstractExpedition
 
+from GDPy.potential.interface import create_mixer
 from GDPy.builder.group import create_a_group, create_a_molecule_group
-
 from GDPy.computation.utils import make_clean_atoms
-
 from GDPy.graph.creator import find_product, find_molecules
 
 
@@ -203,14 +202,6 @@ class AFIRSearch(AbstractExpedition):
             f1, f2 = frag_list[i], frag_list[j]
             possible_pairs.extend(list(product(f1, f2)))
 
-        # - prepare afir bias
-        # TODO: retain bias in the driver?
-        bias_params = dict(
-            method = "afir",
-            gamma = None,
-            groups = None
-        )
-
         rxn_fpath = self.directory/"rxn.dat"
         if not rxn_fpath.exists():
             with open(rxn_fpath, "w") as fopen:
@@ -232,16 +223,23 @@ class AFIRSearch(AbstractExpedition):
             self._print(f"finished pairs: {nfinished}")
             possible_pairs = possible_pairs[nfinished:]
         
-        # - 
+        # - prepare afir bias
+        # TODO: retain bias in the driver?
+        bias_params = dict(
+            name = "bias", 
+            params = dict(
+                backend="ase", type = "afir",
+                gamma = None, groups = None
+            )
+        )
         self._print(self.worker)
 
         # - run each pair
         for i, pair in enumerate(possible_pairs):
             # -- start info
             self._print(f"===== Pair {i} =====")
-            bias_params["groups"] = pair 
-            reax_indices = bias_params["groups"]
-            reactants = convert_index_to_formula(atoms, reax_indices)
+            bias_params["params"]["groups"] = pair 
+            reactants = convert_index_to_formula(atoms, pair)
             self._print("Reactants:")
             self._print(reactants)
             self._print(pair)
@@ -272,17 +270,24 @@ class AFIRSearch(AbstractExpedition):
 
         ngamma = 0
         while cur_gamma <= gmax:
-            self._print(f"\nCurrent Gamma: {cur_gamma}")
+            self._print(f"Current Gamma: {cur_gamma}")
             # TODO: make this part parallel, which maybe efficient for
             #       ab initio calculations...
             cur_atoms = atoms_.copy()
             # -- update worker's bias
             bias_params = copy.deepcopy(bias_params_)
-            bias_params["gamma"] = cur_gamma
-            #print(bias_params)
-            driver.bias = driver._parse_bias([bias_params])
+            bias_params["params"]["gamma"] = cur_gamma
+            self._print(bias_params)
+
+            # -- create mixer
+            mixer = create_mixer(worker.potter.as_dict(), bias_params)
+            self._print(f"Mixer: {mixer}")
+            self._print(f"Driver: {driver.as_dict()}")
+            #driver.bias = driver._parse_bias([bias_params])
             #print(driver.bias)
             #print(driver.bias[0].gamma)
+            driver = mixer.create_driver(driver.as_dict())
+            self._print(f"driver: {driver}")
 
             # -- run calculation
             driver.directory = directory_ / f"g{ngamma}"
