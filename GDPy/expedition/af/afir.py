@@ -178,6 +178,9 @@ class AFIRSearch(AbstractExpedition):
     
     def _create_afir_potters(self, pair: List[List[int]], gamma_list: List[float], *args, **kwargs):
         """"""
+        if hasattr(self.worker.potter, "remove_loaded_models"):
+            self.worker.potter.remove_loaded_models()
+
         bias_list = []
         for g in gamma_list:
             curr_bias = copy.deepcopy(self.bias_params)
