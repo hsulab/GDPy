@@ -89,7 +89,6 @@ def find_target_fragments(atoms, target_commands: List[str]) -> Mapping[str,List
 
 class AFIRSearch(AbstractExpedition):
 
-    is_restart = False
 
     def __init__(
             self, builder, target, gamma: List[float]=[0.5, 2.5, 1.0], 
@@ -107,6 +106,14 @@ class AFIRSearch(AbstractExpedition):
         #assert len(self.target) == 2, "Target only supports two elements."
 
         self.gamma = gamma
+
+        self.bias_params = dict(
+            name = "bias", 
+            params = dict(
+                backend="ase", type = "afir",
+                gamma = None, groups = None
+            )
+        )
 
         return
 
@@ -132,8 +139,12 @@ class AFIRSearch(AbstractExpedition):
 
     def _prepare_fragments(self, atoms, *args, **kwargs):
         """"""
+        data_path = self.directory / "_data"
+        if not data_path.exists():
+            data_path.mkdir(parents=True, exist_ok=True)
+
         # - find possible reaction pairs
-        frag_fpath = self.directory/"fragments.pkl"
+        frag_fpath = data_path/"fragments.pkl"
         # TODO: assure the pair order is the same when restart
         if not frag_fpath.exists():
             fragments = find_target_fragments(atoms, self.target)
@@ -159,8 +170,23 @@ class AFIRSearch(AbstractExpedition):
         for i, j in comb:
             f1, f2 = frag_list[i], frag_list[j]
             possible_pairs.extend(list(product(f1, f2)))
+        
+        with open(self.directory/"_data"/"pairs.pkl", "wb") as fopen:
+            pickle.dump(possible_pairs, fopen)
 
         return possible_pairs
+    
+    def _create_afir_potters(self, pair: List[List[int]], gamma_list: List[float], *args, **kwargs):
+        """"""
+        bias_list = []
+        for g in gamma_list:
+            curr_bias = copy.deepcopy(self.bias_params)
+            curr_bias["params"]["groups"] = pair 
+            curr_bias["params"]["gamma"] = g
+            bias_list.append(curr_bias)
+        potters = [create_mixer(self.worker.potter, b) for b in bias_list]
+
+        return potters
     
     def run(self, *args, **kwargs) -> None:
         """"""
@@ -171,7 +197,9 @@ class AFIRSearch(AbstractExpedition):
             if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
                 logging.root.removeHandler(h)
 
-        self._print("START AFIR SEARCH")
+        self._print("---------------------------")
+        self._print("| AFIRSearch starts...... |")
+        self._print("---------------------------")
         # TODO: check restart
 
         # - assume input structures are minimised
@@ -184,13 +212,6 @@ class AFIRSearch(AbstractExpedition):
         possible_pairs = self._prepare_fragments(atoms)
         
         # - prepare afir bias
-        bias_params = dict(
-            name = "bias", 
-            params = dict(
-                backend="ase", type = "afir",
-                gamma = None, groups = None
-            )
-        )
         gamma_list = np.linspace(*self.gamma, endpoint=True)
 
         # - run each pair
@@ -204,14 +225,7 @@ class AFIRSearch(AbstractExpedition):
             self._print(pair)
 
             # -- create GridWorker
-            bias_list = []
-            for g in gamma_list:
-                curr_bias = copy.deepcopy(bias_params)
-                curr_bias["params"]["groups"] = pair 
-                curr_bias["params"]["gamma"] = g
-                bias_list.append(curr_bias)
-            potters = [create_mixer(self.worker.potter, b) for b in bias_list]
-            
+            potters = self._create_afir_potters(pair, gamma_list)
             curr_worker = GridDriverBasedWorker(
                 potters, driver=self.worker.driver
             )
@@ -224,9 +238,6 @@ class AFIRSearch(AbstractExpedition):
         for i, curr_worker in enumerate(grid_workers):
             curr_worker.inspect(resubmit=True)
             if curr_worker.get_number_of_running_jobs() == 0:
-                #curr_trajs = curr_worker.retrieve(include_retrieved=True)
-                #end_frames = [t[-1] for t in curr_trajs]
-                #write("end_frames.xyz", end_frames)
                 worker_status.append(True)
             else:
                 worker_status.append(False)
@@ -255,16 +266,51 @@ class AFIRSearch(AbstractExpedition):
                 else:
                     self._print("reaction happens...")
                     # TODO: postprocess, minimise FS to create a pathway
+            # - 
+            with open(self.directory/"FINISHED", "w") as fopen:
+                fopen.write(
+                    f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
+                )
         else:
             self._print("Some calculations are unfinished.")
 
         return
     
-    def read_convergence(self):
-        return super().read_convergence()
+    def read_convergence(self, *args, **kwargs):
+        """"""
+        converged = False
+        if (self.directory/"FINISHED").exists():
+            converged = True
+
+        return converged
     
-    def get_workers(self):
-        return super().get_workers()
+    def get_workers(self, *args, **kwargs):
+        """"""
+        workers = []
+        if hasattr(self.worker.potter, "remove_loaded_models"):
+            self.worker.potter.remove_loaded_models()
+
+        pair_data_path = self.directory/"_data"/"pairs.pkl"
+        if pair_data_path.exists():
+            with open(pair_data_path, "rb") as fopen:
+                pairs = pickle.load(fopen)
+            wdirs = sorted(
+                list(self.directory.glob("pair*")), key=lambda x: int(x.name[4:])
+            )
+            assert len(pairs) == len(wdirs), f"Inconsistent number of pairs {len(pairs)} and wdirs {len(wdirs)}."
+
+            gamma_list = np.linspace(*self.gamma, endpoint=True)
+            for i, pair in enumerate(pairs):
+                potters = self._create_afir_potters(pair, gamma_list)
+                curr_worker = GridDriverBasedWorker(
+                    potters, driver=self.worker.driver
+                )
+                curr_worker.directory = self.directory / f"pair{i}"
+                workers.append(curr_worker)
+        else:
+            raise FileNotFoundError("There is no cache for pairs.")
+        
+        return workers
 
 
 if __name__ == "__main__":
