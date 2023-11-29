@@ -17,15 +17,52 @@ from ase import Atoms
 from ase.io import read, write
 from ase.formula import Formula
 
-from GDPy.builder import create_generator
+from .. import Variable
+from .. import registers
+from .. import StructureBuilder
+from .. import ComputerVariable, DriverBasedWorker
+from ..expedition import AbstractExpedition
+
 from GDPy.builder.group import create_a_group, create_a_molecule_group
 
-from GDPy.computation.driver import AbstractDriver
-from GDPy.worker.drive import DriverBasedWorker
 from GDPy.computation.utils import make_clean_atoms
 
 from GDPy.graph.creator import find_product, find_molecules
-from GDPy.reaction.utils import convert_index_to_formula
+
+
+def convert_index_to_formula(atoms, group_indices: List[List[int]]):
+    """"""
+    formulae = []
+    for g in group_indices:
+        symbols = [atoms[i].symbol for i in g]
+        formulae.append(
+            Formula.from_list(symbols).format("hill")
+        )
+    #formulae = sorted(formulae)
+
+    return formulae
+
+
+class ArtificialReactionVariable(Variable):
+
+    def __init__(self, builder, directory="./", *args, **kwargs) -> None:
+        """"""
+        if isinstance(builder, dict):
+            builder_params = copy.deepcopy(builder)
+            builder_method = builder_params.pop("method")
+            builder = registers.create(
+                "builder", builder_method, convert_name=False, **builder_params
+            )
+        elif isinstance(builder, StructureBuilder):
+            builder = builder
+        else:
+            raise RuntimeError(f"Unknown type {type(StructureBuilder)} for Builder.")
+
+        engine = AFIRSearch(builder, *args, **kwargs)
+
+        super().__init__(initial_value=engine, directory=directory)
+
+        return
 
 
 def find_target_fragments(atoms, target_commands: List[str]) -> Mapping[str,List[List[int]]]:
@@ -53,24 +90,25 @@ def find_target_fragments(atoms, target_commands: List[str]) -> Mapping[str,List
 
 PATHWAY_FNAME = "pseudo_path.xyz"
 
-class AFIRSearch():
+class AFIRSearch(AbstractExpedition):
 
-    _directory = None
     is_restart = False
 
-
     def __init__(
-            self, target, mechanism: str="bi", gamma: List[float]=[0.5,2.5,1.0], generator=None,
+            self, builder, target, mechanism: str="bi", gamma: List[float]=[0.5,2.5,1.0], 
             min_is=True, find_mep=False,
-            seed=None, directory="./"
-        ) -> NoReturn:
+            seed=None, directory="./", *args, **kwargs
+        ) -> None:
         """Define some basic parameters for the afir search.
 
         Args:
+            builder: StructureBuilder.
             min_is: Whether to minimise the initial structure.
                     Otherwise, the single-point energy is calculated.
         
         """
+        self.builder = builder
+
         self.target = target
         #assert len(self.target) == 2, "Target only supports two elements."
 
@@ -78,78 +116,8 @@ class AFIRSearch():
 
         self.gamma = gamma
         
-        self.generator = generator
-
         self.min_is = min_is
         self.find_mep = find_mep
-
-        # - assign task dir
-        self.directory = directory
-        self._init_logger(self.directory)
-
-        # - assign random seeds
-        if seed is None:
-            # TODO: need a random number to be logged
-            self.rng = np.random.default_rng()
-        elif isinstance(seed, int):
-            self.rng = np.random.default_rng(seed)
-
-        return
-
-    @property
-    def directory(self):
-
-        return self._directory
-    
-    @directory.setter
-    def directory(self, directory_):
-        """"""
-        # - create main dir
-        directory_ = pathlib.Path(directory_)
-        if not directory_.exists():
-            directory_.mkdir() # NOTE: ./tmp_folder
-        else:
-            pass
-        self._directory = directory_
-
-        return
-
-    def _init_logger(self, working_directory):
-        """"""
-        self.logger = logging.getLogger(__name__)
-
-        log_level = logging.INFO
-
-        self.logger.setLevel(log_level)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
-        self.logger.handlers = []
-        # - screen
-        # NOTE: jax's logger overwrite the setting of screen handler
-        #if not self.logger.hasHandlers():
-        #    ch = logging.StreamHandler()
-        #    ch.setLevel(log_level)
-        #    #ch.setFormatter(formatter)
-        #    self.logger.addHandler(ch)
-        #ch = logging.StreamHandler()
-        #ch.setLevel(log_level)
-        #ch.setFormatter(formatter)
-        #self.logger.addHandler(ch)
-
-        # - file
-        working_directory = self.directory
-        log_fpath = working_directory / (self.__class__.__name__+".out")
-
-        if self.is_restart:
-            fh = logging.FileHandler(filename=log_fpath, mode="a")
-        else:
-            fh = logging.FileHandler(filename=log_fpath, mode="w")
-        fh.setLevel(log_level)
-        #fh.setFormatter(formatter)
-        self.logger.addHandler(fh)
 
         return
     
@@ -162,31 +130,50 @@ class AFIRSearch():
 
 
         return
-    
-    def run(self, worker, atoms_=None) -> NoReturn:
+
+    def _prepare_fragments(self, ):
         """"""
-        self.logger.info("START AFIR SEARCH")
+
+        return
+
+    def register_worker(self, worker: dict, *args, **kwargs):
+        """"""
+        if isinstance(worker, dict):
+            worker_params = copy.deepcopy(worker)
+            worker = registers.create(
+                "variable", "computer", convert_name=True, **worker_params
+            ).value[0]
+        elif isinstance(worker, list): # assume it is from a computervariable
+            worker = worker[0]
+        elif isinstance(worker, ComputerVariable):
+            worker = worker.value[0]
+        elif isinstance(worker, DriverBasedWorker):
+            worker = worker
+        else:
+            raise RuntimeError(f"Unknown worker type {worker}")
+        
+        self.worker = worker
+
+        return
+    
+    def run(self, *args, **kwargs) -> None:
+        """"""
+        # - some imported packages change `logging.basicConfig` 
+        #   and accidently add a StreamHandler to logging.root
+        #   so remove it...
+        for h in logging.root.handlers:
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+                logging.root.removeHandler(h)
+
+        self._print("START AFIR SEARCH")
         # TODO: check restart
 
-        if self.generator is not None:
-            # - get initial structures from the generator
-            gen = create_generator(self.generator)
-            frames = gen.run()
-
-            assert len(frames) == 1, "Only one structure for now."
-            atoms = frames[0]
-        else:
-            atoms = atoms_
-        
-        if atoms is None:
-            raise RuntimeError(f"{self.__class__.__name__} needs atoms.")
-        
-        # - minimise input structure with target potential
-        if self.min_is:
-            self.logger.info("Minimise the initial state...")
-            atoms = self._minimise_stable_state(atoms, worker, directory_=self.directory/"IS", steps=0)
-        
-        # - TODO: check molecules in the initial state?
+        # - assume input structures are minimised
+        frames = self.builder.run()
+        self._print(frames)
+        nframes = len(frames)
+        assert nframes == 1, "Only one structure for now."
+        atoms = frames[0]
 
         # - find possible reaction pairs
         frag_fpath = self.directory/"fragments.pkl"
@@ -200,10 +187,9 @@ class AFIRSearch():
                 fragments = pickle.load(fopen)
 
         # TODO: assert molecules in one group are the same type?
-        content = "Found Target Fragments: \n"
+        self._print("Found Target Fragments: ")
         for k, v in fragments.items():
-            content += "  {:<24s}:  {}\n".format(k, v)
-        self.logger.info(content)
+            self._print("  {:<24s}:  {}".format(k, v))
 
         frag_list = []
         for k, v in fragments.items():
@@ -215,7 +201,7 @@ class AFIRSearch():
         possible_pairs = []
         for i, j in comb:
             f1, f2 = frag_list[i], frag_list[j]
-            possible_pairs.extend(list(product(f1,f2)))
+            possible_pairs.extend(list(product(f1, f2)))
 
         # - prepare afir bias
         # TODO: retain bias in the driver?
@@ -242,27 +228,27 @@ class AFIRSearch():
                 for line in lines:
                     rxn_data.append(line.strip().split())
             nfinished = len(rxn_data) - 1
-            self.logger.info("".join(lines))
-            self.logger.info(f"finished pairs: {nfinished}")
+            self._print("".join(lines))
+            self._print(f"finished pairs: {nfinished}")
             possible_pairs = possible_pairs[nfinished:]
+        
+        # - 
+        self._print(self.worker)
 
         # - run each pair
         for i, pair in enumerate(possible_pairs):
             # -- start info
-            self.logger.info(f"===== Pair {i} =====")
+            self._print(f"===== Pair {i} =====")
             bias_params["groups"] = pair 
             reax_indices = bias_params["groups"]
             reactants = convert_index_to_formula(atoms, reax_indices)
-            self.logger.info("Reactants:")
-            self.logger.info(reactants)
-            self.logger.info(pair)
+            self._print("Reactants:")
+            self._print(reactants)
+            self._print(pair)
 
             # -- run pair
             directory_ = self.directory / f"p{i}"
-            self._irun(atoms, worker, reactants, bias_params, directory_)
-
-            # -- end info
-            self.logger.info("\n\n")
+            self._irun(atoms, self.worker, reactants, bias_params, directory_)
 
         return
     
@@ -274,7 +260,7 @@ class AFIRSearch():
             cur_gamma = gmax*self.rng.random()
         else:
             cur_gamma = ginit
-        self.logger.info(f"Initial Gamma: {cur_gamma}")
+        self._print(f"Initial Gamma: {cur_gamma}")
 
         driver = worker.driver
 
@@ -286,7 +272,7 @@ class AFIRSearch():
 
         ngamma = 0
         while cur_gamma <= gmax:
-            self.logger.info(f"\nCurrent Gamma: {cur_gamma}")
+            self._print(f"\nCurrent Gamma: {cur_gamma}")
             # TODO: make this part parallel, which maybe efficient for
             #       ab initio calculations...
             cur_atoms = atoms_.copy()
@@ -315,19 +301,19 @@ class AFIRSearch():
             prod_indices = find_product(end_atoms, bias_params["groups"])
             products = convert_index_to_formula(end_atoms, prod_indices)
             products = sorted(products)
-            self.logger.info("Molecules: {}".format(" ".join(products)))
+            self._print("Molecules: {}".format(" ".join(products)))
             if products == reactants:
                 # TODO: index may change? molecule reconstruct?
-                self.logger.info("nothing happens...")
+                self._print("nothing happens...")
                 ...
             else:
                 # TODO: resacale gamma if reaction were found in the second minimisation
                 is_reacted = True
-                self.logger.info("reaction happens...")
-                self.logger.info(
+                self._print("reaction happens...")
+                self._print(
                     "{} -> {}".format(" + ".join(reactants), " + ".join(products))
                 )
-                self.logger.info("minimise the last structure to the final state...")
+                self._print("minimise the last structure to the final state...")
                 fs_atoms = self._minimise_stable_state(end_atoms, worker, directory_=directory_/"fs")
                 path_frames.append(fs_atoms)
                 break
@@ -427,6 +413,12 @@ class AFIRSearch():
         # - results
 
         return ret
+    
+    def read_convergence(self):
+        return super().read_convergence()
+    
+    def get_workers(self):
+        return super().get_workers()
 
 
 if __name__ == "__main__":

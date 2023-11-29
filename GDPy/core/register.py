@@ -174,7 +174,6 @@ ALL_MODULES = [
     # -- expeditions
     ("GDPy", ["expedition"]),
     # -- reactors
-    ("GDPy.reactor", ["afir"]),
     # -- validators
     ("GDPy", ["validator"]),
     # - session operations + variables.
