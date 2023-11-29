@@ -100,11 +100,11 @@ class AFIRSearch(AbstractExpedition):
             builder: StructureBuilder.
         
         """
-        self.builder = builder
+        self.directory = directory
 
+        self.builder = builder
         self.target = target
         #assert len(self.target) == 2, "Target only supports two elements."
-
         self.gamma = gamma
 
         self.bias_params = dict(
