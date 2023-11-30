@@ -307,7 +307,7 @@ class VaspDriver(AbstractDriver):
             self.calc.write_input(atoms)
             #if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
             #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-            run_vasp("vasp", atoms.calc.command, self.directory)
+            run_vasp("vasp", self.calc.command, self.directory)
 
         except Exception as e:
             self._debug(e)
