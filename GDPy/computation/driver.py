@@ -385,7 +385,7 @@ class AbstractDriver(abc.ABC):
                     if frozen_indices:
                         mobile_indices, end_frozen_indices = parse_constraint_info(end_atoms, cons_text, ret_text=False)
                         if convert_indices(end_frozen_indices) != convert_indices(beg_frozen_indices):
-                            self._info("Constraint changes after calculation, which may be from `lowest`. Most times it is fine.")
+                            self._print("Constraint changes after calculation, which may be from `lowest`. Most times it is fine.")
                         end_atoms._del_constraints()
                         end_atoms.set_constraint(FixAtoms(indices=frozen_indices))
                     # TODO: Different codes have different definition for the max force
