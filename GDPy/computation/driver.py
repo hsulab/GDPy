@@ -19,7 +19,7 @@ from ase.constraints import FixAtoms
 from ase.calculators.calculator import compare_atoms
 
 from GDPy import config
-from GDPy.builder.constraints import parse_constraint_info
+from GDPy.builder.constraints import parse_constraint_info, convert_indices
 
 #: Prefix of backup files
 BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
@@ -38,6 +38,7 @@ MD_INIT_KEYS: List[str] = [
 
 #: Parameter keys used to run a molecular-dynamics task.
 MD_RUN_KEYS: List[str] = ["steps"]
+
 
 @dataclasses.dataclass
 class DriverSetting:
@@ -373,15 +374,22 @@ class AbstractDriver(abc.ABC):
                 if self.setting.task == "min":
                     # NOTE: check geometric convergence (forces)...
                     #       some drivers does not store constraints in trajectories
-                    atoms = traj_frames[-1]
+                    # NOTE: Sometimes constraint changes if `lowest` is used.
+                    frozen_indices = None
                     run_params = self.setting.get_run_params()
                     cons_text = run_params.pop("constraint", None)
-                    mobile_indices, frozen_indices = parse_constraint_info(atoms, cons_text, ret_text=False)
+                    mobile_indices, beg_frozen_indices = parse_constraint_info(traj_frames[0], cons_text, ret_text=False)
+                    if beg_frozen_indices:
+                        frozen_indices = beg_frozen_indices
+                    end_atoms = traj_frames[-1]
                     if frozen_indices:
-                        atoms._del_constraints()
-                        atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                        mobile_indices, end_frozen_indices = parse_constraint_info(end_atoms, cons_text, ret_text=False)
+                        if convert_indices(end_frozen_indices) != convert_indices(beg_frozen_indices):
+                            self._info("Constraint changes after calculation, which may be from `lowest`. Most times it is fine.")
+                        end_atoms._del_constraints()
+                        end_atoms.set_constraint(FixAtoms(indices=frozen_indices))
                     # TODO: Different codes have different definition for the max force
-                    maxfrc = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+                    maxfrc = np.max(np.fabs(end_atoms.get_forces(apply_constraint=True)))
                     if maxfrc <= self.setting.fmax or step+1 >= self.setting.steps:
                         converged = True
                     self._debug(
