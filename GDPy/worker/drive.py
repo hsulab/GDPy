@@ -407,7 +407,6 @@ class DriverBasedWorker(AbstractWorker):
                                 jobid = self.scheduler.submit()
                                 self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                             else:
-                                warnings.warn("Local scheduler does not support re-submit.", UserWarning)
                                 frames = read(self.directory/"_data"/f"{identifier}.xyz", ":")
                                 self.run(frames, batch=batch)
                 else:
