@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0","setuptools-git-versioning"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
+
+[project]
+dynamic = ["version"]
+name = "gdpx"
+dependencies = [
+  "ase>=3.22",
+  "h5py>=3.7.0",
+  "joblib>=1.1.0",
+  "networkx>=2.6.3",
+  "omegaconf>=2.3.0",
+  "pydantic>=2.1.1",
+  "pyyaml>=6.0",
+  "tinydb>=4.7.0",
+]
+requires-python = ">=3.9"
+authors = [
+  { name="Jiayan Xu", email="ahcigar@foxmail.com" },
+]
+description = "Automate computational chemistry/materials sciance and machine learning interatomic potential training workflow."
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/hsulab/GDPy"
+Issues = "https://github.com/hsulab/GDPy/issues"
+
+[project.scripts]
+gdp = "gdpx.main:main"
+
