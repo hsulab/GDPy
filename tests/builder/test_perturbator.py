@@ -3,8 +3,8 @@
 
 import pytest
 
-from GDPy.builder.species import MoleculeBuilder
-from GDPy.builder.perturbator import PerturbatorBuilder
+from gdpx.builder.species import MoleculeBuilder
+from gdpx.builder.perturbator import PerturbatorBuilder
 
 
 def test_molecule():

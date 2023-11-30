@@ -11,10 +11,10 @@ from jax import jacfwd, jacrev
 
 from ase import Atoms
 
-from GDPy.builder.hypercube import (
+from gdpx.builder.hypercube import (
     compute_bond_distances, compute_bond_angles, pseudo_inverse_of_jacobian
 )
-from GDPy.builder.hypercube import HypercubeBuilder
+from gdpx.builder.hypercube import HypercubeBuilder
 
 
 @pytest.fixture(scope="function")

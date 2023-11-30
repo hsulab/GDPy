@@ -11,9 +11,9 @@ import numpy as np
 
 from ase.io import read, write
 
-from GDPy.core.register import import_all_modules_for_register, registers
-from GDPy.data.array import AtomsNDArray
-from GDPy.selector.interface import run_selection
+from gdpx.core.register import import_all_modules_for_register, registers
+from gdpx.data.array import AtomsNDArray
+from gdpx.selector.interface import run_selection
 
 
 import_all_modules_for_register()

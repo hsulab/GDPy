@@ -5,8 +5,8 @@ import pytest
 
 from ase.io import write
 
-from GDPy.builder.species import MoleculeBuilder
-from GDPy.builder.packer import PackerBuilder
+from gdpx.builder.species import MoleculeBuilder
+from gdpx.builder.packer import PackerBuilder
 
 
 def test_packer():

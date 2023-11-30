@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from GDPy.data.array import AtomsNDArray
+from gdpx.data.array import AtomsNDArray
 
 
 @pytest.fixture

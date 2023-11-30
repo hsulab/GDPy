@@ -7,12 +7,12 @@ import tempfile
 
 from ase.io import read, write
 
-from GDPy import config
-from GDPy.core.register import import_all_modules_for_register
-from GDPy.builder.species import MoleculeBuilder
-from GDPy.builder.graph.insert import GraphInsertModifier
-from GDPy.builder.graph.remove import GraphRemoveModifier
-from GDPy.builder.graph.exchange import GraphExchangeModifier
+from gdpx import config
+from gdpx.core.register import import_all_modules_for_register
+from gdpx.builder.species import MoleculeBuilder
+from gdpx.builder.graph.insert import GraphInsertModifier
+from gdpx.builder.graph.remove import GraphRemoveModifier
+from gdpx.builder.graph.exchange import GraphExchangeModifier
 
 config.logger.setLevel(logging.DEBUG)
 

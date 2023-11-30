@@ -5,8 +5,8 @@ import numpy as np
 
 from ase.io import read, write
 
-from GDPy.core.register import import_all_modules_for_register
-from GDPy.builder.randomBuilder import (
+from gdpx.core.register import import_all_modules_for_register
+from gdpx.builder.randomBuilder import (
     compute_molecule_number_from_density, SurfaceBuilder, ClusterBuilder, BulkBuilder
 )
 
