@@ -65,7 +65,7 @@ Supported **Expeditions**
    :caption: Developer Guides:
 
    extensions/index
-   modules/modules
+.. modules/modules
 
 .. toctree::
    :maxdepth: 2

@@ -12,17 +12,17 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath("../../GDPy/"))
+sys.path.insert(0, os.path.abspath("../../src/gdpx"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'GDPy'
+project = "GDPy (gdpx)"
 copyright = '2020-2023, Jiayan Xu'
 author = 'Jiayan Xu'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = '0.0.2'
 
 
 # -- General configuration ---------------------------------------------------
