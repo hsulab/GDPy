@@ -2,16 +2,25 @@
   <img src="./assets/logo.png" width="400" height="300">
 </p>
 
-<font size=36>**NOTE: GDPy is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
+<font size=36>**NOTE: This package has been renamed as `gdpx` from `GDPy` as we found unfortunately the name of `gdpy` has been taken for a long time. The `x` instead of `y` can be seen as an extended and improved verion of the original one. The development of `gdpx` will still be undergoing in this `GDPy` repository. Also, the documentation is changed to https://gdpx.readthedocs.io.**</font>
+
+<font size=36>**NOTE: `gdpx` is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
   backward compatibility.**</font>
 
-**The developement stage of different branches: dev > lts >>> main** 
+# Install
 
-- dev: Highly unstable but with advanced methods.
-- lts: Most functionalities are stable to use.
-- main: Released codes but may have depreacated parts.
+`gdpx` is a pure python package. Since it does not include any codes that actually perform calculations and training, for example, `VASP` and `DEEPMD`, you should install them by yourselves.
 
-Start with `git clone https://github.com/hsulab/GDPy.git -b lts` if possible.
+## Latest Version
+```
+$ python -m pip install git+https://github.com/hsulab/GDPy.git
+```
+
+## Stable Release
+We have pull request to add `gdpx` to conda-forge but it can only be installed from a personal conda channel right now.
+```
+$ conda install gdpx -c jxu1223 -c conda-forge
+```
 
 # Table of Contents
 
@@ -23,7 +32,7 @@ Start with `git clone https://github.com/hsulab/GDPy.git -b lts` if possible.
 - [License](#license)
 
 # Overview
-**Documentation**: https://gdpyx.readthedocs.io  
+**Documentation**: https://gdpx.readthedocs.io (Changed from gdpyx)
 
 GDPy stands for Generating Deep Potential with Python (GDPy/GDP¥), including a set of tools and Python modules to automate the structure exploration and the training for machine learning interatomic potentials (MLIPs).
 
@@ -31,6 +40,7 @@ It mainly focuses on the applications in heterogeneous catalysis. The target sys
 
 # Features
 - A unified interface to various MLIPs.
+- A graph-and-node session to construct user-defined workflows.
 - Versatile exploration algorithms to construct a general dataset.
 - Automation workflows for dataset construction and MLIP training.
 
@@ -65,9 +75,10 @@ Some potentials besides MLIPs are supported. Force fields or semi-empirical pote
 
 | Name.       | Description                          | Backend | Notes             |
 | ----------- | ------------------------------------ | ------- | ----------------- |
-| reax        | Reactive Force Field                 | LAMMPS  | 
+| reax        | Reactive Force Field                 | LAMMPS  |                   |
 | xtb         | Tight Binding                        | xtb     | Under development |
 | VASP        | Plane-Wave Density Functional Theory | VASP    |                   |
+| CP2K        | Density Functional Theory            | CP2K    |                   |
 
 ## Expedition
 We take advantage of codes in well-established packages (ASE and LAMMPS) to perform basic minimisation and dynamics. Meanwhile, we have implemented several complicated alogirthms in GDPy itself.
@@ -75,6 +86,7 @@ We take advantage of codes in well-established packages (ASE and LAMMPS) to perf
 | ------------------------------------------ | ------------------------------------------ | ----------- |
 | Molecular Dynamics (md)                    | Brute-Force/Biased Dynamics                | ASE, LAMMPS |
 | Evolutionary Global Optimisation (evo)     | Genetic Algorithm                          | ASE/GDPy    |
+| Basin Hopping                              | Monte Carlo like Global Optimisation       | GDPy        |
 | Adsorbate Configuration (ads)              | Adsorbate Configuration Graph Search       | GDPy        |
 | Reaction Event Exploration (rxn)           | Artificial Force Induced Reaction (AFIR)   | GDPy        |
 | Grand Cononical Monte Carlo (gcmc)         | Monte Carlo with Variable Composition      | GDPy        |
