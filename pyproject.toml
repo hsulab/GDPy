@@ -1,13 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0","setuptools-git-versioning"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools-git-versioning]
-enabled = true
-
 [project]
-dynamic = ["version"]
 name = "gdpx"
+version = "0.0.2"
 dependencies = [
   "ase>=3.22",
   "h5py>=3.7.0",

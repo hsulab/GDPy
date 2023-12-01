@@ -1,0 +1,32 @@
+package:
+  name: gdpx
+  version: 2.0.0
+
+source:
+  path: ../
+
+build: 
+  number: 0
+  script: python3 -m pip install .
+  entry_points: 
+    - gdp = gdpx.main:main
+
+requirements: 
+  bulid: 
+    - python >=3.9
+    - setuptools >=61.0
+  run: 
+    - python >=3.9
+    - ase >=3.22
+    - h5py >=3.7.0
+    - joblib >=1.1.0
+    - networkx >=2.6.3
+    - omegaconf >=2.3.0
+    - pydantic >=2.1.1
+    - pyyaml >=6.0
+    - tinydb >=4.7.0
+
+about: 
+  home: https://github.com/hsulab/GDPy
+  license: GPLv3
+  summary: "Automate computational chemistry/materials sciance and machine learning interatomic potential training workflow."
