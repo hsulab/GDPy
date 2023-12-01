@@ -3,19 +3,22 @@ package:
   version: 2.0.0
 
 source:
-  path: ../
+  #path: ../
+  url: https://github.com/hsulab/GDPy/archive/v0.0.2.tar.gz
+  sha256: 6c8f9824b55a00baa4ea27f1a67571b07638daf01779e0e3af7ac0a3e96fda2f
 
-build: 
-  number: 0
-  script: python3 -m pip install .
+build:
+  noarch: python
+  number: 1
+  script: {{ PYTHON }} -m pip install . -vv
   entry_points: 
     - gdp = gdpx.main:main
 
-requirements: 
-  bulid: 
+requirements:
+  host:
     - python >=3.9
-    - setuptools >=61.0
-  run: 
+    - pip
+  run:
     - python >=3.9
     - ase >=3.22
     - h5py >=3.7.0
@@ -26,7 +29,19 @@ requirements:
     - pyyaml >=6.0
     - tinydb >=4.7.0
 
-about: 
+test:
+  imports:
+    - gdpx
+  requires:
+    - pip
+  commands:
+    - pip check
+    - gdp -h  # [not win]
+
+about:
   home: https://github.com/hsulab/GDPy
-  license: GPLv3
   summary: "Automate computational chemistry/materials sciance and machine learning interatomic potential training workflow."
+  license: GPL-3.0-only
+  license_family: GPL3
+  license_file: LICENSE
+  dev_url: https://github.com/hsulab/GDPy
