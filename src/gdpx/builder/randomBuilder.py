@@ -62,10 +62,10 @@ class RandomBuilder(StructureModifier):
 
     def __init__(
         self, composition: Mapping[str,int], substrates = None,
-        region: dict={}, cell=None, covalent_ratio=[1.0, 2.0], max_times_size: int=5,
-        random_seed=None, *args, **kwargs
+        region: dict={}, cell=None, covalent_ratio=[0.8, 2.0], 
+        max_times_size: int=5, *args, **kwargs
     ):
-        super().__init__(substrates=substrates, random_seed=random_seed, *args, **kwargs)
+        super().__init__(substrates=substrates, *args, **kwargs)
 
         self._state_params = dict(
             composition = composition,
@@ -79,7 +79,7 @@ class RandomBuilder(StructureModifier):
             cell_volume = kwargs.get("cell_volume", None),
             cell_bounds = kwargs.get("cell_bounds", None),
             cell_splits = kwargs.get("cell_splits", None),
-            random_seed = random_seed
+            random_seed = self.random_seed
         )
 
         # - set random seed for generators due to compatibility
@@ -352,8 +352,14 @@ class ClusterBuilder(RandomBuilder):
 
     name: str = "random_cluster"
 
-    def __init__(self, composition: Mapping[str, int], substrates=None, region: dict = {}, cell=None, covalent_ratio=[1, 2], random_seed=None, *args, **kwargs):
-        super().__init__(composition, substrates, region, cell, covalent_ratio, random_seed, *args, **kwargs)
+    def __init__(
+        self, composition: Mapping[str, int], substrates=None, region: dict = {}, 
+        cell=None, covalent_ratio=[0.8, 2.0], *args, **kwargs
+    ):
+        """"""
+        super().__init__(
+            composition, substrates, region, cell, covalent_ratio, *args, **kwargs
+        )
 
         self.pbc = kwargs.get("pbc", False)
 
@@ -398,13 +404,13 @@ class SurfaceBuilder(RandomBuilder):
     name: str = "random_surface"
     
     def __init__(
-        self, region: dict, composition: Mapping[str,int], cell=[], covalent_ratio=[1.0, 2.0], 
-        directory="./", random_seed=None, *args, **kwargs
+        self, region: dict, composition: Mapping[str,int], cell=[], 
+        covalent_ratio=[1.0, 2.0], *args, **kwargs
     ):
         """"""
         super().__init__(
-            region=region, composition=composition, cell=cell, covalent_ratio=covalent_ratio,
-            directory=directory, random_seed=random_seed, *args, **kwargs
+            region=region, composition=composition, cell=cell, 
+            covalent_ratio=covalent_ratio, *args, **kwargs
         )
 
         # - check region
