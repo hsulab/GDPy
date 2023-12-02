@@ -11,6 +11,9 @@ registers.comparator.register(OFPComparator)
 registers.comparator.register(NNMatComparator)
 registers.comparator.register(InteratomicDistanceComparator)
 
+from .cartesian import CartesianComparator
+registers.comparator.register(CartesianComparator)
+
 from .graph import GraphComparator
 registers.comparator.register("graph")(GraphComparator)
 
