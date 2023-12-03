@@ -80,11 +80,6 @@ class CartesianComparator(AbstractComparator):
             ...
 
         return  is_similar
-    
-    def __call__(self, a1, a2) -> bool:
-        """"""
-
-        return self.looks_like(a1, a2)
 
 
 if __name__ == "__main__":

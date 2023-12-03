@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
+import numpy as np
+
 from . import registers
 from .selector import AbstractSelector
 
@@ -35,18 +37,23 @@ class CompareSelector(AbstractSelector):
         nstructures = len(structures)
 
         # - start from the first structure and compare its cartesian coordinates
-        selected_indices = [0]
+        selected_indices, scores = [0], []
         for i, a1 in enumerate(structures[1:]):
-            for j in selected_indices:
+            # NOTE: assume structures are sorted by energy
+            #       close structures may have a high possibility to be similar
+            #       so we compare reversely
+            for j in selected_indices[::-1]:
+                self._print(f"compare: {i+1} and {j}")
                 a2 = structures[j]
                 if self.comparator(a1, a2):
                     break
             else:
                 selected_indices.append(i+1)
-            exit()
+                self._print(f"--->>> current indices: {selected_indices}")
 
         curr_markers = data.markers
-        selected_markers = [curr_markers[i] for i in selected_indices]
+        # NOTE: convert to np.array as there may have 2D markers
+        selected_markers = np.array([curr_markers[i] for i in selected_indices])
         data.markers = selected_markers
 
         return

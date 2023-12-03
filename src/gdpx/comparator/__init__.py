@@ -15,7 +15,7 @@ from .cartesian import CartesianComparator
 registers.comparator.register(CartesianComparator)
 
 from .graph import GraphComparator
-registers.comparator.register("graph")(GraphComparator)
+registers.comparator.register(GraphComparator)
 
 from .singlepoint import SinglePointComparator
 registers.comparator.register("single_point")(SinglePointComparator)
