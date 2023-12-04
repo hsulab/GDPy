@@ -284,6 +284,10 @@ class VaspDriver(AbstractDriver):
 
                 self.calc.set(**run_params)
                 atoms.calc = self.calc
+                # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+                #       thus we manually call the function to write input files and
+                #       run the calculation
+                self.calc.write_input(atoms)
             else:
                 self.calc.read_incar(ckpt_wdir/"INCAR") # read previous incar
                 if cache_traj is None:
@@ -295,18 +299,19 @@ class VaspDriver(AbstractDriver):
                 dump_period = 1 # since we read vasprun.xml, every frame is dumped
                 target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
                 if target_steps > 0: # not a spc 
+                    # BUG: ...
                     steps = target_steps + dump_period - nframes*dump_period
                     assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
                     self.calc.set(nsw=steps)
+                # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+                #       thus we manually call the function to write input files and
+                #       run the calculation
+                self.calc.write_input(atoms)
                 # To restart, velocities are always retained 
+                #if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
+                #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
                 shutil.copy(ckpt_wdir/"CONTCAR", self.directory/"POSCAR")
 
-            # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
-            #       thus we manually call the function to write input files and
-            #       run the calculation
-            self.calc.write_input(atoms)
-            #if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
-            #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
             run_vasp("vasp", self.calc.command, self.directory)
 
         except Exception as e:
