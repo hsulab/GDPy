@@ -377,6 +377,7 @@ class DriverBasedWorker(AbstractWorker):
                         wdir_existence = [(self.directory/x).exists() for x in wdir_names]
                         if all(wdir_existence):
                             for x in wdir_names:
+                                curr_wdir = self.directory/x
                                 self.driver.directory = curr_wdir
                                 if not self.driver.read_convergence():
                                     break
