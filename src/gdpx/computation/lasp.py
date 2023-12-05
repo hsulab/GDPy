@@ -8,6 +8,7 @@ import time
 import shutil
 import warnings
 import pathlib
+import traceback
 from pathlib import Path
 from typing import List, Tuple
 
@@ -18,8 +19,8 @@ from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gdpx.builder.constraints import parse_constraint_info
-from gdpx.computation.driver import AbstractDriver, DriverSetting
+from ..builder.constraints import parse_constraint_info
+from .driver import AbstractDriver, DriverSetting
 
 
 """Driver and calculator of LaspNN.
@@ -119,6 +120,64 @@ def read_laspset(train_structures):
 
     return frames
 
+def read_lasp_structures(wdir) -> List[Atoms]:
+    """Read simulation trajectory."""
+    traj_frames = read(os.path.join(wdir, "allstr.arc"), ":", format="dmol-arc")
+    natoms = len(traj_frames[-1])
+
+    traj_steps = []
+    traj_energies = []
+    traj_forces = []
+
+    # NOTE: for lbfgs opt, steps+2 frames would be output?
+
+    # have to read last structure
+    with open(os.path.join(wdir, "allfor.arc"), "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if line.strip().startswith("For"):
+                step = int(line.split()[1])
+                traj_steps.append(step)
+                # NOTE: need check if energy is a number
+                #       some ill structure may result in large energy of ******
+                energy_data = line.split()[3]
+                try:
+                    energy = float(energy_data)
+                except ValueError:
+                    energy = np.inf
+                    msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(wdir)
+                    warnings.warn(msg, UserWarning)
+                traj_energies.append(energy)
+                # stress
+                line = fopen.readline()
+                stress = np.array(line.split()) # TODO: what is the format of stress
+                # forces
+                forces = []
+                for j in range(natoms):
+                    line = fopen.readline()
+                    force_data = line.strip().split()
+                    if len(force_data) == 3: # expect three numbers
+                        pass
+                    else: # too large forces make out become ******
+                        force_data = [np.inf]*3
+                    forces.append(force_data)
+                forces = np.array(forces, dtype=float)
+                traj_forces.append(forces)
+            if line.strip() == "":
+                pass
+            if not line: # if line == "":
+                break
+    assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
+    
+    # - create traj
+    for i, atoms in enumerate(traj_frames):
+        calc = SinglePointCalculator(
+            atoms, energy=traj_energies[i], forces=traj_forces[i]
+        )
+        atoms.calc = calc
+
+    return traj_frames
+
 @dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
 
@@ -132,7 +191,8 @@ class LaspDriverSetting(DriverSetting):
                     "SSW.ftol": self.fmax
                 }
             )
-            ...
+
+            assert self.dump_period == 1, "LaspDriver must have dump_period ==1."
         
         if self.task == "md":
             if self.tend is None:
@@ -189,7 +249,6 @@ class LaspDriverSetting(DriverSetting):
 
         return run_params
 
-
 class LaspDriver(AbstractDriver):
 
     """Driver for LASP."""
@@ -200,9 +259,6 @@ class LaspDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    #: List of output files would be saved when restart.
-    saved_cards = ["allstr.arc", "allfor.arc"]
-
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
         super().__init__(calc, params, directory=directory, *args, **kwargs)
@@ -210,57 +266,99 @@ class LaspDriver(AbstractDriver):
         self.setting = LaspDriverSetting(**params)
 
         return
+    
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """"""
+        verified = super()._verify_checkpoint(*args, **kwargs)
+        if verified:
+            laspstr = self.directory / "allstr.arc"
+            if (laspstr.exists() and laspstr.stat().st_size != 0):
+                verified = True
+            else:
+                verified = False
+        else:
+            ...
 
-    def _irun(self, atoms: Atoms, *args, **kwargs) -> None:
+        return verified
+
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs) -> None:
         """"""
         try:
-            # - init params
-            run_params = self.setting.get_init_params()
-            run_params.update(**self.setting.get_run_params(**kwargs))
+            if ckpt_wdir is None: # start from the scratch
+                # - init params
+                run_params = self.setting.get_init_params()
+                run_params.update(**self.setting.get_run_params(**kwargs))
 
-            self.calc.set(**run_params)
-            atoms.calc = self.calc
+                self.calc.set(**run_params)
+                atoms.calc = self.calc
 
-            _ = atoms.get_forces()
+                _ = atoms.get_forces()
+            else:
+                # TODO: velocities?
+                traj = self.read_trajectory()
+                nframes = len(traj)
+                assert nframes > 0, "LaspDriver restarts with a zero-frame trajectory."
+                atoms = traj[-1]
+                target_steps = self.setting.steps
+                dump_period = self.setting.dump_period
+                if target_steps > 0:
+                    steps = target_steps + dump_period - nframes*dump_period
+                assert steps > 0, "Steps should be greater than 0."
+                run_params = self.setting.get_init_params()
+                run_params.update(**self.setting.get_run_params(steps=steps))
+
+                self.calc.set(**run_params)
+                atoms.calc = self.calc
+
+                _ = atoms.get_forces()
+
         except Exception as e:
             self._debug(e)
+            self._debug(traceback.print_exc())
 
         return
-    
-    def _resume(self, atoms: Atoms, *args, **kwargs) -> Tuple[Atoms,dict]:
-        """Get run_params, respect steps and fmax from kwargs.
-        """
-        # - update atoms and driver
-        traj = self.read_trajectory()
-        nframes = len(traj)
-        if nframes > 0:
-            # --- update atoms
-            resume_atoms = traj[-1]
-            resume_params = {}
-            # --- update run_params in settings
-            #dump_period = self.setting.get_init_params()["dump_period"]
-            #steps = (
-            #    self.setting.get_run_params(*args, **kwargs)["maxiter"] + dump_period 
-            #    - nframes*dump_period
-            #)
-            #assert steps > 0, "Steps should be greater than 0."
-            #resume_params.update(steps=steps)
-            warnings.warn("LASP does not support restart with updated input parameters.")
-        else:
-            resume_atoms = atoms
-            resume_params = {}
-
-        return resume_atoms, resume_params
     
     def read_force_convergence(self, *args, **kwargs) -> bool:
         """"""
         return self.calc._is_converged()
     
-    def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
-        """Read trajectory in the current working directory."""
-        images = self.calc._read_trajectory(add_step_info)
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+        """"""
 
-        return images
+        return read_lasp_structures(wdir)
+    
+    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+        """Read trajectory in the current working directory."""
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+
+        traj_list = []
+        for w in prev_wdirs:
+            curr_frames = self._read_a_single_trajectory(w)
+            traj_list.append(curr_frames)
+        
+        laspstr = self.directory / "allstr.arc"
+        if laspstr.exists() and laspstr.stat().st_size != 0:
+            traj_list.append(read_lasp_structures(self.directory))
+
+        # -- concatenate
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                traj_frames.extend(traj_list[i][1:])
+        else:
+            ...
+        
+        nframes = len(traj_frames)
+        self._debug(f"LASP read_trajectory nframes: {nframes}")
+
+        # NOTE: LASP only save step info in MD simulations...
+        for i in range(nframes):
+            traj_frames[i].info["step"] = i*self.setting.dump_period
+
+        return traj_frames
 
 
 class LaspNN(FileIOCalculator):
@@ -419,7 +517,7 @@ class LaspNN(FileIOCalculator):
     def read_results(self):
         """Read LASP results."""
         # have to read last structure
-        traj_frames = self._read_trajectory()
+        traj_frames = read_lasp_structures(self.directory)
 
         energy = traj_frames[-1].get_potential_energy()
         forces = traj_frames[-1].get_forces().copy()
@@ -443,69 +541,7 @@ class LaspNN(FileIOCalculator):
                 converged = True
 
         return converged
-    
-    def _read_trajectory(self, add_step_info: bool=True) -> List[Atoms]:
-        """Read simulation trajectory."""
-        traj_frames = read(os.path.join(self.directory, "allstr.arc"), ":", format="dmol-arc")
-        natoms = len(traj_frames[-1])
-
-        traj_steps = []
-        traj_energies = []
-        traj_forces = []
-
-        # NOTE: for lbfgs opt, steps+2 frames would be output?
-
-        # have to read last structure
-        with open(os.path.join(self.directory, "allfor.arc"), "r") as fopen:
-            while True:
-                line = fopen.readline()
-                if line.strip().startswith("For"):
-                    step = int(line.split()[1])
-                    traj_steps.append(step)
-                    # NOTE: need check if energy is a number
-                    #       some ill structure may result in large energy of ******
-                    energy_data = line.split()[3]
-                    try:
-                        energy = float(energy_data)
-                    except ValueError:
-                        energy = np.inf
-                        msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(self.directory)
-                        warnings.warn(msg, UserWarning)
-                    traj_energies.append(energy)
-                    # stress
-                    line = fopen.readline()
-                    stress = np.array(line.split()) # TODO: what is the format of stress
-                    # forces
-                    forces = []
-                    for j in range(natoms):
-                        line = fopen.readline()
-                        force_data = line.strip().split()
-                        if len(force_data) == 3: # expect three numbers
-                            pass
-                        else: # too large forces make out become ******
-                            force_data = [np.inf]*3
-                        forces.append(force_data)
-                    forces = np.array(forces, dtype=float)
-                    traj_forces.append(forces)
-                if line.strip() == "":
-                    pass
-                if not line: # if line == "":
-                    break
-        assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
-        
-        # - create traj
-        for i, atoms in enumerate(traj_frames):
-            calc = SinglePointCalculator(
-                atoms, energy=traj_energies[i], forces=traj_forces[i]
-            )
-            atoms.calc = calc
-        
-        if add_step_info:
-            for step, atoms in zip(traj_steps, traj_frames):
-                atoms.info["step"] = step
-
-        return traj_frames
 
 
 if __name__ == "__main__":
-    pass
+    ...
