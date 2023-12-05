@@ -361,7 +361,6 @@ class AseDriver(AbstractDriver):
                 nframes = len(traj)
                 assert nframes > 0, "AseDriver restarts with a zero-frame trajectory."
                 atoms = traj[-1]
-                self._debug(f"fuck: {nframes}")
                 # --- update run_params in settings
                 dump_period = self.setting.get_init_params()["loginterval"]
                 target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
