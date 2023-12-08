@@ -5,6 +5,7 @@
 import copy
 import itertools
 import dataclasses
+import os
 import pathlib
 import shutil
 import traceback
@@ -22,6 +23,38 @@ from ase.neb import NEB
 
 from .string import AbstractStringReactor, StringReactorSetting
 from .. import parse_constraint_info
+
+
+def run_cp2k(name, command, directory):
+    """Run vasp from the command. 
+    
+    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run 
+    directly from the command if INCAR aready exists.
+    
+    """
+    import subprocess
+    from ase.calculators.calculator import EnvironmentError, CalculationFailed
+
+    try:
+        proc = subprocess.Popen(command, shell=True, cwd=directory)
+    except OSError as err:
+        # Actually this may never happen with shell=True, since
+        # probably the shell launches successfully.  But we soon want
+        # to allow calling the subprocess directly, and then this
+        # distinction (failed to launch vs failed to run) is useful.
+        msg = 'Failed to execute "{}"'.format(command)
+        raise EnvironmentError(msg) from err
+
+    errorcode = proc.wait()
+
+    if errorcode:
+        path = os.path.abspath(directory)
+        msg = ('Calculator "{}" failed with command "{}" failed in '
+               '{} with error code {}'.format(name, command,
+                                              path, errorcode))
+        raise CalculationFailed(msg)
+
+    return
 
 
 @dataclasses.dataclass
@@ -216,7 +249,9 @@ class Cp2kStringReactor(AbstractStringReactor):
             atoms.calc = self.calc
 
             # - run calculation
-            _ = atoms.get_forces()
+            #_ = atoms.get_forces()
+            self.calc.write_input(atoms)
+            run_cp2k("cp2k", self.calc.command, self.directory)
 
         except Exception as e:
             self._debug(e)
