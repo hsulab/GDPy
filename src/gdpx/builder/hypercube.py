@@ -123,7 +123,13 @@ class HypercubeBuilder(StructureModifier):
         super().__init__(substrates=substrates, *args, **kwargs)
 
         self.dimers = np.array(distances)
-        self.trimers = np.array(angles)
+
+        if angles:
+            self.trimers = np.array(angles)
+            self._use_ang = True
+        else:
+            self.trimers = []
+            self._use_ang = False
 
         self.ndof = len(self.dimers) + len(self.trimers)
 
@@ -133,7 +139,7 @@ class HypercubeBuilder(StructureModifier):
                 bounds_.extend(disrange)
             else: # two floats
                 bounds_.extend([disrange]*len(self.dimers))
-        if self.trimers is not None:
+        if self._use_ang:
             if angrange:
                 if isinstance(angrange[0], list):
                     bounds_.extend(angrange)
@@ -186,26 +192,29 @@ class HypercubeBuilder(StructureModifier):
         positions = copy.deepcopy(atoms.positions)
         for i in range(self.MAX_ATTEMPTS_UPDATE):
             distances = compute_bond_distances(positions, pairs)
-            if trimers is not None:
+            if self._use_ang:
                 angles = compute_bond_angles(positions, trimers)
             else:
                 angles = []
             internals = np.hstack((distances,angles))
+            self._debug(f"internals: {internals}")
             disp = targets - internals 
             if np.max(np.fabs(disp)) < self.TOL_INTCOORD:
                 break
             dis_jac_ = jacrev(compute_bond_distances, argnums=0)(positions, pairs)
             dis_jac = dis_jac_.reshape(-1,natoms*3)
-            if trimers is not None:
+            if self._use_ang:
                 ang_jac_ = jacrev(compute_bond_angles, argnums=0)(positions, trimers)
                 ang_jac = ang_jac_.reshape(-1,natoms*3)
+                jac = np.vstack((dis_jac,ang_jac))
             else:
                 ang_jac = []
-            jac = np.vstack((dis_jac,ang_jac))
+                jac = dis_jac
             jac_inv = pseudo_inverse_of_jacobian(jac)
             positions = copy.deepcopy(positions) + jnp.reshape(jac_inv@disp, (-1,3))
         else:
-            warnings.warn("Iterative approximation is not converged.", UserWarning)
+            #warnings.warn("Iterative approximation is not converged.", UserWarning)
+            self._print("Iterative approximation is not converged.")
         
         # - update positions
         atoms.positions = positions
