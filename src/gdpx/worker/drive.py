@@ -358,9 +358,6 @@ class DriverBasedWorker(AbstractWorker):
             self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             for job_name in running_jobs:
-                #group_directory = self.directory / job_name[self.UUIDLEN+1:]
-                #group_directory = self.directory / "_works"
-                group_directory = self.directory
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
@@ -368,7 +365,7 @@ class DriverBasedWorker(AbstractWorker):
 
                 #self.scheduler.set(**{"job-name": job_name})
                 self.scheduler.job_name = job_name
-                self.scheduler.script = group_directory/f"run-{uid}.script" 
+                self.scheduler.script = self.directory/f"run-{uid}.script" 
 
                 # -- check whether the jobs if running
                 if self.scheduler.is_finished(): # if it is still in the queue
@@ -376,17 +373,18 @@ class DriverBasedWorker(AbstractWorker):
                     is_finished = False
                     wdir_names = doc_data["wdir_names"]
                     if not self._share_wdir:
-                        for x in wdir_names:
-                            if not (group_directory/x).exists():
-                                # even not start
-                                break
-                            else:
-                                # not converged
-                                self.driver.directory = group_directory/x
+                        # - first a quick check if all wdirs exist
+                        wdir_existence = [(self.directory/x).exists() for x in wdir_names]
+                        if all(wdir_existence):
+                            for x in wdir_names:
+                                curr_wdir = self.directory/x
+                                self.driver.directory = curr_wdir
                                 if not self.driver.read_convergence():
                                     break
+                            else:
+                                is_finished = True
                         else:
-                            is_finished = True
+                            self._print("NOT ALL wdirs exist.")
                     else:
                         cache_frames = read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
                         cache_wdirs = [a.info["wdir"] for a in cache_frames]
