@@ -2,7 +2,7 @@
   <img src="./assets/logo.png" width="400" height="300">
 </p>
 
-<font size=36>**NOTE: This package has been renamed as `gdpx` from `GDPy` as we found unfortunately the name of `gdpy` has been taken for a long time. The `x` instead of `y` can be seen as an extended and improved verion of the original one. The development of `gdpx` will still be undergoing in this `GDPy` repository. Also, the documentation is changed to https://gdpx.readthedocs.io.**</font>
+<font size=36>**NOTE: This package has been renamed as `gdpx` from `GDPy` as we found, unfortunately, the name of `gdpy` has been taken for a long time. The `x` instead of `y` can be seen as an extended and improved version of the original one. The development of `gdpx` will still be undergoing in this `GDPy` repository. Also, the documentation is changed to https://gdpx.readthedocs.io.**</font>
 
 <font size=36>**NOTE: `gdpx` is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
   backward compatibility.**</font>
@@ -17,9 +17,8 @@ $ python -m pip install git+https://github.com/hsulab/GDPy.git
 ```
 
 ## Stable Release
-We have pull request to add `gdpx` to conda-forge but it can only be installed from a personal conda channel right now.
 ```
-$ conda install gdpx -c jxu1223 -c conda-forge
+$ conda install gdpx -c conda-forge
 ```
 
 # Table of Contents
@@ -92,7 +91,7 @@ We take advantage of codes in well-established packages (ASE and LAMMPS) to perf
 | Grand Cononical Monte Carlo (gcmc)         | Monte Carlo with Variable Composition      | GDPy        |
 
 ## Workflow
-There are two kinds of workflows according to the way how they couple the expedition and the training. Offline workflow as the major category separates the expedition and the training, which collects a large number of structures from several expeditions and then train the MLIP with the collective dataset. This process is highly parallelised, and is usually aimed for a general dataset. Online workflow, a really popular one, adopts an on-the-fly strategy to build dataset during the expedition, where a new MLIP is trained to continue exploration once new candidates are selected (sometimes only one structure every time!). Thus, it is mostly used to train a MLIP for a very specific system.
+There are two kinds of workflows according to the way they couple the expedition and the training. Offline workflow as the major category separates the expedition and the training, which collects structures from several expeditions and then trains the MLIP with the collective dataset. This process is highly parallelised and is usually aimed at a general dataset. Online workflow, a really popular one, adopts an on-the-fly strategy to build a dataset during the expedition, where a new MLIP is trained to continue exploration once new candidates are selected (sometimes only one structure every time!). Thus, it is mostly used to train an MLIP for a particular system.
 
 | Type    | Supported Expedition |
 | ------- | -------------------- |

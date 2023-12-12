@@ -1,11 +1,10 @@
 package:
   name: gdpx
-  version: 0.0.2
+  version: 0.0.3
 
 source:
-  #path: ../
-  url: https://github.com/hsulab/GDPy/archive/v0.0.2.tar.gz
-  sha256: 6c8f9824b55a00baa4ea27f1a67571b07638daf01779e0e3af7ac0a3e96fda2f
+  url: https://github.com/hsulab/GDPy/archive/v0.0.3.tar.gz
+  sha256: 1c4d745fea92f2da570ea05a2f92c79b7e56ceb5761291c8e40bea6d8aca0589
 
 build:
   noarch: python
