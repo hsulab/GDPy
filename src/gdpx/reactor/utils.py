@@ -69,6 +69,8 @@ def plot_mep(wdir, images):
 
     plt.savefig(wdir/"neb.png")
 
+    plt.close()
+
     return
 
 def plot_bands(wdir, images, nimages: int):

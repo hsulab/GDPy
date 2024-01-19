@@ -249,9 +249,10 @@ class Cp2kStringReactor(AbstractStringReactor):
             atoms.calc = self.calc
 
             # - run calculation
-            #_ = atoms.get_forces()
+            self.calc.atoms = atoms
             self.calc.write_input(atoms)
             run_cp2k("cp2k", self.calc.command, self.directory)
+            self.calc.atoms = None
 
         except Exception as e:
             self._debug(e)

@@ -155,10 +155,13 @@ class AbstractStringReactor(AbstractReactor):
                 curr_band = band_frames[-1]
                 energies = [a.get_potential_energy() for a in curr_band]
                 imax = 1 + np.argsort(energies[1:-1])[-1]
-                print(f"imax: {imax}")
                 # NOTE: maxforce in cp2k is norm(atomic_forces)
                 maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
-                print(f"maxfrc: {maxfrc}")
+
+                self._print(f"imax: {imax}")
+                self._print(
+                    f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} dE: {energies[-1]-energies[0]:<8.4f}"
+                )
             else:
                 self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
                 ...
@@ -237,7 +240,7 @@ class AbstractStringReactor(AbstractReactor):
 
             interpolate(
                 images=images, mic=False, interpolate_cell=False, 
-                use_scaled_coord=False, apply_constraint=None
+                use_scaled_coord=False, apply_constraint=False
             )
         else:
             self._print("Use a pre-defined pathway.")
