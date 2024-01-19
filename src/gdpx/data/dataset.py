@@ -89,13 +89,17 @@ class XyzDataloader(AbstractDataloader):
             "+".join(str(x.relative_to(self.directory)).split("/")) for x in data_dirs
         ]
 
-        frames_list = []
-        for p in data_dirs:
+        nframes_tot, frames_list = 0, []
+        for i, p in enumerate(data_dirs):
             curr_frames = []
             xyzpaths = sorted(list(p.glob("*.xyz")))
             for x in xyzpaths:
                 curr_frames.extend(read(x, ":"))
+            curr_nframes = len(curr_frames)
+            nframes_tot += curr_nframes
+            self._debug(f"{i:>4d} {str(p)} -> {len(curr_frames)}")
             frames_list.append(curr_frames)
+        self._debug(f"Number of frames: {nframes_tot}")
         
         pairs = []
         for n, x in zip(names, frames_list):
