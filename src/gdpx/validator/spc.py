@@ -74,7 +74,7 @@ class SinglepointValidator(AbstractValidator):
             self._debug(selected_groups)
             self._debug(selected_prefixes)
 
-            for curr_prefix, curr_indices in zip(selected_prefixes,selected_groups):
+            for curr_prefix, curr_indices in zip(selected_prefixes, selected_groups):
                 curr_ref = list(itertools.chain(*[frame_pairs[i][0] for i in curr_indices]))
                 curr_pre = list(itertools.chain(*[frame_pairs[i][1] for i in curr_indices]))
                 nframes, rmse_ret = self._plot_comparison(curr_prefix, curr_ref, curr_pre)
