@@ -253,10 +253,16 @@ class MonteCarlo(AbstractExpedition):
         # - run mc steps
         step_converged = False
         for i in range(self.curr_step, self.convergence["steps"]+1):
+            self._print(f"RANDOM_SEED:  {self.random_seed}")
+            self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
             step_converged = self._irun(i)
             if not step_converged:
                 self._print("Wait MC step to finish.")
                 break
+            else:
+                # -- clean up
+                if (i%self.dump_period != 0):
+                    shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
         else:
             self._print("MC is converged...")
 
@@ -268,29 +274,16 @@ class MonteCarlo(AbstractExpedition):
         step_wdir = self.directory/f"{self.WDIR_PREFIX}{i}"
         self.worker.directory = step_wdir
 
-        self._print(f"RANDOM_SEED:  {self.random_seed}")
-        self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
-
         # - operate atoms
-        #    always return atoms even if no change is applied
-        temp_op = self.directory/f"op_{i}.pkl"
-        temp_stru = self.directory/f"temp_{i}.xyz"
-        if not temp_stru.exists():
-            curr_op = select_operator(self.operators, self.op_probs, self.rng)
-            self._print(f"operator {curr_op.__class__.__name__}")
-            curr_atoms = curr_op.run(self.atoms, self.rng)
-            if curr_atoms:
-                save_operator(curr_op, temp_op)
-                # --- add info
-                curr_atoms.info["confid"] = int(f"{i}")
-                curr_atoms.info["step"] = -1 # NOTE: remove step info from driver
-                write(temp_stru, curr_atoms)
-            else:
-                self._print("FAILED to run operation...")
+        curr_op = select_operator(self.operators, self.op_probs, self.rng)
+        self._print(f"operator {curr_op.__class__.__name__}")
+        curr_atoms = curr_op.run(self.atoms, self.rng)
+        if curr_atoms:
+            # --- add info
+            curr_atoms.info["confid"] = int(f"{i}")
+            curr_atoms.info["step"] = -1 # NOTE: remove step info from driver
         else:
-            # load state from file
-            curr_op = load_operator(temp_op)
-            curr_atoms = read(temp_stru)
+            self._print("FAILED to run operation...")
         
         # - run postprocess
         if curr_atoms is not None:
@@ -322,12 +315,6 @@ class MonteCarlo(AbstractExpedition):
                 else:
                     self._print("failure...")
                 write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
-
-                # -- clean up
-                os.remove(temp_stru)
-                os.remove(temp_op)
-                if (i%self.dump_period != 0):
-                    shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
 
                 step_converged = True
             else:
