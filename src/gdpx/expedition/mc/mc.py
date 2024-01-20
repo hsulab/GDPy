@@ -218,7 +218,8 @@ class MonteCarlo(AbstractExpedition):
 
         self._print("===== MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:
-            self._print(str(op))
+            for x in str(op).split("\n"):
+                self._print(x)
         self._print(f"normalised probabilities {self.op_probs}\n")
 
         # -- add print function to operators

@@ -151,7 +151,8 @@ class MoveOperator(AbstractOperator):
         )
         content += "Energy Difference %.4f [eV]\n" %ene_diff
         content += "Accept Ratio %.4f\n" %acc_ratio
-        self._print(content)
+        for x in content.split("\n"):
+            self._print(x)
 
         rn_move = rng.uniform()
         self._print(f"{self.__class__.__name__} Probability %.4f" %rn_move)

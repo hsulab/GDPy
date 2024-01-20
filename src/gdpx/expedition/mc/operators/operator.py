@@ -67,12 +67,14 @@ class AbstractOperator(abc.ABC):
         tags_dict = self.region.get_tags_dict(atoms)
         content = "species within system:\n"
         content += "  " + "  ".join([str(k)+" "+str(len(v)) for k, v in tags_dict.items()]) + "\n"
-        self._print(content)
+        for x in content.split("\n"):
+            self._print(x)
 
         self._curr_tags_dict = self.region.get_contained_tags_dict(atoms, tags_dict)
         content = "species within region:\n"
         content += "  " + "  ".join([str(k)+" "+str(len(v)) for k, v in self._curr_tags_dict.items()]) + "\n"
-        self._print(content)
+        for x in content.split("\n"):
+            self._print(x)
 
         return
     
