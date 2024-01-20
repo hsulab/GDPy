@@ -215,6 +215,9 @@ class MonteCarlo(AbstractExpedition):
         # - prepare logger and output some basic info...
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
+        
+        self._print(f"RANDOM_SEED:  {self.random_seed}")
+        self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
 
         self._print("===== MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:
@@ -265,6 +268,9 @@ class MonteCarlo(AbstractExpedition):
         step_wdir = self.directory/f"{self.WDIR_PREFIX}{i}"
         self.worker.directory = step_wdir
 
+        self._print(f"RANDOM_SEED:  {self.random_seed}")
+        self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
+
         # - operate atoms
         #    always return atoms even if no change is applied
         temp_op = self.directory/f"op_{i}.pkl"
@@ -280,63 +286,70 @@ class MonteCarlo(AbstractExpedition):
                 curr_atoms.info["step"] = -1 # NOTE: remove step info from driver
                 write(temp_stru, curr_atoms)
             else:
-                #success = False # fail to run postprocess
-                raise RuntimeError("failed to run operation...")
+                self._print("FAILED to run operation...")
         else:
             # load state from file
             curr_op = load_operator(temp_op)
             curr_atoms = read(temp_stru)
         
-        # - TODO: save some info not stored by driver
-        curr_tags = curr_atoms.get_tags()
+        # - run postprocess
+        if curr_atoms is not None:
+            # - TODO: save some info not stored by driver
+            curr_tags = curr_atoms.get_tags()
 
-        # - run postprocess (spc, min or md)
-        _ = self.worker.run([curr_atoms], read_exists=True)
-        self.worker.inspect(resubmit=True)
-        if self.worker.get_number_of_running_jobs() == 0:
-            curr_atoms = self.worker.retrieve()[0][-1]
-            curr_atoms.set_tags(curr_tags)
+            # - run postprocess (spc, min or md)
+            _ = self.worker.run([curr_atoms], read_exists=True)
+            self.worker.inspect(resubmit=True)
+            if self.worker.get_number_of_running_jobs() == 0:
+                curr_atoms = self.worker.retrieve()[0][-1]
+                curr_atoms.set_tags(curr_tags)
 
-            self.energy_operated = curr_atoms.get_potential_energy()
-            self._print(f"post ene: {self.energy_operated}")
+                self.energy_operated = curr_atoms.get_potential_energy()
+                self._print(f"post ene: {self.energy_operated}")
 
-            # -- metropolis
-            success = curr_op.metropolis(
-                self.energy_stored, self.energy_operated, self.rng
-            )
-
-            with open(self.directory/self.INFO_NAME, "a") as fopen:
-                fopen.write(
-                    "{:<24s}  {:<12d}  {:<12s}  {:<12.4f}  {:<12.4f}  \n".format(
-                        curr_op.__class__.__name__, len(self.atoms), str(success), 
-                        self.energy_stored, self.energy_operated
-                    )
+                # -- metropolis
+                success = curr_op.metropolis(
+                    self.energy_stored, self.energy_operated, self.rng
                 )
 
-            # -- update atoms
-            if success:
-                self.energy_stored = self.energy_operated
-                self.atoms = curr_atoms
-                self._print("success...")
+                self._save_step_info(curr_op, success)
+
+                # -- update atoms
+                if success:
+                    self.energy_stored = self.energy_operated
+                    self.atoms = curr_atoms
+                    self._print("success...")
+                else:
+                    self._print("failure...")
+                write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
+
+                # -- clean up
+                os.remove(temp_stru)
+                os.remove(temp_op)
+                if (i%self.dump_period != 0):
+                    shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
+
+                step_converged = True
             else:
-                self._print("failure...")
+                step_converged = False
+        else:
+            # save the previous structure as the current operation gives no structure.
+            step_converged = True
             write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
 
-            # -- clean up
-            #import psutil
-            #proc = psutil.Process()
-            #for p in proc.open_files():
-            #    print(p)
-            os.remove(temp_stru)
-            os.remove(temp_op)
-            if (i%self.dump_period != 0):
-                shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
-            
-            step_converged = True
-        else:
-            step_converged = False
-
         return step_converged
+    
+    def _save_step_info(self, curr_op, success: bool):
+        """"""
+        with open(self.directory/self.INFO_NAME, "a") as fopen:
+            fopen.write(
+                "{:<24s}  {:<12d}  {:<12s}  {:<12.4f}  {:<12.4f}  \n".format(
+                    curr_op.__class__.__name__, len(self.atoms), str(success), 
+                    self.energy_stored, self.energy_operated
+                )
+            )
+
+        return
     
     def read_convergence(self):
         """Check the convergence of MC.
