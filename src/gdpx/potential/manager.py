@@ -105,6 +105,8 @@ class AbstractPotentialManager(abc.ABC):
         else:
             merged_params.update(**dyn_params)
 
+        merged_params.update(ignore_convergence=dyn_params.get("ignore_convergence", False))
+
         # -- other params
         ignore_convergence = merged_params.pop("ignore_convergence", False)
 
