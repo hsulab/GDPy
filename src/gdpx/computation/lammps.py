@@ -7,7 +7,7 @@ import shutil
 import warnings
 import subprocess
 import pathlib
-from pathlib import Path
+import pickle
 import dataclasses
 
 from collections.abc import Iterable
@@ -21,7 +21,7 @@ from ase.data import atomic_numbers, atomic_masses
 from ase.io import read, write
 from ase.io.lammpsrun import read_lammps_dump_text
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
-from ase.calculators.lammps import unitconvert
+from ase.calculators.lammps import unitconvert, Prism
 from ase.calculators.calculator import (
     CalculationFailed,
     Calculator, all_changes, PropertyNotImplementedError, FileIOCalculator
@@ -45,6 +45,7 @@ class AseLammpsSettings:
     input_fname: str = "in.lammps"
     log_filename: str = "log.lammps"
     deviation_filename: str = "model_devi.out"
+    prism_filename: str = "ase-prism.bindat"
 
 #: Instance.
 ASELMPCONFIG = AseLammpsSettings()
@@ -142,10 +143,17 @@ def read_single_simulation(directory, prefix, units, add_step_info=True):
             if not line:
                 break
 
-    # skip last frame
+    # - read structure trajectory
+    prism_file = directory / ASELMPCONFIG.prism_filename
+    if prism_file.exists():
+        with open(prism_file, "rb") as fopen:
+            prismobj = pickle.load(fopen)
+    else:
+        prismobj = None
+
     curr_traj_frames_ = read(
         directory/(prefix+ASELMPCONFIG.trajectory_filename), 
-        index=":", format="lammps-dump-text", units=units
+        index=":", format="lammps-dump-text", prismobj=prismobj, units=units
     )
     nframes_traj = len(curr_traj_frames_)
     timesteps = timesteps[:nframes_traj] # avoid incomplete structure
@@ -534,10 +542,14 @@ class Lammps(FileIOCalculator):
             self.write_velocities = (True and not self.ignore_atoms_velocities)
 
         # write structure
+        prismobj = Prism(atoms.get_cell()) # TODO: nonpbc?
+        prism_file = os.path.join(self.directory, ASELMPCONFIG.prism_filename)
+        with open(prism_file, "wb") as fopen:
+            pickle.dump(prismobj, fopen)
         stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
         write_lammps_data(
             stru_data, atoms, specorder=self.type_list, 
-            force_skew=True, prismobj=None, velocities=self.write_velocities,
+            force_skew=True, prismobj=prismobj, velocities=self.write_velocities,
             units=self.units, atom_style=self.atom_style
         )
 
@@ -554,7 +566,7 @@ class Lammps(FileIOCalculator):
         """
 
         is_finished, end_info = False, "not finished"
-        log_filepath = Path(os.path.join(self.directory, ASELMPCONFIG.log_filename))
+        log_filepath = pathlib.Path(os.path.join(self.directory, ASELMPCONFIG.log_filename))
 
         if log_filepath.exists():
             ERR_FLAG = "ERROR: "
@@ -601,7 +613,7 @@ class Lammps(FileIOCalculator):
 
         return
 
-    def _write_input(self, atoms) -> NoReturn:
+    def _write_input(self, atoms) -> None:
         """Write input file in.lammps"""
         # - write in.lammps
         content =  f"restart         {self.ckpt_period}  restart.*.data\n\n"
