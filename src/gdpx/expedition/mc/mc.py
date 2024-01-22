@@ -202,9 +202,6 @@ class MonteCarlo(AbstractExpedition):
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
         
-        self._print(f"RANDOM_SEED:  {self.random_seed}")
-        self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
-
         self._print("===== MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:
             for x in str(op).split("\n"):
