@@ -41,6 +41,7 @@ class MoveOperator(AbstractOperator):
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
         super().run(atoms)
+        self._extra_info = "-"
 
         # BUG: If there is no species in the system...
         species_indices = self._select_species(atoms, self.particles, rng=rng)
@@ -67,6 +68,7 @@ class MoveOperator(AbstractOperator):
         # - find tag atoms
         # record original position of species_indices
         species = cur_atoms[species_indices]
+        self._extra_info = f"{species.get_chemical_formula()}_{species_indices}"
 
         #org_pos = new_atoms[species_indices].position.copy() # original position
         # TODO: deal with pbc, especially for move step

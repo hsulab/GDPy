@@ -179,8 +179,8 @@ class MonteCarlo(AbstractExpedition):
             # - log operator status
             with open(self.directory/self.INFO_NAME, "w") as fopen:
                 fopen.write(
-                    "{:<24s}  {:<12s}  {:<12s}  {:<12s}  {:<12s}  \n".format(
-                        "#Operator", "natoms", "Success", "prev_ene", "curr_ene"
+                    "{:<24s}  {:<24s}  {:<12s}  {:<12s}  {:<24s}  {:<24s}  \n".format(
+                        "#Operator", "Info", "natoms", "Success", "prev_ene", "curr_ene"
                     )
                 )
             step_converged = True
@@ -394,10 +394,12 @@ class MonteCarlo(AbstractExpedition):
     
     def _save_step_info(self, curr_op, success: bool):
         """"""
+        extra_info = getattr(curr_op, "_extra_info", "-")
         with open(self.directory/self.INFO_NAME, "a") as fopen:
             fopen.write(
-                "{:<24s}  {:<12d}  {:<12s}  {:<12.4f}  {:<12.4f}  \n".format(
-                    curr_op.__class__.__name__, len(self.atoms), str(success), 
+                "{:<24s}  {:<24s}  {:<12d}  {:<12s}  {:<24.4f}  {:<24.4f}  \n".format(
+                    curr_op.__class__.__name__, extra_info,
+                    len(self.atoms), str(success), 
                     self.energy_stored, self.energy_operated
                 )
             )
