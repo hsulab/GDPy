@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import pathlib
+import pickle
 from typing import NoReturn, List
 
 import numpy as np
@@ -73,7 +74,7 @@ class MonteCarlo(AbstractExpedition):
 
     def __init__(
         self, builder: dict, worker: dict, operators: List[dict], convergence: dict,
-        random_seed=None, dump_period: int=1, restart: bool=False, 
+        random_seed=None, dump_period: int=1, ckpt_period: int=1, restart: bool=False, 
         directory="./", *args, **kwargs
     ) -> None:
         """Parameters for Monte Carlo.
@@ -84,6 +85,7 @@ class MonteCarlo(AbstractExpedition):
         """
         self.directory = directory
         self.dump_period = dump_period
+        self.ckpt_period = ckpt_period
         self.restart = restart
 
         # - set random seed that 
@@ -187,22 +189,6 @@ class MonteCarlo(AbstractExpedition):
 
         return step_converged
     
-    def _restart_structure(self):
-        """Restart from the saved structure.
-
-        Prepare `self.atoms`, `self.energy_stored`, and `self.curr_step`.
-        
-        """
-        mctraj = read(self.directory/self.TRAJ_NAME, ":")
-        nframes = len(mctraj)
-        self.curr_step = nframes
-        self.atoms = mctraj[-1]
-        self.energy_stored = self.atoms.get_potential_energy()
-
-        step_converged = True
-
-        return step_converged
-
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
         # - some imported packages change `logging.basicConfig` 
@@ -237,34 +223,42 @@ class MonteCarlo(AbstractExpedition):
         #    if self.operators[i].region != self.operators[i-1].region:
         #        raise RuntimeError(f"Inconsistent region found in op {i-1} and op {i}")
 
-        # - init structure
-        step_converged = False
-        if not (self.directory/self.TRAJ_NAME).exists():
-            step_converged = self._init_structure()
-        else:
-            step_converged = self._restart_structure()
-        
-        if not step_converged:
-            self._print("Wait structure to initialise.")
-            return
-        else:
-            self.curr_step += 1
-        
-        # - run mc steps
-        step_converged = False
-        for i in range(self.curr_step, self.convergence["steps"]+1):
-            self._print(f"RANDOM_SEED:  {self.random_seed}")
-            self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
-            step_converged = self._irun(i)
-            if not step_converged:
-                self._print("Wait MC step to finish.")
-                break
+        converged = self.read_convergence()
+        if not converged:
+            # - init structure
+            # -- 
+            step_converged = False
+            if not self._veri_checkpoint():
+                step_converged = self._init_structure()
             else:
-                # -- clean up
-                if (i%self.dump_period != 0):
-                    shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
+                step_converged = True
+                self._load_checkpoint()
+
+            if not step_converged:
+                self._print("Wait structure to initialise.")
+                return
+            else:
+                self.curr_step += 1
+
+            # - run mc steps
+            step_converged = False
+            for i in range(self.curr_step, self.convergence["steps"]+1):
+                self._print(f"RANDOM_SEED:  {self.random_seed}")
+                self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
+                step_converged = self._irun(i)
+                if not step_converged:
+                    self._print("Wait MC step to finish.")
+                    break
+                else:
+                    # -- save checkpoint
+                    self._save_checkpoint(step=i)
+                    # -- clean up
+                    if (i%self.dump_period != 0):
+                        shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
+            else:
+                self._print("MC is converged...")
         else:
-            self._print("MC is converged...")
+            self._print("Monte Carlo is converged.")
 
         return
     
@@ -325,6 +319,81 @@ class MonteCarlo(AbstractExpedition):
             write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
 
         return step_converged
+    
+    def _veri_checkpoint(self) -> bool:
+        """Verify checkpoints."""
+        ckpt_wdirs = list(self.directory.glob("checkpoint.*"))
+        nwdirs = len(ckpt_wdirs)
+
+        verified = True
+        if nwdirs > 0:
+            # TODO: check the directory is not empty
+            ...
+        else:
+            verified = False
+
+        return verified
+    
+    def _save_checkpoint(self, step):
+        """Save the current Monte Carlo state."""
+        if self.ckpt_period > 0 and (step%self.ckpt_period == 0):
+            self._print("SAVE CHECKPOINT...")
+            ckpt_wdir = self.directory / f"checkpoint.{step}"
+            ckpt_wdir.mkdir(parents=True)
+            # - save the structure
+            write(ckpt_wdir/"structure.xyz", self.atoms)
+            # - save operator state
+            for i, op in enumerate(self.operators):
+                save_operator(op, ckpt_wdir/f"op-{i}.ckpt")
+            # - save the random state
+            with open(ckpt_wdir/"rng.ckpt", "wb") as fopen:
+                pickle.dump(self.rng.bit_generator.state, fopen)
+        else:
+            ...
+
+        return
+    
+    def _load_checkpoint(self):
+        """Load the current Monet Carlo state."""
+        # - Find the latest checkpoint
+        ckpt_wdir = sorted(
+            self.directory.glob("checkpoint.*"), key=lambda x: int(str(x.name).split(".")[-1])
+        )[-1]
+        step = int(ckpt_wdir.name.split(".")[-1])
+        self._print(f"LOAD CHECKPOINT STEP {step}.")
+
+        # -- load operators
+        op_files = sorted(
+            ckpt_wdir.glob("op-*.ckpt"), key=lambda x: int(str(x.name).split(".")[0][3:])
+        )
+
+        saved_operators = []
+        for i, op_file in enumerate(op_files):
+            saved_operator = load_operator(op_file)
+            saved_operators.append(saved_operator)
+        self.operators = saved_operators
+
+        # -- add print function to operators
+        for op in self.operators:
+            op._print = self._print
+
+        self._print("===== Saved MonteCarlo Operators (Modifiers) =====\n")
+        for op in self.operators:
+            for x in str(op).split("\n"):
+                self._print(x)
+        self._print(f"normalised probabilities {self.op_probs}\n")
+
+        # -- load random state
+        with open(ckpt_wdir/"rng.ckpt", "rb") as fopen:
+            rng_state = pickle.load(fopen)
+        self.rng.bit_generator.state = rng_state
+
+        # -- load structure
+        self.curr_step = step
+        self.atoms = read(ckpt_wdir/"structure.xyz")
+        self.energy_stored = self.atoms.get_potential_energy()
+
+        return 
     
     def _save_step_info(self, curr_op, success: bool):
         """"""
