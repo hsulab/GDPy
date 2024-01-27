@@ -250,7 +250,7 @@ class MonteCarlo(AbstractExpedition):
                     # -- save checkpoint
                     self._save_checkpoint(step=i)
                     # -- clean up
-                    if (i%self.dump_period != 0):
+                    if ((self.directory/f"{self.WDIR_PREFIX}{i}").exists()) and (i%self.dump_period != 0):
                         shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
             else:
                 self._print("MC is converged...")
