@@ -14,6 +14,9 @@ registers.comparator.register(InteratomicDistanceComparator)
 from .cartesian import CartesianComparator
 registers.comparator.register(CartesianComparator)
 
+from .coordination import CoordinationComparator
+registers.comparator.register(CoordinationComparator)
+
 from .graph import GraphComparator
 registers.comparator.register(GraphComparator)
 
