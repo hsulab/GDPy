@@ -16,6 +16,7 @@ from ase.geometry import find_mic
 from ..core.operation import Operation
 from ..core.variable import Variable
 from ..core.register import registers
+from ..utils.command import parse_input_file
 
 from ..computation.driver import AbstractDriver
 from ..data.array import AtomsNDArray
@@ -29,6 +30,35 @@ from .drive import (
 from .single import SingleWorker
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
+
+
+def convert_config_to_potter(config):
+    """Convert a configuration file or a dict to a potter/reactor."""
+    if isinstance(config, dict):
+        params = config
+    else: # assume it is json or yaml
+        params = parse_input_file(input_fpath=config)
+
+    ptype = params.pop("type", "computer")
+    if ptype == "computer":
+        from gdpx.worker.interface import ComputerVariable
+        potter = ComputerVariable(
+            params["potential"], params.get("driver", {}), params.get("scheduler", {}),
+            batchsize=params.get("batchsize", 1), 
+            share_wdir=params.get("share_wdir", False),
+            use_single=params.get("use_single", False), 
+            retain_info=params.get("retain_info", False), 
+        ).value[0]
+    elif ptype == "reactor":
+        from gdpx.reactor.interface import ReactorVariable
+        potter = ReactorVariable(
+            potter=params["potter"], driver=params.get("driver", None), 
+            scheduler=params.get("scheduler", {}), batchsize=params.get("batchsize", 1)
+        ).value[0]
+    else:
+        ...
+
+    return potter
 
 
 @registers.variable.register

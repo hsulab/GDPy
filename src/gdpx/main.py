@@ -12,6 +12,7 @@ import numpy as np
 # global settings
 from gdpx import config
 from gdpx.core.register import registers, import_all_modules_for_register
+from gdpx.utils.command import parse_input_file
 
 
 def main():
@@ -198,28 +199,10 @@ def main():
         config._print(f"Use {config.NJOBS} processors.")
 
     # - potential
-    from gdpx.utils.command import parse_input_file
     potter = None
     if args.potential:
-        params = parse_input_file(input_fpath=args.potential)
-        ptype = params.pop("type", "computer")
-        if ptype == "computer":
-            from gdpx.worker.interface import ComputerVariable
-            potter = ComputerVariable(
-                params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-                batchsize=params.get("batchsize", 1), 
-                share_wdir=params.get("share_wdir", False),
-                use_single=params.get("use_single", False), 
-                retain_info=params.get("retain_info", False), 
-            ).value[0]
-        elif ptype == "reactor":
-            from gdpx.reactor.interface import ReactorVariable
-            potter = ReactorVariable(
-                potter=params["potter"], driver=params.get("driver", None), 
-                scheduler=params.get("scheduler", {}), batchsize=params.get("batchsize", 1)
-            ).value[0]
-        else:
-            ...
+        from gdpx.worker.interface import convert_config_to_potter
+        potter = convert_config_to_potter(args.potential)
 
     # - use subcommands
     if args.subcommand == "session":
