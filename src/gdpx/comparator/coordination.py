@@ -5,6 +5,7 @@
 from typing import List
 
 import numpy as np
+import numpy.ma as ma
 from scipy.spatial import distance_matrix
 
 from ase import Atoms
@@ -36,13 +37,46 @@ def compute_self_coorditaion_number(positions):
 
     return coordination
 
-def compute_coorditaion_number(positions_a, positions_b, r_cut, nn=None, mm=None):
+def compute_coorditaion_number(positions, indices_a, indices_b, r_cut, nn=None, mm=None):
     """NOTE: This does not substract the self-coordination."""
-    dmat = distance_matrix(positions_a, positions_b)
+    dmat = distance_matrix(positions[indices_a, :], positions[indices_b, :])
     #print(dmat)
 
     sf = switch_function(dmat, r_cut=r_cut, nn=8, mm=14)
+    #print(sf)
     coordination = np.sum(sf, axis=1)
+    #print(coordination)
+
+    return coordination
+
+def compute_coordition_number_by_neighbour(nl, cell, positions, indices_a, indices_b, r_cut, nn=None, mm=None):
+    """"""
+    # NOTE: For the two same groups, the distance matrix may not be square
+    #       if self-inetraction is considered since one atom can interact with
+    #       several itselves under periodic boundary condition.
+    dmat, masks = [], []
+    for i in indices_a:
+        distances = []
+        nei_indices, nei_offsets = nl.get_neighbors(i)
+        for j, offset in zip(nei_indices, nei_offsets):
+            if j in indices_b:
+                distance = np.linalg.norm(
+                    positions[i, :] - positions[j, :] + np.dot(offset, cell)
+                )
+                #print(f"ditsance {i} <-> {j}: {distance}")
+                # check if distance is nonzero (as with itself) and under r_cut.
+                if 1e-8 < distance <= r_cut:
+                    distances.append(distance)
+            else:
+                ...
+        dmat.append(distances)
+    coordination = []
+    for distances in dmat:
+        #print(distances)
+        curr_coordination = np.sum(switch_function(np.array(distances), r_cut=r_cut, nn=nn, mm=mm))
+        coordination.append(curr_coordination)
+    coordination = np.array(coordination)
+    #print(coordination)
 
     return coordination
 
@@ -74,14 +108,21 @@ class CoordinationComparator(AbstractComparator):
         coordinations = []
         for atoms in frames[:]:
             natoms = len(atoms)
+            max_r_cut = np.max([pair[2] for pair in self.pairs])
+            nl = NeighborList(
+                cutoffs=[max_r_cut]*natoms, skin=0.2, sorted=False,
+                self_interaction=True, bothways=True
+            )
+            nl.update(atoms)
             coordination = []
             for group_a, group_b, r_cut, nn, mm in self.pairs:
                 indices_a = create_a_group(atoms, group_a)
-                positions_a = atoms.positions[indices_a, :]
                 indices_b = create_a_group(atoms, group_b)
-                positions_b = atoms.positions[indices_b, :]
-                curr_coordination = compute_coorditaion_number(
-                    positions_a, positions_b, r_cut, nn, mm
+                #curr_coordination = compute_coorditaion_number(
+                #    atoms.positions, indices_a, indices_b, r_cut, nn, mm
+                #)
+                curr_coordination = compute_coordition_number_by_neighbour(
+                    nl, atoms.cell, atoms.positions, indices_a, indices_b, r_cut, nn, mm
                 )
                 coordination.extend(sorted(curr_coordination.tolist()))
             coordinations.append(coordination)
