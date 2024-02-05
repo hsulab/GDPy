@@ -16,6 +16,18 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 
 from itertools import permutations, product
 
+def switch_function_value_and_grad(r, r_cut):
+    """Switch function that smoothes distance to cutoff.
+    """
+
+    return (r-r_cut)**2, 2*(r-r_cut)
+
+#def switch_function_value_and_grad(r, r_cut):
+#    """Switch function that smoothes distance to cutoff.
+#    """
+#
+#    return 1., 0.
+
 
 def gaussian_kernel(x1, x2, delta=0.2, theta=0.5):
     """
@@ -206,7 +218,7 @@ def compute_distance_marginal_likelihood(
     )
 
     Kmm_inv = np.linalg.inv(Kmm)
-    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2*np.eye(num_points)
+    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
     Knn_inv = np.linalg.inv(Knn)
     loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
@@ -346,6 +358,7 @@ def compute_body3_kernel_matrices(
     b3ks_gdelta = np.zeros((num_b3, num_sparse))
     b3ks_gtheta = np.zeros((num_b3, num_sparse))
     b3ks_gx1_gtheta_coef = np.zeros((num_b3, num_sparse))
+
     #for p in itertools.permutations(range(3), 3):
     for p in [(0, 1, 2)]:
         k, k_g_x1, k_gdelta, k_gtheta = gaussian_kernel_value_and_grad_body3(
@@ -406,13 +419,14 @@ def compute_body3_kernel_matrices(
         Knm_gcart_gtheta[k*3:k*3+3, :] += (curr_grad[:, 2, 3:6]*b3k_gx1gtheta).T
     Knm_frc = -Knm_grad
 
-    #print(Knm_gcart_gdelta)
-    #print(Knm_gcart_gtheta)
 
     Knm = np.vstack([Knm_ene, Knm_frc])
-    #print("Knm shape: ")
-    #print(Knm.shape)
-    #print(Knm)
+    print("Knm shape: ")
+    print(Knm.shape)
+    print(Knm)
+    exit()
+    #print(Knm_gcart_gdelta)
+    #print(Knm_gcart_gtheta)
 
     # --- construct Kmm
     Kmm, _, Kmm_gdelta, Kmm_gtheta = gaussian_kernel_value_and_grad_body3(
@@ -420,25 +434,32 @@ def compute_body3_kernel_matrices(
     )
     #print("Kmm shape: ")
     #print(Kmm.shape)
+    #print(Kmm)
+    #exit()
 
     return Kmm, Knm, Kmm_gdelta, Kmm_gtheta, Knm_ene_gdelta, Knm_ene_gtheta, Knm_gcart_gdelta, Knm_gcart_gtheta
 
 def compute_body2_kernel_matrices(
-    delta, theta, nframes, natoms_tot, 
+    delta, theta, r_cut, nframes, natoms_tot, 
     body2_features, body2_gradients, body2_mapping, sparse_body2_features
 ):
     """"""
+    #print(f"r_cut: {r_cut}")
     num_sparse = sparse_body2_features.shape[0]
 
     # - 
-    b2_kernels, b2_kernel_grad_x1, b2_kg_wrt_delta, b2_kg_wrt_theta = gaussian_kernel_value_and_grad(
+    _b2_kernels, _b2_kernel_grad_x1, b2_kg_wrt_delta, b2_kg_wrt_theta = gaussian_kernel_value_and_grad(
         body2_features, sparse_body2_features, delta=delta, theta=theta
     )
-    b2_kernels = b2_kernels # (num_b2, num_sparse)
-    b2_kernel_grad_x1 = b2_kernel_grad_x1[:, :, np.newaxis] # (num_b2, num_sparse, 1)
+    b2s, b2sg = switch_function_value_and_grad(body2_features, r_cut)
 
-    b2_kg_wrt_delta = b2_kg_wrt_delta[:, :, np.newaxis] # (num_b2, num_sparse, 1)
-    b2_kg_wrt_theta = b2_kg_wrt_theta[:, :, np.newaxis] # (num_b2, num_sparse, 1)
+    b2_kernels = _b2_kernels*b2s # (num_b2, num_sparse)
+    b2_kernel_grad_x1 = (_b2_kernel_grad_x1*b2s+_b2_kernels*b2sg)[:, :, np.newaxis] # (num_b2, num_sparse, 1)
+    #print(b2_kernel_grad_x1)
+    #print(b2_kernel_grad_x1.shape)
+
+    b2_kg_wrt_delta = (b2_kg_wrt_delta*b2s)[:, :, np.newaxis] # (num_b2, num_sparse, 1)
+    b2_kg_wrt_theta = (b2_kg_wrt_theta*b2s)[:, :, np.newaxis] # (num_b2, num_sparse, 1)
 
     # --- group descriptors
     #print("CONSTRUCT B2 KNM: ")
@@ -448,15 +469,18 @@ def compute_body2_kernel_matrices(
     for loc, kernel, k_gdelta, k_gtheta in zip(body2_mapping, b2_kernels, b2_kg_wrt_delta, b2_kg_wrt_theta):
         fi, i, j = loc
         Knm_ene[fi, :] += kernel
-        Knm_ene_gdelta[fi, :] += k_gdelta.squeeze()
+        Knm_ene_gdelta[fi, :] += k_gdelta.squeeze() # PASS
         Knm_ene_gtheta[fi, :] += k_gtheta.squeeze() # PASS
 
     Knm_grad = np.zeros((natoms_tot*3, num_sparse))
     Knm_gcart_gdelta = np.zeros((natoms_tot*3, num_sparse))
     Knm_gcart_gtheta = np.zeros((natoms_tot*3, num_sparse))
-    b2ks_gx1_gtheta_coef = (-2./theta + (body2_features-sparse_body2_features.T)**2/theta**3)[:, :, np.newaxis]
+    #b2ks_gx1_gtheta_coef = (-2./theta + (body2_features-sparse_body2_features.T)**2/theta**3)[:, :, np.newaxis]
+    x_norm = body2_features-sparse_body2_features.T
+    b2ks_gx1_gtheta = (-2./theta*_b2_kernel_grad_x1*b2s+x_norm**2/theta**3*b2_kernel_grad_x1.squeeze())[:, :, np.newaxis]
+
     for loc, b2_grad, k_grad, b2k_gx1gtheta in zip(
-        body2_mapping, body2_gradients, b2_kernel_grad_x1, b2ks_gx1_gtheta_coef
+        body2_mapping, body2_gradients, b2_kernel_grad_x1, b2ks_gx1_gtheta
     ):
         fi, i, j = loc
         # b2_grad (1, 6) k_grad (num_sparse, 1) -> (num_sparse, 1, 6)
@@ -467,14 +491,16 @@ def compute_body2_kernel_matrices(
         Knm_gcart_gdelta[i*3:i*3+3, :] += curr_grad[:, 0, 0:3].T*2./delta
         Knm_gcart_gdelta[j*3:j*3+3, :] += curr_grad[:, 0, 3:6].T*2./delta
         # --
-        Knm_gcart_gtheta[i*3:i*3+3, :] += (curr_grad[:, 0, 0:3]*b2k_gx1gtheta).T
-        Knm_gcart_gtheta[j*3:j*3+3, :] += (curr_grad[:, 0, 3:6]*b2k_gx1gtheta).T
+        #Knm_gcart_gtheta[i*3:i*3+3, :] += (curr_grad[:, 0, 0:3]*b2k_gx1gtheta).T
+        #Knm_gcart_gtheta[j*3:j*3+3, :] += (curr_grad[:, 0, 3:6]*b2k_gx1gtheta).T
+        #xxx = b2_grad[:, 0:3]*b2k_gx1gtheta
+        #print(xxx.shape)
+        #exit()
+        Knm_gcart_gtheta[i*3:i*3+3, :] += (b2_grad[:, 0:3]*b2k_gx1gtheta).T
+        Knm_gcart_gtheta[j*3:j*3+3, :] += (b2_grad[:, 3:6]*b2k_gx1gtheta).T
     Knm_frc = -Knm_grad
 
     Knm = np.vstack([Knm_ene, Knm_frc])
-    #print("Knm shape: ")
-    #print(Knm.shape)
-
     # ---
 
     # --- construct Kmm
@@ -486,7 +512,7 @@ def compute_body2_kernel_matrices(
     return Kmm, Knm, Kmm_gdelta, Kmm_gtheta, Knm_ene_gdelta, Knm_ene_gtheta, Knm_gcart_gdelta, Knm_gcart_gtheta
 
 def compute_b2_marginal_likelihood(
-    params, sigma2, y_data, nframes, natoms_tot, 
+    params, sigma2, r_cut, y_data, nframes, natoms_tot, 
     body2_features, body2_gradients, body2_mapping, sparse_body2_features
 ):
     delta, theta = params
@@ -494,13 +520,16 @@ def compute_b2_marginal_likelihood(
     num_points = y_data.shape[0]
 
     Kmm, Knm, Kmm_gdelta, Kmm_gtheta, Knm_ene_gdelta, Knm_ene_gtheta, Knm_gcart_gdelta, Knm_gcart_gtheta = compute_body2_kernel_matrices(
-        delta, theta, nframes, natoms_tot, 
+        delta, theta, r_cut, nframes, natoms_tot, 
         body2_features, body2_gradients, body2_mapping, sparse_body2_features
     )
 
     Kmm_inv = np.linalg.inv(Kmm)
-    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2*np.eye(num_points)
+    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
     Knn_inv = np.linalg.inv(Knn)
+    #print("Knn: ")
+    #print(np.linalg.det(Knn))
+    #print(Knn.shape)
 
     loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
@@ -542,7 +571,7 @@ def compute_b3_marginal_likelihood(
     )
 
     Kmm_inv = np.linalg.inv(Kmm)
-    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2*np.eye(num_points)
+    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
     Knn_inv = np.linalg.inv(Knn)
     loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
@@ -572,7 +601,7 @@ def compute_b3_marginal_likelihood(
     return -loss[0][0], [-loss_gdelta, -loss_gtheta]
 
 def compute_b2b3_marginal_likelihood(
-    params, sigma2, y_data, nframes, natoms_tot, 
+    params, sigma2, r_cut, y_data, nframes, natoms_tot, 
     body2_features, body2_gradients, body2_mapping, sparse_b2_features, 
     body3_features, body3_gradients, body3_mapping, sparse_b3_features
 ):
@@ -589,7 +618,7 @@ def compute_b2b3_marginal_likelihood(
         b2_Knm_ene_gdelta, b2_Knm_ene_gtheta, 
         b2_Knm_gcart_gdelta, b2_Knm_gcart_gtheta
     ) = compute_body2_kernel_matrices(
-        b2_delta, b2_theta, nframes, natoms_tot, 
+        b2_delta, b2_theta, r_cut, nframes, natoms_tot, 
         body2_features, body2_gradients, body2_mapping, sparse_b2_features
     )
     b2_Knm_gdelta = np.vstack([b2_Knm_ene_gdelta, -b2_Knm_gcart_gdelta])
@@ -621,10 +650,18 @@ def compute_b2b3_marginal_likelihood(
 
     # - combine
     Kmm_inv = np.linalg.inv(Kmm)
-    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2*np.eye(num_points)
+    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
     Knn_inv = np.linalg.inv(Knn)
 
+    #print("Knn Det: ")
+    print(Knn)
+    print(np.linalg.det(Knn))
+    #exit()
+
+    # NOTE: det(A) will be zero if there are rows with zeros since
+    #       some atoms may not in any three-body...
     loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
+    #loss = - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
     # -- combine gradients
     Ky = Knn_inv @ y_data
@@ -673,14 +710,14 @@ class SparseGaussianProcessTrainer():
     def __init__(self) -> None:
         """"""
         self.r_cut = 6.8
-        self.max_num_neigh = 3
+        #self.r_cut = 8.0
 
         return
     
     def _prepare_dataset(self, ):
         """"""
         # - read dataset
-        frames = read("./Cu4.xyz", ":")
+        frames = read("./Cu4.xyz", "0:1")
 
         energies = [a.get_potential_energy() for a in frames]
         energies = np.array(energies)[:, np.newaxis]
@@ -691,12 +728,24 @@ class SparseGaussianProcessTrainer():
 
         y_data = np.vstack([energies, forces])
 
-        return frames, y_data
+        # - regularization
+        sigma2_diag_ene = 0.1*np.array([len(a) for a in frames])
+        f_sig, f_min = 0.01, 0.01
+        sigma2_diag_frc = []
+        for x in np.fabs(forces.flatten()):
+            if x >= f_min:
+                sigma2_diag_frc.append(f_sig*x)
+            else:
+                sigma2_diag_frc.append(f_sig*f_min)
+        sigma2_diag = sigma2_diag_ene.tolist() + sigma2_diag_frc
+        sigma2 = np.diag(sigma2_diag)
+
+        return frames, y_data, sigma2
     
     def run(self, *args, **kwargs):
         """"""
         # - read dataset
-        frames, y_data = self._prepare_dataset()
+        frames, y_data, sigma2 = self._prepare_dataset()
         nframes = len(frames)
         natoms_list = [len(a) for a in frames]
         natoms_tot = np.sum(natoms_list)
@@ -707,23 +756,30 @@ class SparseGaussianProcessTrainer():
         (
             body2_mapping, body2_features, body2_gradients, body3_mapping, body3_features, body3_gradients
         ) = compute_body3_descriptor(frames, self.r_cut)
+        #print("BODY3 MAPPING: ")
+        #print(body3_mapping)
+
+        # - sparsify
+        sparse_body2_features = np.loadtxt("./b2_sparse.dat")[:, np.newaxis]
+
+        print("BODY3 SHAPE: ")
+        print(body3_features.shape)
+        #sparse_body3_features = body3_features[:100, :]
+        sparse_body3_features = np.loadtxt("./backup/b3_sparse.dat")
 
         # - construct matrix
         # -- parameters
-        sigma2 = 0.008
-        delta, theta = 1.2, 0.8
+        delta, theta = 0.2, 0.8
 
         # --- body2
         print("~~~~~ USE BODY-2 ~~~~~")
-        sparse_body2_features = np.loadtxt("./b2_sparse.dat")[:, np.newaxis]
         Kmm_b2, Knm_b2, _, _, _, _, _, _ = compute_body2_kernel_matrices(
-            delta, theta, nframes, natoms_tot, 
+            delta, theta, self.r_cut, nframes, natoms_tot, 
             body2_features, body2_gradients, body2_mapping, sparse_body2_features
         )
 
         # --- body3
         print("~~~~~ USE BODY-3 ~~~~~")
-        sparse_body3_features = np.loadtxt("./b3_sparse.dat")
         Kmm_b3, Knm_b3, _, _, _, _, _, _ = compute_body3_kernel_matrices(
             delta, theta, nframes, natoms_tot, 
             body3_features, body3_gradients, body3_mapping, sparse_body3_features
@@ -766,7 +822,7 @@ class SparseGaussianProcessTrainer():
         # ---
         params = res.x
         Kmm_b2, Knm_b2, _, _, _, _, _, _ = compute_body2_kernel_matrices(
-            params[0], params[1], nframes, natoms_tot, 
+            params[0], params[1], self.r_cut, nframes, natoms_tot, 
             body2_features, body2_gradients, body2_mapping, sparse_body2_features
         )
         Kmm_b3, Knm_b3, _, _, _, _, _, _ = compute_body3_kernel_matrices(
@@ -790,10 +846,68 @@ class SparseGaussianProcessTrainer():
 
         return
 
-    def run_2_3(self, *args, **kwargs):
+    def run_b2(self, *args, **kwargs):
         """"""
         # - read dataset
-        frames, y_data = self._prepare_dataset()
+        frames, y_data, sigma2 = self._prepare_dataset()
+        nframes = len(frames)
+        natoms_list = [len(a) for a in frames]
+        natoms_tot = np.sum(natoms_list)
+
+        # - get atomic environments
+        (
+            body2_mapping, body2_features, body2_gradients, body3_mapping, body3_features, body3_gradients
+        ) = compute_body3_descriptor(frames, self.r_cut)
+
+        # - construct matrix
+        # -- parameters
+        delta, theta = 0.5, 0.8
+
+        # --- body2
+        print("~~~~~ USE BODY-2 ~~~~~")
+        sparse_body2_features = np.array([0.5, 1.0, 1.5, 2.0, 2.5])[:, np.newaxis]
+        Kmm_b2, Knm_b2, _, _, _, _, _, _ = compute_body2_kernel_matrices(
+            delta, theta, self.r_cut, nframes, natoms_tot, 
+            body2_features, body2_gradients, body2_mapping, sparse_body2_features
+        )
+
+        # - init train
+        Kmm = Kmm_b2
+        Knm = Knm_b2
+        self._train_and_predict(nframes, sigma2, y_data, Kmm, Knm)
+
+        ret = compute_b2_marginal_likelihood(
+            [delta, theta],
+            sigma2, self.r_cut, y_data, nframes, natoms_tot, 
+            body2_features, body2_gradients, body2_mapping, sparse_body2_features
+        )
+        print([delta, theta])
+        print(ret)
+
+        res = optimize.minimize(
+            compute_b2_marginal_likelihood, [delta, theta],
+            args=(
+                sigma2, self.r_cut, y_data, nframes, natoms_tot, 
+                body2_features, body2_gradients, body2_mapping, sparse_body2_features
+            ), jac=True, options={"disp": True}
+        )
+        print("OPT INFO: ")
+        print(res)
+        delta, theta = res.x
+        Kmm_b2, Knm_b2, _, _, _, _, _, _ = compute_body2_kernel_matrices(
+            delta, theta, self.r_cut, nframes, natoms_tot, 
+            body2_features, body2_gradients, body2_mapping, sparse_body2_features
+        )
+        Kmm = Kmm_b2
+        Knm = Knm_b2
+        self._train_and_predict(nframes, sigma2, y_data, Kmm, Knm)
+
+        return
+
+    def run_b3(self, *args, **kwargs):
+        """"""
+        # - read dataset
+        frames, y_data, sigma2 = self._prepare_dataset()
         nframes = len(frames)
         natoms_list = [len(a) for a in frames]
         natoms_tot = np.sum(natoms_list)
@@ -807,46 +921,7 @@ class SparseGaussianProcessTrainer():
 
         # - construct matrix
         # -- parameters
-        sigma2 = 0.008
-        delta, theta = 1.2, 0.8
-
-        # --- body2
-        print("~~~~~ USE BODY-2 ~~~~~")
-        sparse_body2_features = np.array([0.5, 1.0, 1.5, 2.0, 2.5])[:, np.newaxis]
-        Kmm_b2, Knm_b2, _, _, _, _, _, _ = compute_body2_kernel_matrices(
-            delta, theta, nframes, natoms_tot, 
-            body2_features, body2_gradients, body2_mapping, sparse_body2_features
-        )
-
-        # - init train
-        Kmm = Kmm_b2
-        Knm = Knm_b2
-        self._train_and_predict(nframes, sigma2, y_data, Kmm, Knm)
-
-        ret = compute_b2_marginal_likelihood(
-            [delta, theta],
-            sigma2, y_data, nframes, natoms_tot, 
-            body2_features, body2_gradients, body2_mapping, sparse_body2_features
-        )
-        print(ret)
-
-        res = optimize.minimize(
-            compute_b2_marginal_likelihood, [delta, theta],
-            args=(
-                sigma2, y_data, nframes, natoms_tot, 
-                body2_features, body2_gradients, body2_mapping, sparse_body2_features
-            ), jac=True, options={"disp": True}
-        )
-        print("OPT INFO: ")
-        print(res)
-        delta, theta = res.x
-        Kmm_b2, Knm_b2, _, _, _, _, _, _ = compute_body2_kernel_matrices(
-            delta, theta, nframes, natoms_tot, 
-            body2_features, body2_gradients, body2_mapping, sparse_body2_features
-        )
-        Kmm = Kmm_b2
-        Knm = Knm_b2
-        self._train_and_predict(nframes, sigma2, y_data, Kmm, Knm)
+        delta, theta = 0.5, 0.8
 
         # --- body3
         print("~~~~~ USE BODY-3 ~~~~~")
@@ -873,6 +948,7 @@ class SparseGaussianProcessTrainer():
             sigma2, y_data, nframes, natoms_tot, 
             body3_features, body3_gradients, body3_mapping, sparse_body3_features
         ) 
+        print([delta, theta])
         print(ret)
 
         res = optimize.minimize(
@@ -897,10 +973,10 @@ class SparseGaussianProcessTrainer():
 
         return
     
-    def run2(self, *args, **kwargs):
+    def _prev_run2(self, *args, **kwargs):
         """"""
         # - read dataset
-        frames, y_data = self._prepare_dataset()
+        frames, y_data, sigma2 = self._prepare_dataset()
         nframes = len(frames)
         natoms_list = [len(a) for a in frames]
         natoms_tot = np.sum(natoms_list)
@@ -914,7 +990,6 @@ class SparseGaussianProcessTrainer():
 
         # - train
         # -- parameters
-        sigma2 = 0.008
         delta = 0.2
         sparse_points = np.array([0.5, 1.0, 1.5, 2.0, 2.5])[:, np.newaxis]
 
@@ -951,17 +1026,17 @@ class SparseGaussianProcessTrainer():
 
         return
     
-    def _train_and_predict(self, nframes, sigma2, y_data, Kmm, Knm):
+    def _train_and_predict(self, nframes, sigma2_matrix, y_data, Kmm, Knm):
         """"""
         jitter = 1e-5*np.eye(Kmm.shape[0])
-        inverseLamb = np.reciprocal(sigma2)*np.eye(y_data.shape[0])
+        inverseLamb = np.linalg.inv(sigma2_matrix)
 
         weights = (
             np.linalg.inv(Kmm + jitter + Knm.T@inverseLamb@Knm) @ Knm.T @ inverseLamb
         )
         weights = np.dot(weights, y_data)
         print("weights: ")
-        print(weights)
+        #print(weights)
 
         # - test
         print("===== TEST =====")
@@ -972,9 +1047,11 @@ class SparseGaussianProcessTrainer():
         sgp_data  = predictions.flatten()
         print("ERR: ")
         ene_rmse = np.sqrt(np.sum((dft_data[:nframes] - sgp_data[:nframes])**2))
-        print(f"ene_rmse: {ene_rmse}")
+        ene_svar = np.sqrt(np.var((dft_data[:nframes] - sgp_data[:nframes])**2))
+        print(f"ene_rmse: {ene_rmse} _ {ene_svar}")
         frc_rmse = np.sqrt(np.sum((dft_data[nframes:] - sgp_data[nframes:])**2))
-        print(f"frc_rmse: {frc_rmse}")
+        frc_svar = np.sqrt(np.var((dft_data[nframes:] - sgp_data[nframes:])**2))
+        print(f"frc_rmse: {frc_rmse} _ {frc_svar}")
 
         return
 
@@ -983,9 +1060,9 @@ if __name__ == "__main__":
     """"""
     sgp_trainer = SparseGaussianProcessTrainer()
     #print("!!!!! BODY-2 !!!!!") 
-    #sgp_trainer.run2()
-    print("!!!!! BODY-2 and BODY-3 !!!!!") 
-    sgp_trainer.run_2_3()
-    print("!!!!! BODY-2+3 !!!!!") 
-    sgp_trainer.run()
+    #sgp_trainer.run_b2()
+    #print("!!!!! BODY-3 !!!!!") 
+    sgp_trainer.run_b3()
+    #print("!!!!! BODY-2+3 !!!!!") 
+    #sgp_trainer.run()
     ...
