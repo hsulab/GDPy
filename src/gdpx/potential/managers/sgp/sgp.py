@@ -22,11 +22,11 @@ def switch_function_value_and_grad(r, r_cut):
 
     return (r-r_cut)**2, 2*(r-r_cut)
 
-def switch_function_value_and_grad(r, r_cut):
-    """Switch function that smoothes distance to cutoff.
-    """
-
-    return np.array([[1.]]), np.array([[0.]])
+#def switch_function_value_and_grad(r, r_cut):
+#    """Switch function that smoothes distance to cutoff.
+#    """
+#
+#    return np.array([[1.]]), np.array([[0.]])
 
 def switch_function_value_and_grad_b3(r, r_cut):
     """Switch function that smoothes distance to cutoff.
@@ -60,6 +60,7 @@ def gaussian_kernel_value_and_grad(x1, x2, delta=0.2, theta=0.5):
     """
     # shape (num_points, num_sparse_points, num_feature_dim)
     x_diff = x1 - x2.T
+    #x_diff = np.linalg.norm((x1 - x2.T)[:, :, np.newaxis], axis=-1)
     v = delta**2*np.exp(-x_diff**2/2./theta**2)
 
     # gradient wrt x1
@@ -255,10 +256,6 @@ DimerData = collections.namedtuple("DimerData", ["fi", "i", "j", "pos_i", "pos_j
 def compute_body3_descriptor(frames, r_cut: float):
     """"""
     # -- get neighbours
-    distance_mapping_list = []
-    distance_vectors = []
-    dis_derivs = []
-
     dimer_list = []
 
     curr_atomic_index = 0
@@ -274,7 +271,7 @@ def compute_body3_descriptor(frames, r_cut: float):
             nei_indices, nei_offsets = nl.get_neighbors(i)
             for j, offset in zip(nei_indices, nei_offsets):
                 pos_i, pos_j = atoms.positions[i, :], atoms.positions[j, :]
-                shift = -np.dot(offset, atoms.get_cell()) # take negative
+                shift = np.dot(offset, atoms.get_cell()) # take negative
                 #pos_vec = pos_i - pos_j + shift
                 dimer = DimerData(
                     fi = i_frame,
@@ -302,7 +299,7 @@ def compute_body3_descriptor(frames, r_cut: float):
         for pair0, pair1 in itertools.combinations(v, 2):
             pos_i, pos_j = pair0.pos_j + pair0.shift, pair1.pos_j + pair1.shift
             distance = np.linalg.norm(pos_i - pos_j)
-            if distance <= r_cut:
+            if 1e-8< distance <= r_cut: # j and k may be the same and distance is zero
                 pair2 = DimerData(
                     fi=pair0.fi,
                     i=pair0.j, j=pair1.j,
@@ -312,10 +309,19 @@ def compute_body3_descriptor(frames, r_cut: float):
     body3_mapping, body3_vectors = [], []
     for pairs in trimer_list:
         body3_mapping.append([pairs[0].fi, pairs[0].i, pairs[0].j, pairs[1].j])
-        body3_vectors.append([p.pos_i-(p.pos_j+shift) for p in pairs]) 
-    body3_vectors = np.array(body3_vectors) # shape (n_trimers, 3, 3)
-    body3_features = np.linalg.norm(body3_vectors, axis=2) # shape (n_trimers, 3)
-    body3_gradients = np.concatenate([body3_vectors, -body3_vectors], axis=-1)/body3_features[:, :, np.newaxis]
+        body3_vectors.append([p.pos_i-(p.pos_j+p.shift) for p in pairs]) 
+    if len(body3_vectors) > 0:
+        body3_vectors = np.array(body3_vectors) # shape (n_trimers, 3, 3)
+        body3_features = np.linalg.norm(body3_vectors, axis=2) # shape (n_trimers, 3)
+        body3_gradients = np.concatenate([body3_vectors, -body3_vectors], axis=-1)/body3_features[:, :, np.newaxis]
+
+        #for b3, f in zip(trimer_list, body3_features):
+        #    print(b3[2].i, b3[2].j, b3[2].pos_i, b3[2].pos_j, b3[2].shift, f[2])
+        #print(body3_features)
+        #np.savetxt("b3.dat", body3_features, fmt="%8.2f")
+    else:
+        body3_features = []
+        body3_gradients = []
 
     #print("BODY-3: ")
     #print(body3_mapping)
@@ -593,11 +599,16 @@ def compute_b2_marginal_likelihood(
         delta, theta, r_cut, nframes, natoms_tot, 
         body2_features, body2_gradients, body2_mapping, sparse_body2_features
     )
-
     Kmm_inv = np.linalg.inv(Kmm)
+
+    #print("Knm@Kmn: ")
+    #print(np.linalg.det(Knm@Knm.T))
+    #print(np.linalg.det(Knm[:nframes, :]@Knm[:nframes, :].T))
+
     Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
     Knn_inv = np.linalg.inv(Knn)
     #print("Knn: ")
+    #print(Knn)
     #print(np.linalg.det(Knn))
     #print(Knn.shape)
 
@@ -715,6 +726,70 @@ def compute_b2b3_marginal_likelihood(
     num_b2_sparse = sparse_b2_features.shape[0]
     num_b3_sparse = sparse_b3_features.shape[0]
 
+    loss, lg_b2delta, lg_b2theta, lg_b3delta, lg_b3theta = train_ene_and_frc(
+        nframes, num_points, num_b2_sparse, num_b3_sparse, y_data, sigma2, b2_Kmm, b3_Kmm, b2_Knm, b3_Knm,
+        b2_Kmm_gdelta, b2_Kmm_gtheta, b2_Knm_gdelta, b2_Knm_gtheta,
+        b3_Kmm_gdelta, b3_Kmm_gtheta, b3_Knm_gdelta, b3_Knm_gtheta,
+    )
+
+    return -loss[0][0], [-lg_b2delta, -lg_b2theta, -lg_b3delta, -lg_b3theta]
+
+def train_ene():
+    # - train ene
+    Kmm = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
+    Kmm[:num_b2_sparse, :num_b2_sparse] = b2_Kmm
+    Kmm[num_b2_sparse:, num_b2_sparse:] = b3_Kmm
+
+    Knm = np.zeros((nframes, num_b2_sparse+num_b3_sparse))
+    Knm[:, :num_b2_sparse] = b2_Knm[:nframes, :]
+    Knm[:, num_b2_sparse:] = b3_Knm[:nframes, :]
+
+    Kmm_inv = np.linalg.inv(Kmm)
+    Knn = Knm@Kmm_inv@Knm.T + sigma2[:nframes, :nframes]
+    print("Knn: ")
+    print(np.linalg.det(Knn))
+
+    Knn_inv = np.linalg.inv(Knn)
+
+    y_data_ene = y_data[:nframes, :]
+
+    sign, logabsdet = np.linalg.slogdet(Knn)
+    loss = -0.5*(np.log(sign)+logabsdet) - 0.5 * y_data_ene.T @ Knn_inv @ y_data_ene - nframes/2.*np.log(2*np.pi)
+
+    Ky = Knn_inv @ y_data_ene
+
+    Kmm_gdelta = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
+    Kmm_gdelta[:num_b2_sparse, :num_b2_sparse] = b2_Kmm_gdelta
+    Knm_gdelta = np.zeros((nframes, num_b2_sparse+num_b3_sparse))
+    Knm_gdelta[:, :num_b2_sparse] = b2_Knm_gdelta[:nframes, :]
+    lg_b2delta = compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gdelta, Knm, Knm_gdelta)
+
+    Kmm_gtheta = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
+    Kmm_gtheta[:num_b2_sparse, :num_b2_sparse] = b2_Kmm_gtheta
+    Knm_gtheta = np.zeros((nframes, num_b2_sparse+num_b3_sparse))
+    Knm_gtheta[:, :num_b2_sparse] = b2_Knm_gtheta[:nframes, :]
+    lg_b2theta = compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gtheta, Knm, Knm_gtheta)
+
+    Kmm_gdelta = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
+    Kmm_gdelta[num_b2_sparse:, num_b2_sparse:] = b3_Kmm_gdelta
+    Knm_gdelta = np.zeros((nframes, num_b2_sparse+num_b3_sparse))
+    Knm_gdelta[:, num_b2_sparse:] = b3_Knm_gdelta[:nframes, :]
+    lg_b3delta = compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gdelta, Knm, Knm_gdelta)
+
+    Kmm_gtheta = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
+    Kmm_gtheta[num_b2_sparse:, num_b2_sparse:] = b3_Kmm_gtheta
+    Knm_gtheta = np.zeros((nframes, num_b2_sparse+num_b3_sparse))
+    Knm_gtheta[:, num_b2_sparse:] = b3_Knm_gtheta[:nframes, :]
+    lg_b3theta = compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gtheta, Knm, Knm_gtheta)
+
+    return -loss[0][0], [-lg_b2delta, -lg_b2theta, -lg_b3delta, -lg_b3theta]
+
+def train_ene_and_frc(
+    nframes, num_points, num_b2_sparse, num_b3_sparse, y_data, sigma2, b2_Kmm, b3_Kmm, b2_Knm, b3_Knm,
+    b2_Kmm_gdelta, b2_Kmm_gtheta, b2_Knm_gdelta, b2_Knm_gtheta,
+    b3_Kmm_gdelta, b3_Kmm_gtheta, b3_Knm_gdelta, b3_Knm_gtheta,
+):
+    """"""
     Kmm = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
     Kmm[:num_b2_sparse, :num_b2_sparse] = b2_Kmm
     Kmm[num_b2_sparse:, num_b2_sparse:] = b3_Kmm
@@ -725,18 +800,37 @@ def compute_b2b3_marginal_likelihood(
 
     # - combine
     Kmm_inv = np.linalg.inv(Kmm)
-    Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
+    #print("Kmm_inv: ")
+    #print(np.linalg.det(Kmm_inv))
+    # --- approximate Knn
+    #print("Knm@Kmn: ")
+    #print(np.linalg.det(Knm@Knm.T))
+    #print(np.linalg.det(Knm[:nframes, :]@Knm[:nframes, :].T))
+    eigens, eig_vecs = np.linalg.eig(Kmm)
+    #eigens = eigens[:, np.newaxis]
+    mu = np.sqrt((num_b2_sparse+num_b3_sparse)/num_points)*eigens**-1*Knm@eig_vecs
+    Knn = (num_points/(num_b2_sparse+num_b3_sparse))*eigens*mu@mu.T
+    Knn += sigma2
     Knn_inv = np.linalg.inv(Knn)
+
+    #Knn = Knm@Kmm_inv@Knm.T + sigma2
+    #Knn_inv = np.linalg.inv(Knn)
 
     print("Knn: ")
     #print(Knn)
     print(np.linalg.det(Knn))
+    #print(np.log(np.linalg.det(Knn)))
+    #print(np.linalg.slogdet(Knn))
+    sign, logabsdet = np.linalg.slogdet(Knn)
+    #print(sign * np.exp(logabsdet))
     #exit()
+    # --- approximate Knn
 
     # NOTE: det(A) will be zero if there are rows with zeros since
     #       some atoms may not in any three-body...
     #loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
-    loss = - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
+    loss = -0.5*(np.log(sign)+logabsdet) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
+    #loss = - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
     # -- combine gradients
     Ky = Knn_inv @ y_data
@@ -765,7 +859,7 @@ def compute_b2b3_marginal_likelihood(
     Knm_gtheta[:, num_b2_sparse:] = b3_Knm_gtheta
     lg_b3theta = compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gtheta, Knm, Knm_gtheta)
 
-    return -loss[0][0], [-lg_b2delta, -lg_b2theta, -lg_b3delta, -lg_b3theta]
+    return loss, lg_b2delta, lg_b2theta, lg_b3delta, lg_b3theta
 
 def compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gdelta, Knm, Knm_gdelta):
     """"""
@@ -785,6 +879,7 @@ class SparseGaussianProcessTrainer():
     def __init__(self) -> None:
         """"""
         self.r_cut = 4.0
+        #self.r_cut = 6.8
         #self.r_cut = 8.0
 
         return
@@ -792,7 +887,11 @@ class SparseGaussianProcessTrainer():
     def _prepare_dataset(self, ):
         """"""
         # - read dataset
+        #frames = read("./dft/O2.xyz", ":1")
+        #frames = read("./dft/Cu4.xyz", "1:2")
+        #frames = read("./dft/Cu13.xyz", ":")
         frames = read("./md/cand0/traj.xyz", ":")
+        #frames = read("./Cu100/cand0/traj.xyz", ":5")
 
         energies = [a.get_potential_energy() for a in frames]
         energies = np.array(energies)[:, np.newaxis]
@@ -804,7 +903,7 @@ class SparseGaussianProcessTrainer():
         y_data = np.vstack([energies, forces])
 
         # - regularization
-        sigma2_diag_ene = 0.1*np.array([len(a) for a in frames])
+        sigma2_diag_ene = 0.05*np.sqrt(np.array([len(a) for a in frames]))
         f_sig, f_min = 0.01, 0.01
         sigma2_diag_frc = []
         for x in np.fabs(forces.flatten()):
@@ -813,7 +912,7 @@ class SparseGaussianProcessTrainer():
             else:
                 sigma2_diag_frc.append(f_sig*f_min)
         sigma2_diag = sigma2_diag_ene.tolist() + sigma2_diag_frc
-        sigma2 = np.diag(sigma2_diag)
+        sigma2 = np.diag(sigma2_diag)**2
 
         return frames, y_data, sigma2
     
@@ -834,17 +933,25 @@ class SparseGaussianProcessTrainer():
         #print("BODY3 MAPPING: ")
         #print(body3_mapping)
 
+        #print("BODY3 GRADIENTS: ")
+        #print(body3_gradients)
+
         # - sparsify
         sparse_body2_features = np.loadtxt("./b2_sparse.dat")[:, np.newaxis]
 
         print("BODY3 SHAPE: ")
         print(body3_features.shape)
-        #sparse_body3_features = body3_features[:10, :]
+        from gdpx.selector.cur import cur_selection, fps_selection
+        #selected_indices = range(0, 30, 3)
+        #_, selected_indices = cur_selection(body3_features, num=20, zeta=-1)
+        #_, selected_indices = fps_selection(body3_features, num=10, min_distance=0.5)
+        #sparse_body3_features = body3_features[selected_indices, :]
         sparse_body3_features = np.loadtxt("./backup/b3_sparse.dat")
+        print(sparse_body3_features)
 
         # - construct matrix
         # -- parameters
-        delta, theta = 0.5, 0.8
+        delta, theta = 0.1, 0.5
 
         # --- body2
         print("~~~~~ USE BODY-2 ~~~~~")
@@ -889,7 +996,7 @@ class SparseGaussianProcessTrainer():
                 sigma2, self.r_cut, y_data, nframes, natoms_tot, 
                 body2_features, body2_gradients, body2_mapping, sparse_body2_features, 
                 body3_features, body3_gradients, body3_mapping, sparse_body3_features
-            ), jac=True, options={"disp": True}
+            ), jac=True, options={"disp": True, "maxiter": 10}
         )
         print("OPT INFO: ")
         print(res)
@@ -1110,12 +1217,20 @@ class SparseGaussianProcessTrainer():
         jitter = 1e-5*np.eye(Kmm.shape[0])
         inverseLamb = np.linalg.inv(sigma2_matrix)
 
-        weights = (
-            np.linalg.inv(Kmm + jitter + Knm.T@inverseLamb@Knm) @ Knm.T @ inverseLamb
-        )
-        weights = np.dot(weights, y_data)
-        print("weights: ")
+        # - direct inversion
+        #weights = (
+        #    np.linalg.inv(Kmm + jitter + Knm.T@inverseLamb@Knm) @ Knm.T @ inverseLamb
+        #)
+        #weights = np.dot(weights, y_data)
+        #print("weights: ")
         #print(weights)
+
+        # - decomposition
+        wKmn = Knm.T@inverseLamb
+        Qmm = Kmm + jitter + wKmn@Knm
+        Vm = wKmn@y_data
+        from scipy.linalg import solve
+        weights = solve(Qmm, Vm, assume_a="pos")
 
         # - test
         print("===== TEST =====")
