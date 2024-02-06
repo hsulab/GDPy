@@ -726,7 +726,12 @@ def compute_b2b3_marginal_likelihood(
     num_b2_sparse = sparse_b2_features.shape[0]
     num_b3_sparse = sparse_b3_features.shape[0]
 
-    loss, lg_b2delta, lg_b2theta, lg_b3delta, lg_b3theta = train_ene_and_frc(
+    #loss, lg_b2delta, lg_b2theta, lg_b3delta, lg_b3theta = train_ene_and_frc(
+    #    nframes, num_points, num_b2_sparse, num_b3_sparse, y_data, sigma2, b2_Kmm, b3_Kmm, b2_Knm, b3_Knm,
+    #    b2_Kmm_gdelta, b2_Kmm_gtheta, b2_Knm_gdelta, b2_Knm_gtheta,
+    #    b3_Kmm_gdelta, b3_Kmm_gtheta, b3_Knm_gdelta, b3_Knm_gtheta,
+    #)
+    loss, lg_b2delta, lg_b2theta, lg_b3delta, lg_b3theta = train_ene(
         nframes, num_points, num_b2_sparse, num_b3_sparse, y_data, sigma2, b2_Kmm, b3_Kmm, b2_Knm, b3_Knm,
         b2_Kmm_gdelta, b2_Kmm_gtheta, b2_Knm_gdelta, b2_Knm_gtheta,
         b3_Kmm_gdelta, b3_Kmm_gtheta, b3_Knm_gdelta, b3_Knm_gtheta,
@@ -734,7 +739,11 @@ def compute_b2b3_marginal_likelihood(
 
     return -loss[0][0], [-lg_b2delta, -lg_b2theta, -lg_b3delta, -lg_b3theta]
 
-def train_ene():
+def train_ene(
+    nframes, num_points, num_b2_sparse, num_b3_sparse, y_data, sigma2, b2_Kmm, b3_Kmm, b2_Knm, b3_Knm,
+    b2_Kmm_gdelta, b2_Kmm_gtheta, b2_Knm_gdelta, b2_Knm_gtheta,
+    b3_Kmm_gdelta, b3_Kmm_gtheta, b3_Knm_gdelta, b3_Knm_gtheta,
+):
     # - train ene
     Kmm = np.zeros((num_b2_sparse+num_b3_sparse, num_b2_sparse+num_b3_sparse))
     Kmm[:num_b2_sparse, :num_b2_sparse] = b2_Kmm
@@ -782,7 +791,7 @@ def train_ene():
     Knm_gtheta[:, num_b2_sparse:] = b3_Knm_gtheta[:nframes, :]
     lg_b3theta = compute_loss_gradient(Ky, Knn_inv, Kmm_inv, Kmm_gtheta, Knm, Knm_gtheta)
 
-    return -loss[0][0], [-lg_b2delta, -lg_b2theta, -lg_b3delta, -lg_b3theta]
+    return loss, lg_b2delta, lg_b2theta, lg_b3delta, lg_b3theta
 
 def train_ene_and_frc(
     nframes, num_points, num_b2_sparse, num_b3_sparse, y_data, sigma2, b2_Kmm, b3_Kmm, b2_Knm, b3_Knm,
@@ -800,21 +809,28 @@ def train_ene_and_frc(
 
     # - combine
     Kmm_inv = np.linalg.inv(Kmm)
-    #print("Kmm_inv: ")
-    #print(np.linalg.det(Kmm_inv))
+    print("Kmm_inv: ")
+    print(np.linalg.det(Kmm_inv))
+
     # --- approximate Knn
+    # -0.
     #print("Knm@Kmn: ")
     #print(np.linalg.det(Knm@Knm.T))
     #print(np.linalg.det(Knm[:nframes, :]@Knm[:nframes, :].T))
-    eigens, eig_vecs = np.linalg.eig(Kmm)
+    #eigens, eig_vecs = np.linalg.eig(Kmm)
     #eigens = eigens[:, np.newaxis]
-    mu = np.sqrt((num_b2_sparse+num_b3_sparse)/num_points)*eigens**-1*Knm@eig_vecs
-    Knn = (num_points/(num_b2_sparse+num_b3_sparse))*eigens*mu@mu.T
-    Knn += sigma2
+    #mu = np.sqrt((num_b2_sparse+num_b3_sparse)/num_points)*eigens**-1*Knm@eig_vecs
+    #Knn = (num_points/(num_b2_sparse+num_b3_sparse))*eigens*mu@mu.T
+    #Knn += sigma2
+    #Knn_inv = np.linalg.inv(Knn)
+
+    # -1.
+    Knn = Knm@Kmm_inv@Knm.T + sigma2
     Knn_inv = np.linalg.inv(Knn)
 
-    #Knn = Knm@Kmm_inv@Knm.T + sigma2
-    #Knn_inv = np.linalg.inv(Knn)
+    # -2.
+    #Knn = Kmm
+    #Knn_inv = Kmm_inv
 
     print("Knn: ")
     #print(Knn)
