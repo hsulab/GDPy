@@ -36,11 +36,11 @@ def switch_function_value_and_grad_b3(r, r_cut):
 
     return v, 2./r_diff*v
 
-def switch_function_value_and_grad_b3(r, r_cut):
-    """Switch function that smoothes distance to cutoff.
-    """
-
-    return np.array([[1.]]), np.array([[0.]])
+#def switch_function_value_and_grad_b3(r, r_cut):
+#    """Switch function that smoothes distance to cutoff.
+#    """
+#
+#    return np.array([[1.]]), np.array([[0.]])
 
 def gaussian_kernel(x1, x2, delta=0.2, theta=0.5):
     """
@@ -366,7 +366,7 @@ def compute_body3_kernel_matrices(
     num_sparse = sparse_body3_features.shape[0]
 
     # NOTE: cutoff switch function on sparse_points
-    sparse_b3s, _ = switch_function_value_and_grad_b3(sparse_body3_features, r_cut)
+    #sparse_b3s, _ = switch_function_value_and_grad_b3(sparse_body3_features, r_cut)
 
     # -- consider permutations...
     num_b3 = b3_features.shape[0]
@@ -378,8 +378,10 @@ def compute_body3_kernel_matrices(
     b3ks_gx1_gtheta = np.zeros((num_b3, num_sparse, 3))
 
     b3s, b3sg = switch_function_value_and_grad_b3(b3_features, r_cut)
-    b3s = b3s*sparse_b3s.T # shape (num_b3, num_sparse)
-    b3sg = b3sg[:, np.newaxis, :]*sparse_b3s.T[:, :, np.newaxis] # shape (num_b3, 1, 3)
+    #b3s = b3s*sparse_b3s.T # shape (num_b3, num_sparse)
+    #b3sg = b3sg[:, np.newaxis, :]*sparse_b3s.T[:, :, np.newaxis] # shape (num_b3, 1, 3)
+    b3s = b3s # shape (num_b3, 1)
+    b3sg = b3sg[:, np.newaxis, :] # shape (num_b3, 1, 3)
 
     for p in itertools.permutations(range(3), 3):
     #for p in [(0, 1, 2)]:
@@ -492,7 +494,7 @@ def compute_body2_kernel_matrices(
     #print(f"r_cut: {r_cut}")
     num_sparse = sparse_body2_features.shape[0]
 
-    sparse_b2, _ = switch_function_value_and_grad(sparse_body2_features, r_cut)
+    #sparse_b2, _ = switch_function_value_and_grad(sparse_body2_features, r_cut)
 
     # - 
     _b2_kernels, _b2_kernel_grad_x1, b2_kg_wrt_delta, b2_kg_wrt_theta = gaussian_kernel_value_and_grad(
@@ -501,8 +503,10 @@ def compute_body2_kernel_matrices(
     #print(_b2_kernels.shape)
     #print(_b2_kernel_grad_x1.shape)
     b2s, b2sg = switch_function_value_and_grad(body2_features, r_cut)
-    b2s = b2s*sparse_b2.T # (num_b2, num_sparse)
-    b2sg = b2sg*sparse_b2.T # (num_b2, num_sparse)
+    #b2s = b2s*sparse_b2.T # (num_b2, num_sparse)
+    #b2sg = b2sg*sparse_b2.T # (num_b2, num_sparse)
+    b2s = b2s # (num_b2, num_sparse)
+    b2sg = b2sg # (num_b2, num_sparse)
 
     b2_kernels = _b2_kernels*b2s # (num_b2, num_sparse)
     b2_kernel_grad_x1 = (_b2_kernel_grad_x1*b2s+_b2_kernels*b2sg)[:, :, np.newaxis] # (num_b2, num_sparse, 1)
@@ -731,8 +735,8 @@ def compute_b2b3_marginal_likelihood(
 
     # NOTE: det(A) will be zero if there are rows with zeros since
     #       some atoms may not in any three-body...
-    loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
-    #loss = - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
+    #loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
+    loss = - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
     # -- combine gradients
     Ky = Knn_inv @ y_data
@@ -780,7 +784,7 @@ class SparseGaussianProcessTrainer():
 
     def __init__(self) -> None:
         """"""
-        self.r_cut = 6.8
+        self.r_cut = 4.0
         #self.r_cut = 8.0
 
         return
@@ -788,7 +792,7 @@ class SparseGaussianProcessTrainer():
     def _prepare_dataset(self, ):
         """"""
         # - read dataset
-        frames = read("./Cu13.xyz", ":")
+        frames = read("./md/cand0/traj.xyz", ":")
 
         energies = [a.get_potential_energy() for a in frames]
         energies = np.array(energies)[:, np.newaxis]
@@ -835,8 +839,8 @@ class SparseGaussianProcessTrainer():
 
         print("BODY3 SHAPE: ")
         print(body3_features.shape)
-        sparse_body3_features = body3_features[:50, :]
-        #sparse_body3_features = np.loadtxt("./backup/b3_sparse.dat")
+        #sparse_body3_features = body3_features[:10, :]
+        sparse_body3_features = np.loadtxt("./backup/b3_sparse.dat")
 
         # - construct matrix
         # -- parameters
