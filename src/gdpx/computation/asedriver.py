@@ -111,6 +111,12 @@ class AseDriverSetting(DriverSetting):
     driver_cls: Dynamics = None
     filter_cls: Filter = None
 
+    thermostat: str = None
+    friction: float = 0.01
+    friction_seed: int = None
+
+    fix_cm: bool = False
+
     fmax: float = 0.05 # eV/Ang
 
     def __post_init__(self):
@@ -118,9 +124,13 @@ class AseDriverSetting(DriverSetting):
         # - task-specific params
         if self.task == "md":
             self._internals.update(
+                # - helper params
                 velocity_seed = self.velocity_seed,
                 ignore_atoms_velocities = self.ignore_atoms_velocities,
-                md_style = self.md_style,
+                md_style = self.md_style, # ensemble...
+                thermostat = self.thermostat, 
+                # -
+                fixcm = self.fix_cm,
                 timestep = self.timestep,
                 temperature_K = self.temp,
                 taut = self.Tdamp,
@@ -131,8 +141,28 @@ class AseDriverSetting(DriverSetting):
             if self.md_style == "nve":
                 from ase.md.verlet import VelocityVerlet as driver_cls
             elif self.md_style == "nvt":
-                #from gdpx.md.nosehoover import NoseHoover as driver_cls
-                from ase.md.nvtberendsen import NVTBerendsen as driver_cls
+                thermostat = self.thermostat if self.thermostat is not None else "berendsen"
+                if thermostat == "berendsen":
+                    from ase.md.nvtberendsen import NVTBerendsen as driver_cls
+                    thermostat_params = dict(
+                        taut = self._internals["taut"]
+                    )
+                elif thermostat == "langevin":
+                    from ase.md.langevin import Langevin as driver_cls
+                    if self.friction_seed is not None:
+                        friction_seed = self.friction_seed 
+                    else:
+                        friction_seed = np.random.randint(0, 100000000)
+                    thermostat_params = dict(
+                        friction = self.friction/units.fs,
+                        rng = np.random.default_rng(seed=friction_seed)
+                    )
+                elif thermostat == "nose_hoover":   
+                    from gdpx.md.nosehoover import NoseHoover as driver_cls
+                else:
+                    raise RuntimeError(f"Unknown thermostat {thermostat}.")
+                self._internals["thermostat"] = thermostat
+                self._internals["thermostat_params"] = thermostat_params
             elif self.md_style == "npt":
                 from ase.md.nptberendsen import NPTBerendsen as driver_cls
         
@@ -304,12 +334,13 @@ class AseDriver(AbstractDriver):
             elif md_style == "nvt":
                 init_params_ = {
                     k:v for k,v in init_params_.items() 
-                    if k in ["loginterval", "timestep", "temperature_K", "taut"]
+                    if k in ["loginterval", "fixcm", "timestep", "temperature_K"]
                 }
+                init_params_.update(**self.setting._internals["thermostat_params"])
             elif md_style == "npt":
                 init_params_ = {
                     k:v for k,v in init_params_.items() 
-                    if k in ["loginterval", "timestep", "temperature_K", "taut", "pressure", "taup"]
+                    if k in ["loginterval", "fixcm", "timestep", "temperature_K", "taut", "pressure", "taup"]
                 }
                 init_params_["pressure"] *= (1./(160.21766208/0.000101325))
 
@@ -358,6 +389,9 @@ class AseDriver(AbstractDriver):
             if ckpt_wdir is None: # start from the scratch
                 curr_params = {}
                 curr_params["init"] = self.setting.get_init_params()
+                if "rng" in curr_params["init"]["thermostat_params"]: # langevin...
+                    rng = curr_params["init"]["thermostat_params"]["rng"]
+                    curr_params["init"]["thermostat_params"]["rng"] = rng._bit_generator.state
                 curr_params["run"] = self.setting.get_run_params()
                 import yaml
                 with open(self.directory/"params.yaml", "w") as fopen:
