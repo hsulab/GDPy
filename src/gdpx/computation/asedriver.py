@@ -276,7 +276,8 @@ class AseDriver(AbstractDriver):
         elif self.setting.task == "md":
             # - adjust params
             init_params_ = copy.deepcopy(self.setting.get_init_params())
-            velocity_seed = init_params_.pop("velocity_seed", np.random.randint(0,10000))
+            velocity_seed = init_params_.pop("velocity_seed", np.random.randint(0, 10000))
+            #self.setting._internals["velocity_seed"] = velocity_seed
             rng = np.random.default_rng(velocity_seed)
 
             # - velocity
@@ -355,7 +356,12 @@ class AseDriver(AbstractDriver):
             # To restart, velocities are always retained 
             prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
             if ckpt_wdir is None: # start from the scratch
-                ...
+                curr_params = {}
+                curr_params["init"] = self.setting.get_init_params()
+                curr_params["run"] = self.setting.get_run_params()
+                import yaml
+                with open(self.directory/"params.yaml", "w") as fopen:
+                    yaml.safe_dump(curr_params, fopen, indent=4)
             else: # restart ...
                 traj = self.read_trajectory()
                 nframes = len(traj)
