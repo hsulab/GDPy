@@ -31,5 +31,14 @@ from .mace import MaceManager
 registers.manager.register(MaceManager)
 
 
+# - trainers
+from .gp.fgp import FGPTrainer
+registers.trainer.register("FgpTrainer")(FGPTrainer)
+
+from .gp.sgp import SGPTrainer
+registers.trainer.register("SgpTrainer")(SGPTrainer)
+
+
+
 if __name__ == "__main__":
     ...

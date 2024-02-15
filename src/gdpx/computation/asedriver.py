@@ -430,6 +430,10 @@ class AseDriver(AbstractDriver):
                 atoms=atoms, devi_fpath=self.directory/self.devi_fname
             )
             dynamics.run(**run_params)
+            # - Some interactive calculator needs kill processes after finishing,
+            #   e.g. VaspInteractive...
+            if hasattr(self.calc, "finalize"):
+                self.calc.finalize()
             # To restart, velocities are always retained 
             self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
         except Exception as e:

@@ -13,17 +13,18 @@ class VaspManager(AbstractPotentialManager):
 
     name = "vasp"
 
-    implemented_backends = ["vasp"]
+    implemented_backends = ["vasp", "vasp_interactive"]
     valid_combinations = (
         # calculator, dynamics
         ("vasp", "vasp"), 
+        ("vasp_interactive", "ase")
     )
 
     def __init__(self):
 
         return
 
-    def _set_environs(self, pp_path, vdw_path) -> NoReturn:
+    def _set_environs(self, pp_path, vdw_path) -> None:
         """Set files need for calculation.
 
         NOTE: pp_path and vdw_path may not exist since we would like to create a
@@ -81,7 +82,24 @@ class VaspManager(AbstractPotentialManager):
             if incar is not None:
                 calc.read_incar(incar)
             self._set_environs(pp_path, vdw_path)
-            #print("fmax: ", calc.asdict()["inputs"])
+            # - update residual params
+            calc.set(**calc_params)
+        elif self.calc_backend == "vasp_interactive":
+            from vasp_interactive import VaspInteractive
+            calc = VaspInteractive(directory=directory, command=command)
+            # - set some default electronic parameters
+            calc.set_xc_params("PBE") # NOTE: since incar may not set GGA
+            calc.set(lorbit=10)
+            calc.set(gamma=True)
+            calc.set(lreal="Auto")
+            if incar is not None:
+                calc.read_incar(incar)
+            # - set some vasp_interactive parameters
+            calc.set(potim=0.0)
+            calc.set(ibrion=-1)
+            calc.set(ediffg=0)
+            #calc.set(isif=3) # TODO: Does not support stress for now...
+            self._set_environs(pp_path, vdw_path)
             # - update residual params
             calc.set(**calc_params)
         else:
