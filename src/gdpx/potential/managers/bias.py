@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import copy
+
 from gdpx.core.register import registers
 from ..manager import AbstractPotentialManager, DummyCalculator
 from gdpx.bias import bias_register
@@ -31,6 +34,19 @@ class BiasManager(AbstractPotentialManager):
         # - parse params
         bias_type = calc_params.get("type", None)
         assert bias_type is not None, "Bias must have a type."
+
+        # -- check whether have a colvar key
+        colvar_ = None
+        for k, v in calc_params.items():
+            if k == "colvar":
+                cv_params = copy.deepcopy(v)
+                cv_name = cv_params.pop("name")
+                colvar_ = registers.create("colvar", cv_name, **cv_params)
+                break
+        else:
+            ...
+        if colvar_ is not None:
+            calc_params["colvar"] = colvar_
 
         # - instantiate calculator
         calc = DummyCalculator()

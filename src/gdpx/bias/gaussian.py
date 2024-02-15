@@ -55,10 +55,11 @@ class GaussianCalculator(Calculator):
 
     _fname = "HILLS"
 
-    def __init__(self, restart=None, label=None, atoms=None, directory=".", **kwargs):
+    def __init__(self, colvar, restart=None, label=None, atoms=None, directory=".", **kwargs):
+        """"""
         super().__init__(restart=restart, label=label, atoms=atoms, directory=directory, **kwargs)
 
-        self._colvar = registers.colvar["distance"]()
+        self._colvar = colvar
         print(self._colvar)
 
         _width = np.array(self.parameters["width"])
