@@ -92,6 +92,9 @@ class registers:
     #: Builders.
     builder: Register = Register("builder")
 
+    #: Colvars.
+    colvar: Register = Register("colvar")
+
     #: Modifiers.
     modifier: Register = Register("modifier")
 
