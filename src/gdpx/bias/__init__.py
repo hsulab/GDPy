@@ -4,7 +4,7 @@
 
 from typing import List
 
-from ..core.register import Register
+from ..core.register import Register, registers
 bias_register = Register("bias")
 
 from ..colvar import initiate_colvar
@@ -18,6 +18,9 @@ bias_register.register("harmonic")(HarmonicBias)
 
 """Create bias on potential energy surface. These are all JAX-based PES modifiers.
 """
+
+from .gaussian import GaussianCalculator
+bias_register.register("gaussian")(GaussianCalculator)
 
 
 if __name__ == "__main__":
