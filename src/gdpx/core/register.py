@@ -153,16 +153,16 @@ ALL_MODULES = [
         "vasp", "espresso", "cp2k", 
         "xtb",
         "eam", "emt", "reax", 
-        "eann", "deepmd", "lasp", "nequip", "schnet"
+        "eann", "lasp", "nequip", "schnet"
     ]),
-    # -- trainers (potentials)
-    ("gdpx.potential.managers", ["deepmd"]),
     # -- dataloaders (datasets)
     ("gdpx.data", ["dataset"]),
     # -- region
     ("gdpx.builder", ["region"]),
     # -- builders
     ("gdpx", ["builder"]),
+    # -- colvar
+    ("gdpx", ["colvar"]),
     # -- genetic-algorithm-related
     ("gdpx.builder", ["crossover", "mutation"]),
     # -- selectors

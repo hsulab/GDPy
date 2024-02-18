@@ -6,6 +6,11 @@ import warnings
 
 from .. import registers
 
+# - potentials
+from .deepmd import DeepmdManager, DeepmdTrainer
+registers.manager.register(DeepmdManager)
+registers.trainer.register(DeepmdTrainer)
+
 from .grid import GridManager
 registers.manager.register(GridManager)
 
