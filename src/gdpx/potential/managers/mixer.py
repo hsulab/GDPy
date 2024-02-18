@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from gdpx.core.register import registers
+from . import registers
+from . import AbstractPotentialManager, DummyCalculator
 from gdpx.computation.mixer import EnhancedCalculator
-from ..manager import AbstractPotentialManager, DummyCalculator
 
 
 class MixerManager(AbstractPotentialManager):

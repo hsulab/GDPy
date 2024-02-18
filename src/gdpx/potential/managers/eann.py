@@ -9,13 +9,9 @@ import yaml
 
 from ase.calculators.calculator import Calculator
 
-from gdpx.core.register import registers
-from gdpx.potential.manager import AbstractPotentialManager
-from gdpx.potential.trainer import AbstractTrainer
-from gdpx.computation.mixer import CommitteeCalculator
+from . import AbstractPotentialManager, AbstractTrainer
 
 
-@registers.trainer.register
 class EannTrainer(AbstractTrainer):
     
     name = "eann"
@@ -61,7 +57,6 @@ class EannTrainer(AbstractTrainer):
         return
 
 
-@registers.manager.register
 class EannManager(AbstractPotentialManager):
 
     name = "eann"

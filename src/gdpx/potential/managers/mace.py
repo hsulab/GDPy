@@ -10,13 +10,10 @@ from typing import List
 from ase.io import read, write
 
 
-from gdpx.core.register import registers
-from ..manager import AbstractPotentialManager, DummyCalculator
-from ..trainer import AbstractTrainer
+from . import AbstractPotentialManager, AbstractTrainer, DummyCalculator
 from gdpx.computation.mixer import CommitteeCalculator
 
 
-@registers.trainer.register
 class MaceTrainer(AbstractTrainer):
 
     name = "mace"

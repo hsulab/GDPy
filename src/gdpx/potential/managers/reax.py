@@ -3,10 +3,9 @@
 
 from pathlib import Path
 
-from gdpx.core.register import registers
-from gdpx.potential.manager import AbstractPotentialManager
+from . import AbstractPotentialManager
 
-@registers.manager.register
+
 class ReaxManager(AbstractPotentialManager):
 
     name = "reax"

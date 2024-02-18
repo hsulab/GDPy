@@ -5,10 +5,9 @@ import os
 import pathlib
 from typing import NoReturn
 
-from gdpx.core.register import registers
-from gdpx.potential.manager import AbstractPotentialManager, DummyCalculator
+from . import AbstractPotentialManager, DummyCalculator
 
-@registers.manager.register
+
 class EamManager(AbstractPotentialManager):
 
     name = "eam"

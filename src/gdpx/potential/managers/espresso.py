@@ -5,12 +5,9 @@
 import pathlib
 
 
-from gdpx.core.register import registers
-from ..manager import AbstractPotentialManager
-from ..manager import DummyCalculator
+from . import AbstractPotentialManager, DummyCalculator
 
 
-@registers.manager.register
 class EspressoManager(AbstractPotentialManager):
 
     name = "espresso"

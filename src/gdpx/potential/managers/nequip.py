@@ -14,12 +14,10 @@ import numpy as np
 from ase.io import read, write
 from ase.calculators.calculator import Calculator
 
-from gdpx.core.register import registers
-from gdpx.potential.manager import AbstractPotentialManager, DummyCalculator
-from gdpx.potential.trainer import AbstractTrainer
+from . import AbstractPotentialManager, AbstractTrainer, DummyCalculator
 from gdpx.computation.mixer import CommitteeCalculator
 
-@registers.trainer.register
+
 class NequipTrainer(AbstractTrainer):
 
     name = "nequip"
@@ -151,7 +149,6 @@ class NequipTrainer(AbstractTrainer):
         return converged
 
 
-@registers.manager.register
 class NequipManager(AbstractPotentialManager):
 
     name = "nequip"

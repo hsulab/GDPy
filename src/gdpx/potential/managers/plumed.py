@@ -4,7 +4,7 @@
 
 import pathlib
 
-from ..manager import AbstractPotentialManager, DummyCalculator
+from . import AbstractPotentialManager, DummyCalculator
 
 
 class PlumedManager(AbstractPotentialManager):

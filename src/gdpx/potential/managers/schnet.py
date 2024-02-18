@@ -15,8 +15,7 @@ import schnetpack as spk
 import schnetpack.transform as trn
 from schnetpack.data import AtomsDataModule, ASEAtomsData, load_dataset, AtomsDataFormat
 
-from gdpx.core.register import registers
-from gdpx.potential.manager import AbstractPotentialManager
+from . import AbstractPotentialManager
 
 def convert_frames(frames):
     """"""
@@ -223,7 +222,7 @@ def use_model():
 
     return
 
-@registers.manager.register
+
 class SchnetManager(AbstractPotentialManager):
 
     name = "schnet"

@@ -5,10 +5,9 @@ import os
 import pathlib
 from typing import NoReturn
 
-from gdpx.core.register import registers
-from gdpx.potential.manager import AbstractPotentialManager
+from . import AbstractPotentialManager
 
-@registers.manager.register
+
 class XtbManager(AbstractPotentialManager):
 
     name = "xtb"
