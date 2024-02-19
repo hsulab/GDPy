@@ -84,17 +84,22 @@ class GaussianCalculator(Calculator):
         positions = atoms.positions
         cvfunc, cvparams = self._colvar.cvfunc, self._colvar.params
 
-        num_his = len(self._history)
-        if num_his == 0:
-            curr_colvar = cvfunc(positions, cvparams)
-            natoms = len(atoms)
-            e, f = omega, np.zeros((natoms, 3))
+        if False: # Combined function...
+            num_his = len(self._history)
+            if num_his == 0:
+                curr_colvar = cvfunc(positions, cvparams)
+                natoms = len(atoms)
+                e, f = omega, np.zeros((natoms, 3))
+            else:
+                ref_colvars = np.vstack(self._history)
+                (e, curr_colvar), f = jax.value_and_grad(compute_bias, argnums=0, has_aux=True)(
+                    positions, cvfunc, cvparams, ref_colvars, sigma, omega
+                )
+            self._history.append(curr_colvar)
         else:
-            ref_colvars = np.vstack(self._history)
-            (e, curr_colvar), f = jax.value_and_grad(compute_bias, argnums=0, has_aux=True)(
-                positions, cvfunc, cvparams, ref_colvars, sigma, omega
-            )
-        self._history.append(curr_colvar)
+            curr_colvar = cvfunc(atoms, cvparams)
+            print(f"colvar: {curr_colvar}")
+            ...
 
         # ---
         fpath = pathlib.Path(self.directory)/self._fname

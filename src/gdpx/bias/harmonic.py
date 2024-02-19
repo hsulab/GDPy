@@ -13,8 +13,6 @@ from jax import jit, grad, value_and_grad
 
 from ase.calculators.calculator import Calculator, all_changes
 
-from . import initiate_colvar
-
 
 @jit
 def harmonic(positions, cvfunc: Callable, k: float, s: float):

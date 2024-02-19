@@ -7,8 +7,6 @@ from typing import List
 from ..core.register import Register, registers
 bias_register = Register("bias")
 
-from ..colvar import initiate_colvar
-
 from .afir import AFIRCalculator
 bias_register.register("afir")(AFIRCalculator)
 

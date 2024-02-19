@@ -9,8 +9,6 @@ import jax.numpy as jnp
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
-from . import initiate_colvar
-
 
 class AbstractBias(Calculator):
 
