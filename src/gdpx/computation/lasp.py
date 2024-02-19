@@ -18,6 +18,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.calculators.calculator import FileIOCalculator, EnvironmentError
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.geometry import find_mic
 
 from ..builder.constraints import parse_constraint_info
 from .driver import AbstractDriver, DriverSetting
@@ -30,6 +31,22 @@ Output files by LASP NVE-MD are
     md.arc  md.restart  vel.arc
 
 """
+
+def compare_trajectory_continuity(t0, t1):
+    """Compare positions."""
+    a0, a1 = t0[-1], t1[0]
+    cell = a0.get_cell(complete=True)
+    shift = a0.positions - a1.positions
+    curr_vectors, curr_distances = find_mic(shift, cell, pbc=True)
+
+    # Due to the floating point precision, arc -> atoms may lead to
+    # position inconsistent after 8 decimals...
+    return np.allclose(
+        curr_vectors, np.zeros(curr_vectors.shape), 
+        #rtol=1e-05, atol=1e-08, equal_nan=False
+        rtol=1e-04, atol=1e-06, equal_nan=False
+    )
+
 
 class LaspEnergyError(Exception):
     """Error due to the failure of LASP energy.
@@ -346,7 +363,8 @@ class LaspDriver(AbstractDriver):
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
-                assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                #assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                assert compare_trajectory_continuity(traj_list[i-1], traj_list[i]), f"Traj {i-1} and traj {i} are not consecutive."
                 traj_frames.extend(traj_list[i][1:])
         else:
             ...
