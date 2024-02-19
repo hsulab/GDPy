@@ -128,6 +128,9 @@ class AbstractDriver(abc.ABC):
     #: Whether check the dynamics is converged, and re-run if not.
     ignore_convergence: bool = False
 
+    #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
+    accept_bad_structure: bool = True
+
     #: Driver setting.
     setting: DriverSetting = None
 
@@ -364,6 +367,26 @@ class AbstractDriver(abc.ABC):
             traj_frames = self.read_trajectory() # NOTE: DEAL WITH EMPTY FILE ERROR
         else:
             traj_frames = cache_traj
+
+        # - check if this structure is bad
+        is_badstru = False
+        for a in traj_frames:
+            curr_is_badstru = a.info.get("is_badstru", False)
+            if curr_is_badstru:
+                is_badstru = True
+                break
+        else:
+            ...
+
+        if self.accept_bad_structure:
+            return True
+        else:
+            if is_badstru:
+                return False
+            else:
+                ...
+
+        # - check actual convergence
         nframes = len(traj_frames)
 
         converged = False

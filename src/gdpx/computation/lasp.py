@@ -341,8 +341,22 @@ class LaspDriver(AbstractDriver):
     
     def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """"""
+        curr_frames = read_lasp_structures(wdir)
 
-        return read_lasp_structures(wdir)
+        # check if the structure is too bad... LASP v3.3.4
+        TOO_SHORT_BOND_TAG = "Warning: Minimum Structure with too short bond"
+        is_badstru = False
+        with open(wdir/"lasp.out", "r") as fopen:
+            lines = fopen.readlines()
+            for line in lines:
+                if TOO_SHORT_BOND_TAG in line:
+                    is_badstru = true
+                    break
+                else:
+                    ...
+        curr_frames[-1].info["is_badstru"] = True
+
+        return curr_frames
     
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
