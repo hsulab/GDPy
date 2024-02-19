@@ -16,7 +16,7 @@ registers.trainer.register(DeepmdTrainer)
 
 from .eann import EannManager, EannTrainer
 registers.manager.register(EannManager)
-registers.manager.register(EannTrainer)
+registers.trainer.register(EannTrainer)
 
 from .lasp import LaspManager
 registers.manager.register(LaspManager)
@@ -29,11 +29,11 @@ from .nequip import NequipManager, NequipTrainer
 registers.manager.register(NequipManager)
 registers.trainer.register(NequipTrainer)
 
-try:
-    from .schnet import SchnetManager
-    registers.manager.register(SchnetManager)
-except ImportError as e:
-    warnings.warn("Module {} import failed: {}".format("schnet", e), UserWarning)
+#try:
+#    from .schnet import SchnetManager
+#    registers.manager.register(SchnetManager)
+#except ImportError as e:
+#    warnings.warn("Module {} import failed: {}".format("schnet", e), UserWarning)
 
 # -- reference potentials
 # --- DFT

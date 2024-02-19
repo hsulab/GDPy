@@ -149,12 +149,6 @@ ALL_MODULES = [
     ("gdpx.scheduler", SCHEDULER_MODULES),
     # -- managers (potentials)
     ("gdpx.potential", ["managers"]),
-    ("gdpx.potential.managers", [
-        "vasp", "espresso", "cp2k", 
-        "xtb",
-        "eam", "emt", "reax", 
-        "eann", "lasp", "nequip", "schnet"
-    ]),
     # -- dataloaders (datasets)
     ("gdpx.data", ["dataset"]),
     # -- region
@@ -199,13 +193,13 @@ ALL_MODULES = [
 
 def _handle_errors(errors):
     """Log out and possibly reraise errors during import."""
-    if not errors:
-        return
-    
     names = [] # unimported module names
-    for name, err in errors:
-        #warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
-        names.append(name)
+    if errors:
+        for name, err in errors:
+            warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+            names.append(name)
+    else:
+        ...
     
     return names
 

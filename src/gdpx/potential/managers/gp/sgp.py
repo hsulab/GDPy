@@ -18,6 +18,7 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 from itertools import permutations, product
 
 from gdpx.potential.trainer import AbstractTrainer
+from .gptools import compute_body3_descriptor
 
 def switch_function_value_and_grad(r, r_cut):
     """Switch function that smoothes distance to cutoff.
@@ -253,87 +254,6 @@ def compute_distance_marginal_likelihood(
 
     return -loss, -loss_grad
 
-
-DimerData = collections.namedtuple("DimerData", ["fi", "i", "j", "pos_i", "pos_j", "shift"])
-
-def compute_body3_descriptor(frames, r_cut: float):
-    """"""
-    # -- get neighbours
-    dimer_list = []
-
-    curr_atomic_index = 0
-    for i_frame, atoms in enumerate(frames):
-        #print(f"frame: {i_frame}")
-        natoms = len(atoms)
-        nl = NeighborList(
-            cutoffs=[r_cut/2.]*natoms, skin=0.0, sorted=False,
-            self_interaction=False, bothways=True
-        )
-        nl.update(atoms)
-        for i in range(natoms):
-            nei_indices, nei_offsets = nl.get_neighbors(i)
-            for j, offset in zip(nei_indices, nei_offsets):
-                pos_i, pos_j = atoms.positions[i, :], atoms.positions[j, :]
-                shift = np.dot(offset, atoms.get_cell()) # take negative
-                #pos_vec = pos_i - pos_j + shift
-                dimer = DimerData(
-                    fi = i_frame,
-                    i=curr_atomic_index+i, j=curr_atomic_index+j, 
-                    pos_i=pos_i, pos_j=pos_j, shift=shift
-                    #v=pos_vec, d=np.linalg.norm(pos_vec)
-                )
-                dimer_list.append(dimer)
-        curr_atomic_index += natoms
-    
-    # - find 2-body
-    body2_mapping = [[p.fi, p.i, p.j] for p in dimer_list]
-    body2_vectors = np.array([p.pos_i-(p.pos_j+p.shift) for p in dimer_list])
-    body2_features = np.linalg.norm(body2_vectors, axis=1)[:, np.newaxis] # (n_dimers, 1)
-    body2_gradients = np.concatenate([body2_vectors, -body2_vectors], axis=-1)/body2_features
-    body2_gradients = body2_gradients[:, np.newaxis, :] # (num_b2, 1, 6)
-    #print("BODY-2: ")
-    #print(body2_mapping)
-    #print(body2_features)
-    #print(body2_gradients)
-
-    # - find 3-body
-    trimer_list = []
-    for k, v in itertools.groupby(dimer_list, key=lambda x: x.i):
-        for pair0, pair1 in itertools.combinations(v, 2):
-            pos_i, pos_j = pair0.pos_j + pair0.shift, pair1.pos_j + pair1.shift
-            distance = np.linalg.norm(pos_i - pos_j)
-            if 1e-8< distance <= r_cut: # j and k may be the same and distance is zero
-                pair2 = DimerData(
-                    fi=pair0.fi,
-                    i=pair0.j, j=pair1.j,
-                    pos_i=pos_i, pos_j=pos_j, shift=np.zeros(3)
-                )
-                trimer_list.append((pair0, pair1, pair2))
-    body3_mapping, body3_vectors = [], []
-    for pairs in trimer_list:
-        body3_mapping.append([pairs[0].fi, pairs[0].i, pairs[0].j, pairs[1].j])
-        body3_vectors.append([p.pos_i-(p.pos_j+p.shift) for p in pairs]) 
-    if len(body3_vectors) > 0:
-        body3_vectors = np.array(body3_vectors) # shape (n_trimers, 3, 3)
-        body3_features = np.linalg.norm(body3_vectors, axis=2) # shape (n_trimers, 3)
-        body3_gradients = np.concatenate([body3_vectors, -body3_vectors], axis=-1)/body3_features[:, :, np.newaxis]
-
-        #for b3, f in zip(trimer_list, body3_features):
-        #    print(b3[2].i, b3[2].j, b3[2].pos_i, b3[2].pos_j, b3[2].shift, f[2])
-        #print(body3_features)
-        #np.savetxt("b3.dat", body3_features, fmt="%8.2f")
-    else:
-        body3_features = []
-        body3_gradients = []
-
-    #print("BODY-3: ")
-    #print(body3_mapping)
-    #print(body3_vectors)
-    #print(body3_features)
-    #print("gradient: ", body3_gradients.shape)
-
-    return body2_mapping, body2_features, body2_gradients, body3_mapping, body3_features, body3_gradients
-
 # --- BODY-3 ---
 
 def gaussian_kernel_value_and_grad_body3(x1, x2, delta=0.2, theta=0.5):
@@ -524,6 +444,9 @@ def compute_body2_kernel_matrices(
 
     b2_kg_wrt_delta = (b2_kg_wrt_delta*b2s)[:, :, np.newaxis] # (num_b2, num_sparse, 1)
     b2_kg_wrt_theta = (b2_kg_wrt_theta*b2s)[:, :, np.newaxis] # (num_b2, num_sparse, 1)
+    print(_b2_kernels)
+    print(_b2_kernel_grad_x1)
+    print(body2_gradients)
 
     # --- group descriptors
     #print("CONSTRUCT B2 KNM: ")
@@ -549,8 +472,14 @@ def compute_body2_kernel_matrices(
         fi, i, j = loc
         # b2_grad (1, 6) k_grad (num_sparse, 1) -> (num_sparse, 1, 6)
         curr_grad = np.repeat(k_grad[:, :, np.newaxis], 6, axis=2) * b2_grad
+        print(f"curr_grad: ")
+        print(curr_grad.squeeze())
+        print("miaow: ")
+        print(curr_grad[:, 0, 0:3].T)
         Knm_grad[i*3:i*3+3, :] += curr_grad[:, 0, 0:3].T
+        print(curr_grad[:, 0, 3:6].T)
         Knm_grad[j*3:j*3+3, :] += curr_grad[:, 0, 3:6].T
+        print(Knm_grad)
         # --
         Knm_gcart_gdelta[i*3:i*3+3, :] += curr_grad[:, 0, 0:3].T*2./delta
         Knm_gcart_gdelta[j*3:j*3+3, :] += curr_grad[:, 0, 3:6].T*2./delta
@@ -565,8 +494,8 @@ def compute_body2_kernel_matrices(
     Knm_frc = -Knm_grad
 
     Knm = np.vstack([Knm_ene, Knm_frc])
-    #print("Knm: ")
-    #print(Knm)
+    print("Knm: ")
+    print(Knm)
     #print(Knm.shape)
     #print(Knm_ene_gdelta)
     #print(Knm_gcart_gdelta)
@@ -610,10 +539,12 @@ def compute_b2_marginal_likelihood(
 
     Knn = np.dot(Knm, np.dot(Kmm_inv, Knm.T)) + sigma2
     Knn_inv = np.linalg.inv(Knn)
-    #print("Knn: ")
-    #print(Knn)
-    #print(np.linalg.det(Knn))
+    print("Knn: ")
+    print(Knn)
+    np.savetxt("./xxx.dat", Knn, fmt="%12.4f")
+    print(np.linalg.det(Knn))
     #print(Knn.shape)
+    exit()
 
     loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
 
@@ -659,7 +590,7 @@ def compute_b3_marginal_likelihood(
     Knn_inv = np.linalg.inv(Knn)
 
     print("Knn: ")
-    #print(Knn)
+    print(Knn)
     print(np.linalg.det(Knn))
 
     loss = -0.5*np.log(np.linalg.det(Knn)) - 0.5 * y_data.T @ Knn_inv @ y_data - num_points/2.*np.log(2*np.pi)
@@ -907,7 +838,8 @@ class SparseGaussianProcessTrainer():
         """"""
         # - read dataset
         #frames = read("./dft/O2.xyz", ":1")
-        frames = read("./dft/Cu4.xyz", ":1")
+        #frames = read("./dft/Cu4.xyz", ":1")
+        frames = read("./dft/Cu4.xyz", "1:2")
         #frames = read("./dft/Cu13.xyz", ":")
         #frames = read("./md/Cu4/cand0/traj.xyz", ":")
         #frames = read("./Cu100/cand0/traj.xyz", ":5")
@@ -920,6 +852,7 @@ class SparseGaussianProcessTrainer():
         print(f"force shape: {forces.shape}")
 
         y_data = np.vstack([energies, forces])
+        print(y_data)
 
         # - regularization
         sigma2_diag_ene = 0.05*np.sqrt(np.array([len(a) for a in frames]))
@@ -1059,10 +992,12 @@ class SparseGaussianProcessTrainer():
         (
             body2_mapping, body2_features, body2_gradients, body3_mapping, body3_features, body3_gradients
         ) = compute_body3_descriptor(frames, self.r_cut)
+        print(body2_mapping)
 
         # - construct matrix
         # -- parameters
         delta, theta = 0.5, 0.8
+        #delta, theta = 100, 1000
 
         # --- body2
         print("~~~~~ USE BODY-2 ~~~~~")
@@ -1117,8 +1052,14 @@ class SparseGaussianProcessTrainer():
 
         # - get atomic environments
         (
-            body2_mapping, body2_features, body2_gradients, body3_mapping, body3_features, body3_gradients
+            body2_mapping, body2_features, body2_gradients, body3_mapping_, body3_features_, body3_gradients_
         ) = compute_body3_descriptor(frames, self.r_cut)
+
+        # - remove duplicates?
+        candidates = [0, 1]
+        body3_mapping = [body3_mapping_[c] for c in candidates]
+        body3_features = body3_features_[candidates, :]
+        body3_gradients = body3_gradients_[candidates, :]
 
         print("BODY3 SHAPE: ")
         print(body3_features.shape)
@@ -1306,9 +1247,11 @@ class SGPTrainer(AbstractTrainer):
         self._print("miaow")
         sgp_trainer = SparseGaussianProcessTrainer()
         #print("!!!!! BODY-2 !!!!!") 
-        sgp_trainer.run_b2()
+        #sgp_trainer._prev_run2()
+        #print("!!!!! BODY-2 !!!!!") 
+        #sgp_trainer.run_b2()
         #print("!!!!! BODY-3 !!!!!") 
-        #sgp_trainer.run_b3()
+        sgp_trainer.run_b3()
         #print("!!!!! BODY-2+3 !!!!!") 
         #sgp_trainer.run()
 
