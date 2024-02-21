@@ -4,6 +4,7 @@
 import os
 import copy
 import io
+import itertools
 import shutil
 import warnings
 import subprocess
@@ -104,7 +105,7 @@ def parse_thermo_data(lines) -> dict:
     config._debug(f"Sanitised lammps LOG index: {start_idx} {end_idx}")
 
     if start_idx is None or end_idx is None:
-        raise RuntimeError(f"Error in lammps output of {str(logfile_path)} with start {start_idx} end {end_idx}.")
+        raise RuntimeError(f"Error in lammps output with start {start_idx} end {end_idx}.")
     end_info = lines[end_idx] # either loop time or error
     config._debug(f"lammps END info: {end_info}")
 
@@ -114,7 +115,7 @@ def parse_thermo_data(lines) -> dict:
     # TODO: save timestep info?
     thermo_keywords = lines[start_idx].strip().split()
     if "PotEng" not in thermo_keywords:
-        raise RuntimeError(f"Cant find PotEng in lammps output of {str(logfile_path)}.")
+        raise RuntimeError(f"Cant find PotEng in lammps output.")
     thermo_data = []
     for x in lines[start_idx+1:end_idx]:
         x_data = x.strip().split()
@@ -246,8 +247,16 @@ def read_single_simulation(
         data = np.loadtxt(devi_io, dtype=float)
         ncols = data.shape[-1]
         data = data.reshape(-1, ncols)
-        data = data.transpose()[1:, :nframes]
-        config._print(data)
+        # NOTE: For some minimisers, dp gives several deviations as 
+        #       multiple force evluations are performed in one step.
+        #       Thus, we only take the last occurance of the deviation in each step.
+        step_indices = []
+        steps = data[:, 0].astype(np.int32).tolist()
+        for k, v in itertools.groupby(enumerate(steps), key=lambda x: x[1]):
+            v = sorted(v, key=lambda x: x[0])
+            step_indices.append(v[-1][0])
+        data = data.transpose()[1:, step_indices[:nframes]]
+        #config._print(data)
 
         for i, atoms in enumerate(curr_traj_frames):
             for j, k in enumerate(dkeys):
