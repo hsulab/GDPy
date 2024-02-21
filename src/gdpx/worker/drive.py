@@ -110,14 +110,14 @@ class DriverBasedWorker(AbstractWorker):
         self._driver = driver_
         return
 
-    def _split_groups(self, nframes: int) -> Tuple[List[int],List[int]]:
+    def _split_groups(self, nframes: int, batchsize: int=1) -> Tuple[List[int],List[int]]:
         """Split nframes into groups."""
         # - split frames
-        self._debug(f"split_groups for {nframes} nframes and {self.batchsize} batchsize.")
-        ngroups = int(np.floor(1.*nframes/self.batchsize))
+        self._debug(f"split_groups for {nframes} nframes and {batchsize} batchsize.")
+        ngroups = int(np.floor(1.*nframes/batchsize))
         group_indices = [0]
         for i in range(ngroups):
-            group_indices.append((i+1)*self.batchsize)
+            group_indices.append((i+1)*batchsize)
         if group_indices[-1] != nframes:
             group_indices.append(nframes)
         starts, ends = group_indices[:-1], group_indices[1:]
@@ -241,10 +241,16 @@ class DriverBasedWorker(AbstractWorker):
         assert len(set(wdirs)) == nframes, f"Found duplicated wdirs {len(set(wdirs))} vs. {nframes}..."
 
         # - split structures into different batches
-        starts, ends = self._split_groups(nframes)
+        #if self.scheduler.name == "local":
+        #    self._print(f"Worker overwrites batchsize to nframes {nframes} as it uses a LOCAL SCHEDULER.")
+        #    batchsize_ = nframes
+        #else:
+        #    batchsize_ = self.batchsize
+        batchsize_ = self.batchsize
+        starts, ends = self._split_groups(nframes, batchsize_)
 
         batches = []
-        for i, (s,e) in enumerate(zip(starts,ends)):
+        for i, (s, e) in enumerate(zip(starts, ends)):
             # - prepare structures and dirnames
             global_indices = range(s,e)
             # NOTE: get a list even if it only has one structure
