@@ -483,6 +483,7 @@ class AseDriver(AbstractDriver):
                     if tarinfo.name == target_name:
                         fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         frames = read(fobj, ":", format="extxyz")
+                        fobj.close()
                         break
                 else: # TODO: if not find target traj?
                     ...
