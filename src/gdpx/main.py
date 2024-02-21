@@ -132,6 +132,10 @@ def main():
         "--spawn", action="store_true",
         help="If the computation is spawned, it will not save results when all jobs are finished."
     )
+    parser_compute.add_argument(
+        "--archive", action="store_true",
+        help="whether archive computation folders when retrieve"
+    )
 
     # --- expedition interface
     parser_explore = subparsers.add_parser(
@@ -229,7 +233,7 @@ def main():
         from gdpx.worker.interface import run_worker
         run_worker(
             args.STRUCTURE, args.directory, potter, args.output, args.batch, 
-            args.spawn
+            args.spawn, args.archive
         )
     elif args.subcommand == "explore":
         from .expedition.interface import run_expedition

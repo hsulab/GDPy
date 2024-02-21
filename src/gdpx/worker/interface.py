@@ -215,7 +215,7 @@ class ComputerVariable(Variable):
 def run_worker(
     structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME,
     worker: DriverBasedWorker=None, output: str=None, batch: int=None,
-    spawn: bool=False
+    spawn: bool=False, archive: bool=False
 ):
     """"""
     # - some imported packages change `logging.basicConfig` 
@@ -249,14 +249,14 @@ def run_worker(
         if not res_dir.exists():
             res_dir.mkdir(exist_ok=True)
 
-            ret = worker.retrieve(include_retrieved=True)
+            ret = worker.retrieve(include_retrieved=True, use_archive=archive)
             if not isinstance(worker.driver, AbstractReactor):
                 end_frames = [traj[-1] for traj in ret]
                 write(res_dir/"end_frames.xyz", end_frames)
             else:
                 ...
 
-            AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
+            #AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
         else:
             print("Results have already been retrieved.")
 

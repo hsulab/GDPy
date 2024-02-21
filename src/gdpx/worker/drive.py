@@ -5,6 +5,7 @@ import copy
 import uuid
 import pathlib
 import shutil
+import tarfile
 import time
 from typing import Tuple, List, NoReturn, Union
 import tempfile
@@ -294,9 +295,15 @@ class DriverBasedWorker(AbstractWorker):
                 if batch_name in queued_names and identifier in queued_frames:
                     self._print(f"{batch_name} at {self.directory.name} was submitted.")
                     continue
-            else:
-                # NOTE: If use local scheduler, always run it again if re-submit
-                ...
+            else: # Local Scheduler
+                is_resubmit = kwargs.get("resubmit", False)
+                if not is_resubmit:
+                    # NOTE:  Only re-run computation when resubmit is set
+                    if batch_name in queued_names and identifier in queued_frames:
+                        self._print(f"{batch_name} at {self.directory.name} was submitted.")
+                        continue
+                else:
+                    ...
 
             # - specify which group this worker is responsible for
             #   if not, then skip
@@ -364,6 +371,7 @@ class DriverBasedWorker(AbstractWorker):
             self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             for job_name in running_jobs:
+                self._debug(f"inspect {job_name}")
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
@@ -386,6 +394,7 @@ class DriverBasedWorker(AbstractWorker):
                                 curr_wdir = self.directory/x
                                 self.driver.directory = curr_wdir
                                 if not self.driver.read_convergence():
+                                    self._print(f"Found unfinished computation at {curr_wdir.name}")
                                     break
                             else:
                                 is_finished = True
@@ -396,6 +405,7 @@ class DriverBasedWorker(AbstractWorker):
                         cache_wdirs = [a.info["wdir"] for a in cache_frames]
                         if set(wdir_names) == set(cache_wdirs):
                             is_finished = True
+                            self._print(f"Found unfinished computation at cand{len(cache_wdirs)}")
                     if is_finished:
                         # -- finished correctly
                         self._print(f"{job_name} is finished...")
@@ -412,13 +422,16 @@ class DriverBasedWorker(AbstractWorker):
                                 self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                             else:
                                 frames = read(self.directory/"_data"/f"{identifier}.xyz", ":")
-                                self.run(frames, batch=batch)
+                                self.run(frames, batch=batch, resubmit=True)
                 else:
                     self._print(f"{job_name} is running...")
 
         return
     
-    def retrieve(self, include_retrieved: bool=False, given_wdirs: List[str]=None, *args, **kwargs):
+    def retrieve(
+        self, include_retrieved: bool=False, given_wdirs: List[str]=None, 
+        use_archive: bool=False, *args, **kwargs
+    ):
         """Read results from wdirs.
 
         Args:
@@ -466,9 +479,28 @@ class DriverBasedWorker(AbstractWorker):
 
         # - read results
         if unretrieved_wdirs:
+            # - read results
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             if not self._share_wdir:
-                results = self._read_results(unretrieved_wdirs, *args, **kwargs)
+                archive_path = (self.directory/"cand.tgz").absolute()
+                if not archive_path.exists(): # read unarchived data
+                    results = self._read_results(unretrieved_wdirs, *args, **kwargs)
+                else:
+                    self._print("read archived data...")
+                    results = self._read_results(
+                        unretrieved_wdirs, archive_path=archive_path, 
+                        *args, **kwargs
+                    )
+                # - archive results if it has not been done
+                if use_archive and not archive_path.exists():
+                    self._print("archive computation folders...")
+                    with tarfile.open(archive_path, "w:gz") as tar:
+                        for w in unretrieved_wdirs:
+                            tar.add(w, arcname=w.name)
+                    for w in unretrieved_wdirs:
+                        shutil.rmtree(w)
+                else:
+                    ...
             else:
                 # TODO: deal with traj...
                 cache_frames = []
@@ -504,7 +536,8 @@ class DriverBasedWorker(AbstractWorker):
         return results
     
     def _read_results(
-        self, unretrieved_wdirs: List[pathlib.Path], *args, **kwargs
+        self, unretrieved_wdirs: List[pathlib.Path], archive_path: pathlib.Path=None,
+        *args, **kwargs
     ) -> Union[List[Atoms],List[List[Atoms]]]:
         """Read results from calculation directories.
 
@@ -516,7 +549,8 @@ class DriverBasedWorker(AbstractWorker):
             # NOTE: works for vasp, ...
             results_ = Parallel(n_jobs=self.n_jobs)(
                 delayed(self._iread_results)(
-                    self.driver, wdir, info_data = self._info_data
+                    self.driver, wdir, info_data = self._info_data,
+                    archive_path=archive_path
                 ) 
                 for wdir in unretrieved_wdirs
             )
@@ -554,7 +588,7 @@ class DriverBasedWorker(AbstractWorker):
     
     @staticmethod
     def _iread_results(
-        driver, wdir, info_data: dict = None
+        driver, wdir, info_data: dict = None, archive_path: pathlib.Path=None
     ) -> List[Atoms]:
         """Extract results from a single directory.
 
@@ -578,7 +612,9 @@ class DriverBasedWorker(AbstractWorker):
             confid = confid_
 
         # NOTE: always return the entire trajectories
-        traj_frames = driver.read_trajectory(add_step_info=True)
+        traj_frames = driver.read_trajectory(
+            add_step_info=True, archive_path=archive_path
+        )
         for a in traj_frames:
             a.info["confid"] = confid
             a.info["wdir"] = str(wdir.name)
