@@ -214,7 +214,8 @@ class ComputerVariable(Variable):
 
 def run_worker(
     structure: str, directory=pathlib.Path.cwd()/DEFAULT_MAIN_DIRNAME,
-    worker: DriverBasedWorker=None, output: str=None, batch: int=None
+    worker: DriverBasedWorker=None, output: str=None, batch: int=None,
+    spawn: bool=False
 ):
     """"""
     # - some imported packages change `logging.basicConfig` 
@@ -241,7 +242,8 @@ def run_worker(
 
     _ = worker.run(frames, batch=batch)
     worker.inspect(resubmit=True)
-    if worker.get_number_of_running_jobs() == 0:
+    if not spawn and worker.get_number_of_running_jobs() == 0: 
+        # BUG: bacthes may conflict to save results
         # - report
         res_dir = directory/"results"
         if not res_dir.exists():

@@ -128,6 +128,10 @@ def main():
         "-o", "--output", default="last", choices=["last","traj"],
         help="retrieve last frame or entire trajectory"
     )
+    parser_compute.add_argument(
+        "--spawn", action="store_true",
+        help="If the computation is spawned, it will not save results when all jobs are finished."
+    )
 
     # --- expedition interface
     parser_explore = subparsers.add_parser(
@@ -223,7 +227,10 @@ def main():
         run_selection(args.CONFIG, args.structure, args.directory, potter)
     elif args.subcommand == "compute":
         from gdpx.worker.interface import run_worker
-        run_worker(args.STRUCTURE, args.directory, potter, args.output, args.batch)
+        run_worker(
+            args.STRUCTURE, args.directory, potter, args.output, args.batch, 
+            args.spawn
+        )
     elif args.subcommand == "explore":
         from .expedition.interface import run_expedition
         params = parse_input_file(args.CONFIG)
