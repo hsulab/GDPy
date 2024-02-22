@@ -5,9 +5,14 @@ import copy
 import json
 import logging
 import pathlib
+import traceback
+
 import yaml
 
-from gdpx import config
+import omegaconf
+from omegaconf import OmegaConf
+
+from .. import config
 from .utils import create_variable, create_operation, traverse_postorder
 
 cache_nodes = {}
@@ -55,8 +60,6 @@ def resolve_operations(config: dict):
 def run_session(config_filepath, feed_command=None, directory="./"):
     """Configure session with omegaconfig."""
     directory = pathlib.Path(directory)
-
-    from omegaconf import OmegaConf
 
     # - add resolvers
     def create_vx_instance(vx_name, _root_):
@@ -151,7 +154,13 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     #for k, v in container.items():
     #    print(k, v)
 
-    operations = resolve_operations(conf["operations"])
+    try:
+        operations = resolve_operations(conf["operations"])
+    except omegaconf.errors.InterpolationResolutionError as err:
+        err_key = (str(err).strip().split("\n")[1]).strip().split(":")[1]
+        config._print(f"FAILED TO PARSE `{err_key}` KEY.")
+        exit()
+
     container = {}
     for k, v in conf["sessions"].items():
         container[k] = operations[v]
