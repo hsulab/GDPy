@@ -14,7 +14,7 @@ from ase import Atoms
 from gdpx import config
 from gdpx.core.node import AbstractNode
 from gdpx.worker.drive import DriverBasedWorker
-from gdpx.data.array import AtomsNDArray
+from ..data.array import AtomsNDArray
 
 
 """Define an AbstractSelector that is the base class of any selector.
@@ -176,7 +176,9 @@ class AbstractSelector(AbstractNode):
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
-        #print("selector input: ", inp_dat)
+
+        # NOTE: input structures should always be the AtomsNDArray type
+        inp_dat = AtomsNDArray(inp_dat)
 
         frames = inp_dat
         inp_nframes = len(frames.markers)
