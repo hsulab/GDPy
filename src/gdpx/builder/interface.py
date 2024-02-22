@@ -67,10 +67,38 @@ class read_stru(Operation):
         if isinstance(frames, Atoms):
             frames = [frames] # if index is single, then read will give Atoms
         frames = AtomsNDArray(frames)
+        self._print(f"shape of structures: {frames.shape}")
 
         self.status = "finished"
 
         return frames
+
+@registers.operation.register
+class write_stru(Operation):
+
+    def __init__(
+            self, fname, structures, format="extxyz", directory="./", 
+            *args, **kwargs
+        ) -> None:
+        """"""
+        input_nodes = [structures]
+        super().__init__(input_nodes, directory)
+
+        self.fname = fname
+        self.format = format
+        self.kwargs = kwargs
+
+        return
+    
+    def forward(self, structures, *args, **kwargs):
+        """"""
+        super().forward()
+
+        write(self.directory/self.fname, structures, format=self.format)
+
+        self.status = "finished"
+
+        return
 
 @registers.operation.register
 class xbuild(Operation):
