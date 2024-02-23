@@ -157,6 +157,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     try:
         operations = resolve_operations(conf["operations"])
     except omegaconf.errors.InterpolationResolutionError as err:
+        config._debug (traceback.format_exc())
         err_key = (str(err).strip().split("\n")[1]).strip().split(":")[1]
         config._print(f"FAILED TO PARSE `{err_key}` KEY.")
         exit()
