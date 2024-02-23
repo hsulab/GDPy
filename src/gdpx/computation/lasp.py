@@ -10,6 +10,7 @@ import shutil
 import warnings
 import pathlib
 import tarfile
+import tempfile
 import traceback
 from pathlib import Path
 from typing import List, Tuple
@@ -148,7 +149,8 @@ def read_lasp_structures(
 
     # - get IO
     if archive_path is None:
-        stru_io = open(wdir/"allstr.arc", "r")
+        with open(wdir/"allstr.arc", "r") as fopen:
+            stru_io = io.StringIO(fopen.read())
         afrc_io = open(wdir/"allfor.arc", "r") # atomic forces in arc format
         lout_io = open(wdir/"lasp.out", "r")
     else:
@@ -173,7 +175,11 @@ def read_lasp_structures(
                 ...
 
     # - parse data
-    traj_frames = read(stru_io, ":", format="dmol-arc")
+    # NOTE: ASE does not support read dmol-arc from stringIO
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".arc") as tmp:
+        tmp.write(stru_io.getvalue())
+        tmp.seek(0)
+        traj_frames = read(tmp.name, ":", format="dmol-arc")
     natoms = len(traj_frames[-1])
 
     traj_steps = []
