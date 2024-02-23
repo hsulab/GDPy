@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import io
 import os
 import copy
 import dataclasses
@@ -8,6 +9,7 @@ import time
 import shutil
 import warnings
 import pathlib
+import tarfile
 import traceback
 from pathlib import Path
 from typing import List, Tuple
@@ -137,9 +139,41 @@ def read_laspset(train_structures):
 
     return frames
 
-def read_lasp_structures(wdir) -> List[Atoms]:
+def read_lasp_structures(
+        mdir: pathlib.Path, wdir: pathlib.Path, archive_path: pathlib.Path=None, 
+        *args, **kwargs
+    ) -> List[Atoms]:
     """Read simulation trajectory."""
-    traj_frames = read(os.path.join(wdir, "allstr.arc"), ":", format="dmol-arc")
+    wdir = pathlib.Path(wdir)
+
+    # - get IO
+    if archive_path is None:
+        stru_io = open(wdir/"allstr.arc", "r")
+        afrc_io = open(wdir/"allfor.arc", "r") # atomic forces in arc format
+        lout_io = open(wdir/"lasp.out", "r")
+    else:
+        rpath = wdir.relative_to(mdir.parent)
+        stru_tarname = str(rpath/"allstr.arc")
+        afrc_tarname = str(rpath/"allfor.arc")
+        lout_tarname = str(rpath/"lasp.out")
+        with tarfile.open(archive_path, "r:gz") as tar:
+            for tarinfo in tar:
+                if tarinfo.name.startswith(wdir.name):
+                    if tarinfo.name == stru_tarname:
+                        stru_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                    elif tarinfo.name == afrc_tarname:
+                        afrc_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                    elif tarinfo.name == lout_tarname:
+                        lout_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                    else:
+                        ...
+                else:
+                    ...
+            else: # TODO: if not find target traj?
+                ...
+
+    # - parse data
+    traj_frames = read(stru_io, ":", format="dmol-arc")
     natoms = len(traj_frames[-1])
 
     traj_steps = []
@@ -149,41 +183,40 @@ def read_lasp_structures(wdir) -> List[Atoms]:
     # NOTE: for lbfgs opt, steps+2 frames would be output?
 
     # have to read last structure
-    with open(os.path.join(wdir, "allfor.arc"), "r") as fopen:
-        while True:
-            line = fopen.readline()
-            if line.strip().startswith("For"):
-                step = int(line.split()[1])
-                traj_steps.append(step)
-                # NOTE: need check if energy is a number
-                #       some ill structure may result in large energy of ******
-                energy_data = line.split()[3]
-                try:
-                    energy = float(energy_data)
-                except ValueError:
-                    energy = np.inf
-                    msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(wdir)
-                    warnings.warn(msg, UserWarning)
-                traj_energies.append(energy)
-                # stress
-                line = fopen.readline()
-                stress = np.array(line.split()) # TODO: what is the format of stress
-                # forces
-                forces = []
-                for j in range(natoms):
-                    line = fopen.readline()
-                    force_data = line.strip().split()
-                    if len(force_data) == 3: # expect three numbers
-                        pass
-                    else: # too large forces make out become ******
-                        force_data = [np.inf]*3
-                    forces.append(force_data)
-                forces = np.array(forces, dtype=float)
-                traj_forces.append(forces)
-            if line.strip() == "":
-                pass
-            if not line: # if line == "":
-                break
+    while True:
+        line = afrc_io.readline()
+        if line.strip().startswith("For"):
+            step = int(line.split()[1])
+            traj_steps.append(step)
+            # NOTE: need check if energy is a number
+            #       some ill structure may result in large energy of ******
+            energy_data = line.split()[3]
+            try:
+                energy = float(energy_data)
+            except ValueError:
+                energy = np.inf
+                msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(wdir)
+                warnings.warn(msg, UserWarning)
+            traj_energies.append(energy)
+            # stress
+            line = afrc_io.readline()
+            stress = np.array(line.split()) # TODO: what is the format of stress
+            # forces
+            forces = []
+            for j in range(natoms):
+                line = afrc_io.readline()
+                force_data = line.strip().split()
+                if len(force_data) == 3: # expect three numbers
+                    pass
+                else: # too large forces make out become ******
+                    force_data = [np.inf]*3
+                forces.append(force_data)
+            forces = np.array(forces, dtype=float)
+            traj_forces.append(forces)
+        if line.strip() == "":
+            pass
+        if not line: # if line == "":
+            break
     assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
     
     # - create traj
@@ -192,6 +225,23 @@ def read_lasp_structures(wdir) -> List[Atoms]:
             atoms, energy=traj_energies[i], forces=traj_forces[i]
         )
         atoms.calc = calc
+
+    # check if the structure is too bad... LASP v3.3.4
+    TOO_SHORT_BOND_TAG = "Warning: Minimum Structure with too short bond"
+    is_badstru = False
+    lines = lout_io.readlines()
+    for line in lines:
+        if TOO_SHORT_BOND_TAG in line:
+            is_badstru = True
+            break
+        else:
+            ...
+    traj_frames[-1].info["is_badstru"] = is_badstru
+
+    # - close IO
+    stru_io.close()
+    afrc_io.close()
+    lout_io.close()
 
     return traj_frames
 
@@ -339,38 +389,25 @@ class LaspDriver(AbstractDriver):
         """"""
         return self.calc._is_converged()
     
-    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+    def _read_a_single_trajectory(self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs):
         """"""
-        curr_frames = read_lasp_structures(wdir)
-
-        # check if the structure is too bad... LASP v3.3.4
-        TOO_SHORT_BOND_TAG = "Warning: Minimum Structure with too short bond"
-        is_badstru = False
-        with open(wdir/"lasp.out", "r") as fopen:
-            lines = fopen.readlines()
-            for line in lines:
-                if TOO_SHORT_BOND_TAG in line:
-                    is_badstru = true
-                    break
-                else:
-                    ...
-        curr_frames[-1].info["is_badstru"] = True
+        curr_frames = read_lasp_structures(wdir, archive_path=archive_path)
 
         return curr_frames
     
-    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, archive_path: pathlib.Path=None, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
         traj_list = []
         for w in prev_wdirs:
-            curr_frames = self._read_a_single_trajectory(w)
+            curr_frames = self._read_a_single_trajectory(w, archive_path)
             traj_list.append(curr_frames)
         
+        # Even though arc file may be empty, the read can give a empty list...
         laspstr = self.directory / "allstr.arc"
-        if laspstr.exists() and laspstr.stat().st_size != 0:
-            traj_list.append(read_lasp_structures(self.directory))
+        traj_list.append(read_lasp_structures(self.directory, archive_path))
 
         # -- concatenate
         traj_frames, ntrajs = [], len(traj_list)
