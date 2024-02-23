@@ -8,12 +8,15 @@ import numpy as np
 import numpy.ma as ma
 from scipy.spatial import distance_matrix
 
+from joblib import Parallel, delayed
+
 from ase import Atoms
 from ase.io import read, write
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from ..builder.group import create_a_group
 from .comparator import AbstractComparator
+from ..utils.command import CustomTimer
 
 
 def switch_function(distances, r_cut, r_shift=0., nn: int=6, mm: int=None):
@@ -103,29 +106,45 @@ class CoordinationComparator(AbstractComparator):
 
         return
     
+    @staticmethod
+    def _process_single_structure(atoms, pair_info, *args, **kwargs):
+        """"""
+        natoms = len(atoms)
+        max_r_cut = np.max([pair[2] for pair in pair_info])
+        nl = NeighborList(
+            cutoffs=[max_r_cut/2.]*natoms, skin=0.2, sorted=False,
+            self_interaction=True, bothways=True
+        )
+        nl.update(atoms)
+        coordination = []
+        for group_a, group_b, r_cut, nn, mm in pair_info:
+            indices_a = create_a_group(atoms, group_a)
+            indices_b = create_a_group(atoms, group_b)
+            #curr_coordination = compute_coorditaion_number(
+            #    atoms.positions, indices_a, indices_b, r_cut, nn, mm
+            #)
+            curr_coordination = compute_coordition_number_by_neighbour(
+                nl, atoms.cell, atoms.positions, indices_a, indices_b, r_cut, nn, mm
+            )
+            coordination.extend(sorted(curr_coordination.tolist()))
+
+        return coordination
+    
     def prepare_data(self, frames: List[Atoms]):
         """"""
-        coordinations = []
-        for atoms in frames[:]:
-            natoms = len(atoms)
-            max_r_cut = np.max([pair[2] for pair in self.pairs])
-            nl = NeighborList(
-                cutoffs=[max_r_cut]*natoms, skin=0.2, sorted=False,
-                self_interaction=True, bothways=True
+        #coordinations = []
+        #for i, atoms in enumerate(frames):
+        #    self._debug(f"frame {i}")
+        #    coordination = self._process_single_structure(atoms, self.pairs)
+        #    coordinations.append(coordination)
+
+        with CustomTimer(name="coordination", func=self._debug):
+            coordinations = Parallel(n_jobs=self.njobs)(
+                delayed(self._process_single_structure)(
+                    atoms, self.pairs
+                ) for atoms in frames
             )
-            nl.update(atoms)
-            coordination = []
-            for group_a, group_b, r_cut, nn, mm in self.pairs:
-                indices_a = create_a_group(atoms, group_a)
-                indices_b = create_a_group(atoms, group_b)
-                #curr_coordination = compute_coorditaion_number(
-                #    atoms.positions, indices_a, indices_b, r_cut, nn, mm
-                #)
-                curr_coordination = compute_coordition_number_by_neighbour(
-                    nl, atoms.cell, atoms.positions, indices_a, indices_b, r_cut, nn, mm
-                )
-                coordination.extend(sorted(curr_coordination.tolist()))
-            coordinations.append(coordination)
+
         coordinations = np.array(coordinations)
 
         return coordinations
