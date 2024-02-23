@@ -175,6 +175,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
 
+        # - misc
+        self.use_archive = ga_dict.get("use_archive", True)
+
         return
     
     @property
@@ -464,7 +467,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("\n\n===== Retrieve Relaxed Population =====")
-            converged_candidates = [t[-1] for t in self.worker.retrieve()]
+            converged_candidates = [t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)]
             for cand in converged_candidates:
                 self._print(cand)
                 self._print(cand.info)
