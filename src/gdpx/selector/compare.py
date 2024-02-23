@@ -107,9 +107,9 @@ class CompareSelector(AbstractSelector):
             unique_wdir.mkdir(parents=True, exist_ok=True)
             
             # -- save structures per group?
-            #with open(unique_wdir/"unique.dat", "w") as fopen:
-            #    for k, v in unique_groups.items():
-            #        fopen.write(f"{k}_{len(v)}: {v}\n")
+            with open(unique_wdir/"unique.dat", "w") as fopen:
+                for k, v in unique_groups.items():
+                    fopen.write(f"{k}_{len(v)}: {v}\n")
             #        write(unique_wdir/f"g_{k}.xyz", [structures[i] for i in v])
             
             # -- write a report?
