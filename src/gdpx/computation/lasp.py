@@ -391,7 +391,7 @@ class LaspDriver(AbstractDriver):
     
     def _read_a_single_trajectory(self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs):
         """"""
-        curr_frames = read_lasp_structures(wdir, archive_path=archive_path)
+        curr_frames = read_lasp_structures(self.directory, wdir, archive_path=archive_path)
 
         return curr_frames
     
@@ -402,12 +402,12 @@ class LaspDriver(AbstractDriver):
 
         traj_list = []
         for w in prev_wdirs:
-            curr_frames = self._read_a_single_trajectory(w, archive_path)
+            curr_frames = self._read_a_single_trajectory(self.directory, w, archive_path)
             traj_list.append(curr_frames)
         
         # Even though arc file may be empty, the read can give a empty list...
         laspstr = self.directory / "allstr.arc"
-        traj_list.append(read_lasp_structures(self.directory, archive_path))
+        traj_list.append(read_lasp_structures(self.directory, self.directory, archive_path))
 
         # -- concatenate
         traj_frames, ntrajs = [], len(traj_list)
@@ -586,7 +586,7 @@ class LaspNN(FileIOCalculator):
     def read_results(self):
         """Read LASP results."""
         # have to read last structure
-        traj_frames = read_lasp_structures(self.directory)
+        traj_frames = read_lasp_structures(self.directory, self.directory)
 
         energy = traj_frames[-1].get_potential_energy()
         forces = traj_frames[-1].get_forces().copy()
