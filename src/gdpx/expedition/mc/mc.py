@@ -14,9 +14,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.core.register import registers
-from gdpx.core.variable import Variable
-from gdpx.worker.single import SingleWorker
+from .. import registers
+from .. import Variable
+from .. import SingleWorker
 from ..expedition import AbstractExpedition
 from .operators import select_operator, parse_operators, save_operator, load_operator
 
@@ -25,7 +25,7 @@ from .operators import select_operator, parse_operators, save_operator, load_ope
 
 class MonteCarloVariable(Variable):
 
-    def __init__(self, builder, worker, directory="./", *args, **kwargs) -> None:
+    def __init__(self, builder, directory="./", *args, **kwargs) -> None:
         """"""
         # - builder
         if isinstance(builder, dict):
@@ -36,25 +36,17 @@ class MonteCarloVariable(Variable):
             )
         else: # variable
             builder = builder.value
-        # - worker
-        if isinstance(worker, dict):
-            worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
-        elif isinstance(worker, Variable): # computer variable
-            worker = worker.value[0]
-        elif isinstance(worker, SingleWorker): # assume it is a DriverBasedWorker
-            worker = worker
-        else:
-            raise RuntimeError(f"MonteCarlo needs a SingleWorker instead of a {worker}")
-        engine = self._create_engine(builder, worker, *args, **kwargs)
+
+        # - engine
+        engine = self._create_engine(builder, *args, **kwargs)
         engine.directory = directory
         super().__init__(initial_value=engine, directory=directory)
 
         return
     
-    def _create_engine(self, builder, worker, *args, **kwargs) -> None:
+    def _create_engine(self, builder, *args, **kwargs) -> None:
         """"""
-        engine = MonteCarlo(builder, worker, *args, **kwargs)
+        engine = MonteCarlo(builder, *args, **kwargs)
 
         return engine
 
@@ -73,7 +65,7 @@ class MonteCarlo(AbstractExpedition):
     INFO_NAME: str = "opstat.txt"
 
     def __init__(
-        self, builder: dict, worker: dict, operators: List[dict], convergence: dict,
+        self, builder: dict, operators: List[dict], convergence: dict,
         random_seed=None, dump_period: int=1, ckpt_period: int=1, restart: bool=False, 
         directory="./", *args, **kwargs
     ) -> None:
@@ -110,13 +102,7 @@ class MonteCarlo(AbstractExpedition):
         self.atoms = frames[0]
 
         # - create worker
-        if isinstance(worker, dict):
-            worker_params = copy.deepcopy(worker)
-            worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
-        else:
-            ...
-        assert isinstance(worker, SingleWorker), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
-        self.worker = worker
+        self.worker = None
 
         # - parse operators
         self.operators, self.op_probs = parse_operators(operators)
@@ -197,6 +183,11 @@ class MonteCarlo(AbstractExpedition):
         for h in logging.root.handlers:
             if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
                 logging.root.removeHandler(h)
+            
+        # - check if it has a valid worker..
+        assert self.worker is not None, "MC has not set its worker properly."
+        assert isinstance(self.worker, SingleWorker), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
+        self.worker.directory = self.directory
 
         # - prepare logger and output some basic info...
         if not self.directory.exists():
