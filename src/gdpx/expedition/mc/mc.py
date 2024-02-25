@@ -421,6 +421,9 @@ class MonteCarlo(AbstractExpedition):
         wdirs = list(self.directory.glob(f"{self.WDIR_PREFIX}*"))
         wdirs = sorted(wdirs, key=lambda x: int(x.name[len(self.WDIR_PREFIX):]))
 
+        if hasattr(self.worker.potter, "remove_loaded_models"):
+            self.worker.potter.remove_loaded_models()
+
         workers = []
         for curr_wdir in wdirs:
             curr_worker = copy.deepcopy(self.worker)
