@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import collections
 import itertools
 import pathlib
 from typing import NoReturn, List, Union
@@ -53,7 +54,7 @@ class read_stru(Operation):
         """"""
         super().__init__(input_nodes, directory)
 
-        self.fname = fname
+        self.fname = fname # This is broadcastable...
         self.format = format
         self.index = index
         self.kwargs = kwargs
@@ -63,9 +64,22 @@ class read_stru(Operation):
     def forward(self, *args, **kwargs) -> AtomsNDArray:
         """"""
         super().forward()
-        frames = read(self.fname, format=self.format, index=self.index, **self.kwargs)
-        if isinstance(frames, Atoms):
-            frames = [frames] # if index is single, then read will give Atoms
+
+        # - check params
+        if isinstance(self.fname, str):
+            fname_ = [self.fname]
+        else: # assume it is an iterable object
+            fname_ = self.fname
+
+        # - read structures
+        frames = []
+        for curr_fname in fname_:
+            self._print(f"read {curr_fname}")
+            curr_frames = read(curr_fname, format=self.format, index=self.index, **self.kwargs)
+            if isinstance(curr_frames, Atoms):
+                curr_frames = [curr_frames] # if index is single, then read will give Atoms
+            frames.extend(curr_frames)
+
         frames = AtomsNDArray(frames)
         self._print(f"shape of structures: {frames.shape}")
 
