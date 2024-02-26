@@ -178,7 +178,12 @@ class AbstractSelector(AbstractNode):
             self.directory.mkdir(parents=True)
 
         # NOTE: input structures should always be the AtomsNDArray type
-        inp_dat = AtomsNDArray(inp_dat)
+        # TODO: if inp_dat is already a AtomsNDArray, a new object is created,
+        #       which makes markers immutable... Need fix this!!
+        if isinstance(inp_dat, AtomsNDArray):
+            ...
+        else:
+            inp_dat = AtomsNDArray(inp_dat)
 
         frames = inp_dat
         inp_nframes = len(frames.markers)
