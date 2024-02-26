@@ -66,7 +66,7 @@ class MonteCarlo(AbstractExpedition):
 
     def __init__(
         self, builder: dict, operators: List[dict], convergence: dict,
-        random_seed=None, dump_period: int=1, ckpt_period: int=1, restart: bool=False, 
+        random_seed=None, dump_period: int=1, ckpt_period: int=100, restart: bool=False, 
         directory="./", *args, **kwargs
     ) -> None:
         """Parameters for Monte Carlo.
@@ -442,6 +442,7 @@ class MonteCarlo(AbstractExpedition):
         for op in self.operators:
             engine_params["operators"].append(op.as_dict())
         engine_params["dump_period"] = self.dump_period
+        engine_params["ckpt_period"] = self.ckpt_period
         engine_params["convergence"] = self.convergence
         engine_params["random_seed"] = self.random_seed
 

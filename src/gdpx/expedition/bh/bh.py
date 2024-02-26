@@ -13,7 +13,11 @@ from ..mc.mc import MonteCarlo, MonteCarloVariable
 
 class BasinHoppingVariable(MonteCarloVariable):
 
-    ...
+    def _create_engine(self, builder, *args, **kwargs) -> None:
+        """"""
+        engine = BasinHopping(builder, *args, **kwargs)
+
+        return engine
 
 
 
@@ -31,6 +35,13 @@ class BasinHopping(MonteCarlo):
         )
 
         return
+    
+    def as_dict(self) -> dict:
+        """"""
+        engine_params = super().as_dict()
+        engine_params["method"] = "basin_hopping"
+
+        return engine_params
 
 
 if __name__ == "__main__":
