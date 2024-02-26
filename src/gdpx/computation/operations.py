@@ -161,17 +161,22 @@ class extract(Operation):
     """Extract dynamics trajectories from a drive-node's worker.
     """
 
-    def __init__(self, compute, merge_workers=False, directory="./", *args, **kwargs) -> None:
+    def __init__(
+            self, compute, merge_workers=False, use_archive: bool=True, 
+            directory="./", *args, **kwargs
+        ) -> None:
         """Init an extract operation.
 
         Args:
             compute: Any node forwards a List of workers.
             merge_workers: Whether merge results from different workers togather.
+            use_archive: Whether archive computation folders after all workers finished.
         
         """
         super().__init__(input_nodes=[compute], directory=directory)
 
         self.merge_workers = merge_workers
+        self.use_archive = use_archive
 
         return
     
@@ -208,7 +213,7 @@ class extract(Operation):
                     break
                 cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
                 curr_trajectories = worker.retrieve(
-                    include_retrieved=True, 
+                    include_retrieved=True, use_archive=self.use_archive
                 )
                 AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath/"dataset.h5")
             else:
