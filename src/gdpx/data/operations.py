@@ -220,9 +220,10 @@ class transfer(Operation):
             target_destination = target_dir/dirname/strname
             if not target_destination.exists():
                 write(target_destination, curr_frames)
-                self._print(f"nframes {curr_nframes} -> {target_destination.name}")
+                self._print(f"nframes {curr_nframes} -> {str(target_destination.relative_to(target_dir))}")
             else:
-                warnings.warn(f"{target_destination} exists.", UserWarning)
+                #warnings.warn(f"{target_destination} exists.", UserWarning)
+                self._print(f"WARN: {str(target_destination.relative_to(target_dir))} exists.")
         
         self.status = "finished"
 
