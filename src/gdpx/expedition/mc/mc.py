@@ -4,9 +4,11 @@
 import copy
 import logging
 import os
+import re
 import shutil
 import pathlib
 import pickle
+import tarfile
 from typing import NoReturn, List
 
 import numpy as np
@@ -146,7 +148,7 @@ class MonteCarlo(AbstractExpedition):
         self.atoms.info["step"] = -1 # NOTE: remove step info
 
         # TODO: whether init driver?
-        self.worker.directory = step_wdir
+        self.worker.wdir_name = step_wdir.name
         _ = self.worker.run([self.atoms])
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
@@ -254,7 +256,7 @@ class MonteCarlo(AbstractExpedition):
         """Run a single MC step."""
         self._print(f"===== MC Step {i} =====")
         step_wdir = self.directory/f"{self.WDIR_PREFIX}{i}"
-        self.worker.directory = step_wdir
+        self.worker.wdir_name = step_wdir.name
 
         # - operate atoms
         curr_op = select_operator(self.operators, self.op_probs, self.rng)
@@ -418,7 +420,19 @@ class MonteCarlo(AbstractExpedition):
     
     def get_workers(self):
         """Get all workers used by this expedition."""
-        wdirs = list(self.directory.glob(f"{self.WDIR_PREFIX}*"))
+        # NOTE: Check if computation folders have been archived
+        archive_path = self.directory/"cand.tgz"
+        if not archive_path.exists():
+            wdirs = list(self.directory.glob(f"{self.WDIR_PREFIX}*"))
+        else:
+            wdirs = []
+            with tarfile.open(archive_path, "r:gz") as tar:
+                for tarinfo in tar:
+                    if tarinfo.isdir() and tarinfo.name.startswith(self.WDIR_PREFIX):
+                        wdirs.append(self.directory/tarinfo.name)
+                    else:
+                        ...
+            ...
         wdirs = sorted(wdirs, key=lambda x: int(x.name[len(self.WDIR_PREFIX):]))
 
         if hasattr(self.worker.potter, "remove_loaded_models"):
@@ -427,7 +441,8 @@ class MonteCarlo(AbstractExpedition):
         workers = []
         for curr_wdir in wdirs:
             curr_worker = copy.deepcopy(self.worker)
-            curr_worker.directory = curr_wdir
+            curr_worker.directory = curr_wdir.parent
+            curr_worker.wdir_name = curr_wdir.name
             workers.append(curr_worker)
 
         return workers
