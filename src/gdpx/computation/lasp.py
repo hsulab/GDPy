@@ -213,7 +213,12 @@ def read_lasp_structures(
                 line = afrc_io.readline()
                 force_data = line.strip().split()
                 if len(force_data) == 3: # expect three numbers
-                    pass
+                    is_frc_valid = True
+                    for x in force_data:
+                        if not x.isdigit():
+                            is_frc_valid = False
+                    if not is_frc_valid:
+                        force_data = [np.inf]*3
                 else: # too large forces make out become ******
                     force_data = [np.inf]*3
                 forces.append(force_data)
