@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import io
 import os
 import re
 import time
@@ -9,6 +11,7 @@ import dataclasses
 import json
 import warnings
 import pathlib
+import tarfile
 import traceback
 from collections import Counter
 from typing import Union, List, NoReturn
@@ -335,14 +338,28 @@ class VaspDriver(AbstractDriver):
 
         return scf_converged
     
-    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+    def _read_a_single_trajectory(self, wdir, archive_path=None, *args, **kwargs):
         """"""
-        vasprun = wdir / "vasprun.xml"
-        frames = read(vasprun, ":")
+        if archive_path is None:
+            vasprun = wdir / "vasprun.xml"
+            frames = read(vasprun, ":")
+        else:
+            target_name = str((wdir/"vasprun.xml").relative_to(self.directory.parent))
+            with tarfile.open(archive_path, "r:gz") as tar:
+                for tarinfo in tar:
+                    if tarinfo.name == target_name:
+                        fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        frames = read(fobj, ":", format="vasp-xml")
+                        fobj.close()
+                        break
+                else: # TODO: if not find target traj?
+                    ...
 
         return frames
     
-    def read_trajectory(self, add_step_info=True, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(
+            self, add_step_info=True, archive_path=None, *args, **kwargs
+        ) -> List[Atoms]:
         """Read trajectory in the current working directory.
 
         If the calculation failed, an empty atoms with errof info would be returned.
@@ -356,12 +373,15 @@ class VaspDriver(AbstractDriver):
 
             traj_list = []
             for w in prev_wdirs:
-                curr_frames = self._read_a_single_trajectory(w)
+                curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path)
                 traj_list.append(curr_frames)
 
+            # Even though vasprun file may be empty, the read can give a empty list...
             vasprun = self.directory / "vasprun.xml"
-            if vasprun.exists() and vasprun.stat().st_size != 0:
-                traj_list.append(read(vasprun, ":")) # read current
+            curr_frames = self._read_a_single_trajectory(
+                self.directory, archive_path=archive_path
+            )
+            traj_list.append(curr_frames)
 
             # -- concatenate
             traj_frames_, ntrajs = [], len(traj_list)
