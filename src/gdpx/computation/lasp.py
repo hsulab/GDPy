@@ -35,6 +35,16 @@ Output files by LASP NVE-MD are
 
 """
 
+def is_number(s):
+    """"""
+    try:
+        float(s)
+        return True
+    except ValueError:
+        ...
+
+    return False
+
 def compare_trajectory_continuity(t0, t1):
     """Compare positions."""
     a0, a1 = t0[-1], t1[0]
@@ -213,12 +223,13 @@ def read_lasp_structures(
                 line = afrc_io.readline()
                 force_data = line.strip().split()
                 if len(force_data) == 3: # expect three numbers
-                    is_frc_valid = True
+                    force_data_ = []
                     for x in force_data:
-                        if not x.isdigit():
-                            is_frc_valid = False
-                    if not is_frc_valid:
-                        force_data = [np.inf]*3
+                        if not is_number(x):
+                            force_data_.append(np.inf)
+                        else:
+                            force_data_.append(float(x))
+                    force_data = force_data_
                 else: # too large forces make out become ******
                     force_data = [np.inf]*3
                 forces.append(force_data)
