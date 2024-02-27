@@ -49,8 +49,9 @@ except ImportError as e:
     warnings.warn("Module {} import failed: {}".format("hypercube", e), UserWarning)
 
 # - extra utilities
-from .utils import remove_vacuum
+from .utils import remove_vacuum, reset_cell
 registers.operation.register(remove_vacuum)
+registers.operation.register(reset_cell)
 
 
 if __name__ == "__main__":
