@@ -389,6 +389,7 @@ class DriverBasedWorker(AbstractWorker):
                     if not self._share_wdir:
                         # - first a quick check if all wdirs exist
                         wdir_existence = [(self.directory/x).exists() for x in wdir_names]
+                        nwdir_exists = sum(1 for x in wdir_existence if x)
                         if all(wdir_existence):
                             for x in wdir_names:
                                 curr_wdir = self.directory/x
@@ -400,6 +401,7 @@ class DriverBasedWorker(AbstractWorker):
                                 is_finished = True
                         else:
                             self._print("NOT ALL wdirs exist.")
+                        self._print(f"progress: {nwdir_exists}/{len(wdir_existence)-nwdir_exists}")
                     else:
                         cache_frames = read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
                         cache_wdirs = [a.info["wdir"] for a in cache_frames]
