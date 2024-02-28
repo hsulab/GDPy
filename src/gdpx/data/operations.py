@@ -23,8 +23,6 @@ from .array import AtomsNDArray
 @registers.operation.register
 class assemble(Operation):
 
-    #status = "finished" # Always finished since it is not time-consuming
-    
     def __init__(self, variable, directory="./", **kwargs) -> None:
         """"""
         vkwargs = {} # variable non-variable/operation kwargs
@@ -46,15 +44,25 @@ class assemble(Operation):
     def forward(self, *outputs):
         """"""
         super().forward()
-        params = copy.deepcopy(self.vkwargs)
-        params.update({k: v for k, v in zip(self.node_names, outputs)})
 
-        variable = registers.create("variable", self.variable, **params)
-        #print(variable, variable.value)
+        # NOTE: check whether dependant nodes all have valid outputs
+        is_finished = True
+        for o in outputs:
+            if o is None:
+                is_finished = False
+                break
+        
+        if is_finished:
+            params = copy.deepcopy(self.vkwargs)
+            params.update({k: v for k, v in zip(self.node_names, outputs)})
+            variable = registers.create("variable", self.variable, **params)
+            ret = variable.value
+        else:
+            ret = None
 
-        self.status = "finished"
+        self.status = "finished" if is_finished else "unfinished"
 
-        return variable.value
+        return ret
 
 @registers.operation.register
 class seqrun(Operation):
