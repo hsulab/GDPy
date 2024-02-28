@@ -14,17 +14,13 @@ import numpy as np
 
 from tinydb import Query, TinyDB
 
-from gdpx.worker.worker import AbstractWorker
-from gdpx.potential.trainer import AbstractTrainer
-from gdpx.utils.command import run_command
+from .worker import AbstractWorker
+from ..potential.trainer import AbstractTrainer
 
 
 class TrainerBasedWorker(AbstractWorker):
 
     TRAIN_PREFIX: str = "m"
-
-    _print: Callable = print
-    _debug: Callable = print
 
     def __init__(self, trainer: AbstractTrainer, scheduler, directory=None, *args, **kwargs) -> NoReturn:
         """"""
