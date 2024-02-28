@@ -103,8 +103,6 @@ class map(Operation):
 
     """
 
-    status = "finished"
-
     def __init__(self, nodes, names, directory="./") -> NoReturn:
         """"""
         super().__init__(nodes, directory)
@@ -123,6 +121,9 @@ class map(Operation):
             ret[k] = v
         
         self._debug(f"map ret: {ret}")
+
+        # NOTE: some dependant nodes may not finish
+        self.status = "finished"
 
         return ret
 
