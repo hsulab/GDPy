@@ -21,6 +21,26 @@ from gdpx.potential.trainer import AbstractTrainer
 from gdpx.computation.mixer import CommitteeCalculator
 
 
+class DeepmdDataset():
+
+    def __init__(
+        self, batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs, 
+        *args, **kwargs
+    ) -> None:
+        """"""
+        self.batchsizes = batchsizes
+        self.cum_batchsizes = cum_batchsizes
+        self.train_sys_dirs = train_sys_dirs
+        self.valid_sys_dirs = valid_sys_dirs
+
+        return
+    
+    def as_dict(self, ) -> dict:
+        """"""
+
+        return
+
+
 class DeepmdTrainer(AbstractTrainer):
 
     name = "deepmd"
@@ -96,6 +116,39 @@ class DeepmdTrainer(AbstractTrainer):
         """"""
         return f"{self.name}.pb"
     
+    def _prepare_dataset(self, dataset, reduce_system: bool=False, *args, **kwargs):
+        """"""
+        if not isinstance(dataset, DeepmdDataset):
+            set_names, train_frames, test_frames, adjusted_batchsizes = self._get_dataset(
+                dataset, reduce_system
+            )
+
+            train_dir = self.directory
+
+            # - update config
+            self._print("--- write dp train data---")
+            batchsizes = adjusted_batchsizes
+            cum_batchsizes, train_sys_dirs = convert_groups(
+                set_names, train_frames, batchsizes, 
+                self.config["model"]["type_map"],
+                "train", train_dir, self._print
+            )
+            _, valid_sys_dirs = convert_groups(
+                set_names, test_frames, batchsizes,
+                self.config["model"]["type_map"], 
+                "valid", train_dir, self._print
+            )
+            self._print(f"accumulated number of batches: {cum_batchsizes}")
+            
+            dataset = DeepmdDataset(
+                batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs
+            )
+        else:
+            ...
+
+        return dataset
+
+    
     def write_input(self, dataset, reduce_system: bool=False):
         """Write inputs for training.
 
@@ -103,26 +156,8 @@ class DeepmdTrainer(AbstractTrainer):
             reduce_system: Whether merge structures.
 
         """
-        set_names, train_frames, test_frames, adjusted_batchsizes = self._get_dataset(
-            dataset, reduce_system
-        )
-
-        train_dir = self.directory
-
-        # - update config
-        self._print("--- write dp train data---")
-        batchsizes = adjusted_batchsizes
-        cum_batchsizes, train_sys_dirs = convert_groups(
-            set_names, train_frames, batchsizes, 
-            self.config["model"]["type_map"],
-            "train", train_dir, self._print
-        )
-        _, valid_sys_dirs = convert_groups(
-            set_names, test_frames, batchsizes,
-            self.config["model"]["type_map"], 
-            "valid", train_dir, self._print
-        )
-        self._print(f"accumulated number of batches: {cum_batchsizes}")
+        # - prepare dataset (convert dataset to DeepmdDataset)
+        dataset = self._prepare_dataset(dataset, reduce_system)
 
         # - check train config
         # NOTE: parameters
@@ -134,23 +169,23 @@ class DeepmdTrainer(AbstractTrainer):
         train_config["model"]["descriptor"]["seed"] =  self.rng.integers(0,10000, dtype=int)
         train_config["model"]["fitting_net"]["seed"] = self.rng.integers(0,10000, dtype=int)
 
-        train_config["training"]["training_data"]["systems"] = [str(x.resolve()) for x in train_sys_dirs]
-        train_config["training"]["training_data"]["batch_size"] = batchsizes
+        train_config["training"]["training_data"]["systems"] = [str(x.resolve()) for x in dataset.train_sys_dirs]
+        train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
 
-        train_config["training"]["validation_data"]["systems"] = [str(x.resolve()) for x in valid_sys_dirs]
-        train_config["training"]["validation_data"]["batch_size"] = batchsizes
+        train_config["training"]["validation_data"]["systems"] = [str(x.resolve()) for x in dataset.valid_sys_dirs]
+        train_config["training"]["validation_data"]["batch_size"] = dataset.batchsizes
 
         train_config["training"]["seed"] = self.rng.integers(0,10000, dtype=int)
 
         # --- calc numb_steps
         save_freq = train_config["training"]["save_freq"]
-        n_checkpoints = int(np.ceil(cum_batchsizes*self.train_epochs/save_freq))
+        n_checkpoints = int(np.ceil(dataset.cum_batchsizes*self.train_epochs/save_freq))
         numb_steps = n_checkpoints*save_freq
 
         train_config["training"]["numb_steps"] = numb_steps
 
         # - write
-        with open(train_dir/f"{self.name}.json", "w") as fopen:
+        with open(self.directory/f"{self.name}.json", "w") as fopen:
             json.dump(train_config, fopen, indent=2)
 
         return

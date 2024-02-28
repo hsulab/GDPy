@@ -76,7 +76,8 @@ class train(Operation):
 
     def __init__(
         self, dataset, trainer, potter, scheduler=DummyVariable(), size: int=1, 
-        init_models=None, active: bool=False, directory="./", *args, **kwargs
+        init_models=None, active: bool=False, share_dataset: bool=False,
+        directory="./", *args, **kwargs
     ) -> None:
         """"""
         input_nodes = [dataset, trainer, scheduler, potter]
@@ -93,6 +94,8 @@ class train(Operation):
         assert len(self.init_models) == self.size, f"The number of init models {self.init_models} is inconsistent with size {self.size}."
 
         self._active = active
+
+        self._share_dataset = share_dataset
 
         return
     
@@ -129,7 +132,10 @@ class train(Operation):
             scheduler = SchedulerVariable().value
 
         # - update dir
-        worker = TrainerBasedWorker(trainer, scheduler, directory=self.directory)
+        worker = TrainerBasedWorker(
+            trainer, scheduler, share_dataset=self._share_dataset,
+            directory=self.directory
+        )
 
         # - run
         manager = None
