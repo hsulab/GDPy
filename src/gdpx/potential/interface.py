@@ -117,6 +117,8 @@ class train(Operation):
                 for p in prev_wdir.iterdir():
                     if p.is_dir() and re.match("m[0-9]+", p.name):
                         prev_mdirs.append(p)
+                # TODO: replace `m` with a constant
+                prev_mdirs = sorted(prev_mdirs, key=lambda p: int(p.name[1:]))
                 init_models = [(p/trainer.frozen_name).resolve() for p in prev_mdirs]
                 for p in init_models:
                     self._print(" "*8+str(p))

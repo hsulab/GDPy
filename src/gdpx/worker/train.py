@@ -68,7 +68,8 @@ class TrainerBasedWorker(AbstractWorker):
                 #       as a committee will be trained
                 trainer_params["trainer"]["random_seed"] = np.random.randint(0, 10000)
 
-                trainer_params["init_model"] = init_models[i]
+                # NOTE: YAML accepts only string path
+                trainer_params["init_model"] = str(init_models[i])
 
                 trainer_params["dataset"] = dataset.as_dict()
                 with open(wdir/"trainer.yaml", "w") as fopen:
