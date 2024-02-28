@@ -14,9 +14,7 @@ import numpy.ma as ma
 from ase import Atoms
 from ase.io import read, write
 
-import matplotlib as mpl
-mpl.use("Agg") #silent mode
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
@@ -114,7 +112,8 @@ class SinglepointValidator(AbstractValidator):
         
         with open(self.directory/fname, "w") as fopen:
             fopen.write(content)
-        self._print("\n"+content)
+        for l in content.split("\n"):
+            self._print(l)
 
         return
 
