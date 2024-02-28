@@ -260,7 +260,8 @@ class DeepmdTrainer(AbstractTrainer):
                 proc = subprocess.Popen(command, shell=True, cwd=self.directory)
             except OSError as err:
                 msg = "Failed to execute `{}`".format(command)
-                raise RuntimeError(msg) from err
+                #raise RuntimeError(msg) from err
+                self._print(msg)
             except RuntimeError as err:
                 self._print("Failed to compress model.")
 
