@@ -23,7 +23,7 @@ from .array import AtomsNDArray
 @registers.operation.register
 class assemble(Operation):
 
-    status = "finished" # Always finished since it is not time-consuming
+    #status = "finished" # Always finished since it is not time-consuming
     
     def __init__(self, variable, directory="./", **kwargs) -> None:
         """"""
@@ -51,6 +51,8 @@ class assemble(Operation):
 
         variable = registers.create("variable", self.variable, **params)
         #print(variable, variable.value)
+
+        self.status = "finished"
 
         return variable.value
 
