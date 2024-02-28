@@ -65,7 +65,7 @@ class DeepmdTrainer(AbstractTrainer):
                 command += "--init-model {}".format(str(init_model_path))
             else:
                 raise RuntimeError(f"Unknown init_model {str(init_model_path)}.")
-        command += " 2>&1 > {}.out\n".format(self.name)
+        command += " 2>&1 > {}.out".format(self.name)
 
         return command
 
@@ -110,6 +110,7 @@ class DeepmdTrainer(AbstractTrainer):
         train_dir = self.directory
 
         # - update config
+        self._print("--- write dp train data---")
         batchsizes = adjusted_batchsizes
         cum_batchsizes, train_sys_dirs = convert_groups(
             set_names, train_frames, batchsizes, 
@@ -157,8 +158,8 @@ class DeepmdTrainer(AbstractTrainer):
     def _get_dataset(self, dataset, reduce_system):
         """"""
         data_dirs = dataset.load()
-        self._print(data_dirs)
-        self._print("\n--- auto data reader ---\n")
+        self._print("--- auto data reader ---")
+        self._debug(data_dirs)
 
         batchsizes = dataset.batchsize
         nsystems = len(data_dirs)
@@ -175,7 +176,7 @@ class DeepmdTrainer(AbstractTrainer):
             curr_system = pathlib.Path(curr_system)
             set_name = "+".join(str(curr_system.relative_to(dataset.directory)).split("/"))
             set_names.append(set_name)
-            self._print(f"System {set_name} Batchsize {curr_batchsize}\n")
+            self._print(f"System {set_name} Batchsize {curr_batchsize}")
             frames = [] # all frames in this subsystem
             subsystems = list(curr_system.glob("*.xyz"))
             subsystems.sort() # sort by alphabet
@@ -184,7 +185,7 @@ class DeepmdTrainer(AbstractTrainer):
                 p_frames = read(p, ":")
                 p_nframes = len(p_frames)
                 frames.extend(p_frames)
-                self._print(f"  subsystem: {p.name} number {p_nframes}\n")
+                self._print(f"  subsystem: {p.name} number {p_nframes}")
 
             # split dataset and get adjusted batchsize
             # TODO: adjust batchsize of train and test separately
@@ -217,7 +218,7 @@ class DeepmdTrainer(AbstractTrainer):
             train_size.append(ntrain)
             test_size.append(ntest)
 
-            self._print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}\n")
+            self._print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}")
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
             curr_test_frames = [frames[test_i] for test_i in test_index]
@@ -237,12 +238,12 @@ class DeepmdTrainer(AbstractTrainer):
                 # test
                 test_frames.append(curr_test_frames)
                 n_test_frames = sum([len(x) for x in test_frames])
-            self._print(f"  Current Dataset -> ntrain: {n_train_frames} ntest: {n_test_frames}\n\n")
+            self._print(f"  Current Dataset -> ntrain: {n_train_frames} ntest: {n_test_frames}")
 
         assert len(train_size) == len(test_size), "inconsistent train_size and test_size"
         train_size = sum(train_size)
         test_size = sum(test_size)
-        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}\n")
+        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}")
 
         return set_names, train_frames, test_frames, adjusted_batchsizes
     
