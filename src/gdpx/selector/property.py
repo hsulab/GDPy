@@ -253,10 +253,12 @@ class PropertySelector(AbstractSelector):
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
         content += "{:>12.4f}  {:>12s}\n".format(bin_edges[-1], "-")
-        self._print(content)
 
         with open(self.info_fpath.parent/(self.info_fpath.stem+f"-{prop_item.name}-stat.txt"), "w") as fopen:
             fopen.write(content)
+
+        for l in content.split("\n"):
+            self._print(l)
 
         return
     
