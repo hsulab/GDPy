@@ -261,15 +261,20 @@ class DeepmdTrainer(AbstractTrainer):
             except OSError as err:
                 msg = "Failed to execute `{}`".format(command)
                 raise RuntimeError(msg) from err
+            except RuntimeError as err:
+                self._print("Failed to compress model.")
 
             errorcode = proc.wait()
-
             if errorcode:
                 path = os.path.abspath(self.directory)
                 msg = ('Trainer "{}" failed with command "{}" failed in '
                        '{} with error code {}'.format(self.name, command,
                                                       path, errorcode))
-                raise RuntimeError(msg)
+                # NOTE: sometimes dp cannot compress the model
+                #       this happens when the descriptor trainable is set False?
+                #raise RuntimeError(msg)
+                self._print(msg)
+                compressed_model = frozen_model
         else:
             ...
 
