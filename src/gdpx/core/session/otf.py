@@ -49,23 +49,27 @@ class ActiveSession():
                 self._print("wait current iteration to finish...")
                 break
             else:
-                with open(curr_wdir/"FINISHED", "w") as fopen:
-                    fopen.write(
-                        f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
-                    )
-                # --- report
-                self._print("[{:^24s}]".format("CONVERGENCE"))
-                converged_list = []
-                for node in nodes_postorder:
-                    if hasattr(node, "report_convergence"):
-                        converged = node.report_convergence()
-                        converged_list.append(converged)
-                if all(converged_list):
-                    self._print(f"Active Session converged at step {curr_step}.")
-                    break
+                # NOTE: If previous step finished, the nodes may not have outputs
+                #       as we skip them...
+                if not (curr_wdir/"FINISHED").exists():
+                    with open(curr_wdir/"FINISHED", "w") as fopen:
+                        fopen.write(
+                            f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
+                        )
+                    # --- report
+                    self._print("[{:^24s}]".format("CONVERGENCE"))
+                    converged_list = []
+                    for node in nodes_postorder:
+                        if hasattr(node, "report_convergence"):
+                            converged = node.report_convergence()
+                            converged_list.append(converged)
+                    if all(converged_list):
+                        self._print(f"Active Session converged at step {curr_step}.")
+                        break
+                    else:
+                        self._print(f"Active Session UNconverged at step {curr_step}.")
                 else:
-                    self._print(f"Active Session UNconverged at step {curr_step}.")
-                ...
+                    self._print("[{:^24s}] FINISHED".format(f"STEP.{str(curr_step).zfill(4)}"))
         else:
             ... # ALL iterations finished...
 
