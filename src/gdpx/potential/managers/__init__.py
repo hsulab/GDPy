@@ -10,9 +10,10 @@ from ..trainer import AbstractTrainer
 
 # - basic potentials
 # -- MLIP
-from .deepmd import DeepmdManager, DeepmdTrainer
+from .deepmd import DeepmdManager, DeepmdTrainer, DeepmdDataloader
 registers.manager.register(DeepmdManager)
 registers.trainer.register(DeepmdTrainer)
+registers.dataloader.register(DeepmdDataloader)
 
 from .eann import EannManager, EannTrainer
 registers.manager.register(EannManager)

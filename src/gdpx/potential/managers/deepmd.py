@@ -21,7 +21,10 @@ from gdpx.potential.trainer import AbstractTrainer
 from gdpx.computation.mixer import CommitteeCalculator
 
 
-class DeepmdDataset():
+class DeepmdDataloader():
+
+    #: Datasset name.
+    name: str = "deepmd"
 
     def __init__(
         self, batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs, 
@@ -30,15 +33,21 @@ class DeepmdDataset():
         """"""
         self.batchsizes = batchsizes
         self.cum_batchsizes = cum_batchsizes
-        self.train_sys_dirs = train_sys_dirs
-        self.valid_sys_dirs = valid_sys_dirs
+        self.train_sys_dirs = [str(x) for x in train_sys_dirs]
+        self.valid_sys_dirs = [str(x) for x in valid_sys_dirs]
 
         return
     
     def as_dict(self, ) -> dict:
         """"""
+        params = {}
+        params["name"] = self.name
+        params["batchsizes"] = self.batchsizes
+        params["cum_batchsizes"] = self.cum_batchsizes
+        params["train_sys_dirs"] = self.train_sys_dirs
+        params["valid_sys_dirs"] = self.valid_sys_dirs
 
-        return
+        return params
 
 
 class DeepmdTrainer(AbstractTrainer):
@@ -118,7 +127,7 @@ class DeepmdTrainer(AbstractTrainer):
     
     def _prepare_dataset(self, dataset, reduce_system: bool=False, *args, **kwargs):
         """"""
-        if not isinstance(dataset, DeepmdDataset):
+        if not isinstance(dataset, DeepmdDataloader):
             set_names, train_frames, test_frames, adjusted_batchsizes = self._get_dataset(
                 dataset, reduce_system
             )
@@ -140,7 +149,7 @@ class DeepmdTrainer(AbstractTrainer):
             )
             self._print(f"accumulated number of batches: {cum_batchsizes}")
             
-            dataset = DeepmdDataset(
+            dataset = DeepmdDataloader(
                 batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs
             )
         else:
@@ -156,7 +165,7 @@ class DeepmdTrainer(AbstractTrainer):
             reduce_system: Whether merge structures.
 
         """
-        # - prepare dataset (convert dataset to DeepmdDataset)
+        # - prepare dataset (convert dataset to DeepmdDataloader)
         dataset = self._prepare_dataset(dataset, reduce_system)
 
         # - check train config
@@ -169,10 +178,10 @@ class DeepmdTrainer(AbstractTrainer):
         train_config["model"]["descriptor"]["seed"] =  self.rng.integers(0,10000, dtype=int)
         train_config["model"]["fitting_net"]["seed"] = self.rng.integers(0,10000, dtype=int)
 
-        train_config["training"]["training_data"]["systems"] = [str(x.resolve()) for x in dataset.train_sys_dirs]
+        train_config["training"]["training_data"]["systems"] = [x for x in dataset.train_sys_dirs]
         train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
 
-        train_config["training"]["validation_data"]["systems"] = [str(x.resolve()) for x in dataset.valid_sys_dirs]
+        train_config["training"]["validation_data"]["systems"] = [x for x in dataset.valid_sys_dirs]
         train_config["training"]["validation_data"]["batch_size"] = dataset.batchsizes
 
         train_config["training"]["seed"] = self.rng.integers(0,10000, dtype=int)
@@ -320,7 +329,7 @@ class DeepmdTrainer(AbstractTrainer):
     def read_convergence(self) -> bool:
         """"""
         # - get numb_steps
-        with open(self.directory/f"{self.name}.json") as fopen:
+        with open(self.directory/f"{self.name}.json", "r") as fopen:
             input_json = json.load(fopen)
         numb_steps = input_json["training"]["numb_steps"]
 
