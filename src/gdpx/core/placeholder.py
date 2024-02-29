@@ -34,6 +34,12 @@ class Placeholder: # Placeholder
 
         return
 
+    def reset(self):
+        """Reset node's output and status."""
+        ...
+
+        return
+
 
 if __name__ == "__main__":
     ...

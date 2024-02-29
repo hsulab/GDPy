@@ -79,6 +79,13 @@ class ActiveSession():
         """"""
         if (wdir/"FINISHED").exists():
             return True
+        
+        # - clear previous nodes' outputs
+        #   somtimes two steps run consecutively and some nodes in the second step
+        #   breaks and make its following nodes use outputs from the last step,
+        #   which is a hidden error
+        for node in nodes_postorder:
+            node.reset()
 
         # - find forward order
         self._print(
@@ -117,7 +124,9 @@ class ActiveSession():
                 node.output = node.value
             else: # Operation
                 self._debug(f"node: {node}")
-                if node.preward():
+                if node.is_ready_to_forward():
+                    self._print(node.input_nodes)
+                    self._print([x.status for x in node.input_nodes])
                     node.inputs = [input_node.output for input_node in node.input_nodes]
                     node.output = node.forward(*node.inputs)
                 else:
@@ -201,7 +210,7 @@ class OTFSession():
                 node.output = node.value
             else: # Operation
                 self._debug(f"node: {node}")
-                if node.preward():
+                if node.is_ready_to_forward():
                     node.inputs = [input_node.output for input_node in node.input_nodes]
                     node.output = node.forward(*node.inputs)
                 else:
@@ -316,7 +325,7 @@ class CyclicSession:
             elif isinstance(node, Variable):
                 node.output = node.value
             else: # Operation
-                if node.preward():
+                if node.is_ready_to_forward():
                     node.inputs = [input_node.output for input_node in node.input_nodes]
                     node.output = node.forward(*node.inputs)
                 else:

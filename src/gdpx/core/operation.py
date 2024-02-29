@@ -55,11 +55,18 @@ class Operation(abc.ABC):
         self._directory = pathlib.Path(directory_)
 
         return
+
+    def reset(self):
+        """Reset node's output and status."""
+        if hasattr(self, "output"):
+            delattr(self, "output")
+            self.status = "unfinished" 
+
+        return
     
-    def preward(self) -> bool:
+    def is_ready_to_forward(self) -> bool:
         """Check whether this operation is ready to forward."""
         # - check input nodes' status
-        status = [node.status == "finished" for node in self.input_nodes]
         if all(status):
             return True
         else:

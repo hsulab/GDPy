@@ -71,7 +71,7 @@ class Session:
                 node.output = node.value
             else: # Operation
                 self._debug(f"node: {node}")
-                if node.preward():
+                if node.is_ready_to_forward():
                     node.inputs = [input_node.output for input_node in node.input_nodes]
                     node.output = node.forward(*node.inputs)
                 else:
