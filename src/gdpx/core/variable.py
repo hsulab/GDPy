@@ -51,8 +51,8 @@ class Variable:
     
     def reset(self):
         """Reset node's output and status."""
-        if hasattr(node, "output"):
-            delattr(node, "output")
+        if hasattr(self, "output"):
+            delattr(self, "output")
 
         return
 

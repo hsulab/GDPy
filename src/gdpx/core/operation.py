@@ -67,6 +67,7 @@ class Operation(abc.ABC):
     def is_ready_to_forward(self) -> bool:
         """Check whether this operation is ready to forward."""
         # - check input nodes' status
+        status = [node.status == "finished" for node in self.input_nodes]
         if all(status):
             return True
         else:
