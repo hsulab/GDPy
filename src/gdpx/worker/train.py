@@ -22,12 +22,20 @@ class TrainerBasedWorker(AbstractWorker):
 
     TRAIN_PREFIX: str = "m"
 
-    def __init__(self, trainer: AbstractTrainer, scheduler, directory=None, *args, **kwargs) -> NoReturn:
+    #: Whether share a dataset when training a group of models.
+    _share_dataset: bool = False
+
+    def __init__(
+            self, trainer: AbstractTrainer, scheduler, share_dataset: bool=False,
+            directory=None, *args, **kwargs
+        ) -> None:
         """"""
         super().__init__(directory)
 
         self.trainer = trainer
         self.scheduler = scheduler
+
+        self._share_dataset = share_dataset
 
         return
     
@@ -45,6 +53,20 @@ class TrainerBasedWorker(AbstractWorker):
         ) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+
+        # - check whether share a dataset?
+        if size >1 and self._share_dataset:
+            dataset_path = self.directory/"shared_dataset"
+            if not dataset_path.exists():
+                self._print("prepare a shared dataset...")
+                if hasattr(trainer, "_prepare_dataset"):
+                    trainer.directory = self.directory
+                    dataset = trainer._prepare_dataset(dataset, *args, **kwargs)
+                    self._print(dataset)
+            else:
+                ...
+        else:
+            self._print("trainers prepare their own datasets...")
 
         # - local mode
         for i in range(size):
@@ -64,6 +86,10 @@ class TrainerBasedWorker(AbstractWorker):
                 # - save trainer file
                 trainer_params = {}
                 trainer_params["trainer"] = trainer.as_dict()
+
+                # extra params
+                trainer_params["trainer"]["share_dataset"] = self._share_dataset
+
                 # TODO: we set a random seed for each trainer
                 #       as a committee will be trained
                 trainer_params["trainer"]["random_seed"] = np.random.randint(0, 10000)
