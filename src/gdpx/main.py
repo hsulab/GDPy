@@ -103,7 +103,7 @@ def main():
     # - automatic training
     parser_train = subparsers.add_parser(
         "train", help="automatic training utilities",
-        description=str(registers.trainer), 
+        description=str(registers.trainer)+"\n"+str(registers.dataloader), 
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser_train.add_argument(

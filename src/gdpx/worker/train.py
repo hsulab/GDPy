@@ -27,21 +27,32 @@ class TrainerBasedWorker(AbstractWorker):
 
     def __init__(
             self, trainer: AbstractTrainer, scheduler, share_dataset: bool=False,
-            directory=None, *args, **kwargs
+            auto_submit: bool = True, directory=None, *args, **kwargs
         ) -> None:
-        """"""
+        """Initialise a TrainerBasedWorker.
+
+        Args:
+            share_dataset: Whether a group of models are traiend on a shared dataset.
+            auto_submit: 
+                Whether submit scheduler jobs automatically. Otherwise, it must be
+                submitted manully.
+
+        """
         super().__init__(directory)
 
         self.trainer = trainer
         self.scheduler = scheduler
 
         self._share_dataset = share_dataset
+        self._submit = auto_submit
 
         return
     
     def run(self, dataset, size: int=1, init_models=None, *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
+        if init_models is None:
+            init_models = [None for i in range(size)]
         assert len(init_models) == size, "The number of init models is inconsistent with size."
 
         trainer = self.trainer
@@ -95,7 +106,10 @@ class TrainerBasedWorker(AbstractWorker):
                 trainer_params["trainer"]["random_seed"] = np.random.randint(0, 10000)
 
                 # NOTE: YAML accepts only string path
-                trainer_params["init_model"] = str(init_models[i])
+                curr_init_model = init_models[i]
+                if curr_init_model is not None:
+                    curr_init_model = str(curr_init_model)
+                trainer_params["init_model"] = curr_init_model
 
                 trainer_params["dataset"] = dataset.as_dict()
                 with open(wdir/"trainer.yaml", "w") as fopen:

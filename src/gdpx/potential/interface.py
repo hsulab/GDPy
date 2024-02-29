@@ -77,7 +77,7 @@ class train(Operation):
     def __init__(
         self, dataset, trainer, potter, scheduler=DummyVariable(), size: int=1, 
         init_models=None, active: bool=False, share_dataset: bool=False,
-        directory="./", *args, **kwargs
+        auto_submit: bool=True, directory="./", *args, **kwargs
     ) -> None:
         """"""
         input_nodes = [dataset, trainer, scheduler, potter]
@@ -96,6 +96,7 @@ class train(Operation):
         self._active = active
 
         self._share_dataset = share_dataset
+        self._auto_submit = auto_submit
 
         return
     
@@ -134,7 +135,7 @@ class train(Operation):
         # - update dir
         worker = TrainerBasedWorker(
             trainer, scheduler, share_dataset=self._share_dataset,
-            directory=self.directory
+            auto_submit=self._auto_submit, directory=self.directory
         )
 
         # - run
