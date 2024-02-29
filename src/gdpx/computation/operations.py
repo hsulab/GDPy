@@ -225,15 +225,14 @@ class extract(Operation):
 
             worker_status[i] = True
 
-        if nworkers == 1:
-            trajectories = trajectories[0]
-
-        if self.merge_workers:
-            trajectories = list(itertools.chain(*trajectories))
-        trajectories = AtomsNDArray(trajectories)
-        self._debug(trajectories)
-        
         if all(worker_status):
+            if nworkers == 1:
+                trajectories = trajectories[0]
+
+            if self.merge_workers:
+                trajectories = list(itertools.chain(*trajectories))
+            trajectories = AtomsNDArray(trajectories)
+            self._debug(trajectories)
             self._print(f"worker_: {trajectories}")
             self.status = "finished"
         else:
