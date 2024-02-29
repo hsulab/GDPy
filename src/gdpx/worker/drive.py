@@ -401,7 +401,7 @@ class DriverBasedWorker(AbstractWorker):
                                 is_finished = True
                         else:
                             self._print("NOT ALL wdirs exist.")
-                        self._print(f"progress: {nwdir_exists}/{len(wdir_existence)-nwdir_exists}")
+                        self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
                     else:
                         cache_frames = read(self.directory/"_data"/f"{identifier}_cache.xyz", ":")
                         cache_wdirs = [a.info["wdir"] for a in cache_frames]
