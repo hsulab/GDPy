@@ -288,7 +288,7 @@ class DeepmdTrainer(AbstractTrainer):
         frozen_model = super().freeze()
 
         # - compress model
-        compressed_model = self.directory/f"{self.name}-c.pb"
+        compressed_model = (self.directory/f"{self.name}-c.pb").absolute()
         if frozen_model.exists() and not compressed_model.exists():
             command = self._resolve_compress_command()
             try:
@@ -296,7 +296,8 @@ class DeepmdTrainer(AbstractTrainer):
             except OSError as err:
                 msg = "Failed to execute `{}`".format(command)
                 #raise RuntimeError(msg) from err
-                self._print(msg)
+                #self._print(msg)
+                self._print("Failed to compress model.")
             except RuntimeError as err:
                 self._print("Failed to compress model.")
 
@@ -309,8 +310,8 @@ class DeepmdTrainer(AbstractTrainer):
                 # NOTE: sometimes dp cannot compress the model
                 #       this happens when the descriptor trainable is set False?
                 #raise RuntimeError(msg)
-                self._print(msg)
-                compressed_model = frozen_model
+                #self._print(msg)
+                compressed_model.symlink_to(frozen_model.relative_to(compressed_model.parent))
         else:
             ...
 
