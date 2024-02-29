@@ -60,6 +60,34 @@ def convert_config_to_potter(config):
 
     return potter
 
+def convert_input_to_potter(inp):
+    """"""
+    potter = None
+    if isinstance(inp, AbstractPotentialManager):
+        potter = inp
+    elif isinstance(inp, Variable):
+        potter = inp.value
+    elif isinstance(inp, dict):
+        potter_params = copy.deepcopy(inp)
+        name = potter_params.get("name", None)
+        potter = registers.create(
+            "manager", name, convert_name=True,
+        )
+        potter.register_calculator(potter_params.get("params", {}))
+        potter.version = potter_params.get("version", "unknown")
+    elif isinstance(inp, str) or isinstance(inp, pathlib.Path):
+        potter_params = parse_input_file(input_fpath=inp)
+        name = potter_params.get("name", None)
+        potter = registers.create(
+            "manager", name, convert_name=True,
+        )
+        potter.register_calculator(potter_params.get("params", {}))
+        potter.version = potter_params.get("version", "unknown")
+    else:
+        raise RuntimeError(f"Unknown {inp} for the potter.")
+
+    return potter
+
 
 @registers.variable.register
 class ComputerVariable(Variable):
@@ -72,7 +100,7 @@ class ComputerVariable(Variable):
     ):
         """"""
         # - save state by all nodes
-        self.potter = self._load_potter(potter)
+        self.potter = convert_input_to_potter(potter)
         self.driver = self._load_driver(driver) 
         self.scheduler = self._load_scheduler(scheduler)
 
@@ -89,26 +117,6 @@ class ComputerVariable(Variable):
         self.use_single = use_single
 
         return
-    
-    def _load_potter(self, inp):
-        """"""
-        potter = None
-        if isinstance(inp, AbstractPotentialManager):
-            potter = inp
-        elif isinstance(inp, Variable):
-            potter = inp.value
-        elif isinstance(inp, dict):
-            potter_params = copy.deepcopy(inp)
-            name = potter_params.get("name", None)
-            potter = registers.create(
-                "manager", name, convert_name=True,
-            )
-            potter.register_calculator(potter_params.get("params", {}))
-            potter.version = potter_params.get("version", "unknown")
-        else:
-            raise RuntimeError(f"Unknown {inp} for the potter.")
-
-        return potter
     
     def _load_driver(self, inp) -> List[dict]:
         """Load drivers from a Variable or a dict."""

@@ -2,8 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
+import json
+import pathlib
 import re
-from typing import NoReturn
+
+import yaml
 
 from ..core.variable import Variable, DummyVariable
 from ..core.operation import Operation
@@ -157,6 +160,40 @@ class train(Operation):
             self.status = "finished"
 
         return manager
+
+@registers.operation.register
+class save_potter(Operation):
+
+    def __init__(self, potter, dst_path=None, directory="./") -> None:
+        """"""
+        input_nodes = [potter]
+        super().__init__(input_nodes, directory)
+
+        if dst_path is not None:
+            self.dst_path = pathlib.Path(dst_path).absolute()
+            suffix = self.dst_path.suffix
+            assert suffix == ".yaml", "dst_path should be either a yaml or a json file."
+        else:
+            self.dst_path = self._output_path
+
+        return
+
+    def forward(self, potter):
+        """"""
+        super().forward()
+
+        self._output_path = self.directory/"potter.yaml"
+        with open(self._output_path, "w") as fopen:
+            yaml.safe_dump(potter.as_dict(), fopen, indent=2)
+        
+        if self.dst_path.exists():
+            self._print("remove previous potter...")
+            self.dst_path.unlink()
+        self.dst_path.symlink_to(self._output_path)
+
+        self.status = "finished"
+
+        return potter
 
 
 if __name__ == "__main__":
