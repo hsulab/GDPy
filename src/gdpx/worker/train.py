@@ -71,9 +71,11 @@ class TrainerBasedWorker(AbstractWorker):
             if not dataset_path.exists():
                 self._print("prepare a shared dataset...")
                 if hasattr(trainer, "_prepare_dataset"):
-                    trainer.directory = self.directory
+                    trainer.directory = dataset_path # NOTE: only for creating dataset
                     dataset = trainer._prepare_dataset(dataset, *args, **kwargs)
                     self._print(dataset)
+                else:
+                    self._print(f"{trainer.__class__.__name__} does not support a shared dataset.")
             else:
                 ...
         else:
@@ -215,7 +217,8 @@ class TrainerBasedWorker(AbstractWorker):
             #print("unretrieved_wdirs: ", unretrieved_wdirs)
             for p in unretrieved_wdirs:
                 self.trainer.directory = p
-                results.append(self.trainer.freeze())
+                # NOTE: Due to yaml.safe_dump, we require path should be str
+                results.append(str(self.trainer.freeze()))
 
         with TinyDB(
             self.directory/f"_{self.scheduler.name}_jobs.json", indent=2

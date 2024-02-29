@@ -127,6 +127,8 @@ class DeepmdTrainer(AbstractTrainer):
     
     def _prepare_dataset(self, dataset, reduce_system: bool=False, *args, **kwargs):
         """"""
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True, exist_ok=True)
         if not isinstance(dataset, DeepmdDataloader):
             set_names, train_frames, test_frames, adjusted_batchsizes = self._get_dataset(
                 dataset, reduce_system

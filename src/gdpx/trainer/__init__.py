@@ -9,8 +9,8 @@ import numpy as np
 
 from ase.io import read, write
 
-from gdpx.core.register import registers
-from gdpx.utils.command import parse_input_file
+from ..core.register import registers
+from ..utils.command import parse_input_file
 
 
 """"""
