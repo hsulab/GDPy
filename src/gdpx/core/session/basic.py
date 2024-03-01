@@ -13,9 +13,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx import config
-from gdpx.core.placeholder import Placeholder
-from gdpx.core.variable import Variable
+from .. import config
+from ..placeholder import Placeholder
+from ..variable import Variable
 from .utils import traverse_postorder
 
 

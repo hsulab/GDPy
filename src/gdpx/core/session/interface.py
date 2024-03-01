@@ -111,21 +111,6 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         "yaml", read_yaml
     )
 
-    # -- 
-    from gdpx.builder.interface import build
-    def load_structure(x):
-        """"""
-        builder = create_variable(
-            "structure", {"type": "builder", "method": "direct", "frames": x}
-        )
-        node = build(builder)
-
-        return node
-
-    OmegaConf.register_new_resolver(
-        "structure",  load_structure
-    )
-
     # - load configuration and resolve it
     conf = OmegaConf.load(config_filepath)
 
@@ -185,7 +170,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
 
     exec_mode = sconfigs.get("mode", "seq")
     if exec_mode == "seq":
-        from .session import Session
+        from .basic import Session
         # -- sequential
         for i, (k, v) in enumerate(container.items()):
             n = session_names[i]
@@ -195,7 +180,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
             session = Session(directory=directory/n)
             session.run(entry_operation, feed_dict={})
     elif exec_mode == "act":
-        from .otf import ActiveSession
+        from .active import ActiveSession
         assert len(container) == 1, "ActiveSession only accepts one operation."
         for i, (k, v) in enumerate(container.items()):
             n = session_names[i]
@@ -207,7 +192,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
             )
             session.run(entry_operation, feed_dict={})
     elif exec_mode == "cyc":
-        from .otf import CyclicSession
+        from .active import CyclicSession
         # -- iterative
         session = CyclicSession(directory="./")
         session.run(
@@ -216,7 +201,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         )
     elif exec_mode == "otf":
         config._print("Use OTF Session...")
-        from .otf import OTFSession
+        from .active import OTFSession
         for i, (k, v) in enumerate(container.items()):
             n = session_names[i]
             if n is None:
@@ -225,7 +210,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
             session = OTFSession(directory=directory/n)
             session.run(entry_operation, feed_dict={})
     else:
-        ...
+        raise RuntimeError(f"Unknown session type {exec_mode}.")
 
     return
 

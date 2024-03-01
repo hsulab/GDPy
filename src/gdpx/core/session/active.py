@@ -7,10 +7,10 @@ import time
 
 from typing import NoReturn, Union, List, Callable
 
-from gdpx import config
+from .. import config
 from ..placeholder import Placeholder
 from ..variable import Variable
-from .session import Session
+from .basic import Session
 from .utils import traverse_postorder
 
 
