@@ -38,10 +38,13 @@ class Session:
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
-        #print(f"number_of_nodes: {len(nodes_postorder)}")
-        #for n in nodes_postorder:
-        #    print(n)
-        #exit()
+        for node in nodes_postorder:
+            if hasattr(node, "_active") and node._active:
+                node._active = False
+                self._print(
+                    f"Set {node} active to false as it is not supported in a basic session"
+                )
+
         self._print(
             "[{:^24s}] NUM_NODES: {} AT MAIN: {}".format(
                 "START", len(nodes_postorder), str(self.directory)
