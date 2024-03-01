@@ -27,19 +27,20 @@ class Operation(abc.ABC):
 
     def __init__(self, input_nodes=[], directory="./") -> None:
         """"""
-        self.input_nodes = input_nodes
+        if hasattr(self, "_preprocess_input_nodes"):
+            self.input_nodes = self._preprocess_input_nodes(input_nodes)
+        else:
+            self.input_nodes = input_nodes
 
         self.directory = directory
 
-        # Initialize list of consumers (i.e. nodes that receive this operation's output as input)
+        # Initialize list of consumers 
+        # (i.e. nodes that receive this operation's output as input)
         self.consumers = []
 
         # Append this operation to the list of consumers of all input nodes
-        for input_node in input_nodes:
+        for input_node in self.input_nodes:
             input_node.consumers.append(self)
-
-        # Append this operation to the list of operations in the currently active default graph
-        #_default_graph.operations.append(self)
 
         return
 

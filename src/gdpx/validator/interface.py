@@ -4,6 +4,8 @@
 import copy
 from typing import NoReturn
 
+import omegaconf
+
 from ..core.variable import Variable, DummyVariable
 from ..core.operation import Operation
 from ..core.register import registers
@@ -36,7 +38,10 @@ class validate(Operation):
 
     """
 
-    def __init__(self, structures, validator, worker=DummyVariable(), run_params: dict={}, directory="./") -> None:
+    def __init__(
+        self, structures, validator, worker=DummyVariable(), 
+        run_params: dict={}, directory="./", *args, **kwargs
+    ) -> None:
         """Init a validate operation.
 
         Args:
@@ -45,18 +50,67 @@ class validate(Operation):
             worker: A worker to run calculations. TODO: Make this optional.
         
         """
-        input_nodes = [structures, validator, worker]
-        super().__init__(input_nodes=input_nodes, directory=directory)
+        super().__init__(
+            input_nodes=[structures, validator, worker], directory=directory
+        )
 
         self.run_params = run_params
 
         return
     
-    def forward(self, dataset, validator: AbstractValidator, workers):
+    def _preprocess_input_nodes(self, input_nodes):
+        """Preprocess valid input nodes.
+
+        Some arguments accept basic python objects such list or dict, which are 
+        not necessary to be a Variable or an Operation.
+
+        """
+        structures, validator, worker = input_nodes
+
+        if isinstance(validator, dict) or isinstance(validator, omegaconf.dictconfig.DictConfig):
+            validator = ValidatorVariable(self.directory/"validator", **validator)
+            self._print(validator)
+
+        return structures, validator, worker
+    
+    def _convert_dataset(self, structures):
+        """Validator can accept various formats of input structures. 
+
+        We convert all formats into one.
+        
+        """
+        # NOTE: In an active session, the dataset is dynamic, thus, 
+        #       we need load the dataset before run...
+        #       Validator accepts dict(reference=[], prediction=[])
+        dataset_ = {}
+        if hasattr(structures, "items"): # check if the input is a dict-like object
+            stru_dict = structures
+        else: # assume it is just an AtomsNDArray
+            stru_dict = {}
+            stru_dict["reference"] = structures
+
+        for k, v in stru_dict.items():
+            if isinstance(v, dict):
+                ...
+            elif isinstance(v, list):
+                ...
+            elif isinstance(v, AtomsNDArray):
+                ...
+            elif isinstance(v, AbstractDataloader):
+                v = v.load_frames()
+            else:
+                raise RuntimeError(f"{k} Dataset {type(v)} is not a dict or loader.")
+            dataset_[k] = v
+
+        dataset = dataset_
+
+        return dataset
+    
+    def forward(self, structures, validator: AbstractValidator, workers):
         """Run a validator on input dataset.
 
         Args:
-            dataset: List[(prefix,frames)]
+            structures: Any format that has Atoms objects.
 
         """
         super().forward()
@@ -70,23 +124,8 @@ class validate(Operation):
         else:
             worker = None
 
-        # NOTE: In an active session, the dataset is dynamic, thus, 
-        #       we need load the dataset before run...
-        #       Validator accepts dict(reference=[], prediction=[])
-        dataset_ = {}
-        for k, v in dataset.items():
-            if isinstance(v, dict):
-                ...
-            elif isinstance(v, list):
-                ...
-            elif isinstance(v, AtomsNDArray):
-                ...
-            elif isinstance(v, AbstractDataloader):
-                v = v.load_frames()
-            else:
-                raise RuntimeError(f"{k} Dataset {type(v)} is not a dict or loader.")
-            dataset_[k] = v
-        dataset = dataset_
+        # - convert dataset
+        dataset = self._convert_dataset(structures)
 
         # - run validation
         validator.directory = self.directory
