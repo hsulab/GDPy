@@ -9,6 +9,8 @@ from typing import NoReturn, List
 
 import numpy as np
 
+import omegaconf
+
 from ase import Atoms
 from ase.io import read, write
 from ase.geometry import find_mic
@@ -67,7 +69,7 @@ def convert_input_to_potter(inp):
         potter = inp
     elif isinstance(inp, Variable):
         potter = inp.value
-    elif isinstance(inp, dict):
+    elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
         potter_params = copy.deepcopy(inp)
         name = potter_params.get("name", None)
         potter = registers.create(
@@ -84,7 +86,7 @@ def convert_input_to_potter(inp):
         potter.register_calculator(potter_params.get("params", {}))
         potter.version = potter_params.get("version", "unknown")
     else:
-        raise RuntimeError(f"Unknown {inp} for the potter.")
+        raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
 
     return potter
 
