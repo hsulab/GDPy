@@ -6,7 +6,7 @@ import itertools
 import pathlib
 import time
 
-from typing import NoReturn, Union, List
+from typing import NoReturn, Union, List, Tuple
 
 from ase import Atoms
 from ase.io import read, write
@@ -22,6 +22,8 @@ from ..worker.drive import (
 )
 from ..utils.command import CustomTimer
 
+
+# --- variable ---
 
 @registers.variable.register
 class DriverVariable(Variable):
@@ -73,6 +75,72 @@ class DriverVariable(Variable):
 
         return params_list
 
+# --- operation ---
+
+def extract_results_from_workers(
+        directory: pathlib.Path, workers: List[DriverBasedWorker], *,
+        safe_inspect: bool= True,
+        use_archive: bool=True, merge_workers: bool=False, 
+        print_func=print, debug_func=print
+    ) -> Tuple[str, List[AtomsNDArray]]:
+    """"""
+    _print = print_func
+    _debug = debug_func
+
+    if not directory.exists():
+        directory.mkdir(parents=True, exist_ok=True)
+
+    nworkers = len(workers)
+    worker_status = [False]*nworkers
+
+    _debug(f"workers: {workers}")
+
+    trajectories = []
+    for i, worker in enumerate(workers):
+        # TODO: How to save trajectories into one file?
+        #       probably use override function for read/write
+        #       i - worker, j - cand
+        _print(f"worker: {str(worker.directory)}")
+        cached_trajs_dpath = directory/f"{worker.directory.parent.name}-w{i}"
+        if not cached_trajs_dpath.exists():
+            if safe_inspect:
+                # inspect again for using extract without drive
+                worker.inspect(resubmit=False)
+                if not (worker.get_number_of_running_jobs() == 0):
+                    _print(f"{worker.directory} is not finished.")
+                    break
+            else:
+                # If compute enables extract, it has already done the inspects 
+                # thus we can skip them here.
+                ...
+            cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
+            curr_trajectories = worker.retrieve(
+                include_retrieved=True, use_archive=use_archive
+            )
+            AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath/"dataset.h5")
+        else:
+            curr_trajectories = AtomsNDArray.from_file(
+                cached_trajs_dpath/"dataset.h5"
+            ).tolist()
+
+        trajectories.append(curr_trajectories)
+
+        worker_status[i] = True
+
+    status = "unfinished"
+    if all(worker_status):
+        if nworkers == 1:
+            trajectories = trajectories[0]
+
+        if merge_workers:
+            trajectories = list(itertools.chain(*trajectories))
+        trajectories = AtomsNDArray(trajectories)
+        _print(f"extracted_results: {trajectories}")
+        status = "finished"
+    else:
+        ...
+
+    return status, trajectories
 
 @registers.operation.register
 class compute(Operation):
@@ -81,25 +149,48 @@ class compute(Operation):
     """
 
     def __init__(
-        self, builder, worker, batchsize: int=None, 
-        share_wdir: bool=False, retain_info: bool=False, directory="./",
+        self, builder: Variable, worker: Variable, 
+        batchsize: int=None, share_wdir: bool=False, retain_info: bool=False, 
+        extract_data: bool=True, use_archive: bool=True, merge_workers: bool=False,
+        directory="./",
     ):
-        """"""
+        """Initialise a compute operation.
+
+        Args:
+            builder: A builder node.
+            worker: A worker node.
+            batchsize: Worker's batchsize can be overwritten by this.
+            share_wdir: Worker's share_wdir can be overwritten by this.
+            retain_info: Worker's retain_info parameter.
+            directory: Operation's directory that stores results can be set by Session.
+
+        """
         super().__init__(input_nodes=[builder, worker], directory=directory)
 
+        # - worker-run-related settings
         self.batchsize = batchsize
         self.share_wdir = share_wdir
         self.retain_info = retain_info
 
+        # - worker-retrieve-related settings
+        self.extract_data = extract_data
+        self.use_archive = use_archive
+        self.merge_workers = merge_workers
+
         return
     
-    def forward(self, frames, workers: List[DriverBasedWorker]) -> List[DriverBasedWorker]:
+    def forward(
+            self, frames, workers: List[DriverBasedWorker]
+        ) -> Union[List[DriverBasedWorker], List[AtomsNDArray]]:
         """Run simulations with given structures and workers.
 
         Workers' working directory and batchsize are probably set.
+        Sometimes we need workers as some operations can be applied while
+        other times we need directly the trajectories to save operation definitions
+        in our session configuration files.
 
         Returns:
-            Workers with correct directory and batchsize.
+            Workers with correct directory and batchsize or AtomsNDArray.
 
         """
         super().forward()
@@ -150,10 +241,23 @@ class compute(Operation):
                 self._print(content)
                 worker_status.append(True)
         
+        output = workers
         if all(worker_status):
-            self.status = "finished"
+            if self.extract_data:
+                self._print("--- extract results ---")
+                status, trajectories = extract_results_from_workers(
+                    self.directory/"extracted", workers, safe_inspect=False,
+                    use_archive=self.use_archive, merge_workers=self.merge_workers, 
+                    print_func=self._print, debug_func=self._debug
+                )
+                self.status = status
+                output = trajectories
+            else:
+                self.status = "finished"
+        else:
+            ...
 
-        return workers
+        return output
 
 @registers.operation.register
 class extract_cache(Operation):
@@ -245,52 +349,14 @@ class extract(Operation):
         """
         super().forward()
 
-        # TODO: reconstruct trajs to List[List[Atoms]]
         self.workers = workers # for operations to access
-        nworkers = len(workers)
-        self._print(f"nworkers: {nworkers}")
-        #print(self.workers)
-        worker_status = [False]*nworkers
 
-        trajectories = []
-        for i, worker in enumerate(workers):
-            # TODO: How to save trajectories into one file?
-            #       probably use override function for read/write
-            #       i - worker, j - cand
-            self._print(f"worker: {str(worker.directory)}")
-            cached_trajs_dpath = self.directory/f"{worker.directory.parent.name}-w{i}"
-            if not cached_trajs_dpath.exists():
-                # inspect again for using extract without drive
-                worker.inspect(resubmit=False)
-                if not (worker.get_number_of_running_jobs() == 0):
-                    self._print(f"{worker.directory} is not finished.")
-                    break
-                cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
-                curr_trajectories = worker.retrieve(
-                    include_retrieved=True, use_archive=self.use_archive
-                )
-                AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath/"dataset.h5")
-            else:
-                curr_trajectories = AtomsNDArray.from_file(
-                    cached_trajs_dpath/"dataset.h5"
-                ).tolist()
-
-            trajectories.append(curr_trajectories)
-
-            worker_status[i] = True
-
-        if all(worker_status):
-            if nworkers == 1:
-                trajectories = trajectories[0]
-
-            if self.merge_workers:
-                trajectories = list(itertools.chain(*trajectories))
-            trajectories = AtomsNDArray(trajectories)
-            self._debug(trajectories)
-            self._print(f"worker_: {trajectories}")
-            self.status = "finished"
-        else:
-            ...
+        status, trajectories = extract_results_from_workers(
+            self.directory, workers, use_archive=self.use_archive,
+            merge_workers=self.merge_workers, 
+            print_func=self._print, debug_func=self._debug
+        )
+        self.status = status
 
         return trajectories
 
