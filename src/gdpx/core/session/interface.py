@@ -168,8 +168,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     # - get session general configs
     sconfigs = conf.get("configs", {})
 
-    exec_mode = sconfigs.get("mode", "seq")
-    if exec_mode == "seq":
+    exec_mode = sconfigs.get("mode", "basic")
+    if exec_mode == "basic": # sequential
         from .basic import Session
         # -- sequential
         for i, (k, v) in enumerate(container.items()):
@@ -179,7 +179,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
             entry_operation = v
             session = Session(directory=directory/n)
             session.run(entry_operation, feed_dict={})
-    elif exec_mode == "act":
+    elif exec_mode == "active":
         from .active import ActiveSession
         assert len(container) == 1, "ActiveSession only accepts one operation."
         for i, (k, v) in enumerate(container.items()):
