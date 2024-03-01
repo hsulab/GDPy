@@ -176,10 +176,8 @@ ALL_MODULES = [
     # - session operations + variables.
     ("gdpx.builder", ["interface"]),
     ("gdpx.computation", ["interface"]),
-    ("gdpx.computation", ["operations"]),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),
-    ("gdpx.data", ["operations"]), 
     ("gdpx.describer", ["interface"]),
     ("gdpx.potential", ["interface"]),
     ("gdpx.reactor", ["interface"]),
