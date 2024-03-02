@@ -16,6 +16,20 @@ from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifi
 from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 
 
+# - regions
+from .region import (
+    AutoRegion, CubeRegion, SphereRegion, CylinderRegion, LatticeRegion,
+    SurfaceLatticeRegion, SurfaceRegion
+)
+registers.region.register(AutoRegion)
+registers.region.register(CubeRegion)
+registers.region.register(SphereRegion)
+registers.region.register(CylinderRegion)
+registers.region.register(LatticeRegion)
+registers.region.register(SurfaceLatticeRegion) # BUG?
+registers.region.register(SurfaceRegion)        # BUG?
+
+
 # - basic builders and modifiers
 registers.builder.register("direct")(DirectBuilder)
 registers.builder.register("reader")(ReadBuilder)

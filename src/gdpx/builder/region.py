@@ -16,8 +16,6 @@ from ase.formula import Formula
 from ase.neighborlist import natural_cutoffs, NeighborList
 from ase.ga.utilities import closest_distances_generator
 
-from gdpx.core.register import registers
-from gdpx.builder.species import build_species
 
 def estimate_chemical_potential(
     temperature: float, 
@@ -213,7 +211,7 @@ class Region(abc.ABC):
     #    """"""
     #    return all(self.__dict__ == other.__dict__)
 
-@registers.region.register
+
 class AutoRegion(Region):
 
     _curr_atoms: Atoms = None
@@ -273,7 +271,7 @@ class AutoRegion(Region):
 
         return region_params
     
-@registers.region.register
+
 class CubeRegion(Region):
 
     def __init__(self, origin: List[float], boundary: List[float], *args, **kwargs):
@@ -348,7 +346,7 @@ class CubeRegion(Region):
 
         return region_params
 
-@registers.region.register
+
 class SphereRegion(Region):
 
     def __init__(self, origin: List[float], radius: float, *args, **kwargs):
@@ -417,7 +415,7 @@ class SphereRegion(Region):
 
         return region_params
 
-@registers.region.register
+
 class CylinderRegion(Region):
 
     """Region by a vertical cylinder.
@@ -491,7 +489,7 @@ class CylinderRegion(Region):
 
         return region_params
 
-@registers.region.register
+
 class LatticeRegion(Region):
 
     def __init__(self, origin: List[float], cell: List[float], *args, **kwargs):
@@ -557,7 +555,7 @@ class LatticeRegion(Region):
 
         return region_params
 
-@registers.region.register
+
 class SurfaceLatticeRegion(LatticeRegion):
 
     def __init__(self, origin: List[float], cell: List[float], *args, **kwargs):
@@ -598,7 +596,7 @@ class SurfaceLatticeRegion(LatticeRegion):
 
         return region_params
     
-@registers.region.register
+
 class SurfaceRegion(Region):
 
     def __init__(self, origin: List[float], normal: List[float], thickness: float, *args, **kwargs):
