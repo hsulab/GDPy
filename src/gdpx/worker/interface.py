@@ -95,14 +95,18 @@ def convert_input_to_potter(inp):
 class ComputerVariable(Variable):
 
     def __init__(
-        self, potter, driver={}, scheduler={}, batchsize: int=1, 
-        share_wdir: bool= False, use_single: bool=False, retain_info: bool=False,
-        custom_wdirs=None, 
-        *args, **kwargs
+        self, potter, driver={}, scheduler={}, *, estimate_uncertainty: bool=True,
+        batchsize: int=1, share_wdir: bool= False, use_single: bool=False, 
+        retain_info: bool=False, custom_wdirs=None, 
     ):
         """"""
         # - save state by all nodes
         self.potter = convert_input_to_potter(potter)
+        if hasattr(self.potter, "switch_uncertainty_estimation"):
+            self.potter.switch_uncertainty_estimation(estimate_uncertainty)
+        else:
+            ...
+
         self.driver = self._load_driver(driver) 
         self.scheduler = self._load_scheduler(scheduler)
 

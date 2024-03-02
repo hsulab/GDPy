@@ -477,6 +477,8 @@ class DeepmdManager(AbstractPotentialManager):
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
 
+        enable_committee = calc_params.get("enable_committee", True)
+
         # - create specific calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
@@ -484,17 +486,6 @@ class DeepmdManager(AbstractPotentialManager):
             try:
                 #from deepmd.calculator import DP
                 from gdpx.computation.dpx import DP
-                #import logging
-                #for k, v in logging.root.manager.loggerDict.items():
-                #    if k != "GDP":
-                #        curr_logger = logging.getLogger(k)
-                #        for h in curr_logger.handlers:
-                #            if (
-                #                isinstance(h, logging.StreamHandler) and 
-                #                not isinstance(h, logging.FileHandler)
-                #            ):
-                #                curr_logger.removeHandler(h)
-
             except:
                 raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
             #if models and type_map:
@@ -506,13 +497,22 @@ class DeepmdManager(AbstractPotentialManager):
             if len(calcs) == 1:
                 calc = calcs[0]
             elif len(calcs) > 1:
-                calc = CommitteeCalculator(calcs=calcs)
+                if enable_committee:
+                    calc = CommitteeCalculator(calcs=calcs)
+                else:
+                    calc = calcs[0]
             else:
                 ...
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
             if models:
-                pair_style = "deepmd {}".format(" ".join(models))
+                if len(models) == 1:
+                    pair_style = "deepmd {}".format(" ".join(models))
+                else:
+                    if enable_committee:
+                        pair_style = "deepmd {}".format(" ".join(models))
+                    else:
+                        pair_style = "deepmd {}".format(models[0])
                 pair_coeff = calc_params.pop("pair_coeff", "* *")
 
                 pair_style_name = pair_style.split()[0]
@@ -535,6 +535,32 @@ class DeepmdManager(AbstractPotentialManager):
         super().register_calculator(calc_params)
         
         self.calc = self._create_calculator(self.calc_params)
+
+        return
+    
+    def switch_uncertainty_estimation(self, status: bool=True):
+        """Switch on/off the uncertainty estimation."""
+        if self.calc_backend == "ase":
+            if status:
+                ... # Leave alone
+            else:
+                if isinstance(self.calc, CommitteeCalculator):
+                    # TODO: save previous calc?
+                    self.calc = self.calc.calcs[0]
+        elif self.calc_backend == "lammps":
+            if status:
+                ...
+            else:
+                # TODO: use self.calc_params? It should be protected?
+                # pair_style deepmd m0 m1 m2 m3
+                models = self.calc.pair_style.split()[1:]
+                if len(models) > 1:
+                    self.calc.pair_style = f"deepmd {models[0]}"
+        else:
+            # TODO:
+            # Other backends cannot have uncertainty estimation,
+            # give a warning?
+            ...
 
         return
     
