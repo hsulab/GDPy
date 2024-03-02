@@ -3,7 +3,7 @@ package:
   version: 0.0.4
 
 source:
-  url: https://pypi.org/project/gdpx/gdpx-0.0.4.tar.gz
+  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.4.tar.gz
   sha256: f282e4ad26b9b5744cf0ac5ff05152a5166f98c62a1302002387b67b73f3e007
 
 build:
