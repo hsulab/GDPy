@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdpx"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
   "ase>=3.22",
   "h5py>=3.7.0",
