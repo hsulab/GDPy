@@ -9,8 +9,9 @@ from typing import List, Callable
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx import config
-from gdpx.core.node import AbstractNode
+from .. import config
+from ..core.node import AbstractNode
+from ..data.array import AtomsNDArray
 
 
 """
@@ -64,6 +65,8 @@ class StructureModifier(StructureBuilder):
             substrates = [inp_sub]
         elif isinstance(inp_sub, list): # assume this is a List of Atoms
             substrates = inp_sub
+        elif isinstance(inp_sub, AtomsNDArray):
+            substrates = inp_sub.get_marked_structures()
         else:
             if isinstance(inp_sub, str): # assume this is a path
                 substrates = read(inp_sub, ":")
@@ -80,11 +83,13 @@ class StructureModifier(StructureBuilder):
         substrates_at_run = self._load_substrates(substrates)
         if substrates_at_run is not None:
             self.substrates = substrates_at_run
+
         # TODO: ASE startgenerator mix builders and modifiers
         #assert self.substrates is not None, "Substrates are not set neither at inp nor at run."
         #self.substrates = [copy.deepcopy(s) for s in self.substrates]
 
         return
+
 
 if __name__ == "__main__":
     ...
