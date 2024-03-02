@@ -547,6 +547,7 @@ class DeepmdManager(AbstractPotentialManager):
                 if isinstance(self.calc, CommitteeCalculator):
                     # TODO: save previous calc?
                     self.calc = self.calc.calcs[0]
+                    self.calc_params["enable_committee"] = False
         elif self.calc_backend == "lammps":
             if status:
                 ...
@@ -556,6 +557,7 @@ class DeepmdManager(AbstractPotentialManager):
                 models = self.calc.pair_style.split()[1:]
                 if len(models) > 1:
                     self.calc.pair_style = f"deepmd {models[0]}"
+                    self.calc_params["enable_committee"] = False
         else:
             # TODO:
             # Other backends cannot have uncertainty estimation,
