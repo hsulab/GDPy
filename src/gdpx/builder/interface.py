@@ -5,7 +5,10 @@ import copy
 import collections
 import itertools
 import pathlib
+
 from typing import NoReturn, List, Union
+
+import omegaconf
 
 import numpy as np
 
@@ -185,6 +188,14 @@ class modify(Operation):
         self.repeat = repeat # repeat modification times for one structure
 
         return
+    
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        substrates, modifier = input_nodes
+        if isinstance(modifier, dict) or isinstance(modifier, omegaconf.dictconfig.DictConfig):
+            modifier = BuilderVariable(directory=self.directory/"modifier", **modifier)
+
+        return substrates, modifier
     
     def forward(self, substrates: List[Atoms], modifier) -> List[Atoms]:
         """Modify inputs structures.

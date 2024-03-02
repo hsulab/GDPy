@@ -8,6 +8,8 @@ import time
 
 from typing import NoReturn, Union, List, Tuple
 
+import omegaconf
+
 from ase import Atoms
 from ase.io import read, write
 
@@ -21,6 +23,7 @@ from ..worker.drive import (
     DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
 )
 from ..utils.command import CustomTimer
+from ..worker.interface import ComputerVariable
 
 
 # --- variable ---
@@ -178,6 +181,14 @@ class compute(Operation):
         self.merge_workers = merge_workers
 
         return
+
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        builder, worker = input_nodes
+        if isinstance(worker, dict) or isinstance(worker, omegaconf.dictconfig.DictConfig):
+            worker = ComputerVariable(**worker)
+
+        return builder, worker
     
     def forward(
             self, frames, workers: List[DriverBasedWorker]

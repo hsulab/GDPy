@@ -118,7 +118,7 @@ class validate(Operation):
         # - create a worker
         if workers is not None:
             nworkers = len(workers)
-            assert nworkers == 1, "Validator only accepts one worker."
+            assert nworkers == 1, f"Validator only accepts one worker but {nworkers} were given."
             worker = workers[0]
             worker.directory = self.directory
         else:
