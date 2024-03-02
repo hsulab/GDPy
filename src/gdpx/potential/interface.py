@@ -91,7 +91,7 @@ class train(Operation):
 
         self.size = size # number of models
         if init_models is not None:
-            self.init_models = init_models
+            self.init_models = [str(pathlib.Path(p).absolute()) for p in init_models]
         else:
             self.init_models = [None]*self.size
         assert len(self.init_models) == self.size, f"The number of init models {self.init_models} is inconsistent with size {self.size}."
