@@ -3,6 +3,7 @@
 
 import copy
 
+from .. import config
 from ..register import registers
 from ..operation import Operation
 
@@ -34,6 +35,8 @@ def create_variable(node_name, node_params_: dict):
     #if random_seed is not None:
     #    rng = np.random.default_rng(random_seed)
     #    node_params.update(rng=rng)
+    config._debug(node_name)
+    config._debug(node_params)
 
     # -- 
     node = None
@@ -55,6 +58,8 @@ def create_operation(op_name, op_params_: dict):
     #if random_seed is not None:
     #    rng = np.random.default_rng(random_seed)
     #    op_params.update(rng=rng)
+    config._debug(op_name)
+    config._debug(op_params)
 
     # --
     op_cls = registers.get("operation", op_type, convert_name=False)
