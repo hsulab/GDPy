@@ -8,48 +8,9 @@ import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
-from ase.neighborlist import NeighborList, natural_cutoffs
-from ase.ga.utilities import closest_distances_generator
 
 from .builder import StructureModifier 
-
-
-def check_overlap_neighbour(
-    atoms: Atoms, covalent_ratio
-):
-    """ use neighbour list to check newly added atom is neither too close or too
-        far from other atoms
-    """
-    atomic_numbers = atoms.get_atomic_numbers()
-    cell = atoms.get_cell(complete=True)
-    natoms = len(atoms)
-
-    cov_min, cov_max = covalent_ratio
-    dmin_dict = closest_distances_generator(set(atomic_numbers), cov_min)
-    nl = NeighborList(
-        cov_max*np.array(natural_cutoffs(atoms)), 
-        skin=0.0, self_interaction=False, bothways=True
-    )
-    nl.update(atoms)
-
-    is_valid = True
-    for i in range(natoms):
-        nei_indices, nei_offsets = nl.get_neighbors(i)
-        if len(nei_indices) > 0:
-            for j, offset in zip(nei_indices, nei_offsets):
-                distance = np.linalg.norm(
-                    atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell))
-                )
-                atomic_pair = (atomic_numbers[i], atomic_numbers[j])
-                if distance < dmin_dict[atomic_pair]:
-                    is_valid = False
-                    break
-        else:
-            # Find isolated atom which is not allowed...
-            is_valid = False
-            break
-
-    return is_valid
+from .utils import check_overlap_neighbour
 
 
 class PerturbatorBuilder(StructureModifier):
