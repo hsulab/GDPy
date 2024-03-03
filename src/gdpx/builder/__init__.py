@@ -10,10 +10,6 @@ from ..core.register import registers
 from .direct import DirectBuilder, ReadBuilder
 from .species import MoleculeBuilder
 from .dimer import DimerBuilder
-from .perturbator import PerturbatorBuilder
-from .packer import PackerBuilder
-from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
-from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 
 
 # - regions
@@ -37,11 +33,22 @@ registers.builder.register("direct")(DirectBuilder)
 registers.builder.register("reader")(ReadBuilder)
 registers.builder.register("dimer")(DimerBuilder)
 registers.builder.register("molecule")(MoleculeBuilder)
+
+from .perturbator import PerturbatorBuilder
 registers.builder.register("perturb")(PerturbatorBuilder)
+
+from .packer import PackerBuilder
 registers.builder.register("pack")(PackerBuilder)
+
+from .insert import InsertModifier
+registers.builder.register("insert")(InsertModifier)
+
+from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
 registers.builder.register("graph_insert")(GraphInsertModifier)
 registers.builder.register("graph_remove")(GraphRemoveModifier)
 registers.builder.register("graph_exchange")(GraphExchangeModifier)
+
+from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 registers.builder.register("random_bulk")(BulkBuilder)
 registers.builder.register("random_cluster")(ClusterBuilder)
 registers.builder.register("random_surface")(SurfaceBuilder)
