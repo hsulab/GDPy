@@ -55,6 +55,13 @@ class Variable:
             delattr(self, "output")
 
         return
+    
+    def reset_random_seed(self, mode="init"):
+        """"""
+        if hasattr(self, "_reset_random_seed"):
+            self._reset_random_seed(mode=mode)
+
+        return
 
 
 class DummyVariable(Variable):

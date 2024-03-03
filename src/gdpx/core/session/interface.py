@@ -188,7 +188,9 @@ def run_session(config_filepath, feed_command=None, directory="./"):
                 n = k
             entry_operation = v
             session = ActiveSession(
-                steps=sconfigs.get("steps", 2), directory=directory/n
+                steps=sconfigs.get("steps", 2), 
+                reset_random_seed=sconfigs.get("reset_random_seed", ("init", 0)),
+                directory=directory/n
             )
             session.run(entry_operation, feed_dict={})
     elif exec_mode == "cyc":

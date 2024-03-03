@@ -18,6 +18,9 @@ class AbstractNode(abc.ABC):
     #: Node name.
     name: str = "node"
 
+    #: The random seed when initialising the object.
+    _init_random_seed: Union[int, dict] = None
+
     #: Working directory.
     _directory: pathlib.Path = "./"
 
@@ -30,12 +33,16 @@ class AbstractNode(abc.ABC):
     #: Default parameters.
     default_parameters: dict = dict()
 
-    def __init__(self, directory: Union[str,pathlib.Path]="./", random_seed: Union[int, dict]=None, *args, **kwargs):
+    def __init__(
+        self, directory: Union[str,pathlib.Path]="./", 
+        random_seed: Union[int, dict]=None, *args, **kwargs
+    ):
         """"""
         # - set working directory
         self.directory = directory
 
         # - set random generator
+        self._init_random_seed = random_seed
         self.set_rng(seed=random_seed)
 
         # - number of processors
@@ -48,6 +55,16 @@ class AbstractNode(abc.ABC):
                 self.parameters[k] = kwargs[k]
 
         return
+    
+    @property
+    def init_random_seed(self):
+        """The random seed at the initialisation of the object.
+
+        This cannot be changed after the object is initialised.
+        
+        """
+
+        return self._init_random_seed
 
     @property
     def directory(self) -> pathlib.Path:
