@@ -19,7 +19,8 @@ from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 # - regions
 from .region import (
     AutoRegion, CubeRegion, SphereRegion, CylinderRegion, LatticeRegion,
-    SurfaceLatticeRegion, SurfaceRegion
+    SurfaceLatticeRegion, SurfaceRegion,
+    IntersectRegion
 )
 registers.region.register(AutoRegion)
 registers.region.register(CubeRegion)
@@ -28,6 +29,7 @@ registers.region.register(CylinderRegion)
 registers.region.register(LatticeRegion)
 registers.region.register(SurfaceLatticeRegion) # BUG?
 registers.region.register(SurfaceRegion)        # BUG?
+registers.region.register(IntersectRegion)
 
 
 # - basic builders and modifiers

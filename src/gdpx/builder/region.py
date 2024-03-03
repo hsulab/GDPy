@@ -13,6 +13,8 @@ import numpy as np
 from ase import Atoms
 from ase import data
 
+from . import registers
+
 
 def get_tags_per_species(atoms: Atoms) -> Mapping[str,Mapping[int,List[int]]]:
     """Get tags per species.
@@ -88,7 +90,7 @@ class Region(abc.ABC):
         return random_positions
     
     @abc.abstractmethod
-    def _get_a_random_position(self,rng):
+    def _get_a_random_position(self, rng):
         """"""
 
         return
@@ -170,6 +172,12 @@ class Region(abc.ABC):
     #def __eq__(self, other):
     #    """"""
     #    return all(self.__dict__ == other.__dict__)
+
+    @abc.abstractmethod
+    def as_dict(self) -> dict:
+        """"""
+
+        return
 
 
 class AutoRegion(Region):
@@ -615,6 +623,72 @@ class SurfaceRegion(Region):
         #content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
 
         return content
+
+
+class IntersectRegion(Region):
+
+    #: Maximum number of attempts to get a random position.
+    MAX_ATTEMPTS: int = 1000
+
+    def __init__(self, regions, origin=np.zeros(0), *args, **kwargs):
+        """Initialise an IntersectRegion.
+
+        Args:
+            regions: A List of regions.
+            origin: Region origin should be always zero.
+        
+        """
+        super().__init__(origin, *args, **kwargs)
+
+        # NOTE: Can sub-regions be intersect ones?
+        self.regions = regions
+        assert len(self.regions), "IntersectRegion supports only twp sub-regions."
+
+        self._regions = []
+        for r in copy.deepcopy(regions):
+            shape = r.pop("method", None)
+            curr_region = registers.create(
+                "region", shape, convert_name=True, **r
+            )
+            self._regions.append(curr_region)
+
+        return
+
+    @staticmethod
+    def from_str(command: str):
+
+        raise NotImplementedError()
+    
+    def _get_a_random_position(self, rng):
+        """"""
+        for i in range(self.MAX_ATTEMPTS):
+            r1, r2 = self._regions
+            ran_pos = r1._get_a_random_position(rng)
+            if not r2._is_within_region(ran_pos):
+                break
+        else:
+            raise RuntimeError("Fail to get a random position in the IntersectRegion.")
+
+        return ran_pos
+    
+    def _is_within_region(self, position) -> bool:
+        """"""
+
+        raise NotImplementedError()
+    
+    def get_volume(self) -> float:
+        """"""
+
+        raise NotImplementedError()
+    
+    def as_dict(self):
+        """"""
+        region_params = {}
+        region_params["method"] = "intersect"
+        region_params["origin"] = self._origin.tolist()
+        region_params["regions"] = self.regions
+
+        return region_params
 
 
 if __name__ == "__main__":
