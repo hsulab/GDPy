@@ -132,7 +132,7 @@ class ComputerVariable(Variable):
             drivers = inp.value
         elif isinstance(inp, list): # assume it contains a List of dicts
             drivers = inp
-        elif isinstance(inp, dict): # assume it only contains one driver
+        elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig): # assume it only contains one driver
             driver_params = copy.deepcopy(inp)
             #driver = self.potter.create_driver(driver_params) # use external backend
             drivers = [driver_params]
