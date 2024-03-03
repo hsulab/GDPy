@@ -97,7 +97,7 @@ class ComputerVariable(Variable):
     def __init__(
         self, potter, driver={}, scheduler={}, *, estimate_uncertainty: bool=True,
         batchsize: int=1, share_wdir: bool= False, use_single: bool=False, 
-        retain_info: bool=False, custom_wdirs=None, 
+        retain_info: bool=False, custom_wdirs=None, directory=pathlib.Path.cwd()
     ):
         """"""
         # - save state by all nodes
