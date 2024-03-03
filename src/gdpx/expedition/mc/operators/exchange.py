@@ -72,7 +72,7 @@ class ExchangeOperator(AbstractOperator):
             # NOTE: np.random only has randint
             adpart_tag = rng.integers(self.MIN_RANDOM_TAG, self.MAX_RANDOM_TAG)
         adpart_tag = int(adpart_tag)
-        print("adpart tag: ", adpart_tag, type(adpart_tag))
+        self._print(f"adpart tag: {adpart_tag} {type(adpart_tag)}")
         # NOTE: ase accepts int or list as tags
         adpart.set_tags(adpart_tag)
 
@@ -142,6 +142,7 @@ class ExchangeOperator(AbstractOperator):
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
         super().run(atoms)
+        self._extra_info = "-"
 
         # -- compute acceptable volume
         if self.use_bias:
@@ -162,17 +163,20 @@ class ExchangeOperator(AbstractOperator):
             if rn_ex < 0.5:
                 self._print("...insert...")
                 self._curr_operation = "insert"
-                cur_atoms = self._insert(atoms, self.species, rng)
+                curr_atoms = self._insert(atoms, self.species, rng)
+                self._extra_info = f"Insert {self.species}"
             else:
                 self._print("...remove...")
                 self._curr_operation = "remove"
-                cur_atoms = self._remove(atoms, self.species, rng)
+                curr_atoms = self._remove(atoms, self.species, rng)
+                self._extra_info = f"Remove {self.species}"
         else:
             self._print("...insert...")
             self._curr_operation = "insert"
-            cur_atoms = self._insert(atoms, self.species, rng)
+            curr_atoms = self._insert(atoms, self.species, rng)
+            self._extra_info = f"Insert {self.species}"
 
-        return cur_atoms
+        return curr_atoms
 
     def check_overlap_neighbour(
         self, nl, new_atoms, cell, species_indices: List[int]
@@ -250,7 +254,8 @@ class ExchangeOperator(AbstractOperator):
         #)
         content += "Energy Difference %.4f [eV]\n" %ene_diff
         content += "Accept Ratio %.4f\n" %acc_ratio
-        self._print(content)
+        for x in content.split("\n"):
+            self._print(x)
 
         rn_move = rng.uniform()
         self._print(f"{self.__class__.__name__} Probability %.4f" %rn_move)
