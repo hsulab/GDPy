@@ -40,6 +40,8 @@ class StructureBuilder(AbstractNode):
     def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
         """Generate structures based on rules."""
         self._print(f"@@@{self.__class__.__name__}")
+        self._print(f"RANDOM_STATE: {self.random_seed}")
+        self._print(f"RANDOM_SEED : {self.rng.bit_generator.state}")
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 

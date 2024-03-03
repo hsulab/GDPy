@@ -50,6 +50,17 @@ class BuilderVariable(Variable):
 
         return
 
+    def _reset_random_seed(self, mode: str="init"):
+        """Rewind random state to the one at the initialisation of the object."""
+        if mode == "init":
+            self.value.set_rng(seed=self.value.init_random_seed)
+        elif mode == "zero":
+            self.value.set_rng(seed=None)
+        else:
+            raise RuntimeError(f"INCORRECT RESET RANDOM SEED MODE {mode}.")
+
+        return
+
 @registers.operation.register
 class read_stru(Operation):
 
