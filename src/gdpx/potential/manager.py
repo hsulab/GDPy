@@ -9,6 +9,7 @@ import numpy as np
 
 from ase.calculators.calculator import Calculator, all_properties, all_changes
 
+from .. import config
 from ..core.register import registers
 from ..computation import register_drivers
 
@@ -105,10 +106,19 @@ class AbstractPotentialManager(abc.ABC):
         else:
             merged_params.update(**dyn_params)
 
-        merged_params.update(ignore_convergence=dyn_params.get("ignore_convergence", False))
+        # -- add params from key besides task, init, and run
+        merged_params.update(
+            ignore_convergence=dyn_params.get("ignore_convergence", False),
+            random_seed=dyn_params.get("random_seed", None)
+        )
 
         # -- other params
         ignore_convergence = merged_params.pop("ignore_convergence", False)
+
+        # TODO: make PotentialManager a Node as well???
+        random_seed = merged_params.pop(
+            "random_seed", int(config.GRNG.integers(0, 1e8))
+        )
 
         # - create dynamics
         driver_cls = register_drivers[dynamics]
@@ -116,7 +126,7 @@ class AbstractPotentialManager(abc.ABC):
 
         driver = driver_cls(
             self.calc, merged_params, directory=self.calc.directory, 
-            ignore_convergence=ignore_convergence
+            ignore_convergence=ignore_convergence, random_seed=random_seed
         )
         driver.pot_params = self.as_dict()
         

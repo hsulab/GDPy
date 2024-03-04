@@ -142,7 +142,7 @@ class AbstractDriver(AbstractNode):
 
     def __init__(
         self, calc, params: dict, directory="./", ignore_convergence: bool=False, 
-        *args, **kwargs
+        random_seed=None, *args, **kwargs
     ):
         """Init a driver.
 
@@ -152,7 +152,9 @@ class AbstractDriver(AbstractNode):
             directory: Working directory.
 
         """
-        super().__init__(directory=directory, *args, **kwargs) # random_seed?
+        super().__init__(
+            directory=directory, random_seed=random_seed, *args, **kwargs
+        )
 
         self.calc = calc
         self.calc.reset()
@@ -442,7 +444,8 @@ class AbstractDriver(AbstractNode):
         """Return parameters of this driver."""
         params = dict(
             backend = self.name,
-            ignore_convergence = self.ignore_convergence
+            ignore_convergence = self.ignore_convergence,
+            random_seed=self.random_seed
         )
         # NOTE: we use original params otherwise internal param names would be 
         #       written out and make things confusing
