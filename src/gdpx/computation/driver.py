@@ -18,8 +18,8 @@ from ase import Atoms
 from ase.constraints import FixAtoms
 from ase.calculators.calculator import compare_atoms
 
-from gdpx import config
-from gdpx.builder.constraints import parse_constraint_info, convert_indices
+from ..builder.constraints import parse_constraint_info, convert_indices
+from ..core.node import AbstractNode
 
 #: Prefix of backup files
 BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
@@ -111,19 +111,13 @@ class DriverSetting:
         """"""
         raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
-class AbstractDriver(abc.ABC):
+class AbstractDriver(AbstractNode):
 
     #: Driver's name.
     name: str = "abstract"
 
     #: Atoms that is for state check.
     atoms: Optional[Atoms] = None
-
-    #: Standard print.
-    _print: Callable = config._print
-
-    #: Standard debug.
-    _debug: Callable = config._debug
 
     #: Whether check the dynamics is converged, and re-run if not.
     ignore_convergence: bool = False
@@ -146,7 +140,10 @@ class AbstractDriver(abc.ABC):
     #: Parameters for PotentialManager.
     pot_params: dict = None
 
-    def __init__(self, calc, params: dict, directory="./", ignore_convergence: bool=False, *args, **kwargs):
+    def __init__(
+        self, calc, params: dict, directory="./", ignore_convergence: bool=False, 
+        *args, **kwargs
+    ):
         """Init a driver.
 
         Args:
@@ -155,10 +152,10 @@ class AbstractDriver(abc.ABC):
             directory: Working directory.
 
         """
+        super().__init__(directory=directory, *args, **kwargs) # random_seed?
+
         self.calc = calc
         self.calc.reset()
-
-        self._directory = pathlib.Path(directory)
 
         self.ignore_convergence = ignore_convergence
 
@@ -180,21 +177,14 @@ class AbstractDriver(abc.ABC):
 
         return
     
-    @property
-    def directory(self):
-        """Set working directory of this driver.
-
-        Note:
-            The attached calculator's directory would be set as well.
-        
-        """
-
-        return self._directory
-    
-    @directory.setter
+    @AbstractNode.directory.setter
     def directory(self, directory_):
+        """"""
         self._directory = pathlib.Path(directory_)
-        self.calc.directory = str(self.directory) # NOTE: avoid inconsistent in ASE
+        # NOTE: directory is set before self.calc is defined...
+        #       ASE uses str path, so to avoid inconsistency here
+        if hasattr(self, "calc"):
+            self.calc.directory = str(self.directory) 
 
         return
     
