@@ -123,13 +123,28 @@ class AbstractSelector(AbstractNode):
 
         self.fname = self.name+"-info.txt"
         
-        #if "random_seed" in self.parameters:
-        #    self.set_rng(seed=self.parameters["random_seed"])
-
-        #: Number of parallel jobs for joblib.
-        self.njobs = config.NJOBS
+        # - update parameters from kwargs
+        self.parameters = copy.deepcopy(self.default_parameters)
+        for k in self.parameters:
+            if k in kwargs.keys():
+                self.parameters[k] = kwargs[k]
 
         return
+
+    def set(self, *args, **kwargs):
+        """Set parameters."""
+        for k, v in kwargs.items():
+            if k in self.parameters:
+                self.parameters[k] = v
+
+        return
+
+    def __getattr__(self, key):
+        """Corresponding getattribute-function."""
+        if key != "parameters" and key in self.parameters:
+            return self.parameters[key]
+
+        return object.__getattribute__(self, key)
 
     @AbstractNode.directory.setter
     def directory(self, directory_) -> NoReturn:
