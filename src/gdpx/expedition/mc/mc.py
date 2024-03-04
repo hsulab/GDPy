@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import logging
 import os
@@ -77,16 +78,12 @@ class MonteCarlo(AbstractExpedition):
             overwrite: Whether overwrite calculation directory.
         
         """
+        super().__init__(directory=directory, random_seed=random_seed, )
+
         self.directory = directory
         self.dump_period = dump_period
         self.ckpt_period = ckpt_period
         self.restart = restart
-
-        # - set random seed that 
-        if random_seed is None:
-            random_seed = np.random.randint(0, 10000)
-        self.random_seed = random_seed
-        self.rng = np.random.default_rng(seed=random_seed)
 
         # - check system type
         if isinstance(builder, dict):
