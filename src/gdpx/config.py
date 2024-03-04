@@ -35,6 +35,9 @@ LOGO_LINES = [
 #: Number of parallel jobs for joblib.
 NJOBS: int = 1
 
+#: Global random number generator
+GRNG = None
+
 # - find default vasp settings
 #gdpconfig = Path.home() / ".gdp"
 #if gdpconfig.exists() and gdpconfig.is_dir():

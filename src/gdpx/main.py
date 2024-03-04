@@ -10,9 +10,9 @@ import pathlib
 import numpy as np
 
 # global settings
-from gdpx import config
-from gdpx.core.register import registers, import_all_modules_for_register
-from gdpx.utils.command import parse_input_file
+from . import config
+from .core.register import registers, import_all_modules_for_register
+from .utils.command import parse_input_file
 
 
 def main():
@@ -25,6 +25,11 @@ def main():
     parser = argparse.ArgumentParser(
         prog="gdp", 
         description=description
+    )
+
+    parser.add_argument(
+        "-rs", "--random_seed", default=None, type=int,
+        help="global random seed"
     )
 
     parser.add_argument(
@@ -205,6 +210,20 @@ def main():
     config.NJOBS = args.n_jobs
     if config.NJOBS != 1:
         config._print(f"Use {config.NJOBS} processors.")
+    
+    # -- set rng
+    # TODO: load random state from a file???
+    random_seed = args.random_seed
+    if random_seed is None:
+        # NOTE: np.random should only be called here once...
+        random_seed = np.random.randint(0, 1e8)
+    else:
+        ...
+
+    config.GRNG = np.random.Generator(np.random.PCG64(random_seed))
+
+    config._print(f"GLOBAL RANDOM SEED : {random_seed}")
+    config._print(f"GLOBAL RANDOM STATE: {config.GRNG.bit_generator.state}")
 
     # - potential
     potter = None
@@ -246,18 +265,9 @@ def main():
     else:
         ...
     
-    #print("root")
-    #print(logging.root.handlers)
-    #for k, v in logging.root.manager.loggerDict.items():
-    #    print(k)
-    #    curr_logger = logging.getLogger(k)
-    #    for h in curr_logger.handlers:
-    #        #if (
-    #        #    isinstance(h, logging.StreamHandler) and 
-    #        #    not isinstance(h, logging.FileHandler)
-    #        #):
-    #        #    curr_logger.removeHandler(h)
-    #        print(h)
+    # - report the end random state
+    config._print(f"GLOBAL RANDOM SEED : {random_seed}")
+    config._print(f"GLOBAL RANDOM STATE: {config.GRNG.bit_generator.state}")
 
     return
 

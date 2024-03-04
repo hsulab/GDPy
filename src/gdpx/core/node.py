@@ -8,7 +8,7 @@ from typing import NoReturn, Union, Callable
 
 import numpy as np
 
-from gdpx import config
+from . import config
 
 """Every working component is represented by a node.
 """
@@ -88,13 +88,13 @@ class AbstractNode(abc.ABC):
         """"""
         # - save random seed
         if seed is None:
-            seed = np.random.randint(0, 1e8)
+            seed = int(config.GRNG.integers(0, 1e8))
         self.random_seed = seed
 
         # - assign random seeds
-        if isinstance(seed, int):
+        if isinstance(seed, int): # TODO: numpy int?
             self.rng = np.random.Generator(np.random.PCG64(seed))
-        elif isinstance(seed, dict):
+        elif isinstance(seed, dict): # TODO: omegaconf dict?
             self.rng = np.random.Generator(np.random.PCG64())
             self.rng.bit_generator.state = seed
         else:
