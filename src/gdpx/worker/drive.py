@@ -512,7 +512,7 @@ class DriverBasedWorker(AbstractWorker):
                 # - archive results if it has not been done
                 if use_archive and not archive_path.exists():
                     self._print("archive computation folders...")
-                    with tarfile.open(archive_path, "w:gz") as tar:
+                    with tarfile.open(archive_path, "w:gz", compresslevel=6) as tar:
                         for w in unretrieved_wdirs:
                             tar.add(w, arcname=w.name)
                     for w in unretrieved_wdirs:
