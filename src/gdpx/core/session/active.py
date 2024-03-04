@@ -23,7 +23,8 @@ class ActiveSession():
     _debug: Callable = config._debug
 
     def __init__(
-        self, steps: int=2, reset_random_seed: Tuple[str, int]=("init", 0), 
+        self, steps: int=2, reset_random_state: bool=False, 
+        reset_random_config: Tuple[str, int]=("init", 0), 
         directory="./"
     ) -> None:
         """Initialise an ActiveSession.
@@ -35,9 +36,11 @@ class ActiveSession():
         """
         self.steps = steps
 
-        assert reset_random_seed[0] in ["init", "zero"], "Reset random seed mode must either be init or zero."
-        self.reset_random_seed_mode = reset_random_seed[0]
-        self.reset_random_seed_step = reset_random_seed[1]
+        # - random-related ...
+        self.reset_random_state = reset_random_state
+        assert reset_random_config[0] in ["init", "zero"], "Reset random seed mode must either be init or zero."
+        self.reset_random_seed_mode = reset_random_config[0]
+        self.reset_random_seed_step = reset_random_config[1]
 
         self.directory = pathlib.Path(directory)
 
@@ -50,9 +53,10 @@ class ActiveSession():
         #for node in nodes_postorder:
         #    if hasattr(node, "enable_active"):
         #        node.enable_active()
-        self._print(
-            f"RESET RANDOM SEED - MODE: {self.reset_random_seed_mode} STEP: {self.reset_random_seed_step}"
-        )
+        if self.reset_random_state:
+            self._print(
+                f"RESET RANDOM SEED - MODE: {self.reset_random_seed_mode} STEP: {self.reset_random_seed_step}"
+            )
 
         # -
         for curr_step in range(self.steps):
@@ -60,7 +64,7 @@ class ActiveSession():
             # -- run operation
             nodes_postorder = traverse_postorder(operation)
             # NOTE:
-            if curr_step >= self.reset_random_seed_step:
+            if self.reset_random_state and curr_step >= self.reset_random_seed_step:
                 for node in nodes_postorder:
                     if hasattr(node, "reset_random_seed"):
                         self._print(f"reset {node.directory.name}'s random seeds.")

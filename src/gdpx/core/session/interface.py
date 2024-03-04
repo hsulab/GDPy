@@ -189,7 +189,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
             entry_operation = v
             session = ActiveSession(
                 steps=sconfigs.get("steps", 2), 
-                reset_random_seed=sconfigs.get("reset_random_seed", ("init", 0)),
+                reset_random_state=sconfigs.get("reset_random_state", False),
+                reset_random_config=sconfigs.get("reset_random_config", ("init", 0)),
                 directory=directory/n
             )
             session.run(entry_operation, feed_dict={})
