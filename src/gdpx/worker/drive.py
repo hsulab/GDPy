@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import uuid
 import pathlib
@@ -21,14 +22,15 @@ from joblib import Parallel, delayed
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx import config
-from gdpx.potential.manager import AbstractPotentialManager
-from gdpx.computation.driver import AbstractDriver
-from gdpx.worker.worker import AbstractWorker
-from gdpx.builder.builder import StructureBuilder
+from .. import config
+from ..builder.builder import StructureBuilder
+from ..computation.driver import AbstractDriver
+from ..potential.manager import AbstractPotentialManager
+from ..utils.command import CustomTimer
 
-from gdpx.utils.command import CustomTimer
+from .worker import AbstractWorker
 from .utils import copy_minimal_frames, get_file_md5
+
 
 """Monitor computation tasks with Worker.
 
@@ -183,7 +185,15 @@ class DriverBasedWorker(AbstractWorker):
 
             with open(tmp.name, "rb") as fopen:
                 curr_md5 = get_file_md5(fopen)
+        
+        # - generate random_seeds
+        #   NOTE: no matter the job status is, they are generated to sync GRNG
+        #   TODO: worker should also have a proper RNG instead of GRNG?
+        random_seeds = config.GRNG.integers(0, 1e8, size=len(curr_frames))
+        random_seeds = [int(x) for x in random_seeds] # We need List[int]!!
+        #self._print(f"Worker random_seeds: {random_seeds}")
 
+        # - check info data
         _info_data = self._read_cached_info()
 
         stored_fname = f"{curr_md5}.xyz"
@@ -195,6 +205,7 @@ class DriverBasedWorker(AbstractWorker):
                 if x[1] == curr_md5:
                     break
                 start_confid += 1
+            random_seeds = [int(x[-1]) for x in _info_data]
         else:
             if self._retain_info:
                 info_keys = []
@@ -214,18 +225,22 @@ class DriverBasedWorker(AbstractWorker):
             )
             # - save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
-            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}\n".format("#id", "MD5", "confid", "step", "wdir")
-            for i, (confid, step, wdir) in enumerate(curr_info):
-                line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}\n".format(i+start_confid, curr_md5, confid, step, wdir)
+            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}  {:>24s}\n".format(
+                "#id", "MD5", "confid", "step", "wdir", "rs"
+            )
+            for i, ((confid, step, wdir), rs) in enumerate(zip(curr_info, random_seeds)):
+                line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}  {:>24d}\n".format(
+                    i+start_confid, curr_md5, confid, step, wdir, rs
+                )
                 content += line
                 _info_data.append(line.strip().split())
             self._info_data = _info_data
             with open(processed_dpath/f"{curr_md5}_info.txt", "w") as fopen:
                 fopen.write(content)
 
-        return curr_md5, curr_frames, start_confid
+        return curr_md5, curr_frames, start_confid, random_seeds
     
-    def _prepare_batches(self, frames: List[Atoms], start_confid: int):
+    def _prepare_batches(self, frames: List[Atoms], start_confid: int, random_seeds: List[int]):
         # - check wdir
         nframes = len(frames)
         # NOTE: get a list even if it only has one structure
@@ -257,13 +272,14 @@ class DriverBasedWorker(AbstractWorker):
             # NOTE: get a list even if it only has one structure
             cur_frames = [frames[x] for x in global_indices]
             cur_wdirs = [wdirs[x] for x in global_indices]
+            curr_rs = [random_seeds[x] for x in global_indices]
             for x in cur_frames:
                 x.info["group"] = i
             # - check whether each structure has a unique wdir
             assert len(set(cur_wdirs)) == len(cur_frames), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(cur_frames)} for group {i}..."
 
             # - set specific params
-            batches.append([global_indices, cur_wdirs])
+            batches.append([global_indices, cur_wdirs, curr_rs])
 
         return batches
     
@@ -273,8 +289,8 @@ class DriverBasedWorker(AbstractWorker):
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, frames, start_confid = self._preprocess(builder)
-        batches = self._prepare_batches(frames, start_confid)
+        identifier, frames, start_confid, random_seeds = self._preprocess(builder)
+        batches = self._prepare_batches(frames, start_confid, random_seeds)
 
         # - read metadata from file or database
         with TinyDB(
@@ -284,7 +300,7 @@ class DriverBasedWorker(AbstractWorker):
         queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
         queued_frames = [q["md5"] for q in queued_jobs]
 
-        for ig, (global_indices, wdirs) in enumerate(batches):
+        for ig, (global_indices, wdirs, rs) in enumerate(batches):
             # - set job name
             batch_name = f"group-{ig}"
             uid = str(uuid.uuid1())
@@ -329,7 +345,7 @@ class DriverBasedWorker(AbstractWorker):
             self._irun(
                 batch_name, uid, identifier, 
                 frames, global_indices, wdirs, 
-                *args, **kwargs
+                random_seeds=rs, *args, **kwargs
             )
 
             # - save this batch job to the database
@@ -632,7 +648,11 @@ class DriverBasedWorker(AbstractWorker):
 
 class QueueDriverBasedWorker(DriverBasedWorker):
 
-    def _irun(self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], *args, **kwargs) -> NoReturn:
+    def _irun(
+        self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], 
+        curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], 
+        random_seeds: List[int], *args, **kwargs
+    ) -> None:
         """"""
         batch_number = int(batch_name.split("-")[-1])
 
@@ -673,7 +693,11 @@ class QueueDriverBasedWorker(DriverBasedWorker):
 class CommandDriverBasedWorker(DriverBasedWorker):
 
 
-    def _irun(self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], *args, **kwargs) -> NoReturn:
+    def _irun(
+        self, batch_name: str, uid: str, identifier: str, frames: List[Atoms], 
+        curr_indices: List[int], curr_wdirs: List[Union[str,pathlib.Path]], 
+        random_seeds: List[int], *args, **kwargs
+    ) -> None:
         """Run calculations directly in the command line.
 
         Local execution supports a compact mode as structures will reuse the 
@@ -688,9 +712,9 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         # - run calculations
         with CustomTimer(name="run-driver", func=self._print):
             if not self._share_wdir:
-                for wdir, atoms in zip(curr_wdirs,curr_frames):
+                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, random_seeds):
                     self.driver.directory = self.directory/wdir
-                    #job_name = uid+str(wdir)
+                    self.driver.set_rng(seed=rs)
                     self._print(
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                     )
@@ -704,12 +728,13 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                 else:
                     cache_wdirs = []
                 temp_wdir = self.directory/"_shared"
-                for wdir, atoms in zip(curr_wdirs,curr_frames):
+                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, random_seeds):
                     if wdir in cache_wdirs:
                         continue
                     if temp_wdir.exists():
                         shutil.rmtree(temp_wdir)
                     self.driver.directory = temp_wdir
+                    self.driver.set_rng(seed=rs)
                     self._print(
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                     )
