@@ -157,6 +157,7 @@ class AseDriverSetting(DriverSetting):
                         friction_seed = np.random.randint(0, 100000000)
                     thermostat_params = dict(
                         friction = self.friction/units.fs,
+                        # TODO: use driver's seed instead!
                         rng = np.random.default_rng(seed=friction_seed)
                     )
                 elif thermostat == "nose_hoover":   
@@ -269,7 +270,7 @@ class AseDriver(AbstractDriver):
 
         return 
     
-    def _create_dynamics(self, atoms, *args, **kwargs) -> Tuple[Dynamics,dict]:
+    def _create_dynamics(self, atoms, *args, **kwargs) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
         Respect `steps` and `fmax` as restart.
@@ -308,9 +309,9 @@ class AseDriver(AbstractDriver):
         elif self.setting.task == "md":
             # - adjust params
             init_params_ = copy.deepcopy(self.setting.get_init_params())
-            velocity_seed = init_params_.pop("velocity_seed", np.random.randint(0, 10000))
-            #self.setting._internals["velocity_seed"] = velocity_seed
-            rng = np.random.default_rng(velocity_seed)
+            # NOTE: every dynamics will have a new rng...
+            self._print(f"MD Driver's random_seed: {self.random_seed}")
+            rng = np.random.default_rng(self.random_seed)
 
             # - velocity
             if (not init_params_["ignore_atoms_velocities"] and atoms.get_kinetic_energy() > 0.):
@@ -390,6 +391,7 @@ class AseDriver(AbstractDriver):
             prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
             if ckpt_wdir is None: # start from the scratch
                 curr_params = {}
+                curr_params["random_seed"] = self.random_seed
                 curr_params["init"] = self.setting.get_init_params()
                 if self.setting.task == "md": # check rng for MD simulations...
                     if "rng" in curr_params["init"]["thermostat_params"]: # langevin...
@@ -400,7 +402,7 @@ class AseDriver(AbstractDriver):
                 curr_params["run"] = self.setting.get_run_params()
                 import yaml
                 with open(self.directory/"params.yaml", "w") as fopen:
-                    yaml.safe_dump(curr_params, fopen, indent=4)
+                    yaml.safe_dump(curr_params, fopen, indent=2)
             else: # restart ...
                 traj = self.read_trajectory()
                 nframes = len(traj)
