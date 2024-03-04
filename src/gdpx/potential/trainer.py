@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import abc
 import copy
 import os
@@ -8,9 +9,7 @@ import pathlib
 import subprocess
 from typing import Union, Callable, List
 
-import numpy as np
-
-from .. import config
+from ..core.node import AbstractNode
 
 class TrainingFailed(RuntimeError):
 
@@ -24,7 +23,7 @@ class FreezingFailed(RuntimeError):
 
     ...
 
-class AbstractTrainer(abc.ABC):
+class AbstractTrainer(AbstractNode):
 
     #: Name of this trainer.
     name: str = "trainer"
@@ -41,21 +40,13 @@ class AbstractTrainer(abc.ABC):
     #: Prefix of input file.
     prefix: str = "config"
 
-    #: Default output function.
-    _print: Callable = config._print
-
-    #: Default debug function.
-    _debug: Callable = config._debug
-
-    #: Working directory.
-    _directory: Union[str,pathlib.Path] = "./"
-
     def __init__(
         self, config: dict, type_list: List[str]=None, train_epochs: int=200,
-        directory=".", command="train", freeze_command="freeze", random_seed: int=None, 
-        *args, **kwargs
+        directory=".", command="train", freeze_command="freeze", 
+        random_seed: Union[int, dict]=None, *args, **kwargs
     ) -> None:
         """"""
+        super().__init__(directory=directory, random_seed=random_seed)
         self.command = command
         if freeze_command is None:
             self.freeze_command = self.command
@@ -68,11 +59,6 @@ class AbstractTrainer(abc.ABC):
         # - TODO: sync type_list
 
         self.train_epochs = train_epochs
-
-        if random_seed is None:
-            random_seed = np.random.randint(0, 10000)
-        self.random_seed = random_seed
-        self.rng = np.random.default_rng(seed=random_seed)
 
         return
     
@@ -202,7 +188,9 @@ class AbstractTrainer(abc.ABC):
         trainer_params["command"] = self.command
         trainer_params["freeze_command"] = self.freeze_command
         trainer_params["train_epochs"] = self.train_epochs
-        trainer_params["random_seed"] = self.random_seed
+
+        # NOTE: self.random_seed may be changed thus we save the init one
+        trainer_params["random_seed"] = self.init_random_seed
 
         trainer_params = copy.deepcopy(trainer_params)
 
