@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 import copy
 import pathlib
@@ -9,21 +10,11 @@ from . import config
 from . import registers
 from . import ComputerVariable, DriverBasedWorker
 
-class AbstractExpedition(abc.ABC):
+from ..core.node import AbstractNode
 
-    _print = config._print
-    _debug = config._debug
 
-    @property
-    def directory(self):
+class AbstractExpedition(AbstractNode):
 
-        return self._directory
-
-    @directory.setter
-    def directory(self, directory_):
-        self._directory = pathlib.Path(directory_)
-
-        return
 
     @abc.abstractmethod
     def read_convergence(self):
