@@ -5,9 +5,12 @@ import copy
 import itertools
 import pathlib
 import time
-from typing import List, NoReturn, Tuple, Union
+from typing import Optional, List, Tuple, Union
 
 import omegaconf
+
+import numpy as np
+
 from ase import Atoms
 from ase.io import read, write
 
@@ -17,8 +20,11 @@ from ..core.register import registers
 from ..core.variable import Variable
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
-from ..worker.drive import (CommandDriverBasedWorker, DriverBasedWorker,
-                            QueueDriverBasedWorker)
+from ..worker.drive import (
+    CommandDriverBasedWorker,
+    DriverBasedWorker,
+    QueueDriverBasedWorker,
+)
 from ..worker.interface import ComputerVariable
 
 # --- variable ---
@@ -84,10 +90,9 @@ def extract_results_from_workers(
     *,
     safe_inspect: bool = True,
     use_archive: bool = True,
-    merge_workers: bool = False,
     print_func=print,
     debug_func=print,
-) -> Tuple[str, List[AtomsNDArray]]:
+) -> Tuple[str, AtomsNDArray]:
     """"""
     _print = print_func
     _debug = debug_func
@@ -132,20 +137,112 @@ def extract_results_from_workers(
 
         worker_status[i] = True
 
+    trajectories = AtomsNDArray(trajectories)
+
     status = "unfinished"
     if all(worker_status):
-        if nworkers == 1:
-            trajectories = trajectories[0]
-
-        if merge_workers:
-            trajectories = list(itertools.chain(*trajectories))
-        trajectories = AtomsNDArray(trajectories)
-        _print(f"extracted_results: {trajectories}")
         status = "finished"
     else:
         ...
 
     return status, trajectories
+
+
+def convert_results_to_structures(
+    structures: List[Atoms],
+    inp_shape,
+    inp_markers,
+    *,
+    reduce_single_worker: bool = True,
+    merge_workers: bool = False,
+    _print_func=print,
+    _debug_func=print,
+):
+    """Convert `compute` resulst into structures with a proper shape."""
+    # -
+    _print = _print_func
+    _debug = _debug_func
+
+    # data = []
+    # curr_index = np.zeros(shape.shape).flatten().tolist()
+    # def get_structures(data, curr_index, data_, marks, shape):
+    #    """"""
+    #    dimension = len(shape)
+    #    if dimension > 1:
+    #        inv_axes = list(range(dimension))
+    #        inv_axes.reverse()
+    #        for axis in inv_axes:
+    #            #p, s = (shape[:-1], shape[-1])
+    #            s = shape[axis]
+    #            curr_data = []
+    #            for k in range(s):
+    #                if tuple(curr_index) in marks:
+    #                    curr_data.append(
+    #                        data_[marks.index(tuple(curr_index))]
+    #                    )
+    #                else:
+    #                    curr_data.append(None)
+    #                curr_index[axis] += 1
+    #            return
+    #    else:
+    #        return data
+
+    # TODO: Convert to correct input data shape for spc workers...
+    #       Optimise the codes here?
+    _print(f"input structures: {structures}")
+    if inp_shape is not None and inp_markers is not None:
+        converted_structures = []
+        for curr_structures in structures:  # shape (nworkers, ncandidates, 1) 
+            curr_structures = list(itertools.chain(*curr_structures))
+            curr_converted_structures = []
+            inp_shape_ = np.max(inp_markers, axis=0) + 1
+            assert np.allclose(
+                inp_shape_, inp_shape
+            ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
+            _print(f"{inp_shape_}")
+            _print(f"{inp_markers}")
+            # - get a full list of indices and fill None to a flatten Atoms List
+            full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
+            _print(f"{full_list}")
+            for iloc in full_list:
+                if iloc in inp_markers:
+                    curr_converted_structures.append(
+                        curr_structures[inp_markers.index(iloc)]
+                    )
+                else:
+                    curr_converted_structures.append(None)
+            _print(f"{curr_converted_structures}")
+            # - reshape
+            for s in inp_shape_[:0:-1]:
+                npoints = len(curr_converted_structures)
+                repeats = int(npoints / s)
+                reshaped_converted_structures = [
+                    [curr_converted_structures[i] for i in range(r * s, (r + 1) * s)]
+                    for r in range(repeats)
+                ]
+                curr_converted_structures = reshaped_converted_structures
+                ...
+            converted_structures.append(curr_converted_structures)
+        converted_structures = AtomsNDArray(converted_structures)
+        _print(f"markers: {converted_structures.markers}")
+        # curr_index = np.zeros(inp_shape_.shape).flatten().tolist()
+        # _print(f"curr_index: {curr_index}")
+        # converted_structures = []
+        # for x in trajectories:
+        #    s = AtomsNDArray()
+    else:  # No data available to convert structures
+        converted_structures = structures
+
+    # --- further convert
+    if reduce_single_worker:  #  nworkers == 1
+        converted_structures = converted_structures[0]
+
+    if merge_workers: # squeeze the dimension one...
+        converted_structures = list(itertools.chain(*converted_structures))
+    converted_structures = AtomsNDArray(converted_structures)
+    _print(f"extracted_results: {converted_structures}")
+
+    return converted_structures
 
 
 @registers.operation.register
@@ -156,13 +253,14 @@ class compute(Operation):
         self,
         builder: Variable,
         worker: Variable,
-        batchsize: int = None,
+        batchsize: Optional[int] = None,
         share_wdir: bool = False,
         retain_info: bool = False,
         extract_data: bool = True,
         use_archive: bool = True,
         merge_workers: bool = False,
-        directory="./",
+        reduce_single_worker: bool = True,
+        directory: Union[str, pathlib.Path] = "./",
     ):
         """Initialise a compute operation.
 
@@ -186,6 +284,7 @@ class compute(Operation):
         self.extract_data = extract_data
         self.use_archive = use_archive
         self.merge_workers = merge_workers
+        self.reduce_single_worker = reduce_single_worker
 
         return
 
@@ -200,7 +299,9 @@ class compute(Operation):
         return builder, worker
 
     def forward(
-        self, frames, workers: List[DriverBasedWorker]
+        self,
+        structures: Union[List[Atoms], AtomsNDArray],
+        workers: List[DriverBasedWorker],
     ) -> Union[List[DriverBasedWorker], List[AtomsNDArray]]:
         """Run simulations with given structures and workers.
 
@@ -215,13 +316,33 @@ class compute(Operation):
         """
         super().forward()
 
-        inp_shape, inp_markes = None, None
-        if isinstance(frames, AtomsNDArray):
-            frames = frames.get_marked_structures()
-            # TODO: save shape of array!!
+        nworkers = len(workers)
 
-        # - basic input candidates
-        nframes = len(frames)
+        # TODO: It is better to move this part to driver...
+        #       We only convert spc worker structures shape here...
+        if nworkers == 1 and workers[0].driver.as_dict().get("task", "min") == "min": # TODO: spc?
+            # - check input data type
+            inp_shape, inp_markers = None, None
+            if isinstance(structures, AtomsNDArray):
+                frames = structures.get_marked_structures()
+                nframes = len(frames)
+                inp_shape = structures.shape
+                inp_markers = [tuple(iloc.tolist()) for iloc in structures.markers]
+            else:  # assume it is just a List of Atoms
+                frames = structures
+                nframes = len(frames)
+                inp_shape = (1, nframes)
+                inp_markers = [(0, i) for i in range(nframes)]
+        else:
+            inp_shape, inp_markers = None, None
+
+        # -- Dump shape data
+        # NOTE: Since all workers use the same input structures,
+        #       we only need to dump once here
+        shape_dir = self.directory / "_shape"
+        shape_dir.mkdir(parents=True, exist_ok=True)
+        np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32))
+        np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32))
 
         # - create workers
         for i, worker in enumerate(workers):
@@ -267,17 +388,30 @@ class compute(Operation):
         if all(worker_status):
             if self.extract_data:
                 self._print("--- extract results ---")
-                status, trajectories = extract_results_from_workers(
+                status, computed_structures = extract_results_from_workers(
                     self.directory / "extracted",
                     workers,
                     safe_inspect=False,
                     use_archive=self.use_archive,
-                    merge_workers=self.merge_workers,
                     print_func=self._print,
                     debug_func=self._debug,
                 )
                 self.status = status
-                output = trajectories
+                if self.status:
+                    num_workers = len(workers)
+                    reduce_single_worker = self.reduce_single_worker
+                    if num_workers != 1:
+                        reduce_single_worker = False
+                    computed_structures = convert_results_to_structures(
+                        computed_structures,
+                        inp_shape,
+                        inp_markers,
+                        reduce_single_worker=reduce_single_worker,
+                        merge_workers=self.merge_workers,
+                    )
+                    output = computed_structures
+                else:
+                    ...
             else:
                 self.status = "finished"
         else:
@@ -353,7 +487,8 @@ class extract(Operation):
     def __init__(
         self,
         compute,
-        merge_workers=False,
+        merge_workers: bool = False,
+        reduce_single_worker: bool = True,
         use_archive: bool = True,
         directory="./",
         *args,
@@ -370,6 +505,8 @@ class extract(Operation):
         super().__init__(input_nodes=[compute], directory=directory)
 
         self.merge_workers = merge_workers
+        self.reduce_single_worker = reduce_single_worker
+
         self.use_archive = use_archive
 
         return
@@ -387,17 +524,39 @@ class extract(Operation):
 
         self.workers = workers  # for operations to access
 
-        status, trajectories = extract_results_from_workers(
+        # - load previous structures' shape
+        shape_dir = self.input_nodes[0].directory / "shape"
+        if shape_dir.exists():
+            inp_shape = np.loadtxt(compute_wdir / "shape.dat", dtype=int)
+            inp_markers = np.loadtxt(compute_wdir / "markers.dat", dtype=int)
+        else:
+            inp_shape = None
+            inp_markers = None
+
+        # - extract results
+        status, computed_structures = extract_results_from_workers(
             self.directory,
             workers,
             use_archive=self.use_archive,
-            merge_workers=self.merge_workers,
             print_func=self._print,
             debug_func=self._debug,
         )
+        if status:
+            num_workers = len(workers)
+            reduce_single_worker = self.reduce_single_worker
+            if num_workers != 1:
+                reduce_single_worker = False
+            computed_structures = convert_results_to_structures(
+                computed_structures,
+                inp_shape,
+                inp_markers,
+                reduce_single_worker=reduce_single_worker,
+                merge_workers=self.merge_workers,
+            )
+
         self.status = status
 
-        return trajectories
+        return computed_structures
 
 
 if __name__ == "__main__":
