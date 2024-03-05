@@ -3,21 +3,21 @@
 
 import abc
 import pathlib
-from typing import NoReturn, Union, Callable
+from typing import Union, Callable
 
 from .. import config
 
-class Operation(abc.ABC):
 
+class Operation(abc.ABC):
     """"""
 
     identifier: str = "op"
 
     #: Working directory for the operation.
-    _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
+    _directory: Union[str, pathlib.Path] = pathlib.Path.cwd()
 
     #: Whether re-compute this operation
-    status: str = "unfinished" # ["unfinished", "ready", "wait", "finished"]
+    status: str = "unfinished"  # ["unfinished", "ready", "wait", "finished"]
 
     #: Standard print function.
     _print: Callable = config._print
@@ -25,7 +25,7 @@ class Operation(abc.ABC):
     #: Standard debug function.
     _debug: Callable = config._debug
 
-    def __init__(self, input_nodes=[], directory="./") -> None:
+    def __init__(self, input_nodes=[], directory: str | pathlib.Path = "./") -> None:
         """"""
         if hasattr(self, "_preprocess_input_nodes"):
             self.input_nodes = self._preprocess_input_nodes(input_nodes)
@@ -34,7 +34,7 @@ class Operation(abc.ABC):
 
         self.directory = directory
 
-        # Initialize list of consumers 
+        # Initialize list of consumers
         # (i.e. nodes that receive this operation's output as input)
         self.consumers = []
 
@@ -45,13 +45,13 @@ class Operation(abc.ABC):
         return
 
     @property
-    def directory(self):
+    def directory(self) -> pathlib.Path:
         """"""
 
         return self._directory
-    
+
     @directory.setter
-    def directory(self, directory_) -> NoReturn:
+    def directory(self, directory_) -> None:
         """"""
         self._directory = pathlib.Path(directory_)
 
@@ -61,10 +61,10 @@ class Operation(abc.ABC):
         """Reset node's output and status."""
         if hasattr(self, "output"):
             delattr(self, "output")
-            self.status = "unfinished" 
+            self.status = "unfinished"
 
         return
-    
+
     def is_ready_to_forward(self) -> bool:
         """Check whether this operation is ready to forward."""
         # - check input nodes' status
