@@ -333,16 +333,18 @@ class compute(Operation):
                 nframes = len(frames)
                 inp_shape = (1, nframes)
                 inp_markers = [(0, i) for i in range(nframes)]
+            # -- Dump shape data
+            # NOTE: Since all workers use the same input structures,
+            #       we only need to dump once here
+            shape_dir = self.directory / "_shape"
+            shape_dir.mkdir(parents=True, exist_ok=True)
+            np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32))
+            np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32))
         else:
+            frames = structures
+            nframes = len(frames)
             inp_shape, inp_markers = None, None
 
-        # -- Dump shape data
-        # NOTE: Since all workers use the same input structures,
-        #       we only need to dump once here
-        shape_dir = self.directory / "_shape"
-        shape_dir.mkdir(parents=True, exist_ok=True)
-        np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32))
-        np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32))
 
         # - create workers
         for i, worker in enumerate(workers):
