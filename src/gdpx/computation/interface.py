@@ -163,33 +163,8 @@ def convert_results_to_structures(
     _print = _print_func
     _debug = _debug_func
 
-    # data = []
-    # curr_index = np.zeros(shape.shape).flatten().tolist()
-    # def get_structures(data, curr_index, data_, marks, shape):
-    #    """"""
-    #    dimension = len(shape)
-    #    if dimension > 1:
-    #        inv_axes = list(range(dimension))
-    #        inv_axes.reverse()
-    #        for axis in inv_axes:
-    #            #p, s = (shape[:-1], shape[-1])
-    #            s = shape[axis]
-    #            curr_data = []
-    #            for k in range(s):
-    #                if tuple(curr_index) in marks:
-    #                    curr_data.append(
-    #                        data_[marks.index(tuple(curr_index))]
-    #                    )
-    #                else:
-    #                    curr_data.append(None)
-    #                curr_index[axis] += 1
-    #            return
-    #    else:
-    #        return data
-
     # TODO: Convert to correct input data shape for spc workers...
     #       Optimise the codes here?
-    _print(f"input structures: {structures}")
     if inp_shape is not None and inp_markers is not None:
         converted_structures = []
         for curr_structures in structures:  # shape (nworkers, ncandidates, 1) 
@@ -199,11 +174,8 @@ def convert_results_to_structures(
             assert np.allclose(
                 inp_shape_, inp_shape
             ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
-            _print(f"{inp_shape_}")
-            _print(f"{inp_markers}")
             # - get a full list of indices and fill None to a flatten Atoms List
             full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
-            _print(f"{full_list}")
             for iloc in full_list:
                 if iloc in inp_markers:
                     curr_converted_structures.append(
@@ -211,7 +183,6 @@ def convert_results_to_structures(
                     )
                 else:
                     curr_converted_structures.append(None)
-            _print(f"{curr_converted_structures}")
             # - reshape
             for s in inp_shape_[:0:-1]:
                 npoints = len(curr_converted_structures)
@@ -224,12 +195,6 @@ def convert_results_to_structures(
                 ...
             converted_structures.append(curr_converted_structures)
         converted_structures = AtomsNDArray(converted_structures)
-        _print(f"markers: {converted_structures.markers}")
-        # curr_index = np.zeros(inp_shape_.shape).flatten().tolist()
-        # _print(f"curr_index: {curr_index}")
-        # converted_structures = []
-        # for x in trajectories:
-        #    s = AtomsNDArray()
     else:  # No data available to convert structures
         converted_structures = structures
 
