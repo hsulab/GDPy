@@ -205,7 +205,11 @@ class DriverBasedWorker(AbstractWorker):
                 if x[1] == curr_md5:
                     break
                 start_confid += 1
-            random_seeds = [int(x[-1]) for x in _info_data]
+            # NOTE: compatability
+            if len(_info_data[0]) > 5:
+                random_seeds = [int(x[-1]) for x in _info_data]
+            else:
+                ... # Use generated random seeds
         else:
             if self._retain_info:
                 info_keys = []
