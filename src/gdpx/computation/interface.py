@@ -5,28 +5,24 @@ import copy
 import itertools
 import pathlib
 import time
-
-from typing import NoReturn, Union, List, Tuple
+from typing import List, NoReturn, Tuple, Union
 
 import omegaconf
-
 from ase import Atoms
 from ase.io import read, write
 
 from .. import config
-from ..core.variable import Variable
 from ..core.operation import Operation
 from ..core.register import registers
-
+from ..core.variable import Variable
 from ..data.array import AtomsNDArray
-from ..worker.drive import (
-    DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
-)
 from ..utils.command import CustomTimer
+from ..worker.drive import (CommandDriverBasedWorker, DriverBasedWorker,
+                            QueueDriverBasedWorker)
 from ..worker.interface import ComputerVariable
 
-
 # --- variable ---
+
 
 @registers.variable.register
 class DriverVariable(Variable):
@@ -38,7 +34,7 @@ class DriverVariable(Variable):
         merged_params = dict(
             task=copied_params.get("task", "min"),
             backend=copied_params.get("backend", "external"),
-            ignore_convergence=copied_params.get("ignore_convergence", False)
+            ignore_convergence=copied_params.get("ignore_convergence", False),
         )
         merged_params.update(**copied_params.get("init", {}))
         merged_params.update(**copied_params.get("run", {}))
@@ -61,8 +57,7 @@ class DriverVariable(Variable):
             plengths.append((k, n))
         plengths = sorted(plengths, key=lambda x: x[1])
         # NOTE: check only has one list params
-        assert sum([p[1] > 1 for p in plengths]
-                   ) <= 1, "only accept one param as list."
+        assert sum([p[1] > 1 for p in plengths]) <= 1, "only accept one param as list."
 
         # - convert to dataclass
         params_list = []
@@ -79,14 +74,19 @@ class DriverVariable(Variable):
 
         return params_list
 
+
 # --- operation ---
 
 
 def extract_results_from_workers(
-    directory: pathlib.Path, workers: List[DriverBasedWorker], *,
+    directory: pathlib.Path,
+    workers: List[DriverBasedWorker],
+    *,
     safe_inspect: bool = True,
-    use_archive: bool = True, merge_workers: bool = False,
-    print_func=print, debug_func=print
+    use_archive: bool = True,
+    merge_workers: bool = False,
+    print_func=print,
+    debug_func=print,
 ) -> Tuple[str, List[AtomsNDArray]]:
     """"""
     _print = print_func
@@ -96,7 +96,7 @@ def extract_results_from_workers(
         directory.mkdir(parents=True, exist_ok=True)
 
     nworkers = len(workers)
-    worker_status = [False]*nworkers
+    worker_status = [False] * nworkers
 
     _debug(f"workers: {workers}")
 
@@ -106,7 +106,7 @@ def extract_results_from_workers(
         #       probably use override function for read/write
         #       i - worker, j - cand
         _print(f"worker: {str(worker.directory)}")
-        cached_trajs_dpath = directory/f"{worker.directory.parent.name}-w{i}"
+        cached_trajs_dpath = directory / f"{worker.directory.parent.name}-w{i}"
         if not cached_trajs_dpath.exists():
             if safe_inspect:
                 # inspect again for using extract without drive
@@ -115,7 +115,6 @@ def extract_results_from_workers(
                     _print(f"{worker.directory} is not finished.")
                     break
             else:
-                break
                 # If compute enables extract, it has already done the inspects
                 # thus we can skip them here.
                 ...
@@ -123,11 +122,10 @@ def extract_results_from_workers(
             curr_trajectories = worker.retrieve(
                 include_retrieved=True, use_archive=use_archive
             )
-            AtomsNDArray(curr_trajectories).save_file(
-                cached_trajs_dpath/"dataset.h5")
+            AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath / "dataset.h5")
         else:
             curr_trajectories = AtomsNDArray.from_file(
-                cached_trajs_dpath/"dataset.h5"
+                cached_trajs_dpath / "dataset.h5"
             ).tolist()
 
         trajectories.append(curr_trajectories)
@@ -152,14 +150,18 @@ def extract_results_from_workers(
 
 @registers.operation.register
 class compute(Operation):
-
-    """Drive structures.
-    """
+    """Drive structures."""
 
     def __init__(
-        self, builder: Variable, worker: Variable,
-        batchsize: int = None, share_wdir: bool = False, retain_info: bool = False,
-        extract_data: bool = True, use_archive: bool = True, merge_workers: bool = False,
+        self,
+        builder: Variable,
+        worker: Variable,
+        batchsize: int = None,
+        share_wdir: bool = False,
+        retain_info: bool = False,
+        extract_data: bool = True,
+        use_archive: bool = True,
+        merge_workers: bool = False,
         directory="./",
     ):
         """Initialise a compute operation.
@@ -190,7 +192,9 @@ class compute(Operation):
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         builder, worker = input_nodes
-        if isinstance(worker, dict) or isinstance(worker, omegaconf.dictconfig.DictConfig):
+        if isinstance(worker, dict) or isinstance(
+            worker, omegaconf.dictconfig.DictConfig
+        ):
             worker = ComputerVariable(**worker)
 
         return builder, worker
@@ -211,6 +215,7 @@ class compute(Operation):
         """
         super().forward()
 
+        inp_shape, inp_markes = None, None
         if isinstance(frames, AtomsNDArray):
             frames = frames.get_marked_structures()
             # TODO: save shape of array!!
@@ -238,7 +243,7 @@ class compute(Operation):
         # - run workers
         worker_status = []
         for i, worker in enumerate(workers):
-            flag_fpath = worker.directory/"FINISHED"
+            flag_fpath = worker.directory / "FINISHED"
             self._print(f"run worker {i} for {nframes} nframes")
             if not flag_fpath.exists():
                 worker.run(frames)
@@ -263,9 +268,13 @@ class compute(Operation):
             if self.extract_data:
                 self._print("--- extract results ---")
                 status, trajectories = extract_results_from_workers(
-                    self.directory/"extracted", workers, safe_inspect=False,
-                    use_archive=self.use_archive, merge_workers=self.merge_workers,
-                    print_func=self._print, debug_func=self._debug
+                    self.directory / "extracted",
+                    workers,
+                    safe_inspect=False,
+                    use_archive=self.use_archive,
+                    merge_workers=self.merge_workers,
+                    print_func=self._print,
+                    debug_func=self._debug,
                 )
                 self.status = status
                 output = trajectories
@@ -279,14 +288,15 @@ class compute(Operation):
 
 @registers.operation.register
 class extract_cache(Operation):
-
     """Extract results from finished (cache) calculation wdirs.
 
     This is useful when reading results from manually created structures.
 
     """
 
-    def __init__(self, compute, cache_wdirs: List[Union[str, pathlib.Path]], directory="./") -> None:
+    def __init__(
+        self, compute, cache_wdirs: List[Union[str, pathlib.Path]], directory="./"
+    ) -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
 
@@ -303,16 +313,20 @@ class extract_cache(Operation):
         nwdirs = len(self.cache_wdirs)
         nworkers = len(workers)
         assert (
-            nwdirs == nworkers) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
+            nwdirs == nworkers
+        ) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
 
         # - use driver to read results
-        cache_data = self.directory/"cache_data.h5"
+        cache_data = self.directory / "cache_data.h5"
         if not cache_data.exists():
             from joblib import Parallel, delayed
+
             # TODO: whether check convergence?
             trajectories = Parallel(n_jobs=config.NJOBS)(
                 delayed(self._read_trajectory)(curr_wdir, curr_worker)
-                for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
+                for curr_wdir, curr_worker in itertools.zip_longest(
+                    self.cache_wdirs, workers, fillvalue=workers[0]
+                )
             )
             trajectories = AtomsNDArray(data=trajectories)
             trajectories.save_file(cache_data)
@@ -321,6 +335,12 @@ class extract_cache(Operation):
             trajectories = AtomsNDArray.from_file(cache_data)
 
         self.status = "finished"
+
+        return trajectories
+
+    @staticmethod
+    def _read_trajectory(wdir, worker):
+        """"""
         worker.driver.directory = wdir
 
         return worker.driver.read_trajectory()
@@ -328,13 +348,16 @@ class extract_cache(Operation):
 
 @registers.operation.register
 class extract(Operation):
-
-    """Extract dynamics trajectories from a drive-node's worker.
-    """
+    """Extract dynamics trajectories from a drive-node's worker."""
 
     def __init__(
-        self, compute, merge_workers=False, use_archive: bool = True,
-        directory="./", *args, **kwargs
+        self,
+        compute,
+        merge_workers=False,
+        use_archive: bool = True,
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """Init an extract operation.
 
@@ -365,9 +388,12 @@ class extract(Operation):
         self.workers = workers  # for operations to access
 
         status, trajectories = extract_results_from_workers(
-            self.directory, workers, use_archive=self.use_archive,
+            self.directory,
+            workers,
+            use_archive=self.use_archive,
             merge_workers=self.merge_workers,
-            print_func=self._print, debug_func=self._debug
+            print_func=self._print,
+            debug_func=self._debug,
         )
         self.status = status
 
