@@ -5,6 +5,7 @@ import logging
 import pathlib
 import time
 
+from .. import config
 from ..utils.command import parse_input_file
 from ..core.operation import Operation
 from ..core.register import registers
@@ -85,31 +86,44 @@ class explore(Operation):
         return basic_workers
 
 
-def run_expedition(config_params: dict, wait: float=None, directory="./", potter=None):
+def run_expedition(exp_params: dict, wait: float=None, directory="./", potter=None):
     """"""
     directory = pathlib.Path(directory)
 
-    method = config_params.pop("method")
+    method = exp_params.pop("method")
     if potter is not None:
-        config_params["worker"] = potter
+        exp_params["worker"] = potter
 
-    expedition = registers.create("variable", method, convert_name=True, **config_params).value
+    scheduler_params = exp_params.pop("scheduler", {})
+    scheduler = SchedulerVariable(**scheduler_params).value
+
+    expedition = registers.create("variable", method, convert_name=True, **exp_params).value
     expedition.directory = directory
     if hasattr(expedition, "register_worker"):
-        expedition.register_worker(config_params["worker"])
+        expedition.register_worker(exp_params["worker"])
 
-    if wait is not None:
-        for i in range(1000):
+    if scheduler.name == "local":
+        if wait is not None:
+            for i in range(1000):
+                expedition.run()
+                if expedition.read_convergence():
+                    break
+                time.sleep(wait)
+                config._print(f"wait {wait} seconds...")
+            else:
+                ...
+        else:
             expedition.run()
-            if expedition.read_convergence():
-                break
-            time.sleep(wait)
-            print(f"wait {wait} seconds...")
+    else: # submit to queue
+        worker = ExpeditionBasedWorker(
+            expedition=expedition, scheduler=scheduler, directory=directory
+        )
+        worker.run()
+        worker.inspect(resubmit=True)
+        if worker.get_number_of_running_jobs() == 0:
+            config._print("Expedition finished...")
         else:
             ...
-    else:
-        expedition.run()
-        ...
 
     return
 

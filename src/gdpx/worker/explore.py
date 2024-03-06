@@ -68,14 +68,15 @@ class ExpeditionBasedWorker(AbstractWorker):
                 expedition.directory = wdir
                 expedition.run()
             else:
+                inp_fpath = (wdir/f"exp-{uid}.yaml").absolute()
                 exp_params = expedition.as_dict()
-                with open(wdir/(f"exp-{uid}.yaml"), "w") as fopen:
+                with open(inp_fpath, "w") as fopen:
                     yaml.safe_dump(exp_params, fopen)
 
                 scheduler.job_name = job_name
                 scheduler.script = wdir/f"{self._script_name}-{uid}"
                 scheduler.user_commands = "gdp explore {} --wait {}".format(
-                    str(wdir/f"exp-{uid}.yaml"), self.wait_time
+                    str(inp_fpath), self.wait_time
                 )
                 scheduler.write()
                 if self._submit:
