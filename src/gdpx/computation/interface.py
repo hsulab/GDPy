@@ -165,24 +165,30 @@ def convert_results_to_structures(
 
     # TODO: Convert to correct input data shape for spc workers...
     #       Optimise the codes here?
+    _print("convert structure shape: ")
+    _print(f"input structure shape: {structures.shape}")
     if inp_shape is not None and inp_markers is not None:
         converted_structures = []
         for curr_structures in structures:  # shape (nworkers, ncandidates, 1) 
             curr_structures = list(itertools.chain(*curr_structures))
-            curr_converted_structures = []
             inp_shape_ = np.max(inp_markers, axis=0) + 1
             assert np.allclose(
                 inp_shape_, inp_shape
             ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
+            _print(f"target structure shape: {inp_shape_}")
             # - get a full list of indices and fill None to a flatten Atoms List
+            #_print(inp_markers)
+            curr_converted_structures = []
             full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
-            for iloc in full_list:
+            for i, iloc in enumerate(full_list):
                 if iloc in inp_markers:
                     curr_converted_structures.append(
                         curr_structures[inp_markers.index(iloc)]
                     )
                 else:
                     curr_converted_structures.append(None)
+            #_print(len(curr_converted_structures))
+            #_print(curr_converted_structures[0])
             # - reshape
             for s in inp_shape_[:0:-1]:
                 npoints = len(curr_converted_structures)
@@ -192,7 +198,6 @@ def convert_results_to_structures(
                     for r in range(repeats)
                 ]
                 curr_converted_structures = reshaped_converted_structures
-                ...
             converted_structures.append(curr_converted_structures)
         converted_structures = AtomsNDArray(converted_structures)
     else:  # No data available to convert structures
@@ -298,13 +303,14 @@ class compute(Operation):
                 nframes = len(frames)
                 inp_shape = (1, nframes)
                 inp_markers = [(0, i) for i in range(nframes)]
+            # self._print(inp_markers)
             # -- Dump shape data
             # NOTE: Since all workers use the same input structures,
             #       we only need to dump once here
             shape_dir = self.directory / "_shape"
             shape_dir.mkdir(parents=True, exist_ok=True)
-            np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32))
-            np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32))
+            np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32), fmt="%8d")
+            np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32), fmt="%8d")
         else:
             frames = structures
             nframes = len(frames)

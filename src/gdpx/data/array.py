@@ -123,7 +123,10 @@ class AtomsNDArray:
         def _flat_inhomo_data(items: list):
             """"""
             if isinstance(items, list) or isinstance(items, tuple):
-                if not isinstance(items[0], Atoms):
+                # NOTE: The input items must be a nested list only with Atoms or None elements
+                #print(f"current size: {sizes}")
+                #print(f"current size: {items[0]}")
+                if not (isinstance(items[0], Atoms) or items[0] is None):
                     sizes.append([len(item) for item in items])
                     items = _flat_inhomo_data(list(itertools.chain(*items)))
                 else:
