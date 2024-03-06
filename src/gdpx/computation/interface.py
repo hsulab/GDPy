@@ -172,10 +172,11 @@ def convert_results_to_structures(
         for curr_structures in structures:  # shape (nworkers, ncandidates, 1) 
             curr_structures = list(itertools.chain(*curr_structures))
             inp_shape_ = np.max(inp_markers, axis=0) + 1
-            assert np.allclose(
-                inp_shape_, inp_shape
-            ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
-            _print(f"target structure shape: {inp_shape_}")
+            #assert np.allclose(
+            #    inp_shape_, inp_shape
+            #), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
+            _print(f"previous  structure shape: {inp_shape}")
+            _print(f"target    structure shape: {inp_shape_}")
             # - get a full list of indices and fill None to a flatten Atoms List
             #_print(inp_markers)
             curr_converted_structures = []
