@@ -78,13 +78,16 @@ def convert_input_to_potter(inp):
         potter.register_calculator(potter_params.get("params", {}))
         potter.version = potter_params.get("version", "unknown")
     elif isinstance(inp, str) or isinstance(inp, pathlib.Path):
-        potter_params = parse_input_file(input_fpath=inp)
-        name = potter_params.get("name", None)
-        potter = registers.create(
-            "manager", name, convert_name=True,
-        )
-        potter.register_calculator(potter_params.get("params", {}))
-        potter.version = potter_params.get("version", "unknown")
+        if pathlib.Path(inp).exists():
+            potter_params = parse_input_file(input_fpath=inp)
+            name = potter_params.get("name", None)
+            potter = registers.create(
+                "manager", name, convert_name=True,
+            )
+            potter.register_calculator(potter_params.get("params", {}))
+            potter.version = potter_params.get("version", "unknown")
+        else:
+            raise RuntimeError(f"The potter configuration `{inp}` does not exist.")
     else:
         raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
 
