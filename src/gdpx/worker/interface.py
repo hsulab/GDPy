@@ -103,9 +103,10 @@ class ComputerVariable(Variable):
         # - save state by all nodes
         self.potter = convert_input_to_potter(potter)
         if hasattr(self.potter, "switch_uncertainty_estimation"):
+            self._print("switch model uncertainty status...")
             self.potter.switch_uncertainty_estimation(estimate_uncertainty)
         else:
-            ...
+            self._print("switch model uncertainty fails as it is not supported.")
 
         self.driver = self._load_driver(driver) 
         self.scheduler = self._load_scheduler(scheduler)
