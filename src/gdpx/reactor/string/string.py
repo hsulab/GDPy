@@ -39,6 +39,9 @@ def set_constraint(atoms, cons_text):
 @dataclasses.dataclass
 class StringReactorSetting:
 
+    #: Reactor setting.
+    backend: str = "external"
+
     #: Period to save the restart file.
     ckpt_period: int = 100
 
@@ -281,6 +284,7 @@ class AbstractStringReactor(AbstractReactor):
         """"""
         #params = super().as_dict()
         params = {}
+        params["backend"] = "ase"
 
         for k, v in dataclasses.asdict(self.setting).items():
             if not k.startswith("_"):
