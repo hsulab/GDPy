@@ -107,22 +107,32 @@ def convert_input_to_potter(inp):
 class ComputerVariable(Variable):
 
     def __init__(
-        self, potter, driver={}, scheduler={}, *, estimate_uncertainty: bool=False,
+        self, potter, driver={}, scheduler={}, *, 
+        estimate_uncertainty: bool=False, switch_backend: str=None,
         batchsize: int=1, share_wdir: bool= False, use_single: bool=False, 
         retain_info: bool=False, custom_wdirs=None, directory=pathlib.Path.cwd()
     ):
         """"""
-        # - save state by all nodes
+        # - Adjust potter calculator behaviour here...
         self.potter = convert_input_to_potter(potter)
+
         if hasattr(self.potter, "switch_uncertainty_estimation"):
-            self._print("switch model uncertainty status...")
+            self._print(f"{self.potter.name} switches its uncertainty estimation...")
             self.potter.switch_uncertainty_estimation(estimate_uncertainty)
         else:
-            self._print("switch model uncertainty fails as it is not supported.")
+            self._print(f"{self.potter.name} does not support switching its uncertainty estimation...")
+        
+        if hasattr(self.potter, "switch_backend"):
+            self._print(f"{self.potter.name} switches its backend to {switch_backend}...")
+            self.potter.switch_backend(backend=switch_backend)
+        else:
+            self._print(f"{self.potter.name} does not support switching its backend...")
 
+        # - ...
         self.driver = self._load_driver(driver) 
         self.scheduler = self._load_scheduler(scheduler)
 
+        # - ...
         self.batchsize = batchsize # NOTE: This can be updated in drive operation.
 
         workers = self._create_workers(

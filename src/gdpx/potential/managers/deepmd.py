@@ -531,12 +531,39 @@ class DeepmdManager(AbstractPotentialManager):
 
         return calc
 
-    def register_calculator(self, calc_params, *args, **kwargs):
+    def register_calculator(self, calc_params, *args, **kwargs) -> None:
         """ generate calculator with various backends
         """
         super().register_calculator(calc_params)
         
         self.calc = self._create_calculator(self.calc_params)
+
+        return
+    
+    def switch_backend(self, backend: str=None) -> None:
+        """Switch the potential's calculation backend."""
+        if backend is None:
+            return
+
+        if not hasattr(self, "calc"):
+            raise RuntimeError(f"{self.name} cannot switch backend as it does not have a calculator attached.")
+        if backend not in self.implemented_backends:
+            raise RuntimeError(f"{self.name} cannot switch backend from {self.calc_backend} to {backend}.")
+        
+        prev_backend = self.calc_backend
+        if prev_backend == "ase" and backend == "lammps":
+            calc_params = copy.deepcopy(self.calc_params)
+            calc_params["backend"] = "lammps"
+            command = calc_params.get("command", None)
+            if command is None:
+                raise RuntimeError(f"{self.name} cannot switch backend from ase to lammps as no command is provided.")
+            self.register_calculator(calc_params)
+        elif prev_backend == "lammps" and backend == "ase":
+            calc_params = copy.deepcopy(self.calc_params)
+            calc_params["backend"] = "ase"
+            self.register_calculator(calc_params)
+        else: # Nothing to do for other combinations
+            ...
 
         return
     
