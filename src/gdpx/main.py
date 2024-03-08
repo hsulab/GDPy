@@ -12,7 +12,7 @@ import numpy as np
 # global settings
 from . import config
 from .core.register import registers, import_all_modules_for_register
-from .utils.command import parse_input_file
+from .utils.command import parse_input_file, dict2str
 
 
 def main():
@@ -223,7 +223,9 @@ def main():
     config.GRNG = np.random.Generator(np.random.PCG64(random_seed))
 
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
-    config._print(f"GLOBAL RANDOM STATE: {config.GRNG.bit_generator.state}")
+    rng_state = config.GRNG.bit_generator.state
+    for l in dict2str(rng_state).split("\n"):
+        config._print(l)
 
     # - potential
     potter = None
@@ -267,7 +269,9 @@ def main():
     
     # - report the end random state
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
-    config._print(f"GLOBAL RANDOM STATE: {config.GRNG.bit_generator.state}")
+    rng_state = config.GRNG.bit_generator.state
+    for l in dict2str(rng_state).split("\n"):
+        config._print(l)
 
     return
 

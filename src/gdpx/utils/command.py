@@ -14,6 +14,26 @@ import yaml
 
 import numpy as np
 
+
+def dict2str(d: dict, indent: int=2):
+    """Convert a nested dict to str."""
+
+    def _dict2str(d_: dict, indent_: int):
+        """Recursive function."""
+        content = ""
+        for k, v in d_.items():
+            if isinstance(v, dict):
+                content += f"{k}:\n" + _dict2str(v, indent_+indent)
+            else:
+                content += " "*indent_ + f"{k}: {v}\n"
+
+        return content
+
+    content = _dict2str(d, 0)
+
+    return content
+
+
 class CustomTimer():
 
     def __init__(self, name="code", func=print):
