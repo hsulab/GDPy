@@ -477,7 +477,9 @@ class DeepmdManager(AbstractPotentialManager):
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
 
-        enable_committee = calc_params.get("enable_committee", True)
+        # TODO: make this a dataclass??
+        #       currently, default disable uncertainty estimation
+        estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
         # - create specific calculator
         calc = DummyCalculator()
@@ -497,7 +499,7 @@ class DeepmdManager(AbstractPotentialManager):
             if len(calcs) == 1:
                 calc = calcs[0]
             elif len(calcs) > 1:
-                if enable_committee:
+                if estimate_uncertainty:
                     calc = CommitteeCalculator(calcs=calcs)
                 else:
                     calc = calcs[0]
@@ -509,7 +511,7 @@ class DeepmdManager(AbstractPotentialManager):
                 if len(models) == 1:
                     pair_style = "deepmd {}".format(" ".join(models))
                 else:
-                    if enable_committee:
+                    if estimate_uncertainty:
                         pair_style = "deepmd {}".format(" ".join(models))
                     else:
                         pair_style = "deepmd {}".format(models[0])
@@ -547,18 +549,20 @@ class DeepmdManager(AbstractPotentialManager):
             raise RuntimeError("Fail to switch uncertainty status as it does not have a calc.")
         #print(f"{self.calc}")
 
+        # NOTE: make sure manager.as_dict() can have correct param
+        self.calc_params["estimate_uncertainty"] = status
+
+        # - convert calculator
         if self.calc_backend == "ase":
             if status:
                 if isinstance(self.calc, CommitteeCalculator):
                     ... # nothing to do
                 else: # reload models
-                    self.calc_params["enable_committee"] = True
                     self.calc = self._create_calculator(self.calc_params)
             else:
                 if isinstance(self.calc, CommitteeCalculator):
                     # TODO: save previous calc?
                     self.calc = self.calc.calcs[0]
-                    self.calc_params["enable_committee"] = False
                 else:
                     ...
         elif self.calc_backend == "lammps":
@@ -568,14 +572,14 @@ class DeepmdManager(AbstractPotentialManager):
                 if nmodels > 1:
                     ...
                 else:
-                    self.calc_params["enable_committee"] = True
                     self.calc = self._create_calculator(self.calc_params)
             else:
                 # TODO: use self.calc_params? It should be protected?
                 # pair_style deepmd m0 m1 m2 m3
                 if nmodels > 1:
                     self.calc.pair_style = f"deepmd {models[0]}"
-                    self.calc_params["enable_committee"] = False
+                else:
+                    ...
         else:
             # TODO:
             # Other backends cannot have uncertainty estimation,
