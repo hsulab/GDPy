@@ -26,6 +26,7 @@ from .operators import select_operator, parse_operators, save_operator, load_ope
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
 
+
 class MonteCarloVariable(Variable):
 
     def __init__(self, builder, directory="./", *args, **kwargs) -> None:
@@ -37,7 +38,7 @@ class MonteCarloVariable(Variable):
             builder = registers.create(
                 "builder", builder_method, convert_name=False, **builder_params
             )
-        else: # variable
+        else:  # variable
             builder = builder.value
 
         # - engine
@@ -46,7 +47,7 @@ class MonteCarloVariable(Variable):
         super().__init__(initial_value=engine, directory=directory)
 
         return
-    
+
     def _create_engine(self, builder, *args, **kwargs) -> None:
         """"""
         engine = MonteCarlo(builder, *args, **kwargs)
@@ -68,17 +69,28 @@ class MonteCarlo(AbstractExpedition):
     INFO_NAME: str = "opstat.txt"
 
     def __init__(
-        self, builder: dict, operators: List[dict], convergence: dict,
-        random_seed=None, dump_period: int=1, ckpt_period: int=100, restart: bool=False, 
-        directory="./", *args, **kwargs
+        self,
+        builder: dict,
+        operators: List[dict],
+        convergence: dict,
+        random_seed=None,
+        dump_period: int = 1,
+        ckpt_period: int = 100,
+        restart: bool = False,
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """Parameters for Monte Carlo.
 
         Args:
             overwrite: Whether overwrite calculation directory.
-        
+
         """
-        super().__init__(directory=directory, random_seed=random_seed, )
+        super().__init__(
+            directory=directory,
+            random_seed=random_seed,
+        )
 
         self.directory = directory
         self.dump_period = dump_period
@@ -97,7 +109,9 @@ class MonteCarlo(AbstractExpedition):
         self.builder = builder
 
         frames = builder.run()
-        assert len(frames) == 1, f"{self.__class__.__name__} only accepts one structure."
+        assert (
+            len(frames) == 1
+        ), f"{self.__class__.__name__} only accepts one structure."
         self.atoms = frames[0]
 
         # - create worker
@@ -116,9 +130,9 @@ class MonteCarlo(AbstractExpedition):
     def _init_structure(self):
         """Initialise the input structure.
 
-        Set proper tags and minimise the structure. Prepare `self.atoms`, 
+        Set proper tags and minimise the structure. Prepare `self.atoms`,
         `self.energy_stored`, and `self.curr_step`.
-        
+
         """
         step_wdir = self.directory / f"{self.WDIR_PREFIX}0"
         if not step_wdir.exists():
@@ -129,7 +143,9 @@ class MonteCarlo(AbstractExpedition):
                 # default is setting tags by elements
                 symbols = self.atoms.get_chemical_symbols()
                 type_list = sorted(list(set(symbols)))
-                new_tags = [type_list.index(s)*10000+i for i, s in enumerate(symbols)]
+                new_tags = [
+                    type_list.index(s) * 10000 + i for i, s in enumerate(symbols)
+                ]
                 self.atoms.set_tags(new_tags)
                 self._print("set default tags by chemical symbols...")
             else:
@@ -142,7 +158,7 @@ class MonteCarlo(AbstractExpedition):
         curr_tags = self.atoms.get_tags()
 
         self.atoms.info["confid"] = 0
-        self.atoms.info["step"] = -1 # NOTE: remove step info
+        self.atoms.info["step"] = -1  # NOTE: remove step info
 
         # TODO: whether init driver?
         self.worker.wdir_name = step_wdir.name
@@ -156,13 +172,13 @@ class MonteCarlo(AbstractExpedition):
             self._print(f"ene: {self.energy_stored}")
             self.atoms = curr_atoms
             self.atoms.set_tags(curr_tags)
-            write(self.directory/self.TRAJ_NAME, self.atoms)
+            write(self.directory / self.TRAJ_NAME, self.atoms)
 
-            # - 
+            # -
             self.curr_step = 0
 
             # - log operator status
-            with open(self.directory/self.INFO_NAME, "w") as fopen:
+            with open(self.directory / self.INFO_NAME, "w") as fopen:
                 fopen.write(
                     "{:<24s}  {:<24s}  {:<12s}  {:<12s}  {:<24s}  {:<24s}  \n".format(
                         "#Operator", "Info", "natoms", "Success", "prev_ene", "curr_ene"
@@ -173,25 +189,29 @@ class MonteCarlo(AbstractExpedition):
             step_converged = False
 
         return step_converged
-    
+
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
-        # - some imported packages change `logging.basicConfig` 
+        # - some imported packages change `logging.basicConfig`
         #   and accidently add a StreamHandler to logging.root
         #   so remove it...
         for h in logging.root.handlers:
-            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+            if isinstance(h, logging.StreamHandler) and not isinstance(
+                h, logging.FileHandler
+            ):
                 logging.root.removeHandler(h)
-            
+
         # - check if it has a valid worker..
         assert self.worker is not None, "MC has not set its worker properly."
-        assert isinstance(self.worker, SingleWorker), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
+        assert isinstance(
+            self.worker, SingleWorker
+        ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
         self.worker.directory = self.directory
 
         # - prepare logger and output some basic info...
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
-        
+
         self._print("===== MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:
             for x in str(op).split("\n"):
@@ -205,15 +225,15 @@ class MonteCarlo(AbstractExpedition):
         # NOTE: check if operators' regions are consistent
         #       though it works, unexpected results may occur
         # TODO: need rewrite eq function as compare array is difficult
-        #noperators = len(self.operators)
-        #for i in range(1,noperators):
+        # noperators = len(self.operators)
+        # for i in range(1,noperators):
         #    if self.operators[i].region != self.operators[i-1].region:
         #        raise RuntimeError(f"Inconsistent region found in op {i-1} and op {i}")
 
         converged = self.read_convergence()
         if not converged:
             # - init structure
-            # -- 
+            # --
             step_converged = False
             if not self._veri_checkpoint():
                 step_converged = self._init_structure()
@@ -229,7 +249,7 @@ class MonteCarlo(AbstractExpedition):
 
             # - run mc steps
             step_converged = False
-            for i in range(self.curr_step, self.convergence["steps"]+1):
+            for i in range(self.curr_step, self.convergence["steps"] + 1):
                 self._print(f"RANDOM_SEED:  {self.random_seed}")
                 self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
                 step_converged = self._irun(i)
@@ -240,19 +260,21 @@ class MonteCarlo(AbstractExpedition):
                     # -- save checkpoint
                     self._save_checkpoint(step=i)
                     # -- clean up
-                    if ((self.directory/f"{self.WDIR_PREFIX}{i}").exists()) and (i%self.dump_period != 0):
-                        shutil.rmtree(self.directory/f"{self.WDIR_PREFIX}{i}")
+                    if ((self.directory / f"{self.WDIR_PREFIX}{i}").exists()) and (
+                        i % self.dump_period != 0
+                    ):
+                        shutil.rmtree(self.directory / f"{self.WDIR_PREFIX}{i}")
             else:
                 self._print("MC is converged...")
         else:
             self._print("Monte Carlo is converged.")
 
         return
-    
+
     def _irun(self, i):
         """Run a single MC step."""
         self._print(f"===== MC Step {i} =====")
-        step_wdir = self.directory/f"{self.WDIR_PREFIX}{i}"
+        step_wdir = self.directory / f"{self.WDIR_PREFIX}{i}"
         self.worker.wdir_name = step_wdir.name
 
         # - operate atoms
@@ -262,10 +284,10 @@ class MonteCarlo(AbstractExpedition):
         if curr_atoms:
             # --- add info
             curr_atoms.info["confid"] = int(f"{i}")
-            curr_atoms.info["step"] = -1 # NOTE: remove step info from driver
+            curr_atoms.info["step"] = -1  # NOTE: remove step info from driver
         else:
             self._print("FAILED to run operation...")
-        
+
         # - run postprocess
         if curr_atoms is not None:
             # - TODO: save some info not stored by driver
@@ -295,7 +317,7 @@ class MonteCarlo(AbstractExpedition):
                     self._print("success...")
                 else:
                     self._print("failure...")
-                write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
+                write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
                 step_converged = True
             else:
@@ -303,10 +325,10 @@ class MonteCarlo(AbstractExpedition):
         else:
             # save the previous structure as the current operation gives no structure.
             step_converged = True
-            write(self.directory/self.TRAJ_NAME, self.atoms, append=True)
+            write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
         return step_converged
-    
+
     def _veri_checkpoint(self) -> bool:
         """Verify checkpoints."""
         ckpt_wdirs = list(self.directory.glob("checkpoint.*"))
@@ -320,38 +342,40 @@ class MonteCarlo(AbstractExpedition):
             verified = False
 
         return verified
-    
+
     def _save_checkpoint(self, step):
         """Save the current Monte Carlo state."""
-        if self.ckpt_period > 0 and (step%self.ckpt_period == 0):
+        if self.ckpt_period > 0 and (step % self.ckpt_period == 0):
             self._print("SAVE CHECKPOINT...")
             ckpt_wdir = self.directory / f"checkpoint.{step}"
             ckpt_wdir.mkdir(parents=True)
             # - save the structure
-            write(ckpt_wdir/"structure.xyz", self.atoms)
+            write(ckpt_wdir / "structure.xyz", self.atoms)
             # - save operator state
             for i, op in enumerate(self.operators):
-                save_operator(op, ckpt_wdir/f"op-{i}.ckpt")
+                save_operator(op, ckpt_wdir / f"op-{i}.ckpt")
             # - save the random state
-            with open(ckpt_wdir/"rng.ckpt", "wb") as fopen:
+            with open(ckpt_wdir / "rng.ckpt", "wb") as fopen:
                 pickle.dump(self.rng.bit_generator.state, fopen)
         else:
             ...
 
         return
-    
+
     def _load_checkpoint(self):
         """Load the current Monet Carlo state."""
         # - Find the latest checkpoint
         ckpt_wdir = sorted(
-            self.directory.glob("checkpoint.*"), key=lambda x: int(str(x.name).split(".")[-1])
+            self.directory.glob("checkpoint.*"),
+            key=lambda x: int(str(x.name).split(".")[-1]),
         )[-1]
         step = int(ckpt_wdir.name.split(".")[-1])
         self._print(f"LOAD CHECKPOINT STEP {step}.")
 
         # -- load operators
         op_files = sorted(
-            ckpt_wdir.glob("op-*.ckpt"), key=lambda x: int(str(x.name).split(".")[0][3:])
+            ckpt_wdir.glob("op-*.ckpt"),
+            key=lambda x: int(str(x.name).split(".")[0][3:]),
         )
 
         saved_operators = []
@@ -371,78 +395,69 @@ class MonteCarlo(AbstractExpedition):
         self._print(f"normalised probabilities {self.op_probs}\n")
 
         # -- load random state
-        with open(ckpt_wdir/"rng.ckpt", "rb") as fopen:
+        with open(ckpt_wdir / "rng.ckpt", "rb") as fopen:
             rng_state = pickle.load(fopen)
         self.rng.bit_generator.state = rng_state
 
         # -- load structure
         self.curr_step = step
-        self.atoms = read(ckpt_wdir/"structure.xyz")
+        self.atoms = read(ckpt_wdir / "structure.xyz")
         self.energy_stored = self.atoms.get_potential_energy()
 
-        return 
-    
+        return
+
     def _save_step_info(self, curr_op, success: bool):
         """"""
         extra_info = getattr(curr_op, "_extra_info", "-")
-        with open(self.directory/self.INFO_NAME, "a") as fopen:
+        with open(self.directory / self.INFO_NAME, "a") as fopen:
             fopen.write(
                 "{:<24s}  {:<24s}  {:<12d}  {:<12s}  {:<24.4f}  {:<24.4f}  \n".format(
-                    curr_op.__class__.__name__, extra_info,
-                    len(self.atoms), str(success), 
-                    self.energy_stored, self.energy_operated
+                    curr_op.__class__.__name__,
+                    extra_info,
+                    len(self.atoms),
+                    str(success),
+                    self.energy_stored,
+                    self.energy_operated,
                 )
             )
 
         return
-    
+
     def read_convergence(self):
         """Check the convergence of MC.
 
-        Currently, the only criteria is whether the simulation reaches the maximum 
+        Currently, the only criteria is whether the simulation reaches the maximum
         steps.
 
         """
         converged = False
-        if (self.directory/self.TRAJ_NAME).exists():
-            mctraj = read(self.directory/self.TRAJ_NAME, ":")
+        if (self.directory / self.TRAJ_NAME).exists():
+            mctraj = read(self.directory / self.TRAJ_NAME, ":")
             nframes = len(mctraj)
-            #self.curr_step = nframes
+            # self.curr_step = nframes
             if nframes > self.convergence["steps"]:
                 converged = True
         else:
             ...
 
         return converged
-    
+
     def get_workers(self):
         """Get all workers used by this expedition."""
-        # NOTE: Check if computation folders have been archived
-        archive_path = self.directory/"cand.tgz"
-        if not archive_path.exists():
-            wdirs = list(self.directory.glob(f"{self.WDIR_PREFIX}*"))
-        else:
-            wdirs = []
-            with tarfile.open(archive_path, "r:gz") as tar:
-                for tarinfo in tar:
-                    if tarinfo.isdir() and tarinfo.name.startswith(self.WDIR_PREFIX):
-                        wdirs.append(self.directory/tarinfo.name)
-                    else:
-                        ...
-            ...
-        wdirs = sorted(wdirs, key=lambda x: int(x.name[len(self.WDIR_PREFIX):]))
-
         if hasattr(self.worker.potter, "remove_loaded_models"):
             self.worker.potter.remove_loaded_models()
 
-        workers = []
-        for curr_wdir in wdirs:
-            curr_worker = copy.deepcopy(self.worker)
-            curr_worker.directory = curr_wdir.parent
-            curr_worker.wdir_name = curr_wdir.name
-            workers.append(curr_worker)
+        #workers = []
+        #for curr_wdir in wdirs:
+        #    curr_worker = copy.deepcopy(self.worker)
+        #    curr_worker.directory = curr_wdir.parent
+        #    curr_worker.wdir_name = curr_wdir.name
+        #    workers.append(curr_worker)
+        curr_worker = copy.deepcopy(self.worker)
+        curr_worker.directory = self.directory
+        curr_worker._retrieve_mode = "all"
 
-        return workers
+        return [curr_worker]
 
     def as_dict(self) -> dict:
         """"""
@@ -461,7 +476,6 @@ class MonteCarlo(AbstractExpedition):
         engine_params = copy.deepcopy(engine_params)
 
         return engine_params
-
 
 
 if __name__ == "__main__":

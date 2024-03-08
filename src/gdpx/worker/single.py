@@ -10,7 +10,7 @@ import shutil
 import tarfile
 import yaml
 
-from typing import List
+from typing import Optional, Union, List
 
 from tinydb import Query, TinyDB
 
@@ -23,8 +23,14 @@ from ..utils.command import CustomTimer
 
 class SingleWorker(AbstractWorker):
 
+    #: Prefix of the computation folder.
+    COMP_PREFIX: str = "cand"
+
     #: TODO: Current working directory name...
-    _wdir_name: str = None
+    _wdir_name: Optional[Union[str, pathlib.Path]] = None
+
+    #: How to retrieve computation results, which should be `single` or `all`.
+    _retrieve_mode: str = "single"
 
     def __init__(self, potter, driver, scheduler, directory="./", *args, **kwargs) -> None:
         """"""
@@ -181,68 +187,92 @@ class SingleWorker(AbstractWorker):
                 unretrieved_wdirs_.extend(
                     (self.directory/w).resolve() for w in doc_data["wdir_names"]
                 )
-            unretrieved_wdirs = [p for p in unretrieved_wdirs_ if p.name == self.wdir_name]
+            if self._retrieve_mode == "all":
+                unretrieved_wdirs = [p for p in unretrieved_wdirs_]
+            elif self._retrieve_mode == "single":
+                unretrieved_wdirs = [p for p in unretrieved_wdirs_ if p.name == self.wdir_name]
+            else:
+                ... # The retreive mode shoul be checked before.
 
-            results = []
-            self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
-            if unretrieved_wdirs:
-                unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-                # NOTE: SingleWorker.directory directly points to the computation folder
-                #       and its parent directory may have several directories.
-                # TODO: Change the above behaviour?
-                archive_path = (self.directory/"cand.tgz").absolute()
-                is_archived = False
-                if not archive_path.exists():
-                    results = self._read_results(unretrieved_wdirs, )
-                else:
-                    target_name = self.wdir_name
-                    with tarfile.open(archive_path, "r:gz") as tar:
-                        for tarinfo in tar:
-                            #self._debug(tarinfo.name)
-                            if tarinfo.name == target_name:
-                                self._debug(f"Found archived data {tarinfo.name}.")
-                                is_archived = True
-                                break
+        # NOTE: Computation folders should have the same name convention here!
+        existed_wdirs = list(self.directory.glob(f"{self.COMP_PREFIX}*"))
+        unretrieved_wdirs = [x for x in unretrieved_wdirs if x in existed_wdirs]
+
+        self._debug(f"{unretrieved_wdirs = }")
+        self._debug(f"{self.directory = }")
+
+        results = []
+        if unretrieved_wdirs:
+            unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
+            # - Find existed computation folders!!
+            is_archived = False
+
+            archive_path = (self.directory/"cand.tgz").absolute()
+            if not archive_path.exists():
+                unretrieved_and_unarchived_wdirs = unretrieved_wdirs
+                results = self._read_results(unretrieved_wdirs, )
+            else:
+                # NOTE: Find previously archived wdirs
+                archived_wdirs = []
+                with tarfile.open(archive_path, "r:gz") as tar:
+                    for tarinfo in tar:
+                        if tarinfo.isdir() and tarinfo.name.startswith(self.COMP_PREFIX):
+                            archived_wdirs.append(self.directory / tarinfo.name)
                         else:
                             ...
-                    if is_archived:
-                        results = self._read_results(unretrieved_wdirs, archive_path)
-                    else:
-                        results = self._read_results(unretrieved_wdirs)
-                # - archive results if it has not been done
-                if use_archive and not is_archived:
-                    self._print("archive computation folders...")
-                    if not archive_path.exists():
-                        #with tarfile.open(archive_path, "w:gz") as tar:
-                        #    for w in unretrieved_wdirs:
-                        #        tar.add(w, arcname=w.name)
-                        archive_data = io.BytesIO()
-                        # -- append
-                        with tarfile.open(fileobj=archive_data, mode="w") as tar:
-                            for w in unretrieved_wdirs:
-                                self._debug(f"add {w.name} to archive.")
-                                tar.add(w, arcname=w.name)
-                        archive_data.seek(0)
-                    else:
-                        # -- load
-                        archive_data = io.BytesIO()
-                        with gzip.open(archive_path, "rb") as gzf:
-                            archive_data.write(gzf.read())
-                        archive_data.seek(0)
-                        # -- append
-                        with tarfile.open(fileobj=archive_data, mode="a") as tar:
-                            for w in unretrieved_wdirs:
-                                self._debug(f"add {w.name} to archive.")
-                                tar.add(w, arcname=w.name)
-                        archive_data.seek(0)
-                    # -- save archive
-                    with gzip.open(archive_path, "wb") as gzf:
-                        gzf.write(archive_data.read())
-                    for w in unretrieved_wdirs:
-                        shutil.rmtree(w)
+                archived_wdirs = sorted(archived_wdirs, key=lambda x: int(x.name[len(self.COMP_PREFIX) :]))
+                self._debug(f"{archived_wdirs = }")
+                # TODO: Let driver determines when the computation folder is archived or
+                #       not...
+                # TODO: Deal with a situation where archived and unarchived ones are mixed?
+                unretrieved_and_unarchived_wdirs = [x for x in unretrieved_wdirs if x not in archived_wdirs]
+                if len(unretrieved_and_unarchived_wdirs) > 0:
+                    is_archived = False
                 else:
-                    ...
+                    is_archived = True
+                if is_archived:
+                    results = self._read_results(unretrieved_wdirs, archive_path)
+                else:
+                    results = self._read_results(unretrieved_wdirs)
+            # - archive results if it has not been done
+            if use_archive and not is_archived:
+                self._print("archive computation folders...")
+                if not archive_path.exists():
+                    #with tarfile.open(archive_path, "w:gz") as tar:
+                    #    for w in unretrieved_wdirs:
+                    #        tar.add(w, arcname=w.name)
+                    archive_data = io.BytesIO()
+                    # -- append
+                    with tarfile.open(fileobj=archive_data, mode="w") as tar:
+                        for w in unretrieved_wdirs:
+                            self._debug(f"add {w.name} to archive.")
+                            tar.add(w, arcname=w.name)
+                    archive_data.seek(0)
+                else:
+                    # -- load
+                    archive_data = io.BytesIO()
+                    with gzip.open(archive_path, "rb") as gzf:
+                        archive_data.write(gzf.read())
+                    archive_data.seek(0)
+                    # -- append
+                    with tarfile.open(fileobj=archive_data, mode="a") as tar:
+                        for w in unretrieved_and_unarchived_wdirs:
+                            self._debug(f"add {w.name} to archive.")
+                            tar.add(w, arcname=w.name)
+                    archive_data.seek(0)
+                # -- save archive
+                with gzip.open(archive_path, mode="wb", compresslevel=6) as gzf:
+                    gzf.write(archive_data.read())
+                for w in unretrieved_and_unarchived_wdirs:
+                    shutil.rmtree(w)
+            else:
+                ... # Nothing to archive
+        else:
+            ... # Nothing to retrieve
 
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
@@ -254,9 +284,13 @@ class SingleWorker(AbstractWorker):
             *args, **kwargs
         ):
         """"""
+        # NOTE: SingleWorker always have one unretrieved directory...
+        #       However, the retrieve mode can be set to all to get all computation
+        #       results in the current main working directory `self.directory`.
+        # TODO: Add joblib!!!
         results = []
-        for p in unretrieved_wdirs: # NOTE: SingleWorker always have one unretrieved directory...
-            self.driver.directory = self.directory/self.wdir_name
+        for p in unretrieved_wdirs: 
+            self.driver.directory = p
             results.append(self.driver.read_trajectory(archive_path=archive_path))
 
         return results
