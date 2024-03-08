@@ -39,7 +39,9 @@ def run_newtrainer(configuration, directory):
     # - other options
     init_model = params.get("init_model", None)
 
+    # TODO: merge below two into one func?
     trainer.train(dataset, init_model=init_model)
+    trainer.freeze()
 
     return
 
