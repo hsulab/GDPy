@@ -173,6 +173,13 @@ def test_finished_min(emt_min_config):
     return
 
 
+#  TODO: Add tests for MIN with various dump_period
+#        AseMin must dump the last frame of the minisation trajectory
+#        For example, a 9-frame trajectory with a dump period of 3,
+#        it must dump step 0, 3, 6, 8 even the last step is not the times of 3.
+#        dump_period = 5, it dumps 0, 5, 8.
+
+
 @pytest.mark.parametrize("dump_period,nframes", [(1, 21), (3, 7), (5, 5)])
 def test_restart_md(emt_md_config, dump_period, nframes):
     """"""
