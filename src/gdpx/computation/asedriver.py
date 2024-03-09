@@ -469,9 +469,11 @@ class AseDriver(AbstractDriver):
             loginterval = init_params["loginterval"]
             if loginterval > 1:
                 if self.setting.task == "min":
-                    traj = self.read_trajectory()  # No archive as it is still running
-                    nframes = len(traj)
-                    if nframes > 0 and (nframes - 1) % loginterval != 0:
+                    data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+                    if len(data.shape) == 1:
+                        data = data[np.newaxis,:]
+                    nsteps = data.shape[0]
+                    if nsteps > 0 and (nsteps - 1) % loginterval != 0:
                         save_trajectory(atoms, self.directory / self.xyz_fname)
                         retrieve_and_save_deviation(
                             atoms, self.directory / self.devi_fname
