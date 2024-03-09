@@ -15,7 +15,8 @@ from matplotlib import pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
-    print("Used default matplotlib style.")
+    #print("Used default matplotlib style.")
+    ...
 
 from ..utils.command import CustomTimer
 from .validator import AbstractValidator
