@@ -56,7 +56,16 @@ class StructureModifier(StructureBuilder):
         """"""
         super().__init__(*args, **kwargs)
 
+        # TODO: substrates should also be a Builder Object
+        # TODO: if substrates is a ChemiclFormula?
+        if isinstance(substrates, str) or isinstance(substrates, pathlib.Path):
+            substrates = pathlib.Path(substrates).absolute()
+        else:
+            ...
+        self._print(f"{substrates = }")
+
         self.substrates = self._load_substrates(substrates)
+        self._print(f"{self.substrates = }")
 
         return
 
@@ -70,7 +79,8 @@ class StructureModifier(StructureBuilder):
         elif isinstance(inp_sub, AtomsNDArray):
             substrates = inp_sub.get_marked_structures()
         else:
-            if isinstance(inp_sub, str): # assume this is a path
+            # assume this is a path
+            if isinstance(inp_sub, str) or isinstance(inp_sub, pathlib.Path):
                 substrates = read(inp_sub, ":")
             else:
                 ...

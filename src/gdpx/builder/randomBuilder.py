@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import pathlib
 import warnings
 
 from typing import List, Mapping
@@ -66,6 +67,13 @@ class RandomBuilder(StructureModifier):
         max_times_size: int=5, *args, **kwargs
     ):
         super().__init__(substrates=substrates, *args, **kwargs)
+
+        # TODO: substrates should also be a Builder Object
+        # TODO: if substrates is a ChemiclFormula?
+        if isinstance(substrates, str) or isinstance(substrates, pathlib.Path):
+            substrates = str(pathlib.Path(substrates).absolute())
+        else:
+            ...
 
         self._state_params = dict(
             composition = composition,
