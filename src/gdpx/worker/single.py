@@ -14,6 +14,8 @@ from typing import Optional, Union, List
 
 from tinydb import Query, TinyDB
 
+import numpy as np
+
 from ase import Atoms
 from ase.io import read, write
 
@@ -292,6 +294,22 @@ class SingleWorker(AbstractWorker):
         for p in unretrieved_wdirs: 
             self.driver.directory = p
             results.append(self.driver.read_trajectory(archive_path=archive_path))
+        
+        # TODO: dump results shape? assume the results are 2D
+        #if self._retrieve_mode == "all":
+        #    dim1 = len(results)
+        #    dim2 = max([len(x) for x in results])
+        #    size = (dim1, dim2)
+        #    markers = []
+        #    for i in range(dim1):
+        #        maxj = len(results[i])
+        #        markers.extend([(i, j) for j in range(maxj)])
+
+        #    #shape_dir = self.directory / "_shape"
+        #    shape_dir = self.directory.parent / "_shape"
+        #    shape_dir.mkdir(parents=True, exist_ok=True)
+        #    np.savetxt(shape_dir / "shape.dat", np.array(size, dtype=np.int32), fmt="%8d")
+        #    np.savetxt(shape_dir / "markers.dat", np.array(markers, dtype=np.int32), fmt="%8d")
 
         return results
     

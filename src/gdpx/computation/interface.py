@@ -148,6 +148,18 @@ def extract_results_from_workers(
     return status, trajectories
 
 
+def get_shape_data(shape_dir: Union[str, pathlib.Path]):
+    # - load previous structures' shape
+    if shape_dir.exists():
+        inp_shape = np.loadtxt(shape_dir / "shape.dat", dtype=int)
+        inp_markers = np.loadtxt(shape_dir / "markers.dat", dtype=int)
+    else:
+        inp_shape = None
+        inp_markers = None
+    
+    return inp_shape, inp_markers
+
+
 def convert_results_to_structures(
     structures: List[Atoms],
     inp_shape,
@@ -155,18 +167,18 @@ def convert_results_to_structures(
     *,
     reduce_single_worker: bool = True,
     merge_workers: bool = False,
-    _print_func=print,
-    _debug_func=print,
+    print_func=print,
+    debug_func=print,
 ):
     """Convert `compute` resulst into structures with a proper shape."""
     # -
-    _print = _print_func
-    _debug = _debug_func
+    _print = print_func
+    _debug = debug_func
 
     # TODO: Convert to correct input data shape for spc workers...
     #       Optimise the codes here?
-    _print("convert structure shape: ")
-    _print(f"input structure shape: {structures.shape}")
+    _print(f"target structure shape: {inp_shape}")
+    _print(f"input  structure shape: {structures.shape}")
     if inp_shape is not None and inp_markers is not None:
         converted_structures = []
         for curr_structures in structures:  # shape (nworkers, ncandidates, 1) 
@@ -372,6 +384,7 @@ class compute(Operation):
                 )
                 self.status = status
                 if self.status:
+                    self._print(f"extracted structures: {computed_structures}")
                     num_workers = len(workers)
                     reduce_single_worker = self.reduce_single_worker
                     if num_workers != 1:
@@ -382,6 +395,8 @@ class compute(Operation):
                         inp_markers,
                         reduce_single_worker=reduce_single_worker,
                         merge_workers=self.merge_workers,
+                        print_func=self._print,
+                        debug_func=self._debug
                     )
                     output = computed_structures
                 else:
@@ -498,14 +513,8 @@ class extract(Operation):
 
         self.workers = workers  # for operations to access
 
-        # - load previous structures' shape
-        shape_dir = self.input_nodes[0].directory / "shape"
-        if shape_dir.exists():
-            inp_shape = np.loadtxt(compute_wdir / "shape.dat", dtype=int)
-            inp_markers = np.loadtxt(compute_wdir / "markers.dat", dtype=int)
-        else:
-            inp_shape = None
-            inp_markers = None
+        # - shape
+        inp_shape, inp_markers = get_shape_data(self.input_nodes[0].directory/"_shape")
 
         # - extract results
         status, computed_structures = extract_results_from_workers(
@@ -516,6 +525,7 @@ class extract(Operation):
             debug_func=self._debug,
         )
         if status:
+            self._print(f"extracted structures: {computed_structures}")
             num_workers = len(workers)
             reduce_single_worker = self.reduce_single_worker
             if num_workers != 1:
@@ -526,6 +536,8 @@ class extract(Operation):
                 inp_markers,
                 reduce_single_worker=reduce_single_worker,
                 merge_workers=self.merge_workers,
+                print_func=self._print,
+                debug_func=self._debug
             )
 
         self.status = status
