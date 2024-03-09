@@ -12,10 +12,11 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.core.register import registers
-from gdpx.data.array import AtomsNDArray
-from gdpx.selector.selector import AbstractSelector
-from gdpx.selector.cur import boltz_selection, hist_selection
+from ..core.register import registers
+from ..data.array import AtomsNDArray
+from .selector import AbstractSelector
+from .cur import stat_str2val, boltz_selection, hist_selection
+
 
 @dataclasses.dataclass
 class PropertyItem:
@@ -24,7 +25,7 @@ class PropertyItem:
     name: str
 
     #: metric config...
-    metric: Union[str,List[str]] = None
+    metric: Union[str, List[str]] = None
 
     #: List of functions, min, max, average and ...
     _metric: List[Callable] = dataclasses.field(init=False, default_factory=list)
@@ -37,9 +38,14 @@ class PropertyItem:
     #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
 
-    range: List[float] = dataclasses.field(default_factory=lambda: [None,None])
+    #: Property range to filter, which should be two strings or two numbers or mixed.
+    range: List[float] = dataclasses.field(default_factory=lambda: [None, None])
+
+    #: Property minimum.
     pmin: float = dataclasses.field(init=False, default=-np.inf)
-    pmax: float = dataclasses.field(init=False, default= np.inf)
+
+    #: Property maximum.
+    pmax: float = dataclasses.field(init=False, default=np.inf)
     
     #: Number of bins for histogram-based sparsification.
     nbins: int = 20
@@ -57,10 +63,12 @@ class PropertyItem:
         # - bound
         bounds_ = self.range
         if bounds_[0] is None:
-            bounds_[0] = -np.inf
+            bounds_[0] = "min"
         if bounds_[1] is None:
-            bounds_[1] = np.inf
-        assert bounds_[0] < bounds_[1], f"{self.name} has invalid bounds..."
+            bounds_[1] = "max"
+
+        # NOTE: assert range when property values are available
+        #assert bounds_[0] < bounds_[1], f"{self.name} has invalid bounds..."
         self.pmin, self.pmax = bounds_
 
         # - metric
@@ -130,7 +138,7 @@ class PropertySelector(AbstractSelector):
         number = [4, 0.2]
     )
 
-    def __init__(self, directory="./", *args, **kwargs) -> NoReturn:
+    def __init__(self, directory="./", *args, **kwargs) -> None:
         """"""
         super().__init__(directory, *args, **kwargs)
 
@@ -230,15 +238,27 @@ class PropertySelector(AbstractSelector):
         """"""
         # - here are all data
         npoints = len(prop_vals)
-        pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
-        pstd = np.sqrt(np.var(prop_vals-pavg))
+        #pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
+        #pstd = np.sqrt(np.var(prop_vals-pavg))
+        pmax = stat_str2val("max", prop_vals)
+        pmin = stat_str2val("min", prop_vals)
 
-        # - hist data only in the range
+        pavg = stat_str2val("avg", prop_vals)
+        pstd = stat_str2val("svar", prop_vals)
+
+        # NOTE: convert range to pmin and pmax
+        #       hist data only in the range
+        prop_item.pmin = stat_str2val(prop_item.pmin, prop_vals)
+        prop_item.pmax = stat_str2val(prop_item.pmax, prop_vals)
+        if prop_item.pmax < prop_item.pmin:
+            prop_item.pmax = prop_item.pmin
+
         hist_max, hist_min = prop_item.pmax, prop_item.pmin
-        if hist_max == np.inf:
-            hist_max = pmax
-        if hist_min == -np.inf:
-            hist_min = pmin
+        #if hist_max == np.inf:
+        #    hist_max = pmax
+        #if hist_min == -np.inf:
+        #    hist_min = pmin
+
         bins = np.linspace(
             hist_min, hist_max, prop_item.nbins, endpoint=False
         ).tolist()
@@ -246,10 +266,11 @@ class PropertySelector(AbstractSelector):
         hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[hist_min, hist_max])
 
         # - output
-        content = f"#Property {prop_item.name}\n"
+        content = f"# Property {prop_item.name}\n"
         content += "# min {:<12.4f} max {:<12.4f}\n".format(pmin, pmax)
         content += "# avg {:<12.4f} std {:<12.4f}\n".format(pavg, pstd)
         content += "# histogram of {} points in the range (npoints: {})\n".format(np.sum(hist), npoints)
+        content += f"# min {prop_item.pmin:<12.4f} max {prop_item.pmax:<12.4f}\n"
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
         content += "{:>12.4f}  {:>12s}\n".format(bin_edges[-1], "-")
@@ -278,11 +299,11 @@ class PropertySelector(AbstractSelector):
             # TODO: possibly use np.where to replace this code
             if not prop_item.reverse:
                 for i in range(nframes):
-                    if prop_item.pmin <= prop_vals[i] < prop_item.pmax:
+                    if prop_item.pmin <= prop_vals[i] <= prop_item.pmax:
                         curr_indices.append(i)
             else:
                 for i in range(nframes):
-                    if prop_item.pmin > prop_vals[i] and prop_vals[i] >= prop_item.pmax:
+                    if prop_item.pmin > prop_vals[i] and prop_vals[i] > prop_item.pmax:
                         curr_indices.append(i)
             scores = [prop_vals[i] for i in curr_indices]
         elif prop_item.sparsify == "sort":

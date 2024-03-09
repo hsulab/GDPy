@@ -12,6 +12,44 @@ from scipy.spatial.distance import cdist
 """Methods for selection of vector-based descriptors.
 """
 
+# - 
+def stat_str2val(stat: str, values: List[float]) -> float:
+    """Convert a statistic string to a specific value.
+
+    Args:
+        stat: Statistics name.
+        values: A List of scalar values.
+    
+    Return:
+        The statistics value.
+
+    """
+    if isinstance(stat, str):
+        if stat == "min":
+            v = np.min(values)
+        elif stat == "max":
+            v = np.max(values)
+        elif stat == "mean" or stat == "avg": # Compatibilty.
+            v = np.mean(values)
+        elif stat == "svar":
+            v = np.sqrt(np.var(values - np.average(values)))
+        elif stat == "median":
+            v = np.median(values)
+        elif stat.startswith("percentile"):
+            q = int(stat.strip().split("_")[1]) # should be within 0 and 100
+            v = np.percentile(values, q)
+        else:
+            raise RuntimeError(f"Unknown statistics {stat}.")
+    else: 
+        if stat == -np.inf:
+            v = np.min(values)
+        elif stat == np.inf:
+            v = np.max(values)
+        else: # assume it is a regular number or a numpy scalar
+            v = stat
+
+    return v
+
 # - CUR decomposition
 def descriptor_svd(at_descs, num: int, do_vectors="vh"):
     """Perfrom a sparse SVD."""
