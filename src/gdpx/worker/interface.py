@@ -5,7 +5,7 @@ import copy
 import itertools
 import logging
 import pathlib
-from typing import NoReturn, List
+from typing import NoReturn, Optional, List
 
 import numpy as np
 
@@ -108,7 +108,7 @@ class ComputerVariable(Variable):
 
     def __init__(
         self, potter, driver={}, scheduler={}, *, 
-        estimate_uncertainty: bool=False, switch_backend: str=None,
+        estimate_uncertainty: Optional[bool]=None, switch_backend: Optional[str]=None,
         batchsize: int=1, share_wdir: bool= False, use_single: bool=False, 
         retain_info: bool=False, custom_wdirs=None, directory=pathlib.Path.cwd()
     ):
@@ -117,14 +117,20 @@ class ComputerVariable(Variable):
         self.potter = convert_input_to_potter(potter)
 
         if hasattr(self.potter, "switch_uncertainty_estimation"):
-            self._print(f"{self.potter.name} switches its uncertainty estimation...")
-            self.potter.switch_uncertainty_estimation(estimate_uncertainty)
+            if estimate_uncertainty is not None:
+                self._print(f"{self.potter.name} switches its uncertainty estimation to {estimate_uncertainty}...")
+                self.potter.switch_uncertainty_estimation(estimate_uncertainty)
+            else:
+                ...
         else:
             self._print(f"{self.potter.name} does not support switching its uncertainty estimation...")
         
         if hasattr(self.potter, "switch_backend"):
-            self._print(f"{self.potter.name} switches its backend to {switch_backend}...")
-            self.potter.switch_backend(backend=switch_backend)
+            if switch_backend is not None:
+                self._print(f"{self.potter.name} switches its backend to {switch_backend}...")
+                self.potter.switch_backend(backend=switch_backend)
+            else:
+                ...
         else:
             self._print(f"{self.potter.name} does not support switching its backend...")
 
