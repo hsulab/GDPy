@@ -26,7 +26,7 @@ from ..expedition import AbstractExpedition
 from gdpx.worker.grid import GridDriverBasedWorker
 from gdpx.potential.interface import create_mixer
 from gdpx.builder.group import create_a_group, create_a_molecule_group
-from gdpx.graph.creator import find_product, find_molecules
+from gdpx.graph.molecule import find_product, find_molecules
 
 
 def convert_index_to_formula(atoms, group_indices: List[List[int]]):
