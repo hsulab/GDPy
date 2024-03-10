@@ -270,6 +270,8 @@ class transfer(Operation):
 
         if isinstance(frames, AtomsNDArray):
             frames = frames.get_marked_structures()
+        nframes = len(frames)
+        self._print(f"{nframes = }")
 
         target_dir = dataset.directory.resolve()
         self._print(f"target dir: {str(target_dir)}")
@@ -277,11 +279,17 @@ class transfer(Operation):
         # - check chemical symbols
         system_dict = {} # {formula: [indices]}
 
+        # NOTE: groupby only collects contiguous data
+        #       we need aggregate by ourselves
         formulae = [a.get_chemical_formula() for a in frames]
         for k, v in itertools.groupby(enumerate(formulae), key=lambda x: x[1]):
-            system_dict[k] = [x[0] for x in v]
+            if k not in system_dict:
+                system_dict[k] = [x[0] for x in v]
+            else:
+                system_dict[k].extend([x[0] for x in v])
         
         # - transfer data
+        acc_nframes = 0
         for formula, curr_indices in system_dict.items():
             # -- TODO: check system type
             system_type = self.system # currently, use user input one
@@ -304,6 +312,10 @@ class transfer(Operation):
             else:
                 #warnings.warn(f"{target_destination} exists.", UserWarning)
                 self._print(f"WARN: {str(target_destination.relative_to(target_dir))} exists.")
+
+            acc_nframes += curr_nframes
+
+        assert nframes == acc_nframes
         
         self.status = "finished"
 
