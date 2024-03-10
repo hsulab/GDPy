@@ -15,11 +15,10 @@ from ase import Atoms
 from ase.constraints import constrained_indices
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gdpx.builder.group import create_an_intersect_group
-
-from gdpx.graph.creator import StruGraphCreator
-from gdpx.graph.comparison import bond_match, get_unique_environments_based_on_bonds
-from gdpx.graph.utils import node_symbol, unpack_node_name, show_nodes, plot_graph
+from ..builder.group import create_an_intersect_group
+from .creator import StruGraphCreator
+from .comparison import bond_match, get_unique_environments_based_on_bonds
+from .utils import node_symbol, unpack_node_name, show_nodes, plot_graph
 
 
 def make_clean_atoms(atoms_, results=None):
@@ -503,19 +502,21 @@ class SiteFinder(StruGraphCreator):
     """Find adsorption sites on surface.
 
     The procedure includes several steps: 1. Detect surface atoms. 2. Find site 
-    with different orders (coordination number). This supports both single and 
+    with different orders (coordination number). This supports both mono- and 
     multi-dentate sites.
 
     """
 
-    surface_normal = 0.65
+    #: The minimum norm to be considered as surface.
+    surface_normal: float = 0.65
 
     _site_radius = 2
 
     # bind an atoms object
-    atoms = None
+    atoms: Atoms = None
+
     nl = None
-    graph = None
+    graph: nx.Graph = None
 
     def __init__(self, site_radius=2, *args, **kwargs):
         """"""
@@ -536,7 +537,7 @@ class SiteFinder(StruGraphCreator):
 
         return self._site_radius
     
-    def find(self, atoms_: Atoms, site_params: list, surface_mask: List[int]=None, check_unique=False):
+    def find(self, atoms_: Atoms, site_params: list, surface_mask: List[int]=None):
         """Find all sites based on graph.
 
         The site finding includes several steps. 1. Create a graph representation of 
@@ -569,31 +570,31 @@ class SiteFinder(StruGraphCreator):
             self.ads_indices, mask_elements=[],
             surf_norm_min=self.surface_normal, normalised=True
         )
-        self.pfunc(f"surface mask: {surface_mask}")
-        self.pfunc(f"surface mask ads: {self.ads_indices}")
+        self._print(f"surface mask: {surface_mask}")
+        self._print(f"surface mask ads: {self.ads_indices}")
 
         atoms.arrays["surface_direction"] = normals
         # write("xxx.xyz", atoms)
 
         # - find all valid adsorption sites
         site_groups = []
-        for cur_site_params in site_params:
-            #print(cur_site_params)
-            cur_params_list = self._broadcast_site_params(cur_site_params)
+        for curr_site_params in site_params:
+            self._print(curr_site_params)
+            curr_params_list = self._broadcast_site_params(curr_site_params)
             #print(cur_params_list)
 
-            nanchors = len(cur_params_list)
+            nanchors = len(curr_params_list)
 
             if nanchors == 1:
-                self.pfunc("Singledentate sites...")
-                cur_params = cur_params_list[0]
+                self._print("Monodentate sites...")
+                curr_params = curr_params_list[0]
                 sites = self._generate_single_site(
-                    cur_params, atoms, graph, nl, surface_mask, normals
+                    curr_params, atoms, graph, nl, surface_mask, normals
                 )
                 ...
             else:
-                self.pfunc("Multidentate sites...")
-                for cur_params in cur_params_list:
+                self._print("Multidentate sites...")
+                for curr_params in curr_params_list:
                     ...
             
             site_groups.append(sites)
@@ -607,10 +608,10 @@ class SiteFinder(StruGraphCreator):
         # -- some basic params
         cn = params.get("cn") # coordination number
         cur_site_radius = params.get("radius", self._site_radius)
-        self.pfunc(f"coordination number: {cn}")
+        self._print(f"coordination number: {cn}")
 
         # -- find possible atoms to form the site
-        self.pfunc(f"graph: {graph}")
+        self._print(f"graph: {graph}")
         #cur_species = params.get("species", None)
         #site_indices = params.get("site_indices", None)
         #region = params.get("region", None)
@@ -624,7 +625,7 @@ class SiteFinder(StruGraphCreator):
             ["id {}".format(" ".join([str(i) for i in range(1,natoms+1)]))] # start from 1
         )
         valid_indices = create_an_intersect_group(atoms, group_commands)
-        self.pfunc(f"atomic indice for site: {valid_indices}")
+        self._print(f"atomic indice for site: {valid_indices}")
 
         # -- create sites
         found_sites = self._generate_site(
@@ -651,10 +652,10 @@ class SiteFinder(StruGraphCreator):
             unique_sites = [found_sites[i] for i in unique_indices]
         
             # TODO: sort sites by positions?
-            self.pfunc(f"DEBUG: {len(found_sites)} -> {len(unique_sites)}")
+            self._print(f"DEBUG: {len(found_sites)} -> {len(unique_sites)}")
         else:
             unique_sites = []
-            self.pfunc("DEBUG: No sites are found.")
+            self._print("DEBUG: No sites are found.")
 
         return unique_sites
     
@@ -759,7 +760,7 @@ class SiteFinder(StruGraphCreator):
                    break
            else: # All were valid
                 valid.append(list(cycle))
-        self.pfunc(f"DEBUG: {valid}")
+        self._print(f"DEBUG: {valid}")
 
         #print(valid)
         sites = []

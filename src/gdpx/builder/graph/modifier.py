@@ -12,15 +12,13 @@ from joblib import Parallel, delayed
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx import config
-from gdpx.core.register import registers
-from gdpx.builder.species import build_species
-from gdpx.graph.creator import StruGraphCreator
-from gdpx.graph.sites import SiteFinder
-from gdpx.utils.command import CustomTimer
-from gdpx.graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
+from .. import config
+from .. import CustomTimer
+from .. import SiteFinder
+from .. import StruGraphCreator
+from .. import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
 
-from gdpx.builder.builder import StructureModifier
+from ..builder import StructureModifier
 from ..group import create_a_group
 
 DEFAULT_GRAPH_PARAMS = dict(
@@ -162,7 +160,7 @@ class GraphModifier(StructureModifier):
         if ret_envs:
             ret_env_groups = ret
             self._print("Typical Chemical Environment "+str(ret_envs[0]))
-            with CustomTimer(name="check-uniqueness"):
+            with CustomTimer(name="check-uniqueness", func=self._print):
                 # compare chem envs
                 #unique_envs, unique_groups = unique_chem_envs(
                 #    chem_groups, list(enumerate(frames))

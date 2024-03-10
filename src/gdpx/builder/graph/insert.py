@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import NoReturn, List
+from typing import NoReturn, Callable, List
 
 import numpy as np
 import networkx as nx
@@ -11,25 +11,26 @@ from joblib import Parallel, delayed
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx import config
-from gdpx.builder.species import build_species
-from gdpx.graph.creator import StruGraphCreator
-from gdpx.graph.sites import SiteFinder
-from gdpx.utils.command import CustomTimer
-from gdpx.graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
-
-from gdpx.builder.graph.modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
+from .. import config
+from .. import SiteFinder, CustomTimer
+from ..species import build_species
+from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
 
 
-def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: list, pfunc=print):
+def single_insert_adsorbate(
+    graph_params: dict, idx, atoms, ads, site_params: list, 
+    print_func: Callable=print, debug_func: Callable=print
+):
     """Insert adsorbate into the graph.
     """
     site_creator = SiteFinder(**graph_params)
-    site_creator.pfunc = pfunc
+    site_creator._print = print_func
+    site_creator._debug = debug_func
     site_groups = site_creator.find(atoms, site_params)
 
     created_frames = []
-    for i, (sites, params) in enumerate(zip(site_groups,site_params)):
+    for i, (sites, params) in enumerate(zip(site_groups, site_params)):
+        print_func(f"{params = }")
         ads_params = params.get("ads", [{}])
         cur_frames = []
         for s in sites: 
@@ -38,12 +39,16 @@ def single_insert_adsorbate(graph_params: dict, idx, atoms, ads, site_params: li
             )
             cur_frames.extend(ads_frames)
         created_frames.extend(cur_frames)
-        pfunc(f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}.")
+        print_func(
+            f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}."
+        )
     
     return created_frames
 
 
 class GraphInsertModifier(GraphModifier):
+
+    name = "graph_insert"
 
     def __init__(
             self, species, spectators: List[str], 
@@ -110,7 +115,7 @@ class GraphInsertModifier(GraphModifier):
             ret = Parallel(n_jobs=1)(
                 delayed(single_insert_adsorbate)(
                     graph_params, idx, a, adsorbate, site_params,
-                    pfunc=self._print
+                    print_func=self._print
                 ) for idx, a in enumerate(substrates)
             )
         ret_frames = []

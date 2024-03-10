@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import dataclasses
 import pathlib
-from typing import List, Mapping
+from typing import Callable, List, Mapping
 from itertools import chain
 
 import numpy as np
@@ -13,7 +14,9 @@ from ase import Atoms
 from ase.io import read, write
 from ase.neighborlist import natural_cutoffs, NeighborList
 
-from gdpx.graph.utils import grid_iterator, node_symbol, bond_symbol, unpack_node_name
+from .. import config
+
+from .utils import grid_iterator, node_symbol, bond_symbol, unpack_node_name
 
 """Create the graph representation of a structure based on its neighbour list.
 """
@@ -78,7 +81,8 @@ class StruGraphCreator():
     # split system atoms into framework and adsorbate
     #adsorbate_indices = None
 
-    substrate_adsorbate_distance: int = 2.5 #: Distance [Ang].
+    #: Distance [Ang].
+    substrate_adsorbate_distance: int = 2.5 
 
     atoms = None
     nl = None
@@ -88,7 +92,12 @@ class StruGraphCreator():
     surface_mask = None
 
     _directory = "./"
-    pfunc = print
+    
+    #: Standard print function.
+    _print: Callable = config._print
+
+    #: Standard debug function.
+    _debug: Callable = config._debug
 
     def __init__(
         self, adsorbate_elements: list,
