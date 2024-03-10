@@ -12,6 +12,7 @@ from ase.io import read, write
 from .. import config
 from ..core.node import AbstractNode
 from ..data.array import AtomsNDArray
+from ..utils.command import dict2str
 
 
 """
@@ -28,20 +29,26 @@ class StructureBuilder(AbstractNode):
     #: Standard debug function.
     _debug: Callable = config._debug
 
-    def __init__(self, use_tags=False, directory="./", random_seed=None, *args, **kwargs):
+    def __init__(
+        self, use_tags=False, directory="./", random_seed=None, *args, **kwargs
+    ):
         """"""
         super().__init__(directory=directory, random_seed=random_seed)
 
         self.use_tags = use_tags
 
         return
-    
+
     @abc.abstractmethod
     def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
         """Generate structures based on rules."""
         self._print(f"@@@{self.__class__.__name__}")
-        self._print(f"RANDOM_STATE: {self.random_seed}")
-        self._print(f"RANDOM_SEED : {self.rng.bit_generator.state}")
+
+        self._print(f"RANDOM_SEED : {self.random_seed}")
+        rng_state = self.rng.bit_generator.state
+        for l in dict2str(rng_state).split("\n"):
+            config._print(l)
+
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
@@ -62,10 +69,10 @@ class StructureModifier(StructureBuilder):
             substrates = pathlib.Path(substrates).absolute()
         else:
             ...
-        #self._print(f"{substrates = }")
+        # self._print(f"{substrates = }")
 
         self.substrates = self._load_substrates(substrates)
-        #self._print(f"{self.substrates = }")
+        # self._print(f"{self.substrates = }")
 
         return
 
@@ -74,7 +81,7 @@ class StructureModifier(StructureBuilder):
         substrates = None
         if isinstance(inp_sub, Atoms):
             substrates = [inp_sub]
-        elif isinstance(inp_sub, list): # assume this is a List of Atoms
+        elif isinstance(inp_sub, list):  # assume this is a List of Atoms
             substrates = inp_sub
         elif isinstance(inp_sub, AtomsNDArray):
             substrates = inp_sub.get_marked_structures()
@@ -97,8 +104,8 @@ class StructureModifier(StructureBuilder):
             self.substrates = substrates_at_run
 
         # TODO: ASE startgenerator mix builders and modifiers
-        #assert self.substrates is not None, "Substrates are not set neither at inp nor at run."
-        #self.substrates = [copy.deepcopy(s) for s in self.substrates]
+        # assert self.substrates is not None, "Substrates are not set neither at inp nor at run."
+        # self.substrates = [copy.deepcopy(s) for s in self.substrates]
 
         return
 
