@@ -15,10 +15,10 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.core.placeholder import Placeholder
-from gdpx.core.variable import Variable
-from gdpx.core.operation import Operation
-from gdpx.core.register import registers
+from ..core.placeholder import Placeholder
+from ..core.variable import Variable
+from ..core.operation import Operation
+from ..core.register import registers
 from ..data.array import AtomsNDArray
 from .builder import StructureBuilder
 
@@ -47,6 +47,16 @@ class BuilderVariable(Variable):
         )
 
         super().__init__(initial_value=builder, directory=directory)
+
+        return
+    
+    @Variable.directory.setter
+    def directory(self, directory_) -> NoReturn:
+        """"""
+        self._directory = pathlib.Path(directory_)
+
+        # Value is the attached builder
+        self.value.directory = self._directory
 
         return
 
@@ -200,11 +210,23 @@ class modify(Operation):
 
         return
     
+    @Operation.directory.setter
+    def directory(self, directory_) -> None:
+        """"""
+        self._directory = pathlib.Path(directory_)
+
+        self.input_nodes[1].directory = self._directory/"modifier"
+
+        return
+    
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         substrates, modifier = input_nodes
         if isinstance(modifier, dict) or isinstance(modifier, omegaconf.dictconfig.DictConfig):
             modifier = BuilderVariable(directory=self.directory/"modifier", **modifier)
+            #self._print(f"{modifier =}")
+            #self._print(f"{modifier.directory =}")
+            #exit()
 
         return substrates, modifier
     
