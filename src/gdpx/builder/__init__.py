@@ -5,6 +5,7 @@
 import warnings
 
 from .. import config
+from ..utils.command import CustomTimer
 
 from .interface import create_builder
 
@@ -46,15 +47,9 @@ from .insert import InsertModifier
 registers.builder.register("insert")(InsertModifier)
 
 # --
-from ..utils.command import CustomTimer
-from ..graph.creator import StruGraphCreator
 from ..graph.sites import SiteFinder
-from ..graph.comparison import (
-    get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
-)
-from ..graph.utils import (
-    grid_iterator, node_symbol, bond_symbol, unpack_node_name
-)
+from ..graph.creator import StruGraphCreator, extract_chem_envs
+from ..graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
 
 from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
 registers.builder.register("graph_insert")(GraphInsertModifier)

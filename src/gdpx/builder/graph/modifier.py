@@ -14,9 +14,8 @@ from ase.io import read, write
 
 from .. import config
 from .. import CustomTimer
-from .. import SiteFinder
-from .. import StruGraphCreator
-from .. import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
+from .. import StruGraphCreator, extract_chem_envs
+from .. import paragroup_unique_chem_envs
 
 from ..builder import StructureModifier
 from ..group import create_a_group
@@ -30,7 +29,7 @@ DEFAULT_GRAPH_PARAMS = dict(
     )
 )
 
-def single_create_structure_graph(graph_params: dict, target_group, atoms: Atoms) -> List[nx.Graph]:
+def single_create_structure_graph(graph_params: dict, target_group: List[str], atoms: Atoms) -> List[nx.Graph]:
     """Create structure graph and get selected chemical environments.
 
     Find atoms with selected chemical symbols or in the defined region.
@@ -46,74 +45,19 @@ def single_create_structure_graph(graph_params: dict, target_group, atoms: Atoms
     """
     stru_creator = StruGraphCreator(**graph_params)
 
-    config._debug(f"target_group: {target_group}")
-
     natoms = len(atoms)
     group_indices = list(range(natoms))
     for command in target_group:
         curr_indices = create_a_group(atoms, command)
         group_indices = [i for i in group_indices if i in curr_indices]
+    #config._print(f"{group_indices = }")
 
-    _ = stru_creator.generate_graph(atoms, ads_indices_=group_indices)
+    graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
 
-    chem_envs = stru_creator.extract_chem_envs(atoms)
+    graph_radius = stru_creator.graph_radius
+    chem_envs = extract_chem_envs(graph, atoms, group_indices, graph_radius)
+    #config._print(f"{graph_radius = }")
 
-    return chem_envs
-
-def _temp_single_create_structure_graph(graph_params: dict, spec_params: dict, atoms: Atoms) -> List[nx.Graph]:
-    """Create structure graph and get selected chemical environments.
-
-    Find atoms with selected chemical symbols or in the defined region.
-
-    Args:
-        graph_params: Parameters for the graph representation.
-        spec_params: Selected criteria.
-        atoms: Input structure.
-
-    Returns:
-        A list of graphs that represent the chemical environments of selected atoms.
-
-    """
-    stru_creator = StruGraphCreator(**graph_params)
-
-    # - check if spec_indices are all species
-    selected_species = spec_params["selected_species"]
-    #print(selected_species)
-
-    chemical_symbols = atoms.get_chemical_symbols()
-    #print(chemical_symbols)
-
-    spec_indices = spec_params.get("spec_indices", None)
-    if spec_indices is None:
-        region = spec_params.get("region", None)
-        if region is None:
-            ads_indices = [] # selected indices
-            for i, sym in enumerate(chemical_symbols):
-                if sym in selected_species:
-                    ads_indices.append(i)
-        else:
-            ads_indices = []
-            #print(region)
-            (ox, oy, oz, xl, yl, zl, xh, yh, zh) = region
-            for i, a in enumerate(atoms):
-                if a.symbol in selected_species:
-                    pos = a.position
-                    if (
-                        (ox+xl <= pos[0] <= ox+xh) and
-                        (oy+yl <= pos[1] <= oy+yh) and
-                        (oz+zl <= pos[2] <= oz+zh)
-                    ):
-                        ads_indices.append(i)
-    else:
-        ads_indices = copy.deepcopy(spec_indices)
-    #print(ads_indices)
-
-    _ = stru_creator.generate_graph(atoms, ads_indices_=ads_indices)
-
-    #print(stru_creator.graph)
-    #return stru_creator.graph
-
-    chem_envs = stru_creator.extract_chem_envs(atoms)
     return chem_envs
 
 

@@ -8,13 +8,29 @@ import numpy as np
 import networkx as nx
 from joblib import Parallel, delayed
 
+import ase
 from ase import Atoms
 from ase.io import read, write
 
+
 from .. import config
-from .. import SiteFinder, CustomTimer
-from ..species import build_species
+from .. import CustomTimer
+from .. import SiteFinder
 from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
+
+
+def str2atoms(species: str) -> Atoms:
+    """Convert a string to an Atoms object."""
+    # - build adsorbate
+    atoms = None
+    if species in ase.data.chemical_symbols:
+        atoms = Atoms(species, positions=[[0.0, 0.0, 0.0]])
+    elif species in ase.collections.g2.names:
+        atoms = ase.build.molecule(species)
+    else:
+        raise ValueError(f"Fail to create species {species}")
+
+    return atoms
 
 
 def single_insert_adsorbate(
@@ -28,6 +44,8 @@ def single_insert_adsorbate(
     site_creator._debug = debug_func
     site_groups = site_creator.find(atoms, site_params)
 
+    ads_indices = [a.index for a in atoms if a.symbol in site_creator.adsorbate_elements]
+
     created_frames = []
     for i, (sites, params) in enumerate(zip(site_groups, site_params)):
         print_func(f"{params = }")
@@ -35,7 +53,7 @@ def single_insert_adsorbate(
         cur_frames = []
         for s in sites: 
             ads_frames = s.adsorb(
-                ads, site_creator.ads_indices, ads_params
+                ads, ads_indices, ads_params
             )
             cur_frames.extend(ads_frames)
         created_frames.extend(cur_frames)
@@ -100,7 +118,7 @@ class GraphInsertModifier(GraphModifier):
         #   and update selected_species
         if isinstance(species, str):
             # simple species
-            adsorbate = build_species(species)
+            adsorbate = str2atoms(species)
         else: # dict
             adsorbate = read(species["adsorbate"]) # only one structure
         symbols = list(set(adsorbate.get_chemical_symbols()))
@@ -128,10 +146,12 @@ class GraphInsertModifier(GraphModifier):
         #       adsorbates are not the same as the inserted one. Otherwise, 
         #       comparasion should be performed.
         target_group = ["symbol "+" ".join(selected_species)]
-        created_frames = self._compare_structures(ret_frames, graph_params, target_group)
+        created_frames = self._compare_structures(
+            ret_frames, graph_params, target_group
+        )
 
         return created_frames
-    
+
 
 if __name__ == "__main__":
     ...
