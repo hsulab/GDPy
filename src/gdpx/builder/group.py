@@ -11,8 +11,8 @@ from ase import Atoms
 from ase.formula import Formula
 
 from ..core.register import registers
-from gdpx.builder.constraints import convert_indices
-from gdpx.graph.creator import find_molecules
+from .constraints import convert_indices
+#from gdpx.graph.creator import find_molecules
 
 """Utilities to create a group of atoms.
 
@@ -76,21 +76,21 @@ def create_a_molecule_group(atoms: Atoms, group_command: str, use_tags=True) -> 
             else:
                 raise RuntimeError("Cant find tags in atoms.")
     
-        if args[0] == "molecule":
-            target_molecule = args[1]
-            molecules = [target_molecule]
-            # --- find molecules with graph connectivity
-            #raise RuntimeError("No tags in atoms.")
-            valid_symbols = []
-            for m in molecules:
-                valid_symbols.extend(list(Formula(m).count().keys()))
-            valid_symbols = set(valid_symbols)
-            atomic_indices = create_a_group(atoms, "symbol {}".format(" ".join(valid_symbols)))
-            fragments = find_molecules(atoms, atomic_indices)
-            if target_molecule in fragments:
-                groups = fragments[target_molecule]
-            else:
-                raise RuntimeError(f"Cant find molecule {target_molecule} in atoms.")
+        #if args[0] == "molecule":
+        #    target_molecule = args[1]
+        #    molecules = [target_molecule]
+        #    # --- find molecules with graph connectivity
+        #    #raise RuntimeError("No tags in atoms.")
+        #    valid_symbols = []
+        #    for m in molecules:
+        #        valid_symbols.extend(list(Formula(m).count().keys()))
+        #    valid_symbols = set(valid_symbols)
+        #    atomic_indices = create_a_group(atoms, "symbol {}".format(" ".join(valid_symbols)))
+        #    fragments = find_molecules(atoms, atomic_indices)
+        #    if target_molecule in fragments:
+        #        groups = fragments[target_molecule]
+        #    else:
+        #        raise RuntimeError(f"Cant find molecule {target_molecule} in atoms.")
     else:
         # NOTE: use atomic group that equals one molecule
         groups = [create_a_group(atoms, group_command)]
