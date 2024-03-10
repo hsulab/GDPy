@@ -62,10 +62,10 @@ class StructureModifier(StructureBuilder):
             substrates = pathlib.Path(substrates).absolute()
         else:
             ...
-        self._print(f"{substrates = }")
+        #self._print(f"{substrates = }")
 
         self.substrates = self._load_substrates(substrates)
-        self._print(f"{self.substrates = }")
+        #self._print(f"{self.substrates = }")
 
         return
 
