@@ -4,6 +4,8 @@
 
 import warnings
 
+from .. import config
+
 from .interface import create_builder
 
 from ..core.register import registers
@@ -43,11 +45,23 @@ registers.builder.register("pack")(PackerBuilder)
 from .insert import InsertModifier
 registers.builder.register("insert")(InsertModifier)
 
+# --
+from ..utils.command import CustomTimer
+from ..graph.creator import StruGraphCreator
+from ..graph.sites import SiteFinder
+from ..graph.comparison import (
+    get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
+)
+from ..graph.utils import (
+    grid_iterator, node_symbol, bond_symbol, unpack_node_name
+)
+
 from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
 registers.builder.register("graph_insert")(GraphInsertModifier)
 registers.builder.register("graph_remove")(GraphRemoveModifier)
 registers.builder.register("graph_exchange")(GraphExchangeModifier)
 
+# --
 from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
 registers.builder.register("random_bulk")(BulkBuilder)
 registers.builder.register("random_cluster")(ClusterBuilder)
