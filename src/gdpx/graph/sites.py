@@ -78,7 +78,8 @@ def normalize(vector):
 
 class SingleAdsorptionSite(object):
 
-    MIN_INTERADSORBATE_DISTANCE = 1.5
+    #: Minimum inter-adsorbate distance.
+    MIN_INTERADSORBATE_DISTANCE: float = 1.5
 
     """A site for single-dentate adsorption.
     """
@@ -547,15 +548,14 @@ class SiteFinder(StruGraphCreator):
             site_params: Parameters that define the site to find.
 
         """
-        #if isinstance(self.atoms, Atoms):
-        #    #raise RuntimeError("SiteGraphCreator already has an atoms object.")
-        #    print("SiteGraphCreator already has an atoms object.")
-
+        # - input atoms
         atoms = atoms_
 
+        # - find adsorbate atoms' indices
+        ads_indices = [a.index for a in atoms if a.symbol in self.adsorbate_elements]
+
         # - create graph
-        _ = self.generate_graph(atoms) # create self.graph
-        graph = self.graph
+        graph = self.generate_graph(atoms, ads_indices) # create self.graph
 
         # NOTE: update nl since we want use nl with bothways instead of false
         nl = self.neigh_creator.build_neighlist(atoms, bothways=True)
@@ -567,11 +567,11 @@ class SiteFinder(StruGraphCreator):
         #       all atoms should have a normal pointing up, as all atoms are surface atoms
         normals, surface_mask = generate_normals(
             atoms, nl, surface_mask, 
-            self.ads_indices, mask_elements=[],
+            ads_indices, mask_elements=[],
             surf_norm_min=self.surface_normal, normalised=True
         )
         self._print(f"surface mask: {surface_mask}")
-        self._print(f"surface mask ads: {self.ads_indices}")
+        self._print(f"surface mask ads: {ads_indices}")
 
         atoms.arrays["surface_direction"] = normals
         # write("xxx.xyz", atoms)
