@@ -151,14 +151,12 @@ ALL_MODULES = [
     ("gdpx.potential", ["managers"]),
     # -- dataloaders (datasets)
     ("gdpx.data", ["dataset"]),
-    # -- region
-    ("gdpx.builder", ["region"]),
     # -- builders
     ("gdpx", ["builder"]),
-    # -- colvar
-    ("gdpx", ["colvar"]),
     # -- genetic-algorithm-related
     ("gdpx.builder", ["crossover", "mutation"]),
+    # -- colvar
+    ("gdpx", ["colvar"]),
     # -- selectors
     ("gdpx", ["selector"]),
     ("gdpx.selector", [
