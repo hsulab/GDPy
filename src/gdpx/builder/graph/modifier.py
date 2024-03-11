@@ -68,15 +68,25 @@ class GraphModifier(StructureModifier):
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
-        cached_filepath = self.directory/"enumerated.xyz"
-        if not cached_filepath.exists():
-            modified_structures = self._irun(self.substrates, )
-            write(self.directory/"enumerated.xyz", modified_structures)
-        else:
-            self._print("Use cached results.")
-            modified_structures = read(self.directory/"enumerated.xyz", ":")
-        n_structures = len(modified_structures)
-        self._print(f"nframes: {n_structures}")
+        prev_directory = self.directory
+        curr_substrates = self.substrates
+
+        for i in range(size):
+            self.directory = prev_directory/f"graph-{i}"
+            self.directory.mkdir(parents=True, exist_ok=True)
+            cached_filepath = self.directory/"enumerated.xyz"
+            if not cached_filepath.exists():
+                self._print("-- run graph results --")
+                modified_structures = self._irun(curr_substrates, )
+                write(self.directory/"enumerated.xyz", modified_structures)
+            else:
+                self._print("-- use cached results --")
+                modified_structures = read(self.directory/"enumerated.xyz", ":")
+            n_structures = len(modified_structures)
+            self._print(f"nframes: {n_structures}")
+            curr_substrates = modified_structures
+        
+        self.directory = prev_directory
 
         return modified_structures 
     
