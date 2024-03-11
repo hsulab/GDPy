@@ -80,7 +80,7 @@ class LocateSelector(AbstractSelector):
             marker_groups = {}
             for k, v in itertools.groupby(
                 data.markers,
-                key=lambda x: [x[i] for i in range(data.ndim) if i != self.axis],
+                key=lambda x: [x[i] for i in range(data.ndim) if i != axis],
             ):
                 k = tuple(k)
                 if k in marker_groups:
