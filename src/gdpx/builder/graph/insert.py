@@ -48,7 +48,6 @@ def single_insert_adsorbate(
 
     created_frames = []
     for i, (sites, params) in enumerate(zip(site_groups, site_params)):
-        print_func(f"{params = }")
         ads_params = params.get("ads", [{}])
         cur_frames = []
         for s in sites: 
@@ -133,7 +132,7 @@ class GraphInsertModifier(GraphModifier):
             ret = Parallel(n_jobs=1)(
                 delayed(single_insert_adsorbate)(
                     graph_params, idx, a, adsorbate, site_params,
-                    print_func=self._print
+                    print_func=self._print, debug_func=self._debug
                 ) for idx, a in enumerate(substrates)
             )
         ret_frames = []

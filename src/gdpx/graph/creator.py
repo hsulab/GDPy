@@ -93,7 +93,7 @@ class StruGraphCreator():
 
     #: Working directory.
     _directory = "./"
-    
+
     #: Standard print function.
     _print: Callable = config._print
 
@@ -117,22 +117,22 @@ class StruGraphCreator():
         """
         # NOTE: half neigh is enough for creating structure graph
         self.adsorbate_elements = adsorbate_elements
-        #self.adsorbate_indices = adsorbate_indices
+        # self.adsorbate_indices = adsorbate_indices
 
         self.graph_radius = graph_radius
         self.pbc_grid = pbc_grid
 
         # - neigh params
-        #covalent_ratio = kwargs.pop("covalent_ratio", 1.0)
-        #pbc_grid = kwargs.pop("pbc_grid", [2,2,0])
-        #skin = kwargs.pop("skin", 0.0)
-        #self_interaction = kwargs.pop("self_interaction", False)
-        #bothways = kwargs.pop("bothways", True)
-        #self.neigh_creator = NeighGraphCreator(
-        #    covalent_ratio=covalent_ratio, skin=skin, 
-        #    self_interaction=self_interaction, bothways=bothways, 
+        # covalent_ratio = kwargs.pop("covalent_ratio", 1.0)
+        # pbc_grid = kwargs.pop("pbc_grid", [2,2,0])
+        # skin = kwargs.pop("skin", 0.0)
+        # self_interaction = kwargs.pop("self_interaction", False)
+        # bothways = kwargs.pop("bothways", True)
+        # self.neigh_creator = NeighGraphCreator(
+        #    covalent_ratio=covalent_ratio, skin=skin,
+        #    self_interaction=self_interaction, bothways=bothways,
         #    pbc_grid=pbc_grid, *args, **kwargs
-        #)
+        # )
         self.neigh_creator = NeighGraphCreator(**neigh_params)
 
         return
@@ -141,19 +141,19 @@ class StruGraphCreator():
     def directory(self):
 
         return self._directory
-    
+
     @directory.setter
     def directory(self, directory_):
         """"""
         self._directory = pathlib.Path(directory_)
 
         return
-    
+
     @property
     def DIS_SURF2SURF(self):
 
         return 2
-    
+
     @property
     def DIS_ADS2SURF(self):
 
@@ -210,16 +210,41 @@ class StruGraphCreator():
 
         return
 
-    def check_system(atoms):
-        """ whether molecule or periodic
-        """
-        atoms.cell = 20.0*np.eye(3)
-        atoms.pbc = True
-        atoms.center()
-        print(atoms)
+    def check_system(
+        self, atoms: Atoms, min_vacuum_ratio: float=0.5,
+        substrate_indices: Optional[List[int]] = None
+    ) -> str:
+        """Determine system type.
 
-        return
-    
+        Args:
+            atoms: Atoms object.
+            substrate_indices: Atomic indices used to determine the system type.
+
+        Return:
+            A string that desribes the system type.
+
+        """
+        # TODO: solvent-solid interface
+
+        cell_length = np.linalg.norm(atoms.get_cell(), axis=1)
+        coord_range = np.max(atoms.positions, axis=0) - np.min(atoms.positions, axis=0)
+
+        vacuum_ratio = (cell_length - coord_range) / cell_length
+        num_vacuum = sum(vacuum_ratio >= min_vacuum_ratio)
+
+        if num_vacuum == 3:
+            system = "cluster"  # or molecule
+        elif num_vacuum == 2:  # nanowire?
+            # TODO: find direction?
+            system = "wire"
+        elif num_vacuum == 1:
+            # TODO: find direction?
+            system = "surface"
+        else:  # num_vacuum == 0
+            system = "bulk"
+
+        return system
+
     def generate_graph(
         self, atoms: Atoms, ads_indices: List[int]=None, 
         clean_substrate: Atoms=None
@@ -238,7 +263,7 @@ class StruGraphCreator():
             ads_edges = [(u, v, d) for u, v, d in full.edges.data() if d["dist"] < self.DIS_SURF2SURF]
             # take all the nodes that have an adsorbate atoms
             ads_nodes = [(n, d) for n, d in full.nodes.data() if d["index"] in input_ads_indices]
-            #for (n, d) in ads_nodes:
+            # for (n, d) in ads_nodes:
             #    print(n, d)
             full = nx.Graph(clean_graph)
             full.add_nodes_from(ads_nodes)
@@ -269,7 +294,7 @@ class StruGraphCreator():
         # - create a neighbour list
         nl = self.neigh_creator.build_neighlist(atoms, bothways=False)
         nl.update(atoms)
-    
+
         # - add all edges to graph
         for centre_idx in range(natoms):
             for x, y, z in grid_iterator(grid):
@@ -293,7 +318,7 @@ class StruGraphCreator():
                         atoms.get_distance(centre_idx, nei_idx, mic=True),
                         ads_indices
                     )
-        
+
         return graph
 
 def extract_chem_envs(

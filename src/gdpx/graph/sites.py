@@ -12,13 +12,14 @@ import scipy as sp
 import networkx as nx
 
 from ase import Atoms
-from ase.constraints import constrained_indices
+from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from ..builder.group import create_an_intersect_group
 from .creator import StruGraphCreator
 from .comparison import bond_match, get_unique_environments_based_on_bonds
 from .utils import node_symbol, unpack_node_name, show_nodes, plot_graph
+from .surface import generate_normals
 
 
 def make_clean_atoms(atoms_, results=None):
@@ -97,15 +98,15 @@ class SingleAdsorptionSite(object):
         """
         self.atoms = make_clean_atoms(atoms)
 
-        #print(offsets)
-        #assert len(cycle) == len(offsets), "site atomic number is inconsistent..."
+        # print(offsets)
+        # assert len(cycle) == len(offsets), "site atomic number is inconsistent..."
         self.site_indices = site_indices
-        #self.offsets = offsets
-        #self.known = known
+        # self.offsets = offsets
+        # self.known = known
 
         order = len(self.site_indices)
         self.order = order
-        
+
         self.position, self.normal, self.tangent = self._compute_position(
             atoms, nl, normals, node_names, order, site_indices, surf_indices
         )
@@ -141,18 +142,18 @@ class SingleAdsorptionSite(object):
 
         """
         assert len(site_indices) == order, "Site order is inconsistent."
-        
+
         # - find positions of atoms forming the site and the normal
-        #print("xxx")
-        #print(names)
+        # print("xxx")
+        # print(names)
         # calc centre
         site_positions = np.zeros((order,3))
         for ci, n in enumerate(node_names):
             chem_sym, a_idx, offset = unpack_node_name(n)
             site_positions[ci] = atoms.positions[a_idx] + np.dot(offset, atoms.get_cell())
-            #print(cycle[ci], site_positions[ci], offset)
+            # print(cycle[ci], site_positions[ci], offset)
         average = np.average(site_positions, axis=0)
-        #print("site pos: ", site_positions)
+        # print("site pos: ", site_positions)
 
         # generate site position
         """
@@ -173,10 +174,10 @@ class SingleAdsorptionSite(object):
         """
 
         # --- NOTE: add default distance to the site
-        #if coordination == 2:
+        # if coordination == 2:
         #    average[2] = average[2] + self.shift2
-        #if coordination == 3:
-        #    average[2] = average[2] + self.shift3 
+        # if coordination == 3:
+        #    average[2] = average[2] + self.shift3
 
         # --- generate site normal --- TODO: ?
         normal = np.zeros(3)
@@ -191,9 +192,9 @@ class SingleAdsorptionSite(object):
                 index = order - 1
                 neighbors = len(nl.get_neighbors(index)[0])
                 cycle_orig = order
-                #print(cycle)
+                # print(cycle)
                 normal = compute_site_normal(atoms, nl, site_indices, surf_indices)
-                #print(cycle,normal)
+                # print(cycle,normal)
             else:
                 # NOTE: order < 1 is not allowed
                 ...
@@ -215,7 +216,7 @@ class SingleAdsorptionSite(object):
             ...
 
         return average, normal, tangent
-    
+
     def is_occupied(self, ads_elemnts):
         """"""
         ads_indices = [a.index for a in self.atoms if a.symbol in ads_elemnts]
@@ -225,14 +226,14 @@ class SingleAdsorptionSite(object):
         ads_graphs = nx.subgraph(self.graph, ads_nodes)
         ads_graphs = [ads_graphs.subgraph(c) for c in nx.connected_components(ads_graphs)]
         print("number of adsorbate graphs: ", len(ads_graphs))
-        #print(self.offsets)
+        # print(self.offsets)
 
         for idx, ads in enumerate(ads_graphs):
             print(f"----- adsorbate {idx} -----")
             print("ads nodes: ", ads.nodes())
             initial = list(ads.nodes())[0] # the first node in the adsorbate
             full_ads = nx.ego_graph(self.graph, initial, radius=0, distance="ads_only") # all nodes in this adsorbate, equal ads?
-            #print("full ads: ", full_ads.nodes())
+            # print("full ads: ", full_ads.nodes())
 
             new_ads = nx.ego_graph(self.graph, initial, radius=1, distance="dist") # consider neighbour atoms
             new_ads = nx.Graph(nx.subgraph(self.graph, list(new_ads.nodes()))) # return a new copy of graph
@@ -265,7 +266,7 @@ class SingleAdsorptionSite(object):
 
         """
         # - find indices of adsorbates
-        #    NOTE: not check distance to hydrogens since 
+        #    NOTE: not check distance to hydrogens since
         #          since the distances are usually very small
         natoms, natoms_ads = len(self.atoms), len(adsorbate_)
         inserted_ads_indices = [i+natoms for i in range(natoms_ads) if adsorbate_[i].symbol != "H"]
@@ -275,8 +276,8 @@ class SingleAdsorptionSite(object):
 
         # TODO: assert adsorbate to insert is a single atom or a molecule
         # -- for planar molecules such as CO2
-        #adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
-        #adsorbate.translate(self.position + (self.normal*distance_to_site))
+        # adsorbate.rotate([0, 1, 0], self.normal, center=[0,0,0])
+        # adsorbate.translate(self.position + (self.normal*distance_to_site))
 
         # -- for complex molecules
 
@@ -291,7 +292,7 @@ class SingleAdsorptionSite(object):
             adsorbate = adsorbate_.copy()
             com = adsorbate.get_center_of_mass()
             adsorbate.translate(np.zeros(3)-com) # first translate to origin
-            # -- 
+            # --
             if mode == "atop":
                 # -- for single atom or linear molecule
                 adsorbate.rotate([0, 0, 1], self.normal, center=[0,0,0])
@@ -324,73 +325,14 @@ class SingleAdsorptionSite(object):
                     substrate = None
             if substrate is not None: 
                 ads_frames.append(substrate)
-        
+
         return ads_frames
-    
+
     def _iadsorb(self):
         """"""
 
         return
 
-
-def generate_normals(
-    atoms: Atoms, nl, surf_indices: List[int]=None, ads_indices: List[int]=[], 
-    mask_elements: List[str]=[],
-    surf_norm_min: float=0.5, normalised=True
-):
-    """Find normals to surface of a structure.
-
-    Atoms that have positive z-axis normal would be on the surface.
-
-    Args:
-        atoms: Atoms object.
-        nl: Pre-created neighbour list.
-        surf_indices: Indices of surface atoms.
-        ads_indices: Indices of adsorbate atoms.
-        mask_elements: Indices of atoms that are not considered for adsorption sites.
-        surf_norm_min: Minimum for a surface normal.
-        normalised: Whether normalise normals.
-
-    """
-    natoms = len(atoms)
-
-    normals = np.zeros(shape=(natoms, 3), dtype=float)
-    for i, atom in enumerate(atoms):
-        # print("centre: ", index, atom.position)
-        if i in ads_indices:
-            continue
-        normal = np.array([0, 0, 0], dtype=float)
-        for nei_idx, offset in zip(*nl.get_neighbors(i)):
-            if nei_idx in ads_indices:
-                continue
-            # print("neigh: ", neighbor)
-            direction = atom.position - (atoms[nei_idx].position + np.dot(offset, atoms.get_cell()))
-            normal += direction
-        # print("direction:", normal)
-        if np.linalg.norm(normal) > surf_norm_min:
-            normals[i,:] = normalize(normal) if normalised else normal
-
-    # NOTE: check normal is pointed to z-axis surface
-    if surf_indices is not None:
-        #print("use input surface mask...")
-        surf_indices_ = surf_indices
-        for i in range(natoms):
-            if i not in surf_indices_:
-                normals[i] = np.zeros(3)
-    else:
-        #surface_mask = [index for index in range(len(atoms)) if np.linalg.norm(normals[index]) > 1e-5]
-        surf_indices_ = [
-            i for i in range(natoms) if np.linalg.norm(normals[i]) > 1e-5 and normals[i][2] > 0.
-        ]
-
-    # - remove constrained atoms from surface atoms
-    constrained = constrained_indices(atoms)
-    surf_indices_ = [i for i in surf_indices_ if i not in constrained]
-
-    # - remove unallowed elements
-    surf_indices_ = [i for i in surf_indices_ if atoms[i].symbol not in mask_elements]
-
-    return normals, surf_indices_
 
 def compute_site_normal(atoms: Atoms, nl, site_indices: List[int], surf_indices: List[int]):
     """Compute the plane normal of the site.
@@ -565,21 +507,27 @@ class SiteFinder(StruGraphCreator):
         # - find atoms that are on surface and possibly form adsorption sites...
         # NOTE: make sure to manually set the normals for 2-D materials, 
         #       all atoms should have a normal pointing up, as all atoms are surface atoms
+        system = self.check_system(atoms)
+
+        self._print(f"{atoms.pbc = }")
+        self._print(f"{system = }")
+
         normals, surface_mask = generate_normals(
             atoms, nl, surface_mask, 
             ads_indices, mask_elements=[],
-            surf_norm_min=self.surface_normal, normalised=True
+            surf_norm_min=self.surface_normal, normalised=True,
+            system=system
         )
-        self._print(f"surface mask: {surface_mask}")
-        self._print(f"surface mask ads: {ads_indices}")
+        self._print(f"number of surface atoms: {len(surface_mask)}")
+        self._debug(f"{surface_mask = }")
+        self._debug(f"surface mask ads: {ads_indices}")
 
         atoms.arrays["surface_direction"] = normals
-        # write("xxx.xyz", atoms)
 
         # - find all valid adsorption sites
         site_groups = []
-        for curr_site_params in site_params:
-            self._print(curr_site_params)
+        for i, curr_site_params in enumerate(site_params):
+            self._print(f"site type {i}: {curr_site_params}")
             curr_params_list = self._broadcast_site_params(curr_site_params)
             #print(cur_params_list)
 
@@ -594,8 +542,9 @@ class SiteFinder(StruGraphCreator):
                 ...
             else:
                 self._print("Multidentate sites...")
-                for curr_params in curr_params_list:
-                    ...
+                #for curr_params in curr_params_list:
+                #    ...
+                raise NotImplementedError()
             
             site_groups.append(sites)
 
@@ -605,12 +554,12 @@ class SiteFinder(StruGraphCreator):
         self, params: dict, atoms: Atoms, graph, nl, surface_mask, normals
     ):
         """Generate single-multidentate site."""
-        # -- some basic params
+        # - some basic params
         cn = params.get("cn") # coordination number
         cur_site_radius = params.get("radius", self._site_radius)
         self._print(f"coordination number: {cn}")
 
-        # -- find possible atoms to form the site
+        # - find possible atoms to form the site
         self._print(f"graph: {graph}")
         #cur_species = params.get("species", None)
         #site_indices = params.get("site_indices", None)
@@ -625,7 +574,12 @@ class SiteFinder(StruGraphCreator):
             ["id {}".format(" ".join([str(i) for i in range(1,natoms+1)]))] # start from 1
         )
         valid_indices = create_an_intersect_group(atoms, group_commands)
-        self._print(f"atomic indice for site: {valid_indices}")
+
+        # -- Site indices must be in the surface indices
+        valid_indices = [i for i in valid_indices if i in surface_mask]
+
+        self._print(f"number of site atoms: {len(valid_indices)}")
+        self._debug(f"atomic indices for site: {valid_indices}")
 
         # -- create sites
         found_sites = self._generate_site(
@@ -652,10 +606,10 @@ class SiteFinder(StruGraphCreator):
             unique_sites = [found_sites[i] for i in unique_indices]
         
             # TODO: sort sites by positions?
-            self._print(f"DEBUG: {len(found_sites)} -> {len(unique_sites)}")
+            self._print(f"unique sites: {len(found_sites)} -> {len(unique_sites)}")
         else:
             unique_sites = []
-            self._print("DEBUG: No sites are found.")
+            self._print("No sites are found.")
 
         return unique_sites
     
@@ -736,7 +690,7 @@ class SiteFinder(StruGraphCreator):
  
     def _generate_site(
         self, 
-        atoms,
+        atoms: Atoms,
         graph,
         nl,
         valid_surface_mask,
@@ -760,7 +714,7 @@ class SiteFinder(StruGraphCreator):
                    break
            else: # All were valid
                 valid.append(list(cycle))
-        self._print(f"DEBUG: {valid}")
+        self._debug(f"DEBUG: {valid}")
 
         #print(valid)
         sites = []
