@@ -6,16 +6,22 @@ import itertools
 import pathlib
 from typing import Union, List, NoReturn
 
+import omegaconf
+
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.core.variable import Variable
-from gdpx.core.operation import Operation
-from gdpx.core.register import registers
-from gdpx.worker.worker import AbstractWorker
-from gdpx.data.array import AtomsNDArray
-from gdpx.selector.selector import AbstractSelector, load_cache
-from gdpx.selector.composition import ComposedSelector
+from ..core.variable import Variable
+from ..core.operation import Operation
+from ..core.register import registers
+
+from ..worker.worker import AbstractWorker
+from ..data.array import AtomsNDArray
+
+from ..builder.interface import build, BuilderVariable
+
+from .selector import AbstractSelector, load_cache
+from .composition import ComposedSelector
 
 
 @registers.variable.register
@@ -45,27 +51,49 @@ class select(Operation):
 
     cache_fname = "selected_frames.xyz"
 
-    def __init__(
-        self, structures, selector, directory="./", *args, **kwargs
-    ):
+    def __init__(self, structures, selector, directory="./", *args, **kwargs):
         """"""
         super().__init__(input_nodes=[structures, selector], directory=directory)
 
         return
-    
+
     @Operation.directory.setter
     def directory(self, directory_) -> NoReturn:
         """"""
         super(select, select).directory.__set__(self, directory_)
 
         return
-    
-    def forward(self, structures: AtomsNDArray, selector: AbstractSelector) -> AtomsNDArray:
+
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        structures, selector = input_nodes
+        if isinstance(structures, str) or isinstance(structures, pathlib.Path):
+            # TODO: check if it is a molecule name
+            structures = build(
+                BuilderVariable(
+                    directory=self.directory / "structures",
+                    method="reader",
+                    fname=structures,
+                )
+            )
+        if isinstance(selector, dict) or isinstance(
+            selector, omegaconf.dictconfig.DictConfig
+        ):
+            selector = SelectorVariable(
+                directory=self.directory / "selector", **selector
+            )
+        self._print(f"{selector = }")
+
+        return structures, selector
+
+    def forward(
+        self, structures: AtomsNDArray, selector: AbstractSelector
+    ) -> AtomsNDArray:
         """"""
         super().forward()
         selector.directory = self.directory
 
-        cache_fpath = self.directory/self.cache_fname
+        cache_fpath = self.directory / self.cache_fname
         if not cache_fpath.exists():
             new_frames = selector.select(structures)
             write(cache_fpath, new_frames)
@@ -74,23 +102,25 @@ class select(Operation):
             structures.markers = markers
             new_frames = read(cache_fpath, ":")
         self._print(f"nframes: {len(new_frames)}")
-        
+
         self.status = "finished"
 
         return structures
 
 
 def run_selection(
-    param_file: Union[str,pathlib.Path], structure: Union[str,dict], 
-    directory: Union[str,pathlib.Path]="./", potter: AbstractWorker=None
+    param_file: Union[str, pathlib.Path],
+    structure: Union[str, dict],
+    directory: Union[str, pathlib.Path] = "./",
+    potter: AbstractWorker = None,
 ) -> None:
-    """Run selection with input selector and input structures.
-    """
+    """Run selection with input selector and input structures."""
     directory = pathlib.Path(directory)
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=False)
 
     from gdpx.utils.command import parse_input_file
+
     params = parse_input_file(param_file)
 
     selector = SelectorVariable(
@@ -98,10 +128,11 @@ def run_selection(
     ).value
     selector.directory = directory
 
-   # - read structures
+    # - read structures
     from gdpx.builder import create_builder
+
     builder = create_builder(structure)
-    frames = builder.run() # -> List[Atoms]
+    frames = builder.run()  # -> List[Atoms]
 
     # TODO: convert to a bundle of atoms?
     data = AtomsNDArray(frames)
@@ -110,9 +141,11 @@ def run_selection(
     selected_frames = selector.select(data)
 
     from ase.io import read, write
-    write(directory/"selected_frames.xyz", selected_frames)
+
+    write(directory / "selected_frames.xyz", selected_frames)
 
     return
+
 
 if __name__ == "__main__":
     ...
