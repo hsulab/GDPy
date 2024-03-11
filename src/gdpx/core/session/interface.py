@@ -130,6 +130,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         op_params["directory"] = str(directory/op_name)
     
     # - set variable directory
+    if "variables" not in conf:
+        conf.variables = {}
     for k, v_dict in conf.variables.items():
         v_dict["directory"] = str(directory/"variables"/k)
     #print("YAML: ", OmegaConf.to_yaml(conf))
