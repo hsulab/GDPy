@@ -2,24 +2,32 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import List
+from typing import Callable, List, Tuple
+
+import networkx as nx
 
 from joblib import Parallel, delayed
 
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx import config
-from gdpx.utils.command import CustomTimer
-from gdpx.graph.creator import StruGraphCreator
-from gdpx.graph.utils import unpack_node_name
-from gdpx.graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
+from .. import CustomTimer
+from .. import StruGraphCreator, extract_chem_envs
+from .. import unpack_node_name
+from .. import get_unique_environments_based_on_bonds
 
 from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
 from ..group import create_a_group
 
 
-def single_remove_adsorbate(species: str, graph_params: dict, target_group: List[dict], atoms: Atoms):
+def single_remove_adsorbate(
+    species: str,
+    graph_params: dict,
+    target_group: List[dict],
+    atoms: Atoms,
+    print_func: Callable = print,
+    debug_func: Callable = print,
+) -> Tuple[List[Atoms], List[nx.Graph]]:
     """Remove selected particles from the structure.
 
     Currently, only single atom can be removed. TODO: molecule.
@@ -30,9 +38,7 @@ def single_remove_adsorbate(species: str, graph_params: dict, target_group: List
 
     """
     # - create graph from structure
-    stru_creator = StruGraphCreator(
-        **graph_params
-    )
+    stru_creator = StruGraphCreator(**graph_params)
 
     # - check if spec_indices are all species
     natoms = len(atoms)
@@ -40,20 +46,26 @@ def single_remove_adsorbate(species: str, graph_params: dict, target_group: List
     for command in target_group:
         curr_indices = create_a_group(atoms, command)
         group_indices = [i for i in group_indices if i in curr_indices]
-    config._debug(f"group_indices to remove {group_indices}")
+    debug_func(f"group_indices to remove {group_indices}")
 
     # TODO: tags for molecule?
     chemical_symbols = atoms.get_chemical_symbols()
     for i in group_indices:
-       if chemical_symbols[i] != species:
-            raise RuntimeError("Species to remove is inconsistent for those by indices.")
+        if chemical_symbols[i] != species:
+            raise RuntimeError(
+                "Species to remove is inconsistent for those by indices."
+            )
 
     # - get chem envs
-    _ = stru_creator.generate_graph(atoms, ads_indices_=group_indices)
-    chem_envs = stru_creator.extract_chem_envs(atoms)
+    graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
+    chem_envs = extract_chem_envs(
+        graph, atoms, group_indices, stru_creator.graph_radius
+    )
 
     # NOTE: for single atom adsorption,
-    assert len(chem_envs) == len(group_indices), "Single atoms group into one adsorbate. Try reducing the covalent radii."
+    assert len(chem_envs) == len(
+        group_indices
+    ), "Single atoms group into one adsorbate. Try reducing the covalent radii."
     # TODO: for molecule adsorption
 
     # - find unique sites to remove for this structure
@@ -63,7 +75,7 @@ def single_remove_adsorbate(species: str, graph_params: dict, target_group: List
     # - create sctructures
     unique_frames = []
     for g in unique_envs:
-        for (u, d) in g.nodes.data():
+        for u, d in g.nodes.data():
             if d["central_ads"]:
                 chem_sym, idx, offset = unpack_node_name(u)
                 if chem_sym == species:
@@ -80,33 +92,35 @@ def single_remove_adsorbate(species: str, graph_params: dict, target_group: List
 
 class GraphRemoveModifier(GraphModifier):
 
+    name: str = "graph_remove"
 
     def __init__(
-            self, species, spectators: List[str], target_group: List[dict],
-            substrates=None, graph: dict = DEFAULT_GRAPH_PARAMS,
-            *args, **kwargs
-        ):
-        """Insert an adsorbate on sites according to graph representation.
-        """
+        self,
+        species,
+        spectators: List[str],
+        target_group: List[dict],
+        substrates=None,
+        graph: dict = DEFAULT_GRAPH_PARAMS,
+        *args,
+        **kwargs,
+    ):
+        """Insert an adsorbate on sites according to graph representation."""
         super().__init__(substrates=substrates, *args, **kwargs)
 
-        self.species = species # make this a node
+        self.species = species  # make this a node
 
         self.target_group = target_group
 
         self.spectators = spectators
         self.graph_params = graph
 
-        #self.check_site_unique = True
+        # self.check_site_unique = True
         # adsorbate_indices
         # site_radius
         # region
 
-        # - parallel
-        self.njobs = config.NJOBS
-
         return
-    
+
     def _irun(self, substrates: List[Atoms]) -> List[Atoms]:
         """Remove atoms/molecules/adsorbates."""
         self._print("---run remove---")
@@ -117,7 +131,10 @@ class GraphRemoveModifier(GraphModifier):
         # - get chem envs of selected species that may be removed
         with CustomTimer(name="remove-adsorbate", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_remove_adsorbate)(self.species, graph_params, self.target_group, a) 
+                delayed(single_remove_adsorbate)(
+                    self.species, graph_params, self.target_group, a,
+                    print_func=self._print, debug_func=self._debug
+                )
                 for idx, a in enumerate(substrates)
             )
 
@@ -125,30 +142,32 @@ class GraphRemoveModifier(GraphModifier):
             for i, (frames, envs) in enumerate(ret):
                 nenvs = len(envs)
                 # TODO: add info since it may be lost in atoms.copy() function
-                #for a in frames:
+                # for a in frames:
                 #    a.info["subid"] = subid
                 # -- add data
                 ret_envs.extend(envs)
                 ret_frames.extend(frames)
                 self._print(f"number of sites {nenvs} to remove for substrate {i}.")
-        #nsites = len(ret_frames)
-        #self._print(f"Total number of chemical environments: {nsites}")
+        # nsites = len(ret_frames)
+        # self._print(f"Total number of chemical environments: {nsites}")
 
         # - further unique envs among different substrates
         #   only compare chemical environments
-        #unique_indices = get_unique_environments_based_on_bonds(ret_envs)
-        #created_frames = [ret_frames[i] for i in unique_indices]
+        # unique_indices = get_unique_environments_based_on_bonds(ret_envs)
+        # created_frames = [ret_frames[i] for i in unique_indices]
 
         # - compare the graph of chemical environments in the structure
-        #   NOTE: if O atoms were to remove, the chem envs of the rest O atoms 
+        #   NOTE: if O atoms were to remove, the chem envs of the rest O atoms
         #         are used to compare the structure difference.
-        write(self.directory/f"possible_frames.xyz", ret_frames)
+        write(self.directory / f"possible_frames.xyz", ret_frames)
 
         # - get unique structures among substrates
-        created_frames = self._compare_structures(ret_frames, graph_params, self.target_group)
+        created_frames = self._compare_structures(
+            ret_frames, graph_params, self.target_group
+        )
 
         return created_frames
-    
+
 
 if __name__ == "__main__":
     ...

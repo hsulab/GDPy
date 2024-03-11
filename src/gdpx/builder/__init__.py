@@ -50,6 +50,7 @@ registers.builder.register("insert")(InsertModifier)
 from ..graph.sites import SiteFinder
 from ..graph.creator import StruGraphCreator, extract_chem_envs
 from ..graph.comparison import get_unique_environments_based_on_bonds, paragroup_unique_chem_envs
+from ..graph.utils import unpack_node_name
 
 from .graph import GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier
 registers.builder.register("graph_insert")(GraphInsertModifier)

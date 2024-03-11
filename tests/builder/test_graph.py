@@ -9,7 +9,6 @@ from ase.io import read, write
 
 from gdpx import config
 from gdpx.core.register import import_all_modules_for_register
-from gdpx.builder.species import MoleculeBuilder
 from gdpx.builder.graph.insert import GraphInsertModifier
 from gdpx.builder.graph.remove import GraphRemoveModifier
 from gdpx.builder.graph.exchange import GraphExchangeModifier
@@ -130,7 +129,7 @@ def test_insert():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
         modifier = GraphInsertModifier(
-            **MODIFIER_INSERT_PARAMS
+            random_seed=1112, **MODIFIER_INSERT_PARAMS
         )
         modifier.directory = tmpdir
 
@@ -144,13 +143,12 @@ def test_insert():
 def test_remove():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        #tmpdir = "./xxx"
         modifier = GraphRemoveModifier(
-            **MODIFIER_REMOVE_PARAMS
+            random_seed=1112, **MODIFIER_REMOVE_PARAMS
         )
         modifier.directory = tmpdir
 
-        substrates = read("./ZnO.xyz", ":")
+        substrates = read("../assets/ZnO.xyz", ":")
 
         structures = modifier.run(substrates=substrates)
         n_structures = len(structures)
@@ -160,13 +158,12 @@ def test_remove():
 def test_exchange():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        #tmpdir = "./xxx"
         modifier = GraphExchangeModifier(
-            **MODIFIER_EXCHANGE_PARAMS
+            random_seed=1112, **MODIFIER_EXCHANGE_PARAMS
         )
         modifier.directory = tmpdir
 
-        substrates = read("./ZnO.xyz", ":")
+        substrates = read("../assets/ZnO.xyz", ":")
 
         structures = modifier.run(substrates=substrates)
         n_structures = len(structures)
