@@ -68,6 +68,8 @@ def optimise_string(pts, gridpoints, z, gradx, grady, steps=100, stepsize=0.01):
 @dataclasses.dataclass
 class ZeroStringReactorSetting(StringReactorSetting):
 
+    backend = "grid"
+
     def __post_init__(self):
         """"""
 

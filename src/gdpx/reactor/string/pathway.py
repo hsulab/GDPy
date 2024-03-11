@@ -94,6 +94,8 @@ def save_nebtraj(neb, log_fpath) -> None:
 @dataclasses.dataclass
 class AseStringReactorSetting(StringReactorSetting):
 
+    backend = "ase"
+
     def __post_init__(self):
         """"""
         # - ...
