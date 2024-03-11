@@ -7,6 +7,7 @@ import itertools
 
 import numpy as np
 import matplotlib.pyplot as plt
+
 try:
     plt.style.use("presentation")
 except Exception as e:
@@ -20,10 +21,7 @@ class BasinSelector(AbstractSelector):
 
     name: str = "basin"
 
-    default_parameters: dict = dict(
-        dispintv = 0.4 # angstrom per atom
-    )
-    
+    default_parameters: dict = dict(dispintv=0.4)  # angstrom per atom
 
     def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
         """"""
@@ -52,7 +50,7 @@ class BasinSelector(AbstractSelector):
             fig, ax = plt.subplots(1, 1, figsize=(12, 8))
             c = ax.imshow(disps, cmap="hot", interpolation="nearest")
             fig.colorbar(c)
-            plt.savefig(self.directory/"rmsd.png")
+            plt.savefig(self.directory / "rmsd.png")
 
             # --
             fig, ax = plt.subplots(1, 1, figsize=(12, 8))
@@ -69,7 +67,7 @@ class BasinSelector(AbstractSelector):
             ax2.set_ylabel("Potential Energy [eV]")
             ax2.tick_params(axis="y", labelcolor="r")
 
-            plt.savefig(self.directory/"disp.png")
+            plt.savefig(self.directory / "disp.png")
 
             # -- select
             curr_index = 0
@@ -90,30 +88,36 @@ class BasinSelector(AbstractSelector):
             selected_markers = [curr_markers[i] for i in selected_indices]
             data.markers = selected_markers
         else:
-            raise RuntimeError(f"Basin does not support array dimension with {data.ndim}")
+            raise RuntimeError(
+                f"Basin does not support array dimension with {data.ndim}"
+            )
 
         return
-    
+
     def _compute_rmsd_matrix(self, structures):
         """"""
         # --
-        structures = wrap_traj(structures) # TODO: copy atoms?
+        structures = wrap_traj(structures)  # TODO: copy atoms?
         nstructures, natoms = len(structures), len(structures[0])
 
         # --
-        pairs = itertools.product(*[range(nstructures), range(nstructures)]) # [[0, 0], [0, 1]]
+        pairs = itertools.product(
+            *[range(nstructures), range(nstructures)]
+        )  # [[0, 0], [0, 1]]
         pairs = np.array(list(pairs)).T
 
         posmat = np.array([a.positions.flatten() for a in structures])
         disps = np.sqrt(
             np.sum(
-                (np.take(posmat, pairs[0], axis=0) - np.take(posmat, pairs[1], axis=0))**2, 
-                axis=1
-            ) / natoms
+                (np.take(posmat, pairs[0], axis=0) - np.take(posmat, pairs[1], axis=0))
+                ** 2,
+                axis=1,
+            )
+            / natoms
         )
-        #print(disps.shape)
+        # print(disps.shape)
         disps = np.reshape(disps, (nstructures, nstructures))
-        #print(disps.shape)
+        # print(disps.shape)
 
         return disps
 

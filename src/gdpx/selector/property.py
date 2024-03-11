@@ -46,7 +46,7 @@ class PropertyItem:
 
     #: Property maximum.
     pmax: float = dataclasses.field(init=False, default=np.inf)
-    
+
     #: Number of bins for histogram-based sparsification.
     nbins: int = 20
 
@@ -56,7 +56,7 @@ class PropertyItem:
     # expression
     # weight
 
-    #worker_config: dataclasses.InitVar[str] = None
+    # worker_config: dataclasses.InitVar[str] = None
 
     def __post_init__(self):
         """"""
@@ -68,7 +68,7 @@ class PropertyItem:
             bounds_[1] = "max"
 
         # NOTE: assert range when property values are available
-        #assert bounds_[0] < bounds_[1], f"{self.name} has invalid bounds..."
+        # assert bounds_[0] < bounds_[1], f"{self.name} has invalid bounds..."
         self.pmin, self.pmax = bounds_
 
         # - metric
@@ -78,7 +78,7 @@ class PropertyItem:
             else:
                 # a list of metric function names
                 metric_config = self.metric
-        
+
             for metric_name in metric_config:
                 if metric_name == "fabs":
                     metric_func = np.fabs
@@ -91,18 +91,23 @@ class PropertyItem:
                 self._metric.append(metric_func)
         else:
             self._metric = []
-        
+
         # - sparsify
-        assert self.sparsify in ["filter", "sort", "hist", "boltz"], f"Unknown sparsification {self.sparsify}."
+        assert self.sparsify in [
+            "filter",
+            "sort",
+            "hist",
+            "boltz",
+        ], f"Unknown sparsification {self.sparsify}."
 
         return
-    
+
     def _convert_raw_(self, raws_, weights_=None):
         """Convert raw values by the metric."""
         if len(self._metric) > 0:
             converts_ = []
             for raw_ in raws_:
-                convert_ = raw_ # NOTE: copy?
+                convert_ = raw_  # NOTE: copy?
                 for metric_func in self._metric:
                     convert_ = metric_func(convert_)
                 converts_.append(convert_)
@@ -111,7 +116,7 @@ class PropertyItem:
 
         return converts_
 
-    #def __repr__(self) -> str:
+    # def __repr__(self) -> str:
     #    """"""
     #    content = f"{self.name}:\n"
     #    content += f"  range: {self.pmin} - {self.pmax}\n"
@@ -122,7 +127,6 @@ class PropertyItem:
 
 @registers.selector.register
 class PropertySelector(AbstractSelector):
-
     """Select structures based on structural properties.
 
     Each structure (trajectory) is represented by a float property.
@@ -132,10 +136,10 @@ class PropertySelector(AbstractSelector):
     name = "property"
 
     default_parameters = dict(
-        mode = "stru",
-        properties = [],
-        worker = None, # compute properties on-the-fly
-        number = [4, 0.2]
+        mode="stru",
+        properties=[],
+        worker=None,  # compute properties on-the-fly
+        number=[4, 0.2],
     )
 
     def __init__(self, directory="./", *args, **kwargs) -> None:
@@ -163,9 +167,7 @@ class PropertySelector(AbstractSelector):
 
             # - group markers
             if self.axis is None:
-                marker_groups = dict(
-                    all = data.markers
-                )
+                marker_groups = dict(all=data.markers)
             else:
                 marker_groups = {}
                 for k, v in itertools.groupby(data.markers, key=lambda x: x[self.axis]):
@@ -193,14 +195,14 @@ class PropertySelector(AbstractSelector):
 
                 else:
                     ...
-            
+
             data.markers = np.array(selected_markers)
 
             if len(selected_markers) == 0:
                 break
 
         return
-    
+
     def _extract_property(self, frames: List[Atoms], prop_item: PropertyItem):
         """Extract property values from frames.
 
@@ -214,7 +216,7 @@ class PropertySelector(AbstractSelector):
                 # TODO: move this part to PropertyItem?
                 energy = atoms.get_potential_energy()
                 natoms = len(atoms)
-                atoms_property = energy/natoms
+                atoms_property = energy / natoms
             elif prop_item.name == "energy":
                 energy = atoms.get_potential_energy()
                 atoms_property = energy
@@ -233,13 +235,13 @@ class PropertySelector(AbstractSelector):
         prop_vals = prop_item._convert_raw_(prop_vals)
 
         return prop_vals
-    
+
     def _statistics(self, prop_item: PropertyItem, prop_vals):
         """"""
         # - here are all data
         npoints = len(prop_vals)
-        #pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
-        #pstd = np.sqrt(np.var(prop_vals-pavg))
+        # pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
+        # pstd = np.sqrt(np.var(prop_vals-pavg))
         pmax = stat_str2val("max", prop_vals)
         pmin = stat_str2val("min", prop_vals)
 
@@ -254,14 +256,12 @@ class PropertySelector(AbstractSelector):
             prop_item.pmax = prop_item.pmin
 
         hist_max, hist_min = prop_item.pmax, prop_item.pmin
-        #if hist_max == np.inf:
+        # if hist_max == np.inf:
         #    hist_max = pmax
-        #if hist_min == -np.inf:
+        # if hist_min == -np.inf:
         #    hist_min = pmin
 
-        bins = np.linspace(
-            hist_min, hist_max, prop_item.nbins, endpoint=False
-        ).tolist()
+        bins = np.linspace(hist_min, hist_max, prop_item.nbins, endpoint=False).tolist()
         bins.append(hist_max)
         hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[hist_min, hist_max])
 
@@ -269,20 +269,26 @@ class PropertySelector(AbstractSelector):
         content = f"# Property {prop_item.name}\n"
         content += "# min {:<12.4f} max {:<12.4f}\n".format(pmin, pmax)
         content += "# avg {:<12.4f} std {:<12.4f}\n".format(pavg, pstd)
-        content += "# histogram of {} points in the range (npoints: {})\n".format(np.sum(hist), npoints)
+        content += "# histogram of {} points in the range (npoints: {})\n".format(
+            np.sum(hist), npoints
+        )
         content += f"# min {prop_item.pmin:<12.4f} max {prop_item.pmax:<12.4f}\n"
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
         content += "{:>12.4f}  {:>12s}\n".format(bin_edges[-1], "-")
 
-        with open(self.info_fpath.parent/(self.info_fpath.stem+f"-{prop_item.name}-stat.txt"), "w") as fopen:
+        with open(
+            self.info_fpath.parent
+            / (self.info_fpath.stem + f"-{prop_item.name}-stat.txt"),
+            "w",
+        ) as fopen:
             fopen.write(content)
 
         for l in content.split("\n"):
             self._print(l)
 
         return
-    
+
     def _sparsify(self, prop_item: PropertyItem, frames: List[Atoms]):
         """"""
         # -- each structure is represented by one float value
@@ -320,14 +326,23 @@ class PropertySelector(AbstractSelector):
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
             scores, curr_indices = hist_selection(
-                prop_item.nbins, prop_item.pmin, prop_item.pmax,
-                [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
+                prop_item.nbins,
+                prop_item.pmin,
+                prop_item.pmax,
+                [prop_vals[i] for i in prev_indices],
+                prev_indices,
+                num_fixed,
+                self.rng,
             )
         elif prop_item.sparsify == "boltz":
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
             scores, curr_indices = boltz_selection(
-                prop_item.kBT, [prop_vals[i] for i in prev_indices], prev_indices, num_fixed, self.rng
+                prop_item.kBT,
+                [prop_vals[i] for i in prev_indices],
+                prev_indices,
+                num_fixed,
+                self.rng,
             )
         else:
             # NOTE: check sparsifiction method in PropertyItem

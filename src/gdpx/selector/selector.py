@@ -11,9 +11,8 @@ import numpy as np
 
 from ase import Atoms
 
-from gdpx import config
-from gdpx.core.node import AbstractNode
-from gdpx.worker.drive import DriverBasedWorker
+from ..core.node import AbstractNode
+from ..worker.drive import DriverBasedWorker
 from ..data.array import AtomsNDArray
 
 
@@ -101,9 +100,6 @@ class AbstractSelector(AbstractNode):
 
     #: Output file name.
     _fname: str = "info.txt"
-
-    _print: Callable = config._print
-    _debug: Callable = config._debug
 
     #: Output data format (frames or trajectories).
     _out_fmt: str = "stru"

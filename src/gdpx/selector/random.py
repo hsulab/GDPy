@@ -15,18 +15,18 @@ class RandomSelector(AbstractSelector):
 
     name = "random"
 
-    default_parameters = dict(
-        number = [4, 0.2]
-    )
+    default_parameters = dict(number=[4, 0.2])
 
     """"""
 
-    def __init__(self, directory="./", axis: Optional[int]=None, *args, **kwargs) -> None:
+    def __init__(
+        self, directory="./", axis: Optional[int] = None, *args, **kwargs
+    ) -> None:
         """"""
         super().__init__(directory, axis, *args, **kwargs)
 
         return
-    
+
     def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
         """"""
         marker_groups = self.group_structures_by_axis(data, self.axis)
@@ -42,13 +42,13 @@ class RandomSelector(AbstractSelector):
                 selected_markers.extend(curr_selected_markers)
             else:
                 ...
-        
+
         data.markers = np.array(selected_markers)
 
         return
 
     @staticmethod
-    def group_structures_by_axis(data: AtomsNDArray, axis: Optional[int]=None):
+    def group_structures_by_axis(data: AtomsNDArray, axis: Optional[int] = None):
         # - group markers
         if axis is not None:
             ndim = len(data.shape)
@@ -64,10 +64,8 @@ class RandomSelector(AbstractSelector):
                 else:
                     marker_groups[k] = list(v)
         else:
-            marker_groups = dict(
-                all = data.markers
-            )
-        
+            marker_groups = dict(all=data.markers)
+
         return marker_groups
 
 

@@ -9,13 +9,11 @@ import numpy as np
 
 from ase import Atoms
 
-from gdpx.selector.selector import AbstractSelector
+from .selector import AbstractSelector
 
 
 class InvariantSelector(AbstractSelector):
-
-    """Perform an invariant selection.
-    """
+    """Perform an invariant selection."""
 
     name = "invariant"
 
@@ -26,12 +24,12 @@ class InvariantSelector(AbstractSelector):
         super().__init__(*args, **kwargs)
 
         return
-    
+
     def _mark_structures(self, frames: List[Atoms], *args, **kwargs) -> None:
         """Return selected indices."""
 
-        return 
+        return
 
 
 if __name__ == "__main__":
-    pass
+    ...
