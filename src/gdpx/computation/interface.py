@@ -303,7 +303,11 @@ class compute(Operation):
 
         # TODO: It is better to move this part to driver...
         #       We only convert spc worker structures shape here...
-        if nworkers == 1 and workers[0].driver.as_dict().get("task", "min") == "min": # TODO: spc?
+        driver0_dict = workers[0].driver.as_dict()
+        if (
+            nworkers == 1 and driver0_dict.get("task", "min") == "min" and
+            (driver0_dict.get("steps", 0) <= 0)
+        ): # TODO: spc?
             # - check input data type
             inp_shape, inp_markers = None, None
             if isinstance(structures, AtomsNDArray):
