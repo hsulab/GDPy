@@ -211,7 +211,7 @@ class StruGraphCreator():
         return
 
     def check_system(
-        self, atoms: Atoms, min_vacuum_ratio: float=0.5,
+        self, atoms: Atoms, min_vacuum_ratio: float=0.3,
         substrate_indices: Optional[List[int]] = None
     ) -> str:
         """Determine system type.
@@ -231,6 +231,7 @@ class StruGraphCreator():
 
         vacuum_ratio = (cell_length - coord_range) / cell_length
         num_vacuum = sum(vacuum_ratio >= min_vacuum_ratio)
+        self._print(f"{vacuum_ratio = }")
 
         if num_vacuum == 3:
             system = "cluster"  # or molecule
