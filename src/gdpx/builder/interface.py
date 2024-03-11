@@ -215,6 +215,7 @@ class modify(Operation):
         """"""
         self._directory = pathlib.Path(directory_)
 
+        self.input_nodes[0].directory = self._directory/"substrates"
         self.input_nodes[1].directory = self._directory/"modifier"
 
         return
@@ -222,11 +223,15 @@ class modify(Operation):
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         substrates, modifier = input_nodes
+        if isinstance(substrates, str) or isinstance(substrates, pathlib.Path):
+            # TODO: check if it is a molecule name
+            substrates = build(
+                BuilderVariable(
+                    directory=self.directory/"substrates", method="reader", fname=substrates,
+                )
+            )
         if isinstance(modifier, dict) or isinstance(modifier, omegaconf.dictconfig.DictConfig):
             modifier = BuilderVariable(directory=self.directory/"modifier", **modifier)
-            #self._print(f"{modifier =}")
-            #self._print(f"{modifier.directory =}")
-            #exit()
 
         return substrates, modifier
     
