@@ -282,9 +282,9 @@ class AbstractStringReactor(AbstractReactor):
 
     def as_dict(self) -> dict:
         """"""
-        #params = super().as_dict()
         params = {}
-        params["backend"] = "ase"
+
+        #self._print(f"{self.setting.backend = }")
 
         for k, v in dataclasses.asdict(self.setting).items():
             if not k.startswith("_"):

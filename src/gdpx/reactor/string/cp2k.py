@@ -60,7 +60,7 @@ def run_cp2k(name, command, directory):
 @dataclasses.dataclass
 class Cp2kStringReactorSetting(StringReactorSetting):
 
-    backend = "cp2k"
+    backend: str = "cp2k"
 
     #: Number of tasks/processors/cpus for each image.
     ntasks_per_image: int = 1

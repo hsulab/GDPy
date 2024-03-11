@@ -62,7 +62,7 @@ def run_vasp(name, command, directory):
 @dataclasses.dataclass
 class VaspStringReactorSetting(StringReactorSetting):
 
-    backend = "vasp"
+    backend: str = "vasp"
 
     #: Number of tasks/processors/cpus for each image.
     ntasks_per_image: int = 1
