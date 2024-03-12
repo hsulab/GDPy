@@ -329,7 +329,10 @@ class compute(Operation):
             np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32), fmt="%8d")
             np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32), fmt="%8d")
         else:
-            frames = structures
+            if isinstance(structures, AtomsNDArray):
+                frames = structures.get_marked_structures()
+            else: # assume it is just a plain List of Atoms
+                frames = structures
             nframes = len(frames)
             inp_shape, inp_markers = None, None
 
