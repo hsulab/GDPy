@@ -82,7 +82,7 @@ class select(Operation):
             selector = SelectorVariable(
                 directory=self.directory / "selector", **selector
             )
-        self._print(f"{selector = }")
+        #self._print(f"{selector = }")
 
         return structures, selector
 
