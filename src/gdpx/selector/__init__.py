@@ -26,6 +26,10 @@ from .locate import LocateSelector
 
 registers.selector.register(LocateSelector)
 
+from .property import PropertySelector
+
+registers.selector.register(PropertySelector)
+
 from .random import RandomSelector
 
 registers.selector.register(RandomSelector)

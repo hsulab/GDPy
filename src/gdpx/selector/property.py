@@ -12,7 +12,6 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from ..core.register import registers
 from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
 from .cur import stat_str2val, boltz_selection, hist_selection
@@ -125,7 +124,6 @@ class PropertyItem:
     #    return content
 
 
-@registers.selector.register
 class PropertySelector(AbstractSelector):
     """Select structures based on structural properties.
 
