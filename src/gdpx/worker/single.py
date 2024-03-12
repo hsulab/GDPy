@@ -187,8 +187,9 @@ class SingleWorker(AbstractWorker):
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_wdirs_.extend(
-                    (self.directory/w).resolve() for w in doc_data["wdir_names"]
+                    [pathlib.Path(w).resolve() for w in doc_data["wdir_names"]]
                 )
+            self._debug(f"{unretrieved_wdirs_ = }")
             if self._retrieve_mode == "all":
                 unretrieved_wdirs = [p for p in unretrieved_wdirs_]
             elif self._retrieve_mode == "single":
@@ -197,11 +198,13 @@ class SingleWorker(AbstractWorker):
                 ... # The retreive mode shoul be checked before.
 
         # NOTE: Computation folders should have the same name convention here!
-        existed_wdirs = list(self.directory.glob(f"{self.COMP_PREFIX}*"))
+        existed_wdirs = list([x.resolve() for x in self.directory.glob(f"{self.COMP_PREFIX}*")])
         unretrieved_wdirs = [x for x in unretrieved_wdirs if x in existed_wdirs]
 
+        self._debug(f"{existed_wdirs = }")
         self._debug(f"{unretrieved_wdirs = }")
         self._debug(f"{self.directory = }")
+        self._debug(f"{self.wdir_name = }")
 
         results = []
         if unretrieved_wdirs:
