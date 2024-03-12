@@ -8,7 +8,7 @@ import pathlib
 
 from . import config
 from . import registers
-from . import ComputerVariable, DriverBasedWorker
+from . import ComputerVariable, DriverBasedWorker, SingleWorker
 
 from ..core.node import AbstractNode
 
@@ -37,7 +37,7 @@ class AbstractExpedition(AbstractNode):
             worker = worker[0]
         elif isinstance(worker, ComputerVariable):
             worker = worker.value[0]
-        elif isinstance(worker, DriverBasedWorker):
+        elif isinstance(worker, DriverBasedWorker) or isinstance(worker, SingleWorker):
             worker = worker
         else:
             raise RuntimeError(f"Unknown worker type {worker}")
