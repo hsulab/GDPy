@@ -58,12 +58,16 @@ class TrainerBasedWorker(AbstractWorker):
         trainer = self.trainer
         scheduler = self.scheduler
 
-        # - read metadata from file or database
-        with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            queued_jobs = database.search(Query().queued.exists())
-        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+        # - dump some metadata in case of resubmit
+        meta_path = self._directory/"_meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+
+        meta_params = {}
+        meta_params["dataset"] = dataset.as_dict()
+        meta_params["size"] = size
+        meta_params["init_models"] = init_models
+        with open(meta_path/"info.yaml", "w") as fopen:
+            yaml.safe_dump(meta_params, fopen)
 
         # - check whether share a dataset?
         if size >1 and self._share_dataset:
@@ -77,11 +81,18 @@ class TrainerBasedWorker(AbstractWorker):
                 else:
                     self._print(f"{trainer.__class__.__name__} does not support a shared dataset.")
             else:
-                ...
+                self._print("shared dataset exists...")
         else:
             self._print("trainers prepare their own datasets...")
 
-        # - local mode
+        # - read metadata from file or database
+        with TinyDB(
+            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            queued_jobs = database.search(Query().queued.exists())
+        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+
+        # - run training
         for i in range(size):
             uid = str(uuid.uuid1())
             batch_name = f"{self.TRAIN_PREFIX}{i}"
@@ -93,6 +104,8 @@ class TrainerBasedWorker(AbstractWorker):
             wdir.mkdir(parents=True, exist_ok=True)
 
             if self.scheduler.name == "local":
+                # TODO: async ?
+                self._print(f"training model at {wdir.name}...")
                 trainer.directory = wdir
                 trainer.train(dataset, init_model=init_models[i])
             else:
@@ -176,13 +189,26 @@ class TrainerBasedWorker(AbstractWorker):
                     if is_finished:
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
-                        warnings.warn("Trainer does not support re-submit.", UserWarning)
-                        #if resubmit:
-                        #    if self.scheduler.name != "local":
-                        #        jobid = self.scheduler.submit()
-                        #        self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                        #    else:
-                        #        warnings.warn("Local scheduler does not support re-submit.", UserWarning)
+                        if resubmit:
+                            if self.scheduler.name != "local":
+                                self._print(f"RESUBMIT: {str(self.directory)}")
+                                if self._submit:
+                                    jobid = self.scheduler.submit()
+                                    self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                                else:
+                                    self._print(f"{job_name} waits to submit.")
+                            else:
+                                # NOTE: If the training runs on local,
+                                #       database stores this job only when the training
+                                #       is finished.
+                                #       The codes below will only be performed when
+                                #       self.inspect() is called without self.run() before.
+                                # NOTE: Local job will automatically re-run when
+                                #       self.run() is called.
+                                self._print(f"RESUBMIT: {self.trainer.directory = }")
+                                #self.trainer.train(dataset, init_model=init_models[i])
+                        else:
+                            warnings.warn("Trainer does not support re-submit.", UserWarning)
                 else:
                     self._print(f"{job_name} is running...")
 

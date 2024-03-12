@@ -108,23 +108,29 @@ class AbstractTrainer(AbstractNode):
         """"""
         ...
     
+    def _train_from_the_scratch(self, dataset, init_model):
+        """Train from the scratch."""
+        command = self._resolve_train_command(init_model)
+        if command is None:
+            raise TrainingFailed(
+                f"Please supply the command keyword for {self.name.upper()}."
+            )
+        self._print(f"TRAINING COMMAND: {command}")
+        
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True, exist_ok=True)
+        self.write_input(dataset, reduce_system=False)
+
+        return command
+    
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
         self._update_config(dataset=dataset)
 
-        command = self._resolve_train_command(init_model)
-        if command is None:
-            raise TrainingFailed(
-                "Please set ${} environment variable "
-                .format("GDP_" + self.name.upper() + "_COMMAND") +
-                "or supply the command keyword")
-        self._print(f"COMMAND: {command}")
-        
-        # TODO: ...
-        # TODO: restart?
-        if not self.directory.exists():
-            self.directory.mkdir(parents=True, exist_ok=True)
-        self.write_input(dataset, reduce_system=False)
+        if not hasattr(self, "_train_from_the_restart"):
+            command = self._train_from_the_scratch(dataset, init_model)
+        else:
+            command = self._train_from_the_restart(dataset, init_model)
 
         try:
             proc = subprocess.Popen(command, shell=True, cwd=self.directory)

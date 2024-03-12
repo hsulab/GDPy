@@ -124,6 +124,22 @@ class DeepmdTrainer(AbstractTrainer):
     def frozen_name(self):
         """"""
         return f"{self.name}.pb"
+    
+    def _train_from_the_restart(self, dataset, init_model):
+        """Train from the restart"""
+        if not self.directory.exists():
+            command = self._train_from_the_scratch(dataset, init_model)
+        else:
+            ckpt_info = self.directory/"checkpoint"
+            if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
+                # TODO: check if the ckpt model exists?
+                command = f"{self.command} train {self.name}.json "
+                command += f"--restart model.ckpt"
+            else:
+                command = self._resolve_train_command(init_model)
+            self._print(f"TRAINING COMMAND: {command}")
+
+        return command
 
     def _prepare_dataset(self, dataset, reduce_system: bool=False, *args, **kwargs):
         """"""
@@ -334,6 +350,7 @@ class DeepmdTrainer(AbstractTrainer):
         configuration and the current step in `lcurve.out`.
         
         """
+        self._print(f"check {self.name} training convergence...")
         converged = False
 
         dpconfig_path = self.directory / f"{self.name}.json"
@@ -348,10 +365,13 @@ class DeepmdTrainer(AbstractTrainer):
             if lcurve_out.exists():
                 with open(lcurve_out, "r") as fopen:
                     lines = fopen.readlines()
-                curr_steps = int(lines[-1].strip().split()[0])
-                if curr_steps >= numb_steps:
-                    converged = True
-                self._debug(f"{curr_steps} >=? {numb_steps}")
+                try:
+                    curr_steps = int(lines[-1].strip().split()[0])
+                    if curr_steps >= numb_steps:
+                        converged = True
+                    self._debug(f"{curr_steps} >=? {numb_steps}")
+                except:
+                    self._print(f"The endline of `lcure.out` is strange.")
             else:
                 ...
         else:

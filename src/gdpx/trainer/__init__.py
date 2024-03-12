@@ -9,6 +9,7 @@ import numpy as np
 
 from ase.io import read, write
 
+from .. import config
 from ..core.register import registers
 from ..utils.command import parse_input_file
 
@@ -18,13 +19,12 @@ from ..utils.command import parse_input_file
 
 def run_newtrainer(configuration, directory):
     """"""
-    print("configuration: ", configuration)
+    config._print("configuration: ", configuration)
     params = parse_input_file(configuration)
-    print(params)
+    config._debug("configuration: ", configuration)
 
     # - create trainer
     name = params["trainer"].get("name", None)
-    print("newtrainer: ", params["trainer"])
     trainer = registers.create(
         "trainer", name, convert_name=True, **params["trainer"]
     )

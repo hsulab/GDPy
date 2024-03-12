@@ -154,7 +154,7 @@ class train(Operation):
             potter.register_calculator(potter_params["params"])
             manager = potter
         else:
-            ...
+            self._print("TrainWorker has not finished.")
         
         if manager is not None:
             self.status = "finished"
