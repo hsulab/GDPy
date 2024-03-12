@@ -173,7 +173,7 @@ class TrainerBasedWorker(AbstractWorker):
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory/"train.script"
 
-                if self.scheduler.is_finished():
+                if self.scheduler.is_finished(): # NOTE: scheduler only checks job_name
                     # -- check if the job finished properly
                     is_finished = False
                     for x in wdir_names:
@@ -191,8 +191,9 @@ class TrainerBasedWorker(AbstractWorker):
                     else:
                         if resubmit:
                             if self.scheduler.name != "local":
-                                self._print(f"RESUBMIT: {str(self.directory)}")
+                                self._print(f"RESUBMIT: {str(self.trainer.directory)}")
                                 if self._submit:
+                                    self.scheduler.script = self.trainer.directory/"train.script"
                                     jobid = self.scheduler.submit()
                                     self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                                 else:
