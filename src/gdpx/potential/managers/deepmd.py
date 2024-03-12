@@ -79,7 +79,7 @@ class DeepmdTrainer(AbstractTrainer):
             self._type_list = type_list
 
         return
-    
+
     def _resolve_train_command(self, init_model=None):
         """"""
         train_command = self.command
@@ -108,7 +108,7 @@ class DeepmdTrainer(AbstractTrainer):
         )
 
         return command
-    
+
     def _resolve_compress_command(self, *args, **kwargs):
         """"""
         compress_command = self.command
@@ -119,12 +119,12 @@ class DeepmdTrainer(AbstractTrainer):
         )
 
         return command
-    
+
     @property
     def frozen_name(self):
         """"""
         return f"{self.name}.pb"
-    
+
     def _prepare_dataset(self, dataset, reduce_system: bool=False, *args, **kwargs):
         """"""
         if not self.directory.exists():
@@ -150,7 +150,7 @@ class DeepmdTrainer(AbstractTrainer):
                 "valid", train_dir, self._print
             )
             self._print(f"accumulated number of batches: {cum_batchsizes}")
-            
+
             dataset = DeepmdDataloader(
                 batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs
             )
@@ -159,7 +159,6 @@ class DeepmdTrainer(AbstractTrainer):
 
         return dataset
 
-    
     def write_input(self, dataset, reduce_system: bool=False):
         """Write inputs for training.
 
@@ -200,7 +199,7 @@ class DeepmdTrainer(AbstractTrainer):
             json.dump(train_config, fopen, indent=2)
 
         return
-    
+
     def _get_dataset(self, dataset, reduce_system):
         """"""
         data_dirs = dataset.load()
@@ -292,7 +291,7 @@ class DeepmdTrainer(AbstractTrainer):
         self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}")
 
         return set_names, train_frames, test_frames, adjusted_batchsizes
-    
+
     def freeze(self):
         """"""
         # - freeze model
@@ -306,8 +305,8 @@ class DeepmdTrainer(AbstractTrainer):
                 proc = subprocess.Popen(command, shell=True, cwd=self.directory)
             except OSError as err:
                 msg = "Failed to execute `{}`".format(command)
-                #raise RuntimeError(msg) from err
-                #self._print(msg)
+                # raise RuntimeError(msg) from err
+                # self._print(msg)
                 self._print("Failed to compress model.")
             except RuntimeError as err:
                 self._print("Failed to compress model.")
@@ -320,30 +319,43 @@ class DeepmdTrainer(AbstractTrainer):
                                                       path, errorcode))
                 # NOTE: sometimes dp cannot compress the model
                 #       this happens when the descriptor trainable is set False?
-                #raise RuntimeError(msg)
-                #self._print(msg)
+                # raise RuntimeError(msg)
+                # self._print(msg)
                 compressed_model.symlink_to(frozen_model.relative_to(compressed_model.parent))
         else:
             ...
 
         return compressed_model
-    
-    def read_convergence(self) -> bool:
-        """"""
-        # - get numb_steps
-        with open(self.directory/f"{self.name}.json", "r") as fopen:
-            input_json = json.load(fopen)
-        numb_steps = input_json["training"]["numb_steps"]
 
-        lcurve_out = self.directory/f"lcurve.out"
-        with open(lcurve_out, "r") as fopen:
-            lines = fopen.readlines()
-        curr_steps = int(lines[-1].strip().split()[0])
+    def read_convergence(self) -> bool:
+        """Read training convergence.
+
+        Check deepmd training progress by comparing the `numb_steps` in the input
+        configuration and the current step in `lcurve.out`.
         
+        """
         converged = False
-        if curr_steps >= numb_steps:
-            converged = True
-        self._debug(f"{curr_steps} >=? {numb_steps}")
+
+        dpconfig_path = self.directory / f"{self.name}.json"
+        if dpconfig_path.exists():
+            # - get numb_steps
+            with open(dpconfig_path, "r") as fopen:
+                input_json = json.load(fopen)
+            numb_steps = input_json["training"]["numb_steps"]
+
+            # - get current step
+            lcurve_out = self.directory / f"lcurve.out"
+            if lcurve_out.exists():
+                with open(lcurve_out, "r") as fopen:
+                    lines = fopen.readlines()
+                curr_steps = int(lines[-1].strip().split()[0])
+                if curr_steps >= numb_steps:
+                    converged = True
+                self._debug(f"{curr_steps} >=? {numb_steps}")
+            else:
+                ...
+        else:
+            ...
 
         return converged
 
