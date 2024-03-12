@@ -3,16 +3,11 @@
 
 from typing import NoReturn
 
-from gdpx.core.register import registers
-from gdpx.scheduler.scheduler import AbstractScheduler
+from .scheduler import AbstractScheduler
 
 
-@registers.scheduler.register
 class LocalScheduler(AbstractScheduler):
-
-    """Local scheduler.
-
-    """
+    """Local scheduler."""
 
     name: str = "local"
 
@@ -22,17 +17,16 @@ class LocalScheduler(AbstractScheduler):
         return
 
     def submit(self) -> NoReturn:
-        """No submit is performed.
-        """
+        """No submit is performed."""
 
         return
-    
+
     def is_finished(self) -> bool:
-        """ Check if the job were finished.
+        """Check if the job were finished.
 
         Returns:
             Always return true.
-    
+
         """
 
         return True

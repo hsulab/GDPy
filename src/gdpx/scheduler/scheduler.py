@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 
 
 class AbstractScheduler(ABC):
-
     """The abstract scheduler that implements common functions.
 
     A scheduler deals with the lifecycle of a job in the queue.
@@ -43,7 +42,7 @@ class AbstractScheduler(ABC):
     parameters: dict = {}
 
     #: _script: The path of the job script.
-    _script: Union[str,pathlib.Path] = None
+    _script: Union[str, pathlib.Path] = None
 
     #: The job name.
     _job_name: str = "scheduler"
@@ -58,7 +57,7 @@ class AbstractScheduler(ABC):
     running_status: List[str] = []
 
     def __init__(self, *args, **kwargs):
-        """ Init an abstract scheduler.
+        """Init an abstract scheduler.
 
         Args:
             *args: Variable length argument list.
@@ -71,32 +70,32 @@ class AbstractScheduler(ABC):
 
         # - make default params
         self.parameters = self._get_default_parameters()
-        #parameters_ = kwargs.pop("parameters", None)
-        #if parameters_:
+        # parameters_ = kwargs.pop("parameters", None)
+        # if parameters_:
         #    self.parameters.update(parameters_)
         self.parameters.update(kwargs)
-        
+
         # - update some special keywords
         #   job_name
-        
+
         return
 
     @property
-    def script(self) -> Union[str,pathlib.Path]:
+    def script(self) -> Union[str, pathlib.Path]:
         """Store the path of the job script."""
 
         return self._script
-    
+
     @script.setter
     def script(self, script_):
         self._script = pathlib.Path(script_)
-        return 
+        return
 
     @property
     def job_name(self) -> str:
 
         return self._job_name
-    
+
     @job_name.setter
     @abstractmethod
     def job_name(self, job_name_: str):
@@ -107,17 +106,17 @@ class AbstractScheduler(ABC):
     def _get_default_parameters(self):
         return copy.deepcopy(self.default_parameters)
 
-    def set(self, **kwargs) -> NoReturn:
+    def set(self, **kwargs) -> None:
         """Set parameters.
 
         Args:
             **kwargs: Arbitrary keyword arguments.
 
         """
-        #changed_parameters = {}
+        # changed_parameters = {}
         for key, value in kwargs.items():
             oldvalue = self.parameters.get(key)
-            #if key not in self.parameters or not equal(value, oldvalue):
+            # if key not in self.parameters or not equal(value, oldvalue):
             #    changed_parameters[key] = value
             #    self.parameters[key] = value
             self.parameters[key] = value
@@ -135,11 +134,14 @@ class AbstractScheduler(ABC):
         """Submit job using specific scheduler command and return job id."""
         command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
         proc = subprocess.Popen(
-            command, shell=True, cwd=self.script.parent,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            encoding = "utf-8"
+            command,
+            shell=True,
+            cwd=self.script.parent,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
         )
-        errorcode = proc.wait(timeout=10) # 10 seconds
+        errorcode = proc.wait(timeout=10)  # 10 seconds
         if errorcode:
             raise RuntimeError(f"Error in submitting job script {str(self.script)}")
 
@@ -147,7 +149,7 @@ class AbstractScheduler(ABC):
         job_id = output.strip().split()[-1]
 
         return job_id
-    
+
     @abstractmethod
     def is_finished(self) -> bool:
         """Check whether the job is finished.
@@ -157,11 +159,11 @@ class AbstractScheduler(ABC):
         """
 
         return
-    
+
     def as_dict(self) -> dict:
         """"""
         sch_params = {}
-        sch_params = {k:v for k, v in self.parameters.items() if v is not None}
+        sch_params = {k: v for k, v in self.parameters.items() if v is not None}
         sch_params["environs"] = self.environs
         sch_params["backend"] = self.name
 

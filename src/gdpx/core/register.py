@@ -153,12 +153,10 @@ class registers:
         return instance
 
 
-SCHEDULER_MODULES = ["local", "lsf", "pbs", "slurm"]
-
 ALL_MODULES = [
     # - working components.
     # -- schedulers
-    ("gdpx.scheduler", SCHEDULER_MODULES),
+    ("gdpx", ["scheduler"]),
     # -- managers (potentials)
     ("gdpx.potential", ["managers"]),
     # -- dataloaders (datasets)

@@ -3,13 +3,11 @@
 
 import subprocess
 
-from gdpx.core.register import registers
-from gdpx.scheduler.scheduler import AbstractScheduler
+from .scheduler import AbstractScheduler
 
-@registers.scheduler.register
+
 class LsfScheduler(AbstractScheduler):
-
-    """ Load Sharing Facility (LSF) scheduler.
+    """Load Sharing Facility (LSF) scheduler.
 
     A LSF scheduler. Commands are bjobs, bsub, bkill.
 
@@ -22,24 +20,24 @@ class LsfScheduler(AbstractScheduler):
     SHELL = "#!/bin/bash -l"
 
     SUBMIT_COMMAND = "bsub < "
-    #ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.60j %.4t %.12M %.12L %.5D %.4C\""
+    # ENQUIRE_COMMAND = "`which squeue` -u `whoami` --format=\"%.12i %.12P %.60j %.4t %.12M %.12L %.5D %.4C\""
     ENQUIRE_COMMAND = "`which bjobs` -u `whoami` -w"
 
     # compability for different machine
     # not all keywords are necessary
     default_parameters = {
-        "J": "lsfJob", # job name
-        "q": None, # partition
-        "W": None, # time
+        "J": "lsfJob",  # job name
+        "q": None,  # partition
+        "W": None,  # time
         # - CPU
-        "R": None, # nodes
-        "n": None, # ncpus
-        "M": None, # memory
-        "o": "lsf.o%J", # output
-        "e": "lsf.e%J", # error
+        "R": None,  # nodes
+        "n": None,  # ncpus
+        "M": None,  # memory
+        "o": "lsf.o%J",  # output
+        "e": "lsf.e%J",  # error
         # - GPU
-        #"gres": None,
-        #"mem-per-gpu": None, # "32G"
+        # "gres": None,
+        # "mem-per-gpu": None, # "32G"
     }
 
     running_status = ["RUN", "PEND", "DONE", "EXIT", "SSUSP", "USUSP"]
@@ -50,15 +48,15 @@ class LsfScheduler(AbstractScheduler):
         content = self.SHELL + "\n"
         for key, value in self.parameters.items():
             if value:
-                #content += "{} --{}={}\n".format(self.PREFIX, key, value)
+                # content += "{} --{}={}\n".format(self.PREFIX, key, value)
                 content += "{} -{} {}\n".format(self.PREFIX, key, value)
-            #else:
+            # else:
             #    raise ValueError("Keyword *%s* not properly set." %key)
-        
+
         if self.environs:
             content += "\n\n"
             content += self.environs
-        
+
         if self.user_commands:
             content += "\n\n"
             content += self.user_commands
@@ -72,7 +70,7 @@ class LsfScheduler(AbstractScheduler):
         return
 
     def is_finished(self) -> bool:
-        """ Check if the job were finished.
+        """Check if the job were finished.
 
         Currently, we only check whether the job name has been found in the queue.
         If found, we assume the job is still running. Otherwise, it may have already
@@ -80,13 +78,17 @@ class LsfScheduler(AbstractScheduler):
 
         Returns:
             Whether the jobs is finished. True for finished, False otherwise.
-    
+
         """
         # - run enquire
         p = subprocess.Popen(
             [self.ENQUIRE_COMMAND],
-            shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            close_fds=True, universal_newlines=True
+            shell=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            close_fds=True,
+            universal_newlines=True,
         )
         fout = p.stdout
         lines = fout.readlines()
@@ -94,13 +96,13 @@ class LsfScheduler(AbstractScheduler):
         # - run over results
         """format
         JOBID   USER    STAT  QUEUE      FROM_HOST   EXEC_HOST   JOB_NAME   SUBMIT_TIME
-        120727  phu     PEND  normal     manage01                *ee.script Mar  1 21:55
+        120727  jxu     PEND  normal     manage01                *ee.script Mar  1 21:55
         """
         finished = False
-        for line in lines[1:]: # skipe first info line
+        for line in lines[1:]:  # skipe first info line
             data = line.strip().split()
             jobid, name, status = data[0], data[6], data[2]
-            #if name.startswith(self.prefix) and status in self.running_status:
+            # if name.startswith(self.prefix) and status in self.running_status:
             #    indices = re.match(self.prefix+"*", name).span()
             #    if indices is not None:
             #        confid = int(name[indices[1]:])
