@@ -2,18 +2,16 @@
 # -*- coding: utf-8 -*-
 
 import abc
-import uuid
 import copy
-import logging
 import pathlib
-from typing import NoReturn, Optional, Callable, List, Tuple
+from typing import NoReturn, Optional, Union, Callable, List, Tuple
 
 import numpy as np
 
 from tinydb import TinyDB, Query
 
-from gdpx import config
-from gdpx.scheduler.scheduler import AbstractScheduler
+from .. import config
+from ..scheduler.scheduler import AbstractScheduler
 
 
 """worker = driver + scheduler.
@@ -44,7 +42,13 @@ class AbstractWorker(abc.ABC):
 
     _script_name = "run.script"
 
-    def __init__(self, directory=None, batchsize=1, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        directory: Optional[Union[str, pathlib.Path]] = None,
+        batchsize=1,
+        *args,
+        **kwargs,
+    ) -> None:
         """ """
         # - set default directory
         if directory is not None:
@@ -57,16 +61,14 @@ class AbstractWorker(abc.ABC):
         return
 
     @property
-    def directory(self):
+    def directory(self) -> pathlib.Path:
+        """"""
 
         return self._directory
 
     @directory.setter
-    def directory(self, directory_):
-        """"""
-        # - create main dir
-        directory_ = pathlib.Path(directory_)
-        self._directory = directory_
+    def directory(self, directory_: Union[str, pathlib.Path]):
+        self._directory = pathlib.Path(directory_)
 
         return
 
