@@ -180,6 +180,7 @@ ALL_MODULES = [
     ("gdpx.potential", ["interface"]),
     ("gdpx.reactor", ["interface"]),
     ("gdpx.comparator", ["interface"]),
+    ("gdpx.trainer", ["interface"]),
     ("gdpx.selector", ["interface"]),
     ("gdpx.scheduler", ["interface"]),
     ("gdpx.validator", ["interface"]),
