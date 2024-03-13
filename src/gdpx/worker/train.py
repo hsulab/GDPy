@@ -65,7 +65,10 @@ class TrainerBasedWorker(AbstractWorker):
         meta_params = {}
         meta_params["dataset"] = dataset.as_dict()
         meta_params["size"] = size
-        meta_params["init_models"] = init_models
+        if init_models is not None: # assume it is a List of path
+            meta_params["init_models"] = [str(x) for x in init_models]
+        else:
+            meta_params["init_models"] = init_models
         with open(meta_path/"info.yaml", "w") as fopen:
             yaml.safe_dump(meta_params, fopen)
 
