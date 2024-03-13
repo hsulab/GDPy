@@ -135,9 +135,9 @@ class DeepmdTrainer(AbstractTrainer):
                 # TODO: check if the ckpt model exists?
                 command = f"{self.command} train {self.name}.json "
                 command += f"--restart model.ckpt"
-            else:
-                command = self._resolve_train_command(init_model)
-            self._print(f"TRAINING COMMAND: {command}")
+                self._print(f"TRAINING COMMAND: {command}")
+            else: # assume not at any ckpt so start from the scratch
+                command = self._train_from_the_scratch(dataset, init_model)
 
         return command
 
