@@ -19,9 +19,8 @@ from ..utils.command import parse_input_file
 
 def run_newtrainer(configuration, directory):
     """"""
-    config._print("configuration: ", configuration)
+    config._print(f"{configuration = }")
     params = parse_input_file(configuration)
-    config._debug("configuration: ", configuration)
 
     # - create trainer
     name = params["trainer"].get("name", None)
