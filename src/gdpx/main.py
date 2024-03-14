@@ -249,7 +249,7 @@ def main():
         build_structures(build_config, args.substrates, args.number, args.directory)
     elif args.subcommand == "select":
         from gdpx.selector.interface import run_selection
-        run_selection(args.CONFIG, args.structure, args.directory, potter)
+        run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "compute":
         from gdpx.worker.interface import run_worker
         run_worker(
