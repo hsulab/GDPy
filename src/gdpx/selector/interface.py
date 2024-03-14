@@ -27,9 +27,21 @@ from .composition import ComposedSelector
 @registers.variable.register
 class SelectorVariable(Variable):
 
-    def __init__(self, selection: List[dict], directory="./", *args, **kwargs) -> None:
-        """"""
+    def __init__(self, selection: Union[dict, List[dict]], directory="./", *args, **kwargs) -> None:
+        """Define a Variable that has a Selector."""
+        # We can define a selector in two different ways:
+        # The Dict must have a selection key
+        # - a Dict that defines a single selector
+        # - a List of Dict that defines several selectors, 
+        #   which will be converted into a composed one
         selection = copy.deepcopy(selection)
+        if isinstance(selection, dict) or isinstance(selection, omegaconf.dictconfig.DictConfig):
+            selection = [selection]
+        elif isinstance(selection, list) or isinstance(selection, omegaconf.listconfig.ListConfig):
+            ...
+        else:
+            raise TypeError(f"Unknown type of {selection =}.")
+
         selectors = []
         for params in selection:
             method = params.pop("method", None)
@@ -76,6 +88,11 @@ class select(Operation):
                     fname=structures,
                 )
             )
+        # We can define a selector in two different ways:
+        # The Dict must have a selection key
+        # - a Dict that defines a single selector
+        # - a List of Dict that defines several selectors, 
+        #   which will be converted into a composed one
         if isinstance(selector, dict) or isinstance(
             selector, omegaconf.dictconfig.DictConfig
         ):
@@ -112,9 +129,13 @@ def run_selection(
     param_file: Union[str, pathlib.Path],
     structure: Union[str, dict],
     directory: Union[str, pathlib.Path] = "./",
-    potter: AbstractWorker = None,
 ) -> None:
-    """Run selection with input selector and input structures."""
+    """Run selection with input selector and input structures.
+
+    This no more accepts a worker as all data used in the selection should be 
+    computed in advance.
+    
+    """
     directory = pathlib.Path(directory)
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=False)
@@ -124,7 +145,7 @@ def run_selection(
     params = parse_input_file(param_file)
 
     selector = SelectorVariable(
-        params["selection"], directory=directory, pot_worker=potter
+        directory=directory, **params
     ).value
     selector.directory = directory
 
