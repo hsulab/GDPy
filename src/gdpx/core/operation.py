@@ -25,7 +25,7 @@ class Operation(abc.ABC):
     #: Standard debug function.
     _debug: Callable = config._debug
 
-    def __init__(self, input_nodes=[], directory: str | pathlib.Path = "./") -> None:
+    def __init__(self, input_nodes=[], directory: Union[str, pathlib.Path] = "./") -> None:
         """"""
         if hasattr(self, "_preprocess_input_nodes"):
             self.input_nodes = self._preprocess_input_nodes(input_nodes)
