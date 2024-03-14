@@ -123,7 +123,7 @@ class AbstractDriver(AbstractNode):
     ignore_convergence: bool = False
 
     #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
-    accept_bad_structure: bool = True
+    accept_bad_structure: bool = False
 
     #: Driver setting.
     setting: DriverSetting = None

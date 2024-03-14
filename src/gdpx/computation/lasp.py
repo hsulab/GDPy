@@ -270,6 +270,9 @@ def read_lasp_structures(
 @dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
 
+    #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
+    accept_bad_structure: bool = True
+
     def __post_init__(self):
         """"""
         if self.task == "min":
