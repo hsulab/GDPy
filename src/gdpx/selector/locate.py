@@ -11,6 +11,8 @@ from .selector import AbstractSelector
 
 def convert_string_to_indices(indstr: str, length: int, convention="py"):
     """"""
+    # NOTE: If the input is a valid number, we need convert it to str first.
+    indstr = str(indstr)
 
     def _convert_string(x: str):
         """"""
@@ -46,7 +48,7 @@ def convert_string_to_indices(indstr: str, length: int, convention="py"):
             )
             start, stop, step = x, y, z
         else:
-            raise RuntimeError("Fail to parse the index string.")
+            raise RuntimeError(f"Fail to parse the index string {x}.")
         # print(f"slice: {slice(start, stop, step)}")
         selected_indices.extend(indices[slice(start, stop, step)])
 
