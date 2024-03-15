@@ -8,6 +8,7 @@ from .. import registers
 from ..manager import AbstractPotentialManager, DummyCalculator
 from ..trainer import AbstractTrainer
 
+
 # - basic potentials
 # -- MLIP
 from .deepmd import DeepmdManager, DeepmdTrainer, DeepmdDataloader
@@ -18,6 +19,11 @@ registers.dataloader.register(DeepmdDataloader)
 from .reann.beann import BeannManager, BeannTrainer
 registers.manager.register(BeannManager)
 registers.trainer.register(BeannTrainer)
+
+from .reann.reann import ReannManager, ReannTrainer, ReannDataloader
+registers.manager.register(ReannManager)
+registers.trainer.register(ReannTrainer)
+registers.dataloader.register(ReannDataloader)
 
 from .lasp import LaspManager
 registers.manager.register(LaspManager)
