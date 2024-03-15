@@ -80,11 +80,11 @@ class REANN(Calculator):
         #    self.table += 1
         if self.getneigh.initmod.rc > 0.:
             self.getneigh.deallocate_all()
-        if "cell" in system_changes:
-            if cell.ndim == 1:
-                cell = np.diag(cell)
-            self.getneigh.init_neigh(self.cutoff, self.cutoff / 2.0, cell.T)
-            self.table += 1
+
+        if cell.ndim == 1:
+            cell = np.diag(cell)
+        self.getneigh.init_neigh(self.cutoff, self.cutoff / 2.0, cell.T)
+        self.table += 1
 
         icart = self.atoms.get_positions()
         cart, neighlist, shiftimage, scutnum = self.getneigh.get_neigh(
