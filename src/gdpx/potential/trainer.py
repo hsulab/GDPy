@@ -7,21 +7,23 @@ import copy
 import os
 import pathlib
 import subprocess
+
 from typing import Union, Callable, List
 
 from ..core.node import AbstractNode
 
-class TrainingFailed(RuntimeError):
 
+class TrainingFailed(RuntimeError):
     """Training unexpectedly fails."""
 
     ...
 
-class FreezingFailed(RuntimeError):
 
+class FreezingFailed(RuntimeError):
     """Freezing unexpectedly fails."""
 
     ...
+
 
 class AbstractTrainer(AbstractNode):
 
@@ -36,14 +38,21 @@ class AbstractTrainer(AbstractNode):
 
     #: Type list e.g. [C, H, O].
     _type_list: List[str] = None
-    
+
     #: Prefix of input file.
     prefix: str = "config"
 
     def __init__(
-        self, config: dict, type_list: List[str]=None, train_epochs: int=200,
-        directory=".", command="train", freeze_command="freeze", 
-        random_seed: Union[int, dict]=None, *args, **kwargs
+        self,
+        config: dict,
+        type_list: List[str] = None,
+        train_epochs: int = 200,
+        directory=".",
+        command="train",
+        freeze_command="freeze",
+        random_seed: Union[int, dict] = None,
+        *args,
+        **kwargs,
     ) -> None:
         """"""
         super().__init__(directory=directory, random_seed=random_seed)
@@ -54,22 +63,22 @@ class AbstractTrainer(AbstractNode):
             self.freeze_command = freeze_command
 
         self.directory = directory
-        self.config = config # train model parameters
+        self.config = config  # train model parameters
 
         # - TODO: sync type_list
 
         self.train_epochs = train_epochs
 
         return
-    
+
     @property
     def directory(self):
         """Directory should always be absolute."""
-        
+
         return self._directory
-    
+
     @directory.setter
-    def directory(self, directory: Union[str,pathlib.Path]):
+    def directory(self, directory: Union[str, pathlib.Path]):
         """"""
         self._directory = pathlib.Path(directory).resolve()
 
@@ -80,7 +89,7 @@ class AbstractTrainer(AbstractNode):
         """"""
 
         return self._type_list
-    
+
     def _update_config(self, dataset, *args, **kwargs):
         """Some configuration parameters can only be determined after checking the dataset.
 
@@ -92,22 +101,22 @@ class AbstractTrainer(AbstractNode):
 
     @abc.abstractmethod
     def _resolve_train_command(self, *args, **kwargs):
-        """"""        
+        """"""
 
         return
 
     @abc.abstractmethod
     def _resolve_freeze_command(self, *args, **kwargs):
-        """"""        
+        """"""
 
         return
-    
+
     @property
     @abc.abstractmethod
     def frozen_name(self):
         """"""
         ...
-    
+
     def _train_from_the_scratch(self, dataset, init_model):
         """Train from the scratch."""
         command = self._resolve_train_command(init_model)
@@ -116,13 +125,13 @@ class AbstractTrainer(AbstractNode):
                 f"Please supply the command keyword for {self.name.upper()}."
             )
         self._print(f"TRAINING COMMAND: {command}")
-        
+
         if not self.directory.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
         self.write_input(dataset, reduce_system=False)
 
         return command
-    
+
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
         self._update_config(dataset=dataset)
@@ -142,16 +151,17 @@ class AbstractTrainer(AbstractNode):
 
         if errorcode:
             path = os.path.abspath(self.directory)
-            msg = ('Trainer "{}" failed with command "{}" failed in '
-                   '{} with error code {}'.format(self.name, command,
-                                                  path, errorcode))
+            msg = (
+                'Trainer "{}" failed with command "{}" failed in '
+                "{} with error code {}".format(self.name, command, path, errorcode)
+            )
             raise TrainingFailed(msg)
 
         return
-    
+
     def freeze(self):
         """Freeze trained model and return the model path."""
-        frozen_model = (self.directory/self.frozen_name).resolve()
+        frozen_model = (self.directory / self.frozen_name).resolve()
         if not frozen_model.exists():
             command = self._resolve_freeze_command()
             try:
@@ -164,27 +174,28 @@ class AbstractTrainer(AbstractNode):
 
             if errorcode:
                 path = os.path.abspath(self.directory)
-                msg = ('Trainer "{}" failed with command "{}" failed in '
-                       '{} with error code {}'.format(self.name, command,
-                                                      path, errorcode))
+                msg = (
+                    'Trainer "{}" failed with command "{}" failed in '
+                    "{} with error code {}".format(self.name, command, path, errorcode)
+                )
                 raise FreezingFailed(msg)
         else:
             ...
 
-        return self.directory/self.frozen_name
-    
+        return self.directory / self.frozen_name
+
     @abc.abstractmethod
     def write_input(self, dataset, *args, **kwargs):
         """Convert dataset to the target format and write the configuration file if it has."""
 
         return
-    
+
     @abc.abstractmethod
     def read_convergence(self) -> bool:
         """"""
 
         return
-    
+
     def as_dict(self) -> dict:
         """"""
         trainer_params = {}
