@@ -14,7 +14,7 @@ from .. import AbstractPotentialManager, AbstractTrainer
 
 class BeannTrainer(AbstractTrainer):
     
-    name = "eann"
+    name = "beann"
     command = ""
     freeze_command = ""
     prefix = "config"
@@ -33,12 +33,12 @@ class BeannTrainer(AbstractTrainer):
         return
     
     def _resolve_train_command(self, *args, **kwargs):
-        """python -u /users/40247882/repository/EANN/eann --config ./config.yaml train"""
+        """python -u /users/jxu/repository/EANN/eann --config ./config.yaml train"""
 
         return
     
     def _resolve_freeze_command(self, *args, **kwargs):
-        """python -u /users/40247882/repository/EANN/eann --config ./config.yaml freeze EANN.pth -o eann_latest_"""
+        """python -u /users/jxu/repository/EANN/eann --config ./config.yaml freeze EANN.pth -o eann_latest_"""
         return super()._resolve_freeze_command(*args, **kwargs)
     
     @property
@@ -59,7 +59,7 @@ class BeannTrainer(AbstractTrainer):
 
 class BeannManager(AbstractPotentialManager):
 
-    name = "eann"
+    name = "beann"
     implemented_backends = ["ase", "lammps"]
 
     valid_combinations = (
