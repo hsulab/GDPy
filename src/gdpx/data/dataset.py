@@ -46,9 +46,6 @@ class XyzDataloader(AbstractDataloader):
 
     name = "xyz"
 
-    _print = print
-    _debug = print
-
     """A directory-based dataset.
 
     There are several subdirs in the main directory. Each dirname follows the format that 
@@ -66,7 +63,7 @@ class XyzDataloader(AbstractDataloader):
 
         return
     
-    def load(self):
+    def load(self) -> List[pathlib.Path]:
         """Load dataset.
 
         All directories that have xyz files in `self.directory`.
@@ -107,16 +104,16 @@ class XyzDataloader(AbstractDataloader):
 
         return pairs
 
-    def split_train_test(self, reduce_system=False):
+    def split_train_and_test(self, reduce_system: bool=False):
         """Read structures and split them into train and test.
 
         Args:
             reduce_system: Whether merge different systems into one List.
 
         """
-        data_dirs = self.load()
-        self._print(data_dirs)
         self._print("--- auto data reader ---")
+        data_dirs = self.load()
+        self._debug(data_dirs)
 
         batchsizes = self.batchsize
         nsystems = len(data_dirs)
@@ -129,12 +126,13 @@ class XyzDataloader(AbstractDataloader):
         train_size, test_size = [], []
         train_frames, test_frames = [], []
         adjusted_batchsizes = [] # auto-adjust batchsize based on nframes
-        for i, (cur_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
-            cur_system = pathlib.Path(cur_system)
-            set_names.append(cur_system.name)
-            self._print(f"System {cur_system.stem} Batchsize {curr_batchsize}")
+        for i, (curr_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
+            curr_system = pathlib.Path(curr_system)
+            set_name = "+".join(str(curr_system.relative_to(self.directory)).split("/"))
+            set_names.append(set_name)
+            self._print(f"System {set_name} Batchsize {curr_batchsize}")
             frames = [] # all frames in this subsystem
-            subsystems = list(cur_system.glob("*.xyz"))
+            subsystems = list(curr_system.glob("*.xyz"))
             subsystems.sort() # sort by alphabet
             for p in subsystems:
                 # read and split dataset
@@ -174,7 +172,7 @@ class XyzDataloader(AbstractDataloader):
             train_size.append(ntrain)
             test_size.append(ntest)
 
-            self._print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}\n")
+            self._print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}")
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
             curr_test_frames = [frames[test_i] for test_i in test_index]
