@@ -15,9 +15,9 @@ registers.manager.register(DeepmdManager)
 registers.trainer.register(DeepmdTrainer)
 registers.dataloader.register(DeepmdDataloader)
 
-from .eann import EannManager, EannTrainer
-registers.manager.register(EannManager)
-registers.trainer.register(EannTrainer)
+from .reann.beann import BeannManager, BeannTrainer
+registers.manager.register(BeannManager)
+registers.trainer.register(BeannTrainer)
 
 from .lasp import LaspManager
 registers.manager.register(LaspManager)

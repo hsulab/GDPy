@@ -9,10 +9,10 @@ import yaml
 
 from ase.calculators.calculator import Calculator
 
-from . import AbstractPotentialManager, AbstractTrainer
+from .. import AbstractPotentialManager, AbstractTrainer
 
 
-class EannTrainer(AbstractTrainer):
+class BeannTrainer(AbstractTrainer):
     
     name = "eann"
     command = ""
@@ -57,7 +57,7 @@ class EannTrainer(AbstractTrainer):
         return
 
 
-class EannManager(AbstractPotentialManager):
+class BeannManager(AbstractPotentialManager):
 
     name = "eann"
     implemented_backends = ["ase", "lammps"]
