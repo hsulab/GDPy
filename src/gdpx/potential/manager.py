@@ -3,7 +3,7 @@
 
 import abc
 import copy
-from typing import Union, List, NoReturn
+from typing import Optional, Union, List, NoReturn
 
 import numpy as np
 
@@ -44,6 +44,8 @@ class AbstractPotentialManager(abc.ABC):
 
     _calc = None
 
+    calc_backend: Optional[str] = None
+
     def __init__(self):
         """
         """
@@ -60,10 +62,11 @@ class AbstractPotentialManager(abc.ABC):
         return 
     
     @abc.abstractmethod
-    def register_calculator(self, calc_params, *agrs, **kwargs):
+    def register_calculator(self, calc_params: dict, *agrs, **kwargs):
         """Register the host calculator.
         """
-        self.calc_backend = calc_params.pop("backend", self.name)
+        if self.calc_backend is None:
+            self.calc_backend = calc_params.pop("backend", self.name)
         if self.calc_backend not in self.implemented_backends:
             raise RuntimeError(f"Unknown backend {self.calc_backend} for potential {self.name}")
 
