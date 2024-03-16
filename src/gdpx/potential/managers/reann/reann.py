@@ -132,8 +132,6 @@ def load_reann_input_para(para: Union[str, pathlib.Path]) -> dict:
             k, v = _convert_a_single_line(line)
             params["nn"][k] = v
 
-    print(f"{params = }")
-
     return params
 
 def dump_reann_input_para(config_params: dict, para: Union[str, pathlib.Path]):
@@ -272,6 +270,12 @@ class ReannTrainer(AbstractTrainer):
     def frozen_name(self):
         """"""
         return f"PES.pt"
+    
+    @property
+    def ckpt_name(self) -> str:
+        """"""
+
+        return "REANN.pth"
 
     def _resolve_train_command(self, *args, **kwargs):
         """"""
@@ -287,9 +291,17 @@ class ReannTrainer(AbstractTrainer):
         """Train from the restart"""
         if not self.directory.exists():
             command = self._train_from_the_scratch(dataset, init_model)
+            if init_model is not None:
+                self._print(f"{self.name} init training from model {init_model}.")
+                shutil.copyfile(init_model, self.directory/self.ckpt_name)
+                prev_config = load_reann_input_para(self.directory/"para")
+                prev_config["nn"]["table_init"] = 1
+                _ = dump_reann_input_para(prev_config, self.directory/"para")
+            else:
+                ...
         else:
             command = self._resolve_train_command()
-            ckpt_info = self.directory/"PES.pt"
+            ckpt_info = self.directory/self.ckpt_name
             if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
                 # -
                 with open(self.directory/"nn.err", "r") as fopen:
@@ -306,7 +318,12 @@ class ReannTrainer(AbstractTrainer):
                 # -
                 self._print(f"{self.name} restarts training from epoch {end_epoch}.")
             else:
-                ... # restart from the scratch and overwrite exists.
+                # restart from the scratch and overwrite exists.
+                (self.directory/self.ckpt_name).unlink(missing_ok=True)
+                shutil.copyfile(init_model, self.directory/self.ckpt_name)
+                prev_config = load_reann_input_para(self.directory/"para")
+                prev_config["nn"]["table_init"] = 1
+                _ = dump_reann_input_para(prev_config, self.directory/"para")
 
         return command
 
