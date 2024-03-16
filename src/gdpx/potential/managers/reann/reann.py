@@ -106,7 +106,7 @@ def _convert_a_single_line(line: str):
     return (k, v)
 
 
-def convert_para_to_dict(para: Union[str, pathlib.Path]) -> dict:
+def load_reann_input_para(para: Union[str, pathlib.Path]) -> dict:
     """"""
     params = {}
 
@@ -135,6 +135,28 @@ def convert_para_to_dict(para: Union[str, pathlib.Path]) -> dict:
     print(f"{params = }")
 
     return params
+
+def dump_reann_input_para(config_params: dict, para: Union[str, pathlib.Path]):
+    """"""
+    with open(para/"input_density", "w") as fopen:
+        content = ""
+        for k, v in config_params["density"].items():
+            if isinstance(v, str) and (v != "True" or v != "False"):
+                content += "{}=\"{}\"\n".format(k, str(v))
+            else:
+                content += f"{k}={str(v)}\n"
+        fopen.write(content)
+
+    with open(para/"input_nn", "w") as fopen:
+        content = ""
+        for k, v in config_params["nn"].items():
+            if isinstance(v, str) and (v != "True" and v != "False"):
+                content += "{}=\"{}\"\n".format(k, str(v))
+            else:
+                content += f"{k}={str(v)}\n"
+        fopen.write(content)
+
+    return
 
 
 def _atoms2reannconfig(atoms: Atoms, point: int) -> str:
@@ -238,7 +260,7 @@ class ReannTrainer(AbstractTrainer):
         if isinstance(config, dict) or isinstance(config, omegaconf.dictconfig.DictConfig):
             self.config = config
         elif isinstance(config, str) or isinstance(config, pathlib.Path):
-            self.config = convert_para_to_dict(config)
+            self.config = load_reann_input_para(config)
         else:
             raise RuntimeError(f"Fail to parse {config = }.")
 
@@ -260,6 +282,33 @@ class ReannTrainer(AbstractTrainer):
         """"""
 
         return self.freeze_command
+    
+    def _train_from_the_restart(self, dataset, init_model) -> str:
+        """Train from the restart"""
+        if not self.directory.exists():
+            command = self._train_from_the_scratch(dataset, init_model)
+        else:
+            command = self._resolve_train_command()
+            ckpt_info = self.directory/"PES.pt"
+            if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
+                # -
+                with open(self.directory/"nn.err", "r") as fopen:
+                    lines = fopen.readlines()
+                epoch_lines = [l for l in lines if l.strip().startswith("Epoch")]
+                end_epoch = int(epoch_lines[-1].split()[1])
+                # - 
+                prev_config = load_reann_input_para(self.directory/"para")
+                prev_config["nn"]["table_init"] = 1
+                prev_config["nn"]["Epoch"] = prev_config["nn"]["Epoch"] - end_epoch
+                prev_config["nn"]["patience_epoch"] = 0
+                assert prev_config["nn"]["Epoch"] >= 0
+                _ = dump_reann_input_para(prev_config, self.directory/"para")
+                # -
+                self._print(f"{self.name} restarts training from epoch {end_epoch}.")
+            else:
+                ... # restart from the scratch and overwrite exists.
+
+        return command
 
     def _prepare_dataset(self, dataset, *args, **kwargs):
         """Prepare a reann dataset for training.
@@ -313,23 +362,7 @@ class ReannTrainer(AbstractTrainer):
         config_params["nn"]["batchsize_val"] = dataset.batchsize
         config_params["nn"]["folder"] = str(dataset.directory.resolve()) + "/"
 
-        with open(self.directory/"para"/"input_density", "w") as fopen:
-            content = ""
-            for k, v in config_params["density"].items():
-                if isinstance(v, str) and (v != "True" or v != "False"):
-                    content += "{}=\"{}\"\n".format(k, str(v))
-                else:
-                    content += f"{k}={str(v)}\n"
-            fopen.write(content)
-
-        with open(self.directory/"para"/"input_nn", "w") as fopen:
-            content = ""
-            for k, v in config_params["nn"].items():
-                if isinstance(v, str) and (v != "True" and v != "False"):
-                    content += "{}=\"{}\"\n".format(k, str(v))
-                else:
-                    content += f"{k}={str(v)}\n"
-            fopen.write(content)
+        dump_reann_input_para(config_params, self.directory/"para")
 
         return
 
