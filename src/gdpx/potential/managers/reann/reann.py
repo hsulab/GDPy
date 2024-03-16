@@ -540,8 +540,10 @@ class ReannManager(AbstractPotentialManager):
             if isinstance(self.calc, CommitteeCalculator):
                 for c in self.calc.calcs:
                     c.pes = None
+                    c.getneigh = None
             else:
                 self.calc.pes = None
+                self.calc.getneigh = None
         else:
             ...
 
