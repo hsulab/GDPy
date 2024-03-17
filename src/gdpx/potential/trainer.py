@@ -126,8 +126,6 @@ class AbstractTrainer(AbstractNode):
 
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
-        self._update_config(dataset=dataset)
-
         if not hasattr(self, "_train_from_the_restart"):
             command = self._train_from_the_scratch(dataset, init_model)
         else:
