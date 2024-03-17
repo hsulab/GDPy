@@ -90,15 +90,6 @@ class AbstractTrainer(AbstractNode):
 
         return self._type_list
 
-    def _update_config(self, dataset, *args, **kwargs):
-        """Some configuration parameters can only be determined after checking the dataset.
-
-        For example, MACE... This function will modify parameters in `self.config`.
-
-        """
-
-        return
-
     @abc.abstractmethod
     def _resolve_train_command(self, *args, **kwargs):
         """"""
@@ -124,7 +115,6 @@ class AbstractTrainer(AbstractNode):
             raise TrainingFailed(
                 f"Please supply the command keyword for {self.name.upper()}."
             )
-        self._print(f"TRAINING COMMAND: {command}")
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -140,6 +130,7 @@ class AbstractTrainer(AbstractNode):
             command = self._train_from_the_scratch(dataset, init_model)
         else:
             command = self._train_from_the_restart(dataset, init_model)
+        self._print(f"TRAINING COMMAND: {command}")
 
         try:
             proc = subprocess.Popen(command, shell=True, cwd=self.directory)
