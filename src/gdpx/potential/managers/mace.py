@@ -168,6 +168,9 @@ class MaceTrainer(AbstractTrainer):
 
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart"""
+        if init_model is not None:
+            raise NotImplementedError(f"{self.name} does not support initialising from a previous model.")
+
         def _add_command_options(command, config) -> str:
             """"""
             # - convert to command line options...
