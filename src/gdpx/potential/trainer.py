@@ -47,6 +47,7 @@ class AbstractTrainer(AbstractNode):
         config: dict,
         type_list: List[str] = None,
         train_epochs: int = 200,
+        print_epochs: int = 5,
         directory=".",
         command="train",
         freeze_command="freeze",
@@ -68,6 +69,7 @@ class AbstractTrainer(AbstractNode):
         # - TODO: sync type_list
 
         self.train_epochs = train_epochs
+        self.print_epochs = print_epochs
 
         return
 

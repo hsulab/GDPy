@@ -68,6 +68,7 @@ class MaceTrainer(AbstractTrainer):
         config: dict,
         type_list: List[str] = None,
         train_epochs: int = 200,
+        print_epochs: int = 5,
         directory=".",
         command="python ./run_train.py",
         freeze_command="python ./run_train.py",
@@ -80,6 +81,7 @@ class MaceTrainer(AbstractTrainer):
             config,
             type_list,
             train_epochs,
+            print_epochs,
             directory,
             command,
             freeze_command,
@@ -136,10 +138,8 @@ class MaceTrainer(AbstractTrainer):
 
         # TODO: plus one to save the final checkpoint?
         train_config["max_num_epochs"] = self.train_epochs
+        train_config["eval_interval"] = self.print_epochs
         train_config["batch_size"] = dataset.batchsize
-
-        #
-        #train_config["eval_interval"] = dump_epochs
 
         swa = train_config.get("swa", False)
         if swa:

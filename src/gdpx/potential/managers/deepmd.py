@@ -61,12 +61,14 @@ class DeepmdTrainer(AbstractTrainer):
 
     def __init__(
         self, config: dict, type_list: List[str]=None, train_epochs: int=200,
+        print_epochs: int = 5,
         directory=".", command="dp", freeze_command="dp", random_seed=1112, 
         *args, **kwargs
     ) -> None:
         """"""
         super().__init__(
             config=config, type_list=type_list, train_epochs=train_epochs,
+            print_epochs=print_epochs,
             directory=directory, command=command, freeze_command=freeze_command, 
             random_seed=random_seed, *args, **kwargs
         )
@@ -203,10 +205,13 @@ class DeepmdTrainer(AbstractTrainer):
         train_config["training"]["seed"] = self.rng.integers(0,10000, dtype=int)
 
         # --- calc numb_steps
-        save_freq = train_config["training"]["save_freq"]
+        min_freq_unit = 100.
+        save_freq = int(np.ceil(dataset.cum_batchsizes*self.print_epochs/min_freq_unit)*min_freq_unit)
+        train_config["training"]["save_freq"] = save_freq
+
+        numb_steps = dataset.cum_batchsizes*self.train_epochs
         n_checkpoints = int(np.ceil(dataset.cum_batchsizes*self.train_epochs/save_freq))
         numb_steps = n_checkpoints*save_freq
-
         train_config["training"]["numb_steps"] = numb_steps
 
         # - write

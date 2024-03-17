@@ -234,6 +234,7 @@ class ReannTrainer(AbstractTrainer):
         config: Union[str, pathlib.Path],
         type_list: List[str] = None,
         train_epochs: int = 200,
+        print_epochs: int = 5,
         directory=".",
         command="train",
         freeze_command="freeze",
@@ -245,6 +246,7 @@ class ReannTrainer(AbstractTrainer):
             config,
             type_list,
             train_epochs,
+            print_epochs,
             directory,
             command,
             freeze_command,
@@ -386,6 +388,7 @@ class ReannTrainer(AbstractTrainer):
 
         config_params = copy.deepcopy(self.config)
         config_params["nn"]["Epoch"] = self.train_epochs
+        config_params["nn"]["print_epoch"] = self.print_epochs
         config_params["nn"]["batchsize_train"] = dataset.batchsize
         config_params["nn"]["batchsize_val"] = dataset.batchsize
         config_params["nn"]["folder"] = str(dataset.directory.resolve()) + "/"
