@@ -1,10 +1,13 @@
+{% set name = "gdpx" %}
+{% set version = "0.0.5" %}
+
 package:
-  name: gdpx
-  version: 0.0.4
+  name: {{ name|lower }}
+  version: {{ version }}
 
 source:
-  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.4.tar.gz
-  sha256: f282e4ad26b9b5744cf0ac5ff05152a5166f98c62a1302002387b67b73f3e007
+  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.5.tar.gz
+  sha256: 3ddf752212ff11452b8bcfcd2dacea8db3fd3fca4011a898ee75974426f01623
 
 build:
   noarch: python
@@ -44,3 +47,7 @@ about:
   license_family: GPL3
   license_file: LICENSE
   dev_url: https://github.com/hsulab/GDPy
+
+extra:
+  recipe-maintainers:
+    - hsulab
