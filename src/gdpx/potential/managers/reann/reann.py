@@ -203,7 +203,7 @@ class ReannDataloader:
 
     name: str = "reann"
 
-    def __init__(self, batchsize: int, directory: Union[str, pathlib.Path], *args, **kwargs) -> None:
+    def __init__(self, batchsize: int, directory: Union[str, pathlib.Path]="./", *args, **kwargs) -> None:
         """"""
         self.batchsize = batchsize
         self.directory = pathlib.Path(directory).resolve()
