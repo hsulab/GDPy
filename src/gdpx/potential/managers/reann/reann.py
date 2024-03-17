@@ -288,6 +288,11 @@ class ReannTrainer(AbstractTrainer):
 
         return self.freeze_command
     
+    def get_checkpoint(self):
+        """"""
+
+        return pathlib.Path(self.directory/self.ckpt_name).resolve()
+    
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart"""
         def _train_from_the_scratch(dataset, init_model) -> str:
