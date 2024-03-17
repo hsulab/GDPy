@@ -153,6 +153,8 @@ class MaceTrainer(AbstractTrainer):
 
         train_config["restart_latest"] = True
 
+        train_config["save_cpu"] = True
+
         # - pop unused...
         train_config.pop("log_dir", None)
         train_config.pop("model_dir", None)
@@ -324,10 +326,8 @@ class MaceManager(AbstractPotentialManager):
             for m in models:
                 # print("device", torch.device("cuda" if torch.cuda.is_available() else torch.device("cpu")))
                 curr_calc = MACECalculator(
-                    model_path=m,
-                    device=torch.device(
-                        "cuda" if torch.cuda.is_available() else torch.device("cpu")
-                    ),
+                    model_paths=m,
+                    device="cuda" if torch.cuda.is_available() else "cpu",
                     default_dtype=precision,
                 )
                 calcs.append(curr_calc)
@@ -343,6 +343,57 @@ class MaceManager(AbstractPotentialManager):
             ...
 
         self.calc = calc
+
+        return
+
+    def switch_uncertainty_estimation(self, status: bool = True):
+        """Switch on/off the uncertainty estimation."""
+        # NOTE: Sometimes the manager loads several models and supports uncertainty
+        #       by committee but the user disables it. We need change the calc to
+        #       the correct one as the loaded one is just a single calculator.
+        if not hasattr(self, "calc"):
+            raise RuntimeError(
+                "Fail to switch uncertainty status as it does not have a calc."
+            )
+        # print(f"{self.calc}")
+
+        # NOTE: make sure manager.as_dict() can have correct param
+        self.calc_params["estimate_uncertainty"] = status
+
+        # - convert calculator
+        if self.calc_backend == "ase":
+            if status:
+                if isinstance(self.calc, CommitteeCalculator):
+                    ...  # nothing to do
+                else:  # reload models
+                    self.register_calculator(self.calc_params)
+            else:
+                if isinstance(self.calc, CommitteeCalculator):
+                    # TODO: save previous calc?
+                    self.calc = self.calc.calcs[0]
+                else:
+                    ...
+        elif self.calc_backend == "lammps":
+            ...
+        else:
+            # TODO:
+            # Other backends cannot have uncertainty estimation,
+            # give a warning?
+            ...
+
+        return
+
+    def remove_loaded_models(self, *args, **kwargs):
+        """Loaded TF models should be removed before any copy.deepcopy operations."""
+        self.calc.reset()
+        if self.calc_backend == "ase":
+            if isinstance(self.calc, CommitteeCalculator):
+                for c in self.calc.calcs:
+                    c.models = None
+            else:
+                self.calc.models = None
+        else:
+            ...
 
         return
 
