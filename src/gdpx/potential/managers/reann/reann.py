@@ -289,41 +289,53 @@ class ReannTrainer(AbstractTrainer):
     
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart"""
-        if not self.directory.exists():
+        def _train_from_the_scratch(dataset, init_model) -> str:
+            # NOTE: `para/input*` will be overwritten by current self.config
             command = self._train_from_the_scratch(dataset, init_model)
             if init_model is not None:
                 self._print(f"{self.name} init training from model {init_model}.")
+                (self.directory/self.ckpt_name).unlink(missing_ok=True)
                 shutil.copyfile(init_model, self.directory/self.ckpt_name)
                 prev_config = load_reann_input_para(self.directory/"para")
                 prev_config["nn"]["table_init"] = 1
                 _ = dump_reann_input_para(prev_config, self.directory/"para")
             else:
                 ...
+            
+            return command
+
+        if not self.directory.exists():
+            command = _train_from_the_scratch(dataset, init_model)
         else:
-            command = self._resolve_train_command()
             ckpt_info = self.directory/self.ckpt_name
             if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
                 # -
-                with open(self.directory/"nn.err", "r") as fopen:
-                    lines = fopen.readlines()
-                epoch_lines = [l for l in lines if l.strip().startswith("Epoch")]
-                end_epoch = int(epoch_lines[-1].split()[1])
-                # - 
-                prev_config = load_reann_input_para(self.directory/"para")
-                prev_config["nn"]["table_init"] = 1
-                prev_config["nn"]["Epoch"] = prev_config["nn"]["Epoch"] - end_epoch
-                prev_config["nn"]["patience_epoch"] = 0
-                assert prev_config["nn"]["Epoch"] >= 0
-                _ = dump_reann_input_para(prev_config, self.directory/"para")
-                # -
-                self._print(f"{self.name} restarts training from epoch {end_epoch}.")
+                log_path = self.directory/"nn.err"
+                if log_path.exists():
+                    with open(self.directory/"nn.err", "r") as fopen:
+                        lines = fopen.readlines()
+                    epoch_lines = [l for l in lines if l.strip().startswith("Epoch")]
+                    try:
+                        end_epoch = int(epoch_lines[-1].split()[1])
+                        self._debug(f"{end_epoch =}")
+                    except:
+                        end_epoch = 0
+                        self._print(f"The endline of `nn.err` is strange.")
+                    # - 
+                    prev_config = load_reann_input_para(self.directory/"para")
+                    prev_config["nn"]["table_init"] = 1
+                    prev_config["nn"]["Epoch"] = prev_config["nn"]["Epoch"] - end_epoch
+                    prev_config["nn"]["patience_epoch"] = 0
+                    assert prev_config["nn"]["Epoch"] >= 0
+                    _ = dump_reann_input_para(prev_config, self.directory/"para")
+                    self._print(f"{self.name} restarts training from epoch {end_epoch}.")
+                    command = self._resolve_train_command()
+                else:
+                    # NOTE: This is a new training but init from a previous model.
+                    command = _train_from_the_scratch(dataset, init_model)
             else:
                 # restart from the scratch and overwrite exists.
-                (self.directory/self.ckpt_name).unlink(missing_ok=True)
-                shutil.copyfile(init_model, self.directory/self.ckpt_name)
-                prev_config = load_reann_input_para(self.directory/"para")
-                prev_config["nn"]["table_init"] = 1
-                _ = dump_reann_input_para(prev_config, self.directory/"para")
+                command = _train_from_the_scratch(dataset, init_model)
 
         return command
 
