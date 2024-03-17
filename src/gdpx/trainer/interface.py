@@ -130,7 +130,9 @@ class train(Operation):
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
             models = worker.retrieve(include_retrieved=True)
-            self._print(f"frozen models: {models}")
+            self._print("Frozen Models: ")
+            for m in models:
+                self._print(f"{str(m) =}")
             potter_params = potter.as_dict()
             potter_params["params"]["model"] = models
             potter.register_calculator(potter_params["params"])
@@ -140,6 +142,16 @@ class train(Operation):
 
         if manager is not None:
             self.status = "finished"
+        
+        # - some imported packages change `logging.basicConfig`
+        #   and accidently add a StreamHandler to logging.root
+        #   so remove it...
+        import logging
+        for h in logging.root.handlers:
+            if isinstance(h, logging.StreamHandler) and not isinstance(
+                h, logging.FileHandler
+            ):
+                logging.root.removeHandler(h)
 
         return manager
 
