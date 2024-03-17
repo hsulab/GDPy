@@ -28,9 +28,10 @@ registers.dataloader.register(ReannDataloader)
 from .lasp import LaspManager
 registers.manager.register(LaspManager)
 
-from .mace import MaceManager, MaceTrainer
+from .mace import MaceManager, MaceTrainer, MaceDataloader
 registers.manager.register(MaceManager)
 registers.trainer.register(MaceTrainer)
+registers.dataloader.register(MaceDataloader)
 
 from .nequip import NequipManager, NequipTrainer
 registers.manager.register(NequipManager)
