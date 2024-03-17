@@ -15,8 +15,7 @@ import omegaconf
 from ase import Atoms
 
 from .. import AbstractTrainer, AbstractPotentialManager, DummyCalculator
-
-from gdpx.computation.mixer import CommitteeCalculator
+from .. import CommitteeCalculator
 
 
 def parse_reann_input_config(para: Union[str, pathlib.Path]) -> List[str]:

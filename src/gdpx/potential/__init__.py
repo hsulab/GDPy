@@ -7,6 +7,7 @@
 """
 
 
+from .. import config
 from ..core.register import registers
 
 

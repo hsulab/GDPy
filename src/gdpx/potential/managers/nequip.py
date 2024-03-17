@@ -14,8 +14,8 @@ import numpy as np
 from ase.io import read, write
 from ase.calculators.calculator import Calculator
 
-from . import AbstractPotentialManager, AbstractTrainer, DummyCalculator
-from gdpx.computation.mixer import CommitteeCalculator
+from . import AbstractPotentialManager, AbstractTrainer
+from . import DummyCalculator, CommitteeCalculator
 
 
 class NequipTrainer(AbstractTrainer):

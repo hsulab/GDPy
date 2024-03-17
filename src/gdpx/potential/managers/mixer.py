@@ -3,7 +3,7 @@
 
 from . import registers
 from . import AbstractPotentialManager, DummyCalculator
-from gdpx.computation.mixer import EnhancedCalculator
+from ..calculators.mixer import EnhancedCalculator
 
 
 class MixerManager(AbstractPotentialManager):

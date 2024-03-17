@@ -11,8 +11,8 @@ from typing import Union, List
 from ase.io import read, write
 
 
-from . import AbstractPotentialManager, AbstractTrainer, DummyCalculator
-from gdpx.computation.mixer import CommitteeCalculator
+from . import AbstractPotentialManager, AbstractTrainer
+from . import DummyCalculator, CommitteeCalculator
 
 
 class MaceDataloader:
@@ -137,6 +137,9 @@ class MaceTrainer(AbstractTrainer):
         # TODO: plus one to save the final checkpoint?
         train_config["max_num_epochs"] = self.train_epochs
         train_config["batch_size"] = dataset.batchsize
+
+        #
+        #train_config["eval_interval"] = dump_epochs
 
         swa = train_config.get("swa", False)
         if swa:

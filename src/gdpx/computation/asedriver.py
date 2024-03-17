@@ -30,13 +30,12 @@ from ase.md.velocitydistribution import (
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
-from gdpx.computation.driver import AbstractDriver, DriverSetting
+from ..builder.constraints import parse_constraint_info
+from .driver import AbstractDriver, DriverSetting
+from .md.md_utils import force_temperature
+from ..potential.calculators.mixer import EnhancedCalculator
 
-from gdpx.md.md_utils import force_temperature
-
-from gdpx.builder.constraints import parse_constraint_info
 from .plumed import set_plumed_state
-from .mixer import EnhancedCalculator
 
 
 def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
@@ -173,7 +172,7 @@ class AseDriverSetting(DriverSetting):
                         rng=np.random.default_rng(seed=friction_seed),
                     )
                 elif thermostat == "nose_hoover":
-                    from gdpx.md.nosehoover import NoseHoover as driver_cls
+                    from .md.nosehoover import NoseHoover as driver_cls
                 else:
                     raise RuntimeError(f"Unknown thermostat {thermostat}.")
                 self._internals["thermostat"] = thermostat

@@ -8,6 +8,8 @@ from .. import registers
 from ..manager import AbstractPotentialManager, DummyCalculator
 from ..trainer import AbstractTrainer
 
+from ..calculators.mixer import CommitteeCalculator
+
 
 # - basic potentials
 # -- MLIP

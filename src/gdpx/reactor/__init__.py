@@ -7,7 +7,7 @@ from .. import config
 from ..core.register import registers
 
 from ..builder.constraints import parse_constraint_info
-from ..computation.mixer import EnhancedCalculator
+from ..potential.calculators.mixer import EnhancedCalculator
 
 
 """ This submodule is for exploring, sampling, 

@@ -16,9 +16,8 @@ from ase import Atoms
 from ase.io import read, write
 from ase.calculators.calculator import Calculator
 
-from gdpx.potential.manager import AbstractPotentialManager, DummyCalculator
-from gdpx.potential.trainer import AbstractTrainer
-from gdpx.computation.mixer import CommitteeCalculator
+from . import AbstractPotentialManager, AbstractTrainer
+from . import DummyCalculator, CommitteeCalculator
 
 
 class DeepmdDataloader():
