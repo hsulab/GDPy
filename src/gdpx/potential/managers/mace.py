@@ -24,7 +24,7 @@ class MaceDataloader:
         train_file: Union[str, pathlib.Path],
         test_file: Union[str, pathlib.Path],
         batchsize: int,
-        directory: Union[str, pathlib.Path]="./",
+        directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
     ) -> None:
@@ -93,7 +93,7 @@ class MaceTrainer(AbstractTrainer):
         self._type_list = type_list
 
         return
-    
+
     def _resolve_train_command(self, init_model=None, *args, **kwargs) -> str:
         """"""
 
@@ -145,7 +145,9 @@ class MaceTrainer(AbstractTrainer):
         if swa:
             start_swa = train_config.get("start_swa", -1)
             if not (0 < start_swa < self.train_epochs):
-                raise RuntimeError(f"{start_swa = } must be smaller than {self.train_epochs = }")
+                raise RuntimeError(
+                    f"{start_swa = } must be smaller than {self.train_epochs = }"
+                )
         else:
             ...
 
@@ -169,7 +171,9 @@ class MaceTrainer(AbstractTrainer):
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart"""
         if init_model is not None:
-            raise NotImplementedError(f"{self.name} does not support initialising from a previous model.")
+            raise NotImplementedError(
+                f"{self.name} does not support initialising from a previous model."
+            )
 
         def _add_command_options(command, config) -> str:
             """"""
@@ -185,7 +189,7 @@ class MaceTrainer(AbstractTrainer):
                     command += f"--{k}='{str(v)}'  "
 
             return command
-        
+
         train_config = self._update_config(dataset)
 
         if not self.directory.exists():
@@ -195,7 +199,7 @@ class MaceTrainer(AbstractTrainer):
             command = _add_command_options(command, train_config)
         else:
             command = self._train_from_the_scratch(dataset, init_model)
-            ckpt_dir = self.directory/"checkpoints"
+            ckpt_dir = self.directory / "checkpoints"
             if ckpt_dir.exists():
                 model_name = train_config["name"]
                 ckpts = [p for p in ckpt_dir.glob(f"{model_name}*")]
@@ -317,6 +321,8 @@ class MaceManager(AbstractPotentialManager):
 
         precision = calc_params.pop("precision", "float32")
 
+        estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
+
         # - create specific calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
@@ -340,7 +346,10 @@ class MaceManager(AbstractPotentialManager):
             if len(calcs) == 1:
                 calc = calcs[0]
             elif len(calcs) > 1:
-                calc = CommitteeCalculator(calcs)
+                if estimate_uncertainty:
+                    calc = CommitteeCalculator(calcs)
+                else:
+                    calc = calcs[0]
             else:
                 ...
         elif self.calc_backend == "lammps":
