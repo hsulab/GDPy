@@ -147,6 +147,9 @@ def run_session(config_filepath, feed_command=None, directory="./"):
         config._debug (traceback.format_exc())
         err_key = (str(err).strip().split("\n")[1]).strip().split(":")[1]
         config._print(f"FAILED TO PARSE `{err_key}` KEY.")
+        err_info_tail = traceback.format_exc().split("\n")[-10:]
+        for e in err_info_tail:
+            config._print(f"{e}")
         exit()
 
     container = {}
