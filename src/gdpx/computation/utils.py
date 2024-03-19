@@ -49,18 +49,29 @@ def make_clean_atoms(atoms_: Atoms, results: dict=None):
 
     return atoms
 
-def create_single_point_calculator(atoms_sorted, resort, calc_name):
-    """ create a spc to store calc results
-        since some atoms may share a calculator
+
+def create_single_point_calculator(
+    atoms_sorted: Atoms,
+    resort: List[int],
+    calc_name: str,
+    properties=["energy", "forces", "free_energy", "stress"],
+):
+    """Create a spc to store calc results since some atoms may share a calculator.
+
+    TODO: Add charges and magmoms?
+
     """
     atoms = atoms_sorted.copy()[resort]
 
     try:
         calc = SinglePointCalculator(
             atoms,
-            energy=atoms_sorted.get_potential_energy(),
-            forces=atoms_sorted.get_forces(apply_constraint=False)[resort]
-            # TODO: magmoms?
+            energy=atoms_sorted.get_potential_energy(apply_constraint=False),
+            free_energy=atoms_sorted.get_potential_energy(
+                force_consistent=True, apply_constraint=False
+            ),
+            forces=atoms_sorted.get_forces(apply_constraint=False)[resort],
+            stress=atoms_sorted.get_stress(),
         )
         calc.name = calc_name
         atoms.calc = calc
@@ -69,6 +80,7 @@ def create_single_point_calculator(atoms_sorted, resort, calc_name):
         atoms = None
 
     return atoms
+
 
 def parse_type_list(atoms):
     """parse type list for read and write structure of lammps"""
