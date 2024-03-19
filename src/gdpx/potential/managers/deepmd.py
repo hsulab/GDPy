@@ -593,10 +593,13 @@ class DeepmdManager(AbstractPotentialManager):
             command = calc_params.get("command", None)
             if command is None:
                 raise RuntimeError(f"{self.name} cannot switch backend from ase to lammps as no command is provided.")
+            else:
+                self.calc_backend = None
             self.register_calculator(calc_params)
         elif prev_backend == "lammps" and backend == "ase":
             calc_params = copy.deepcopy(self.calc_params)
             calc_params["backend"] = "ase"
+            self.calc_backend = None
             self.register_calculator(calc_params)
         else: # Nothing to do for other combinations
             ...
