@@ -91,9 +91,9 @@ class SinglepointValidator(AbstractValidator):
             for k in rmse_ret.keys():
                 if k not in keys:
                     keys.append(k)
-        content_fmt = "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  "*len(keys) + "\n"
+        content_fmt = "{:<48s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  "*len(keys) + "\n"
 
-        header_fmt = "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  "*len(keys) + "\n"
+        header_fmt = "{:<48s}  {:>8s}  " + "{:>8s}  {:>8s}  "*len(keys) + "\n"
         header_data = ["#prefix", "nframes"]
         for k in keys:
             header_data.extend([f"{k}_rmse", f"{k}_std"])
