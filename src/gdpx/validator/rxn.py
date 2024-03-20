@@ -23,7 +23,6 @@ from ase.utils.forcecurve import fit_raw
 
 from .validator import AbstractValidator
 
-
 """Validate reaction pathway using NEB.
 """
 
