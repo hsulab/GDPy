@@ -30,7 +30,8 @@ class DimerValidator(AbstractValidator):
     def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         super().run()
-        for prefix, frames in dataset["reference"]:
+        self._print(dataset["reference"])
+        for prefix, frames in dataset["reference"].items():
             self._irun(prefix, frames, None, worker)
 
         return
@@ -52,7 +53,6 @@ class DimerValidator(AbstractValidator):
 
         if pred_frames is None:
             # NOTE: use worker to calculate
-            # TODO: use cached data?
             self._print(f"Calculate reference frames {prefix} with potential...")
             cached_pred_fpath = self.directory / prefix / "pred.xyz"
             if not cached_pred_fpath.exists():
@@ -67,13 +67,14 @@ class DimerValidator(AbstractValidator):
                     ret = worker.retrieve(
                         include_retrieved=True,
                     )
-                    pred_frames = itertools.chain(*ret)
+                    pred_frames = list(itertools.chain(*ret))
                 else:
-                    # TODO: ...
                     ...
                 write(cached_pred_fpath, pred_frames)
             else:
                 pred_frames = read(cached_pred_fpath, ":")
+        else:
+            ...
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
     
         # - get reaction coordinate (dimer distance here)
@@ -88,7 +89,7 @@ class DimerValidator(AbstractValidator):
         data = np.array([ref_distances,ref_energies,pred_energies,abs_errors,rel_errors]).T
 
         np.savetxt(
-            self.directory/f"{prefix}.dat", data, 
+            self.directory/prefix/f"{prefix}.dat", data, 
             fmt="%8.4f  %12.4f  %12.4f  %12.4f  %8.4f", 
             header="{:<8s}  {:<12s}  {:<12s}  {:<12s}  {:<8s}".format(
                 "dis", "ref", "mlp", "abs", "rel [%]"
@@ -113,7 +114,7 @@ class DimerValidator(AbstractValidator):
         if (self.directory/f"{prefix}.png").exists():
             warnings.warn(f"Figure file {prefix} exists.", UserWarning)
         else:
-            plt.savefig(self.directory/f"{prefix}.png")
+            plt.savefig(self.directory/prefix/f"{prefix}.png")
 
         return
     
