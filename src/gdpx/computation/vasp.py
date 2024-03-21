@@ -25,6 +25,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 from ase.constraints import FixAtoms
+from ase.calculators.vasp import Vasp
 
 from ..builder.constraints import parse_constraint_info
 from .driver import AbstractDriver, DriverSetting
@@ -254,7 +255,7 @@ class VaspDriver(AbstractDriver):
         "REPORT",
     ]
 
-    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
+    def __init__(self, calc: Vasp, params: dict, directory="./", *args, **kwargs):
         """"""
         super().__init__(calc, params, directory=directory, *args, **kwargs)
 
@@ -353,17 +354,35 @@ class VaspDriver(AbstractDriver):
         return
 
     def read_force_convergence(self, *args, **kwargs) -> bool:
-        """"""
+        """Check if vasp calculation reaches scf convergence."""
         scf_converged = False
-        if (self.directory / "OUTCAR").exists():
-            if hasattr(self.calc, "read_convergence"):
-                scf_converged = self.calc.read_convergence()
-                self._print(f"SCF convergence: {scf_converged}@{self.directory.name}")
-                # self._debug(f"ignore convergence: {self.ignore_convergence}")
+        if hasattr(self.calc, "read_convergence"):
+            # - find if the computation folder has been archived...
+            if (self.directory / "OUTCAR").exists():
+                with open(self.directory/"OUTCAR", "r") as fopen:
+                    lines = fopen.readlines()
             else:
-                raise NotImplementedError()
+                archive_path = self.directory.parent/"cand.tgz"
+                if archive_path.exists():
+                    target_name = str((self.directory/ "OUTCAR").relative_to(self.directory.parent))
+                    with tarfile.open(archive_path, "r:gz") as tar:
+                        for tarinfo in tar:
+                            if tarinfo.name == target_name:
+                                fobj = io.StringIO(
+                                    tar.extractfile(tarinfo.name).read().decode()
+                                )
+                                lines = fobj.readlines()
+                                fobj.close()
+                                break
+                        else:  # TODO: if not find target traj?
+                            lines = None
+                else:
+                    lines = None
+            scf_converged = self.calc.read_convergence(lines=lines)
+            self._print(f"SCF convergence: {scf_converged}@{self.directory.name}")
+            # self._debug(f"ignore convergence: {self.ignore_convergence}")
         else:
-            ...
+            raise NotImplementedError()
 
         return scf_converged
 
