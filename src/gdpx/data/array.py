@@ -33,8 +33,10 @@ RETAIEND_INFO_DTYPES: List[str] = [
     "f", "f", "f"
 ]
 
-#:
-RETAINED_CALC_PROPS: List[str] = ["energy", "forces"]
+#: Saved calculated property names.
+RETAINED_CALC_PROPS: List[str] = ["energy", "free_energy", "forces"]
+
+#: Saved calculated atomic property names.
 RETAINED_ATOMIC_CALC_PROPS: List[str] = ["forces"]
 
 
@@ -373,14 +375,24 @@ class AtomsNDArray:
 
         # -- calc props
         # TODO: without calc properties?
+        # NOTE: energy and forces have apply_constraint True...
         energies = np.array([a.get_potential_energy()
                             for a in images], dtype=np.float64)
+        free_energies = []
+        for i, a in enumerate(images):
+            try:
+                free_energy = a.get_potential_energy(force_consistent=True)
+            except: # Assume no free_energy property is available.
+                free_energy = energies[i]
+            free_energies.append(free_energy)
+
         # forces = np.array([a.get_forces() for a in images], dtype=np.float64)
         forces = np.zeros((nimages, max(natoms_list), 3), dtype=np.float64)
         for i, a in enumerate(images):
             forces[i, :natoms_list[i], :] = a.get_forces()
 
         ene_dset = grp.create_dataset("energy", data=energies, dtype="f8")
+        fen_dset = grp.create_dataset("free_energy", data=free_energies, dtype="f8")
         frc_dset = grp.create_dataset("forces", data=forces, dtype="f8")
 
         return
