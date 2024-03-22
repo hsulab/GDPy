@@ -4,6 +4,10 @@
 
 from .deepmd import DeepmdManager, DeepmdDataloader, DeepmdTrainer
 
+__all__ = [
+    "DeepmdManager",
+]
+
 
 if __name__ == "__main__":
     ...
