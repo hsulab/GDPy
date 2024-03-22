@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 
-from ..manager import AbstractPotentialManager, DummyCalculator
+from . import AbstractPotentialManager, DummyCalculator
 
 
 """Check https://dftd3.readthedocs.io/en/latest/api/ase.html

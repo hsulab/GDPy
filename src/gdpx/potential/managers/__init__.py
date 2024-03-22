@@ -5,9 +5,10 @@
 import warnings
 
 from .. import registers
-from ..manager import AbstractPotentialManager, DummyCalculator
+from ..manager import AbstractPotentialManager
 from ..trainer import AbstractTrainer
 
+from ..calculators.dummy import DummyCalculator
 from ..calculators.mixer import CommitteeCalculator
 
 

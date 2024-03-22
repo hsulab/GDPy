@@ -4,8 +4,8 @@
 
 import copy
 
-from gdpx.core.register import registers
-from ..manager import AbstractPotentialManager, DummyCalculator
+from . import registers
+from . import AbstractPotentialManager, DummyCalculator
 from gdpx.bias import bias_register
 
 """This manager registers ALL jax-based bias calculators."""
