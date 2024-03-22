@@ -4,17 +4,44 @@
 import copy
 import itertools
 import pathlib
-from typing import List
+from typing import Union, List
 import warnings
 
 import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from ..core.register import registers
 from ..core.variable import Variable
 from ..core.node import AbstractNode
+
+
+#: How to map keys in structures.
+DEFAULT_PROP_MAP_KEYS: List[List[str]] = [
+    ("energy", "energy"),
+    ("forces", "forces")
+]
+
+def map_atoms_data(atoms: Atoms, prop_map_keys) -> None:
+    """"""
+    assert type(atoms.calc) == SinglePointCalculator, ""
+
+    results = copy.deepcopy(atoms.calc.results)
+    for mapping_pairs in prop_map_keys:
+        dst_key, src_key = mapping_pairs
+        if src_key in results:
+            # NOTE: The dst_data is overwritten if it exists
+            src_val = results.pop(src_key)
+            results[dst_key] = src_val
+        else:
+            raise KeyError()
+    #calc = SinglePointCalculator(atoms, **results)
+    #atoms.calc = calc
+    atoms.calc.results = results
+
+    return 
 
 
 def traverse_xyzdirs(wdir):
@@ -55,10 +82,11 @@ class XyzDataloader(AbstractDataloader):
 
     def __init__(
         self,
-        dataset_path="./",
-        batchsize=32,
-        train_ratio=0.9,
-        random_seed=None,
+        dataset_path: Union[str, pathlib.Path]="./",
+        batchsize: int=32,
+        train_ratio: float=0.9,
+        random_seed: int=None,
+        prop_keys: List[List[str]]=DEFAULT_PROP_MAP_KEYS,
         *args,
         **kwargs,
     ) -> None:
@@ -67,6 +95,8 @@ class XyzDataloader(AbstractDataloader):
 
         self.batchsize = batchsize
         self.train_ratio = train_ratio
+
+        self.prop_keys = prop_keys
 
         return
 
@@ -108,14 +138,13 @@ class XyzDataloader(AbstractDataloader):
         pairs = []
         for n, x in zip(names, frames_list):
             pairs.append([n, x])
+        
+        # TODO: map keys...
 
         return pairs
 
-    def split_train_and_test(self, reduce_system: bool = False):
+    def split_train_and_test(self, ):
         """Read structures and split them into train and test.
-
-        Args:
-            reduce_system: Whether merge different systems into one List.
 
         """
         self._print("--- auto data reader ---")
@@ -190,22 +219,14 @@ class XyzDataloader(AbstractDataloader):
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
             curr_test_frames = [frames[test_i] for test_i in test_index]
-            if reduce_system:
-                # train
-                train_frames.extend(curr_train_frames)
-                n_train_frames = len(train_frames)
 
-                # test
-                test_frames.extend(curr_test_frames)
-                n_test_frames = len(test_frames)
-            else:
-                # train
-                train_frames.append(curr_train_frames)
-                n_train_frames = sum([len(x) for x in train_frames])
+            # train
+            train_frames.append(curr_train_frames)
+            n_train_frames = sum([len(x) for x in train_frames])
 
-                # test
-                test_frames.append(curr_test_frames)
-                n_test_frames = sum([len(x) for x in test_frames])
+            # test
+            test_frames.append(curr_test_frames)
+            n_test_frames = sum([len(x) for x in test_frames])
             self._print(
                 f"  Current Dataset -> ntrain: {n_train_frames} ntest: {n_test_frames}"
             )
@@ -216,6 +237,25 @@ class XyzDataloader(AbstractDataloader):
         train_size = sum(train_size)
         test_size = sum(test_size)
         self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}")
+
+        # - map keys
+        should_map_keys = False
+        for mapping_pairs in self.prop_keys:
+            dst_key, src_key = mapping_pairs
+            if dst_key != src_key:
+                should_map_keys = True
+            else:
+                ...
+        else:
+            ...
+        
+        if should_map_keys:
+            for curr_frames in train_frames:
+                for a in curr_frames:
+                    map_atoms_data(a, self.prop_keys)
+            for curr_frames in test_frames:
+                for a in curr_frames:
+                    map_atoms_data(a, self.prop_keys)
 
         return set_names, train_frames, test_frames, adjusted_batchsizes
 
