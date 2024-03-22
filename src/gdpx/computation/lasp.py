@@ -157,6 +157,10 @@ def read_lasp_structures(
     """Read simulation trajectory."""
     wdir = pathlib.Path(wdir)
 
+    # - check if output file exists...
+    if (not (wdir/"allstr.arc").exists()) and archive_path is None:
+        return []
+
     # - get IO
     if archive_path is None:
         with open(wdir/"allstr.arc", "r") as fopen:
@@ -270,9 +274,6 @@ def read_lasp_structures(
 @dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
 
-    #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
-    accept_bad_structure: bool = True
-
     def __post_init__(self):
         """"""
         if self.task == "min":
@@ -347,6 +348,9 @@ class LaspDriver(AbstractDriver):
 
     name = "lasp"
 
+    #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
+    accept_bad_structure: bool = True
+
     # - defaults
     default_task = "min"
     supported_tasks = ["min", "md"]
@@ -414,7 +418,7 @@ class LaspDriver(AbstractDriver):
         """"""
         return self.calc._is_converged()
     
-    def _read_a_single_trajectory(self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs):
+    def _read_a_single_trajectory(self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs) -> List[Atoms]:
         """"""
         curr_frames = read_lasp_structures(self.directory, wdir, archive_path=archive_path)
 
@@ -427,21 +431,24 @@ class LaspDriver(AbstractDriver):
 
         traj_list = []
         for w in prev_wdirs:
-            curr_frames = self._read_a_single_trajectory(self.directory, w, archive_path)
+            curr_frames = self._read_a_single_trajectory(w, archive_path)
             traj_list.append(curr_frames)
         
         # Even though arc file may be empty, the read can give a empty list...
         laspstr = self.directory / "allstr.arc"
-        traj_list.append(read_lasp_structures(self.directory, self.directory, archive_path))
+        traj_list.append(self._read_a_single_trajectory(self.directory, archive_path))
 
         # -- concatenate
         traj_frames, ntrajs = [], len(traj_list)
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
-                #assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
-                assert compare_trajectory_continuity(traj_list[i-1], traj_list[i]), f"Traj {i-1} and traj {i} are not consecutive."
-                traj_frames.extend(traj_list[i][1:])
+                if traj_list[i]: # check if the traj is a empty list
+                    #assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                    assert compare_trajectory_continuity(traj_list[i-1], traj_list[i]), f"Traj {i-1} and traj {i} are not consecutive."
+                    traj_frames.extend(traj_list[i][1:])
+                else:
+                    ...
         else:
             ...
         
