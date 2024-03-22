@@ -105,7 +105,7 @@ def read_cp2k_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
             cell=box.reshape(3,3), 
             pbc=[1,1,1] # TODO: should determine in the cp2k input file
         )
-        atoms.info["step"] = step
+        atoms.info["step"] = int(step)
         spc = SinglePointCalculator(
             atoms=atoms, energy=energy, 
             free_energy=energy, # TODO: depand on electronic method used
