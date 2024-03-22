@@ -377,7 +377,7 @@ class LaspDriver(AbstractDriver):
 
         return verified
 
-    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs) -> None:
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, cache_traj: List[Atoms]=None, *args, **kwargs) -> None:
         """"""
         try:
             if ckpt_wdir is None: # start from the scratch
@@ -391,7 +391,11 @@ class LaspDriver(AbstractDriver):
                 _ = atoms.get_forces()
             else:
                 # TODO: velocities?
-                traj = self.read_trajectory()
+                if cache_traj is None:
+                    traj = self.read_trajectory()
+                else:
+                    self._debug("use cache trajectory to restart...")
+                    traj = cache_traj
                 nframes = len(traj)
                 assert nframes > 0, "LaspDriver restarts with a zero-frame trajectory."
                 atoms = traj[-1]
