@@ -139,7 +139,20 @@ class XyzDataloader(AbstractDataloader):
         for n, x in zip(names, frames_list):
             pairs.append([n, x])
         
-        # TODO: map keys...
+        # - map keys
+        should_map_keys = False
+        for mapping_pairs in self.prop_keys:
+            dst_key, src_key = mapping_pairs
+            if dst_key != src_key:
+                should_map_keys = True
+            else:
+                ...
+        else:
+            ...
+        if should_map_keys:
+            for n, x in pairs:
+                for a in x:
+                    map_atoms_data(a, self.prop_keys)
 
         return pairs
 
