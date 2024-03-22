@@ -15,26 +15,24 @@ from ase import Atoms
 from ase.io import read, write
 
 import matplotlib.pyplot as plt
+
 try:
     plt.style.use("presentation")
 except Exception as e:
-    #print("Used default matplotlib style.")
     ...
 
-from gdpx.validator.validator import AbstractValidator
-from gdpx.worker.drive import DriverBasedWorker
 
+from ..worker.drive import DriverBasedWorker
 from ..utils.comparision import get_properties, plot_parity, plot_distribution
+from ..utils.command import convert_indices
 
-from gdpx.utils.command import convert_indices
+from .validator import AbstractValidator
 
 
 class SinglepointValidator(AbstractValidator):
+    """Calculate energies on each structures and save them to file."""
 
-    """Calculate energies on each structures and save them to file.
-    """
-
-    def __init__(self, groups: dict=None, convergence: dict=None, *args, **kwargs):
+    def __init__(self, groups: dict = None, convergence: dict = None, *args, **kwargs):
         """Init a spc validator.
 
         Args:
@@ -62,28 +60,35 @@ class SinglepointValidator(AbstractValidator):
 
         # - plot specific groups
         group_params = copy.deepcopy(self.groups)
+
         def run_selection():
             selected_prefixes, selected_groups = [], []
             for k, v in group_params.items():
                 selected_prefixes.append(k)
-                selected_groups.append(
-                    convert_indices(v, index_convention="lmp")
-                )
+                selected_groups.append(convert_indices(v, index_convention="lmp"))
             self._debug(selected_groups)
             self._debug(selected_prefixes)
 
             for curr_prefix, curr_indices in zip(selected_prefixes, selected_groups):
-                curr_ref = list(itertools.chain(*[frame_pairs[i][0] for i in curr_indices]))
-                curr_pre = list(itertools.chain(*[frame_pairs[i][1] for i in curr_indices]))
-                nframes, rmse_ret = self._plot_comparison(curr_prefix, curr_ref, curr_pre)
-                self.write_data([[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat")
-        
+                curr_ref = list(
+                    itertools.chain(*[frame_pairs[i][0] for i in curr_indices])
+                )
+                curr_pre = list(
+                    itertools.chain(*[frame_pairs[i][1] for i in curr_indices])
+                )
+                nframes, rmse_ret = self._plot_comparison(
+                    curr_prefix, curr_ref, curr_pre
+                )
+                self.write_data(
+                    [[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat"
+                )
+
         if group_params is not None:
             run_selection()
 
         return
 
-    def write_data(self, data, fname: str="rmse.dat"):
+    def write_data(self, data, fname: str = "rmse.dat"):
         """"""
         # - check data file
         keys = ["ene", "frc"]
@@ -91,14 +96,14 @@ class SinglepointValidator(AbstractValidator):
             for k in rmse_ret.keys():
                 if k not in keys:
                     keys.append(k)
-        content_fmt = "{:<48s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  "*len(keys) + "\n"
+        content_fmt = "{:<48s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  " * len(keys) + "\n"
 
-        header_fmt = "{:<48s}  {:>8s}  " + "{:>8s}  {:>8s}  "*len(keys) + "\n"
+        header_fmt = "{:<48s}  {:>8s}  " + "{:>8s}  {:>8s}  " * len(keys) + "\n"
         header_data = ["#prefix", "nframes"]
         for k in keys:
             header_data.extend([f"{k}_rmse", f"{k}_std"])
         header = header_fmt.format(*header_data)
-        
+
         content = header
         for prefix, nframes, rmse_ret in data:
             cur_data = [prefix, nframes]
@@ -109,15 +114,17 @@ class SinglepointValidator(AbstractValidator):
                 else:
                     cur_data.extend([v["rmse"], v["std"]])
             content += content_fmt.format(*cur_data)
-        
-        with open(self.directory/fname, "w") as fopen:
+
+        with open(self.directory / fname, "w") as fopen:
             fopen.write(content)
         for l in content.split("\n"):
             self._print(l)
 
         return
 
-    def _irun(self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker):
+    def _irun(
+        self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker
+    ):
         """"""
         # - read structures
         nframes = len(ref_frames)
@@ -147,23 +154,24 @@ class SinglepointValidator(AbstractValidator):
                 pred_frames = read(cached_pred_fpath, ":")
         else:
             ...
-        
+
         return pred_frames
-    
-    def _plot_comparison(self, prefix, ref_frames: List[Atoms], pred_frames: List[Atoms]):
+
+    def _plot_comparison(
+        self, prefix, ref_frames: List[Atoms], pred_frames: List[Atoms]
+    ):
         """"""
-        if not (self.directory/prefix).exists():
-            (self.directory/prefix).mkdir(parents=True)
+        if not (self.directory / prefix).exists():
+            (self.directory / prefix).mkdir(parents=True)
 
         nframes = len(ref_frames)
         ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
         ref_natoms = [len(a) for a in ref_frames]
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
-        
+
         # - figure
         fig, axarr = plt.subplots(
-            nrows=1, ncols=2,
-            gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
+            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
         )
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
@@ -178,15 +186,14 @@ class SinglepointValidator(AbstractValidator):
             axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
         )
 
-        #if (self.directory/f"{prefix}.png").exists():
+        # if (self.directory/f"{prefix}.png").exists():
         #    warnings.warn(f"Figure file {prefix} exists.", UserWarning)
-        plt.savefig(self.directory/prefix/"rmse.png")
+        plt.savefig(self.directory / prefix / "rmse.png")
         plt.close()
 
         # plot distributions
         fig, axarr = plt.subplots(
-            nrows=1, ncols=2,
-            gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
+            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
         )
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
@@ -198,7 +205,7 @@ class SinglepointValidator(AbstractValidator):
             axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
         )
 
-        plt.savefig(self.directory/prefix/"dist.png")
+        plt.savefig(self.directory / prefix / "dist.png")
         plt.close()
 
         # - save results to data file
@@ -211,18 +218,20 @@ class SinglepointValidator(AbstractValidator):
             rmse_ret[rms_name] = _rms
 
         return nframes, rmse_ret
-    
+
     def report_convergence(self, *args, **kwargs):
         """"""
         converged = True
 
-        rmse_fpath = self.directory/"rmse.dat"
+        rmse_fpath = self.directory / "rmse.dat"
         if rmse_fpath.exists():
             with open(rmse_fpath, "r") as fopen:
                 lines = fopen.readlines()
             col_names = lines[0].strip()[1:].split()[1:]
             row_names = [x.strip().split()[0] for x in lines[1:]]
-            data = np.array([x.strip().split()[1:] for x in lines[1:]], dtype=np.float32)
+            data = np.array(
+                [x.strip().split()[1:] for x in lines[1:]], dtype=np.float32
+            )
 
             # --
             convergence = copy.deepcopy(self.convergence)
@@ -231,8 +240,10 @@ class SinglepointValidator(AbstractValidator):
                 matched_names = [x for x in row_names if re.match(pattern, x)]
             else:
                 matched_names = row_names
-            
-            assert all([x in col_names for x in convergence.keys()]), "Unavailable keys for convergence."
+
+            assert all(
+                [x in col_names for x in convergence.keys()]
+            ), "Unavailable keys for convergence."
 
             converged = True
             for name in matched_names:
@@ -247,7 +258,7 @@ class SinglepointValidator(AbstractValidator):
                         converged = False
         else:
             self._print("No rmse data is available and set convergence to True.")
-        
+
         self._print(f"    >>> {converged}")
 
         return converged
