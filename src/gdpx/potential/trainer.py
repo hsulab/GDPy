@@ -120,7 +120,7 @@ class AbstractTrainer(AbstractNode):
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
-        self.write_input(dataset, reduce_system=False)
+        self.write_input(dataset)
 
         return command
 
