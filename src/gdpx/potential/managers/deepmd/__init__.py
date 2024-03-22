@@ -5,7 +5,7 @@
 from .deepmd import DeepmdManager, DeepmdDataloader, DeepmdTrainer
 
 __all__ = [
-    "DeepmdManager",
+    "DeepmdManager", "DeepmdDataloader", "DeepmdTrainer"
 ]
 
 
