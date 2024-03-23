@@ -13,7 +13,10 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-import dpdata
+try:
+    import dpdata
+except:
+    ...
 
 
 def get_formula_from_atoms(atoms: Atoms) -> str:
