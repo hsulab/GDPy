@@ -18,7 +18,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from .. import registers
-from .. import SingleWorker
+from .. import SingleWorker, DriverBasedWorker
 from ..expedition import AbstractExpedition
 from .operators import select_operator, parse_operators, save_operator, load_operator
 
@@ -174,6 +174,9 @@ class MonteCarlo(AbstractExpedition):
 
         # - check if it has a valid worker..
         assert self.worker is not None, "MC has not set its worker properly."
+        if isinstance(self.worker, DriverBasedWorker):
+            self._print("Convert a DriverBasedWorker to a SingleWorker.")
+            self.worker = SingleWorker.from_a_worker(self.worker)
         assert isinstance(
             self.worker, SingleWorker
         ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
