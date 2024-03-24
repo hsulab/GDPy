@@ -14,7 +14,7 @@ import pathlib
 import tarfile
 import traceback
 from collections import Counter
-from typing import Union, List, NoReturn
+from typing import Union, List, Tuple, NoReturn
 
 import shutil
 
@@ -28,8 +28,10 @@ from ase.constraints import FixAtoms
 from ase.calculators.vasp import Vasp
 
 from ..builder.constraints import parse_constraint_info
+from ..data.extatoms import ScfErrAtoms
 from .driver import AbstractDriver, DriverSetting
 from .utils import create_single_point_calculator
+
 
 """Driver for VASP."""
 #: str
@@ -89,6 +91,46 @@ def read_sort(directory: pathlib.Path):
         raise ValueError("no ase-sort.dat")
 
     return sort, resort
+
+
+def read_outcar_scf(lines: List[str]) -> Tuple[int, float]:
+    """"""
+    nelm, ediff = None, None
+    for line in lines:
+        if line.strip().startswith("NELM"):
+            nelm = int(line.split()[2][:-1])
+        if line.strip().startswith("EDIFF"):
+            ediff = float(line.split()[2])
+        if nelm is not None and ediff is not None:
+            break
+    else:
+        ...  # TODO: raise an error?
+
+    return nelm, ediff
+
+
+def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
+    """"""
+    convergence = []
+    content = ""
+    for line in lines:
+        start = line.strip().split()[0]
+        if start == "N":
+            content = ""
+            continue
+        if start.isdigit():
+            scfsteps = [int(s.split()[1]) for s in content.strip().split("\n")]
+            num_scfsteps = len(scfsteps)
+            assert num_scfsteps == scfsteps[-1]
+            enediffs = [float(s.split()[3]) for s in content.strip().split("\n")]
+            is_converged = num_scfsteps < nelm or np.fabs(enediffs[-1]) <= ediff
+            convergence.append(is_converged)
+        content += line
+
+    # If the last SCF is not finished,
+    # there is no content to check
+
+    return convergence
 
 
 @dataclasses.dataclass
@@ -353,57 +395,61 @@ class VaspDriver(AbstractDriver):
 
         return
 
-    def read_force_convergence(self, *args, **kwargs) -> bool:
-        """Check if vasp calculation reaches scf convergence."""
-        scf_converged = False
-        if hasattr(self.calc, "read_convergence"):
-            # - find if the computation folder has been archived...
-            if (self.directory / "OUTCAR").exists():
-                with open(self.directory/"OUTCAR", "r") as fopen:
-                    lines = fopen.readlines()
-            else:
-                archive_path = self.directory.parent/"cand.tgz"
-                if archive_path.exists():
-                    target_name = str((self.directory/ "OUTCAR").relative_to(self.directory.parent))
-                    with tarfile.open(archive_path, "r:gz") as tar:
-                        for tarinfo in tar:
-                            if tarinfo.name == target_name:
-                                fobj = io.StringIO(
-                                    tar.extractfile(tarinfo.name).read().decode()
-                                )
-                                lines = fobj.readlines()
-                                fobj.close()
-                                break
-                        else:  # TODO: if not find target traj?
-                            lines = None
-                else:
-                    lines = None
-            scf_converged = self.calc.read_convergence(lines=lines)
-            self._print(f"SCF convergence: {scf_converged}@{self.directory.name}")
-            # self._debug(f"ignore convergence: {self.ignore_convergence}")
-        else:
-            raise NotImplementedError()
-
-        return scf_converged
-
     def _read_a_single_trajectory(self, wdir, archive_path=None, *args, **kwargs):
         """"""
+        oszicar_lines, outcar_lines = None, None
         if archive_path is None:
+            # - read trajectory
             vasprun = wdir / "vasprun.xml"
             frames = read(vasprun, ":")
+            with open(wdir / "OUTCAR") as fopen:
+                outcar_lines = fopen.readlines()
+            with open(wdir / "OSZICAR") as fopen:
+                oszicar_lines = fopen.readlines()
         else:
-            target_name = str((wdir / "vasprun.xml").relative_to(self.directory.parent))
+            flags = [False, False, False]
+            vasprun_name = str(
+                (wdir / "vasprun.xml").relative_to(self.directory.parent)
+            )
+            oszicar_name = str((wdir / "OSZICAR").relative_to(self.directory.parent))
+            outcar_name = str((wdir / "OUTCAR").relative_to(self.directory.parent))
             with tarfile.open(archive_path, "r:gz") as tar:
                 for tarinfo in tar:
-                    if tarinfo.name == target_name:
+                    if tarinfo.name == vasprun_name:
                         fobj = io.StringIO(
                             tar.extractfile(tarinfo.name).read().decode()
                         )
                         frames = read(fobj, ":", format="vasp-xml")
                         fobj.close()
+                        flags[0] = True
+                    if tarinfo.name == oszicar_name:
+                        fobj = io.StringIO(
+                            tar.extractfile(tarinfo.name).read().decode()
+                        )
+                        oszicar_lines = fobj.readlines()
+                        fobj.close()
+                        flags[1] = True
+                    if tarinfo.name == outcar_name:
+                        fobj = io.StringIO(
+                            tar.extractfile(tarinfo.name).read().decode()
+                        )
+                        outcar_lines = fobj.readlines()
+                        fobj.close()
+                        flags[2] = True
+                    if all(flags):
                         break
                 else:  # TODO: if not find target traj?
                     ...
+
+        # - read oszicar and outcar
+        if outcar_lines is not None and oszicar_lines is not None:
+            nelm, ediff = read_outcar_scf(outcar_lines)
+            scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
+            assert len(scf_convergences) == len(frames)
+            for i, is_converged in enumerate(scf_convergences):
+                if not is_converged:
+                    frames[i] = ScfErrAtoms.from_atoms(frames[i])
+                    self._print(f"ScfErrAtoms Step {i} @ {str(wdir)}")
 
         return frames
 
@@ -416,73 +462,72 @@ class VaspDriver(AbstractDriver):
 
         """
         # - read structures
-        try:
-            # -- read backups
+        # -- read backups
+        prev_wdirs = []
+        if archive_path is None:
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-            self._debug(f"prev_wdirs: {prev_wdirs}")
+        else:
+            pattern = self.directory.name + "/" + r"[0-9][0-9][0-9][0-9][.]run"
+            with tarfile.open(archive_path, "r:gz") as tar:
+                for tarinfo in tar:
+                    if tarinfo.isdir() and re.match(pattern, tarinfo.name):
+                        prev_wdirs.append(tarinfo.name)
+            prev_wdirs = [self.directory/pathlib.Path(p).name for p in sorted(prev_wdirs)]
+        self._debug(f"prev_wdirs: {prev_wdirs}")
 
-            traj_list = []
-            for w in prev_wdirs:
-                curr_frames = self._read_a_single_trajectory(
-                    w, archive_path=archive_path
-                )
-                traj_list.append(curr_frames)
-
-            # Even though vasprun file may be empty, the read can give a empty list...
-            vasprun = self.directory / "vasprun.xml"
-            curr_frames = self._read_a_single_trajectory(
-                self.directory, archive_path=archive_path
-            )
+        traj_list = []
+        for w in prev_wdirs:
+            curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path)
             traj_list.append(curr_frames)
 
-            # -- concatenate
-            traj_frames_, ntrajs = [], len(traj_list)
-            if ntrajs > 0:
-                traj_frames_.extend(traj_list[0])
-                for i in range(1, ntrajs):
-                    assert np.allclose(
-                        traj_list[i - 1][-1].positions, traj_list[i][0].positions
-                    ), f"Traj {i-1} and traj {i} are not consecutive."
-                    traj_frames_.extend(traj_list[i][1:])
-            else:
-                ...
+        # Even though vasprun file may be empty, the read can give a empty list...
+        vasprun = self.directory / "vasprun.xml"
+        curr_frames = self._read_a_single_trajectory(
+            self.directory, archive_path=archive_path
+        )
+        traj_list.append(curr_frames)
 
-            nframes = len(traj_frames_)
-            natoms = len(traj_frames_[0])
+        # -- concatenate
+        # NOTE: Some spin systems may give different scf convergence on the same
+        #       structure. Sometimes, the preivous failed but the next run converged,
+        #       The concat below uses the previous one...
+        traj_frames_, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames_.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                assert np.allclose(
+                    traj_list[i - 1][-1].positions, traj_list[i][0].positions
+                ), f"Traj {i-1} and traj {i} are not consecutive."
+                traj_frames_.extend(traj_list[i][1:])
+        else:
+            ...
 
-            # - sort frames
-            traj_frames = []
-            if nframes > 0:
-                if (self.directory / ASE_VASP_SORT_FNAME).exists():
-                    sort, resort = read_sort(self.directory)
-                else:  # without sort file, use default order
-                    sort, resort = list(range(natoms)), list(range(natoms))
-                for i, sorted_atoms in enumerate(traj_frames_):
-                    # NOTE: calculation with only one unfinished step does not have forces
-                    input_atoms = create_single_point_calculator(
-                        sorted_atoms, resort, "vasp"
-                    )
-                    # if input_atoms is None:
-                    #    input_atoms = Atoms()
-                    #    input_atoms.info["error"] = str(self.directory)
-                    if input_atoms is not None:
-                        if add_step_info:
-                            input_atoms.info["step"] = i
-                        traj_frames.append(input_atoms)
-            else:
-                ...
-        except Exception as e:
-            self._debug(e)
-            atoms = Atoms()
-            atoms.info["error"] = str(self.directory)
-            traj_frames = [atoms]
+        nframes = len(traj_frames_)
+        natoms = len(traj_frames_[0])
 
-        ret = traj_frames
+        # - sort frames
+        traj_frames = []
+        if nframes > 0:
+            if (self.directory / ASE_VASP_SORT_FNAME).exists():
+                sort, resort = read_sort(self.directory)
+            else:  # without sort file, use default order
+                sort, resort = list(range(natoms)), list(range(natoms))
+            for i, sorted_atoms in enumerate(traj_frames_):
+                # NOTE: calculation with only one unfinished step does not have forces
+                input_atoms = create_single_point_calculator(
+                    sorted_atoms, resort, "vasp"
+                )
+                # if input_atoms is None:
+                #    input_atoms = Atoms()
+                #    input_atoms.info["error"] = str(self.directory)
+                if input_atoms is not None:
+                    if add_step_info:
+                        input_atoms.info["step"] = i
+                    traj_frames.append(input_atoms)
+        else:
+            ...
 
-        if (len(ret) > 0) and (not self.read_force_convergence()):
-            ret[0].info["error"] = str(self.directory)
-
-        return ret
+        return traj_frames
 
 
 if __name__ == "__main__":

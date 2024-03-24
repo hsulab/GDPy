@@ -593,11 +593,7 @@ class DriverBasedWorker(AbstractWorker):
             for i, traj_frames in enumerate(results_):
                 # - sift error structures
                 if traj_frames:
-                    error_info = traj_frames[0].info.get("error", None)
-                    if error_info:
-                        self._print(f"Found failed calculation at {error_info}...")
-                    else:
-                        results.append(traj_frames)
+                    results.append(traj_frames)
                 else:
                     self._print(f"Found empty calculation at {str(self.directory)} with cand{i}...")
 
