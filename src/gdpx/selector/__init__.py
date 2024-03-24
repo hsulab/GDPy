@@ -34,6 +34,10 @@ from .random import RandomSelector
 
 registers.selector.register(RandomSelector)
 
+from .scf import ScfSelector
+
+registers.selector.register(ScfSelector)
+
 try:
     # TODO: This selector depends on an external package dscribe.
     from .descriptor import DescriptorSelector
