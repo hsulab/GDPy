@@ -19,6 +19,7 @@ from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import Variable
 from ..data.array import AtomsNDArray
+from ..selector.scf import ScfSelector
 from ..utils.command import CustomTimer
 from ..worker.drive import (
     CommandDriverBasedWorker,
@@ -156,7 +157,7 @@ def get_shape_data(shape_dir: Union[str, pathlib.Path]):
     else:
         inp_shape = None
         inp_markers = None
-    
+
     return inp_shape, inp_markers
 
 
@@ -181,16 +182,16 @@ def convert_results_to_structures(
     _print(f"input  structure shape: {structures.shape}")
     if inp_shape is not None and inp_markers is not None:
         converted_structures = []
-        for curr_structures in structures:  # shape (nworkers, ncandidates, 1) 
+        for curr_structures in structures:  # shape (nworkers, ncandidates, 1)
             curr_structures = list(itertools.chain(*curr_structures))
             inp_shape_ = np.max(inp_markers, axis=0) + 1
-            #assert np.allclose(
+            # assert np.allclose(
             #    inp_shape_, inp_shape
-            #), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
+            # ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
             _print(f"previous  structure shape: {inp_shape}")
             _print(f"target    structure shape: {inp_shape_}")
             # - get a full list of indices and fill None to a flatten Atoms List
-            #_print(inp_markers)
+            # _print(inp_markers)
             curr_converted_structures = []
             full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
             for i, iloc in enumerate(full_list):
@@ -200,8 +201,8 @@ def convert_results_to_structures(
                     )
                 else:
                     curr_converted_structures.append(None)
-            #_print(len(curr_converted_structures))
-            #_print(curr_converted_structures[0])
+            # _print(len(curr_converted_structures))
+            # _print(curr_converted_structures[0])
             # - reshape
             for s in inp_shape_[:0:-1]:
                 npoints = len(curr_converted_structures)
@@ -220,7 +221,7 @@ def convert_results_to_structures(
     if reduce_single_worker:  #  nworkers == 1
         converted_structures = converted_structures[0]
 
-    if merge_workers: # squeeze the dimension one...
+    if merge_workers:  # squeeze the dimension one...
         converted_structures = list(itertools.chain(*converted_structures))
     converted_structures = AtomsNDArray(converted_structures)
     _print(f"extracted_results: {converted_structures}")
@@ -243,6 +244,7 @@ class compute(Operation):
         use_archive: bool = True,
         merge_workers: bool = False,
         reduce_single_worker: bool = True,
+        check_scf_convergence: bool = False,
         directory: Union[str, pathlib.Path] = "./",
     ):
         """Initialise a compute operation.
@@ -268,6 +270,9 @@ class compute(Operation):
         self.use_archive = use_archive
         self.merge_workers = merge_workers
         self.reduce_single_worker = reduce_single_worker
+
+        # -
+        self.check_scf_convergence = check_scf_convergence
 
         return
 
@@ -305,9 +310,10 @@ class compute(Operation):
         #       We only convert spc worker structures shape here...
         driver0_dict = workers[0].driver.as_dict()
         if (
-            nworkers == 1 and driver0_dict.get("task", "min") == "min" and
-            (driver0_dict.get("steps", 0) <= 0)
-        ): # TODO: spc?
+            nworkers == 1
+            and driver0_dict.get("task", "min") == "min"
+            and (driver0_dict.get("steps", 0) <= 0)
+        ):  # TODO: spc?
             # - check input data type
             inp_shape, inp_markers = None, None
             if isinstance(structures, AtomsNDArray):
@@ -326,16 +332,21 @@ class compute(Operation):
             #       we only need to dump once here
             shape_dir = self.directory / "_shape"
             shape_dir.mkdir(parents=True, exist_ok=True)
-            np.savetxt(shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32), fmt="%8d")
-            np.savetxt(shape_dir / "markers.dat", np.array(inp_markers, dtype=np.int32), fmt="%8d")
+            np.savetxt(
+                shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32), fmt="%8d"
+            )
+            np.savetxt(
+                shape_dir / "markers.dat",
+                np.array(inp_markers, dtype=np.int32),
+                fmt="%8d",
+            )
         else:
             if isinstance(structures, AtomsNDArray):
                 frames = structures.get_marked_structures()
-            else: # assume it is just a plain List of Atoms
+            else:  # assume it is just a plain List of Atoms
                 frames = structures
             nframes = len(frames)
             inp_shape, inp_markers = None, None
-
 
         # - create workers
         for i, worker in enumerate(workers):
@@ -403,8 +414,14 @@ class compute(Operation):
                         reduce_single_worker=reduce_single_worker,
                         merge_workers=self.merge_workers,
                         print_func=self._print,
-                        debug_func=self._debug
+                        debug_func=self._debug,
                     )
+                    if self.check_scf_convergence:
+                        selector = ScfSelector(scf_converged=True)
+                        selector.directory = self.directory / "selected"
+                        selector.select(
+                            computed_structures,
+                        )
                     output = computed_structures
                 else:
                     ...
@@ -486,6 +503,7 @@ class extract(Operation):
         merge_workers: bool = False,
         reduce_single_worker: bool = True,
         use_archive: bool = True,
+        check_scf_convergence: bool = False,
         directory="./",
         *args,
         **kwargs,
@@ -504,6 +522,7 @@ class extract(Operation):
         self.reduce_single_worker = reduce_single_worker
 
         self.use_archive = use_archive
+        self.check_scf_convergence = check_scf_convergence
 
         return
 
@@ -521,7 +540,9 @@ class extract(Operation):
         self.workers = workers  # for operations to access
 
         # - shape
-        inp_shape, inp_markers = get_shape_data(self.input_nodes[0].directory/"_shape")
+        inp_shape, inp_markers = get_shape_data(
+            self.input_nodes[0].directory / "_shape"
+        )
 
         # - extract results
         status, computed_structures = extract_results_from_workers(
@@ -544,8 +565,14 @@ class extract(Operation):
                 reduce_single_worker=reduce_single_worker,
                 merge_workers=self.merge_workers,
                 print_func=self._print,
-                debug_func=self._debug
+                debug_func=self._debug,
             )
+            if self.check_scf_convergence:
+                selector = ScfSelector(scf_converged=True)
+                selector.directory = self.directory / "selected"
+                selector.select(
+                    computed_structures,
+                )
 
         self.status = status
 
