@@ -4,15 +4,12 @@
 import copy
 import inspect
 import time
-from random import random
 import pathlib
-from pathlib import Path
 from typing import Callable, List
 import warnings
 
 import numpy as np
 
-import ase.data
 import ase.formula
 
 from ase import Atoms
@@ -23,12 +20,8 @@ from ase.ga.offspring_creator import OperationSelector
 
 from .population import AbstractPopulationManager
 
-from gdpx.core.variable import Variable
-from gdpx.core.register import registers
-from gdpx.utils.command import convert_indices
-from gdpx.worker.interface import ComputerVariable
-from gdpx.worker.drive import DriverBasedWorker, CommandDriverBasedWorker
-from gdpx.potential.managers.deepmd import DeepmdManager
+from .. import registers
+from .. import convert_indices
 from ..expedition import AbstractExpedition
 
 """
@@ -62,50 +55,10 @@ Operators
 """
 
 
-class GeneticAlgorithmVariable(Variable):
-
-    def __init__(self, builder, params: dict, directory="./", *args, **kwargs) -> None:
-        """"""
-        random_seed = kwargs.get("random_seed", None)
-        if random_seed is None:
-            random_seed = np.random.randint(0, 1e8)
-
-        # - builder
-        if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
-            builder_params.update(random_seed=random_seed)
-            builder_method = builder_params.pop("method")
-            builder = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
-        else:  # variable
-            builder = builder.value
-            np.random.seed(random_seed)
-
-        # - worker
-        # if isinstance(worker, dict):
-        #    worker_params = copy.deepcopy(worker)
-        #    worker = registers.create("variable", "computer", convert_name=True, **worker_params).value[0]
-        # elif isinstance(worker, DriverBasedWorker):
-        #    worker = worker
-        # else: # computer variable
-        #    worker = worker.value[0]
-        engine = self._create_engine(builder, params, directory, *args, **kwargs)
-        super().__init__(initial_value=engine, directory=directory)
-
-        return
-
-    def _create_engine(self, builder, params, directory, *args, **kwargs):
-        """"""
-        engine = GeneticAlgorithemEngine(builder, params, directory, *args, **kwargs)
-
-        return engine
-
-
 class GeneticAlgorithemEngine(AbstractExpedition):
     """Genetic Algorithem Engine."""
 
-    _directory = Path.cwd()
+    _directory = pathlib.Path.cwd()
 
     # local optimisation directory
     CALC_DIRNAME = "tmp_folder"
@@ -121,7 +74,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
     def __init__(
         self,
         builder: dict,
-        ga_dict: dict,
+        params: dict,
         directroy="./",
         random_seed=None,
         *args,
@@ -133,6 +86,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             builder: Define the system to explore.
 
         """
+        ga_dict = params # For compat
+
         # --- database ---
         self.db_name = ga_dict.get("database", "mydb.db")
 
@@ -235,26 +190,6 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             ax.scatter([i] * len(energies), energies)
 
         plt.savefig(results / "pop.png")
-
-        return
-
-    def register_worker(self, worker: dict, *args, **kwargs):
-        """"""
-        if isinstance(worker, dict):
-            worker_params = copy.deepcopy(worker)
-            worker = registers.create(
-                "variable", "computer", convert_name=True, **worker_params
-            ).value[0]
-        elif isinstance(worker, list):  # assume it is from a computervariable
-            worker = worker[0]
-        elif isinstance(worker, ComputerVariable):
-            worker = worker.value[0]
-        elif isinstance(worker, DriverBasedWorker):
-            worker = worker
-        else:
-            raise RuntimeError(f"Unknown worker type {worker}")
-
-        self.worker = worker
 
         return
 

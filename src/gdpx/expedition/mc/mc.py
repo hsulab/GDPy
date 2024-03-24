@@ -18,41 +18,12 @@ from ase import Atoms
 from ase.io import read, write
 
 from .. import registers
-from .. import Variable
 from .. import SingleWorker
 from ..expedition import AbstractExpedition
 from .operators import select_operator, parse_operators, save_operator, load_operator
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
-
-
-class MonteCarloVariable(Variable):
-
-    def __init__(self, builder, directory="./", *args, **kwargs) -> None:
-        """"""
-        # - builder
-        if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
-            builder_method = builder_params.pop("method")
-            builder = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
-        else:  # variable
-            builder = builder.value
-
-        # - engine
-        engine = self._create_engine(builder, *args, **kwargs)
-        engine.directory = directory
-        super().__init__(initial_value=engine, directory=directory)
-
-        return
-
-    def _create_engine(self, builder, *args, **kwargs) -> None:
-        """"""
-        engine = MonteCarlo(builder, *args, **kwargs)
-
-        return engine
 
 
 class MonteCarlo(AbstractExpedition):
