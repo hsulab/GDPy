@@ -425,13 +425,7 @@ class AbstractDriver(AbstractNode):
         else:
             ...
 
-        # TODO: if driver converged but force (scf) is not, return True
-        #       and discard this structures which is due to DFT or ...
-        force_converged = True
-        if hasattr(self, "read_force_convergence"):
-            force_converged = self.read_force_convergence()
-
-        return (converged and force_converged)
+        return converged
 
     @abc.abstractmethod
     def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
