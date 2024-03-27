@@ -26,20 +26,26 @@ DEFAULT_PROP_MAP_KEYS: List[List[str]] = [
 
 def map_atoms_data(atoms: Atoms, prop_map_keys) -> None:
     """"""
-    assert type(atoms.calc) == SinglePointCalculator, ""
+    assert type(atoms.calc) == SinglePointCalculator, f"Atoms {atoms} has {atoms.calc}."
 
-    results = copy.deepcopy(atoms.calc.results)
-    for mapping_pairs in prop_map_keys:
-        dst_key, src_key = mapping_pairs
-        if src_key in results:
-            # NOTE: The dst_data is overwritten if it exists
-            src_val = results.pop(src_key)
-            results[dst_key] = src_val
-        else:
-            raise KeyError()
-    #calc = SinglePointCalculator(atoms, **results)
-    #atoms.calc = calc
-    atoms.calc.results = results
+    # For some small dataset, structures can be used both as train and test,
+    # thus, we need add a flag to avoid repeated mapping.
+    is_mapped = atoms.info.get("is_mapped", False)
+
+    if not is_mapped:
+        results = copy.deepcopy(atoms.calc.results)
+        for mapping_pairs in prop_map_keys:
+            dst_key, src_key = mapping_pairs
+            if src_key in results:
+                # NOTE: The dst_data is overwritten if it exists
+                src_val = results.pop(src_key)
+                results[dst_key] = src_val
+            else:
+                raise KeyError(f"Atoms {atoms} has no key {src_key}.")
+        atoms.calc.results = results
+        atoms.info["is_mapped"] = True
+    else:
+        ...
 
     return 
 
