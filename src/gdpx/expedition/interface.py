@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
+import copy
 import logging
 import pathlib
 import time
 
+import numpy as np
+
 from .. import config
 from ..utils.command import parse_input_file
+from ..core.variable import Variable
 from ..core.operation import Operation
 from ..core.register import registers
 from ..worker.explore import ExpeditionBasedWorker
@@ -15,6 +20,43 @@ from ..scheduler.interface import SchedulerVariable
 
 """
 """
+
+class ExpeditionVariable(Variable):
+
+    def __init__(self, directory="./", **kwargs):
+        """"""
+        random_seed = kwargs.get("random_seed", None)
+        if random_seed is None:
+            random_seed = np.random.randint(0, 1e8)
+
+        method = kwargs.pop("method", None)
+        if "builder" in kwargs:
+            builder = self._create_a_builder(kwargs["builder"], random_seed)
+            kwargs["builder"] = builder
+
+        expedition = registers.create(
+            "expedition", method, convert_name=False, **kwargs
+        )
+
+        super().__init__(initial_value=expedition, directory=directory)
+
+        return
+    
+    def _create_a_builder(self, builder: dict, random_seed: int):
+        """"""
+        # - builder
+        if isinstance(builder, dict):
+            builder_params = copy.deepcopy(builder)
+            builder_method = builder_params.pop("method")
+            builder = registers.create(
+                "builder", builder_method, convert_name=False, **builder_params
+            )
+        else:  # variable
+            builder = builder.value
+            np.random.seed(random_seed)
+        
+        return builder
+
 
 class explore(Operation):
 
@@ -90,14 +132,18 @@ def run_expedition(exp_params: dict, wait: float=None, directory="./", potter=No
     """"""
     directory = pathlib.Path(directory)
 
-    method = exp_params.pop("method")
     if potter is not None:
         exp_params["worker"] = potter
+    else:
+        if "worker" not in exp_params:
+            raise RuntimeError("Expedition must have a worker.")
 
     scheduler_params = exp_params.pop("scheduler", {})
     scheduler = SchedulerVariable(**scheduler_params).value
 
-    expedition = registers.create("variable", method, convert_name=True, **exp_params).value
+    #method = exp_params.pop("method")
+    #expedition = registers.create("variable", method, convert_name=True, **exp_params).value
+    expedition = ExpeditionVariable(directory=directory, **exp_params).value
     expedition.directory = directory
     if hasattr(expedition, "register_worker"):
         expedition.register_worker(exp_params["worker"])

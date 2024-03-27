@@ -5,20 +5,8 @@
 import copy 
 from typing import List
 
-from .. import registers, Variable, SingleWorker
-
 from ..expedition import AbstractExpedition
-from ..mc.mc import MonteCarlo, MonteCarloVariable
-
-
-class BasinHoppingVariable(MonteCarloVariable):
-
-    def _create_engine(self, builder, *args, **kwargs) -> None:
-        """"""
-        engine = BasinHopping(builder, *args, **kwargs)
-
-        return engine
-
+from ..mc.mc import MonteCarlo
 
 
 class BasinHopping(MonteCarlo):

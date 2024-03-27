@@ -6,31 +6,32 @@ import traceback
 
 from .. import config
 from ..core.register import registers
-from ..core.variable import Variable
 from ..builder.builder import StructureBuilder
-from ..worker.interface import ComputerVariable
 from ..worker.single import SingleWorker
 from ..worker.drive import DriverBasedWorker
+from ..worker.interface import ComputerVariable
+from ..utils.command import convert_indices
 
-from .bh.bh import BasinHopping, BasinHoppingVariable
-from .ga.engine import GeneticAlgorithemEngine, GeneticAlgorithmVariable
-from .mc.mc import MonteCarlo, MonteCarloVariable
-registers.expedition.register("basin_hopping")(BasinHopping)
-registers.expedition.register("genetic_algorithm")(GeneticAlgorithemEngine)
-registers.expedition.register("monte_carlo")(MonteCarlo)
-
-registers.variable.register("BasinHoppingVariable")(BasinHoppingVariable)
-registers.variable.register("GeneticAlgorithmVariable")(GeneticAlgorithmVariable)
-registers.variable.register("MonteCarloVariable")(MonteCarloVariable)
+from .interface import ExpeditionVariable
+registers.variable.register(ExpeditionVariable)
 
 from .interface import explore 
 registers.operation.register(explore)
 
+
+from .bh.bh import BasinHopping
+registers.expedition.register("basin_hopping")(BasinHopping)
+
+from .ga.engine import GeneticAlgorithemEngine
+registers.expedition.register("genetic_algorithm")(GeneticAlgorithemEngine)
+
+from .mc.mc import MonteCarlo
+registers.expedition.register("monte_carlo")(MonteCarlo)
+
 # - optional
 try:
-    from .af.afir import AFIRSearch, ArtificialReactionVariable
+    from .af.afir import AFIRSearch
     registers.expedition.register("artificial_reaction")(AFIRSearch)
-    registers.variable.register("ArtificialReactionVariable")(ArtificialReactionVariable)
 except:
     config._print("AFIR is not loaded.")
     config._print(traceback.print_exc())

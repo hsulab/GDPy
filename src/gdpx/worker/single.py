@@ -44,6 +44,16 @@ class SingleWorker(AbstractWorker):
 
         return
     
+    @staticmethod
+    def from_a_worker(worker) -> "SingleWorker":
+        """"""
+        single_worker = SingleWorker(
+            worker.potter, worker.driver, worker.scheduler,
+            worker.directory
+        )
+
+        return single_worker
+    
     @property
     def wdir_name(self):
         """"""
