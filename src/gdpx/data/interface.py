@@ -251,7 +251,8 @@ class transfer(Operation):
 
     def __init__(
         self, structures, dataset, version, 
-        prefix: str="", system: str="mixed", directory="./"
+        prefix: str="", system: str="mixed", clean_info: bool=False,
+        directory="./"
     ) -> None:
         """"""
         input_nodes = [structures, dataset]
@@ -261,6 +262,8 @@ class transfer(Operation):
 
         self.prefix = prefix
         self.system = system # molecule/cluster, surface, bulk
+
+        self.clean_info = clean_info # whether clean atoms info
 
         return
     
@@ -304,6 +307,9 @@ class transfer(Operation):
             curr_frames = [frames[i] for i in curr_indices]
             curr_nframes = len(curr_frames)
 
+            if self.clean_info:
+                self._clean_frames(curr_frames)
+
             strname = self.version + ".xyz"
             target_destination = target_dir/dirname/strname
             if not target_destination.exists():
@@ -320,6 +326,16 @@ class transfer(Operation):
         self.status = "finished"
 
         return dataset
+    
+    def _clean_frames(self, frames: List[Atoms]):
+        """"""
+        for atoms in frames:
+            info_keys = copy.deepcopy(list(atoms.info.keys()))
+            for k in info_keys:
+                if k not in ["energy", "free_energy"]:
+                    del atoms.info[k]
+
+        return
 
 
 @registers.operation.register
