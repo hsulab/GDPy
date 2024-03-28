@@ -13,9 +13,11 @@ from gdpx.utils.comparasion import parity_plot, parity_plot_dict, PropInfo
 
 
 import matplotlib as mpl
-mpl.use("Agg")  # silent mode
 from matplotlib import pyplot as plt
-plt.style.use("presentation")
+try:
+    plt.style.use("presentation")
+except:
+    ...
 
 
 def use_dpeval():
@@ -270,61 +272,6 @@ def xyz2results(frames, calc = None, other_props = []):
         return tot_energies, tot_forces, tot_props
     else:
         return tot_energies, tot_forces
-
-def set2frames(set_dir, chemical_symbols):
-    """ convert set into frames
-    """
-    frames = []
-    #boxes.extend( np.load(set_dir / 'box.npy') )
-    #coords.extend( np.load(set_dir / 'coord.npy') )
-    #energies.extend( np.load(set_dir / 'energy.npy') )
-    #forces.extend( np.load(set_dir / 'force.npy') )
-    boxes = np.load(set_dir / 'box.npy')
-    coords = np.load(set_dir / 'coord.npy')
-    energies = np.load(set_dir / 'energy.npy')
-    forces = np.load(set_dir / 'force.npy')
-    nframes = boxes.shape[0]
-    print('nframes in train', nframes)
-    for i in range(nframes):
-        cell = boxes[i,:].reshape(3,3)
-        positions = coords[i,:].reshape(-1,3)
-        atoms = Atoms(
-            symbols=chemical_symbols, positions=positions, cell=cell,
-            pbc=[1,1,1] # make atoms periodic
-        )
-        results = {'energy': energies[i], 'forces': forces[i,:].reshape(-1,3)}
-        spc = SinglePointCalculator(atoms, **results)
-        atoms.calc = spc
-        frames.append(atoms)
-
-    return frames
-
-def find_systems_set(cur_system: Union[str, pathlib.Path]):
-    # find all set dirs
-    set_dirs = []
-    for p in cur_system.glob('set*'):
-        set_dirs.append(p)
-    set_dirs.sort()
-
-    #inverse_type_map = dict(zip())
-    type_list = np.loadtxt(cur_system / 'type_map.raw', dtype=str)
-    atype = np.loadtxt(cur_system / 'type.raw', dtype=int)
-    chemical_symbols = [type_list[a] for a in atype]
-    #print(atype)
-
-    # train data
-    train_frames = []
-    for set_dir in set_dirs[:-1]:
-        train_frames.extend(set2frames(set_dir, chemical_symbols))
-
-    # test data
-    test_frames = []
-    for set_dir in set_dirs[-1:]:
-        test_frames.extend(set2frames(set_dir, chemical_symbols))
-
-
-    return train_frames, test_frames
-
 
 def calc_and_compare_results(frames, calc):
     """"""
