@@ -170,7 +170,7 @@ ALL_MODULES = [
     # -- selectors
     ("gdpx", ["selector"]),
     # -- describer
-    ("gdpx.describer", ["soap"]),
+    ("gdpx", ["describer"]),
     # -- comparators
     ("gdpx", ["comparator"]),
     # -- expeditions
