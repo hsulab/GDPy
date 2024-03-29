@@ -7,6 +7,7 @@ import dataclasses
 import pathlib
 import re
 import shutil
+import tarfile
 import warnings
 
 from typing import Optional, NoReturn, List, Callable, Union
@@ -433,6 +434,22 @@ class AbstractDriver(AbstractNode):
         """
 
         return
+    
+    def _find_prev_wdirs(self, archive_path=None) -> List[pathlib.Path]:
+        """"""
+        prev_wdirs = []
+        if archive_path is None:
+            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        else:
+            pattern = self.directory.name + "/" + r"[0-9][0-9][0-9][0-9][.]run"
+            with tarfile.open(archive_path, "r:gz") as tar:
+                for tarinfo in tar:
+                    if tarinfo.isdir() and re.match(pattern, tarinfo.name):
+                        prev_wdirs.append(tarinfo.name)
+            prev_wdirs = [self.directory/pathlib.Path(p).name for p in sorted(prev_wdirs)]
+        self._debug(f"prev_wdirs: {prev_wdirs}")
+
+        return prev_wdirs
     
     def as_dict(self) -> dict:
         """Return parameters of this driver."""
