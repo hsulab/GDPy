@@ -38,6 +38,13 @@ from ..potential.calculators.mixer import EnhancedCalculator
 from .plumed import set_plumed_state
 
 
+def update_atoms_info(atoms: Atoms, dyn: Dynamics) -> None:
+    """Update step in atoms.info."""
+    atoms.info["step"] = dyn.nsteps
+
+    return
+
+
 def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
     """Read model deviation and add results to atoms.info if the file exists."""
     results = copy.deepcopy(atoms.calc.results)
@@ -89,6 +96,9 @@ def save_trajectory(atoms, log_fpath) -> None:
     spc = SinglePointCalculator(atoms, **results)
     atoms_to_save.calc = spc
 
+    # - save atoms info...
+    atoms_to_save.info["step"] = atoms.info["step"]
+
     # - save special keys and arrays from calc
     natoms = len(atoms)
 
@@ -114,6 +124,18 @@ def save_trajectory(atoms, log_fpath) -> None:
     write(log_fpath, atoms_to_save, append=True)
 
     return
+
+
+#def save_checkpoint(dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path):
+#    """"""
+#    #print(dyn)
+#    ckpt_wdir = wdir/f"checkpoint.{dyn.nsteps}"
+#    ckpt_wdir.mkdir(parents=True, exist_ok=True)
+#
+#    #write(ckpt_wdir/"structure.xyz", atoms)
+#    save_trajectory(atoms=atoms, log_fpath=ckpt_wdir/"structures.xyz")
+#
+#    return
 
 
 @dataclasses.dataclass
@@ -448,8 +470,21 @@ class AseDriver(AbstractDriver):
             # - set dynamics
             dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
 
+            # --- callback functions
+            dynamics.insert_observer(
+                update_atoms_info,
+                dyn=dynamics,
+                atoms=atoms,
+            )
             # NOTE: traj file not stores properties (energy, forces) properly
             init_params = self.setting.get_init_params()
+            #dynamics.attach(
+            #    save_checkpoint,
+            #    interval=self.setting.ckpt_period,
+            #    dyn=dynamics,
+            #    atoms=atoms,
+            #    wdir=self.directory
+            #)
             dynamics.attach(
                 save_trajectory,
                 interval=init_params["loginterval"],
@@ -548,8 +583,7 @@ class AseDriver(AbstractDriver):
     def read_trajectory(self, archive_path=None, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         # -
-        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-        self._debug(f"prev_wdirs: {prev_wdirs}")
+        prev_wdirs = self._find_prev_wdirs(archive_path=archive_path)
 
         traj_list = []
         for w in prev_wdirs:
@@ -602,8 +636,6 @@ class AseDriver(AbstractDriver):
                     np.fabs(atoms.get_forces(apply_constraint=True))
                 )
         # assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
-        for step, atoms in enumerate(traj_frames):
-            atoms.info["step"] = int(step) * init_params["loginterval"]
 
         # - deviation stored in traj, no need to read from file
 
