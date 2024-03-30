@@ -98,10 +98,14 @@ class DriverSetting:
     #: Parameters that are used to update 
     _internals: dict = dataclasses.field(default_factory=dict)
 
-    #def __post_init__(self):
-    #    """A dummy function that will be overridden by subclasses."""
+    def update(self, **kwargs):
+        """"""
+        for k, v in kwargs.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
+        self.__post_init__()
 
-    #    return
+        return
     
     def get_init_params(self):
         """"""
