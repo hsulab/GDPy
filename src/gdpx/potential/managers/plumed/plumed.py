@@ -36,8 +36,9 @@ class PlumedManager(AbstractPotentialManager):
                     "Please install py-plumed to use the ase interface."
                 )
 
-            inp = pathlib.Path(calc_params.get("inp", "./plumed.inp"))
+            inp = calc_params.get("inp", "./plumed.inp")
             if isinstance(inp, str) or isinstance(inp, pathlib.Path):
+                inp = pathlib.Path(inp)
                 if inp.exists():
                     input_lines = []
                     with open(inp, "r") as fopen:
