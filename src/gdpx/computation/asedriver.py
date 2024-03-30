@@ -40,9 +40,9 @@ from ..potential.calculators.mixer import EnhancedCalculator
 from .plumed import set_plumed_state
 
 
-def update_atoms_info(atoms: Atoms, dyn: Dynamics) -> None:
+def update_atoms_info(atoms: Atoms, dyn: Dynamics, start_step: int = 0) -> None:
     """Update step in atoms.info."""
-    atoms.info["step"] = dyn.nsteps
+    atoms.info["step"] = dyn.nsteps + start_step
 
     return
 
@@ -128,17 +128,19 @@ def save_trajectory(atoms, log_fpath) -> None:
     return
 
 
-def save_checkpoint(dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path):
+def save_checkpoint(
+    dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, start_step: int = 0
+):
     """"""
-    ckpt_wdir = wdir/f"checkpoint.{dyn.nsteps}"
+    ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps+start_step}"
     ckpt_wdir.mkdir(parents=True, exist_ok=True)
 
-    #write(ckpt_wdir/"structure.xyz", atoms)
-    save_trajectory(atoms=atoms, log_fpath=ckpt_wdir/"structures.xyz")
+    # write(ckpt_wdir/"structure.xyz", atoms)
+    save_trajectory(atoms=atoms, log_fpath=ckpt_wdir / "structures.xyz")
 
     # For some optimisers and dynamics, they use random generator.
     if hasattr(dyn, "rng"):
-        with open(ckpt_wdir/"rng_state.yaml", "w") as fopen:
+        with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
             yaml.safe_dump(dyn.rng._bit_generator.state, fopen)
 
     return
@@ -153,84 +155,90 @@ class Controller:
     #: Parameters.
     params: dict = dataclasses.field(default_factory=dict)
 
+
 @dataclasses.dataclass
 class BerendsenThermostat(Controller):
 
     name: str = "berendsen"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
-        taut = self.params.get("Tdamp", 100.)
+        taut = self.params.get("Tdamp", 100.0)
         assert taut is not None
 
-        self.conv_params = dict(
-            taut = taut
-        )
+        self.conv_params = dict(taut=taut)
 
         return
+
 
 @dataclasses.dataclass
 class LangevinThermostat(Controller):
 
     name: str = "langevin"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
-        friction = self.params.get("friction", None) # fs^-1
+        friction = self.params.get("friction", None)  # fs^-1
         assert friction is not None
-        
+
         self.conv_params = dict(
             friction=friction / units.fs,
             # NOTE: The rng that generates friction normal distribution
             #       is set in `create_dynamics` by the driver's random_seed
-            rng=None
+            rng=None,
         )
 
         return
+
 
 @dataclasses.dataclass
 class NoseHooverThermostat(Controller):
 
     name: str = "nosehoover"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
         nvt_q = self.params.get("nvt_q", None)
         assert nvt_q is not None
 
-        self.conv_params = dict(
-            nvt_q = nvt_q # thermostat mass
-        )
+        self.conv_params = dict(nvt_q=nvt_q)  # thermostat mass
 
         return
+
 
 @dataclasses.dataclass
 class BerendsenBarostat(Controller):
 
     name: str = "berendsen"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
-        taut = self.params.get("Tdamp", 100.) # fs
+        taut = self.params.get("Tdamp", 100.0)  # fs
         assert taut is not None
 
-        taup = self.params.get("Pdamp", 100.) # fs
+        taup = self.params.get("Pdamp", 100.0)  # fs
         assert taup is not None
 
-        self.conv_params = dict(
-            taut = taut,
-            taup = taup
-        )
+        self.conv_params = dict(taut=taut, taup=taup)
 
         return
 
+
 controllers = dict(
     # - nvt
-    berendsen_nvt = BerendsenThermostat,
-    langevin_nvt = LangevinThermostat,
-    nosehoover_nvt = NoseHooverThermostat,
+    berendsen_nvt=BerendsenThermostat,
+    langevin_nvt=LangevinThermostat,
+    nosehoover_nvt=NoseHooverThermostat,
     # - npt
-    berendsen_npt = BerendsenBarostat,
+    berendsen_npt=BerendsenBarostat,
 )
 
 
@@ -259,8 +267,9 @@ class AseDriverSetting(DriverSetting):
             )
             if self.ensemble == "nve":
                 from ase.md.verlet import VelocityVerlet as driver_cls
+
                 _init_md_params = dict(
-                    timestep = self.timestep*units.fs, 
+                    timestep=self.timestep * units.fs,
                 )
             elif self.ensemble == "nvt":
                 if self.thermostat is not None:
@@ -280,8 +289,8 @@ class AseDriverSetting(DriverSetting):
                 thermo_params = thermostat.conv_params
                 _init_md_params = dict(
                     fixcm=self.fix_cm,
-                    timestep = self.timestep*units.fs, 
-                    temperature_K = self.temp,
+                    timestep=self.timestep * units.fs,
+                    temperature_K=self.temp,
                 )
                 _init_md_params.update(**thermo_params)
             elif self.ensemble == "npt":
@@ -297,12 +306,12 @@ class AseDriverSetting(DriverSetting):
                 baro_params = barostat.conv_params
                 _init_md_params = dict(
                     fixcm=self.fix_cm,
-                    timestep = self.timestep*units.fs, 
-                    temperature_K = self.temp,
-                    pressure = self.press * 1.0 / (160.21766208 / 0.000101325),
+                    timestep=self.timestep * units.fs,
+                    temperature_K=self.temp,
+                    pressure=self.press * 1.0 / (160.21766208 / 0.000101325),
                 )
                 _init_md_params.update(**baro_params)
-            
+
             self._internals.update(**_init_md_params)
 
         if self.task == "min":
@@ -404,7 +413,7 @@ class AseDriver(AbstractDriver):
 
         return
 
-    def _create_dynamics(self, atoms, *args, **kwargs) -> Tuple[Dynamics, dict]:
+    def _create_dynamics(self, atoms: Atoms, *args, **kwargs) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
         Respect `steps` and `fmax` as restart.
@@ -448,15 +457,12 @@ class AseDriver(AbstractDriver):
                 self._print(f"MD Driver's velocity_seed: {velocity_seed}")
                 vrng = np.random.default_rng(velocity_seed)
 
-            # - 
+            # -
             if "rng" in init_params_:
                 init_params_["rng"] = np.random.default_rng(self.random_seed)
 
             ignore_atoms_velocities = init_params_.pop("ignore_atoms_velocities")
-            if (
-                not ignore_atoms_velocities
-                and atoms.get_kinetic_energy() > 0.0
-            ):
+            if not ignore_atoms_velocities and atoms.get_kinetic_energy() > 0.0:
                 # atoms have momenta
                 ...
             else:
@@ -506,12 +512,36 @@ class AseDriver(AbstractDriver):
 
         return verified
 
-    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
+    def _load_checkpoint(self, wdir: pathlib.Path):
+        """"""
+        ckpt_dirs = sorted(
+            wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1])
+        )
+        curr_ckpt_dir = ckpt_dirs[-1]
+
+        atoms = read(curr_ckpt_dir / "structures.xyz", ":")[-1]
+
+        with open(curr_ckpt_dir / "rng_state.yaml", "r") as fopen:
+            rng_state = yaml.safe_load(fopen)
+
+        return atoms, rng_state
+
+    def _irun(
+        self,
+        atoms: Atoms,
+        ckpt_wdir=None,
+        cache_traj: List[Atoms] = None,
+        *args,
+        **kwargs,
+    ):
         """Run the simulation."""
         try:
             # To restart, velocities are always retained
             prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
             if ckpt_wdir is None:  # start from the scratch
+                start_step = 0
+                rng_state = None
+
                 curr_params = {}
                 curr_params["random_seed"] = self.random_seed
                 curr_params["init"] = self.setting.get_init_params()
@@ -520,15 +550,12 @@ class AseDriver(AbstractDriver):
                 with open(self.directory / "params.yaml", "w") as fopen:
                     yaml.safe_dump(curr_params, fopen, indent=2)
             else:  # restart ...
-                traj = self.read_trajectory()
-                nframes = len(traj)
-                assert nframes > 0, "AseDriver restarts with a zero-frame trajectory."
-                atoms = traj[-1]
+                atoms, rng_state = self._load_checkpoint(ckpt_wdir)
+                start_step = atoms.info["step"]
                 # --- update run_params in settings
-                dump_period = self.setting.get_init_params()["loginterval"]
                 target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
                 if target_steps > 0:
-                    steps = target_steps + dump_period - nframes * dump_period
+                    steps = target_steps - start_step
                 assert steps > 0, "Steps should be greater than 0."
                 kwargs.update(steps=steps)
 
@@ -540,12 +567,15 @@ class AseDriver(AbstractDriver):
 
             # - set dynamics
             dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+            if hasattr(dynamics, "rng") and rng_state is not None:
+                dynamics.rng._bit_generator.state = rng_state
 
             # --- callback functions
             dynamics.insert_observer(
                 update_atoms_info,
                 dyn=dynamics,
                 atoms=atoms,
+                start_step=start_step,
             )
             # NOTE: traj file not stores properties (energy, forces) properly
             init_params = self.setting.get_init_params()
@@ -554,7 +584,8 @@ class AseDriver(AbstractDriver):
                 interval=self.setting.ckpt_period,
                 dyn=dynamics,
                 atoms=atoms,
-                wdir=self.directory
+                wdir=self.directory,
+                start_step=start_step,
             )
             dynamics.attach(
                 save_trajectory,
@@ -570,15 +601,20 @@ class AseDriver(AbstractDriver):
                 devi_fpath=self.directory / self.devi_fname,
             )
             dynamics.run(**run_params)
+
             # NOTE: check if the last frame is properly stored
             loginterval = init_params["loginterval"]
             if loginterval > 1:
                 if self.setting.task == "min":
-                    data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
+                    data = np.loadtxt(self.directory / "dyn.log", dtype=str, skiprows=1)
                     if len(data.shape) == 1:
-                        data = data[np.newaxis,:]
+                        data = data[np.newaxis, :]
                     nsteps = data.shape[0]
                     if nsteps > 0 and (nsteps - 1) % loginterval != 0:
+                        update_atoms_info(atoms, dynamics, start_step=start_step)
+                        save_checkpoint(
+                            dynamics, atoms, self.directory, start_step=start_step
+                        )
                         save_trajectory(atoms, self.directory / self.xyz_fname)
                         retrieve_and_save_deviation(
                             atoms, self.directory / self.devi_fname
@@ -632,7 +668,10 @@ class AseDriver(AbstractDriver):
         self._debug(f"archive_path: {archive_path}")
         self._debug(f"wdir: {wdir}")
         if archive_path is None:
-            frames = read(wdir / self.xyz_fname, ":")  # TODO: check traj existence?
+            if (wdir / self.xyz_fname).exists():
+                frames = read(wdir / self.xyz_fname, ":")
+            else:
+                frames = []
         else:
             target_name = str(
                 (wdir / self.xyz_fname).relative_to(self.directory.parent)
@@ -646,38 +685,15 @@ class AseDriver(AbstractDriver):
                         frames = read(fobj, ":", format="extxyz")
                         fobj.close()
                         break
-                else:  # TODO: if not find target traj?
-                    ...
+                else:
+                    frames = []
 
         return frames
 
     def read_trajectory(self, archive_path=None, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
-        # -
-        prev_wdirs = self._find_prev_wdirs(archive_path=archive_path)
-
-        traj_list = []
-        for w in prev_wdirs:
-            curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path)
-            traj_list.append(curr_frames)
-
-        # Even though xyz file may be empty, the read can give a empty list...
-        curr_frames = self._read_a_single_trajectory(
-            self.directory, archive_path=archive_path
-        )
-        traj_list.append(curr_frames)
-
-        # -- concatenate
-        traj_frames, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
-            traj_frames.extend(traj_list[0])
-            for i in range(1, ntrajs):
-                assert np.allclose(
-                    traj_list[i - 1][-1].positions, traj_list[i][0].positions
-                ), f"Traj {i-1} and traj {i} are not consecutive."
-                traj_frames.extend(traj_list[i][1:])
-        else:
-            ...
+        # - read trajectory
+        traj_frames = self._aggregate_trajectories(archive_path=archive_path)
 
         # - add some info
         init_params = self.setting.get_init_params()
