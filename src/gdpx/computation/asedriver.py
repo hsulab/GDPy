@@ -141,7 +141,7 @@ def save_checkpoint(
     # For some optimisers and dynamics, they use random generator.
     if hasattr(dyn, "rng"):
         with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
-            yaml.safe_dump(dyn.rng._bit_generator.state, fopen)
+            yaml.safe_dump(dyn.rng.bit_generator.state, fopen)
 
     return
 
@@ -249,7 +249,9 @@ class AseDriverSetting(DriverSetting):
     filter_cls: Filter = None
 
     ensemble: str = "nve"
+
     thermostat: dict = dataclasses.field(default_factory=dict)
+
     barostat: dict = dataclasses.field(default_factory=dict)
 
     fix_cm: bool = False
@@ -452,14 +454,11 @@ class AseDriver(AbstractDriver):
             velocity_seed = init_params_.pop("velocity_seed")
             if velocity_seed is None:
                 self._print(f"MD Driver's velocity_seed: {self.random_seed}")
-                vrng = np.random.default_rng(self.random_seed)
+                vrng = np.random.Generator(np.random.PCG64(self.random_seed))
             else:
                 self._print(f"MD Driver's velocity_seed: {velocity_seed}")
-                vrng = np.random.default_rng(velocity_seed)
-
-            # -
-            if "rng" in init_params_:
-                init_params_["rng"] = np.random.default_rng(self.random_seed)
+                #vrng = np.random.default_rng(velocity_seed)
+                vrng = np.random.Generator(np.random.PCG64(velocity_seed))
 
             ignore_atoms_velocities = init_params_.pop("ignore_atoms_velocities")
             if not ignore_atoms_velocities and atoms.get_kinetic_energy() > 0.0:
@@ -476,6 +475,11 @@ class AseDriver(AbstractDriver):
                 # NOTE: respect constraints
                 #       ase code does not consider constraints
                 force_temperature(atoms, init_params_["temperature_K"], unit="K")
+
+            # - some dynamics need rng
+            if "rng" in init_params_:
+                self._print(f"MD Driver's rng: {self.rng.bit_generator.state}")
+                init_params_["rng"] = self.rng
 
             # - other callbacks
             # NOTE: plumed
@@ -568,7 +572,7 @@ class AseDriver(AbstractDriver):
             # - set dynamics
             dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
             if hasattr(dynamics, "rng") and rng_state is not None:
-                dynamics.rng._bit_generator.state = rng_state
+                dynamics.rng.bit_generator.state = rng_state
 
             # --- callback functions
             dynamics.insert_observer(
