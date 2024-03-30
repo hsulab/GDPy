@@ -18,6 +18,7 @@ registers.variable.register(ExpeditionVariable)
 from .interface import explore 
 registers.operation.register(explore)
 
+from .expedition import AbstractExpedition
 
 from .bh.bh import BasinHopping
 registers.expedition.register("basin_hopping")(BasinHopping)
@@ -27,6 +28,9 @@ registers.expedition.register("genetic_algorithm")(GeneticAlgorithemEngine)
 
 from .mc.mc import MonteCarlo
 registers.expedition.register("monte_carlo")(MonteCarlo)
+
+from .simulated_annealing.simulated_annealing import SimulatedAnnealing
+registers.expedition.register("simulated_annealing")(SimulatedAnnealing)
 
 # - optional
 try:
