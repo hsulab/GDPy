@@ -9,10 +9,12 @@ import shutil
 import pathlib
 import tarfile
 import traceback
-from typing import NoReturn, List, Tuple
+from typing import NoReturn, Optional, List, Tuple
 import warnings
 
 import numpy as np
+
+import yaml
 
 from ase import Atoms
 from ase import units
@@ -126,16 +128,110 @@ def save_trajectory(atoms, log_fpath) -> None:
     return
 
 
-#def save_checkpoint(dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path):
-#    """"""
-#    #print(dyn)
-#    ckpt_wdir = wdir/f"checkpoint.{dyn.nsteps}"
-#    ckpt_wdir.mkdir(parents=True, exist_ok=True)
-#
-#    #write(ckpt_wdir/"structure.xyz", atoms)
-#    save_trajectory(atoms=atoms, log_fpath=ckpt_wdir/"structures.xyz")
-#
-#    return
+def save_checkpoint(dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path):
+    """"""
+    ckpt_wdir = wdir/f"checkpoint.{dyn.nsteps}"
+    ckpt_wdir.mkdir(parents=True, exist_ok=True)
+
+    #write(ckpt_wdir/"structure.xyz", atoms)
+    save_trajectory(atoms=atoms, log_fpath=ckpt_wdir/"structures.xyz")
+
+    # For some optimisers and dynamics, they use random generator.
+    if hasattr(dyn, "rng"):
+        with open(ckpt_wdir/"rng_state.yaml", "w") as fopen:
+            yaml.safe_dump(dyn.rng._bit_generator.state, fopen)
+
+    return
+
+
+@dataclasses.dataclass
+class Controller:
+
+    #: Thermostat name.
+    name: str = "thermostaet"
+
+    #: Parameters.
+    params: dict = dataclasses.field(default_factory=dict)
+
+@dataclasses.dataclass
+class BerendsenThermostat(Controller):
+
+    name: str = "berendsen"
+
+    def __post_init__(self, ):
+        """"""
+        taut = self.params.get("Tdamp", 100.)
+        assert taut is not None
+
+        self.conv_params = dict(
+            taut = taut
+        )
+
+        return
+
+@dataclasses.dataclass
+class LangevinThermostat(Controller):
+
+    name: str = "langevin"
+
+    def __post_init__(self, ):
+        """"""
+        friction = self.params.get("friction", None) # fs^-1
+        assert friction is not None
+        
+        self.conv_params = dict(
+            friction=friction / units.fs,
+            # NOTE: The rng that generates friction normal distribution
+            #       is set in `create_dynamics` by the driver's random_seed
+            rng=None
+        )
+
+        return
+
+@dataclasses.dataclass
+class NoseHooverThermostat(Controller):
+
+    name: str = "nosehoover"
+
+    def __post_init__(self, ):
+        """"""
+        nvt_q = self.params.get("nvt_q", None)
+        assert nvt_q is not None
+
+        self.conv_params = dict(
+            nvt_q = nvt_q # thermostat mass
+        )
+
+        return
+
+@dataclasses.dataclass
+class BerendsenBarostat(Controller):
+
+    name: str = "berendsen"
+
+    def __post_init__(self, ):
+        """"""
+        taut = self.params.get("Tdamp", 100.) # fs
+        assert taut is not None
+
+        taup = self.params.get("Pdamp", 100.) # fs
+        assert taup is not None
+
+        self.conv_params = dict(
+            taut = taut,
+            taup = taup
+        )
+
+        return
+
+controllers = dict(
+    # - nvt
+    berendsen_nvt = BerendsenThermostat,
+    langevin_nvt = LangevinThermostat,
+    nosehoover_nvt = NoseHooverThermostat,
+    # - npt
+    berendsen_npt = BerendsenBarostat,
+)
 
 
 @dataclasses.dataclass
@@ -144,9 +240,9 @@ class AseDriverSetting(DriverSetting):
     driver_cls: Dynamics = None
     filter_cls: Filter = None
 
-    thermostat: str = None
-    friction: float = 0.01
-    friction_seed: int = None
+    ensemble: str = "nve"
+    thermostat: dict = dataclasses.field(default_factory=dict)
+    barostat: dict = dataclasses.field(default_factory=dict)
 
     fix_cm: bool = False
 
@@ -160,47 +256,54 @@ class AseDriverSetting(DriverSetting):
                 # - helper params
                 velocity_seed=self.velocity_seed,
                 ignore_atoms_velocities=self.ignore_atoms_velocities,
-                md_style=self.md_style,  # ensemble...
-                thermostat=self.thermostat,
-                # -
-                fixcm=self.fix_cm,
-                timestep=self.timestep,
-                temperature_K=self.temp,
-                taut=self.Tdamp,
-                pressure=self.press,
-                taup=self.Pdamp,
             )
-            # TODO: provide a unified class for thermostat
-            if self.md_style == "nve":
+            if self.ensemble == "nve":
                 from ase.md.verlet import VelocityVerlet as driver_cls
-            elif self.md_style == "nvt":
-                thermostat = (
-                    self.thermostat if self.thermostat is not None else "berendsen"
+                _init_md_params = dict(
+                    timestep = self.timestep*units.fs, 
                 )
-                if thermostat == "berendsen":
+            elif self.ensemble == "nvt":
+                if self.thermostat is not None:
+                    thermo_cls_name = self.thermostat["name"] + "_" + self.ensemble
+                    thermo_cls = controllers[thermo_cls_name]
+                else:
+                    thermo_cls = BerendsenThermostat
+                thermostat = thermo_cls(**self.thermostat)
+                if thermostat.name == "berendsen":
                     from ase.md.nvtberendsen import NVTBerendsen as driver_cls
-
-                    thermostat_params = dict(taut=self._internals["taut"])
-                elif thermostat == "langevin":
+                elif thermostat.name == "langevin":
                     from ase.md.langevin import Langevin as driver_cls
-
-                    if self.friction_seed is not None:
-                        friction_seed = self.friction_seed
-                    else:
-                        friction_seed = np.random.randint(0, 100000000)
-                    thermostat_params = dict(
-                        friction=self.friction / units.fs,
-                        # TODO: use driver's seed instead!
-                        rng=np.random.default_rng(seed=friction_seed),
-                    )
-                elif thermostat == "nose_hoover":
+                elif thermostat.name == "nose_hoover":
                     from .md.nosehoover import NoseHoover as driver_cls
                 else:
                     raise RuntimeError(f"Unknown thermostat {thermostat}.")
-                self._internals["thermostat"] = thermostat
-                self._internals["thermostat_params"] = thermostat_params
-            elif self.md_style == "npt":
-                from ase.md.nptberendsen import NPTBerendsen as driver_cls
+                thermo_params = thermostat.conv_params
+                _init_md_params = dict(
+                    fixcm=self.fix_cm,
+                    timestep = self.timestep*units.fs, 
+                    temperature_K = self.temp,
+                )
+                _init_md_params.update(**thermo_params)
+            elif self.ensemble == "npt":
+                if self.barostat is not None:
+                    baro_cls = controllers(f"{self.barostat.name}_{self.ensemble}")
+                else:
+                    baro_cls = BerendsenBarostat
+                barostat = baro_cls(**self.barostat)
+                if barostat.name == "berendsen":
+                    from ase.md.nptberendsen import NPTBerendsen as driver_cls
+                else:
+                    raise RuntimeError(f"Unknown barostat {barostat}.")
+                baro_params = barostat.conv_params
+                _init_md_params = dict(
+                    fixcm=self.fix_cm,
+                    timestep = self.timestep*units.fs, 
+                    temperature_K = self.temp,
+                    pressure = self.press * 1.0 / (160.21766208 / 0.000101325),
+                )
+                _init_md_params.update(**baro_params)
+            
+            self._internals.update(**_init_md_params)
 
         if self.task == "min":
             # - to opt atomic positions
@@ -333,21 +436,32 @@ class AseDriver(AbstractDriver):
             )
         elif self.setting.task == "md":
             # - adjust params
-            init_params_ = copy.deepcopy(self.setting.get_init_params())
-            # NOTE: every dynamics will have a new rng...
-            self._print(f"MD Driver's random_seed: {self.random_seed}")
-            rng = np.random.default_rng(self.random_seed)
+            init_params_ = self.setting.get_init_params()
 
             # - velocity
+            # NOTE: every dynamics will have a new rng...
+            velocity_seed = init_params_.pop("velocity_seed")
+            if velocity_seed is None:
+                self._print(f"MD Driver's velocity_seed: {self.random_seed}")
+                vrng = np.random.default_rng(self.random_seed)
+            else:
+                self._print(f"MD Driver's velocity_seed: {velocity_seed}")
+                vrng = np.random.default_rng(velocity_seed)
+
+            # - 
+            if "rng" in init_params_:
+                init_params_["rng"] = np.random.default_rng(self.random_seed)
+
+            ignore_atoms_velocities = init_params_.pop("ignore_atoms_velocities")
             if (
-                not init_params_["ignore_atoms_velocities"]
+                not ignore_atoms_velocities
                 and atoms.get_kinetic_energy() > 0.0
             ):
                 # atoms have momenta
                 ...
             else:
                 MaxwellBoltzmannDistribution(
-                    atoms, temperature_K=init_params_["temperature_K"], rng=rng
+                    atoms, temperature_K=init_params_["temperature_K"], rng=vrng
                 )
                 if self.setting.remove_rotation:
                     ZeroRotation(atoms, preserve_temperature=False)
@@ -357,41 +471,7 @@ class AseDriver(AbstractDriver):
                 #       ase code does not consider constraints
                 force_temperature(atoms, init_params_["temperature_K"], unit="K")
 
-            # - prepare args
-            # TODO: move this part to setting post_init?
-            md_style = init_params_.pop("md_style")
-            if md_style == "nve":
-                init_params_ = {
-                    k: v
-                    for k, v in init_params_.items()
-                    if k in ["loginterval", "timestep"]
-                }
-            elif md_style == "nvt":
-                init_params_ = {
-                    k: v
-                    for k, v in init_params_.items()
-                    if k in ["loginterval", "fixcm", "timestep", "temperature_K"]
-                }
-                init_params_.update(**self.setting._internals["thermostat_params"])
-            elif md_style == "npt":
-                init_params_ = {
-                    k: v
-                    for k, v in init_params_.items()
-                    if k
-                    in [
-                        "loginterval",
-                        "fixcm",
-                        "timestep",
-                        "temperature_K",
-                        "taut",
-                        "pressure",
-                        "taup",
-                    ]
-                }
-                init_params_["pressure"] *= 1.0 / (160.21766208 / 0.000101325)
-
-            init_params_["timestep"] *= units.fs
-
+            # - other callbacks
             # NOTE: plumed
             set_plumed_state(
                 self.calc,
@@ -435,16 +515,7 @@ class AseDriver(AbstractDriver):
                 curr_params = {}
                 curr_params["random_seed"] = self.random_seed
                 curr_params["init"] = self.setting.get_init_params()
-                if self.setting.task == "md":  # check rng for MD simulations...
-                    if "rng" in curr_params["init"]["thermostat_params"]:  # langevin...
-                        rng = curr_params["init"]["thermostat_params"]["rng"]
-                        curr_params["init"]["thermostat_params"][
-                            "rng"
-                        ] = rng._bit_generator.state
-                else:
-                    ...
                 curr_params["run"] = self.setting.get_run_params()
-                import yaml
 
                 with open(self.directory / "params.yaml", "w") as fopen:
                     yaml.safe_dump(curr_params, fopen, indent=2)
@@ -478,13 +549,13 @@ class AseDriver(AbstractDriver):
             )
             # NOTE: traj file not stores properties (energy, forces) properly
             init_params = self.setting.get_init_params()
-            #dynamics.attach(
-            #    save_checkpoint,
-            #    interval=self.setting.ckpt_period,
-            #    dyn=dynamics,
-            #    atoms=atoms,
-            #    wdir=self.directory
-            #)
+            dynamics.attach(
+                save_checkpoint,
+                interval=self.setting.ckpt_period,
+                dyn=dynamics,
+                atoms=atoms,
+                wdir=self.directory
+            )
             dynamics.attach(
                 save_trajectory,
                 interval=init_params["loginterval"],
