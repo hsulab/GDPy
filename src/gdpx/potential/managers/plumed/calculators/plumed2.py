@@ -240,12 +240,19 @@ class Plumed(Calculator):
 
         return
 
-    def _load_checkpoint(self, ckpt_wdir: pathlib.Path, start_step: int):
+    def _load_checkpoint(
+        self, ckpt_wdir: pathlib.Path, dst_wdir=None, start_step: int = 0
+    ):
         """"""
         calc_wdir = list(ckpt_wdir.glob(f"*Plumed"))[0]
-        _ = shutil.copytree(calc_wdir, ckpt_wdir.parent / calc_wdir.name)
+        if dst_wdir is None:
+            dst_wdir = ckpt_wdir.parent
+        else:
+            dst_wdir = pathlib.Path(dst_wdir)
+        _ = shutil.copytree(calc_wdir, dst_wdir / calc_wdir.name)
 
         if hasattr(self, "plumed"):
+            self.plumed.finalize()
             delattr(self, "plumed")
         self.istep = int(start_step)
         self.input = ["RESTART"] + self.input

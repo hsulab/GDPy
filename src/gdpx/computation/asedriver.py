@@ -533,17 +533,21 @@ class AseDriver(AbstractDriver):
             ...
 
         return verified
-
-    def _load_checkpoint(self, wdir: pathlib.Path):
+    
+    def _find_latest_checkpoint(self, wdir: pathlib.Path):
         """"""
         ckpt_dirs = sorted(
             wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1])
         )
-        curr_ckpt_dir = ckpt_dirs[-1]
+        latest_ckpt_dir = ckpt_dirs[-1]
 
-        atoms = read(curr_ckpt_dir / "structures.xyz", ":")[-1]
+        return latest_ckpt_dir
 
-        with open(curr_ckpt_dir / "rng_state.yaml", "r") as fopen:
+    def _load_checkpoint(self, ckpt_dir: pathlib.Path):
+        """"""
+        atoms = read(ckpt_dir / "structures.xyz", ":")[-1]
+
+        with open(ckpt_dir / "rng_state.yaml", "r") as fopen:
             rng_state = yaml.safe_load(fopen)
         
         return atoms, rng_state
@@ -557,10 +561,11 @@ class AseDriver(AbstractDriver):
         **kwargs,
     ):
         """Run the simulation."""
+        prev_wdir = ckpt_wdir
         try:
             # To restart, velocities are always retained
             prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
-            if ckpt_wdir is None:  # start from the scratch
+            if prev_wdir is None:  # start from the scratch
                 start_step = 0
                 rng_state = None
 
@@ -572,6 +577,7 @@ class AseDriver(AbstractDriver):
                 with open(self.directory / "params.yaml", "w") as fopen:
                     yaml.safe_dump(curr_params, fopen, indent=2)
             else:  # restart ...
+                ckpt_wdir = self._find_latest_checkpoint(prev_wdir)
                 atoms, rng_state = self._load_checkpoint(ckpt_wdir)
                 start_step = atoms.info["step"]
                 if hasattr(self.calc, "calcs"):
