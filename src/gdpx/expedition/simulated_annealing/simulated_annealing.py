@@ -5,8 +5,9 @@
 import copy
 import dataclasses
 import pathlib
+import time
 
-from typing import Union
+from typing import Union, List
 
 from .. import registers
 
@@ -23,6 +24,7 @@ class SimulatedAnnealing(AbstractExpedition):
     def __init__(
         self,
         builder,
+        temperatures: List[float],
         directory: Union[str, pathlib.Path] = "./",
         random_seed: Union[int, dict] = None,
         *args,
@@ -41,6 +43,11 @@ class SimulatedAnnealing(AbstractExpedition):
             builder = builder
         self.builder = builder
 
+        # -
+        self.temperatures = temperatures
+        
+        self.num_slices = len(self.temperatures)
+
         return
 
     def run(self, *args, **kwargs):
@@ -52,13 +59,12 @@ class SimulatedAnnealing(AbstractExpedition):
         nstructures = len(structures)
         self._print(f"Number of input structures: {nstructures}.")
 
-        # ---
-        #temperatures = [300, 300]
-        temperatures = [300, 300]
+        num_slices = len(self.temperatures)
 
+        # ---
         rng_states = []
-        for istep in range(2):
-            curr_temperature = temperatures[istep]
+        for istep in range(num_slices):
+            curr_temperature = self.temperatures[istep]
             if istep > 0:
                 # - get each candidates' final rng_states
                 prev_structures, prev_rng_states = [], []
@@ -77,21 +83,29 @@ class SimulatedAnnealing(AbstractExpedition):
                 rng_states = prev_rng_states
             else:
                 ...
-            self._irun(istep, structures, curr_temperature, rng_states)
+            step_converged = self._irun(istep, structures, curr_temperature, rng_states)
+            if not step_converged:
+                self._print(f"Wait Slice {istep} to finish.")
+                break
+            else:
+                ...
+        else:
+            self._print("SlicedExpedition is converged.")
+            with open(self.directory/"FINISHED", "w") as fopen:
+                fopen.write(
+                    f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
+                )
 
         return
 
     def _irun(self, istep: int, structures, temperature: float, rng_states: list):
         """"""
+        self._print(f"===== SlicedExpedition Step {istep} =====")
         self._print(f"{temperature =}")
 
-        # - We need a copy of self.worker as we may change some 
+        # - We need a copy of self.worker as we may change some
         #   of the driver's settings.
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
-        worker = copy.deepcopy(self.worker)
-        
-        worker.directory = self.directory / self.comput_dirname / f"gen{istep}"
+        worker = self._make_step_worker(istep=istep)
 
         # - update driver...
         worker.driver.setting.update(temp=temperature)
@@ -99,18 +113,44 @@ class SimulatedAnnealing(AbstractExpedition):
         # -
         # TODO: NonLocal Scheduler will not save rng_states...
         worker.run(structures, rng_states=rng_states)
+        worker.inspect(resubmit=True)
+        if worker.get_number_of_running_jobs() == 0:
+            step_converged = True
+        else:
+            step_converged = False
 
-        return
+        return step_converged
+    
+    def _make_step_worker(self, istep: int):
+        """"""
+        if hasattr(self.worker.potter, "remove_loaded_models"):
+            self.worker.potter.remove_loaded_models()
+        worker = copy.deepcopy(self.worker)
+
+        worker.directory = self.directory / self.comput_dirname / f"gen{istep}"
+
+        return worker
 
     def read_convergence(self) -> bool:
         """"""
+        converged = False
+        if (self.directory/"FINISHED").exists():
+            converged = True
 
-        return True
+        return converged
 
     def get_workers(self):
         """"""
+        if hasattr(self.worker.potter, "remove_loaded_models"):
+            self.worker.potter.remove_loaded_models()
 
-        return
+        workers = []
+        for istep in range(self.num_slices):
+            curr_worker = copy.deepcopy(self.worker)
+            curr_worker.directory = self.directory/self.comput_dirname/f"gen{istep}"
+            workers.append(curr_worker)
+
+        return workers
 
 
 if __name__ == "__main__":
