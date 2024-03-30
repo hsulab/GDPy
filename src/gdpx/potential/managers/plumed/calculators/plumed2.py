@@ -4,17 +4,15 @@
 import copy
 import os
 import pathlib
+import shutil
 
 from typing import List
 
 import numpy as np
 
 from ase import units
-from ase.calculators.calculator import Calculator, all_changes
-from ase.io.trajectory import Trajectory
-import numpy as np
-from os.path import exists
 from ase.units import fs, mol, kJ, nm
+from ase.calculators.calculator import Calculator, all_changes
 
 try:
     import plumed
@@ -46,30 +44,34 @@ Notes:
 """
 
 
-
 def update_input_value(line: str, key: str, value, func: callable):
     """Update the given key with the new value."""
-    shift = len(key) + 1 # key name and =
+    shift = len(key) + 1  # key name and =
     if line.find(key) != -1:
         ini = line.find(key)
-        end = line.find(' ', ini)
+        end = line.find(" ", ini)
         if end == -1:
-            prev = line[ini + shift:]
-            line = line[:ini+shift] + func(prev, value)
+            prev = line[ini + shift :]
+            line = line[: ini + shift] + func(prev, value)
         else:
-            prev = line[ini + shift:end]
-            line = line[:ini+shift] + func(prev, value) + line[end:]
+            prev = line[ini + shift : end]
+            line = line[: ini + shift] + func(prev, value) + line[end:]
 
     return line
+
 
 def update_stride_and_file(input_lines: List[str], wdir: str, stride: int) -> List[str]:
     """"""
     input_lines, parsed_lines = copy.deepcopy(input_lines), []
     for line in input_lines:
-        parsed_line = update_input_value(line, "FILE", wdir, func=lambda x,y: os.path.join(y,x))
-        parsed_line = update_input_value(parsed_line, "STRIDE", stride, func=lambda x,y: str(y))
+        parsed_line = update_input_value(
+            line, "FILE", wdir, func=lambda x, y: os.path.join(y, x)
+        )
+        parsed_line = update_input_value(
+            parsed_line, "STRIDE", stride, func=lambda x, y: str(y)
+        )
         parsed_lines.append(parsed_line)
-    
+
     return parsed_lines
 
 
@@ -77,8 +79,15 @@ class Plumed(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, input: List[str], atoms=None, kT=1.,
-                 restart=False, use_charge=False, update_charge=False):
+    def __init__(
+        self,
+        input: List[str],
+        atoms=None,
+        kT=1.0,
+        restart=False,
+        use_charge=False,
+        update_charge=False,
+    ):
         """
         Plumed calculator is used for simulations of enhanced sampling methods
         with the open-source code PLUMED (plumed.org).
@@ -127,7 +136,7 @@ class Plumed(Calculator):
             ase.calculators.plumed.restart_from_trajectory.
         """
 
-        #if atoms is None:
+        # if atoms is None:
         #    raise TypeError('plumed calculator has to be defined with the \
         #                     object atoms inside.')
 
@@ -143,35 +152,42 @@ class Plumed(Calculator):
 
         self._timestep = None
         self._stride = 1
-        
+
         return
-    
+
     @property
     def timestep(self):
         """"""
 
         return self._timestep
-    
+
     @timestep.setter
     def timestep(self, timestep):
         """"""
         self._timestep = timestep
 
         return
-    
+
     @property
     def stride(self):
 
         return self._stride
-    
+
     @stride.setter
     def stride(self, stride):
         """"""
         self._stride = stride
 
         return self._stride
-    
-    def _prepare(self, natoms, input_lines, timestep, restart, kT):
+
+    def _prepare(
+        self,
+        natoms: int,
+        input_lines: List[str],
+        timestep: float,
+        restart: bool,
+        kT: float,
+    ):
         """"""
         self.plumed = plumed.Plumed()
 
@@ -180,8 +196,8 @@ class Plumed(Calculator):
         self.plumed.cmd("setMDEnergyUnits", mol / kJ)
         self.plumed.cmd("setMDLengthUnits", 1 / nm)
         self.plumed.cmd("setMDTimeUnits", 1 / ps)
-        self.plumed.cmd("setMDChargeUnits", 1.)
-        self.plumed.cmd("setMDMassUnits", 1.)
+        self.plumed.cmd("setMDChargeUnits", 1.0)
+        self.plumed.cmd("setMDMassUnits", 1.0)
         self.plumed.cmd("setMDEngine", "ASE")
 
         self.plumed.cmd("setNatoms", natoms)
@@ -194,14 +210,20 @@ class Plumed(Calculator):
         # - parse lines, update FILE and STRIDE
         input_lines, parsed_lines = copy.deepcopy(input_lines), []
         for line in input_lines:
-            parsed_line = update_input_value(line, "FILE", self.directory, func=lambda x,y: os.path.join(y,x))
-            parsed_line = update_input_value(parsed_line, "STRIDE", self.stride, func=lambda x,y: str(y))
-            parsed_line = update_input_value(parsed_line, "PACE", self.stride, func=lambda x,y: str(y))
+            parsed_line = update_input_value(
+                line, "FILE", self.directory, func=lambda x, y: os.path.join(y, x)
+            )
+            parsed_line = update_input_value(
+                parsed_line, "STRIDE", self.stride, func=lambda x, y: str(y)
+            )
+            parsed_line = update_input_value(
+                parsed_line, "PACE", self.stride, func=lambda x, y: str(y)
+            )
             parsed_lines.append(parsed_line)
 
         for line in parsed_lines:
             self.plumed.cmd("readInputLine", line)
-        
+
         # - save input lines
         inp_fpath = pathlib.Path(self.directory, "plumed.inp")
         with open(inp_fpath, "w") as fopen:
@@ -209,18 +231,41 @@ class Plumed(Calculator):
 
         return
 
-    def calculate(self, atoms=None, properties=['energy', 'forces'],
-                  system_changes=all_changes):
+    def _save_checkpoint(self, ckpt_wdir: pathlib.Path):
+        """"""
+        calc_wdir = pathlib.Path(self.directory)
+        if (ckpt_wdir / calc_wdir.name).exists():
+            shutil.rmtree(ckpt_wdir / calc_wdir.name)
+        _ = shutil.copytree(calc_wdir, ckpt_wdir / calc_wdir.name)
+
+        return
+
+    def _load_checkpoint(self, ckpt_wdir: pathlib.Path, start_step: int):
+        """"""
+        calc_wdir = list(ckpt_wdir.glob(f"*Plumed"))[0]
+        _ = shutil.copytree(calc_wdir, ckpt_wdir.parent / calc_wdir.name)
+
+        if hasattr(self, "plumed"):
+            delattr(self, "plumed")
+        self.istep = int(start_step)
+        self.input = ["RESTART"] + self.input
+        self.restart = True
+
+        return
+
+    def calculate(
+        self, atoms=None, properties=["energy", "forces"], system_changes=all_changes
+    ):
         """"""
         Calculator.calculate(self, atoms, properties, system_changes)
 
         if self.timestep is None:
-            raise RuntimeError("Plumed needs a valid timestep set by an external class.")
+            raise RuntimeError(
+                "Plumed needs a valid timestep set by an external class."
+            )
 
         if not hasattr(self, "plumed"):
-            self._prepare(
-                len(atoms), self.input, self.timestep, self.restart, self.kT
-            )
+            self._prepare(len(atoms), self.input, self.timestep, self.restart, self.kT)
 
         energy_bias, forces_bias = self.compute_bias(
             self.atoms.get_positions(), self.istep
@@ -241,7 +286,7 @@ class Plumed(Calculator):
             self.plumed.cmd("setBox", cell)
 
         self.plumed.cmd("setPositions", pos)
-        self.plumed.cmd("setEnergy", 0.)
+        self.plumed.cmd("setEnergy", 0.0)
         self.plumed.cmd("setMasses", self.atoms.get_masses())
         forces_bias = np.zeros((self.atoms.get_positions()).shape)
         self.plumed.cmd("setForces", forces_bias)

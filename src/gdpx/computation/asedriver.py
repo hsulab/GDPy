@@ -155,6 +155,12 @@ def save_checkpoint(
     if hasattr(dyn, "rng"):
         with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
             yaml.safe_dump(dyn.rng.bit_generator.state, fopen)
+    
+    # For some mixed calculator, save information, for example, PLUMED...
+    if hasattr(atoms.calc, "calcs"):
+        for calc in atoms.calc.calcs:
+            if hasattr(calc, "_save_checkpoint"):
+                calc._save_checkpoint(ckpt_wdir)
 
     return
 
@@ -539,7 +545,7 @@ class AseDriver(AbstractDriver):
 
         with open(curr_ckpt_dir / "rng_state.yaml", "r") as fopen:
             rng_state = yaml.safe_load(fopen)
-
+        
         return atoms, rng_state
 
     def _irun(
@@ -568,6 +574,10 @@ class AseDriver(AbstractDriver):
             else:  # restart ...
                 atoms, rng_state = self._load_checkpoint(ckpt_wdir)
                 start_step = atoms.info["step"]
+                if hasattr(self.calc, "calcs"):
+                    for calc in self.calc.calcs:
+                        if hasattr(calc, "_load_checkpoint"):
+                            calc._load_checkpoint(ckpt_wdir, start_step=start_step)
                 # --- update run_params in settings
                 target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
                 if target_steps > 0:
@@ -583,6 +593,7 @@ class AseDriver(AbstractDriver):
 
             # - set dynamics
             dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+            #dynamics.nsteps = start_step
             if hasattr(dynamics, "rng") and rng_state is not None:
                 dynamics.rng.bit_generator.state = rng_state
 
