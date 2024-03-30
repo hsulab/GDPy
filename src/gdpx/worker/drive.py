@@ -108,7 +108,7 @@ class DriverBasedWorker(AbstractWorker):
         return
 
     @property
-    def driver(self):
+    def driver(self) -> AbstractDriver:
         return self._driver
 
     @driver.setter
@@ -793,12 +793,14 @@ class CommandDriverBasedWorker(DriverBasedWorker):
             if not self._share_wdir:
                 for wdir, atoms, rs in zip(curr_wdirs, curr_frames, random_seeds):
                     self.driver.directory = self.directory / wdir
+                    prev_random_seed = self.driver.random_seed
                     self.driver.set_rng(seed=rs)
                     self._print(
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                     )
                     self.driver.reset()
                     self.driver.run(atoms, read_exists=True, extra_info=None)
+                    self.driver.set_rng(seed=prev_random_seed)
             else:
                 cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
                 if cache_fpath.exists():
