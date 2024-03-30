@@ -32,10 +32,11 @@ from ase.calculators.calculator import (
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.mixing import LinearCombinationCalculator
 
-from gdpx import config
-from gdpx.computation.driver import AbstractDriver, DriverSetting, BACKUP_PREFIX_FORMAT 
-from gdpx.builder.constraints import parse_constraint_info
-from .plumed import Plumed, update_stride_and_file
+from .. import config
+from ..builder.constraints import parse_constraint_info
+from .driver import AbstractDriver, DriverSetting
+
+from ..potential.managers.plumed.calculators.plumed2 import Plumed, update_stride_and_file
 
 
 dataclasses.dataclass(frozen=True)

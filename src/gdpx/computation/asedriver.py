@@ -29,6 +29,7 @@ from ase.md.velocitydistribution import (
     ZeroRotation,
 )
 
+from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
@@ -37,7 +38,19 @@ from .driver import AbstractDriver, DriverSetting
 from .md.md_utils import force_temperature
 from ..potential.calculators.mixer import EnhancedCalculator
 
-from .plumed import set_plumed_state
+
+def set_calc_state(calc: Calculator, timestep: float, stride: int):
+    """Some calculators need driver information e.g. PLUMED."""
+    if calc.name == "plumed":
+        calc.timestep = timestep
+        calc.stride = stride
+    if hasattr(calc, "calcs"):
+        for subcalc in calc.calcs:
+            set_calc_state(subcalc, timestep, stride)
+    else:
+        ...
+
+    return
 
 
 def update_atoms_info(atoms: Atoms, dyn: Dynamics, start_step: int = 0) -> None:
@@ -457,7 +470,7 @@ class AseDriver(AbstractDriver):
                 vrng = np.random.Generator(np.random.PCG64(self.random_seed))
             else:
                 self._print(f"MD Driver's velocity_seed: {velocity_seed}")
-                #vrng = np.random.default_rng(velocity_seed)
+                # vrng = np.random.default_rng(velocity_seed)
                 vrng = np.random.Generator(np.random.PCG64(velocity_seed))
 
             ignore_atoms_velocities = init_params_.pop("ignore_atoms_velocities")
@@ -482,8 +495,7 @@ class AseDriver(AbstractDriver):
                 init_params_["rng"] = self.rng
 
             # - other callbacks
-            # NOTE: plumed
-            set_plumed_state(
+            set_calc_state(
                 self.calc,
                 timestep=init_params_["timestep"],
                 stride=init_params_["loginterval"],
