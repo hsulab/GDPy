@@ -435,7 +435,7 @@ class AbstractDriver(AbstractNode):
 
         return
     
-    def _find_prev_wdirs(self, archive_path=None) -> List[pathlib.Path]:
+    def _aggregate_trajectories(self, archive_path=None) -> List[Atoms]:
         """"""
         prev_wdirs = []
         if archive_path is None:
@@ -449,7 +449,31 @@ class AbstractDriver(AbstractNode):
             prev_wdirs = [self.directory/pathlib.Path(p).name for p in sorted(prev_wdirs)]
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
-        return prev_wdirs
+        all_wdirs = prev_wdirs + [self.directory]
+
+        traj_list = []
+        for w in all_wdirs:
+            curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path)
+            if curr_frames:
+                traj_list.append(curr_frames)
+
+        # -- concatenate
+        # NOTE: For DFT calculations,
+        #       some spin systems may give different scf convergence on the same
+        #       structure. Sometimes, the preivous failed but the next run converged,
+        #       The concat below uses the previous one...
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                assert np.allclose(
+                    traj_list[i - 1][-1].positions, traj_list[i][0].positions
+                ), f"Traj {i-1} and traj {i} are not consecutive."
+                traj_frames.extend(traj_list[i][1:])
+        else:
+            ...
+
+        return traj_frames
     
     def as_dict(self) -> dict:
         """Return parameters of this driver."""
