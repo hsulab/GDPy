@@ -93,9 +93,8 @@ try:
 except ImportError as e:
     warnings.warn("Module {} import failed: {}".format("bias", e), UserWarning)
 
-from .plumed import PlumedManager
+from .plumed.plumed import PlumedManager
 registers.manager.register(PlumedManager)
-
 
 # - trainers
 from .gp.fgp import FGPTrainer

@@ -4,7 +4,7 @@
 
 import pathlib
 
-from . import AbstractPotentialManager, DummyCalculator
+from .. import AbstractPotentialManager, DummyCalculator
 
 
 class PlumedManager(AbstractPotentialManager):
@@ -30,7 +30,7 @@ class PlumedManager(AbstractPotentialManager):
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             try:
-                from gdpx.computation.plumed import Plumed
+                from .calculators.plumed2 import Plumed
             except:
                 raise ModuleNotFoundError("Please install py-plumed to use the ase interface.")
 
