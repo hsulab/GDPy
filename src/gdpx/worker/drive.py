@@ -200,7 +200,7 @@ class DriverBasedWorker(AbstractWorker):
         #   NOTE: no matter the job status is, they are generated to sync rng state
         self._print(f"Driver's random_seed: {self.driver.random_seed}")
         if not self._share_random_seed:
-            rng = np.random.default_rng(self.driver.random_seed)
+            rng = np.random.Generator(np.random.PCG64(self.driver.random_seed))
             random_seeds = rng.integers(0, 1e8, size=len(curr_frames))
             random_seeds = [int(x) for x in random_seeds]  # We need List[int]!!
         else:
@@ -269,7 +269,7 @@ class DriverBasedWorker(AbstractWorker):
         return curr_md5, curr_frames, start_confid, random_seeds
 
     def _prepare_batches(
-        self, frames: List[Atoms], start_confid: int, random_seeds: List[int]
+        self, frames: List[Atoms], start_confid: int, rng_states: Union[List[int], List[dict]]
     ):
         # - check wdir
         nframes = len(frames)
@@ -304,7 +304,7 @@ class DriverBasedWorker(AbstractWorker):
             # NOTE: get a list even if it only has one structure
             cur_frames = [frames[x] for x in global_indices]
             cur_wdirs = [wdirs[x] for x in global_indices]
-            curr_rs = [random_seeds[x] for x in global_indices]
+            curr_rs = [rng_states[x] for x in global_indices]
             for x in cur_frames:
                 x.info["group"] = i
             # - check whether each structure has a unique wdir
@@ -317,13 +317,15 @@ class DriverBasedWorker(AbstractWorker):
 
         return batches
 
-    def run(self, builder=None, *args, **kwargs) -> None:
+    def run(self, builder=None, rng_states=list(), *args, **kwargs) -> None:
         """Split frames into groups and submit jobs."""
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, frames, start_confid, random_seeds = self._preprocess(builder)
-        batches = self._prepare_batches(frames, start_confid, random_seeds)
+        identifier, frames, start_confid, new_rng_states = self._preprocess(builder)
+        if rng_states: # Sometimes we need explicit rng_states as in active learning
+            new_rng_states = rng_states
+        batches = self._prepare_batches(frames, start_confid, new_rng_states)
 
         # - read metadata from file or database
         with TinyDB(
@@ -384,7 +386,7 @@ class DriverBasedWorker(AbstractWorker):
                 frames,
                 global_indices,
                 wdirs,
-                random_seeds=rs,
+                rng_states=rs,
                 *args,
                 **kwargs,
             )
@@ -720,7 +722,7 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         frames: List[Atoms],
         curr_indices: List[int],
         curr_wdirs: List[Union[str, pathlib.Path]],
-        random_seeds: List[int],
+        rng_states: Union[List[int], List[dict]],
         *args,
         **kwargs,
     ) -> None:
@@ -773,7 +775,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         frames: List[Atoms],
         curr_indices: List[int],
         curr_wdirs: List[Union[str, pathlib.Path]],
-        random_seeds: List[int],
+        rng_states: Union[List[int], List[dict]],
         *args,
         **kwargs,
     ) -> None:
@@ -791,7 +793,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         # - run calculations
         with CustomTimer(name="run-driver", func=self._print):
             if not self._share_wdir:
-                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, random_seeds):
+                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
                     self.driver.directory = self.directory / wdir
                     prev_random_seed = self.driver.random_seed
                     self.driver.set_rng(seed=rs)
@@ -809,7 +811,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                 else:
                     cache_wdirs = []
                 temp_wdir = self.directory / "_shared"
-                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, random_seeds):
+                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
                     if wdir in cache_wdirs:
                         continue
                     if temp_wdir.exists():
