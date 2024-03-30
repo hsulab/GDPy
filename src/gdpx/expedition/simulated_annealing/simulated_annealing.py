@@ -45,7 +45,7 @@ class SimulatedAnnealing(AbstractExpedition):
 
         # -
         self.temperatures = temperatures
-        
+
         self.num_slices = len(self.temperatures)
 
         return
@@ -69,16 +69,32 @@ class SimulatedAnnealing(AbstractExpedition):
                 # - get each candidates' final rng_states
                 prev_structures, prev_rng_states = [], []
                 for icand in range(nstructures):
-                    prev_atoms, prev_rng_state = self.worker.driver._load_checkpoint(
+                    curr_wdir = (
                         self.directory
                         / self.comput_dirname
                         / f"gen{istep-1}"
                         / f"cand{icand}"
                     )
+                    ckpt_wdir = self.worker.driver._find_latest_checkpoint(curr_wdir)
+                    prev_atoms, prev_rng_state = self.worker.driver._load_checkpoint(
+                        ckpt_wdir
+                    )
                     self._print(f"{prev_atoms =}")
                     self._print(f"{prev_rng_state =}")
                     prev_structures.append(prev_atoms)
                     prev_rng_states.append(prev_rng_state)
+                    # --
+                    if hasattr(self.worker.driver.calc, "calcs"):
+                        for calc in self.worker.driver.calc.calcs:
+                            if hasattr(calc, "_load_checkpoint"):
+                                calc._load_checkpoint(
+                                    ckpt_wdir,
+                                    dst_wdir=self.directory
+                                    / self.comput_dirname
+                                    / f"gen{istep}"
+                                    / f"cand{icand}",
+                                    start_step=prev_atoms.info["step"],
+                                )
                 structures = prev_structures
                 rng_states = prev_rng_states
             else:
@@ -91,7 +107,7 @@ class SimulatedAnnealing(AbstractExpedition):
                 ...
         else:
             self._print("SlicedExpedition is converged.")
-            with open(self.directory/"FINISHED", "w") as fopen:
+            with open(self.directory / "FINISHED", "w") as fopen:
                 fopen.write(
                     f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
                 )
@@ -110,6 +126,18 @@ class SimulatedAnnealing(AbstractExpedition):
         # - update driver...
         worker.driver.setting.update(temp=temperature)
 
+        # - We need copy some files to continue exploration...
+        if istep > 0:
+            if hasattr(worker.driver.calc, "calcs"):
+                self._print(f"{worker.driver.calc =}")
+                for calc in worker.driver.calc.calcs:
+                    if hasattr(calc, "_load_checkpoint"):
+                        ...
+            else:
+                ...
+        else:
+            ...
+
         # -
         # TODO: NonLocal Scheduler will not save rng_states...
         worker.run(structures, rng_states=rng_states)
@@ -120,7 +148,7 @@ class SimulatedAnnealing(AbstractExpedition):
             step_converged = False
 
         return step_converged
-    
+
     def _make_step_worker(self, istep: int):
         """"""
         if hasattr(self.worker.potter, "remove_loaded_models"):
@@ -134,7 +162,7 @@ class SimulatedAnnealing(AbstractExpedition):
     def read_convergence(self) -> bool:
         """"""
         converged = False
-        if (self.directory/"FINISHED").exists():
+        if (self.directory / "FINISHED").exists():
             converged = True
 
         return converged
@@ -147,7 +175,7 @@ class SimulatedAnnealing(AbstractExpedition):
         workers = []
         for istep in range(self.num_slices):
             curr_worker = copy.deepcopy(self.worker)
-            curr_worker.directory = self.directory/self.comput_dirname/f"gen{istep}"
+            curr_worker.directory = self.directory / self.comput_dirname / f"gen{istep}"
             workers.append(curr_worker)
 
         return workers
