@@ -170,17 +170,17 @@ class ExchangeOperator(AbstractOperator):
                 self._print("...insert...")
                 self._curr_operation = "insert"
                 curr_atoms = self._insert(atoms, self.species, rng)
-                self._extra_info = f"Insert {self.species}"
+                self._extra_info = f"Insert_{self.species}"
             else:
                 self._print("...remove...")
                 self._curr_operation = "remove"
                 curr_atoms = self._remove(atoms, self.species, rng)
-                self._extra_info = f"Remove {self.species}"
+                self._extra_info = f"Remove_{self.species}"
         else:
             self._print("...insert...")
             self._curr_operation = "insert"
             curr_atoms = self._insert(atoms, self.species, rng)
-            self._extra_info = f"Insert {self.species}"
+            self._extra_info = f"Insert_{self.species}"
 
         return curr_atoms
 

@@ -68,7 +68,7 @@ class MoveOperator(AbstractOperator):
         # - find tag atoms
         # record original position of species_indices
         species = curr_atoms[species_indices]
-        self._extra_info = f"{species.get_chemical_formula()}_{species_indices}"
+        self._extra_info = f"Move_{species.get_chemical_formula()}_{species_indices}"
 
         # org_pos = new_atoms[species_indices].position.copy() # original position
         # TODO: deal with pbc, especially for move step
