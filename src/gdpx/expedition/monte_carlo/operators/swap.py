@@ -9,7 +9,6 @@ import numpy as np
 from ase import Atoms
 from ase import data, units
 from ase.neighborlist import NeighborList, natural_cutoffs
-from ase.ga.utilities import closest_distances_generator
 
 from .move import MoveOperator
 
@@ -54,7 +53,6 @@ class SwapOperator(MoveOperator):
 
         # - basic
         curr_atoms = atoms
-        chemical_symbols = curr_atoms.get_chemical_symbols()
         cell = curr_atoms.get_cell(complete=True)
 
         # -- neighbour list
@@ -63,14 +61,6 @@ class SwapOperator(MoveOperator):
             skin=0.0,
             self_interaction=False,
             bothways=True,
-        )
-
-        # -- TODO: init blmin?
-        type_list = list(set(chemical_symbols))
-        unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
-        self.blmin = closest_distances_generator(
-            atom_numbers=unique_atomic_numbers,
-            ratio_of_covalent_radii=self.covalent_min,  # be careful with test too far
         )
 
         # - swap the species

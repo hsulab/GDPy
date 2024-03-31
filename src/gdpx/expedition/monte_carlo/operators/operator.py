@@ -151,22 +151,24 @@ class AbstractOperator(abc.ABC):
             - All atoms in the species are isolated from the rest of the system.
 
         """
+        assert self.blmin is not None, "BondLengthMinimumDict is not properly set."
+
         # -
         num_atoms_in_species = len(species_indices)
 
-        species_status = ["valid"]*num_atoms_in_species
+        species_status = ["valid"] * num_atoms_in_species
         self._print(f"- {species_indices =}")
-        self._print(f"  {species_status =}")
 
         # - get symbols here since some operators may change the symbol
         chemical_symbols = new_atoms.get_chemical_symbols()
 
         nl.update(new_atoms)
         for iatom, idx_pick in enumerate(species_indices):
-            self._print(f"  check index {idx_pick} {new_atoms.positions[idx_pick]}")
             indices, offsets = nl.get_neighbors(idx_pick)
+            self._print(
+                f"  check index {idx_pick} {new_atoms.positions[idx_pick]} nneighs: {len(indices)}"
+            )
             if len(indices) > 0:
-                self._print(f"  nneighs: {len(indices)}")
                 # --
                 if all([(ni in species_indices) for ni in indices]):
                     species_status[iatom] = "isolated"
@@ -185,7 +187,7 @@ class AbstractOperator(abc.ABC):
                         pairs = tuple([data.atomic_numbers[p] for p in pairs])
                         if dis <= self.blmin[pairs]:
                             species_status[iatom] = "invalid"
-                            self._print(f"  distance: {ni} {dis} {self.blmin[pairs]}")
+                            self._debug(f"  distance: {ni} {dis} {self.blmin[pairs]}")
                             break
                     else:
                         ...
@@ -196,7 +198,7 @@ class AbstractOperator(abc.ABC):
                 # For a single-atom species, one loop finishes.
                 # For a multi-atom species, the code will not happen except when
                 # the covalent_max is WAY TOO SMALL then ...
-                #assert num_atoms_in_species == 1,
+                # assert num_atoms_in_species == 1,
                 species_status[iatom] = "isolated"
         self._print(f"  {species_status =}")
 
@@ -204,7 +206,7 @@ class AbstractOperator(abc.ABC):
         for s in species_status:
             if s == "valid" or s == "invalid":
                 ...
-            else: # isolated
+            else:  # isolated
                 if self.allow_isolated:
                     s = "valid"
                 else:

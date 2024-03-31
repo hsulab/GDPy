@@ -15,7 +15,10 @@ from typing import NoReturn, List
 import numpy as np
 
 from ase import Atoms
+from ase import data, units
 from ase.io import read, write
+from ase.formula import Formula
+from ase.ga.utilities import closest_distances_generator
 
 from .. import registers
 from .. import SingleWorker, DriverBasedWorker
@@ -25,6 +28,32 @@ from .operators import select_operator, parse_operators, save_operator, load_ope
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
+
+
+def convert_blmin_to_str(blmin: dict) -> str:
+    """"""
+    elements = []
+    for k in blmin.keys():
+        elements.extend(k)
+    elements = set(elements)
+    nelements = len(elements)
+
+    index_map = {}
+    for i, e in enumerate(elements):
+        index_map[e] = i
+    distance_map = np.zeros((nelements, nelements))
+    for (i, j), dis in blmin.items():
+        distance_map[index_map[i], index_map[j]] = dis
+
+    symbols = [data.chemical_symbols[e] for e in elements]
+
+    content =  "Bond Distance Minimum\n"
+    #content += "  covalent ratio: {}\n".format(covalent_min)
+    content += "  "+" "*4+("{:>6}  "*nelements).format(*symbols)+"\n"
+    for i, s in enumerate(symbols):
+        content += "  "+("{:<4}"+"{:>8.4f}"*nelements+"\n").format(s, *list(distance_map[i]))
+
+    return content
 
 
 class MonteCarlo(AbstractExpedition):
@@ -161,6 +190,30 @@ class MonteCarlo(AbstractExpedition):
             step_converged = False
 
         return step_converged
+    
+    def _attach_bond_length_minimum_list(self, ):
+        """"""
+        type_list = []
+        for op in self.operators:
+            # TODO: wee need further unify the names here
+            if hasattr(op, "particles"):
+                for p in op.particles:
+                    type_list.extend(list(Formula(p).count().keys()))
+            elif hasattr(op, "reservoir"):
+                type_list.extend(list(Formula(op.reservoir["species"]).count().keys()))
+            else:
+                ...
+        type_list = list(set(type_list))
+        self._print(f"{type_list =}")
+        unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
+
+        for op in self.operators:
+            op.blmin = closest_distances_generator(
+                atom_numbers=unique_atomic_numbers,
+                ratio_of_covalent_radii=op.covalent_min,
+            )
+
+        return
 
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
@@ -187,15 +240,23 @@ class MonteCarlo(AbstractExpedition):
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
+        # - show operator information
         self._print("===== MonteCarlo Operators (Modifiers) =====\n")
+
+        # -- register bond list
+        self._attach_bond_length_minimum_list()
+
         for op in self.operators:
             for x in str(op).split("\n"):
                 self._print(x)
+            for l in convert_blmin_to_str(op.blmin).split("\n"):
+                self._print(l)
         self._print(f"normalised probabilities {self.op_probs}\n")
 
         # -- add print function to operators
         for op in self.operators:
             op._print = self._print
+            op._debug = self._debug
 
         # NOTE: check if operators' regions are consistent
         #       though it works, unexpected results may occur
@@ -205,6 +266,7 @@ class MonteCarlo(AbstractExpedition):
         #    if self.operators[i].region != self.operators[i-1].region:
         #        raise RuntimeError(f"Inconsistent region found in op {i-1} and op {i}")
 
+        # - start!!!
         converged = self.read_convergence()
         if not converged:
             # - init structure
@@ -361,9 +423,12 @@ class MonteCarlo(AbstractExpedition):
             saved_operators.append(saved_operator)
         self.operators = saved_operators
 
+        self._attach_bond_length_minimum_list()
+
         # -- add print function to operators
         for op in self.operators:
             op._print = self._print
+            op._debug = self._debug
 
         self._print("===== Saved MonteCarlo Operators (Modifiers) =====\n")
         for op in self.operators:

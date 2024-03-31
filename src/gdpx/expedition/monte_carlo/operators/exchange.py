@@ -12,7 +12,6 @@ from ase import Atoms
 from ase import data, units
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.neighborlist import NeighborList, natural_cutoffs
-from ase.ga.utilities import closest_distances_generator
 
 from .. import convert_string_to_atoms
 from .operator import AbstractOperator
@@ -94,16 +93,8 @@ class ExchangeOperator(AbstractOperator):
         #   NOTE: adpart is always added to the end
         species_indices = [i for i, t in enumerate(atoms.get_tags()) if t == adpart_tag]
 
-        # - init blmin
+        # - blmin is initialised by MC
         cell = atoms.get_cell(complete=True)
-        chemical_symbols = atoms.get_chemical_symbols()
-
-        type_list = list(set(chemical_symbols))
-        unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
-        self.blmin = closest_distances_generator(
-            atom_numbers=unique_atomic_numbers,
-            ratio_of_covalent_radii=self.covalent_min,  # be careful with test too far
-        )
 
         # - neighbour list
         nl = NeighborList(
