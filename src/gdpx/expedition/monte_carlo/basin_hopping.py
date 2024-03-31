@@ -5,8 +5,7 @@
 import copy 
 from typing import List
 
-from ..expedition import AbstractExpedition
-from ..mc.mc import MonteCarlo
+from .monte_carlo import MonteCarlo
 
 
 class BasinHopping(MonteCarlo):

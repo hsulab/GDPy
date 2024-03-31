@@ -19,6 +19,7 @@ from ase.io import read, write
 
 from .. import registers
 from .. import SingleWorker, DriverBasedWorker
+from .. import dict2str
 from ..expedition import AbstractExpedition
 from .operators import select_operator, parse_operators, save_operator, load_operator
 
@@ -224,8 +225,6 @@ class MonteCarlo(AbstractExpedition):
             # - run mc steps
             step_converged = False
             for i in range(self.curr_step, self.convergence["steps"] + 1):
-                self._print(f"RANDOM_SEED:  {self.random_seed}")
-                self._print(f"RANDOM_STATE: {self.rng.bit_generator.state}")
                 step_converged = self._irun(i)
                 if not step_converged:
                     self._print("Wait MC step to finish.")
@@ -248,6 +247,10 @@ class MonteCarlo(AbstractExpedition):
     def _irun(self, i):
         """Run a single MC step."""
         self._print(f"===== MC Step {i} =====")
+        self._print(f"RANDOM_SEED:  {self.random_seed}")
+        for l in dict2str(self.rng.bit_generator.state).split("\n"):
+            self._print(l)
+
         step_wdir = self.directory / f"{self.WDIR_PREFIX}{i}"
         self.worker.wdir_name = step_wdir.name
 

@@ -8,7 +8,7 @@ import numpy as np
 from ase import Atoms
 from ase import data, units
 
-from gdpx.builder.species import build_species
+from .. import convert_string_to_atoms
 from .move import MoveOperator
 from .swap import SwapOperator
 from .exchange import ExchangeOperator
@@ -69,7 +69,7 @@ def compute_thermo_wavelength(expart: str, temperature: float):
     # - cubic thermo de broglie 
     hplanck = units._hplanck # J/Hz = kg*m2*s-1
     #_mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
-    _species = build_species(expart)
+    _species = convert_string_to_atoms(expart)
     _species_mass = np.sum(_species.get_masses())
     #print("species mass: ", _mass)
     _mass = _species_mass * units._amu

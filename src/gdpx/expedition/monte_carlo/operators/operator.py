@@ -9,7 +9,7 @@ import numpy as np
 
 from ase import Atoms
 
-from gdpx.core.register import registers
+from .. import registers
 
 
 class AbstractOperator(abc.ABC):

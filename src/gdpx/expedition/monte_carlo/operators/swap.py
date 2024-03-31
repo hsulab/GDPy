@@ -11,8 +11,6 @@ from ase import data, units
 from ase.neighborlist import NeighborList, natural_cutoffs
 from ase.ga.utilities import closest_distances_generator
 
-from gdpx.builder.species import build_species
-from gdpx.builder.group import create_a_group
 from .move import MoveOperator
 
 

@@ -14,9 +14,7 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.neighborlist import NeighborList, natural_cutoffs
 from ase.ga.utilities import closest_distances_generator
 
-from gdpx.builder.group import create_a_group
-from gdpx.builder.species import build_species
-
+from .. import convert_string_to_atoms
 from .operator import AbstractOperator
 
 
@@ -59,8 +57,8 @@ class ExchangeOperator(AbstractOperator):
         """"""
         atoms = atoms_.copy()
 
-        # - prepare
-        adpart = build_species(species) # particle to add
+        # - prepare particle to add
+        adpart = convert_string_to_atoms(species)
         
         # - add velocity in case the mixed MC/MD is performed
         MaxwellBoltzmannDistribution(adpart, temperature_K=self.temperature, rng=rng)
@@ -72,7 +70,7 @@ class ExchangeOperator(AbstractOperator):
             # NOTE: np.random only has randint
             adpart_tag = rng.integers(self.MIN_RANDOM_TAG, self.MAX_RANDOM_TAG)
         adpart_tag = int(adpart_tag)
-        self._print(f"adpart tag: {adpart_tag} {type(adpart_tag)}")
+        self._print(f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}")
         # NOTE: ase accepts int or list as tags
         adpart.set_tags(adpart_tag)
 
@@ -220,7 +218,7 @@ class ExchangeOperator(AbstractOperator):
         # - cubic thermo de broglie 
         hplanck = units._hplanck # J/Hz = kg*m2*s-1
         #_mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
-        _species = build_species(self.species)
+        _species = convert_string_to_atoms(self.species)
         _species_mass = np.sum(_species.get_masses())
         #print("species mass: ", _mass)
         _mass = _species_mass * units._amu
