@@ -47,11 +47,13 @@ def convert_blmin_to_str(blmin: dict) -> str:
 
     symbols = [data.chemical_symbols[e] for e in elements]
 
-    content =  "Bond Distance Minimum\n"
-    #content += "  covalent ratio: {}\n".format(covalent_min)
-    content += "  "+" "*4+("{:>6}  "*nelements).format(*symbols)+"\n"
+    content = "Bond Distance Minimum\n"
+    # content += "  covalent ratio: {}\n".format(covalent_min)
+    content += "  " + " " * 4 + ("{:>6}  " * nelements).format(*symbols) + "\n"
     for i, s in enumerate(symbols):
-        content += "  "+("{:<4}"+"{:>8.4f}"*nelements+"\n").format(s, *list(distance_map[i]))
+        content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(
+            s, *list(distance_map[i])
+        )
 
     return content
 
@@ -132,7 +134,7 @@ class MonteCarlo(AbstractExpedition):
         """Initialise the input structure.
 
         Set proper tags and minimise the structure. Prepare `self.atoms`,
-        `self.energy_stored`, and `self.curr_step`.
+        `self.energy_stored`, and `self.start_step`.
 
         """
         step_wdir = self.directory / f"{self.WDIR_PREFIX}0"
@@ -176,7 +178,7 @@ class MonteCarlo(AbstractExpedition):
             write(self.directory / self.TRAJ_NAME, self.atoms)
 
             # -
-            self.curr_step = 0
+            self.start_step = 0
 
             # - log operator status
             with open(self.directory / self.INFO_NAME, "w") as fopen:
@@ -190,8 +192,10 @@ class MonteCarlo(AbstractExpedition):
             step_converged = False
 
         return step_converged
-    
-    def _attach_bond_length_minimum_list(self, ):
+
+    def _attach_bond_length_minimum_list(
+        self,
+    ):
         """"""
         type_list = []
         for op in self.operators:
@@ -282,32 +286,41 @@ class MonteCarlo(AbstractExpedition):
                 self._print("Wait structure to initialise.")
                 return
             else:
-                self.curr_step += 1
+                self.start_step += 1
 
             # - run mc steps
-            step_converged = False
-            for i in range(self.curr_step, self.convergence["steps"] + 1):
-                step_converged = self._irun(i)
-                if not step_converged:
+            curr_step = self.start_step  # start_step
+            while True:
+                if curr_step > self.convergence["steps"]:
+                    break
+                step_state = self._irun(curr_step)
+                if step_state == "UNFINISHED":
                     self._print("Wait MC step to finish.")
                     break
-                else:
+                elif step_state == "FINISHED":
                     # -- save checkpoint
-                    self._save_checkpoint(step=i)
+                    self._save_checkpoint(step=curr_step)
                     # -- clean up
-                    if ((self.directory / f"{self.WDIR_PREFIX}{i}").exists()) and (
-                        i % self.dump_period != 0
-                    ):
-                        shutil.rmtree(self.directory / f"{self.WDIR_PREFIX}{i}")
-            else:
-                self._print("MC is converged...")
+                    if (
+                        (self.directory / f"{self.WDIR_PREFIX}{curr_step}").exists()
+                    ) and (curr_step % self.dump_period != 0):
+                        shutil.rmtree(self.directory / f"{self.WDIR_PREFIX}{curr_step}")
+                    curr_step += 1
+                elif step_state == "FAILED":
+                    self._print(f"RETRY STEP {curr_step}.")
+                else:
+                    ...  # This should not happen.
         else:
             self._print("Monte Carlo is converged.")
 
         return
 
-    def _irun(self, i):
-        """Run a single MC step."""
+    def _irun(self, i: int) -> str:
+        """Run a single MC step.
+
+        Each step has three status as FINISHED, UNFINISHED, and FAILED.
+
+        """
         self._print(f"===== MC Step {i} =====")
         self._print(f"RANDOM_SEED:  {self.random_seed}")
         for l in dict2str(self.rng.bit_generator.state).split("\n"):
@@ -320,7 +333,7 @@ class MonteCarlo(AbstractExpedition):
         curr_op = select_operator(self.operators, self.op_probs, self.rng)
         self._print(f"operator {curr_op.__class__.__name__}")
         curr_atoms = curr_op.run(self.atoms, self.rng)
-        if curr_atoms:
+        if curr_atoms:  # is not None
             # --- add info
             curr_atoms.info["confid"] = int(f"{i}")
             curr_atoms.info["step"] = -1  # NOTE: remove step info from driver
@@ -358,15 +371,15 @@ class MonteCarlo(AbstractExpedition):
                     self._print("failure...")
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
-                step_converged = True
+                step_state = "FINISHED"
             else:
-                step_converged = False
+                step_state = "UNFINISHED"
         else:
             # save the previous structure as the current operation gives no structure.
-            step_converged = True
-            write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
+            step_state = "FAILED"
+            write(self.directory / self.TRAJ_NAME, self.atoms, append=True)  # TODO?
 
-        return step_converged
+        return step_state
 
     def _veri_checkpoint(self) -> bool:
         """Verify checkpoints."""
@@ -442,13 +455,13 @@ class MonteCarlo(AbstractExpedition):
         self.rng.bit_generator.state = rng_state
 
         # -- load structure
-        self.curr_step = step
+        self.start_step = step
         self.atoms = read(ckpt_wdir / "structure.xyz")
         self.energy_stored = self.atoms.get_potential_energy()
 
         # -- reset mctraj
-        mctraj = read(self.directory/self.TRAJ_NAME, f":{step+1}")
-        write(self.directory/self.TRAJ_NAME, mctraj)
+        mctraj = read(self.directory / self.TRAJ_NAME, f":{step+1}")
+        write(self.directory / self.TRAJ_NAME, mctraj)
 
         return
 
@@ -480,7 +493,7 @@ class MonteCarlo(AbstractExpedition):
         if (self.directory / self.TRAJ_NAME).exists():
             mctraj = read(self.directory / self.TRAJ_NAME, ":")
             nframes = len(mctraj)
-            # self.curr_step = nframes
+            # self.start_step = nframes
             if nframes > self.convergence["steps"]:
                 converged = True
         else:
