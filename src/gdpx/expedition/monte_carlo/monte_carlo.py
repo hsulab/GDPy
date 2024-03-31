@@ -424,8 +424,8 @@ class MonteCarlo(AbstractExpedition):
         if hasattr(self.worker.potter, "remove_loaded_models"):
             self.worker.potter.remove_loaded_models()
 
-        #workers = []
-        #for curr_wdir in wdirs:
+        # workers = []
+        # for curr_wdir in wdirs:
         #    curr_worker = copy.deepcopy(self.worker)
         #    curr_worker.directory = curr_wdir.parent
         #    curr_worker.wdir_name = curr_wdir.name
