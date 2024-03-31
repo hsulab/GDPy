@@ -446,6 +446,10 @@ class MonteCarlo(AbstractExpedition):
         self.atoms = read(ckpt_wdir / "structure.xyz")
         self.energy_stored = self.atoms.get_potential_energy()
 
+        # -- reset mctraj
+        mctraj = read(self.directory/self.TRAJ_NAME, f":{step+1}")
+        write(self.directory/self.TRAJ_NAME, mctraj)
+
         return
 
     def _save_step_info(self, curr_op, success: bool):
