@@ -32,6 +32,7 @@ class AbstractOperator(abc.ABC):
         covalent_ratio=[0.8, 2.0],
         use_rotation=True,
         prob: str = 1.0,
+        allow_isolated: bool = False,
         *args,
         **kwargs,
     ) -> None:
@@ -65,6 +66,9 @@ class AbstractOperator(abc.ABC):
 
         # - probability
         self.prob = prob
+
+        # - neighbour setting
+        self.allow_isolated = allow_isolated
 
         return
 
@@ -135,40 +139,79 @@ class AbstractOperator(abc.ABC):
         return species_
 
     def check_overlap_neighbour(
-        self, nl, new_atoms, cell, species_indices: List[int]
+        self, nl, new_atoms: Atoms, cell, species_indices: List[int]
     ) -> bool:
-        """use neighbour list to check newly added atom is neither too close or too
-        far from other atoms
+        """Check whether the species position is valid.
+
+        Use neighbour list to check newly added atom is neither too close or too
+        far from other atoms. The neighbour list is based on covalent_max distance.
+        We have three status, `valid`, `invalid`, adn `isolated`.
+        The situations being considered invalid:
+            - Atomic distance too close (covalent_min).
+            - All atoms in the species are isolated from the rest of the system.
+
         """
+        # -
+        num_atoms_in_species = len(species_indices)
+
+        species_status = ["valid"]*num_atoms_in_species
+        self._print(f"- {species_indices =}")
+        self._print(f"  {species_status =}")
+
         # - get symbols here since some operators may change the symbol
         chemical_symbols = new_atoms.get_chemical_symbols()
 
-        overlapped = False
         nl.update(new_atoms)
-        for idx_pick in species_indices:
-            self._print(f"- check index {idx_pick} {new_atoms.positions[idx_pick]}")
+        for iatom, idx_pick in enumerate(species_indices):
+            self._print(f"  check index {idx_pick} {new_atoms.positions[idx_pick]}")
             indices, offsets = nl.get_neighbors(idx_pick)
             if len(indices) > 0:
-                self._print(f"nneighs: {len(indices)}")
-                # should close to other atoms
+                self._print(f"  nneighs: {len(indices)}")
+                # --
+                if all([(ni in species_indices) for ni in indices]):
+                    species_status[iatom] = "isolated"
+                    continue
+                # -- check inter-species atomic distances
                 for ni, offset in zip(indices, offsets):
-                    dis = np.linalg.norm(
-                        new_atoms.positions[idx_pick]
-                        - (new_atoms.positions[ni] + np.dot(offset, cell))
-                    )
-                    pairs = [chemical_symbols[ni], chemical_symbols[idx_pick]]
-                    pairs = tuple([data.atomic_numbers[p] for p in pairs])
-                    # print("distance: ", ni, dis, self.blmin[pairs])
-                    if dis < self.blmin[pairs]:
-                        overlapped = True
-                        break
+                    # NOTE: Check if the species contact other atoms
+                    #       in a reasonable distance.
+                    #       Intra-species distance will not be checked.
+                    if ni not in species_indices:
+                        dis = np.linalg.norm(
+                            new_atoms.positions[idx_pick]
+                            - (new_atoms.positions[ni] + np.dot(offset, cell))
+                        )
+                        pairs = [chemical_symbols[ni], chemical_symbols[idx_pick]]
+                        pairs = tuple([data.atomic_numbers[p] for p in pairs])
+                        if dis <= self.blmin[pairs]:
+                            species_status[iatom] = "invalid"
+                            self._print(f"  distance: {ni} {dis} {self.blmin[pairs]}")
+                            break
+                    else:
+                        ...
+                else:
+                    species_status[iatom] = "valid"
             else:
-                # TODO: is no neighbours valid?
-                self._print("no neighbours, being isolated...")
-                overlapped = True
-                break
+                # We need BREAK here?
+                # For a single-atom species, one loop finishes.
+                # For a multi-atom species, the code will not happen except when
+                # the covalent_max is WAY TOO SMALL then ...
+                #assert num_atoms_in_species == 1,
+                species_status[iatom] = "isolated"
+        self._print(f"  {species_status =}")
 
-        return overlapped
+        status_ = []
+        for s in species_status:
+            if s == "valid" or s == "invalid":
+                ...
+            else: # isolated
+                if self.allow_isolated:
+                    s = "valid"
+                else:
+                    s = "invalid"
+            status_.append(s)
+
+        return any([s == "invalid" for s in status_])
 
     @abc.abstractmethod
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
