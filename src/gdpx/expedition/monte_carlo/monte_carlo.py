@@ -377,7 +377,6 @@ class MonteCarlo(AbstractExpedition):
         else:
             # save the previous structure as the current operation gives no structure.
             step_state = "FAILED"
-            write(self.directory / self.TRAJ_NAME, self.atoms, append=True)  # TODO?
 
         return step_state
 
