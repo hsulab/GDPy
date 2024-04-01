@@ -12,6 +12,7 @@ from .. import convert_string_to_atoms
 from .move import MoveOperator
 from .swap import SwapOperator
 from .exchange import ExchangeOperator
+from .react import ReactOperator
 
 def save_operator(op, p):
     """"""
@@ -51,6 +52,8 @@ def parse_operators(op_params: dict):
             op = SwapOperator(**param)
         elif name == "exchange":
             op = ExchangeOperator(**param)
+        elif name == "react":
+            op = ReactOperator(**param)
         else:
             raise NotImplementedError(f"{name} is not supported.")
         operators.append(op)
