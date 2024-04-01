@@ -17,53 +17,13 @@ from .. import convert_string_to_atoms
 from .operator import AbstractOperator
 
 
-class ExchangeOperator(AbstractOperator):
+class BasicExchangeOperator(AbstractOperator):
 
-    name: str = "exchange"
+    MIN_RANDOM_TAG: int = 10000
 
-    MIN_RANDOM_TAG = 10000
-    MAX_RANDOM_TAG = 100000
+    MAX_RANDOM_TAG: int = 100000
 
-    #: The current suboperation (insert or remove).
-    _curr_operation: str = None  # insert or remove
-
-    #: The current tags dict.
-    _curr_tags_dict: dict = None
-
-    #: The current accpetable volume.
-    _curr_volume: float = None
-
-    def __init__(
-        self,
-        region: dict,
-        reservoir: dict,
-        temperature: float = 300.0,
-        pressure: float = 1.0,
-        covalent_ratio=[0.8, 2.0],
-        use_rotation: bool = True,
-        use_bias: bool = True,
-        *args,
-        **kwargs,
-    ):
-        """"""
-        super().__init__(
-            region=region,
-            temperature=temperature,
-            pressure=pressure,
-            covalent_ratio=covalent_ratio,
-            use_rotation=use_rotation,
-            *args,
-            **kwargs,
-        )
-
-        self.species = reservoir["species"]
-        self.mu = reservoir["mu"]
-
-        self.use_bias = use_bias
-
-        return
-
-    def _insert(self, atoms_, species: str, rng):
+    def _insert(self, atoms_, species: str, rng=np.random.Generator(np.random.PCG64())):
         """"""
         atoms = atoms_.copy()
 
@@ -133,7 +93,7 @@ class ExchangeOperator(AbstractOperator):
 
         return atoms
 
-    def _remove(self, atoms_, species: str, rng):
+    def _remove(self, atoms_, species: str, rng=np.random.Generator(np.random.PCG64())):
         """"""
         atoms = atoms_.copy()
 
@@ -144,6 +104,50 @@ class ExchangeOperator(AbstractOperator):
         del atoms[species_indices]
 
         return atoms
+
+
+class ExchangeOperator(BasicExchangeOperator):
+
+    name: str = "exchange"
+
+    #: The current suboperation (insert or remove).
+    _curr_operation: str = None  # insert or remove
+
+    #: The current tags dict.
+    _curr_tags_dict: dict = None
+
+    #: The current accpetable volume.
+    _curr_volume: float = None
+
+    def __init__(
+        self,
+        region: dict,
+        reservoir: dict,
+        temperature: float = 300.0,
+        pressure: float = 1.0,
+        covalent_ratio=[0.8, 2.0],
+        use_rotation: bool = True,
+        use_bias: bool = True,
+        *args,
+        **kwargs,
+    ):
+        """"""
+        super().__init__(
+            region=region,
+            temperature=temperature,
+            pressure=pressure,
+            covalent_ratio=covalent_ratio,
+            use_rotation=use_rotation,
+            *args,
+            **kwargs,
+        )
+
+        self.species = reservoir["species"]
+        self.mu = reservoir["mu"]
+
+        self.use_bias = use_bias
+
+        return
 
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
