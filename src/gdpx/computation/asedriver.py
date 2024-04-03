@@ -187,7 +187,7 @@ class BerendsenThermostat(Controller):
         taut = self.params.get("Tdamp", 100.0)
         assert taut is not None
 
-        self.conv_params = dict(taut=taut)
+        self.conv_params = dict(taut=taut*units.fs)
 
         return
 
@@ -246,7 +246,12 @@ class BerendsenBarostat(Controller):
         taup = self.params.get("Pdamp", 100.0)  # fs
         assert taup is not None
 
-        self.conv_params = dict(taut=taut, taup=taup)
+        compressibility = self.params.get("compressibility", 4.57e-5) # bar^-1
+
+        self.conv_params = dict(
+            taut=taut*units.fs, taup=taup*units.fs,
+            compressibility_au = compressibility/units.bar
+        )
 
         return
 
@@ -316,7 +321,8 @@ class AseDriverSetting(DriverSetting):
                 _init_md_params.update(**thermo_params)
             elif self.ensemble == "npt":
                 if self.barostat is not None:
-                    baro_cls = controllers(f"{self.barostat.name}_{self.ensemble}")
+                    baro_cls_name = self.barostat["name"] + "_" + self.ensemble
+                    baro_cls = controllers[baro_cls_name]
                 else:
                     baro_cls = BerendsenBarostat
                 barostat = baro_cls(**self.barostat)
@@ -329,7 +335,7 @@ class AseDriverSetting(DriverSetting):
                     fixcm=self.fix_cm,
                     timestep=self.timestep * units.fs,
                     temperature_K=self.temp,
-                    pressure=self.press * 1.0 / (160.21766208 / 0.000101325),
+                    pressure_au=self.press * (1e5 * units.Pascal),
                 )
                 _init_md_params.update(**baro_params)
 
@@ -547,8 +553,12 @@ class AseDriver(AbstractDriver):
         """"""
         atoms = read(ckpt_dir / "structures.xyz", ":")[-1]
 
-        with open(ckpt_dir / "rng_state.yaml", "r") as fopen:
-            rng_state = yaml.safe_load(fopen)
+        rng_state_fpath = ckpt_dir / "rng_state.yaml"
+        if rng_state_fpath.exists():
+            with open(ckpt_dir / "rng_state.yaml", "r") as fopen:
+                rng_state = yaml.safe_load(fopen)
+        else:
+            rng_state = None
         
         return atoms, rng_state
 
