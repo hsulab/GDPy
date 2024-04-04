@@ -64,6 +64,14 @@ class Operation(abc.ABC):
             self.status = "unfinished"
 
         return
+    
+    def is_about_to_exit(self) -> bool:
+        """Check whether this operation has an input is about to exit."""
+        status = [node.status == "exit" for node in self.input_nodes]
+        if any(status):
+            return True
+        else:
+            return False
 
     def is_ready_to_forward(self) -> bool:
         """Check whether this operation is ready to forward."""
