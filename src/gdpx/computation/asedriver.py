@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
+
 import copy
 import dataclasses
 import io
-import shutil
 import pathlib
 import tarfile
 import traceback
-from typing import NoReturn, Optional, List, Tuple
+from typing import Optional, List, Tuple
 import warnings
 
 import numpy as np
@@ -21,7 +20,7 @@ from ase import units
 
 from ase.io import read, write
 import ase.constraints
-from ase.constraints import Filter, FixAtoms
+from ase.constraints import Filter
 from ase.optimize.optimize import Dynamics
 from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
@@ -33,7 +32,6 @@ from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
-from ..builder.constraints import parse_constraint_info
 from ..potential.calculators.mixer import EnhancedCalculator
 from .driver import AbstractDriver, DriverSetting, Controller
 from .md.md_utils import force_temperature
@@ -259,8 +257,8 @@ controllers = dict(
 @dataclasses.dataclass
 class AseDriverSetting(DriverSetting):
 
-    driver_cls: Dynamics = None
-    filter_cls: Filter = None
+    driver_cls: Optional[Dynamics] = None
+    filter_cls: Optional[Filter] = None
 
     ensemble: str = "nve"
 
@@ -439,15 +437,8 @@ class AseDriver(AbstractDriver):
         # - overwrite
         run_params = self.setting.get_run_params(*args, **kwargs)
 
-        # NOTE: if have cons in kwargs overwrite current cons stored in atoms
-        cons_text = run_params.pop("constraint", None)
-        if cons_text is not None:
-            atoms._del_constraints()
-            mobile_indices, frozen_indices = parse_constraint_info(
-                atoms, cons_text, ignore_ase_constraints=True, ret_text=False
-            )
-            if frozen_indices:
-                atoms.set_constraint(FixAtoms(indices=frozen_indices))
+        # - 
+        self._preprocess_constraints(atoms, run_params)
 
         # - init driver
         if self.setting.task == "min":
@@ -508,7 +499,7 @@ class AseDriver(AbstractDriver):
                 atoms=atoms, **init_params_, logfile=self.log_fpath, trajectory=None
             )
         else:
-            raise NotImplementedError(f"Unknown task {self.task}.")
+            raise NotImplementedError(f"Unknown task {self.setting.task}.")
 
         return driver, run_params
 
