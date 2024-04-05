@@ -355,6 +355,28 @@ class AbstractDriver(AbstractNode):
                 curr_fpath.unlink()
 
         return
+
+    def _preprocess_constraints(self, atoms: Atoms, run_params: dict) -> None:
+        """Remove existing constraints on atoms and add FixAtoms.
+
+        If have cons in kwargs overwrite current cons stored in atoms.
+
+        """
+        # - check constraint
+        cons_text = run_params.pop("constraint", None)
+        if cons_text is not None: # FIXME: check cons_text in parse_?
+            atoms._del_constraints()
+            mobile_indices, frozen_indices = parse_constraint_info(
+                atoms, cons_text, ignore_ase_constraints=True, ret_text=False
+            )
+            if frozen_indices:
+                atoms.set_constraint(FixAtoms(indices=frozen_indices))
+            else:
+                ...
+        else:
+            ...
+
+        return
     
     def read_convergence(self, cache_traj: List[Atoms]=None, *args, **kwargs) -> bool:
         """Read output to check whether the simulation is converged.
