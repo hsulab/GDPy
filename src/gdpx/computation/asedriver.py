@@ -34,9 +34,9 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
 from ..builder.constraints import parse_constraint_info
-from .driver import AbstractDriver, DriverSetting
-from .md.md_utils import force_temperature
 from ..potential.calculators.mixer import EnhancedCalculator
+from .driver import AbstractDriver, DriverSetting, Controller
+from .md.md_utils import force_temperature
 
 
 def set_calc_state(calc: Calculator, timestep: float, stride: int):
@@ -163,16 +163,6 @@ def save_checkpoint(
                 calc._save_checkpoint(ckpt_wdir)
 
     return
-
-
-@dataclasses.dataclass
-class Controller:
-
-    #: Thermostat name.
-    name: str = "thermostaet"
-
-    #: Parameters.
-    params: dict = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass

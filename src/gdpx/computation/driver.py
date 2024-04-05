@@ -37,8 +37,15 @@ MD_INIT_KEYS: List[str] = [
     "press", "Pdamp", "dump_period"
 ]
 
-#: Parameter keys used to run a molecular-dynamics task.
-MD_RUN_KEYS: List[str] = ["steps"]
+
+@dataclasses.dataclass
+class Controller:
+
+    #: Thermostat name.
+    name: str = "controller" # thermostat or barostat
+
+    #: Parameters.
+    params: dict = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
