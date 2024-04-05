@@ -7,7 +7,7 @@ import numpy as np
 
 from ase import Atoms
 
-from GDPy.builder.constraints import convert_indices, parse_constraint_info
+from gdpx.builder.constraints import convert_indices, parse_constraint_info
 
 @pytest.fixture(scope="function")
 def rng():

@@ -11,11 +11,9 @@ from ase import Atoms
 from ase.io import read, write
 from ase.build import molecule
 
-from gdpx.core.register import import_all_modules_for_register
 from gdpx.worker.interface import run_worker, ComputerVariable
 from gdpx.utils.command import parse_input_file
 
-import_all_modules_for_register()
 
 DRIVER_PARAMS = dict(
     task = "min",

@@ -8,52 +8,42 @@ import tempfile
 
 from ase.io import read, write
 
-from GDPy.core.register import import_all_modules_for_register
-from GDPy.worker.interface import WorkerVariable
-
-
-import_all_modules_for_register()
+from gdpx.worker.interface import ComputerVariable
 
 
 @pytest.fixture
 def emt_config():
     """"""
     params = dict(
-        potential = dict(
-            name = "emt",
-            #params = dict(
+        potential=dict(
+            name="emt",
+            # params = dict(
             #    backend = "emt"
-            #)
+            # )
         ),
-        driver = dict(
-            backend = "ase"
-        )
+        driver=dict(backend="ase"),
     )
 
     return params
+
 
 @pytest.fixture
 def emt_md_config():
     """"""
     params = dict(
-        potential = dict(
-            name = "emt",
-            #params = dict(
+        potential=dict(
+            name="emt",
+            # params = dict(
             #    backend = "emt"
-            #)
+            # )
         ),
-        driver = dict(
-            backend = "ase",
-            ignore_convergence = True,
-            task = "md",
-            init = dict(
-                velocity_seed = 1112,
-                dump_period = 1
-            ),
-            run = dict(
-                steps = 10
-            )
-        )
+        driver=dict(
+            backend="ase",
+            ignore_convergence=True,
+            task="md",
+            init=dict(velocity_seed=1112, dump_period=1),
+            run=dict(steps=10),
+        ),
     )
 
     return params
@@ -61,7 +51,7 @@ def emt_md_config():
 
 def test_empty(emt_config):
     """"""
-    worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
+    worker = ComputerVariable(emt_config["potential"], emt_config["driver"]).value
 
     driver = worker.driver
     driver.directory = "./assets/empty_driver"
@@ -70,6 +60,7 @@ def test_empty(emt_config):
 
     assert not converged
 
+
 def test_broken_spc(emt_config):
     """"""
     worker = WorkerVariable(emt_config["potential"], emt_config["driver"]).value
@@ -77,15 +68,16 @@ def test_broken_spc(emt_config):
     driver = worker.driver
     driver.directory = "./assets/broken_ase_spc"
 
-    #print("broken: ", driver.read_convergence())
+    # print("broken: ", driver.read_convergence())
 
-    #atoms = read("../assets/Cu-fcc-s111p22.xyz")
-    #new_atoms = driver.run(atoms, read_exists=True)
-    #print(driver.read_convergence())
+    # atoms = read("../assets/Cu-fcc-s111p22.xyz")
+    # new_atoms = driver.run(atoms, read_exists=True)
+    # print(driver.read_convergence())
 
     converged = driver.read_convergence()
 
     assert not converged
+
 
 def test_finished_spc(emt_config):
     """"""
@@ -96,9 +88,9 @@ def test_finished_spc(emt_config):
 
     converged = driver.read_convergence()
 
-    #atoms = read("../assets/Cu-fcc-s111p22.xyz")
-    #new_atoms = driver.run(atoms, read_exists=True)
-    #print(driver.read_convergence())
+    # atoms = read("../assets/Cu-fcc-s111p22.xyz")
+    # new_atoms = driver.run(atoms, read_exists=True)
+    # print(driver.read_convergence())
 
     assert converged
 
@@ -123,13 +115,14 @@ def test_finished_md(emt_md_config):
 
     return
 
+
 def test_restart_md(emt_md_config):
     """"""
     # - run 10 steps
     with tempfile.TemporaryDirectory() as tmpdir:
-        #tmpdir = "./xxx"
+        # tmpdir = "./xxx"
         config = copy.deepcopy(emt_md_config)
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker =  ComputerVariable(config["potential"], config["driver"]).value
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -147,7 +140,7 @@ def test_restart_md(emt_md_config):
         config["driver"]["run"]["steps"] = 20
         print("new: ", config)
 
-        worker = WorkerVariable(config["potential"], config["driver"]).value
+        worker = ComputerVariable(config["potential"], config["driver"]).value
 
         driver = worker.driver
         driver.directory = tmpdir

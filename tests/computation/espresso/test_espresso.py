@@ -9,11 +9,8 @@ import tempfile
 
 from ase.io import read, write
 
-from gdpx.core.register import import_all_modules_for_register
 from gdpx.worker.interface import ComputerVariable
 
-
-import_all_modules_for_register()
 
 
 @pytest.fixture
