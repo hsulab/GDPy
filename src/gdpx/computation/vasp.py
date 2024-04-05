@@ -184,8 +184,8 @@ class ParrinelloRahmanBarostat(Controller):
 
         self.conv_params = dict(
             smass = smass,
-            langevin_gamma = friction*1e3 # array, ps^-1
-            langevin_gamma_l = friction_lattice*1e3  # real, ps^-1
+            langevin_gamma = friction*1e3, # array, ps^-1
+            langevin_gamma_l = friction_lattice*1e3,  # real, ps^-1
             pmass = 1000.
         )
 
@@ -302,7 +302,7 @@ class VaspDriverSetting(DriverSetting):
                 # We need keywords: TEBEG, TEEND, PSTRESS
                 _init_md_params = dict(
                     tebeg = self.temp,
-                    teend = self.temp
+                    teend = self.temp,
                     # pressure unit 1 GPa  = 10 kBar
                     #               1 kBar = 1000 bar = 10^8 Pa
                     pstress = 1e-3 * self.press # vasp uses kB
@@ -419,18 +419,21 @@ class VaspDriver(AbstractDriver):
     ):
         """"""
         try:
-            # FIXME: Init velocities?
             if ckpt_wdir is None:  # start from the scratch
                 # - merge params
                 run_params = self.setting.get_run_params(**kwargs)
                 run_params.update(**self.setting.get_init_params())
                 run_params["system"] = self.directory.name
 
+                # FIXME: Init velocities?
+                prev_ignore_atoms_velocities = run_params.pop("ignore_atoms_velocities", False)
+                velocity_seed = run_params.pop("velocity_seed", None)
+
                 if self.setting.task == "md":
                     vasp_random_seed = [self.random_seed, 0, 0]
                     self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
                     self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
-                    run_params["random_seed"] = self.random_seed
+                    run_params["random_seed"] = vasp_random_seed
                     # TODO: use external velocities?
                 else:
                     ...
