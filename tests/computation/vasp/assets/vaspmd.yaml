@@ -1,0 +1,20 @@
+potter:
+  name: vasp
+  params:
+    backend: vasp
+    command: mpirun -n 4 vasp_gam 2>&1 > vasp.out
+    incar: ./assets/INCAR
+    kpts: 25
+    pp_path: ./assets
+    # vdw_path: /home/jx1279/apps/vasp/potpaw
+driver:
+  task: md
+  init:
+    ensemble: nvt
+    controller:
+      name: langevin
+      params:
+        friction: 0.01 # fs^-1
+  run:
+    steps: 5
+    #constraint: "1:4"
