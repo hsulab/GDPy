@@ -5,20 +5,16 @@
 import io
 import os
 import re
-import time
 import copy
 import dataclasses
 import json
-import warnings
 import pathlib
 import tarfile
 import traceback
 from collections import Counter
-from typing import Union, List, Tuple, NoReturn
+from typing import Union, Optional, List, Tuple
 
 import shutil
-
-from pathlib import Path
 
 import numpy as np
 
@@ -144,7 +140,7 @@ class LangevinThermostat(Controller):
         assert friction is not None
 
         self.conv_params = dict(
-            langevin_gamma = [friction*1e3]*3  # ps^-1
+            langevin_gamma = friction*1e3  # ps^-1
         )
 
         return
@@ -188,8 +184,8 @@ class ParrinelloRahmanBarostat(Controller):
 
         self.conv_params = dict(
             smass = smass,
-            langevin_gamma = [friction*1e3]*3 # array, ps^-1
-            langevin_gamma_l = [friction_lattice*1e3]*  # real, ps^-1
+            langevin_gamma = friction*1e3 # array, ps^-1
+            langevin_gamma_l = friction_lattice*1e3  # real, ps^-1
             pmass = 1000.
         )
 
@@ -417,16 +413,27 @@ class VaspDriver(AbstractDriver):
         self,
         atoms: Atoms,
         ckpt_wdir=None,
-        cache_traj: List[Atoms] = None,
+        cache_traj: Optional[List[Atoms]] = None,
         *args,
         **kwargs,
     ):
         """"""
         try:
+            # FIXME: Init velocities?
             if ckpt_wdir is None:  # start from the scratch
                 # - merge params
                 run_params = self.setting.get_run_params(**kwargs)
                 run_params.update(**self.setting.get_init_params())
+                run_params["system"] = self.directory.name
+
+                if self.setting.task == "md":
+                    vasp_random_seed = [self.random_seed, 0, 0]
+                    self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
+                    self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
+                    run_params["random_seed"] = self.random_seed
+                    # TODO: use external velocities?
+                else:
+                    ...
 
                 # - update some system-dependant params
                 if "langevin_gamma" in run_params:
@@ -434,16 +441,11 @@ class VaspDriver(AbstractDriver):
                     run_params["langevin_gamma"] = [
                         run_params["langevin_gamma"]
                     ] * ntypes
-                run_params["system"] = self.directory.name
 
-                # - check constraint
-                cons_text = run_params.pop("constraint", None)
-                mobile_indices, frozen_indices = parse_constraint_info(
-                    atoms, cons_text, ret_text=False
-                )
-                if frozen_indices:
-                    atoms._del_constraints()
-                    atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                # FIXME: LDA+U
+
+                # - constraint
+                self._preprocess_constraints(atoms, run_params)
 
                 self.calc.set(**run_params)
                 atoms.calc = self.calc
@@ -471,6 +473,7 @@ class VaspDriver(AbstractDriver):
                 # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
                 #       thus we manually call the function to write input files and
                 #       run the calculation
+                # FIXME: Read random_seed in REPORT!!!
                 self.calc.write_input(atoms)
                 # To restart, velocities are always retained
                 # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
@@ -480,8 +483,10 @@ class VaspDriver(AbstractDriver):
             run_vasp("vasp", self.calc.command, self.directory)
 
         except Exception as e:
-            self._debug(e)
-            self._debug(traceback.print_exc())
+            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
+            self._debug(
+                f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
+            )
 
         return
 
