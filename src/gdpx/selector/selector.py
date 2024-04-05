@@ -49,11 +49,21 @@ def load_cache(fpath, random_seed: int=None):
 
     raw_markers = []
     if data:
-        # new_markers looks like [(0,1),(0,2),(1,0)]
+        # NOTE: new_markers looks like [(0,1),(0,2),(1,0)]
+        #       If no structures are selected, the info file should only contain
+        #       the header and the footer
         new_markers =[
             [int(x) for x in (d.strip().split()[0]).split(",")] for d in data
         ]
-        #raw_markers = group_markers(new_markers)
+        #new_markers = []
+        #for d in data:
+        #    curr_marker = []
+        #    for x in d.strip().split()[0].split(","):
+        #        if x.isdigit(): # MUST BE AN INTEGER
+        #            curr_marker.append(int(x))
+        #        else:
+        #            curr_marker.append(np.nan)
+        #    new_markers.append(curr_marker)
         raw_markers = new_markers
 
     # - footer
@@ -288,17 +298,23 @@ class AbstractSelector(AbstractNode):
             # - add info
             ind_str = ",".join([str(x) for x in ind])
             data.append([f"{ind_str}", confid, step, natoms, ene, ae, maxforce, score])
-
+        
         if data:
             save_cache(self.info_fpath, data, self.random_seed)
         else:
-            np.savetxt(
-                self.info_fpath, [[np.NaN]*8],
-                header="{:>11s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
-                    *"index confid step natoms ene aene maxfrc score".split()
-                ),
-                footer=f"random_seed {self.random_seed}"
+            #np.savetxt(
+            #    self.info_fpath, [[np.NaN]*8],
+            #    header="{:>11s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
+            #        *"index confid step natoms ene aene maxfrc score".split()
+            #    ),
+            #    footer=f"random_seed {self.random_seed}"
+            #)
+            content ="{:>11s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
+                *"index confid step natoms ene aene maxfrc score".split()
             )
+            content += f"random_seed {self.random_seed}"
+            with open(self.info_fpath, "w") as fopen:
+                fopen.write(content)
 
         return
 

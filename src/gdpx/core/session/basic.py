@@ -74,11 +74,16 @@ class Session:
                 node.output = node.value
             else: # Operation
                 self._debug(f"node: {node}")
-                if node.is_ready_to_forward():
-                    node.inputs = [input_node.output for input_node in node.input_nodes]
-                    node.output = node.forward(*node.inputs)
+                if node.is_about_to_exit():
+                    if node.is_ready_to_forward():
+                        node.inputs = [input_node.output for input_node in node.input_nodes]
+                        node.output = node.forward(*node.inputs)
+                    else:
+                        self._print("wait previous nodes to finish...")
+                        continue
                 else:
-                    self._print("wait previous nodes to finish...")
+                    self._print("the current node exits.")
+                    finished = True
                     continue
 
         return

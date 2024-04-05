@@ -117,12 +117,42 @@ class select(Operation):
         else:
             markers = load_cache(selector.info_fpath)
             structures.markers = markers
-            new_frames = read(cache_fpath, ":")
+            if cache_fpath.stat().st_size != 0:
+                new_frames = read(cache_fpath, ":")
+            else: # sometimes selection gives no structures and writes empty file
+                new_frames = []
         self._print(f"nframes: {len(new_frames)}")
 
-        self.status = "finished"
+        num_new_frames = len(new_frames)
+        if num_new_frames > 0:
+            self.status = "finished"
+        else:
+            self.status = "exit"
 
         return structures
+    
+    # NOTE: This operation exits when no structures are selected
+    #       so we donot need convergence check here?
+    #def report_convergence(self, *args, **kwargs) -> bool:
+    #    """"""
+    #    input_nodes = self.input_nodes
+    #    assert self.status == "finished", f"Operation {self.directory.name} cannot report convergence without forwarding."
+    #    selector = input_nodes[1].output
+
+    #    self._print(f"{selector.__class__.__name__} Convergence")
+
+    #    cache_fpath = self.directory / self.cache_fname # MUST EXIST
+    #    if cache_fpath.stat().st_size != 0:
+    #        new_frames = read(cache_fpath, ":")
+    #    else: # sometimes selection gives no structures and writes empty file
+    #        new_frames = []
+    #    num_new_frames = len(new_frames)
+    #    if num_new_frames == 0:
+    #        converged = True
+    #    else:
+    #        converged = False
+
+    #    return converged
 
 
 def run_selection(
