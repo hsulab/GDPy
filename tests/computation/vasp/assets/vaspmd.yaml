@@ -4,12 +4,14 @@ potter:
     backend: vasp
     command: mpirun -n 4 vasp_gam 2>&1 > vasp.out
     incar: ./assets/INCAR
-    kpts: 25
+    kpts: [1, 1, 1]
     pp_path: ./assets
     # vdw_path: /home/jx1279/apps/vasp/potpaw
 driver:
   task: md
+  random_seed: 1112
   init:
+    velocity_seed: 1112
     ensemble: nvt
     controller:
       name: langevin
