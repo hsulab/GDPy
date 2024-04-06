@@ -36,7 +36,7 @@ def test_vasp_neb():
     for atoms in structures:
         atoms.set_constraint(FixAtoms(indices=range(8)))
         atoms.calc = EMT()
-        qn = QuasiNewton(atoms, trajectory="-")
+        qn = QuasiNewton(atoms, trajectory=None)
         qn.run(fmax=0.08)
 
     # -
