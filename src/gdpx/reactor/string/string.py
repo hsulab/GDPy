@@ -30,6 +30,9 @@ class StringReactorSetting:
     #: Reactor setting.
     backend: str = "external"
 
+    #: Period to save the trajectory.
+    dump_period: int = 1
+
     #: Period to save the restart file.
     ckpt_period: int = 100
 
