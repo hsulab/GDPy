@@ -1,0 +1,16 @@
+type: reactor
+potter: 
+  name: vasp
+  params:
+    backend: vasp
+    command: mpirun -n 4 vasp_gam 2>&1 > vasp.out
+    incar: ./assets/INCAR
+    kpts: [1, 1, 1]
+    pp_path: ./assets
+driver:
+  init:
+    nimages: 3
+  run:
+    fmax: 0.08
+    steps: 5
+    constraint: "lowest 8"
