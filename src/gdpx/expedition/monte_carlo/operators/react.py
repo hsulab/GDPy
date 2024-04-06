@@ -90,8 +90,7 @@ class ReactOperator(BasicExchangeOperator):
     ):
         """"""
         super().__init__(
-            region=region, temperature=temperature, pressure=pressure, 
-            *args, **kwargs
+            region=region, temperature=temperature, pressure=pressure, *args, **kwargs
         )
 
         # - parse reaction
@@ -222,7 +221,7 @@ class ReactOperator(BasicExchangeOperator):
         # - remove reactant and select reactive site
         site_positions = []
         for r in self.reaction.reactants:
-            reax_indices = self._select_species(atoms, r, rng)
+            reax_indices = self._select_species(atoms, [r], rng)
             selected_species = atoms[reax_indices]
             site_positions.append(np.mean(selected_species.positions, axis=0))
             del atoms[reax_indices]
@@ -283,7 +282,7 @@ class ReactOperator(BasicExchangeOperator):
         atoms = atoms_
         for p in self.reaction.products:
             atoms = self._remove(atoms, species=p, rng=rng)
-        
+
         # - insert reactants
         for r in self.reaction.reactants:
             atoms = self._insert(atoms, species=r, rng=rng)

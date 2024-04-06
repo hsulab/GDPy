@@ -165,7 +165,7 @@ class AbstractOperator(abc.ABC):
         nl.update(new_atoms)
         for iatom, idx_pick in enumerate(species_indices):
             indices, offsets = nl.get_neighbors(idx_pick)
-            self._print(
+            self._debug(
                 f"  check index {idx_pick} {new_atoms.positions[idx_pick]} nneighs: {len(indices)}"
             )
             if len(indices) > 0:
