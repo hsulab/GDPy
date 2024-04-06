@@ -17,12 +17,12 @@ from ..core.register import registers
 from ..core.variable import Variable
 from ..core.node import AbstractNode
 
+from .utils import is_a_valid_system_name
+
 
 #: How to map keys in structures.
-DEFAULT_PROP_MAP_KEYS: List[List[str]] = [
-    ("energy", "energy"),
-    ("forces", "forces")
-]
+DEFAULT_PROP_MAP_KEYS: List[List[str]] = [("energy", "energy"), ("forces", "forces")]
+
 
 def map_atoms_data(atoms: Atoms, prop_map_keys) -> None:
     """"""
@@ -47,7 +47,7 @@ def map_atoms_data(atoms: Atoms, prop_map_keys) -> None:
     else:
         ...
 
-    return 
+    return
 
 
 def traverse_xyzdirs(wdir):
@@ -88,11 +88,11 @@ class XyzDataloader(AbstractDataloader):
 
     def __init__(
         self,
-        dataset_path: Union[str, pathlib.Path]="./",
-        batchsize: int=32,
-        train_ratio: float=0.9,
-        random_seed: int=None,
-        prop_keys: List[List[str]]=DEFAULT_PROP_MAP_KEYS,
+        dataset_path: Union[str, pathlib.Path] = "./",
+        batchsize: int = 32,
+        train_ratio: float = 0.9,
+        random_seed: int = None,
+        prop_keys: List[List[str]] = DEFAULT_PROP_MAP_KEYS,
         *args,
         **kwargs,
     ) -> None:
@@ -144,7 +144,7 @@ class XyzDataloader(AbstractDataloader):
         pairs = []
         for n, x in zip(names, frames_list):
             pairs.append([n, x])
-        
+
         # - map keys
         should_map_keys = False
         for mapping_pairs in self.prop_keys:
@@ -162,16 +162,39 @@ class XyzDataloader(AbstractDataloader):
 
         return pairs
 
-    def split_train_and_test(self, ):
-        """Read structures and split them into train and test.
-
-        """
+    def split_train_and_test(
+        self,
+    ):
+        """Read structures and split them into train and test."""
         self._print("--- auto data reader ---")
         data_dirs = self.load()
         self._debug(data_dirs)
 
+        # - aggregate data folders
+        # dir_indices = list(range(data_dirs))
+        system_paths = []
+        for d in data_dirs:
+            if is_a_valid_system_name(d.name):
+                system_paths.append(d)
+            else:
+                system_paths.append(d.parent)
+
+        system_groups = {}
+        for k, v in itertools.groupby(enumerate(system_paths), key=lambda x: str(x[1])):
+            if k not in system_groups:
+                system_groups[k] = [data_dirs[e[0]] for e in v]
+            else:
+                system_groups[k].extend([data_dirs[e[0]] for e in v])
+
+        # -- convert to tuple
+        system_groups_ = []
+        for k, v in system_groups.items():
+            system_groups_.append([k, v])
+        system_groups = system_groups_
+
+        # -
         batchsizes = self.batchsize
-        nsystems = len(data_dirs)
+        nsystems = len(system_groups)
         if isinstance(batchsizes, int):
             batchsizes = [batchsizes] * nsystems
         assert (
@@ -183,20 +206,24 @@ class XyzDataloader(AbstractDataloader):
         train_size, test_size = [], []
         train_frames, test_frames = [], []
         adjusted_batchsizes = []  # auto-adjust batchsize based on nframes
-        for i, (curr_system, curr_batchsize) in enumerate(zip(data_dirs, batchsizes)):
-            curr_system = pathlib.Path(curr_system)
+        for i, (curr_system_group, curr_batchsize) in enumerate(
+            zip(system_groups, batchsizes)
+        ):
+            curr_system = pathlib.Path(curr_system_group[0])
             set_name = "+".join(str(curr_system.relative_to(self.directory)).split("/"))
             set_names.append(set_name)
             self._print(f"System {set_name} Batchsize {curr_batchsize}")
             frames = []  # all frames in this subsystem
-            subsystems = list(curr_system.glob("*.xyz"))
-            subsystems.sort()  # sort by alphabet
-            for p in subsystems:
-                # read and split dataset
-                p_frames = read(p, ":")
-                p_nframes = len(p_frames)
-                frames.extend(p_frames)
-                self._print(f"  subsystem: {p.name} number {p_nframes}")
+            for curr_subsystem in curr_system_group[1]:
+                self._print(f"  {curr_subsystem.relative_to(curr_system)}")
+                xyz_fpaths = list(curr_subsystem.glob("*.xyz"))
+                xyz_fpaths.sort()  # sort by alphabet
+                for p in xyz_fpaths:
+                    # read and split dataset
+                    p_frames = read(p, ":")
+                    p_nframes = len(p_frames)
+                    frames.extend(p_frames)
+                    self._print(f"    subsystem: {p.name} number {p_nframes}")
 
             # split dataset and get adjusted batchsize
             # TODO: adjust batchsize of train and test separately
@@ -267,7 +294,7 @@ class XyzDataloader(AbstractDataloader):
                 ...
         else:
             ...
-        
+
         if should_map_keys:
             for curr_frames in train_frames:
                 for a in curr_frames:
