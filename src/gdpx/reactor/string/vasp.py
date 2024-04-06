@@ -22,6 +22,10 @@ from .. import parse_constraint_info
 from .string import AbstractStringReactor, StringReactorSetting
 
 
+#: str
+ASE_VASP_SORT_FNAME = "ase-sort.dat"
+
+
 def run_vasp(name, command, directory):
     """Run vasp from the command.
 
@@ -53,6 +57,28 @@ def run_vasp(name, command, directory):
         raise CalculationFailed(msg)
 
     return
+
+
+def read_sort(directory: pathlib.Path):
+    """Create the sorting and resorting list from ase-sort.dat.
+
+    If the ase-sort.dat file does not exist, the sorting is redone.
+
+    """
+    sortfile = directory / ASE_VASP_SORT_FNAME
+    if os.path.isfile(sortfile):
+        sort = []
+        resort = []
+        with open(sortfile, "r") as fd:
+            for line in fd:
+                s, rs = line.split()
+                sort.append(int(s))
+                resort.append(int(rs))
+    else:
+        # warnings.warn(UserWarning, 'no ase-sort.dat')
+        raise ValueError("no ase-sort.dat")
+
+    return sort, resort
 
 
 def read_vaspout(
@@ -151,12 +177,17 @@ class VaspStringReactor(AbstractStringReactor):
         """
         verified = super()._verify_checkpoint()
         if verified:
-            checkpoints = list(self.directory.glob("*vasprun.xml"))
-            self._debug(f"checkpoints: {checkpoints}")
-            if not checkpoints:
+            vasprun = self.directory/"01"/"vasprun.xml"
+            if vasprun.exists() and vasprun.stat().st_size != 0:
+                temp_frames = read(vasprun, ":")
+                try:
+                    _ = temp_frames[0].get_forces()
+                except:
+                    verified = False
+            else:
                 verified = False
         else:
-            ...
+            verified = False
 
         return verified
 
@@ -186,22 +217,29 @@ class VaspStringReactor(AbstractStringReactor):
 
                 run_params.update(steps=self.setting.steps - nframes)
 
-            # -- add replica information
-            for i, a in enumerate(images):
-                rep_dir = self.directory / str(i).zfill(2)
-                rep_dir.mkdir()  # It has already been created when images are written.
-                write(rep_dir / "POSCAR", a)
-
             # - update input
             self.calc.set(**run_params)
 
             atoms = images[0]
             atoms.calc = self.calc
 
-            # - run calculation
+            # -- write input files
             self.calc.write_input(atoms)
             if (self.directory / "POSCAR").exists():
                 os.remove(self.directory / "POSCAR")
+
+            # -- add replica information
+            for i, a in enumerate(images):
+                rep_dir = self.directory / str(i).zfill(2)
+                # It has already been created when images are written.
+                # If the previous run has no outputs, we just overwrite everything.
+                rep_dir.mkdir(exist_ok=True)
+                write(
+                    rep_dir / "POSCAR", a[self.calc.sort], 
+                    symbol_count=self.calc.symbol_count
+                )
+
+            # - run calculation
             run_vasp("vasp", atoms.calc.command, self.directory)
 
         except Exception as e:
@@ -265,10 +303,15 @@ class VaspStringReactor(AbstractStringReactor):
         fin_atoms.calc = calc
 
         # - read OUTCARs
+        sort, resort = read_sort(self.directory)
+
         frames_ = []
         for i in range(1, self.setting.nimages - 1):
             curr_frames = read(wdir / f"{str(i).zfill(2)}" / "OUTCAR", ":")
-            frames_.append(curr_frames)
+            sorted_frames = []
+            for a in curr_frames:
+                sorted_frames.append(a[resort])
+            frames_.append(sorted_frames)
 
         # nframes may not consistent across replicas
         # due to unfinished calculations
