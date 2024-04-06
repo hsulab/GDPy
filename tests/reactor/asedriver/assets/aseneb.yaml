@@ -1,0 +1,12 @@
+type: reactor
+potter: 
+  name: emt
+driver:
+  init:
+    dump_period: 2
+    nimages: 3
+    mic: false
+  run:
+    fmax: 0.08
+    steps: 5
+    constraint: "1:8"
