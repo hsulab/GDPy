@@ -134,68 +134,72 @@ class LangevinThermostat(Controller):
 
     name: str = "langevin"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
-        friction = self.params.get("friction", None) # fs^-1
+        friction = self.params.get("friction", None)  # fs^-1
         assert friction is not None
 
-        self.conv_params = dict(
-            langevin_gamma = friction*1e3  # ps^-1
-        )
+        self.conv_params = dict(langevin_gamma=friction * 1e3)  # ps^-1
 
         return
+
 
 @dataclasses.dataclass
 class NoseHooverThermostat(Controller):
 
     name: str = "nose_hoover"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
         # FIXME: convert taut to smass
-        smass = self.params.get("taut", 0.0) # or smass?
+        smass = self.params.get("taut", 0.0)  # or smass?
         assert smass >= 0, "NoseHoover-NVT needs positive SMASS."
 
-        self.conv_params = dict(
-            smass = smass 
-        )
+        self.conv_params = dict(smass=smass)
 
         return
+
 
 @dataclasses.dataclass
 class ParrinelloRahmanBarostat(Controller):
 
     name: str = "parrinello_rahman"
 
-    def __post_init__(self, ):
+    def __post_init__(
+        self,
+    ):
         """"""
         # FIXME: convert taut to smass
-        smass = self.params.get("taut", 0.0) # or smass?
+        smass = self.params.get("taut", 0.0)  # or smass?
         assert smass >= 0, f"{self.name} needs positive SMASS."
 
-        friction = self.params.get("friction", None) # fs^-1
+        friction = self.params.get("friction", None)  # fs^-1
         assert friction is not None
 
-        friction_lattice = self.params.get("friction_lattice", None) # fs^-1
+        friction_lattice = self.params.get("friction_lattice", None)  # fs^-1
         assert friction_lattice is not None
 
-        pmass = self.params.get("pmass", None) # a.m.u
-        assert pmass > 0.
+        pmass = self.params.get("pmass", None)  # a.m.u
+        assert pmass > 0.0
 
         self.conv_params = dict(
-            smass = smass,
-            langevin_gamma = friction*1e3, # array, ps^-1
-            langevin_gamma_l = friction_lattice*1e3,  # real, ps^-1
-            pmass = 1000.
+            smass=smass,
+            langevin_gamma=friction * 1e3,  # array, ps^-1
+            langevin_gamma_l=friction_lattice * 1e3,  # real, ps^-1
+            pmass=1000.0,
         )
 
         return
 
 
 controllers = dict(
-    langevin_nvt = LangevinThermostat,
-    nose_hoover_nvt = NoseHooverThermostat,
-    parrinello_rahman_npt = ParrinelloRahmanBarostat,
+    langevin_nvt=LangevinThermostat,
+    nose_hoover_nvt=NoseHooverThermostat,
+    parrinello_rahman_npt=ParrinelloRahmanBarostat,
 )
 
 
@@ -255,27 +259,24 @@ class VaspDriverSetting(DriverSetting):
             # random_seed = [self.velocity_seed, 0, 0]
             self._internals.update(
                 # -- Some shared parameters, every MD needs these!!
-                velocity_seed = self.velocity_seed,
-                ignore_atoms_velocities = self.ignore_atoms_velocities,
-                ibrion = 0,
-                isif = 0, 
-                potim = self.timestep, # fs
-                random_seed = None # NOTE: init later in driver run
+                velocity_seed=self.velocity_seed,
+                ignore_atoms_velocities=self.ignore_atoms_velocities,
+                ibrion=0,
+                isif=0,
+                potim=self.timestep,  # fs
+                random_seed=None,  # NOTE: init later in driver run
             )
 
             if self.ensemble == "nve":
                 _init_md_params = dict()
                 _init_md_params.update(
-                    mdalgo = 2,
-                    smass = -3,
+                    mdalgo=2,
+                    smass=-3,
                 )
             elif self.ensemble == "nvt":
                 # We need keywords: TEBEG and TEEND.
                 # Also, only consistent-temperature simulation is supported.
-                _init_md_params = dict(
-                    tebeg = self.temp,
-                    teend = self.temp
-                )
+                _init_md_params = dict(tebeg=self.temp, teend=self.temp)
 
                 if self.controller is not None:
                     thermo_cls_name = self.controller["name"] + "_" + self.ensemble
@@ -287,13 +288,13 @@ class VaspDriverSetting(DriverSetting):
                 if thermostat.name == "langevin":
                     # MDALGO, LANGEVIN_GAMMA
                     _init_md_params.update(
-                        mdalgo = 3,
+                        mdalgo=3,
                     )
                     _init_md_params.update(**thermostat.conv_params)
                 elif thermostat.name == "nose_hoover":
                     # MDALGO, SMASS
                     _init_md_params.update(
-                        mdalgo = 2,
+                        mdalgo=2,
                     )
                     _init_md_params.update(**thermostat.conv_params)
                 else:
@@ -301,11 +302,11 @@ class VaspDriverSetting(DriverSetting):
             elif self.ensemble == "npt":
                 # We need keywords: TEBEG, TEEND, PSTRESS
                 _init_md_params = dict(
-                    tebeg = self.temp,
-                    teend = self.temp,
+                    tebeg=self.temp,
+                    teend=self.temp,
                     # pressure unit 1 GPa  = 10 kBar
                     #               1 kBar = 1000 bar = 10^8 Pa
-                    pstress = 1e-3 * self.press # vasp uses kB
+                    pstress=1e-3 * self.press,  # vasp uses kB
                 )
 
                 if self.controller is not None:
@@ -316,9 +317,7 @@ class VaspDriverSetting(DriverSetting):
                 barostat = baro_cls(**self.controller)
 
                 if barostat.name == "parrinello_rahman":
-                    _init_md_params.update(
-                        mdalgo = 3
-                    )
+                    _init_md_params.update(mdalgo=3)
                     _init_md_params.update(**barostat.conv_params)
                 else:
                     raise RuntimeError(f"Unknown {barostat =}.")
@@ -426,7 +425,9 @@ class VaspDriver(AbstractDriver):
                 run_params["system"] = self.directory.name
 
                 # FIXME: Init velocities?
-                prev_ignore_atoms_velocities = run_params.pop("ignore_atoms_velocities", False)
+                prev_ignore_atoms_velocities = run_params.pop(
+                    "ignore_atoms_velocities", False
+                )
                 velocity_seed = run_params.pop("velocity_seed", None)
 
                 if self.setting.task == "md":
@@ -570,7 +571,9 @@ class VaspDriver(AbstractDriver):
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
-            prev_wdirs = [self.directory/pathlib.Path(p).name for p in sorted(prev_wdirs)]
+            prev_wdirs = [
+                self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)
+            ]
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
         traj_list = []
@@ -613,7 +616,11 @@ class VaspDriver(AbstractDriver):
             for i, sorted_atoms in enumerate(traj_frames_):
                 # NOTE: calculation with only one unfinished step does not have forces
                 input_atoms = create_single_point_calculator(
-                    sorted_atoms, resort, "vasp"
+                    sorted_atoms,
+                    resort,
+                    "vasp",
+                    print_func=self._print,
+                    debug_func=self._debug,
                 )
                 # if input_atoms is None:
                 #    input_atoms = Atoms()
