@@ -75,8 +75,12 @@ def main():
         "SESSION", help="session configuration file (json/yaml)"
     )
     parser_session.add_argument(
-        "-f", "--feed", default=None, nargs="+", 
+        "--feed", default=None, nargs="+", 
         help="session placeholders"
+    )
+    parser_session.add_argument(
+        "--timewait", default=-1, type=float,
+        help="waiting time between repeated running"
     )
     
     # - build structures
@@ -236,7 +240,7 @@ def main():
     # - use subcommands
     if args.subcommand == "session":
         from gdpx.core.session import run_session
-        run_session(args.SESSION, args.feed, args.directory)
+        run_session(args.SESSION, args.feed, args.timewait, args.directory)
     elif args.subcommand == "convert":
         from gdpx.data import convert_dataset
         convert_dataset(args.INPUT)

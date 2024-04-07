@@ -5,6 +5,7 @@ import copy
 import json
 import logging
 import pathlib
+import time
 import traceback
 
 import yaml
@@ -57,7 +58,8 @@ def resolve_operations(config: dict):
 
     return operations
 
-def run_session(config_filepath, feed_command=None, directory="./"):
+
+def run_session_once(config_dict: dict, feed_command=None, directory="./"):
     """Configure session with omegaconfig."""
     directory = pathlib.Path(directory)
 
@@ -112,7 +114,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     )
 
     # - load configuration and resolve it
-    conf = OmegaConf.load(config_filepath)
+    # conf = OmegaConf.load(config_filepath)
+    conf = OmegaConf.create(config_dict)
 
     # - add placeholders and their directories
     if "placeholders" not in conf:
@@ -176,7 +179,7 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     exec_mode = sconfigs.get("mode", "basic")
     if exec_mode == "basic": # sequential
         from .basic import Session
-        # -- sequential
+        session_states = [True]
         for i, (k, v) in enumerate(container.items()):
             n = session_names[i]
             if n is None:
@@ -187,6 +190,8 @@ def run_session(config_filepath, feed_command=None, directory="./"):
     elif exec_mode == "active":
         from .active import ActiveSession
         assert len(container) == 1, "ActiveSession only accepts one operation."
+
+        session_states = []
         for i, (k, v) in enumerate(container.items()):
             n = session_names[i]
             if n is None:
@@ -199,26 +204,48 @@ def run_session(config_filepath, feed_command=None, directory="./"):
                 directory=directory/n
             )
             session.run(entry_operation, feed_dict={})
-    elif exec_mode == "cyc":
-        from .active import CyclicSession
-        # -- iterative
-        session = CyclicSession(directory="./")
-        session.run(
-            container["init"], container["iter"], container.get("post"),
-            repeat=conf.get("repeat", 1)
-        )
-    elif exec_mode == "otf":
-        config._print("Use OTF Session...")
-        from .active import OTFSession
-        for i, (k, v) in enumerate(container.items()):
-            n = session_names[i]
-            if n is None:
-                n = k
-            entry_operation = v
-            session = OTFSession(directory=directory/n)
-            session.run(entry_operation, feed_dict={})
+            session_states.append(session.is_finished())
     else:
+        session_states = [False]
         raise RuntimeError(f"Unknown session type {exec_mode}.")
+
+    return all(session_states)
+
+
+def run_session(
+    config_filepath: str, feed_command=None, timewait: float=-1.0, directory: str="./"
+):
+    """Configure session with omegaconfig."""
+    directory = pathlib.Path(directory)
+
+    config_filepath = pathlib.Path(config_filepath)
+
+    if config_filepath.suffix == ".json":
+        with open(config_filepath, "r") as fopen:
+            config_dict = json.load(fopen)
+    elif config_filepath.suffix == ".yaml":
+        with open(config_filepath, "r") as fopen:
+            config_dict = yaml.safe_load(fopen)
+    else:
+        raise RuntimeError(f"Fail to load config `{str(config_filepath)}`")
+
+    raw_config_dict = config_dict
+
+    # -
+    if timewait > 0:
+        for i in range(1000):
+            config._print(f"Monitor is running step {i}!!!")
+            config_dict = copy.deepcopy(raw_config_dict)
+            is_finished = run_session_once(config_dict, feed_command, directory)
+            if is_finished:
+                break
+            else:
+                config._print(f"Monitor is sleeping for {timewait} seconds.")
+                time.sleep(timewait)
+        else:
+            config._print("Reach maximum monitor for-loop.")
+    else:
+        run_session_once(config_dict, feed_command, directory)
 
     return
 
