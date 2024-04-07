@@ -262,9 +262,7 @@ class AseDriverSetting(DriverSetting):
 
     ensemble: str = "nve"
 
-    thermostat: dict = dataclasses.field(default_factory=dict)
-
-    barostat: dict = dataclasses.field(default_factory=dict)
+    controller: dict = dataclasses.field(default_factory=dict)
 
     fix_cm: bool = False
 
@@ -286,12 +284,12 @@ class AseDriverSetting(DriverSetting):
                     timestep=self.timestep * units.fs,
                 )
             elif self.ensemble == "nvt":
-                if self.thermostat is not None:
-                    thermo_cls_name = self.thermostat["name"] + "_" + self.ensemble
+                if self.controller:
+                    thermo_cls_name = self.controller["name"] + "_" + self.ensemble
                     thermo_cls = controllers[thermo_cls_name]
                 else:
                     thermo_cls = BerendsenThermostat
-                thermostat = thermo_cls(**self.thermostat)
+                thermostat = thermo_cls(**self.controller)
                 if thermostat.name == "berendsen":
                     from ase.md.nvtberendsen import NVTBerendsen as driver_cls
                 elif thermostat.name == "langevin":
@@ -308,12 +306,12 @@ class AseDriverSetting(DriverSetting):
                 )
                 _init_md_params.update(**thermo_params)
             elif self.ensemble == "npt":
-                if self.barostat is not None:
-                    baro_cls_name = self.barostat["name"] + "_" + self.ensemble
+                if self.controller:
+                    baro_cls_name = self.controller["name"] + "_" + self.ensemble
                     baro_cls = controllers[baro_cls_name]
                 else:
                     baro_cls = BerendsenBarostat
-                barostat = baro_cls(**self.barostat)
+                barostat = baro_cls(**self.controller)
                 if barostat.name == "berendsen":
                     from ase.md.nptberendsen import NPTBerendsen as driver_cls
                 else:
