@@ -16,69 +16,13 @@ from ase import Atoms
 from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.vasp import Vasp
-from ase.constraints import FixAtoms
 
-from .. import parse_constraint_info
+from .. import read_sort, resort_atoms_with_spc, run_ase_calculator
 from .string import AbstractStringReactor, StringReactorSetting
 
 
-#: str
-ASE_VASP_SORT_FNAME = "ase-sort.dat"
-
-
-def run_vasp(name, command, directory):
-    """Run vasp from the command.
-
-    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run
-    directly from the command if INCAR aready exists.
-
-    """
-    import subprocess
-    from ase.calculators.calculator import EnvironmentError, CalculationFailed
-
-    try:
-        proc = subprocess.Popen(command, shell=True, cwd=directory)
-    except OSError as err:
-        # Actually this may never happen with shell=True, since
-        # probably the shell launches successfully.  But we soon want
-        # to allow calling the subprocess directly, and then this
-        # distinction (failed to launch vs failed to run) is useful.
-        msg = 'Failed to execute "{}"'.format(command)
-        raise EnvironmentError(msg) from err
-
-    errorcode = proc.wait()
-
-    if errorcode:
-        path = os.path.abspath(directory)
-        msg = (
-            'Calculator "{}" failed with command "{}" failed in '
-            "{} with error code {}".format(name, command, path, errorcode)
-        )
-        raise CalculationFailed(msg)
-
-    return
-
-
-def read_sort(directory: pathlib.Path):
-    """Create the sorting and resorting list from ase-sort.dat.
-
-    If the ase-sort.dat file does not exist, the sorting is redone.
-
-    """
-    sortfile = directory / ASE_VASP_SORT_FNAME
-    if os.path.isfile(sortfile):
-        sort = []
-        resort = []
-        with open(sortfile, "r") as fd:
-            for line in fd:
-                s, rs = line.split()
-                sort.append(int(s))
-                resort.append(int(rs))
-    else:
-        # warnings.warn(UserWarning, 'no ase-sort.dat')
-        raise ValueError("no ase-sort.dat")
-
-    return sort, resort
+#: Ase-vasp sort fname.
+ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 
 def read_vaspout(
@@ -177,7 +121,7 @@ class VaspStringReactor(AbstractStringReactor):
         """
         verified = super()._verify_checkpoint()
         if verified:
-            vasprun = self.directory/"01"/"vasprun.xml"
+            vasprun = self.directory / "01" / "vasprun.xml"
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 temp_frames = read(vasprun, ":")
                 try:
@@ -235,12 +179,13 @@ class VaspStringReactor(AbstractStringReactor):
                 # If the previous run has no outputs, we just overwrite everything.
                 rep_dir.mkdir(exist_ok=True)
                 write(
-                    rep_dir / "POSCAR", a[self.calc.sort], 
-                    symbol_count=self.calc.symbol_count
+                    rep_dir / "POSCAR",
+                    a[self.calc.sort],
+                    symbol_count=self.calc.symbol_count,
                 )
 
             # - run calculation
-            run_vasp("vasp", atoms.calc.command, self.directory)
+            run_ase_calculator("vasp", atoms.calc.command, self.directory)
 
         except Exception as e:
             self._debug(e)
@@ -303,14 +248,21 @@ class VaspStringReactor(AbstractStringReactor):
         fin_atoms.calc = calc
 
         # - read OUTCARs
-        sort, resort = read_sort(self.directory)
+        if (self.directory / ASE_VASP_SORT_FNAME).exists():
+            sort, resort = read_sort(self.directory, ASE_VASP_SORT_FNAME)
+        else:
+            natoms = len(ini_atoms)
+            sort, resort = list(range(natoms)), list(range(natoms))
 
         frames_ = []
         for i in range(1, self.setting.nimages - 1):
             curr_frames = read(wdir / f"{str(i).zfill(2)}" / "OUTCAR", ":")
             sorted_frames = []
             for a in curr_frames:
-                sorted_frames.append(a[resort])
+                sorted_atoms = resort_atoms_with_spc(
+                    a, resort, "vasp", print_func=self._print, debug_func=self._debug
+                )
+                sorted_frames.append(sorted_atoms)
             frames_.append(sorted_frames)
 
         # nframes may not consistent across replicas

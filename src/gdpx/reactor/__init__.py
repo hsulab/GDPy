@@ -9,6 +9,9 @@ from ..core.register import registers
 from ..builder.constraints import parse_constraint_info
 from ..potential.calculators.mixer import EnhancedCalculator
 
+from ..utils.strucopy import read_sort, resort_atoms_with_spc
+from ..utils.cmdrun import run_ase_calculator
+
 
 """ This submodule is for exploring, sampling, 
     and performing (chemical) reactions with
