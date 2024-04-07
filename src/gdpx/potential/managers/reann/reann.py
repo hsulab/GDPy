@@ -455,6 +455,7 @@ class ReannManager(AbstractPotentialManager):
             if not m.exists():
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
+        self.calc_params.update(model=models)
 
         precision = calc_params.pop("precision", "float32")
         assert precision in ["float32", "float64"]

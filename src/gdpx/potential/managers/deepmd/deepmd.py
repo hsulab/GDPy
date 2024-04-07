@@ -544,6 +544,7 @@ class DeepmdManager(AbstractPotentialManager):
             if not m.exists():
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
+        self.calc_params.update(model=models)
 
         # TODO: make this a dataclass??
         #       currently, default disable uncertainty estimation
