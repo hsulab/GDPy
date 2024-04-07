@@ -13,8 +13,31 @@ from ..variable import Variable
 from .basic import Session
 from .utils import traverse_postorder
 
+#: A List of valid session states.
+SESSION_STATE_LIST: List[str] = [
+    "StepToStart",
+    "StepFinished",
+    "StepToContinue",
+    "StepBroken",
+    "LoopToStart",
+    "LoopFinished",
+    "LoopConverged",
+    "LoopUnConverged",
+]
 
-class ActiveSession():
+#: A List of finished session states.
+FINISHED_SESSION_STATES: List[str] = [
+    "StepBroken",
+    "LoopFinished",
+    "LoopConverged",
+    "LoopUnConverged",
+]
+
+
+class ActiveSession:
+
+    #: Session State.
+    _state: str = "LoopToStart"
 
     #: Standard print function.
     _print: Callable = config._print
@@ -23,9 +46,11 @@ class ActiveSession():
     _debug: Callable = config._debug
 
     def __init__(
-        self, steps: int=2, reset_random_state: bool=False, 
-        reset_random_config: Tuple[str, int]=("init", 0), 
-        directory="./"
+        self,
+        steps: int = 2,
+        reset_random_state: bool = False,
+        reset_random_config: Tuple[str, int] = ("init", 0),
+        directory="./",
     ) -> None:
         """Initialise an ActiveSession.
 
@@ -38,19 +63,45 @@ class ActiveSession():
 
         # - random-related ...
         self.reset_random_state = reset_random_state
-        assert reset_random_config[0] in ["init", "zero"], "Reset random seed mode must either be init or zero."
+        assert reset_random_config[0] in [
+            "init",
+            "zero",
+        ], "Reset random seed mode must either be init or zero."
         self.reset_random_seed_mode = reset_random_config[0]
         self.reset_random_seed_step = reset_random_config[1]
 
         self.directory = pathlib.Path(directory)
 
         return
-    
-    def run(self, operation, feed_dict: dict={}, *args, **kwargs) -> None:
+
+    @property
+    def state(self) -> str:
         """"""
+
+        return self._state
+
+    @state.setter
+    def state(self, state: str):
+        """"""
+        assert state in SESSION_STATE_LIST, f"Invalid state `{state}` to assign."
+        self._state = state
+
+        return
+
+    def is_finished(self) -> bool:
+        """"""
+        is_finished = False
+        if self.state in FINISHED_SESSION_STATES:
+            is_finished = True
+
+        return is_finished
+
+    def run(self, operation, feed_dict: dict = {}, *args, **kwargs) -> None:
+        """"""
+        self.state = "StepToStart"
         # - update nodes' attrs based on the previous iteration
-        #nodes_postorder = traverse_postorder(operation)
-        #for node in nodes_postorder:
+        # nodes_postorder = traverse_postorder(operation)
+        # for node in nodes_postorder:
         #    if hasattr(node, "enable_active"):
         #        node.enable_active()
         if self.reset_random_state:
@@ -60,7 +111,7 @@ class ActiveSession():
 
         # -
         for curr_step in range(self.steps):
-            curr_wdir = self.directory/f"iter.{str(curr_step).zfill(4)}"
+            curr_wdir = self.directory / f"iter.{str(curr_step).zfill(4)}"
             # -- run operation
             nodes_postorder = traverse_postorder(operation)
             # NOTE:
@@ -70,20 +121,17 @@ class ActiveSession():
                         self._print(f"reset {node.directory.name}'s random seeds.")
                         node.reset_random_seed(mode=self.reset_random_seed_mode)
             # -- run operations
-            finished = self._irun(
-                wdir=curr_wdir, nodes_postorder=nodes_postorder, feed_dict=feed_dict, 
+            self._irun(
+                wdir=curr_wdir,
+                nodes_postorder=nodes_postorder,
+                feed_dict=feed_dict,
             )
-            if not finished:
+            if not (self.state == "StepFinished"):
                 self._print("wait current iteration to finish...")
-                break
             else:
                 # NOTE: If previous step finished, the nodes may not have outputs
                 #       as we skip them...
-                if not (curr_wdir/"FINISHED").exists():
-                    with open(curr_wdir/"FINISHED", "w") as fopen:
-                        fopen.write(
-                            f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
-                        )
+                if not (curr_wdir / "FINISHED").exists():
                     # --- report
                     self._print("[{:^24s}]".format("CONVERGENCE"))
                     converged_list = []
@@ -93,21 +141,33 @@ class ActiveSession():
                             converged_list.append(converged)
                     if converged_list and all(converged_list):
                         self._print(f"Active Session converged at step {curr_step}.")
-                        break
+                        self.state = "LoopConverged"
                     else:
                         self._print(f"Active Session UNconverged at step {curr_step}.")
+                        self.state = "LoopUnConverged"
+                    # --- save state to FILE
+                    with open(curr_wdir / "FINISHED", "w") as fopen:
+                        fopen.write(
+                            f"STATE {self.state} FINISHED AT {time.asctime( time.localtime(time.time()) )}."
+                        )
                 else:
-                    self._print("[{:^24s}] FINISHED".format(f"STEP.{str(curr_step).zfill(4)}"))
+                    self._print(
+                        "[{:^24s}] FINISHED".format(f"STEP.{str(curr_step).zfill(4)}")
+                    )
+            # -- add an atrribute that indicates all steps are finished
+            if self.state != "StepFinished":
+                break
         else:
-            ... # ALL iterations finished...
+            self.state = "LoopFinished"
 
         return
-    
-    def _irun(self, wdir, nodes_postorder, feed_dict: dict={}) -> bool:
+
+    def _irun(self, wdir, nodes_postorder, feed_dict: dict = {}) -> None:
         """"""
-        if (wdir/"FINISHED").exists():
-            return True
-        
+        if (wdir / "FINISHED").exists():
+            self.state = "StepFinished"
+            return
+
         # - clear previous nodes' outputs
         #   somtimes two steps run consecutively and some nodes in the second step
         #   breaks and make its following nodes use outputs from the last step,
@@ -123,18 +183,18 @@ class ActiveSession():
         )
 
         # - run nodes
-        finished = True
+        self.state = "StepFinished"
         for i, node in enumerate(nodes_postorder):
             # -- change version ...
             if hasattr(node, "version"):
                 node.version = wdir.name
 
             # NOTE: reset directory since it maybe changed
-            prev_name = node.directory.name.split(".")[-1] # remove previous orders
+            prev_name = node.directory.name.split(".")[-1]  # remove previous orders
             if not prev_name:
                 prev_name = node.__class__.__name__
-            #prev_name = node.__class__.__name__
-            node.directory = wdir/f"{str(i).zfill(4)}.{prev_name}"
+            # prev_name = node.__class__.__name__
+            node.directory = wdir / f"{str(i).zfill(4)}.{prev_name}"
             if node.__class__.__name__.endswith("Variable"):
                 node_type = "VX"
             else:
@@ -150,24 +210,29 @@ class ActiveSession():
                 node.output = feed_dict[node]
             elif isinstance(node, Variable):
                 node.output = node.value
-            else: # Operation
+            else:  # Operation
+                # FIXME: If the session has many branches,
+                #        how do we define the state?
                 self._debug(f"node: {node}")
                 if not node.is_about_to_exit():
                     if node.is_ready_to_forward():
-                        node.inputs = [input_node.output for input_node in node.input_nodes]
+                        node.inputs = [
+                            input_node.output for input_node in node.input_nodes
+                        ]
                         node.output = node.forward(*node.inputs)
                     else:
-                        finished = False
+                        self.state = "StepToContinue"
                         self._print("wait previous nodes to finish...")
                         continue
                 else:
+                    self.state = "StepBroken"
                     self._print("the current node exits.")
-                    finished = True
                     continue
 
-        return finished
+        return
 
-class OTFSession():
+
+class OTFSession:
 
     #: Standard print function.
     _print: Callable = config._print
@@ -180,8 +245,8 @@ class OTFSession():
         self.directory = pathlib.Path(directory)
 
         return
-    
-    def run(self, operation, feed_dict: dict={}) -> None:
+
+    def run(self, operation, feed_dict: dict = {}) -> None:
         """"""
         for curr_step in range(3):
             # -- update operation
@@ -190,23 +255,24 @@ class OTFSession():
                 self._update_potter(operation)
             # -- run operation
             finished = self._irun(
-                operation=operation, feed_dict=feed_dict, 
-                wdir=self.directory/f"iter.{str(curr_step).zfill(4)}"
+                operation=operation,
+                feed_dict=feed_dict,
+                wdir=self.directory / f"iter.{str(curr_step).zfill(4)}",
             )
             if not finished:
                 self._print("wait current iteration to finish...")
                 break
         else:
-            ... # ALL iterations finished...
+            ...  # ALL iterations finished...
 
         return
-    
+
     def _update_potter(self, operation):
         """"""
 
         return
-    
-    def _irun(self, operation, feed_dict: dict={}, wdir=None):
+
+    def _irun(self, operation, feed_dict: dict = {}, wdir=None):
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
@@ -220,11 +286,11 @@ class OTFSession():
         finished = True
         for i, node in enumerate(nodes_postorder):
             # NOTE: reset directory since it maybe changed
-            #prev_name = node.directory.name
-            #if not prev_name:
+            # prev_name = node.directory.name
+            # if not prev_name:
             #    prev_name = node.__class__.__name__
             prev_name = node.__class__.__name__
-            node.directory = wdir/f"{str(i).zfill(4)}.{prev_name}"
+            node.directory = wdir / f"{str(i).zfill(4)}.{prev_name}"
             if node.__class__.__name__.endswith("Variable"):
                 node_type = "VX"
             else:
@@ -239,7 +305,7 @@ class OTFSession():
                 node.output = feed_dict[node]
             elif isinstance(node, Variable):
                 node.output = node.value
-            else: # Operation
+            else:  # Operation
                 self._debug(f"node: {node}")
                 if node.is_ready_to_forward():
                     node.inputs = [input_node.output for input_node in node.input_nodes]
@@ -253,7 +319,6 @@ class OTFSession():
 
 
 class CyclicSession:
-
     """Create a cyclic session.
 
     This supports a session that contains preprocess, iteration, and postprocess.
@@ -271,23 +336,25 @@ class CyclicSession:
         self.directory = pathlib.Path(directory)
 
         return
-    
+
     def iteration(self, operations):
         """Iterative part that converges at certain criteria.
 
         This noramlly includes steps: sample, select, label, and train. Some inputs of
-        operations should be update during the iterations, for instance, the models 
+        operations should be update during the iterations, for instance, the models
         in the potential.
 
         """
 
         return
-    
-    def run(self, init_node, iter_node=None, post_node=None, repeat=1, *args, **kwargs) -> None:
+
+    def run(
+        self, init_node, iter_node=None, post_node=None, repeat=1, *args, **kwargs
+    ) -> None:
         """"""
         # - init
-        self._print(("="*28+"{:^24s}"+"="*28+"\n").format("INIT"))
-        session = Session(self.directory/"init")
+        self._print(("=" * 28 + "{:^24s}" + "=" * 28 + "\n").format("INIT"))
+        session = Session(self.directory / "init")
         _ = session.run(init_node, feed_dict={})
         self._print("status: ", init_node.status)
 
@@ -297,10 +364,14 @@ class CyclicSession:
             return
 
         # - iter
-        curr_potter_node = init_node # a node that forwards a potter manager
+        curr_potter_node = init_node  # a node that forwards a potter manager
         for i in range(repeat):
-            self._print(("="*28+"{:^24s}"+"="*28+"\n").format(f"ITER.{str(i).zfill(4)}"))
-            session = Session(self.directory/f"iter.{str(i).zfill(4)}")
+            self._print(
+                ("=" * 28 + "{:^24s}" + "=" * 28 + "\n").format(
+                    f"ITER.{str(i).zfill(4)}"
+                )
+            )
+            session = Session(self.directory / f"iter.{str(i).zfill(4)}")
             # -- update some parameters
             curr_node = copy.deepcopy(iter_node)
             nodes_postorder = traverse_postorder(curr_node)
@@ -324,7 +395,7 @@ class CyclicSession:
 
         return
 
-    def _irun(self, operation, feed_dict: dict={}) -> NoReturn:
+    def _irun(self, operation, feed_dict: dict = {}) -> NoReturn:
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
@@ -340,7 +411,7 @@ class CyclicSession:
             prev_name = node.directory.name
             if not prev_name:
                 prev_name = node.__class__.__name__
-            node.directory = self.directory/f"{str(i).zfill(4)}.{prev_name}"
+            node.directory = self.directory / f"{str(i).zfill(4)}.{prev_name}"
             if node.__class__.__name__.endswith("Variable"):
                 node_type = "VX"
             else:
@@ -355,7 +426,7 @@ class CyclicSession:
                 node.output = feed_dict[node]
             elif isinstance(node, Variable):
                 node.output = node.value
-            else: # Operation
+            else:  # Operation
                 if node.is_ready_to_forward():
                     node.inputs = [input_node.output for input_node in node.input_nodes]
                     node.output = node.forward(*node.inputs)
@@ -364,6 +435,7 @@ class CyclicSession:
                     continue
 
         return
+
 
 if __name__ == "__main__":
     ...
