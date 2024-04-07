@@ -284,3 +284,4 @@ class VaspStringReactor(AbstractStringReactor):
 
 if __name__ == "__main__":
     ...
+

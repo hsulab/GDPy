@@ -21,7 +21,7 @@ from ase.neb import interpolate, idpp_interpolate
 
 from .. import parse_constraint_info
 from ..reactor import AbstractReactor
-from ..utils import plot_bands, plot_mep
+from ..utils import plot_bands, plot_mep, compute_rxn_coords
 
 
 @dataclasses.dataclass
@@ -147,19 +147,26 @@ class AbstractStringReactor(AbstractReactor):
             self._debug(f"... 2. converged @ {self.directory.name} ...")
             band_frames = self.read_trajectory()  # (nbands, nimages)
             if band_frames:
+                # FIXME: make below a function
                 plot_mep(self.directory, band_frames[-1])
-                # plot_bands(self.directory, images, nimages=nimages_per_band)
                 write(self.directory / "temptraj.xyz", itertools.chain(*band_frames))
-                # --
+
                 curr_band = band_frames[-1]
+
+                rxn_coords = compute_rxn_coords(curr_band)
+
                 energies = [a.get_potential_energy() for a in curr_band]
                 imax = 1 + np.argsort(energies[1:-1])[-1]
                 # NOTE: maxforce in cp2k is norm(atomic_forces)
                 maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
 
-                self._print(f"imax: {imax}")
                 self._print(
-                    f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} dE: {energies[-1]-energies[0]:<8.4f}"
+                    f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
+                    + f"-> {rxn_coords[-1]:.2f}"
+                )
+                self._print(
+                    f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
+                    + f"dE: {energies[-1]-energies[0]:<8.4f}"
                 )
             else:
                 self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
@@ -303,6 +310,29 @@ class AbstractStringReactor(AbstractReactor):
                 traj_frames.extend(traj_list[i][1:])
         else:
             ...
+
+        if traj_frames:
+            # FIXME: make below a function
+            plot_mep(self.directory, traj_frames[-1])
+
+            curr_band = traj_frames[-1]
+
+            rxn_coords = compute_rxn_coords(curr_band)
+
+            energies = [a.get_potential_energy() for a in curr_band]
+            imax = 1 + np.argsort(energies[1:-1])[-1]
+            # NOTE: maxforce in cp2k is norm(atomic_forces)
+            maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
+
+            self._print(f"imax: {imax}")
+            self._print(
+                f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
+                + f"-> {rxn_coords[-1]:.2f}"
+            )
+            self._print(
+                f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
+                + f"dE: {energies[-1]-energies[0]:<8.4f}"
+            )
 
         return traj_frames
 

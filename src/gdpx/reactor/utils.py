@@ -4,7 +4,7 @@
 
 import copy
 
-from typing import List
+from typing import List, Callable
 
 import numpy as np
 
@@ -57,10 +57,6 @@ def compute_rxn_coords(frames):
 
 def plot_mep(wdir, images):
     """"""
-    print("nimages: ", len(images))
-    rxn_coords = compute_rxn_coords(images)
-    print("rxn_coords: ", rxn_coords)
-
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
     plt.suptitle("Nudged Elastic Band Calculation")
 
