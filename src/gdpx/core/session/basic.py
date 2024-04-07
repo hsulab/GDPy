@@ -1,32 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import abc
-import copy
-import json
-from typing import NoReturn, Union, List, Callable
+
 import pathlib
-import yaml
 
-import numpy as np
-
-from ase import Atoms
-from ase.io import read, write
-
-from .. import config
 from ..placeholder import Placeholder
 from ..variable import Variable
+from .session import AbstractSession
 from .utils import traverse_postorder
 
 
-class Session:
-
-    #: Standard print function.
-    _print: Callable = config._print
-
-    #: Standard debug function.
-    _debug: Callable = config._debug
-
+class Session(AbstractSession):
 
     def __init__(self, directory="./") -> None:
         """"""
@@ -34,7 +18,7 @@ class Session:
 
         return
 
-    def run(self, operation, feed_dict: dict={}) -> None:
+    def run(self, operation, feed_dict: dict = {}) -> None:
         """"""
         # - find forward order
         nodes_postorder = traverse_postorder(operation)
@@ -57,7 +41,7 @@ class Session:
             prev_name = node.directory.name
             if not prev_name:
                 prev_name = node.__class__.__name__
-            node.directory = self.directory/f"{str(i).zfill(4)}.{prev_name}"
+            node.directory = self.directory / f"{str(i).zfill(4)}.{prev_name}"
             if node.__class__.__name__.endswith("Variable"):
                 node_type = "VX"
             else:
@@ -72,18 +56,9 @@ class Session:
                 node.output = feed_dict[node]
             elif isinstance(node, Variable):
                 node.output = node.value
-            else: # Operation
+            else:  # Operation
                 self._debug(f"node: {node}")
-                if not node.is_about_to_exit():
-                    if node.is_ready_to_forward():
-                        node.inputs = [input_node.output for input_node in node.input_nodes]
-                        node.output = node.forward(*node.inputs)
-                    else:
-                        self._print("wait previous nodes to finish...")
-                        continue
-                else:
-                    self._print("the current node exits.")
-                    continue
+                self._process_operation(node)
 
         return
 

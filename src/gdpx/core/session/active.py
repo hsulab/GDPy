@@ -7,43 +7,14 @@ import time
 
 from typing import NoReturn, Union, Tuple, List, Callable
 
-from .. import config
+
 from ..placeholder import Placeholder
 from ..variable import Variable
-from .basic import Session
+from .session import AbstractSession
 from .utils import traverse_postorder
 
-#: A List of valid session states.
-SESSION_STATE_LIST: List[str] = [
-    "StepToStart",
-    "StepFinished",
-    "StepToContinue",
-    "StepBroken",
-    "LoopToStart",
-    "LoopFinished",
-    "LoopConverged",
-    "LoopUnConverged",
-]
 
-#: A List of finished session states.
-FINISHED_SESSION_STATES: List[str] = [
-    "StepBroken",
-    "LoopFinished",
-    "LoopConverged",
-    "LoopUnConverged",
-]
-
-
-class ActiveSession:
-
-    #: Session State.
-    _state: str = "LoopToStart"
-
-    #: Standard print function.
-    _print: Callable = config._print
-
-    #: Standard debug function.
-    _debug: Callable = config._debug
+class ActiveSession(AbstractSession):
 
     def __init__(
         self,
@@ -73,28 +44,6 @@ class ActiveSession:
         self.directory = pathlib.Path(directory)
 
         return
-
-    @property
-    def state(self) -> str:
-        """"""
-
-        return self._state
-
-    @state.setter
-    def state(self, state: str):
-        """"""
-        assert state in SESSION_STATE_LIST, f"Invalid state `{state}` to assign."
-        self._state = state
-
-        return
-
-    def is_finished(self) -> bool:
-        """"""
-        is_finished = False
-        if self.state in FINISHED_SESSION_STATES:
-            is_finished = True
-
-        return is_finished
 
     def run(self, operation, feed_dict: dict = {}, *args, **kwargs) -> None:
         """"""
@@ -144,7 +93,10 @@ class ActiveSession:
                         self.state = "LoopConverged"
                     else:
                         self._print(f"Active Session UNconverged at step {curr_step}.")
-                        self.state = "LoopUnConverged"
+                        if curr_step + 1 == self.steps:
+                            self.state = "LoopUnConverged"
+                        else:
+                            ...  # Just StepFinished
                     # --- save state to FILE
                     with open(curr_wdir / "FINISHED", "w") as fopen:
                         fopen.write(
@@ -214,31 +166,12 @@ class ActiveSession:
                 # FIXME: If the session has many branches,
                 #        how do we define the state?
                 self._debug(f"node: {node}")
-                if not node.is_about_to_exit():
-                    if node.is_ready_to_forward():
-                        node.inputs = [
-                            input_node.output for input_node in node.input_nodes
-                        ]
-                        node.output = node.forward(*node.inputs)
-                    else:
-                        self.state = "StepToContinue"
-                        self._print("wait previous nodes to finish...")
-                        continue
-                else:
-                    self.state = "StepBroken"
-                    self._print("the current node exits.")
-                    continue
+                self._process_operation(node)
 
         return
 
 
-class OTFSession:
-
-    #: Standard print function.
-    _print: Callable = config._print
-
-    #: Standard debug function.
-    _debug: Callable = config._debug
+class OTFSession(AbstractSession):
 
     def __init__(self, directory="./") -> None:
         """"""
@@ -318,18 +251,12 @@ class OTFSession:
         return finished
 
 
-class CyclicSession:
+class CyclicSession(AbstractSession):
     """Create a cyclic session.
 
     This supports a session that contains preprocess, iteration, and postprocess.
 
     """
-
-    #: Standard print function.
-    _print: Callable = config._print
-
-    #: Standard debug function.
-    _debug: Callable = config._debug
 
     def __init__(self, directory="./") -> None:
         """"""

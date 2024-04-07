@@ -14,39 +14,40 @@ import omegaconf
 from omegaconf import OmegaConf
 
 from .. import config
-from .utils import create_variable, create_operation, traverse_postorder
+from .utils import create_variable, create_operation
 
+
+#: GLOBAL ATTR.
 cache_nodes = {}
 
-def instantiate_variable(vx_name, vx_params):
-    """"""
-    print(f"----- {vx_name} -----")
-    params = {}
-    for k, v in vx_params.items():
-        print(k, v)
-        ...
+# def instantiate_variable(vx_name, vx_params):
+#     """"""
+#     print(f"----- {vx_name} -----")
+#     params = {}
+#     for k, v in vx_params.items():
+#         print(k, v)
+#         ...
+#
+#     return
+#
+# def resolve_variables(variables: dict):
+#     """"""
+#     for vx_name, vx_params in variables.items():
+#         vx = instantiate_variable(vx_name, vx_params)
+#         ...
+#
+#     return
 
-    return
-
-def resolve_variables(variables: dict):
-    """"""
-    for vx_name, vx_params in variables.items():
-        vx = instantiate_variable(vx_name, vx_params)
-        ...
-
-    return
 
 def instantiate_operation(op_name, op_params):
     """"""
-    #print(f"----- {op_name} -----")
     params = {}
     for k, v in op_params.items():
-        params[k] = v # resolve one by one...
+        params[k] = v  # resolve one by one...
     op = create_operation(op_name, op_params)
-    #print(op)
-    #print(op.input_nodes)
 
     return op
+
 
 def resolve_operations(config: dict):
     """"""
@@ -59,9 +60,8 @@ def resolve_operations(config: dict):
     return operations
 
 
-def run_session_once(config_dict: dict, feed_command=None, directory="./"):
-    """Configure session with omegaconfig."""
-    directory = pathlib.Path(directory)
+def register_custom_resolvers():
+    """"""
 
     # - add resolvers
     def create_vx_instance(vx_name, _root_):
@@ -74,9 +74,7 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
         else:
             return cache_nodes[vx_name]
 
-    OmegaConf.register_new_resolver(
-        "vx", create_vx_instance, use_cache=False
-    )
+    OmegaConf.register_new_resolver("vx", create_vx_instance, use_cache=False)
 
     def create_op_instance(op_name, _root_):
         """"""
@@ -88,9 +86,7 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
         else:
             return cache_nodes[op_name]
 
-    OmegaConf.register_new_resolver(
-        "op", create_op_instance, use_cache=False
-    )
+    OmegaConf.register_new_resolver("op", create_op_instance, use_cache=False)
 
     # --
     def read_json(input_file):
@@ -99,9 +95,7 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
 
         return input_dict
 
-    OmegaConf.register_new_resolver(
-        "json", read_json
-    )
+    OmegaConf.register_new_resolver("json", read_json)
 
     def read_yaml(input_file):
         with open(input_file, "r") as fopen:
@@ -109,12 +103,17 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
 
         return input_dict
 
-    OmegaConf.register_new_resolver(
-        "yaml", read_yaml
-    )
+    OmegaConf.register_new_resolver("yaml", read_yaml)
+
+    return
+
+
+def run_session_once(config_dict: dict, feed_command=None, directory="./"):
+    """Configure session with omegaconfig."""
+    # - set directory
+    directory = pathlib.Path(directory)
 
     # - load configuration and resolve it
-    # conf = OmegaConf.load(config_filepath)
     conf = OmegaConf.create(config_dict)
 
     # - add placeholders and their directories
@@ -130,24 +129,24 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
 
     # - check operations and their directories
     for op_name, op_params in conf.operations.items():
-        op_params["directory"] = str(directory/op_name)
-    
+        op_params["directory"] = str(directory / op_name)
+
     # - set variable directory
     if "variables" not in conf:
         conf.variables = {}
     for k, v_dict in conf.variables.items():
-        v_dict["directory"] = str(directory/"variables"/k)
-    #print("YAML: ", OmegaConf.to_yaml(conf))
+        v_dict["directory"] = str(directory / "variables" / k)
+    # print("YAML: ", OmegaConf.to_yaml(conf))
 
     # - resolve sessions
-    #container = OmegaConf.to_object(conf.sessions)
-    #for k, v in container.items():
+    # container = OmegaConf.to_object(conf.sessions)
+    # for k, v in container.items():
     #    print(k, v)
 
     try:
         operations = resolve_operations(conf["operations"])
     except omegaconf.errors.InterpolationResolutionError as err:
-        config._debug (traceback.format_exc())
+        config._debug(traceback.format_exc())
         err_key = (str(err).strip().split("\n")[1]).strip().split(":")[1]
         config._print(f"FAILED TO PARSE `{err_key}` KEY.")
         err_info_tail = traceback.format_exc().split("\n")[-10:]
@@ -164,31 +163,35 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
     if names is not None:
         session_names = [x.strip() for x in names.strip().split(",")]
     else:
-        session_names =[None]*len(container)
-    
-    # - some imported packages change `logging.basicConfig` 
+        session_names = [None] * len(container)
+
+    # - some imported packages change `logging.basicConfig`
     #   and accidently add a StreamHandler to logging.root
     #   so remove it...
     for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+        if isinstance(h, logging.StreamHandler) and not isinstance(
+            h, logging.FileHandler
+        ):
             logging.root.removeHandler(h)
-    
+
     # - get session general configs
     sconfigs = conf.get("configs", {})
 
     exec_mode = sconfigs.get("mode", "basic")
-    if exec_mode == "basic": # sequential
+    if exec_mode == "basic":  # sequential
         from .basic import Session
+
         session_states = [True]
         for i, (k, v) in enumerate(container.items()):
             n = session_names[i]
             if n is None:
                 n = k
             entry_operation = v
-            session = Session(directory=directory/n)
+            session = Session(directory=directory / n)
             session.run(entry_operation, feed_dict={})
     elif exec_mode == "active":
         from .active import ActiveSession
+
         assert len(container) == 1, "ActiveSession only accepts one operation."
 
         session_states = []
@@ -198,13 +201,15 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
                 n = k
             entry_operation = v
             session = ActiveSession(
-                steps=sconfigs.get("steps", 2), 
+                steps=sconfigs.get("steps", 2),
                 reset_random_state=sconfigs.get("reset_random_state", False),
                 reset_random_config=sconfigs.get("reset_random_config", ("init", 0)),
-                directory=directory/n
+                directory=directory / n,
             )
             session.run(entry_operation, feed_dict={})
+            # config._print(f"{session.state =}")
             session_states.append(session.is_finished())
+            # config._print(f"{session.state =}")
     else:
         session_states = [False]
         raise RuntimeError(f"Unknown session type {exec_mode}.")
@@ -213,7 +218,10 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
 
 
 def run_session(
-    config_filepath: str, feed_command=None, timewait: float=-1.0, directory: str="./"
+    config_filepath: str,
+    feed_command=None,
+    timewait: float = -1.0,
+    directory: str = "./",
 ):
     """Configure session with omegaconfig."""
     directory = pathlib.Path(directory)
@@ -230,6 +238,8 @@ def run_session(
         raise RuntimeError(f"Fail to load config `{str(config_filepath)}`")
 
     raw_config_dict = config_dict
+
+    register_custom_resolvers()
 
     # -
     if timewait > 0:
