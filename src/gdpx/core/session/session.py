@@ -63,7 +63,7 @@ class AbstractSession:
 
         return is_finished
 
-    def _process_operation(self, node):
+    def _process_operation(self, node: Operation):
         """"""
         if not node.is_about_to_exit():
             if node.is_ready_to_forward():  # All input nodes finished.
@@ -84,6 +84,8 @@ class AbstractSession:
                     self.state = "StepToContinue"
                     self._print("  wait previous nodes to finish...")
                 else:
+                    # The `broken` status is contagious
+                    node.status = "exit"
                     self.state = "StepBroken"
                     self._print("  The current node is broken.")
         else:
