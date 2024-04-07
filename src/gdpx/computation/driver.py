@@ -445,10 +445,9 @@ class AbstractDriver(AbstractNode):
                         f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
                     )
                 elif self.setting.task == "md":
-                    #print("steps: ", step, self.setting.steps)
                     if step+1 >= self.setting.steps: # step startswith 0
                         converged = True
-                    self._debug(f"MD convergence: {converged}")
+                    self._debug(f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}")
                 else:
                     raise NotImplementedError("Unknown task in read_convergence.")
             else:

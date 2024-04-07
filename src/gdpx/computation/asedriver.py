@@ -153,7 +153,7 @@ def save_checkpoint(
     if hasattr(dyn, "rng"):
         with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
             yaml.safe_dump(dyn.rng.bit_generator.state, fopen)
-    
+
     # For some mixed calculator, save information, for example, PLUMED...
     if hasattr(atoms.calc, "calcs"):
         for calc in atoms.calc.calcs:
@@ -175,7 +175,7 @@ class BerendsenThermostat(Controller):
         taut = self.params.get("Tdamp", 100.0)
         assert taut is not None
 
-        self.conv_params = dict(taut=taut*units.fs)
+        self.conv_params = dict(taut=taut * units.fs)
 
         return
 
@@ -234,11 +234,12 @@ class BerendsenBarostat(Controller):
         taup = self.params.get("Pdamp", 100.0)  # fs
         assert taup is not None
 
-        compressibility = self.params.get("compressibility", 4.57e-5) # bar^-1
+        compressibility = self.params.get("compressibility", 4.57e-5)  # bar^-1
 
         self.conv_params = dict(
-            taut=taut*units.fs, taup=taup*units.fs,
-            compressibility_au = compressibility/units.bar
+            taut=taut * units.fs,
+            taup=taup * units.fs,
+            compressibility_au=compressibility / units.bar,
         )
 
         return
@@ -435,7 +436,7 @@ class AseDriver(AbstractDriver):
         # - overwrite
         run_params = self.setting.get_run_params(*args, **kwargs)
 
-        # - 
+        # -
         self._preprocess_constraints(atoms, run_params)
 
         # - init driver
@@ -518,7 +519,7 @@ class AseDriver(AbstractDriver):
             ...
 
         return verified
-    
+
     def _find_latest_checkpoint(self, wdir: pathlib.Path):
         """"""
         ckpt_dirs = sorted(
@@ -538,7 +539,7 @@ class AseDriver(AbstractDriver):
                 rng_state = yaml.safe_load(fopen)
         else:
             rng_state = None
-        
+
         return atoms, rng_state
 
     def _irun(
@@ -588,7 +589,7 @@ class AseDriver(AbstractDriver):
 
             # - set dynamics
             dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
-            #dynamics.nsteps = start_step
+            # dynamics.nsteps = start_step
             if hasattr(dynamics, "rng") and rng_state is not None:
                 dynamics.rng.bit_generator.state = rng_state
 
@@ -625,24 +626,29 @@ class AseDriver(AbstractDriver):
             dynamics.run(**run_params)
 
             # NOTE: check if the last frame is properly stored
-            loginterval = init_params["loginterval"]
-            if loginterval > 1:
+            dump_period = self.setting.dump_period
+            assert init_params["loginterval"] == dump_period
+
+            if dump_period > 1:
+                should_dump_last = False
                 if self.setting.task == "min":
+                    # optimiser dumps every step to log...
                     data = np.loadtxt(self.directory / "dyn.log", dtype=str, skiprows=1)
                     if len(data.shape) == 1:
                         data = data[np.newaxis, :]
                     nsteps = data.shape[0]
-                    if nsteps > 0 and (nsteps - 1) % loginterval != 0:
-                        update_atoms_info(atoms, dynamics, start_step=start_step)
-                        save_checkpoint(
-                            dynamics, atoms, self.directory, start_step=start_step
-                        )
-                        save_trajectory(atoms, self.directory / self.xyz_fname)
-                        retrieve_and_save_deviation(
-                            atoms, self.directory / self.devi_fname
-                        )
-                else:  # TODO: If MD breaks due to some errors?
-                    ...
+                    if nsteps > 0 and (nsteps - 1) % dump_period != 0:
+                        should_dump_last = True
+                elif self.setting.task == "md":
+                    if dump_period > self.setting.steps:
+                        should_dump_last = True
+                if should_dump_last:
+                    update_atoms_info(atoms, dynamics, start_step=start_step)
+                    save_checkpoint(
+                        dynamics, atoms, self.directory, start_step=start_step
+                    )
+                    save_trajectory(atoms, self.directory / self.xyz_fname)
+                    retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
             else:
                 ...
 
