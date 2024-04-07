@@ -20,7 +20,7 @@ from ase.io import read, write
 from ase.calculators.vasp import Vasp
 
 from ..data.extatoms import ScfErrAtoms
-from ..utils.strucopy import resort_atoms_with_spc
+from ..utils.strucopy import read_sort, resort_atoms_with_spc
 from ..utils.cmdrun import run_ase_calculator
 from .driver import AbstractDriver, DriverSetting, Controller
 
@@ -28,28 +28,6 @@ from .driver import AbstractDriver, DriverSetting, Controller
 """Driver for VASP."""
 #: Ase-vasp resort fname.
 ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
-
-
-def read_sort(directory: pathlib.Path):
-    """Create the sorting and resorting list from ase-sort.dat.
-
-    If the ase-sort.dat file does not exist, the sorting is redone.
-
-    """
-    sortfile = directory / ASE_VASP_SORT_FNAME
-    if os.path.isfile(sortfile):
-        sort = []
-        resort = []
-        with open(sortfile, "r") as fd:
-            for line in fd:
-                s, rs = line.split()
-                sort.append(int(s))
-                resort.append(int(rs))
-    else:
-        # warnings.warn(UserWarning, 'no ase-sort.dat')
-        raise ValueError("no ase-sort.dat")
-
-    return sort, resort
 
 
 def read_outcar_scf(lines: List[str]) -> Tuple[int, float]:
