@@ -17,95 +17,79 @@ from .. import config
 from .utils import create_variable, create_operation
 
 
-#: GLOBAL ATTR.
-cache_nodes = {}
+class SessionInitialiser:
 
-# def instantiate_variable(vx_name, vx_params):
-#     """"""
-#     print(f"----- {vx_name} -----")
-#     params = {}
-#     for k, v in vx_params.items():
-#         print(k, v)
-#         ...
-#
-#     return
-#
-# def resolve_variables(variables: dict):
-#     """"""
-#     for vx_name, vx_params in variables.items():
-#         vx = instantiate_variable(vx_name, vx_params)
-#         ...
-#
-#     return
+    #: Shared node objects.
+    cache_nodes = {}
 
-
-def instantiate_operation(op_name, op_params):
-    """"""
-    params = {}
-    for k, v in op_params.items():
-        params[k] = v  # resolve one by one...
-    op = create_operation(op_name, op_params)
-
-    return op
-
-
-def resolve_operations(config: dict):
-    """"""
-    operations = {}
-    for op_name, op_params in config.items():
-        op = instantiate_operation(op_name, op_params)
-        operations[op_name] = op
-        cache_nodes[op_name] = op
-
-    return operations
-
-
-def register_custom_resolvers():
-    """"""
-
-    # - add resolvers
-    def create_vx_instance(vx_name, _root_):
+    @staticmethod
+    def instantiate_operation(op_name, op_params):
         """"""
-        if vx_name not in cache_nodes:
-            vx_params = OmegaConf.to_object(_root_.variables.get(vx_name))
-            vx = create_variable(vx_name, vx_params)
-            cache_nodes[vx_name] = vx
-            return vx
-        else:
-            return cache_nodes[vx_name]
-
-    OmegaConf.register_new_resolver("vx", create_vx_instance, use_cache=False)
-
-    def create_op_instance(op_name, _root_):
+        params = {}
+        for k, v in op_params.items():
+            params[k] = v  # resolve one by one...
+        op = create_operation(op_name, op_params)
+    
+        return op
+    
+    @staticmethod
+    def resolve_operations(config: dict):
         """"""
-        if op_name not in cache_nodes:
-            op_params = OmegaConf.to_object(_root_.operations.get(op_name))
-            op = create_operation(op_name, op_params)
-            cache_nodes[op_name] = op
-            return op
-        else:
-            return cache_nodes[op_name]
-
-    OmegaConf.register_new_resolver("op", create_op_instance, use_cache=False)
-
-    # --
-    def read_json(input_file):
-        with open(input_file, "r") as fopen:
-            input_dict = json.load(fopen)
-
-        return input_dict
-
-    OmegaConf.register_new_resolver("json", read_json)
-
-    def read_yaml(input_file):
-        with open(input_file, "r") as fopen:
-            input_dict = yaml.safe_load(fopen)
-
-        return input_dict
-
-    OmegaConf.register_new_resolver("yaml", read_yaml)
-
-    return
+        operations = {}
+        for op_name, op_params in config.items():
+            op = SessionInitialiser.instantiate_operation(op_name, op_params)
+            operations[op_name] = op
+            SessionInitialiser.cache_nodes[op_name] = op
+    
+        return operations
+    
+    @staticmethod
+    def register_custom_resolvers():
+        """"""
+    
+        # - add resolvers
+        def create_vx_instance(vx_name, _root_):
+            """"""
+            if vx_name not in SessionInitialiser.cache_nodes:
+                vx_params = OmegaConf.to_object(_root_.variables.get(vx_name))
+                vx = create_variable(vx_name, vx_params)
+                SessionInitialiser.cache_nodes[vx_name] = vx
+                return vx
+            else:
+                return SessionInitialiser.cache_nodes[vx_name]
+    
+        OmegaConf.register_new_resolver("vx", create_vx_instance, use_cache=False)
+    
+        def create_op_instance(op_name: str, _root_):
+            """"""
+            if op_name not in SessionInitialiser.cache_nodes:
+                op_params = OmegaConf.to_object(_root_.operations.get(op_name))
+                op = create_operation(op_name, op_params)
+                SessionInitialiser.cache_nodes[op_name] = op
+                return op
+            else:
+                return SessionInitialiser.cache_nodes[op_name]
+    
+        OmegaConf.register_new_resolver("op", create_op_instance, use_cache=False)
+    
+        # --
+        def read_json(input_file):
+            with open(input_file, "r") as fopen:
+                input_dict = json.load(fopen)
+    
+            return input_dict
+    
+        OmegaConf.register_new_resolver("json", read_json)
+    
+        def read_yaml(input_file):
+            with open(input_file, "r") as fopen:
+                input_dict = yaml.safe_load(fopen)
+    
+            return input_dict
+    
+        OmegaConf.register_new_resolver("yaml", read_yaml)
+    
+        return
 
 
 def run_session_once(config_dict: dict, feed_command=None, directory="./"):
@@ -144,7 +128,7 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
     #    print(k, v)
 
     try:
-        operations = resolve_operations(conf["operations"])
+        operations = SessionInitialiser.resolve_operations(conf["operations"])
     except omegaconf.errors.InterpolationResolutionError as err:
         config._debug(traceback.format_exc())
         err_key = (str(err).strip().split("\n")[1]).strip().split(":")[1]
@@ -239,11 +223,12 @@ def run_session(
 
     raw_config_dict = config_dict
 
-    register_custom_resolvers()
+    SessionInitialiser.register_custom_resolvers()
 
     # -
     if timewait > 0:
         for i in range(1000):
+            SessionInitialiser.cache_nodes = {} # Clear cache before a new run.
             config._print(f"Monitor is running step {i}!!!")
             config_dict = copy.deepcopy(raw_config_dict)
             is_finished = run_session_once(config_dict, feed_command, directory)
