@@ -5,13 +5,10 @@
 import io
 import os
 import re
-import copy
 import dataclasses
-import json
 import pathlib
 import tarfile
 import traceback
-from collections import Counter
 from typing import Union, Optional, List, Tuple
 
 import shutil
@@ -20,51 +17,17 @@ import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
-from ase.constraints import FixAtoms
 from ase.calculators.vasp import Vasp
 
-from ..builder.constraints import parse_constraint_info
 from ..data.extatoms import ScfErrAtoms
+from ..utils.strucopy import resort_atoms_with_spc
+from ..utils.cmdrun import run_ase_calculator
 from .driver import AbstractDriver, DriverSetting, Controller
-from .utils import create_single_point_calculator
 
 
 """Driver for VASP."""
-#: str
-ASE_VASP_SORT_FNAME = "ase-sort.dat"
-
-
-def run_vasp(name, command, directory):
-    """Run vasp from the command.
-
-    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run
-    directly from the command if INCAR aready exists.
-
-    """
-    import subprocess
-    from ase.calculators.calculator import EnvironmentError, CalculationFailed
-
-    try:
-        proc = subprocess.Popen(command, shell=True, cwd=directory)
-    except OSError as err:
-        # Actually this may never happen with shell=True, since
-        # probably the shell launches successfully.  But we soon want
-        # to allow calling the subprocess directly, and then this
-        # distinction (failed to launch vs failed to run) is useful.
-        msg = 'Failed to execute "{}"'.format(command)
-        raise EnvironmentError(msg) from err
-
-    errorcode = proc.wait()
-
-    if errorcode:
-        path = os.path.abspath(directory)
-        msg = (
-            'Calculator "{}" failed with command "{}" failed in '
-            "{} with error code {}".format(name, command, path, errorcode)
-        )
-        raise CalculationFailed(msg)
-
-    return
+#: Ase-vasp resort fname.
+ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 
 def read_sort(directory: pathlib.Path):
@@ -484,7 +447,7 @@ class VaspDriver(AbstractDriver):
                 #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
                 shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
 
-            run_vasp("vasp", self.calc.command, self.directory)
+            run_ase_calculator("vasp", self.calc.command, self.directory)
 
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
@@ -615,7 +578,7 @@ class VaspDriver(AbstractDriver):
                 sort, resort = list(range(natoms)), list(range(natoms))
             for i, sorted_atoms in enumerate(traj_frames_):
                 # NOTE: calculation with only one unfinished step does not have forces
-                input_atoms = create_single_point_calculator(
+                input_atoms = resort_atoms_with_spc(
                     sorted_atoms,
                     resort,
                     "vasp",
