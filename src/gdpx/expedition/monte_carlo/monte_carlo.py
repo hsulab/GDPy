@@ -111,12 +111,6 @@ class MonteCarlo(AbstractExpedition):
             builder = builder
         self.builder = builder
 
-        frames = builder.run()
-        assert (
-            len(frames) == 1
-        ), f"{self.__class__.__name__} only accepts one structure."
-        self.atoms = frames[0]
-
         # - create worker
         self.worker = None
 
@@ -239,6 +233,15 @@ class MonteCarlo(AbstractExpedition):
             self.worker, SingleWorker
         ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
         self.worker.directory = self.directory
+
+        # - create an atoms during the run-time
+        #   If it is created in init, it will be re-used in active-learning loop.
+        #   Thus, we create a new one every run time.
+        frames = self.builder.run()
+        assert (
+            len(frames) == 1
+        ), f"{self.__class__.__name__} only accepts one structure."
+        self.atoms = frames[0]
 
         # - prepare logger and output some basic info...
         if not self.directory.exists():
