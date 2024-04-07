@@ -190,30 +190,33 @@ class DescriptorSelector(AbstractSelector):
         except Exception as e:
             ...
 
-        reducer = PCA(n_components=2)
-        reducer.fit(features)
-        proj = reducer.transform(features)
+        if features.shape[0] > 1:
+            reducer = PCA(n_components=2)
+            reducer.fit(features)
+            proj = reducer.transform(features)
 
-        for grp_name, inds in groups.items():
-            sc = plt.scatter(
-                proj[others[grp_name], 0],
-                proj[others[grp_name], 1],
-                marker="o",
-                alpha=0.25,
-                label=f"grp-{grp_name} {len(others[grp_name])} -> {len(inds)}",
-            )
-            # --
-            selected_proj = reducer.transform(np.array([features[i] for i in inds]))
-            plt.scatter(
-                selected_proj[:, 0],
-                selected_proj[:, 1],
-                marker="*",
-                alpha=0.5,
-                color="r",
-            )
-        plt.legend(fontsize=12)
-        plt.axis("off")
-        plt.savefig(self.info_fpath.parent / (self.info_fpath.stem + ".png"))
+            for grp_name, inds in groups.items():
+                sc = plt.scatter(
+                    proj[others[grp_name], 0],
+                    proj[others[grp_name], 1],
+                    marker="o",
+                    alpha=0.25,
+                    label=f"grp-{grp_name} {len(others[grp_name])} -> {len(inds)}",
+                )
+                # --
+                selected_proj = reducer.transform(np.array([features[i] for i in inds]))
+                plt.scatter(
+                    selected_proj[:, 0],
+                    selected_proj[:, 1],
+                    marker="*",
+                    alpha=0.5,
+                    color="r",
+                )
+            plt.legend(fontsize=12)
+            plt.axis("off")
+            plt.savefig(self.info_fpath.parent / (self.info_fpath.stem + ".png"))
+        else:
+            ... # Cannot plot PCA with only one structure...
 
         return
 
