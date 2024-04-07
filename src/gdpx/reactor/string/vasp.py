@@ -121,7 +121,7 @@ class VaspStringReactor(AbstractStringReactor):
         """
         verified = super()._verify_checkpoint()
         if verified:
-            vasprun = self.directory / "01" / "vasprun.xml"
+            vasprun = self.directory / "01" / "OUTCAR"
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 temp_frames = read(vasprun, ":")
                 try:
