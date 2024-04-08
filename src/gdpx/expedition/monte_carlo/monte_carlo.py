@@ -187,10 +187,8 @@ class MonteCarlo(AbstractExpedition):
 
         return step_converged
 
-    def _attach_bond_length_minimum_list(
-        self,
-    ):
-        """"""
+    def _attach_bond_length_minimum_list(self):
+        """Find possible elements in the simulation and build a bond-distance list."""
         type_list = []
         for op in self.operators:
             # TODO: wee need further unify the names here
@@ -201,7 +199,7 @@ class MonteCarlo(AbstractExpedition):
                 type_list.extend(list(Formula(op.reservoir["species"]).count().keys()))
             else:
                 ...
-        type_list = list(set(type_list))
+        type_list = list(set(type_list + self.atoms.get_chemical_symbols()))
         self._print(f"{type_list =}")
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
 
