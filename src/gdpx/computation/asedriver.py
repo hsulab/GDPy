@@ -245,11 +245,29 @@ class BerendsenBarostat(Controller):
         return
 
 
+@dataclasses.dataclass
+class MonteCarloController(Controller):
+
+    name: str = "monte_carlo"
+
+    def __post_init__(self):
+        """"""
+        maxstepsize = self.params.get("maxstepsizes", 0.2)  # Ang
+
+        self.conv_params = dict(
+            maxstepsize=maxstepsize,
+            rng=None,
+        )
+
+        return
+
+
 controllers = dict(
     # - nvt
     berendsen_nvt=BerendsenThermostat,
     langevin_nvt=LangevinThermostat,
-    nosehoover_nvt=NoseHooverThermostat,
+    nose_hoover_nvt=NoseHooverThermostat,
+    monte_carlo_nvt=MonteCarloController,
     # - npt
     berendsen_npt=BerendsenBarostat,
 )
@@ -297,6 +315,8 @@ class AseDriverSetting(DriverSetting):
                     from ase.md.langevin import Langevin as driver_cls
                 elif thermostat.name == "nose_hoover":
                     from .md.nosehoover import NoseHoover as driver_cls
+                elif thermostat.name == "monte_carlo":
+                    from .mc.tfmc import TimeStampedMonteCarlo as driver_cls
                 else:
                     raise RuntimeError(f"Unknown thermostat {thermostat}.")
                 thermo_params = thermostat.conv_params
