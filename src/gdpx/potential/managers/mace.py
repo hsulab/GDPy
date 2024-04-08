@@ -283,9 +283,12 @@ class MaceTrainer(AbstractTrainer):
 class MaceManager(AbstractPotentialManager):
 
     name = "mace"
-    implemented_backends = ["ase"]
+    implemented_backends = ["ase", "jax"]
 
-    valid_combinations = (("ase", "ase"),)
+    valid_combinations = (
+        ("ase", "ase"),
+        ("jax", "ase"),
+    )
 
     def __init__(self):
         """"""
@@ -344,23 +347,43 @@ class MaceManager(AbstractPotentialManager):
                     default_dtype=precision,
                 )
                 calcs.append(curr_calc)
-            if len(calcs) == 1:
-                calc = calcs[0]
-            elif len(calcs) > 1:
-                if estimate_uncertainty:
-                    calc = CommitteeCalculator(calcs)
-                else:
-                    calc = calcs[0]
-            else:
-                ...
+            calc = self._process_committee(calcs, estimate_uncertainty)
+        elif self.calc_backend == "jax":
+            try:
+                import jax
+                from mace_jax.calculators.mace import MACEJAXCalculator
+            except:
+                raise ModuleNotFoundError(
+                    "Please install mace-jax and jax to use the jax interface."
+                )
+            # calcs = []
+            # for m in models:
+            #     curr_calc = MACEJAXCalculator(
+            #
+            #     )
+            raise NotImplementedError("The JAX backend for MACE is under development.")
         elif self.calc_backend == "lammps":
-            raise RuntimeError("The LAMMPS backend for MACE is under development.")
+            raise NotImplementedError("The LAMMPS backend for MACE is under development.")
         else:
             ...
 
         self.calc = calc
 
         return
+    
+    def _process_committee(self, calcs, estimate_uncertainty: bool):
+        """"""
+        if len(calcs) == 1:
+            calc = calcs[0]
+        elif len(calcs) > 1:
+            if estimate_uncertainty:
+                calc = CommitteeCalculator(calcs)
+            else:
+                calc = calcs[0]
+        else:
+            ...
+
+        return calc
 
     def switch_uncertainty_estimation(self, status: bool = True):
         """Switch on/off the uncertainty estimation."""
