@@ -21,15 +21,12 @@ def get_bond_information(
     neighlist,
     eqdis_dict: dict,
     covalent_min: float,
-    symbols: List[str],
+    target_indices: List[int],
     allowed_bonds: List[Tuple[str, str]],
 ):
     """Find valid bond pairs and compute their strains."""
     # -
     cell = atoms.get_cell(complete=True)
-
-    # - find species
-    target_indices = [i for i, a in enumerate(atoms) if a.symbol in symbols]
 
     # - find pairs within given distance
     bond_pairs = []
@@ -148,6 +145,7 @@ class BondBoostCalculator(Calculator):
         smax: float = 0.5,
         bonds: List[str] = ["C", "H", "O"],
         covalent_ratio: Tuple[float, float] = [0.8, 1.6],
+        target_indices: Optional[List[int]] = None,
         *args,
         **kwargs,
     ):
@@ -190,6 +188,12 @@ class BondBoostCalculator(Calculator):
         radii = {s: covalent_radii[atomic_numbers[s]] for s in symbols}
         self.eqdis_dict = {k: radii[k[0]] + radii[k[1]] for k in bonds}
 
+        #:
+        if target_indices is not None:
+            self.target_indices = target_indices
+        else:
+            self.target_indices = None
+
         return
 
     def calculate(
@@ -224,13 +228,17 @@ class BondBoostCalculator(Calculator):
             ...
         self.neighlist.update(atoms)
 
+        # - find species
+        if self.target_indices is None:
+            self.target_indices = [i for i, a in enumerate(atoms) if a.symbol in self.symbols]
+
         # - find bonds to boost
         bond_pairs, bond_distances, equi_distances = get_bond_information(
             atoms,
             self.neighlist,
             self.eqdis_dict,
             covalent_min=self.covalent_ratio[0],
-            symbols=self.symbols,
+            target_indices=self.target_indices,
             allowed_bonds=self.bonds,
         )
 
