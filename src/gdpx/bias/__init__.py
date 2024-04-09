@@ -13,6 +13,9 @@ bias_register.register("afir")(AFIRCalculator)
 from .harmonic import HarmonicBias
 bias_register.register("harmonic")(HarmonicBias)
 
+from .bondboost import BondBoostCalculator
+bias_register.register("bondboost")(BondBoostCalculator)
+
 
 """Create bias on potential energy surface. These are all JAX-based PES modifiers.
 """
