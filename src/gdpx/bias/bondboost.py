@@ -257,8 +257,8 @@ class BondBoostCalculator(Calculator):
             # print(f"{bond_distances[max_index] =}")
             # print(f"{bond_strains[max_index] =}")
             self._write_step(
-                atoms,
                 num_bonds,
+                [atoms[x].symbol for x in bond_pairs[max_index]],
                 bond_pairs[max_index],
                 bond_distances[max_index],
                 bond_strains[max_index],
@@ -266,7 +266,7 @@ class BondBoostCalculator(Calculator):
         else:
             energy = 0.0
             forces = np.zeros((atoms.positions.shape))
-            self._write_step(atoms, num_bonds, [np.nan, np.nan], np.nan, np.nan)
+            self._write_step(num_bonds, [np.nan, np.nan], [np.nan, np.nan], np.nan, np.nan)
 
         self.results["energy"] = energy
         self.results["free_energy"] = energy
@@ -276,14 +276,14 @@ class BondBoostCalculator(Calculator):
 
     def _write_step(
         self,
-        atoms: Atoms,
         num_bonds: int,
+        bond_symb: Tuple[str, str],
         bond_pair: Tuple[int, int],
         distance: float,
         strain: float,
     ):
         """"""
-        pair = "-".join([atoms[x].symbol + "_" + str(x) for x in bond_pair])
+        pair = "-".join([str(s) + "_" + str(x) for s, x in zip(bond_symb, bond_pair)])
         content = f"{num_bonds:>12d}  {pair:>24s}  {distance:>12.4f}  {strain:>12.4f}\n"
 
         log_fpath = pathlib.Path(self.directory) / "info.log"
