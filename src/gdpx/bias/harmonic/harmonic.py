@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List, Callable
 
-import pydantic
+import dataclasses
+from typing import List, Callable
 
 import numpy as np
 
 import jax
 import jax.numpy as jnp
-from jax import jit, grad, value_and_grad
 
 from ase.calculators.calculator import Calculator, all_changes
 
 
-@jit
+@jax.jit
 def harmonic(positions, cvfunc: Callable, k: float, s: float):
     """Harmonic bias potential."""
     colvars = cvfunc(positions) # NOTE: Must be 1D CV.
@@ -22,7 +21,7 @@ def harmonic(positions, cvfunc: Callable, k: float, s: float):
 
     return jnp.sum(bias)
 
-@jit
+@jax.jit
 def upper_harmonic(positions, cvfunc: Callable, k: float, s: float):
     """Harmonic bias potential."""
     colvars = cvfunc(positions) # NOTE: Must be 1D CV.
@@ -32,7 +31,7 @@ def upper_harmonic(positions, cvfunc: Callable, k: float, s: float):
 
     return jnp.sum(bias)
 
-@jit
+@jax.jit
 def lower_harmonic(positions, cvfunc: Callable, k: float, s: float):
     """Harmonic bias potential."""
     colvars = cvfunc(positions) # NOTE: Must be 1D CV.
@@ -44,7 +43,8 @@ def lower_harmonic(positions, cvfunc: Callable, k: float, s: float):
 
 
 
-class HarmonicSetting(pydantic.BaseModel):
+@dataclasses.dataclass
+class HarmonicSetting:
 
     #: Spring constant, unit of eV.
     k: float = 100.
@@ -76,11 +76,7 @@ class HarmonicBias(Calculator):
         super().__init__(restart=restart, label=label, atoms=atoms, directory=directory, **kwargs)
 
         # - check bias params
-        try:
-            self._setting = HarmonicSetting(**self.parameters)
-        except pydantic.ValidationError as e:
-            raise RuntimeError(e.errors())
-
+        self._setting = HarmonicSetting(**self.parameters)
         assert not (self._setting.upper and self._setting.lower)
 
         bias_func = harmonic
@@ -88,7 +84,7 @@ class HarmonicBias(Calculator):
             bias_func = upper_harmonic
         if self._setting.lower:
             bias_func = lower_harmonic
-        self.compute_harmonic = value_and_grad(bias_func, argnums=0)
+        self.compute_harmonic = jax.value_and_grad(bias_func, argnums=0)
 
         # - check colvar
         self.colvar = initiate_colvar(colvar)
