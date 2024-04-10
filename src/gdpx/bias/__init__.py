@@ -10,8 +10,11 @@ bias_register = Register("bias")
 from .afir import AFIRCalculator
 bias_register.register("afir")(AFIRCalculator)
 
-from .harmonic import HarmonicBias
-bias_register.register("harmonic")(HarmonicBias)
+# from .harmonic import HarmonicBias
+# bias_register.register("harmonic")(HarmonicBias)
+
+from .harmonic import PlaneHarmonicCalculator
+bias_register.register("plane_harmonic")(PlaneHarmonicCalculator)
 
 from .bondboost import BondBoostCalculator
 bias_register.register("bondboost")(BondBoostCalculator)
