@@ -31,6 +31,7 @@ def get_bond_information(
     # - find pairs within given distance
     bond_pairs = []
     bond_curr_distances = []
+    bond_curr_shifts = []
     bond_equi_distances = []
     for i in target_indices:
         sym_i = atoms[i].symbol
@@ -39,24 +40,27 @@ def get_bond_information(
             sym_j = atoms[j].symbol
             pair = (atoms[i].symbol, sym_j)
             if pair in allowed_bonds:
+                shift = np.dot(offset, cell)
                 dis = np.linalg.norm(
-                    atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell))
+                    atoms.positions[i] - (atoms.positions[j] + shift)
                 )
                 if dis >= eqdis_dict[pair] * covalent_min:
                     bond_pairs.append(sorted([i, j]))
                     bond_curr_distances.append(dis)
+                    bond_curr_shifts.append(shift)
                     bond_equi_distances.append(eqdis_dict[pair])
 
     bond_pairs = bond_pairs
     bond_curr_distances = np.array(bond_curr_distances)
     bond_equi_distances = np.array(bond_equi_distances)
 
-    return bond_pairs, bond_curr_distances, bond_equi_distances
+    return bond_pairs, bond_curr_distances, bond_curr_shifts, bond_equi_distances
 
 
 def compute_boost_energy_and_forces(
     positions,
     distances,
+    shifts,
     ref_distances,
     bond_pairs,
     bond_strains,
@@ -107,7 +111,7 @@ def compute_boost_energy_and_forces(
         frc_ij = (
             -env
             * d_vboost[p]
-            * (positions[i] - positions[j])
+            * (positions[i] - (positions[j] + shifts[p]))
             / distances[p]
             / ref_distances[p]
         )
@@ -144,6 +148,7 @@ class BondBoostCalculator(Calculator):
         vmax: float = 0.5,
         smax: float = 0.5,
         bonds: List[str] = ["C", "H", "O"],
+        cov_equi_ratio: float = 1.0,
         covalent_ratio: Tuple[float, float] = [0.8, 1.6],
         target_indices: Optional[List[int]] = None,
         *args,
@@ -185,7 +190,7 @@ class BondBoostCalculator(Calculator):
         self.symbols = symbols
         self.bonds = bonds
 
-        radii = {s: covalent_radii[atomic_numbers[s]] for s in symbols}
+        radii = {s: cov_equi_ratio*covalent_radii[atomic_numbers[s]] for s in symbols}
         self.eqdis_dict = {k: radii[k[0]] + radii[k[1]] for k in bonds}
 
         #:
@@ -233,7 +238,7 @@ class BondBoostCalculator(Calculator):
             self.target_indices = [i for i, a in enumerate(atoms) if a.symbol in self.symbols]
 
         # - find bonds to boost
-        bond_pairs, bond_distances, equi_distances = get_bond_information(
+        bond_pairs, bond_distances, bond_shifts, equi_distances = get_bond_information(
             atoms,
             self.neighlist,
             self.eqdis_dict,
@@ -252,6 +257,7 @@ class BondBoostCalculator(Calculator):
             energy, forces = compute_boost_energy_and_forces(
                 atoms.positions,
                 bond_distances,
+                bond_shifts,
                 equi_distances,
                 bond_pairs,
                 bond_strains,
