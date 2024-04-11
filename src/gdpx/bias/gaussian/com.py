@@ -76,9 +76,10 @@ class CenterOfMassGaussianCalculator(Calculator):
         sigma: List[float] = [0.05, 0.05, 1e6],
         omega: float = 0.2,
         scaled: bool = True,
+        pace: int = 1,
         **kwargs,
     ):
-        """"""
+        """Init center of mass gaussian."""
         super().__init__(**kwargs)
 
         self.groups = groups
@@ -88,8 +89,27 @@ class CenterOfMassGaussianCalculator(Calculator):
 
         self.scaled = scaled
 
+        self.pace = pace
+
+        # - private
+        self._num_steps = 0
+
         self._saved_positions = None
 
+        self._history_records = [[] for _ in range(len(self.groups))]
+
+        return
+
+    @property
+    def num_steps(self) -> int:
+        """"""
+        
+        return self._num_steps
+    
+    def reset_metadata(self):
+        """Reset some simulation-related private attributes."""
+        self._num_steps = 0
+        self._saved_positions = None
         self._history_records = [[] for _ in range(len(self.groups))]
 
         return
@@ -112,42 +132,49 @@ class CenterOfMassGaussianCalculator(Calculator):
             for g in self.groups:
                 self._saved_positions.append([positions[i] for i in g])
 
-        # - compute center_of_mass
-        cell = atoms.get_cell(complete=True)
-        masses = atoms.get_masses()
-        positions = atoms.get_positions()
-        for i, g in enumerate(self.groups):
-            com = compute_center_of_mass(
-                atoms.cell,
-                masses[g],
-                positions[g],
-                saved_positions=self._saved_positions[i],
-                scaled=self.scaled,
-                pbc=True,
-            )
-            print(f"{i}: {com =}")
-            self._history_records[i].append(com)
-
-        # - compute energy and forces
         energy = 0.0
-        forces = np.zeros((positions.shape))
+        forces = np.zeros((atoms.positions.shape))
+        if self.num_steps % self.pace == 0:
+            print(f"{self.num_steps =}")
+            # - compute center_of_mass
+            cell = atoms.get_cell(complete=True)
+            masses = atoms.get_masses()
+            positions = atoms.get_positions()
+            for i, g in enumerate(self.groups):
+                com = compute_center_of_mass(
+                    atoms.cell,
+                    masses[g],
+                    positions[g],
+                    saved_positions=self._saved_positions[i],
+                    scaled=self.scaled,
+                    pbc=True,
+                )
+                print(f"{i}: {com =}")
+                self._history_records[i].append(com)
 
-        for i, g in enumerate(self.groups):
-            saved_coms = np.array(self._history_records[i])
-            com = saved_coms[-1]
-            curr_energy, curr_forces = compute_com_energy_and_forces(
-                cell, masses[g], com, saved_coms, sigma=self.sigma, omega=self.omega
-            )
-            energy += curr_energy
-            for k, f in zip(g, curr_forces):
-                forces[k] += f
-            print(f"{i}: {curr_energy =}")
-            print(f"{i}: {curr_forces =}")
+            # - compute energy and forces
+            for i, g in enumerate(self.groups):
+                saved_coms = np.array(self._history_records[i])
+                com = saved_coms[-1]
+                curr_energy, curr_forces = compute_com_energy_and_forces(
+                    cell, masses[g], com, saved_coms, sigma=self.sigma, omega=self.omega
+                )
+                energy += curr_energy
+                for k, f in zip(g, curr_forces):
+                    forces[k] += f
+                print(f"{i}: {curr_energy =}")
+                print(f"{i}: {curr_forces =}")
+        else:
+            ...
 
         # -
         self.results["energy"] = energy
         self.results["free_energy"] = energy
         self.results["forces"] = forces
+
+        # - increase steps
+        self._num_steps += 1
+        print(f"{self._num_steps =}")
 
         return
 
