@@ -27,8 +27,13 @@ bias_register.register("bondboost")(BondBoostCalculator)
 from .harmonic import PlaneHarmonicCalculator
 bias_register.register("plane_harmonic")(PlaneHarmonicCalculator)
 
+# - gaussian
+
 # from .gaussian import GaussianCalculator
 # bias_register.register("gaussian")(GaussianCalculator)
+
+from .gaussian import CenterOfMassGaussianCalculator
+bias_register.register("center_of_mass_gaussian")(CenterOfMassGaussianCalculator)
 
 
 if __name__ == "__main__":
