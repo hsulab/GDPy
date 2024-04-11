@@ -4,6 +4,7 @@
 
 import copy
 import dataclasses
+import pathlib
 
 from typing import List
 
@@ -103,9 +104,9 @@ class CenterOfMassGaussianCalculator(Calculator):
     @property
     def num_steps(self) -> int:
         """"""
-        
+
         return self._num_steps
-    
+
     def reset_metadata(self):
         """Reset some simulation-related private attributes."""
         self._num_steps = 0
@@ -132,6 +133,12 @@ class CenterOfMassGaussianCalculator(Calculator):
             for g in self.groups:
                 self._saved_positions.append([positions[i] for i in g])
 
+            content = "# step \n"
+
+            log_fpath = pathlib.Path(self.directory) / "info.log"
+            with open(log_fpath, "w") as fopen:
+                fopen.write(content)
+
         energy = 0.0
         forces = np.zeros((atoms.positions.shape))
         if self.num_steps % self.pace == 0:
@@ -149,10 +156,10 @@ class CenterOfMassGaussianCalculator(Calculator):
                     scaled=self.scaled,
                     pbc=True,
                 )
-                print(f"{i}: {com =}")
                 self._history_records[i].append(com)
 
             # - compute energy and forces
+            step_energies = []
             for i, g in enumerate(self.groups):
                 saved_coms = np.array(self._history_records[i])
                 com = saved_coms[-1]
@@ -160,10 +167,10 @@ class CenterOfMassGaussianCalculator(Calculator):
                     cell, masses[g], com, saved_coms, sigma=self.sigma, omega=self.omega
                 )
                 energy += curr_energy
+                step_energies.append(energy)
                 for k, f in zip(g, curr_forces):
                     forces[k] += f
-                print(f"{i}: {curr_energy =}")
-                print(f"{i}: {curr_forces =}")
+            self._write_step(step_energies)
         else:
             ...
 
@@ -174,7 +181,22 @@ class CenterOfMassGaussianCalculator(Calculator):
 
         # - increase steps
         self._num_steps += 1
-        print(f"{self._num_steps =}")
+
+        return
+
+    def _write_step(self, step_energies: List[float]):
+        """"""
+        content = ""
+        for i, (g, ene, records) in enumerate(
+            zip(self.groups, step_energies, self._history_records)
+        ):
+            content += ("{:>12d}  {:>12.4f}  " + "{:>12.4f} " * 3 + " {:<s}" + "\n").format(
+                self._num_steps, ene, *records[-1], "_".join([str(x) for x in g])
+            )
+
+        log_fpath = pathlib.Path(self.directory) / "info.log"
+        with open(log_fpath, "a") as fopen:
+            fopen.write(content)
 
         return
 
