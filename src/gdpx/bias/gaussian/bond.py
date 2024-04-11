@@ -97,6 +97,8 @@ class BondGaussianCalculator(Calculator):
 
         self._num_steps = 0
 
+        self._reacted_bonds = []
+
         self._history_records = {}
 
         return
@@ -179,8 +181,27 @@ class BondGaussianCalculator(Calculator):
             print(f"{self._history_records =}")
             # -- apply gaussian bias on reactive bonds
             for i, bond_pair in enumerate(bond_pairs):
+                # if bond_pair in self._reacted_bonds:
+                #     print(f"{bond_pair =} is reacted.")
+                #     continue
                 if bond_pair in self._history_records:
                     b_i, b_j = bond_pair
+                    bond_strain = bond_strains[i]
+                    # check whether bond is formed and clear history if so
+                    if bond_strain <= 0.05:
+                        if bond_pair not in self._reacted_bonds:
+                            self._reacted_bonds.append(bond_pair)
+                            self._history_records[bond_pair] = []
+                        continue
+                    else:
+                        # FIXME: thereacted bond becomes reactive again?
+                        if bond_pair not in self._reacted_bonds:
+                            ...
+                        else:
+                            if bond_strain > 0.2:
+                                self._history_records[bond_pair].append([bond_strain])
+                            else:
+                                continue
                     vec_mic = atoms.positions[b_i] - (
                         atoms.positions[b_j] + bond_shifts[i]
                     )
@@ -189,7 +210,7 @@ class BondGaussianCalculator(Calculator):
                         vec_mic,
                         bond_distances[i],
                         equi_distances[i],
-                        bond_strains[i],
+                        bstrain=bond_strain,
                         saved_bstrains=saved_bstrains,
                         sigma=self.sigma,
                         omega=self.omega,
