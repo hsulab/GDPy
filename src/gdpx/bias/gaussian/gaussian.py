@@ -12,8 +12,6 @@ import jax.numpy as jnp
 
 from ase.calculators.calculator import Calculator
 
-from . import registers
-
 
 @jax.jit
 def gaussian_bias(x, x_t, sigma, omega):
