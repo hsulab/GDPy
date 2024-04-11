@@ -139,40 +139,39 @@ class CenterOfMassGaussianCalculator(Calculator):
             with open(log_fpath, "w") as fopen:
                 fopen.write(content)
 
-        energy = 0.0
-        forces = np.zeros((atoms.positions.shape))
-        if self.num_steps % self.pace == 0:
-            print(f"{self.num_steps =}")
-            # - compute center_of_mass
-            cell = atoms.get_cell(complete=True)
-            masses = atoms.get_masses()
-            positions = atoms.get_positions()
-            for i, g in enumerate(self.groups):
-                com = compute_center_of_mass(
-                    atoms.cell,
-                    masses[g],
-                    positions[g],
-                    saved_positions=self._saved_positions[i],
-                    scaled=self.scaled,
-                    pbc=True,
-                )
+        print(f"{self.num_steps =}")
+        # - compute center_of_mass
+        cell = atoms.get_cell(complete=True)
+        masses = atoms.get_masses()
+        positions = atoms.get_positions()
+        for i, g in enumerate(self.groups):
+            com = compute_center_of_mass(
+                atoms.cell,
+                masses[g],
+                positions[g],
+                saved_positions=self._saved_positions[i],
+                scaled=self.scaled,
+                pbc=True,
+            )
+            if self.num_steps % self.pace == 0:
                 self._history_records[i].append(com)
 
-            # - compute energy and forces
-            step_energies = []
-            for i, g in enumerate(self.groups):
-                saved_coms = np.array(self._history_records[i])
-                com = saved_coms[-1]
-                curr_energy, curr_forces = compute_com_energy_and_forces(
-                    cell, masses[g], com, saved_coms, sigma=self.sigma, omega=self.omega
-                )
-                energy += curr_energy
-                step_energies.append(energy)
-                for k, f in zip(g, curr_forces):
-                    forces[k] += f
-            self._write_step(step_energies)
-        else:
-            ...
+        # - compute energy and forces
+        energy = 0.
+        forces = np.zeros(atoms.positions.shape)
+
+        step_energies = []
+        for i, g in enumerate(self.groups):
+            saved_coms = np.array(self._history_records[i])
+            com = saved_coms[-1]
+            curr_energy, curr_forces = compute_com_energy_and_forces(
+                cell, masses[g], com, saved_coms, sigma=self.sigma, omega=self.omega
+            )
+            energy += curr_energy
+            step_energies.append(energy)
+            for k, f in zip(g, curr_forces):
+                forces[k] += f
+        self._write_step(step_energies)
 
         # -
         self.results["energy"] = energy
