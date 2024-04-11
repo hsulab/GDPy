@@ -32,7 +32,8 @@ bias_register.register("plane_harmonic")(PlaneHarmonicCalculator)
 # from .gaussian import GaussianCalculator
 # bias_register.register("gaussian")(GaussianCalculator)
 
-from .gaussian import CenterOfMassGaussianCalculator
+from .gaussian import BondGaussianCalculator, CenterOfMassGaussianCalculator
+bias_register.register("bond_gaussian")(BondGaussianCalculator)
 bias_register.register("center_of_mass_gaussian")(CenterOfMassGaussianCalculator)
 
 
