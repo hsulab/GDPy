@@ -3,6 +3,8 @@
 
 
 import itertools
+import pathlib
+
 from typing import Optional, List, Tuple
 
 import numpy as np
@@ -20,8 +22,8 @@ def compute_bond_gaussian_energy_and_forces(
     vec_mic, dis, equ_dis, bstrain, saved_bstrains, sigma: float, omega: float
 ):
     """Compute bias energy and forces on a single bond strain."""
-    print(f"{bstrain =}")
-    print(f"{saved_bstrains =}")
+    # print(f"{bstrain =}")
+    # print(f"{saved_bstrains =}")
     # - compute energy
     x, x_t = bstrain, saved_bstrains
     x1 = x - x_t
@@ -123,6 +125,18 @@ class BondGaussianCalculator(Calculator):
         """"""
         super().calculate(atoms, properties, system_changes)
 
+        if self.num_steps == 0:
+            content = ""
+            content += f"# {self.sequ} [{self.smin} {self.smax}]\n"
+            content += f"# {self.eqdis_dict}\n"
+            content += f"# pace {self.pace} width {self.sigma} height {self.omega}\n"
+            content += "# {:>10s}  {:>12s}  {:>12s}\n".format(
+                "step", "num_biased", "num_reacted"
+            )
+            log_fpath = pathlib.Path(self.directory) / "info.log"
+            with open(log_fpath, "w") as fopen:
+                fopen.write(content)
+
         # - create a neighlist
         if self.neighlist is None:
             self.neighlist = NeighborList(
@@ -147,6 +161,8 @@ class BondGaussianCalculator(Calculator):
         self.results["free_energy"] = energy
         self.results["forces"] = forces
 
+        self._write_step()
+
         self._num_steps += 1
 
         return
@@ -161,8 +177,8 @@ class BondGaussianCalculator(Calculator):
             target_indices=self.target_indices,
             allowed_bonds=self.bonds,
         )
-        print(f"{bond_pairs =}")
-        print(f"{bond_distances =}")
+        # print(f"{bond_pairs =}")
+        # print(f"{bond_distances =}")
 
         # - compute energy and forces
         num_bonds = len(bond_pairs)
@@ -175,10 +191,12 @@ class BondGaussianCalculator(Calculator):
             max_bond_pair = bond_pairs[max_index]
             if self.num_steps % self.pace == 0:
                 if max_bond_pair in self._history_records:
-                    self._history_records[max_bond_pair].append([bond_strains[max_index]])
+                    self._history_records[max_bond_pair].append(
+                        [bond_strains[max_index]]
+                    )
                 else:
                     self._history_records[max_bond_pair] = [[bond_strains[max_index]]]
-            print(f"{self._history_records =}")
+            # print(f"{self._history_records =}")
             # -- apply gaussian bias on reactive bonds
             for i, bond_pair in enumerate(bond_pairs):
                 # if bond_pair in self._reacted_bonds:
@@ -218,12 +236,28 @@ class BondGaussianCalculator(Calculator):
                     energy += curr_energy
                     forces[b_i] += curr_forces
                     forces[b_j] -= curr_forces
-                    print(f"{b_i} ~ {b_j}: {curr_forces =}")
+                    # print(f"{b_i} ~ {b_j}: {curr_forces =}")
         else:
             energy = 0.0
             forces = np.zeros((atoms.positions.shape))
 
         return energy, forces
+
+    def _write_step(self):
+        """"""
+        num_biased = len(self._history_records)
+        num_reacted = len(self._reacted_bonds)
+
+        content = ""
+        content += "{:>12d}  {:>12d}  {:>12d}\n".format(
+            self.num_steps, num_biased, num_reacted
+        )
+
+        log_fpath = pathlib.Path(self.directory) / "info.log"
+        with open(log_fpath, "a") as fopen:
+            fopen.write(content)
+
+        return
 
 
 if __name__ == "__main__":
