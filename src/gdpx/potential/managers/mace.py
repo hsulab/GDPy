@@ -156,7 +156,13 @@ class MaceTrainer(AbstractTrainer):
 
         train_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
 
-        train_config["restart_latest"] = True
+        restart_latest = train_config.get("restart_latest", True)
+        train_config["restart_latest"] = restart_latest
+
+        init_latest = train_config.get("init_latest", None)
+        if init_latest is not None and init_latest:
+            train_config["init_latest"] = init_latest
+            del train_config["restart_latest"]
 
         train_config["save_cpu"] = True
 
