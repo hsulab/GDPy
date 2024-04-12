@@ -190,6 +190,9 @@ class MaceTrainer(AbstractTrainer):
 
             return command
 
+        # Check dataset type and convert it if necessary
+        dataset = self._prepare_dataset(dataset)
+
         train_config = self._update_config(dataset)
 
         if not self.directory.exists():
@@ -203,7 +206,7 @@ class MaceTrainer(AbstractTrainer):
             if ckpt_dir.exists():
                 model_name = train_config["name"]
                 ckpts = [p for p in ckpt_dir.glob(f"{model_name}*")]
-                self._print(ckpts)
+                self._print(f"FILES in CHECKPOINTS: {ckpts}")
                 ckpt_models = [c for c in ckpts if c.name.endswith(".model")]
                 if len(ckpt_models) > 0:
                     ckpt_model = ckpt_models[0]
@@ -338,12 +341,14 @@ class MaceManager(AbstractPotentialManager):
                 raise ModuleNotFoundError(
                     "Please install mace and torch to use the ase interface."
                 )
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            # print(f"mace device: {device}")
             calcs = []
             for m in models:
                 # print("device", torch.device("cuda" if torch.cuda.is_available() else torch.device("cpu")))
                 curr_calc = MACECalculator(
                     model_paths=m,
-                    device="cuda" if torch.cuda.is_available() else "cpu",
+                    device=device,
                     default_dtype=precision,
                 )
                 calcs.append(curr_calc)
@@ -363,14 +368,16 @@ class MaceManager(AbstractPotentialManager):
             #     )
             raise NotImplementedError("The JAX backend for MACE is under development.")
         elif self.calc_backend == "lammps":
-            raise NotImplementedError("The LAMMPS backend for MACE is under development.")
+            raise NotImplementedError(
+                "The LAMMPS backend for MACE is under development."
+            )
         else:
             ...
 
         self.calc = calc
 
         return
-    
+
     def _process_committee(self, calcs, estimate_uncertainty: bool):
         """"""
         if len(calcs) == 1:
@@ -380,8 +387,8 @@ class MaceManager(AbstractPotentialManager):
                 calc = CommitteeCalculator(calcs)
             else:
                 calc = calcs[0]
-        else:
-            ...
+        else: # Empty list
+            calc = DummyCalculator()
 
         return calc
 
