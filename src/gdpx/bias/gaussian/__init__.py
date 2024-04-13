@@ -4,11 +4,13 @@
 
 from .bond import BondGaussianCalculator
 from .com import CenterOfMassGaussianCalculator
+from .rmsd import RMSDGaussian
 
 
 __all__ = [
     "BondGaussianCalculator",
-    "CenterOfMassGaussianCalculator"
+    "CenterOfMassGaussianCalculator",
+    "RMSDGaussian"
 ]
 
 
