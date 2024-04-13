@@ -133,7 +133,7 @@ class CenterOfMassGaussianCalculator(Calculator):
             for g in self.groups:
                 self._saved_positions.append([positions[i] for i in g])
 
-            content = ("# {:>10d}" + "{:>12s}  "*4 + "{:<s} \n").format(
+            content = ("# {:>10s}" + "{:>12s}  "*4 + "{:<s} \n").format(
                 "step", "bias", "com_0", "com_1", "com_2", "tags"
             )
 
