@@ -73,7 +73,7 @@ def get_bond_information(
         indices, offsets = neighlist.get_neighbors(i)
         for j, offset in zip(indices, offsets):
             sym_j = atoms[j].symbol
-            pair = (atoms[i].symbol, sym_j)
+            pair = (sym_i, sym_j)
             if pair in allowed_bonds:
                 shift = np.dot(offset, cell)
                 dis = np.linalg.norm(

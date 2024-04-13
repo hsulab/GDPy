@@ -99,6 +99,8 @@ class BondGaussianCalculator(Calculator):
 
         self._num_steps = 0
 
+        self._initial_bonds = []
+
         self._reacted_bonds = []
 
         self._history_records = {}
@@ -137,6 +139,7 @@ class BondGaussianCalculator(Calculator):
             log_fpath = pathlib.Path(self.directory) / "info.log"
             with open(log_fpath, "w") as fopen:
                 fopen.write(content)
+
             # - write event log
             content = "# reaction events\n"
             event_fpath = pathlib.Path(self.directory) / "event.log"
@@ -160,6 +163,21 @@ class BondGaussianCalculator(Calculator):
             self.target_indices = [
                 i for i, a in enumerate(atoms) if a.symbol in self.symbols
             ]
+            print(f"{self.target_indices =}")
+
+        # - get initial bonds
+        if self.num_steps == 0:
+            bond_pairs, _, _, _ = get_bond_information(
+                atoms,
+                self.neighlist,
+                self.eqdis_dict,
+                covalent_min=0.8,
+                target_indices=self.target_indices,
+                # allowed_bonds=[("C", "O"), ("C", "H"), ("H", "O")],
+                allowed_bonds=self.bonds
+            )
+            self._initial_bonds = bond_pairs
+            print(f"{self._initial_bonds =}")
 
         energy, forces = self._compute_bias(atoms)
 
@@ -197,19 +215,17 @@ class BondGaussianCalculator(Calculator):
             max_index = np.argmax(bond_strains)
             max_bond_pair = bond_pairs[max_index]
             if self.num_steps % self.pace == 0:
-                if max_bond_pair in self._history_records:
-                    self._history_records[max_bond_pair].append(
-                        [bond_strains[max_index]]
-                    )
+                if max_bond_pair not in self._initial_bonds:
+                    if max_bond_pair in self._history_records:
+                        self._history_records[max_bond_pair].append(
+                            [bond_strains[max_index]]
+                        )
+                    else:
+                        self._history_records[max_bond_pair] = [[bond_strains[max_index]]]
                     self._write_event(max_bond_pair, "biased")
-                else:
-                    self._history_records[max_bond_pair] = [[bond_strains[max_index]]]
             # print(f"{self._history_records =}")
             # -- apply gaussian bias on reactive bonds
             for i, bond_pair in enumerate(bond_pairs):
-                # if bond_pair in self._reacted_bonds:
-                #     print(f"{bond_pair =} is reacted.")
-                #     continue
                 if bond_pair in self._history_records:
                     b_i, b_j = bond_pair
                     bond_strain = bond_strains[i]
