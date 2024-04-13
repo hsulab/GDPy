@@ -133,13 +133,15 @@ class CenterOfMassGaussianCalculator(Calculator):
             for g in self.groups:
                 self._saved_positions.append([positions[i] for i in g])
 
-            content = "# step \n"
+            content = ("# {:>10d}" + "{:>12s}  "*4 + "{:<s} \n").format(
+                "step", "bias", "com_0", "com_1", "com_2", "tags"
+            )
 
             log_fpath = pathlib.Path(self.directory) / "info.log"
             with open(log_fpath, "w") as fopen:
                 fopen.write(content)
 
-        print(f"{self.num_steps =}")
+        # print(f"{self.num_steps =}")
         # - compute center_of_mass
         cell = atoms.get_cell(complete=True)
         masses = atoms.get_masses()
