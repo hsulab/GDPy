@@ -126,6 +126,7 @@ class BondGaussianCalculator(Calculator):
         super().calculate(atoms, properties, system_changes)
 
         if self.num_steps == 0:
+            # - write bias log
             content = ""
             content += f"# {self.sequ} [{self.smin} {self.smax}]\n"
             content += f"# {self.eqdis_dict}\n"
@@ -135,6 +136,11 @@ class BondGaussianCalculator(Calculator):
             )
             log_fpath = pathlib.Path(self.directory) / "info.log"
             with open(log_fpath, "w") as fopen:
+                fopen.write(content)
+            # - write event log
+            content = "# reaction events\n"
+            event_fpath = pathlib.Path(self.directory) / "event.log"
+            with open(event_fpath, "w") as fopen:
                 fopen.write(content)
 
         # - create a neighlist
@@ -168,6 +174,7 @@ class BondGaussianCalculator(Calculator):
         return
 
     def _compute_bias(self, atoms: Atoms):
+        """"""
         # - find species
         bond_pairs, bond_distances, bond_shifts, equi_distances = get_bond_information(
             atoms,
@@ -194,6 +201,7 @@ class BondGaussianCalculator(Calculator):
                     self._history_records[max_bond_pair].append(
                         [bond_strains[max_index]]
                     )
+                    self._write_event(max_bond_pair, "biased")
                 else:
                     self._history_records[max_bond_pair] = [[bond_strains[max_index]]]
             # print(f"{self._history_records =}")
@@ -210,6 +218,7 @@ class BondGaussianCalculator(Calculator):
                         if bond_pair not in self._reacted_bonds:
                             self._reacted_bonds.append(bond_pair)
                             self._history_records[bond_pair] = []
+                            self._write_event(bond_pair, "bond_formed")
                         continue
                     else:
                         # FIXME: thereacted bond becomes reactive again?
@@ -218,6 +227,7 @@ class BondGaussianCalculator(Calculator):
                         else:
                             if bond_strain > 0.2:
                                 self._history_records[bond_pair].append([bond_strain])
+                                self._write_event(bond_pair, "bond_broken")
                             else:
                                 continue
                     vec_mic = atoms.positions[b_i] - (
@@ -255,6 +265,17 @@ class BondGaussianCalculator(Calculator):
 
         log_fpath = pathlib.Path(self.directory) / "info.log"
         with open(log_fpath, "a") as fopen:
+            fopen.write(content)
+
+        return
+    
+    def _write_event(self, bond_pair: Tuple[int, int], event: str):
+        """"""
+        pair_name = "_".join([str(x) for x in bond_pair])
+
+        content = f"{self.num_steps:>8d}  {pair_name:>24s}  {event:>24s}\n"
+        event_fpath = pathlib.Path(self.directory) / "event.log"
+        with open(event_fpath, "a") as fopen:
             fopen.write(content)
 
         return
