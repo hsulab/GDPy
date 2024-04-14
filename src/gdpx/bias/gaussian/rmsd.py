@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import pathlib
 from typing import List
 
 import numpy as np
@@ -11,7 +12,14 @@ from ase.geometry import find_mic
 
 
 def compute_rmsd_energy_and_forces(
-    cell, coordinate, saved_coordinates, sigma: float, omega: float, pbc: bool = True
+    cell,
+    coordinate,
+    saved_coordinates,
+    damped_steps: List[int],
+    kappa: float,
+    sigma: float,
+    omega: float,
+    pbc: bool = True,
 ):
     """"""
     # - preprocess coordinates
@@ -52,9 +60,20 @@ def compute_rmsd_energy_and_forces(
         .repeat(3, axis=2)
     ) * vectors  # shape (num_references, num_atoms, 3)
 
-    forces = -np.sum(dEds[:, :, np.newaxis] * dsdc, axis=0)
+    damped_prefactors = compute_damping_function(damped_steps, kappa=kappa)[
+        :, np.newaxis, np.newaxis
+    ]
+
+    forces = -np.sum(damped_prefactors * dEds[:, :, np.newaxis] * dsdc, axis=0)
 
     return energy, forces
+
+
+def compute_damping_function(steps, kappa: float = 0.03):
+    """"""
+    damp = 2.0 / (1.0 + np.exp(-kappa * steps)) - 1.0
+
+    return damp
 
 
 class RMSDGaussian(Calculator):
@@ -67,6 +86,8 @@ class RMSDGaussian(Calculator):
         pace: int = 1,
         sigma: float = 0.2,
         omega: float = 0.5,
+        kappa: float = 0.03,
+        memory_length: int = 0,
         **kwargs,
     ):
         """"""
@@ -80,8 +101,13 @@ class RMSDGaussian(Calculator):
 
         self.omega = omega
 
+        self.kappa = kappa
+
+        self.memory_length = memory_length
+
         # - private
         self._history_records = []
+        self._history_steps = []
 
         self._num_steps = 0
 
@@ -101,20 +127,37 @@ class RMSDGaussian(Calculator):
     ):
         super().calculate(atoms, properties, system_changes)
 
-        coordinate = atoms.get_positions()[self.group]
-        if self.num_steps % self.pace == 0:
-            self._history_records.append(coordinate)
+        if self.num_steps == 0:
+            content = f"# pace {self.pace} width {self.sigma} height {self.omega}\n"
+            content += f"# memory {self.memory_length} kappa {self.kappa}\n"
+            content += "# {:>10s}  {:>12s}  {:>12s}\n".format(
+                "step", "num_records", "energy"
+            )
 
-        # The same coordinate leads to zero division so we use [:-1] records.
-        saved_coordinates = np.array(self._history_records[:-1])
+            log_fpath = pathlib.Path(self.directory) / "info.log"
+            with open(log_fpath, "w") as fopen:
+                fopen.write(content)
+
+        coordinate = atoms.get_positions()[self.group]
+
+        # Remove previous references
+        self._history_records = self._history_records[-self.memory_length :]
+        self._history_steps = self._history_steps[-self.memory_length :]
+
+        # The same coordinate leads to zero division so we use [:-1] records
+        # so we add record after computing energy and forces.
+        saved_coordinates = np.array(self._history_records)
+        damped_steps = self.num_steps - np.array(self._history_steps)
         if saved_coordinates.shape[0] == 0:
-            energy = 0.
+            energy = 0.0
             forces = np.zeros(atoms.positions.shape)
         else:
             energy, biased_forces = compute_rmsd_energy_and_forces(
                 cell=atoms.get_cell(complete=True),
                 coordinate=coordinate,
                 saved_coordinates=saved_coordinates,
+                damped_steps=damped_steps,
+                kappa=self.kappa,
                 sigma=self.sigma,
                 omega=self.omega,
                 pbc=True,  # FIXME: nopbc systems?
@@ -125,6 +168,27 @@ class RMSDGaussian(Calculator):
         self.results["energy"] = energy
         self.results["free_energy"] = energy
         self.results["forces"] = forces
+
+        self._write_step(energy)
+
+        if self.num_steps % self.pace == 0:
+            self._history_records.append(coordinate)
+            self._history_steps.append(self.num_steps)
+
+        self._num_steps += 1
+
+        return
+
+    def _write_step(self, energy: float):
+        """"""
+        num_records = len(self._history_records)
+        content = "{:>12d}  {:>12d}  {:>12.4f}\n".format(
+            self.num_steps, num_records, energy
+        )
+
+        log_fpath = pathlib.Path(self.directory) / "info.log"
+        with open(log_fpath, "a") as fopen:
+            fopen.write(content)
 
         return
 
