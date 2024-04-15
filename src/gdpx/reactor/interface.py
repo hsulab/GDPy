@@ -5,6 +5,8 @@ import copy
 import time
 from typing import Optional, List, Mapping
 
+import omegaconf
+
 from ase import Atoms
 
 from ..core.register import registers
@@ -46,7 +48,7 @@ class ReactorVariable(Variable):
         potter = None
         if isinstance(inp, Variable):
             potter = inp.value
-        elif isinstance(inp, dict):
+        elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
             potter_params = copy.deepcopy(inp)
             name = potter_params.get("name", None)
             potter = registers.create(
@@ -65,7 +67,7 @@ class ReactorVariable(Variable):
         drivers = [] # params
         if isinstance(inp, Variable):
             drivers = inp.value
-        elif isinstance(inp, dict): # assume it only contains one driver
+        elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
             driver_params = copy.deepcopy(inp)
             #driver = self.potter.create_driver(driver_params) # use external backend
             drivers = [driver_params]
