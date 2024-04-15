@@ -253,7 +253,7 @@ class AbstractStringReactor(AbstractReactor):
             if self.setting.mic:
                 self._print("Align IS and FS based on MIC.")
                 curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
-                self._debug(f"curr_vectors: {curr_vectors}")
+                # self._debug(f"curr_vectors: {curr_vectors}")
                 self._print(f"disp: {np.linalg.norm(curr_vectors)}")
                 fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
             else:
