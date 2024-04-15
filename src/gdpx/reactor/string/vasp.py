@@ -126,6 +126,7 @@ class VaspStringReactor(AbstractStringReactor):
                 temp_frames = read(vasprun, ":")
                 try:
                     _ = temp_frames[0].get_forces()
+                    verified = True
                 except:
                     verified = False
             else:
@@ -143,17 +144,20 @@ class VaspStringReactor(AbstractStringReactor):
             run_params.update(**self.setting.get_init_params())
 
             if ckpt_wdir is None:  # start from the scratch
+                self._print("interpolate input images...")
                 images = self._align_structures(structures, run_params)
             else:
+                self._print("update input images...")
                 # - update structures
                 rep_dirs = sorted(
-                    [x.name for x in sorted(self.directory.glob(r"[0-9][0-9]"))]
+                    ckpt_wdir.glob(r"[0-9][0-9]"), key=lambda x: int(x.name)
                 )
 
                 frames_ = []
                 for x in rep_dirs[1:-1]:
-                    frames_.append(read(self.directory / x / "OUTCAR", ":"))
-                nframes = min([len(x) for x in frames_])
+                    frames_.append(read(x / "OUTCAR", ":"))
+                nframes_per_image = [len(x) for x in frames_]
+                nframes = min(nframes_per_image)
                 assert nframes > 0, "At least one step finished before resume..."
                 intermediates_ = [x[nframes - 1] for x in frames_]
                 images = [structures[0]] + intermediates_ + [structures[-1]]
