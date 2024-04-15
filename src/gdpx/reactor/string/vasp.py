@@ -164,6 +164,9 @@ class VaspStringReactor(AbstractStringReactor):
 
                 run_params.update(steps=self.setting.steps - nframes)
 
+                # constraint info has already been in OUTCAR
+                run_params.pop("constraint")
+
             write(self.directory / "images.xyz", images)
 
             # - update input
