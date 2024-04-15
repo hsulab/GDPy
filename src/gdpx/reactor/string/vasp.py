@@ -160,7 +160,22 @@ class VaspStringReactor(AbstractStringReactor):
                 nframes = min(nframes_per_image)
                 assert nframes > 0, "At least one step finished before resume..."
                 intermediates_ = [x[nframes - 1] for x in frames_]
-                images = [structures[0]] + intermediates_ + [structures[-1]]
+
+                # -- sort frames from outcar
+                if (self.directory / ASE_VASP_SORT_FNAME).exists():
+                    sort, resort = read_sort(ckpt_wdir, ASE_VASP_SORT_FNAME)
+                else:
+                    natoms = len(structures[0])
+                    sort, resort = list(range(natoms)), list(range(natoms))
+
+                intermediates = []
+                for a in intermediates_:
+                    sorted_atoms = resort_atoms_with_spc(
+                        a, resort, "vasp", print_func=self._print, debug_func=self._debug
+                    )
+                    intermediates.append(sorted_atoms)
+
+                images = [structures[0]] + intermediates + [structures[-1]]
 
                 # the param keys have been proprocessed to vasp ones
                 run_params.update(nsw=self.setting.steps + 1 - nframes)
