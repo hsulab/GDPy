@@ -144,7 +144,6 @@ class VaspStringReactor(AbstractStringReactor):
 
             if ckpt_wdir is None:  # start from the scratch
                 images = self._align_structures(structures, run_params)
-                write(self.directory / "images.xyz", images)
             else:
                 # - update structures
                 rep_dirs = sorted(
@@ -160,6 +159,8 @@ class VaspStringReactor(AbstractStringReactor):
                 images = [structures[0]] + intermediates_ + [structures[-1]]
 
                 run_params.update(steps=self.setting.steps - nframes)
+
+            write(self.directory / "images.xyz", images)
 
             # - update input
             self.calc.set(**run_params)
