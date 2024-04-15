@@ -162,7 +162,7 @@ class VaspStringReactor(AbstractStringReactor):
                 intermediates_ = [x[nframes - 1] for x in frames_]
 
                 # -- sort frames from outcar
-                if (self.directory / ASE_VASP_SORT_FNAME).exists():
+                if (ckpt_wdir / ASE_VASP_SORT_FNAME).exists():
                     sort, resort = read_sort(ckpt_wdir, ASE_VASP_SORT_FNAME)
                 else:
                     natoms = len(structures[0])
