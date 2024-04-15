@@ -162,7 +162,8 @@ class VaspStringReactor(AbstractStringReactor):
                 intermediates_ = [x[nframes - 1] for x in frames_]
                 images = [structures[0]] + intermediates_ + [structures[-1]]
 
-                run_params.update(steps=self.setting.steps - nframes)
+                # the param keys have been proprocessed to vasp ones
+                run_params.update(nsw=self.setting.steps + 1 - nframes)
 
                 # constraint info has already been in OUTCAR
                 run_params.pop("constraint")
@@ -292,4 +293,3 @@ class VaspStringReactor(AbstractStringReactor):
 
 if __name__ == "__main__":
     ...
-
