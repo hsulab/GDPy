@@ -5,7 +5,8 @@
 import copy
 import itertools
 import pathlib
-from typing import Union, List
+import shutil
+from typing import Union, List, Optional
 
 
 from ase.io import read, write
@@ -175,11 +176,16 @@ class MaceTrainer(AbstractTrainer):
         return train_config
 
     def _train_from_the_restart(self, dataset, init_model) -> str:
-        """Train from the restart"""
-        if init_model is not None:
-            raise NotImplementedError(
-                f"{self.name} does not support initialising from a previous model."
-            )
+        """Train from the restart.
+
+        Args:
+            init_model: The path of the checkpoints folder.
+
+        """
+        # if init_model is not None:
+        #     raise NotImplementedError(
+        #         f"{self.name} does not support initialising from a previous model."
+        #     )
 
         def _add_command_options(command, config) -> str:
             """"""
@@ -196,34 +202,58 @@ class MaceTrainer(AbstractTrainer):
 
             return command
 
+        def _check_latest_checkpoint(ckpt_dir, model_name) -> Optional[int]:
+            """"""
+            ckpts = [p for p in ckpt_dir.glob(f"{model_name}*")]
+            # ckpt_models = [c for c in ckpts if c.name.endswith(".model")]
+            ckpt_models = [c for c in ckpts if c.name.endswith(".pt")]
+            num_ckpts = len(ckpt_models)
+            assert num_ckpts <= 1
+            if num_ckpts == 1:
+                ckpt_model = ckpt_models[0]
+                prev_seed = int(ckpt_model.name.split("-")[1].split("_")[0])
+            else:
+                prev_seed = None
+
+            return prev_seed
+
         # Check dataset type and convert it if necessary
         dataset = self._prepare_dataset(dataset)
 
         train_config = self._update_config(dataset)
 
+        # make command
+        raw_command = self._train_from_the_scratch(dataset, init_model)
+
+        ckpt_dir = self.directory / "checkpoints"
         if not self.directory.exists():
-            command = self._train_from_the_scratch(dataset, init_model)
             if init_model is not None:
-                ...
-            command = _add_command_options(command, train_config)
-        else:
-            command = self._train_from_the_scratch(dataset, init_model)
-            ckpt_dir = self.directory / "checkpoints"
-            if ckpt_dir.exists():
-                model_name = train_config["name"]
-                ckpts = [p for p in ckpt_dir.glob(f"{model_name}*")]
-                self._print(f"FILES in CHECKPOINTS: {ckpts}")
-                ckpt_models = [c for c in ckpts if c.name.endswith(".model")]
-                if len(ckpt_models) > 0:
-                    ckpt_model = ckpt_models[0]
-                    self._print(f"{ckpt_model =}")
-                    prev_seed = int(ckpt_model.name.split("-")[-1][:-6])
-                    self._print(f"{prev_seed =}")
-                    train_config["seed"] = prev_seed
+                init_model = pathlib.Path(init_model)
+                assert init_model.name == "checkpoints"
+                self._print(f"init_model: {str(init_model)}")
+                shutil.copytree(init_model, ckpt_dir)
+                prev_seed = _check_latest_checkpoint(ckpt_dir, train_config["name"])
+                self._print(f"{prev_seed =}")
+                if prev_seed is not None:
+                    train_config["prev_seed"] = prev_seed
+                    train_config.pop("restart_latest")
+                    train_config["init_latest"] = True
             else:
                 # train from the scratch and no config needs update
                 ...
-            command = _add_command_options(command, train_config)
+        else:
+            if ckpt_dir.exists():
+                prev_seed = _check_latest_checkpoint(ckpt_dir, train_config["name"])
+                self._print(f"{prev_seed =}")
+                if prev_seed is not None:
+                    train_config["seed"] = prev_seed
+                    train_config.pop("init_latest")
+                    train_config["restart_latest"] = True
+            else:
+                # train from the scratch and no config needs update
+                ...
+
+        command = _add_command_options(raw_command, train_config)
 
         return command
 
