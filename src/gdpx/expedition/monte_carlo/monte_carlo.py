@@ -29,6 +29,8 @@ from .operators import select_operator, parse_operators, save_operator, load_ope
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
 
+MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
+
 
 def convert_blmin_to_str(blmin: dict) -> str:
     """"""
@@ -292,9 +294,16 @@ class MonteCarlo(AbstractExpedition):
             # - run mc steps
             curr_step = self.start_step  # start_step
             while True:
+                # -- check exit-loop conditions
                 if curr_step > self.convergence["steps"]:
+                    self._print("Monte Carlo reaches the maximum step.")
                     break
+                if (self.directory/MC_EARLYSTOP_FNAME).exists():
+                    self._print("Monte Carlo reaches the earlystopping.")
+                    break
+                # -- run step
                 step_state = self._irun(curr_step)
+                # -- state-specific
                 if step_state == "UNFINISHED":
                     self._print("Wait MC step to finish.")
                     break
@@ -309,6 +318,11 @@ class MonteCarlo(AbstractExpedition):
                     curr_step += 1
                 elif step_state == "FAILED":
                     self._print(f"RETRY STEP {curr_step}.")
+                elif step_state == "EARLYSTOPPED":
+                    # We need a file flag to indicate the simutlation is finshed
+                    # when read_convergence is called.
+                    with open(self.directory/MC_EARLYSTOP_FNAME, "w") as fopen:
+                        fopen.write(f"{step_state =}")
                 else:
                     ...  # This should not happen.
         else:
@@ -373,6 +387,9 @@ class MonteCarlo(AbstractExpedition):
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
                 step_state = "FINISHED"
+
+                # -- check earlystopping
+                step_state = self._check_earlystop(self.atoms)
             else:
                 step_state = "UNFINISHED"
         else:
@@ -380,6 +397,30 @@ class MonteCarlo(AbstractExpedition):
             step_state = "FAILED"
 
         return step_state
+
+    def _check_earlystop(self, atoms: Atoms) -> str:
+        """Check whether earlystopping should be done to avoid unphysical structures.
+
+        Returns:
+            A state string `FINISHED` or `EARLYSTOPPED`.
+
+        """
+        es_dict = self.convergence.get("earlystop", None)
+        if es_dict is not None:
+            prop = es_dict.get("property", None)
+            if prop == "energy_per_atom":
+                ae_min, ae_max = es_dict["range"]
+                energy_per_atom = atoms.get_potential_energy() / len(atoms)
+                if ae_min <= energy_per_atom < ae_max:
+                    es_state = "FINISHED"
+                else:
+                    es_state = "EARLYSTOPPED"
+            else:
+                raise NotImplementedError(f"Unknown earlystop: {es_dict =}.")
+        else:
+            es_state = "FINISHED"
+
+        return es_state
 
     def _veri_checkpoint(self) -> bool:
         """Verify checkpoints."""
@@ -495,6 +536,8 @@ class MonteCarlo(AbstractExpedition):
             nframes = len(mctraj)
             # self.start_step = nframes
             if nframes > self.convergence["steps"]:
+                converged = True
+            if (self.directory/MC_EARLYSTOP_FNAME).exists():
                 converged = True
         else:
             ...
