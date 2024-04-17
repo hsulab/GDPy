@@ -195,8 +195,10 @@ class DescriptorSelector(AbstractSelector):
             reducer.fit(features)
             proj = reducer.transform(features)
 
+            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+
             for grp_name, inds in groups.items():
-                sc = plt.scatter(
+                sc = ax.scatter(
                     proj[others[grp_name], 0],
                     proj[others[grp_name], 1],
                     marker="o",
@@ -205,18 +207,19 @@ class DescriptorSelector(AbstractSelector):
                 )
                 # --
                 selected_proj = reducer.transform(np.array([features[i] for i in inds]))
-                plt.scatter(
+                ax.scatter(
                     selected_proj[:, 0],
                     selected_proj[:, 1],
                     marker="*",
                     alpha=0.5,
                     color="r",
                 )
-            plt.legend(fontsize=12)
-            plt.axis("off")
-            plt.savefig(self.info_fpath.parent / (self.info_fpath.stem + ".png"))
+            ax.legend(fontsize=12)
+            ax.axis("off")
+            fig.savefig(self.info_fpath.parent / (self.info_fpath.stem + ".png"))
+            plt.close()
         else:
-            ... # Cannot plot PCA with only one structure...
+            ...  # Cannot plot PCA with only one structure...
 
         return
 
