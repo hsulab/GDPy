@@ -5,7 +5,7 @@ import abc
 import copy
 import dataclasses
 import itertools
-from typing import NoReturn, Union, List, Callable
+from typing import NoReturn, Optional, Union, List, Mapping, Callable
 
 import numpy as np
 
@@ -15,6 +15,20 @@ from ase.io import read, write
 from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
 from .cur import stat_str2val, boltz_selection, hist_selection
+
+
+def get_metric_func(metric_name: str):
+    """"""
+    if metric_name == "fabs":
+        metric_func = np.fabs
+    elif metric_name == "max":
+        metric_func = np.max
+    elif metric_name == "min":
+        metric_func = np.min
+    else:
+        raise NotImplementedError(f"Unknown metric function {metric_name}.")
+
+    return metric_func
 
 
 @dataclasses.dataclass
@@ -29,7 +43,8 @@ class PropertyItem:
     #: List of functions, min, max, average and ...
     _metric: List[Callable] = dataclasses.field(init=False, default_factory=list)
 
-    # metric_params
+    #: Apply group selection.
+    group: Optional[str] = None
 
     #: Sparsifiction method. [filter, sort, hist, boltz]
     sparsify: str = "filter"
@@ -50,7 +65,7 @@ class PropertyItem:
     nbins: int = 20
 
     #: Boltzmann temperature (eV).
-    kBT: float = None
+    kBT: Optional[float] = None
 
     # expression
     # weight
@@ -175,24 +190,14 @@ class PropertySelector(AbstractSelector):
                         marker_groups[k] = list(v)
             self._debug(f"marker_groups: {marker_groups}")
 
-            selected_markers = []
-            for grp_name, curr_markers in marker_groups.items():
-                curr_frames = data.get_marked_structures(curr_markers)
-                curr_nframes = len(curr_frames)
-
-                # --
-                if curr_nframes > 0:
-                    scores, selected_indices = self._sparsify(prop_item, curr_frames)
-                    self._print(f"number of structures: {len(selected_indices)}")
-                    curr_selected_markers = [curr_markers[i] for i in selected_indices]
-                    selected_markers.extend(curr_selected_markers)
-
-                    # - add score to atoms
-                    for score, i in zip(scores, selected_indices):
-                        curr_frames[i].info["score"] = score
-
-                else:
-                    ...
+            if prop_item.group is None:
+                selected_markers = self._mark_group_separate(
+                    data, prop_item, marker_groups
+                )
+            else:
+                selected_markers = self._mark_group_represent(
+                    data, prop_item, marker_groups
+                )
 
             data.markers = np.array(selected_markers)
 
@@ -200,6 +205,76 @@ class PropertySelector(AbstractSelector):
                 break
 
         return
+
+    def _mark_group_represent(self, data, prop_item: PropertyItem, marker_groups):
+        """Mark a group of structures based on a representative structure's property."""
+
+        metric_func = get_metric_func(prop_item.group)
+
+        rep_counter = 0
+        rep_groups = []  # data for representative groups
+        for grp_name, curr_markers in marker_groups.items():
+            curr_frames = data.get_marked_structures(curr_markers)
+            curr_nframes = len(curr_frames)
+
+            if curr_nframes > 0:
+                curr_values = self._extract_property(curr_frames, prop_item)
+                metric_val = metric_func(curr_values)
+                # FIXME: how to find index if structures with same properties?
+                rep_frame = curr_frames[curr_values.index(metric_val)]
+                rep_groups.append((grp_name, rep_counter, rep_frame, metric_val))
+                rep_counter += 1
+            else:
+                ...
+        rep_groups = sorted(rep_groups, key=lambda x: x[3])
+
+        rep_frames = [x[2] for x in rep_groups]
+
+        selected_markers = []
+        scores, selected_indices = self._sparsify(prop_item, rep_frames)
+        self._print(f"number of groups: {len(selected_indices)}")
+
+        _counter = 0
+        for grp_name, rep_index, _, _ in rep_groups:
+            if rep_index in selected_indices:
+                curr_selected_markers = marker_groups[grp_name]
+                selected_markers.extend(curr_selected_markers)
+                curr_score = scores[selected_indices.index(rep_index)]
+                curr_selected_frames = data.get_marked_structures(curr_selected_markers)
+                for a in curr_selected_frames:
+                    a.info["score"] = curr_score
+                num_curr_frames = len(curr_selected_frames)
+                self._debug(f"group: {grp_name} -> {num_curr_frames}")
+                _counter += num_curr_frames
+            else:
+                ...
+
+        assert _counter == len(selected_markers)
+
+        return selected_markers
+
+    def _mark_group_separate(self, data, prop_item: PropertyItem, marker_groups):
+        """Mark a group of structures based on a structure's own property."""
+        selected_markers = []
+        for grp_name, curr_markers in marker_groups.items():
+            curr_frames = data.get_marked_structures(curr_markers)
+            curr_nframes = len(curr_frames)
+
+            # --
+            if curr_nframes > 0:
+                scores, selected_indices = self._sparsify(prop_item, curr_frames)
+                self._print(f"number of structures: {len(selected_indices)}")
+                curr_selected_markers = [curr_markers[i] for i in selected_indices]
+                selected_markers.extend(curr_selected_markers)
+
+                # - add score to atoms
+                for score, i in zip(scores, selected_indices):
+                    curr_frames[i].info["score"] = score
+
+            else:
+                ...
+
+        return selected_markers
 
     def _extract_property(self, frames: List[Atoms], prop_item: PropertyItem):
         """Extract property values from frames.
