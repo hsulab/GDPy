@@ -217,6 +217,19 @@ class MaceTrainer(AbstractTrainer):
 
             return prev_seed
 
+        def _get_latest_checkpoint(ckpt_dir, model_name):
+            """"""
+            ckpts = [p for p in ckpt_dir.glob(f"{model_name}*")]
+            ckpt_models = [c for c in ckpts if c.name.endswith(".pt")]
+            num_ckpts = len(ckpt_models)
+            assert num_ckpts <= 1
+            if num_ckpts == 1:
+                ckpt_model = ckpt_models[0]
+            else:
+                ckpt_model = None
+
+            return ckpt_model
+
         # Check dataset type and convert it if necessary
         dataset = self._prepare_dataset(dataset)
 
@@ -228,21 +241,25 @@ class MaceTrainer(AbstractTrainer):
         ckpt_dir = self.directory / "checkpoints"
         if not self.directory.exists():
             if init_model is not None:
+                model_name = train_config["name"]
                 init_model = pathlib.Path(init_model)
                 assert init_model.name == "checkpoints"
                 self._print(f"init_model: {str(init_model)}")
-                shutil.copytree(init_model, ckpt_dir)
-                prev_seed = _check_latest_checkpoint(ckpt_dir, train_config["name"])
-                self._print(f"{prev_seed =}")
-                if prev_seed is not None:
-                    train_config["prev_seed"] = prev_seed
+                ckpt_path = _get_latest_checkpoint(init_model, model_name)
+                if ckpt_path is not None:
+                    ckpt_dir.mkdir()
+                    curr_seed = train_config["seed"]
+                    (ckpt_dir/f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
                     train_config.pop("restart_latest")
                     train_config["init_latest"] = True
+                else:
+                    self._print(f"FAILED to init from `{str(init_model)}`.")
             else:
                 # train from the scratch and no config needs update
                 ...
         else:
             if ckpt_dir.exists():
+                # continue from the latest checkpoint
                 prev_seed = _check_latest_checkpoint(ckpt_dir, train_config["name"])
                 self._print(f"{prev_seed =}")
                 if prev_seed is not None:
@@ -250,8 +267,23 @@ class MaceTrainer(AbstractTrainer):
                     train_config.pop("init_latest")
                     train_config["restart_latest"] = True
             else:
-                # train from the scratch and no config needs update
-                ...
+                if init_model is not None:
+                    model_name = train_config["name"]
+                    init_model = pathlib.Path(init_model)
+                    assert init_model.name == "checkpoints"
+                    self._print(f"init_model: {str(init_model)}")
+                    ckpt_path = _get_latest_checkpoint(init_model, model_name)
+                    if ckpt_path is not None:
+                        ckpt_dir.mkdir()
+                        curr_seed = train_config["seed"]
+                        (ckpt_dir/f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
+                        train_config.pop("restart_latest")
+                        train_config["init_latest"] = True
+                    else:
+                        self._print(f"FAILED to init from `{str(init_model)}`.")
+                else:
+                    # train from the scratch and no config needs update
+                    ...
 
         command = _add_command_options(raw_command, train_config)
 
