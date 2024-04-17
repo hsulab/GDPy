@@ -86,7 +86,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             builder: Define the system to explore.
 
         """
-        ga_dict = params # For compat
+        ga_dict = params  # For compat
 
         # --- database ---
         self.db_name = ga_dict.get("database", "mydb.db")
@@ -178,18 +178,16 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self._print(energies)
             data.append([i, energies])
 
-        import matplotlib as mpl
-
-        mpl.use("Agg")  # silent mode
-        from matplotlib import pyplot as plt
+        import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-        ax.set_title("Population Evolution", fontsize=20, fontweight="bold")
+        ax.set_title("Population Evolution")
 
         for i, energies in data:
             ax.scatter([i] * len(energies), energies)
 
-        plt.savefig(results / "pop.png")
+        fig.savefig(results / "pop.png")
+        plt.close()
 
         return
 
@@ -215,16 +213,17 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self.pop_manager._print = self._print
 
         # - search target
-        self._print(f"\n\n===== Genetic Algorithm =====")
+        self._print(f"===== Genetic Algorithm =====")
         target = self.prop_dict["target"]
-        self._print(f"\nTarget of Global Optimisation is {target}")
+        self._print(f"Target of Global Optimisation is {target}")
 
         # - worker info
-        self._print("\n\n===== register worker =====")
+        self._print("===== register worker =====")
 
         # - generator info
-        self._print("\n\n===== register builder =====")
-        self._print(self.generator)
+        self._print("===== register builder =====")
+        for l in str(self.generator).split("\n"):
+            self._print(l)
         self._print(f"random_state: f{self.generator.random_seed}")
 
         # NOTE: check database existence and generation number to determine restart
@@ -237,7 +236,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self.da = DataConnection(self.db_path)
 
         # --- mutation and comparassion operators
-        self._print("\n\n===== register operators =====")
+        self._print("===== register operators =====")
         self._register_operators()
 
         # - run
@@ -295,7 +294,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 "The current genertion is unknown. Check generation before."
             )
         # - generation
-        self._print("\n\n===== Generation Info =====")
+        self._print("===== Generation Info =====")
         self._print(f"current generation number: {self.cur_gen}")
         self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
         self._print(convert_indices(sorted(self.relaxed_confids)))
@@ -306,7 +305,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self._print(f"end of current generation: {self.end_of_gen}")
 
         # - population
-        self._print("\n\n===== Population Info =====")
+        self._print("===== Population Info =====")
         content = "For generation > 0,\n"
         content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format(
             "Reprod", "Random", "Mutate", "Total"
@@ -318,11 +317,12 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self.pop_manager.gen_size,
         )
         content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
-        self._print(content)
+        for l in content.split("\n"):
+            self._print(l)
 
         # - minimise
         if self.cur_gen == 0:
-            self._print("\n\n===== Initial Population Calculation =====")
+            self._print("===== Initial Population Calculation =====")
             frames_to_work = []
             while (
                 self.da.get_number_of_unrelaxed_candidates()
@@ -341,7 +341,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 _ = self.worker.run(frames_to_work)  # retrieve later
         else:
             # --- update population
-            self._print("\n\n===== Update Population =====")
+            self._print("===== Update Population =====")
             # - create the population used for crossover and mutation
             candidate_groups, num_paired, num_mutated, num_random = (
                 self.pop_manager._get_current_candidates(
@@ -455,7 +455,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         )
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
-            self._print("\n\n===== Retrieve Relaxed Population =====")
+            self._print("===== Retrieve Relaxed Population =====")
             converged_candidates = [
                 t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)
             ]
