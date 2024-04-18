@@ -39,8 +39,8 @@ class StringReactorSetting:
     #: Number of images along the pathway.
     nimages: int = 7
 
-    #: Align IS and FS based on the mic.
-    mic: bool = True
+    #: Methods that interpolates structures.
+    interpolation: dict = dataclasses.field(default_factory=dict)
 
     #: Optimiser.
     optimiser: str = "bfgs"
@@ -241,6 +241,7 @@ class AbstractStringReactor(AbstractReactor):
         """
         nstructures = len(structures)
         if nstructures == 2:
+            self._print("Interpolate a pathway.")
             # - check lattice consistency
             ini_atoms, fin_atoms = structures
             c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(
@@ -248,9 +249,17 @@ class AbstractStringReactor(AbstractReactor):
             )
             assert np.allclose(c1, c2), "Inconsistent unit cell..."
 
-            # - align structures
+            cons_text = run_params.pop("constraint", None)
+            self._preprocess_constraints(ini_atoms, cons_text)
+            self._preprocess_constraints(fin_atoms, cons_text)
+
+            # - 
+            use_mic = self.setting.interpolation.get("mic", True)
+            idpp_params = self.setting.interpolation.get("idpp", {})
+
+            # - linear interpolate
             shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
-            if self.setting.mic:
+            if use_mic:
                 self._print("Align IS and FS based on MIC.")
                 curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
                 # self._debug(f"curr_vectors: {curr_vectors}")
@@ -259,11 +268,6 @@ class AbstractStringReactor(AbstractReactor):
             else:
                 self._print(f"disp: {np.linalg.norm(shifts)}")
 
-            cons_text = run_params.pop("constraint", None)
-            self._preprocess_constraints(ini_atoms, cons_text)
-            self._preprocess_constraints(fin_atoms, cons_text)
-
-            # - find mep
             nimages = self.setting.nimages
             images = [ini_atoms]
             images += [ini_atoms.copy() for i in range(nimages - 2)]
@@ -276,6 +280,13 @@ class AbstractStringReactor(AbstractReactor):
                 use_scaled_coord=False,
                 apply_constraint=False,
             )
+
+            if idpp_params:
+                # FIXME: make idpp a manager?
+                idpp_interpolate(
+                    images=images, traj=str(self.directory/"idpp_images.traj"),
+                    log=str(self.directory/"idpp.log"), mic=use_mic, **idpp_params
+                )
         else:
             self._print("Use a pre-defined pathway.")
             images = [a.copy() for a in structures]
