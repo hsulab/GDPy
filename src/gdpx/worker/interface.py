@@ -322,6 +322,8 @@ class ReactorVariable(Variable):
         drivers = []  # params
         if isinstance(inp, Variable):
             drivers = inp.value
+        elif isinstance(inp, list):  # assume it contains a List of dicts
+            drivers = inp
         elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
             driver_params = copy.deepcopy(inp)
             # driver = self.potter.create_driver(driver_params) # use external backend
