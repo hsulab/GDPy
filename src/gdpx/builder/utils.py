@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 from typing import Union, List, Tuple, Mapping
 
 import numpy as np
@@ -20,7 +21,8 @@ from ..data.array import AtomsNDArray
 """Some extra operations.
 """
 
-def str2list_int(inp: str, convention: str="lmp") -> List[int]:
+
+def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
     """Convert a string to a List of int.
 
     Args:
@@ -56,6 +58,19 @@ def str2list_int(inp: str, convention: str="lmp") -> List[int]:
     ret = sorted(list(set(ret)))
 
     return ret
+
+
+def rotate_a_molecule(atoms, rng):
+    """"""
+    atoms = copy.deepcopy(atoms)
+    num_atoms = len(atoms)
+    org_cop = np.mean(atoms.positions, axis=0)
+
+    if num_atoms > 1:
+        phi, theta, psi = 360 * rng.uniform(0, 1, 3)
+        atoms.euler_rotate(phi=phi, theta=0.5 * theta, psi=psi, center=org_cop)
+
+    return atoms
 
 
 def convert_string_to_atoms(species: str):
@@ -94,7 +109,7 @@ def compute_molecule_number_from_density(molecular_mass, volume, density) -> int
     return int(number)
 
 
-def check_overlap_neighbour(atoms: Atoms, covalent_ratio):
+def check_overlap_neighbour(atoms: Atoms, covalent_ratio, excluded_pairs=[]):
     """use neighbour list to check newly added atom is neither too close or too
     far from other atoms
     """
@@ -120,10 +135,11 @@ def check_overlap_neighbour(atoms: Atoms, covalent_ratio):
                 distance = np.linalg.norm(
                     atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell))
                 )
-                atomic_pair = (atomic_numbers[i], atomic_numbers[j])
-                if distance < dmin_dict[atomic_pair]:
-                    is_valid = False
-                    break
+                if (i, j) not in excluded_pairs:
+                    atomic_pair = (atomic_numbers[i], atomic_numbers[j])
+                    if distance < dmin_dict[atomic_pair]:
+                        is_valid = False
+                        break
         else:
             # Find isolated atom which is not allowed...
             is_valid = False
