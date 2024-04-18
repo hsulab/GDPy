@@ -39,7 +39,7 @@ class pair_stru(Operation):
         super().forward()
 
         # NOTE: assume this is a 1-D array
-        print(f"structures: {structures}")
+        self._debug(f"structures: {structures}")
         intermediates = structures.get_marked_structures()
 
         nframes = len(intermediates)
@@ -74,22 +74,18 @@ class react(Operation):
 
         return
 
-    def forward(self, structures: List[AtomsNDArray], reactors):
+    def forward(self, structures: AtomsNDArray, reactors):
         """"""
         super().forward()
 
-        if isinstance(structures, list):
-            # - from list_nodes operation
-            structures = AtomsNDArray([x.tolist() for x in structures])
-        else:
-            # - from pair operation
-            structures = AtomsNDArray(structures)
-        print(f"structures: {structures}")
-        print(f"structures: {structures[0]}")
-
-        # - assume structures contain a List of trajectory/frames pair
-        #   take the last frame out since it is minimised?
+        # - assume structures be an AtomsNDArray with a shape of (num_pairs, 2)
         # structures = [[x[-1] for x in s] for s in structures]
+        # if isinstance(structures, list):
+        #     # - from list_nodes operation
+        #     structures = AtomsNDArray([x.tolist() for x in structures])
+        # else:
+        #     # - from pair operation
+        #     structures = AtomsNDArray(structures)
         nreactions = len(structures)
 
         # - create reactors
