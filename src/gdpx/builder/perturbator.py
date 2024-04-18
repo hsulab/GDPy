@@ -2,15 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import List
+from typing import Optional, List
 
 import numpy as np
 
 from ase import Atoms
-from ase.io import read, write
 
 from .builder import StructureModifier 
-from .utils import check_overlap_neighbour
+from .utils import str2list_int, check_overlap_neighbour
 
 
 class PerturbatorBuilder(StructureModifier):
@@ -27,14 +26,14 @@ class PerturbatorBuilder(StructureModifier):
     """Perturb positions of input structures.
 
     TODO:
-        1. Perturb cell.
-        2. Perturb distances, angles...
-        3. Check if perturbed structures are valid (too close distance).
+        1. Perturb distances, angles...
 
     """
 
     def __init__(
-            self, eps: float=None, ceps: float=None, covalent_ratio=[0.8, 2.0],
+            self, eps: Optional[float]=None, ceps: Optional[float]=None, 
+            group: Optional[str]=None,
+            covalent_ratio=[0.8, 2.0],
             max_times_size: int = 5, *args, **kwargs
         ):
         """Initialise a perturbator.
@@ -59,13 +58,18 @@ class PerturbatorBuilder(StructureModifier):
         self.eps = eps
         self.ceps = ceps
 
+        # - apply perturbation on a group of atoms, default is all
+        self.group = group
+        if self.group is not None:
+            self.group = str2list_int(self.group, convention="lmp")
+
         # - distance check
         self.covalent_ratio = covalent_ratio
         self.MAX_TIMES_SIZE = max_times_size
 
         return
     
-    def run(self, substrates: List[Atoms]=None, size:int=1, *args, **kwargs) -> List[Atoms]:
+    def run(self, substrates: Optional[List[Atoms]]=None, size:int=1, *args, **kwargs) -> List[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
@@ -86,6 +90,10 @@ class PerturbatorBuilder(StructureModifier):
                 if self.eps is not None:
                     natoms = len(atoms)
                     pos_drift = self.rng.random((natoms, 3))
+                    if self.group is not None:
+                        pos_drift_ = np.zeros((natoms, 3))
+                        pos_drift_[self.group] = pos_drift[self.group]
+                        pos_drift = pos_drift_
                     atoms.positions += pos_drift*self.eps
                 if all(atoms.pbc) and self.ceps is not None:
                     lat_drift = self.rng.random((3, 3))
@@ -95,6 +103,7 @@ class PerturbatorBuilder(StructureModifier):
             else:
                 break
         else:
+            nframes = len(frames)
             raise RuntimeError(
                 f"Failed to create {size} structures, only {nframes} are created."
             )
