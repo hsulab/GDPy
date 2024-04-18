@@ -175,6 +175,11 @@ class MaceTrainer(AbstractTrainer):
 
         return train_config
 
+    def get_checkpoint(self):
+        """"""
+
+        return pathlib.Path(self.directory/"checkpoints").resolve()
+
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart.
 
