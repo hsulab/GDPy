@@ -5,7 +5,7 @@ import copy
 import itertools
 import logging
 import pathlib
-from typing import NoReturn, Optional, List
+from typing import NoReturn, Optional, List, Callable
 
 import numpy as np
 
@@ -27,6 +27,7 @@ from ..reactor.reactor import AbstractReactor
 from ..scheduler.scheduler import AbstractScheduler
 from .worker import AbstractWorker
 from .drive import DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
+from .react import ReactorBasedWorker
 from .single import SingleWorker
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
@@ -73,8 +74,13 @@ def convert_config_to_potter(config):
     return potter
 
 
-def convert_input_to_potter(inp):
-    """"""
+def convert_input_to_potter(
+    inp,
+    estimate_uncertainty: Optional[bool] = False,
+    switch_backend: Optional[str] = None,
+    print_func: Callable = print,
+) -> AbstractPotentialManager:
+    """Convert an input to a potter and adjust its behaviour."""
     potter = None
     if isinstance(inp, AbstractPotentialManager):
         potter = inp
@@ -106,6 +112,29 @@ def convert_input_to_potter(inp):
     else:
         raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
 
+    # adjust potter behaviour
+    if hasattr(potter, "switch_uncertainty_estimation"):
+        if estimate_uncertainty is not None:
+            print_func(
+                f"{potter.name} switches its uncertainty estimation to {estimate_uncertainty}..."
+            )
+            potter.switch_uncertainty_estimation(estimate_uncertainty)
+        else:
+            ...
+    else:
+        print_func(
+            f"{potter.name} does not support switching its uncertainty estimation..."
+        )
+
+    if hasattr(potter, "switch_backend"):
+        if switch_backend is not None:
+            print_func(f"{potter.name} switches its backend to {switch_backend}...")
+            potter.switch_backend(backend=switch_backend)
+        else:
+            ...
+    else:
+        print_func(f"{potter.name} does not support switching its backend...")
+
     return potter
 
 
@@ -128,34 +157,12 @@ class ComputerVariable(Variable):
         directory=pathlib.Path.cwd(),
     ):
         """"""
-        # - Adjust potter calculator behaviour here...
-        self.potter = convert_input_to_potter(potter)
-
-        if hasattr(self.potter, "switch_uncertainty_estimation"):
-            if estimate_uncertainty is not None:
-                self._print(
-                    f"{self.potter.name} switches its uncertainty estimation to {estimate_uncertainty}..."
-                )
-                self.potter.switch_uncertainty_estimation(estimate_uncertainty)
-            else:
-                ...
-        else:
-            self._print(
-                f"{self.potter.name} does not support switching its uncertainty estimation..."
-            )
-
-        if hasattr(self.potter, "switch_backend"):
-            if switch_backend is not None:
-                self._print(
-                    f"{self.potter.name} switches its backend to {switch_backend}..."
-                )
-                self.potter.switch_backend(backend=switch_backend)
-            else:
-                ...
-        else:
-            self._print(f"{self.potter.name} does not support switching its backend...")
-
-        # - ...
+        self.potter = convert_input_to_potter(
+            potter,
+            estimate_uncertainty=estimate_uncertainty,
+            switch_backend=switch_backend,
+            print_func=self._print,
+        )
         self.driver = self._load_driver(driver)
         self.scheduler = self._load_scheduler(scheduler)
 
@@ -216,30 +223,6 @@ class ComputerVariable(Variable):
 
         return scheduler
 
-    def _update_workers(self, potter_node):
-        """"""
-        if isinstance(potter_node, Variable):
-            potter = potter_node.value
-        elif isinstance(potter_node, Operation):
-            # TODO: ...
-            node = potter_node
-            if node.preward():
-                node.inputs = [input_node.output for input_node in node.input_nodes]
-                node.output = node.forward(*node.inputs)
-            else:
-                print("wait previous nodes to finish...")
-            potter = node.output
-        else:
-            ...
-        print("update manager: ", potter)
-        print(potter.calc.model_path)
-        workers = self._create_workers(
-            potter, self.driver, self.scheduler, custom_wdirs=self.custom_wdirs
-        )
-        self.value = workers
-
-        return
-
     def _create_workers(
         self,
         potter,
@@ -282,6 +265,100 @@ class ComputerVariable(Variable):
             worker._retain_info = retain_info
             # wdir is temporary as it may be reset by drive operation
             worker.directory = wdir
+            workers.append(worker)
+
+        for worker in workers:
+            worker.batchsize = batchsize
+
+        return workers
+
+
+@registers.variable.register
+class ReactorVariable(Variable):
+    """Create a ReactorBasedWorker.
+
+    TODO:
+        Broadcast driver params to give several workers?
+
+    """
+
+    def __init__(
+        self,
+        potter,
+        driver: dict,
+        scheduler={},
+        *,
+        estimate_uncertainty: Optional[bool] = None,
+        switch_backend: Optional[str] = None,
+        batchsize=1,
+        directory="./",
+    ):
+        """"""
+        # - save state by all nodes
+        self.potter = convert_input_to_potter(
+            potter,
+            estimate_uncertainty=estimate_uncertainty,
+            switch_backend=switch_backend,
+            print_func=self._print,
+        )
+        self.driver = self._load_driver(driver)
+        self.scheduler = self._load_scheduler(scheduler)
+
+        self.batchsize = batchsize
+
+        # - create a reactor
+        # reactor = self.potter.create_reactor(kwargs)
+        workers = self._create_workers(
+            self.potter, self.driver, self.scheduler, self.batchsize
+        )
+
+        super().__init__(initial_value=workers, directory=directory)
+
+        return
+
+    def _load_driver(self, inp) -> List[dict]:
+        """Load drivers from a Variable or a dict."""
+        # print("driver: ", inp)
+        drivers = []  # params
+        if isinstance(inp, Variable):
+            drivers = inp.value
+        elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
+            driver_params = copy.deepcopy(inp)
+            # driver = self.potter.create_driver(driver_params) # use external backend
+            drivers = [driver_params]
+        else:
+            raise RuntimeError(f"Unknown {inp} for drivers.")
+
+        return drivers
+
+    def _load_scheduler(self, inp):
+        """"""
+        scheduler = None
+        if isinstance(inp, Variable):
+            scheduler = inp.value
+        elif isinstance(inp, dict):
+            scheduler_params = copy.deepcopy(inp)
+            backend = scheduler_params.pop("backend", "local")
+            scheduler = registers.create(
+                "scheduler", backend, convert_name=True, **scheduler_params
+            )
+        else:
+            raise RuntimeError(f"Unknown {inp} for the scheduler.")
+
+        return scheduler
+
+    def _create_workers(
+        self,
+        potter,
+        drivers: List[dict],
+        scheduler,
+        batchsize: int = 1,
+    ):
+        """"""
+        workers = []
+        for driver_params in drivers:
+            driver = potter.create_reactor(driver_params)
+            worker = ReactorBasedWorker(potter, driver, scheduler)
             workers.append(worker)
 
         for worker in workers:
