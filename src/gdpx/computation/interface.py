@@ -39,7 +39,7 @@ class DriverVariable(Variable):
         # - compat
         copied_params = copy.deepcopy(kwargs)
         merged_params = dict(
-            task=copied_params.get("task", "min"),
+            # task=copied_params.get("task", "min"),
             backend=copied_params.get("backend", "external"),
             ignore_convergence=copied_params.get("ignore_convergence", False),
         )
