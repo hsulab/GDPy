@@ -60,15 +60,18 @@ def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
     return ret
 
 
-def rotate_a_molecule(atoms, rng):
+def rotate_a_molecule(atoms, use_com: bool, rng):
     """"""
     atoms = copy.deepcopy(atoms)
     num_atoms = len(atoms)
-    org_cop = np.mean(atoms.positions, axis=0)
+    if not use_com:
+        center = np.mean(atoms.positions, axis=0)
+    else:
+        center = atoms.get_center_of_mass()
 
     if num_atoms > 1:
         phi, theta, psi = 360 * rng.uniform(0, 1, 3)
-        atoms.euler_rotate(phi=phi, theta=0.5 * theta, psi=psi, center=org_cop)
+        atoms.euler_rotate(phi=phi, theta=0.5 * theta, psi=psi, center=center)
 
     return atoms
 
