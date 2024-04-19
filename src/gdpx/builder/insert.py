@@ -152,18 +152,58 @@ class InsertModifier(StructureModifier):
         _substrates = self.substrates
         if _substrates is None:
             _substrates = [Atoms()]
+
         num_substrates = len(_substrates)
 
         self._print(f"{self.njobs =}")
 
-        # PERF: For easy random tasks, use stratified parallel run?
-        #       try small_times_size first and increase it if not 
-        #       enough structures are generated?
+        # PERF: For easy random tasks, use stratified parallel run.
+        #       try small_times_size first and increase it if not
+        #       enough structures are generated.
+        combined_frames = [[] for _ in range(num_substrates)]
+        num_frames = 0
+        for i in range(self.MAX_TIMES_SIZE):
+            curr_max_attempts = self.njobs * 2 ** int(
+                np.log(num_substrates * size - num_frames)
+            )
+            ret = self._irun(_substrates, max_attempts=curr_max_attempts)
 
+            for batch_frames in ret:
+                for i, atoms in enumerate(batch_frames):
+                    if len(combined_frames[i]) < size:
+                        if atoms is not None:
+                            combined_frames[i].append(atoms)
+                    else:
+                        ...
+                combined_num_frames = [len(cf) for cf in combined_frames]
+                if np.all([cnf == size for cnf in combined_num_frames]):
+                    break
+
+            combined_num_frames = [len(cf) for cf in combined_frames]
+            num_frames = np.sum(combined_num_frames)
+            self._print(
+                f"Need {size}*{num_substrates} structures and {num_frames} is created in {curr_max_attempts} attempts."
+            )
+            if np.all([cnf == size for cnf in combined_num_frames]):
+                break
+
+        frames = list(itertools.chain(*combined_frames))
+        num_frames = len(frames)
+        self._print(f"{num_frames =}")
+
+        if num_frames != size * num_substrates:
+            raise RuntimeError(
+                f"Need {size}*{num_substrates} structures but only {num_frames} is created."
+            )
+
+        return frames
+
+    def _irun(self, substrates, max_attempts: int) -> List[List[Atoms]]:
+        """"""
         # prepare inputs for parallel
         batches = []
-        for _ in range(size*self.MAX_TIMES_SIZE):
-            prepared_substrates = [copy.deepcopy(a) for a in _substrates]
+        for _ in range(max_attempts):
+            prepared_substrates = [copy.deepcopy(a) for a in substrates]
             # print(f"{prepared_substrates =}")
 
             num_prepared_substrates = len(prepared_substrates)
@@ -190,25 +230,7 @@ class InsertModifier(StructureModifier):
         else:
             raise RuntimeError("multiprocessing.")
 
-        combined_frames = [[] for _ in range(num_substrates)]
-        for batch_frames in ret:
-            for i, atoms in enumerate(batch_frames):
-                if len(combined_frames[i]) < size:
-                    if atoms is not None:
-                        combined_frames[i].append(atoms)
-                else:
-                    ...
-            combined_num_frames = [len(cf) for cf in combined_frames]
-            if np.all([cnf == size for cnf in combined_num_frames]):
-                break
-        else:
-            raise RuntimeError(f"Failed to create {size}*{num_substrates} structures.")
-
-        frames = list(itertools.chain(*combined_frames))
-        num_frames = len(frames)
-        self._print(f"{num_frames =}")
-
-        return frames
+        return ret
 
 
 def insert_species_batch(
@@ -231,7 +253,7 @@ def insert_species_batch(
             intermol_dismin=intermol_dismin,
             covalent_ratio=covalent_ratio,
             custom_dmin_dict=custom_dmin_dict,
-            random_state=random_state
+            random_state=random_state,
         )
         frames.append(new_atoms)
 
