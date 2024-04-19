@@ -5,11 +5,12 @@
 import copy
 import itertools
 
-from typing import List
+from typing import Optional, List, Tuple
 
 import numpy as np
 
 from ase import Atoms
+from ase.geometry import find_mic
 
 from . import registers
 from .builder import StructureModifier
@@ -29,6 +30,7 @@ class InsertModifier(StructureModifier):
         region,
         composition: dict,
         covalent_ratio=[0.8, 2.0],
+        molecular_distol=[-np.inf, np.inf],
         max_times_size: int = 5,
         *args,
         **kwargs,
@@ -43,6 +45,16 @@ class InsertModifier(StructureModifier):
 
         self.composition = composition
         self._composition_list = convert_composition_to_list(composition, self._region)
+
+        for k, v in self._composition_list:
+            if len(k) > 1:
+                self._insert_molecule = True
+                break
+        else:
+            self._insert_molecule = False
+
+        self.intermol_dismin = molecular_distol[0]
+        self.intermol_dismax = molecular_distol[1]
 
         # - bond distance check
         self.covalent_ratio = covalent_ratio
@@ -76,11 +88,8 @@ class InsertModifier(StructureModifier):
             if nframes < size:
                 atoms = copy.deepcopy(substrate)
                 excluded_pairs = list(itertools.permutations(range(len(atoms)), 2))
-                atoms, intra_bonds = self._insert_species(atoms)
-                excluded_pairs.extend(intra_bonds)
-                if check_overlap_neighbour(
-                    atoms, self.covalent_ratio, excluded_pairs=excluded_pairs
-                ):
+                atoms = self._insert_species(atoms, excluded_pairs)
+                if atoms is not None:
                     frames.append(atoms)
             else:
                 break
@@ -91,17 +100,37 @@ class InsertModifier(StructureModifier):
 
         return frames
 
-    def _insert_species(self, atoms: Atoms):
+    def _insert_species(self, substrate: Atoms, excluded_pairs: List[Tuple[int, int]]) -> Optional[Atoms]:
         """"""
+        atoms = substrate
+        atoms.set_tags(0)
+
         species_list = itertools.chain(
             *[[k for i in range(v)] for k, v in self._composition_list]
         )
         species_list = sorted(species_list, key=lambda a: a.get_chemical_formula())
-        nspecies = len(species_list)
+        num_species = len(species_list)
 
-        random_positions = self._region.get_random_positions(
-            size=nspecies, rng=self.rng
-        )
+        if not self._insert_molecule:
+            random_positions = self._region.get_random_positions(
+                size=num_species, rng=self.rng
+            )
+        else:
+            for i in range(self.MAX_TIMES_SIZE):
+                random_positions = self._region.get_random_positions(
+                    size=num_species, rng=self.rng
+                )
+                pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
+                raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
+                mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell)
+                # print(np.min(mic_dis))
+                if np.min(mic_dis) >= self.intermol_dismin:
+                    # print("Found!!!")
+                    break
+            else:
+                raise RuntimeError(
+                    f"Failed to get molecular positions after {self.MAX_TIMES_SIZE} attempts."
+                )
 
         intra_bonds = []
         for a, p in zip(species_list, random_positions):
@@ -112,11 +141,21 @@ class InsertModifier(StructureModifier):
                 list(itertools.permutations(range(prev_num_atoms, curr_num_atoms), 2))
             )
             # rotate and translate
-            a = rotate_a_molecule(a, rng=self.rng)
-            a.translate(p - np.mean(a.positions, axis=0))
+            a = rotate_a_molecule(a, use_com=True, rng=self.rng)
+            # a.translate(p - np.mean(a.positions, axis=0))
+            a.translate(p - a.get_center_of_mass())
+            a.set_tags(int(np.max(atoms.get_tags()) + 1))
             atoms += a
 
-        return atoms, intra_bonds
+        excluded_pairs.extend(intra_bonds)
+        if check_overlap_neighbour(
+            atoms, self.covalent_ratio, excluded_pairs=excluded_pairs
+        ):
+            ...
+        else:
+            atoms = None
+
+        return atoms
 
 
 if __name__ == "__main__":
