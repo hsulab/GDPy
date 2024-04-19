@@ -25,6 +25,9 @@ from .utils import (
 )
 
 
+RANDOM_INTEGER_HIGH: int = 1e16
+
+
 def insert_species(
     substrate: Atoms,
     composition_list,
@@ -160,12 +163,14 @@ class InsertModifier(StructureModifier):
         # PERF: For easy random tasks, use stratified parallel run.
         #       try small_times_size first and increase it if not
         #       enough structures are generated.
+        num_attempts = 0
         combined_frames = [[] for _ in range(num_substrates)]
         num_frames = 0
         for i in range(self.MAX_TIMES_SIZE):
             curr_max_attempts = self.njobs * 2 ** int(
                 np.log(num_substrates * size - num_frames)
             )
+            num_attempts += curr_max_attempts*num_substrates
             ret = self._irun(_substrates, max_attempts=curr_max_attempts)
 
             for batch_frames in ret:
@@ -186,6 +191,9 @@ class InsertModifier(StructureModifier):
             )
             if np.all([cnf == size for cnf in combined_num_frames]):
                 break
+
+        if num_attempts >= RANDOM_INTEGER_HIGH:
+            self._print("The random structures may have duplicates.")
 
         frames = list(itertools.chain(*combined_frames))
         num_frames = len(frames)
@@ -208,7 +216,7 @@ class InsertModifier(StructureModifier):
 
             num_prepared_substrates = len(prepared_substrates)
             prepared_random_states = self.rng.integers(
-                low=0, high=1e8, size=num_prepared_substrates
+                low=0, high=RANDOM_INTEGER_HIGH, size=num_prepared_substrates
             )
             batches.append([prepared_substrates, prepared_random_states])
 
