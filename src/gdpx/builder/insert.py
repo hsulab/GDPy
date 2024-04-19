@@ -4,10 +4,13 @@
 
 import copy
 import itertools
+import multiprocessing
 
 from typing import Optional, List, Tuple
 
 import numpy as np
+
+import joblib
 
 from ase import Atoms
 from ase.data import atomic_numbers
@@ -26,20 +29,19 @@ def insert_species(
     substrate: Atoms,
     composition_list,
     region,
-    insert_molecule: bool,
     intermol_dismin,
     covalent_ratio,
     custom_dmin_dict,
-    excluded_pairs: List[Tuple[int, int]],
-    max_times_size,
     random_state,
 ) -> Optional[Atoms]:
     """"""
-    # rng = np.random.Generator(np.random.PCG64(random_state))
-    rng = random_state
+    rng = np.random.Generator(np.random.PCG64(random_state))
+    # rng = random_state
 
     atoms = substrate
     atoms.set_tags(0)
+
+    excluded_pairs = list(itertools.permutations(range(len(atoms)), 2))
 
     species_list = itertools.chain(
         *[[k for i in range(v)] for k, v in composition_list]
@@ -47,44 +49,44 @@ def insert_species(
     species_list = sorted(species_list, key=lambda a: a.get_chemical_formula())
     num_species = len(species_list)
 
-    if not insert_molecule:
-        random_positions = region.get_random_positions(size=num_species, rng=rng)
-    else:
-        for i in range(max_times_size):
-            random_positions = region.get_random_positions(size=num_species, rng=rng)
-            pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
-            raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
-            mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell)
-            if np.min(mic_dis) >= intermol_dismin:
-                break
+    random_positions = region.get_random_positions(size=num_species, rng=rng)
+    if num_species > 1:
+        pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
+        raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
+        mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell)
+        if np.min(mic_dis) >= intermol_dismin:
+            is_molecule_valid = True
         else:
-            raise RuntimeError(
-                f"Failed to get molecular positions after {max_times_size} attempts."
+            is_molecule_valid = False
+    else:
+        is_molecule_valid = True
+
+    if is_molecule_valid:
+        intra_bonds = []
+        for a, p in zip(species_list, random_positions):
+            # count number of atoms
+            prev_num_atoms = len(atoms)
+            curr_num_atoms = prev_num_atoms + len(a)
+            intra_bonds.extend(
+                list(itertools.permutations(range(prev_num_atoms, curr_num_atoms), 2))
             )
+            # rotate and translate
+            a = rotate_a_molecule(a, use_com=True, rng=rng)
+            # a.translate(p - np.mean(a.positions, axis=0))
+            a.translate(p - a.get_center_of_mass())
+            a.set_tags(int(np.max(atoms.get_tags()) + 1))
+            atoms += a
 
-    intra_bonds = []
-    for a, p in zip(species_list, random_positions):
-        # count number of atoms
-        prev_num_atoms = len(atoms)
-        curr_num_atoms = prev_num_atoms + len(a)
-        intra_bonds.extend(
-            list(itertools.permutations(range(prev_num_atoms, curr_num_atoms), 2))
-        )
-        # rotate and translate
-        a = rotate_a_molecule(a, use_com=True, rng=rng)
-        # a.translate(p - np.mean(a.positions, axis=0))
-        a.translate(p - a.get_center_of_mass())
-        a.set_tags(int(np.max(atoms.get_tags()) + 1))
-        atoms += a
-
-    excluded_pairs.extend(intra_bonds)
-    if check_overlap_neighbour(
-        atoms,
-        covalent_ratio=covalent_ratio,
-        custom_dmin_dict=custom_dmin_dict,
-        excluded_pairs=excluded_pairs,
-    ):
-        ...
+        excluded_pairs.extend(intra_bonds)
+        if not check_overlap_neighbour(
+            atoms,
+            covalent_ratio=covalent_ratio,
+            custom_dmin_dict=custom_dmin_dict,
+            excluded_pairs=excluded_pairs,
+        ):
+            atoms = None
+        else:
+            ...
     else:
         atoms = None
 
@@ -150,46 +152,90 @@ class InsertModifier(StructureModifier):
         _substrates = self.substrates
         if _substrates is None:
             _substrates = [Atoms()]
+        num_substrates = len(_substrates)
 
-        frames = []
-        for substrate in _substrates:
-            curr_frames = self._irun(substrate, size)
-            frames.extend(curr_frames)
+        self._print(f"{self.njobs =}")
 
-        return frames
+        # PERF: For easy random tasks, use stratified parallel run?
+        #       try small_times_size first and increase it if not 
+        #       enough structures are generated?
 
-    def _irun(self, substrate: Atoms, size: int):
-        """"""
-        frames = []
-        for i in range(size * self.MAX_TIMES_SIZE):
-            nframes = len(frames)
-            if nframes < size:
-                atoms = copy.deepcopy(substrate)
-                excluded_pairs = list(itertools.permutations(range(len(atoms)), 2))
-                # atoms = self._insert_species(atoms, excluded_pairs)
-                atoms = insert_species(
-                    substrate=atoms,
+        # prepare inputs for parallel
+        batches = []
+        for _ in range(size*self.MAX_TIMES_SIZE):
+            prepared_substrates = [copy.deepcopy(a) for a in _substrates]
+            # print(f"{prepared_substrates =}")
+
+            num_prepared_substrates = len(prepared_substrates)
+            prepared_random_states = self.rng.integers(
+                low=0, high=1e8, size=num_prepared_substrates
+            )
+            batches.append([prepared_substrates, prepared_random_states])
+
+        # if multiprocessing.get_start_method() != "spawn":
+        if True:
+            backend = "loky"
+            ret = joblib.Parallel(n_jobs=self.njobs, backend=backend)(
+                joblib.delayed(insert_species_batch)(
+                    substrates=curr_substrates,
                     composition_list=self._composition_list,
                     region=self._region,
-                    insert_molecule=self._insert_molecule,
                     intermol_dismin=self.intermol_dismin,
                     covalent_ratio=self.covalent_ratio,
                     custom_dmin_dict=self.custom_dmin_dict,
-                    excluded_pairs=excluded_pairs,
-                    max_times_size=self.MAX_TIMES_SIZE,
-                    random_state = self.rng
+                    random_states=curr_random_states,
                 )
-                if atoms is not None:
-                    frames.append(atoms)
-                    self._print(f"{nframes =} at {i}")
-            else:
+                for curr_substrates, curr_random_states in batches
+            )
+        else:
+            raise RuntimeError("multiprocessing.")
+
+        combined_frames = [[] for _ in range(num_substrates)]
+        for batch_frames in ret:
+            for i, atoms in enumerate(batch_frames):
+                if len(combined_frames[i]) < size:
+                    if atoms is not None:
+                        combined_frames[i].append(atoms)
+                else:
+                    ...
+            combined_num_frames = [len(cf) for cf in combined_frames]
+            if np.all([cnf == size for cnf in combined_num_frames]):
                 break
         else:
-            raise RuntimeError(
-                f"Failed to create {size} structures, only {nframes} are created."
-            )
+            raise RuntimeError(f"Failed to create {size}*{num_substrates} structures.")
+
+        frames = list(itertools.chain(*combined_frames))
+        num_frames = len(frames)
+        self._print(f"{num_frames =}")
 
         return frames
+
+
+def insert_species_batch(
+    substrates: Atoms,
+    composition_list,
+    region,
+    intermol_dismin,
+    covalent_ratio,
+    custom_dmin_dict,
+    random_states,
+):
+    """"""
+    frames = []
+    for atoms, random_state in zip(substrates, random_states):
+        # print(atoms)
+        new_atoms = insert_species(
+            substrate=atoms,
+            composition_list=composition_list,
+            region=region,
+            intermol_dismin=intermol_dismin,
+            covalent_ratio=covalent_ratio,
+            custom_dmin_dict=custom_dmin_dict,
+            random_state=random_state
+        )
+        frames.append(new_atoms)
+
+    return frames
 
 
 if __name__ == "__main__":
