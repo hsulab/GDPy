@@ -22,6 +22,75 @@ from .utils import (
 )
 
 
+def insert_species(
+    substrate: Atoms,
+    composition_list,
+    region,
+    insert_molecule: bool,
+    intermol_dismin,
+    covalent_ratio,
+    custom_dmin_dict,
+    excluded_pairs: List[Tuple[int, int]],
+    max_times_size,
+    random_state,
+) -> Optional[Atoms]:
+    """"""
+    # rng = np.random.Generator(np.random.PCG64(random_state))
+    rng = random_state
+
+    atoms = substrate
+    atoms.set_tags(0)
+
+    species_list = itertools.chain(
+        *[[k for i in range(v)] for k, v in composition_list]
+    )
+    species_list = sorted(species_list, key=lambda a: a.get_chemical_formula())
+    num_species = len(species_list)
+
+    if not insert_molecule:
+        random_positions = region.get_random_positions(size=num_species, rng=rng)
+    else:
+        for i in range(max_times_size):
+            random_positions = region.get_random_positions(size=num_species, rng=rng)
+            pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
+            raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
+            mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell)
+            if np.min(mic_dis) >= intermol_dismin:
+                break
+        else:
+            raise RuntimeError(
+                f"Failed to get molecular positions after {max_times_size} attempts."
+            )
+
+    intra_bonds = []
+    for a, p in zip(species_list, random_positions):
+        # count number of atoms
+        prev_num_atoms = len(atoms)
+        curr_num_atoms = prev_num_atoms + len(a)
+        intra_bonds.extend(
+            list(itertools.permutations(range(prev_num_atoms, curr_num_atoms), 2))
+        )
+        # rotate and translate
+        a = rotate_a_molecule(a, use_com=True, rng=rng)
+        # a.translate(p - np.mean(a.positions, axis=0))
+        a.translate(p - a.get_center_of_mass())
+        a.set_tags(int(np.max(atoms.get_tags()) + 1))
+        atoms += a
+
+    excluded_pairs.extend(intra_bonds)
+    if check_overlap_neighbour(
+        atoms,
+        covalent_ratio=covalent_ratio,
+        custom_dmin_dict=custom_dmin_dict,
+        excluded_pairs=excluded_pairs,
+    ):
+        ...
+    else:
+        atoms = None
+
+    return atoms
+
+
 class InsertModifier(StructureModifier):
 
     name = "insert"
@@ -97,7 +166,19 @@ class InsertModifier(StructureModifier):
             if nframes < size:
                 atoms = copy.deepcopy(substrate)
                 excluded_pairs = list(itertools.permutations(range(len(atoms)), 2))
-                atoms = self._insert_species(atoms, excluded_pairs)
+                # atoms = self._insert_species(atoms, excluded_pairs)
+                atoms = insert_species(
+                    substrate=atoms,
+                    composition_list=self._composition_list,
+                    region=self._region,
+                    insert_molecule=self._insert_molecule,
+                    intermol_dismin=self.intermol_dismin,
+                    covalent_ratio=self.covalent_ratio,
+                    custom_dmin_dict=self.custom_dmin_dict,
+                    excluded_pairs=excluded_pairs,
+                    max_times_size=self.MAX_TIMES_SIZE,
+                    random_state = self.rng
+                )
                 if atoms is not None:
                     frames.append(atoms)
                     self._print(f"{nframes =} at {i}")
@@ -109,68 +190,6 @@ class InsertModifier(StructureModifier):
             )
 
         return frames
-
-    def _insert_species(
-        self, substrate: Atoms, excluded_pairs: List[Tuple[int, int]]
-    ) -> Optional[Atoms]:
-        """"""
-        atoms = substrate
-        atoms.set_tags(0)
-
-        species_list = itertools.chain(
-            *[[k for i in range(v)] for k, v in self._composition_list]
-        )
-        species_list = sorted(species_list, key=lambda a: a.get_chemical_formula())
-        num_species = len(species_list)
-
-        if not self._insert_molecule:
-            random_positions = self._region.get_random_positions(
-                size=num_species, rng=self.rng
-            )
-        else:
-            for i in range(self.MAX_TIMES_SIZE):
-                random_positions = self._region.get_random_positions(
-                    size=num_species, rng=self.rng
-                )
-                pair_positions = np.array(
-                    list(itertools.combinations(random_positions, 2))
-                )
-                raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
-                mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell)
-                if np.min(mic_dis) >= self.intermol_dismin:
-                    break
-            else:
-                raise RuntimeError(
-                    f"Failed to get molecular positions after {self.MAX_TIMES_SIZE} attempts."
-                )
-
-        intra_bonds = []
-        for a, p in zip(species_list, random_positions):
-            # count number of atoms
-            prev_num_atoms = len(atoms)
-            curr_num_atoms = prev_num_atoms + len(a)
-            intra_bonds.extend(
-                list(itertools.permutations(range(prev_num_atoms, curr_num_atoms), 2))
-            )
-            # rotate and translate
-            a = rotate_a_molecule(a, use_com=True, rng=self.rng)
-            # a.translate(p - np.mean(a.positions, axis=0))
-            a.translate(p - a.get_center_of_mass())
-            a.set_tags(int(np.max(atoms.get_tags()) + 1))
-            atoms += a
-
-        excluded_pairs.extend(intra_bonds)
-        if check_overlap_neighbour(
-            atoms,
-            covalent_ratio=self.covalent_ratio,
-            custom_dmin_dict=self.custom_dmin_dict,
-            excluded_pairs=excluded_pairs,
-        ):
-            ...
-        else:
-            atoms = None
-
-        return atoms
 
 
 if __name__ == "__main__":
