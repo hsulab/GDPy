@@ -58,6 +58,9 @@ from .vasp import VaspManager
 registers.manager.register(VaspManager)
 
 # --- FFs
+from .asepot import AsePotManager
+registers.manager.register("AseManager")(AsePotManager)
+
 from .eam import EamManager
 registers.manager.register(EamManager)
 
