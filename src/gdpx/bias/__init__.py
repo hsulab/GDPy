@@ -24,7 +24,8 @@ bias_register.register("bondboost")(BondBoostCalculator)
 # from .harmonic import HarmonicBias
 # bias_register.register("harmonic")(HarmonicBias)
 
-from .harmonic import PlaneHarmonicCalculator
+from .harmonic import DistanceHarmonicCalculator, PlaneHarmonicCalculator
+bias_register.register("distance_harmonic")(DistanceHarmonicCalculator)
 bias_register.register("plane_harmonic")(PlaneHarmonicCalculator)
 
 # - gaussian
