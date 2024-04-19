@@ -79,6 +79,8 @@ class AbstractSession:
                         broken_states.append(input_node.is_about_to_exit())
                     else:
                         broken_states.append(False)
+                self._debug(f"{node.input_nodes =}")
+                self._debug(f"{broken_states =}")
                 is_broken = any(broken_states)
                 if not is_broken:
                     self.state = "StepToContinue"
