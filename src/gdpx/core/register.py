@@ -98,6 +98,9 @@ class registers:
     #: Builders.
     builder: Register = Register("builder")
 
+    #: Bias.
+    bias: Register = Register("bias")
+
     #: Colvars.
     colvar: Register = Register("colvar")
 
@@ -161,6 +164,8 @@ ALL_MODULES = [
     ("gdpx.potential", ["managers"]),
     # -- dataloaders (datasets)
     ("gdpx.data", ["dataset"]),
+    # -- bias
+    ("gdpx", ["bias"]),
     # -- builders
     ("gdpx", ["builder"]),
     # -- genetic-algorithm-related

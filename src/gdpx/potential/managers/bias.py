@@ -6,7 +6,7 @@ import copy
 
 from . import registers
 from . import AbstractPotentialManager, DummyCalculator
-from .. import bias_register
+
 
 """This manager registers ALL bias calculators."""
 
@@ -51,7 +51,8 @@ class BiasManager(AbstractPotentialManager):
         # - instantiate calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            calc = bias_register[bias_type](**calc_params)
+            bias_cls = registers.bias[bias_type]
+            calc = bias_cls(**calc_params)
         else:
             ...
 

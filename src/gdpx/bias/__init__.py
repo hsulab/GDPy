@@ -2,11 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-
-from typing import List
-
-from ..core.register import Register, registers
-bias_register = Register("bias")
+from ..core.register import registers
 
 """Add bias on potential energy surface. 
 
@@ -16,17 +12,17 @@ ones to pure python codes as jax need accelerate them a lot.
 """
 
 from .afir import AFIRCalculator
-bias_register.register("afir")(AFIRCalculator)
+registers.bias.register("afir")(AFIRCalculator)
 
 from .bondboost import BondBoostCalculator
-bias_register.register("bondboost")(BondBoostCalculator)
+registers.bias.register("bondboost")(BondBoostCalculator)
 
 # from .harmonic import HarmonicBias
 # bias_register.register("harmonic")(HarmonicBias)
 
 from .harmonic import DistanceHarmonicCalculator, PlaneHarmonicCalculator
-bias_register.register("distance_harmonic")(DistanceHarmonicCalculator)
-bias_register.register("plane_harmonic")(PlaneHarmonicCalculator)
+registers.bias.register("distance_harmonic")(DistanceHarmonicCalculator)
+registers.bias.register("plane_harmonic")(PlaneHarmonicCalculator)
 
 # - gaussian
 
@@ -34,9 +30,9 @@ bias_register.register("plane_harmonic")(PlaneHarmonicCalculator)
 # bias_register.register("gaussian")(GaussianCalculator)
 
 from .gaussian import BondGaussianCalculator, CenterOfMassGaussianCalculator, RMSDGaussian
-bias_register.register("bond_gaussian")(BondGaussianCalculator)
-bias_register.register("center_of_mass_gaussian")(CenterOfMassGaussianCalculator)
-bias_register.register("rmsd_gaussian")(RMSDGaussian)
+registers.bias.register("bond_gaussian")(BondGaussianCalculator)
+registers.bias.register("center_of_mass_gaussian")(CenterOfMassGaussianCalculator)
+registers.bias.register("rmsd_gaussian")(RMSDGaussian)
 
 
 if __name__ == "__main__":
