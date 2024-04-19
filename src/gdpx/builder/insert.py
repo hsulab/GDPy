@@ -10,6 +10,7 @@ from typing import Optional, List, Tuple
 import numpy as np
 
 from ase import Atoms
+from ase.data import atomic_numbers
 from ase.geometry import find_mic
 
 from . import registers
@@ -29,6 +30,7 @@ class InsertModifier(StructureModifier):
         self,
         region,
         composition: dict,
+        custom_dmin: list = [],
         covalent_ratio=[0.8, 2.0],
         molecular_distol=[-np.inf, np.inf],
         max_times_size: int = 5,
@@ -55,6 +57,13 @@ class InsertModifier(StructureModifier):
 
         self.intermol_dismin = molecular_distol[0]
         self.intermol_dismax = molecular_distol[1]
+
+        custom_dmin_dict = {}
+        for i, j, d in custom_dmin:
+            s_i, s_j = atomic_numbers[i], atomic_numbers[j]
+            custom_dmin_dict[(s_i, s_j)] = d
+            custom_dmin_dict[(s_j, s_i)] = d
+        self.custom_dmin_dict = custom_dmin_dict
 
         # - bond distance check
         self.covalent_ratio = covalent_ratio
@@ -91,6 +100,7 @@ class InsertModifier(StructureModifier):
                 atoms = self._insert_species(atoms, excluded_pairs)
                 if atoms is not None:
                     frames.append(atoms)
+                    self._print(f"{nframes =} at {i}")
             else:
                 break
         else:
@@ -100,7 +110,9 @@ class InsertModifier(StructureModifier):
 
         return frames
 
-    def _insert_species(self, substrate: Atoms, excluded_pairs: List[Tuple[int, int]]) -> Optional[Atoms]:
+    def _insert_species(
+        self, substrate: Atoms, excluded_pairs: List[Tuple[int, int]]
+    ) -> Optional[Atoms]:
         """"""
         atoms = substrate
         atoms.set_tags(0)
@@ -120,12 +132,12 @@ class InsertModifier(StructureModifier):
                 random_positions = self._region.get_random_positions(
                     size=num_species, rng=self.rng
                 )
-                pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
+                pair_positions = np.array(
+                    list(itertools.combinations(random_positions, 2))
+                )
                 raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
                 mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell)
-                # print(np.min(mic_dis))
                 if np.min(mic_dis) >= self.intermol_dismin:
-                    # print("Found!!!")
                     break
             else:
                 raise RuntimeError(
@@ -149,7 +161,10 @@ class InsertModifier(StructureModifier):
 
         excluded_pairs.extend(intra_bonds)
         if check_overlap_neighbour(
-            atoms, self.covalent_ratio, excluded_pairs=excluded_pairs
+            atoms,
+            covalent_ratio=self.covalent_ratio,
+            custom_dmin_dict=self.custom_dmin_dict,
+            excluded_pairs=excluded_pairs,
         ):
             ...
         else:

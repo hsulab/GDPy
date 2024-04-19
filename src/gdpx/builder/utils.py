@@ -112,7 +112,9 @@ def compute_molecule_number_from_density(molecular_mass, volume, density) -> int
     return int(number)
 
 
-def check_overlap_neighbour(atoms: Atoms, covalent_ratio, excluded_pairs=[]):
+def check_overlap_neighbour(
+    atoms: Atoms, covalent_ratio, custom_dmin_dict={}, excluded_pairs=[]
+):
     """use neighbour list to check newly added atom is neither too close or too
     far from other atoms
     """
@@ -122,6 +124,11 @@ def check_overlap_neighbour(atoms: Atoms, covalent_ratio, excluded_pairs=[]):
 
     cov_min, cov_max = covalent_ratio
     dmin_dict = closest_distances_generator(set(atomic_numbers), cov_min)
+    # print(f"{dmin_dict =}")
+    # print(f"{custom_dmin_dict}")
+    for k, v in custom_dmin_dict.items():
+        dmin_dict[k] = v
+    # print(f"{dmin_dict =}")
     nl = NeighborList(
         cov_max * np.array(natural_cutoffs(atoms)),
         skin=0.0,
