@@ -9,6 +9,7 @@
 
 from .. import config
 from ..core.register import registers
+from ..bias import bias_register
 
 
 if __name__ == "__main__":

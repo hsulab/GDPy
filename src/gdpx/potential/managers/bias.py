@@ -6,9 +6,9 @@ import copy
 
 from . import registers
 from . import AbstractPotentialManager, DummyCalculator
-from gdpx.bias import bias_register
+from .. import bias_register
 
-"""This manager registers ALL jax-based bias calculators."""
+"""This manager registers ALL bias calculators."""
 
 
 class BiasManager(AbstractPotentialManager):
@@ -26,7 +26,7 @@ class BiasManager(AbstractPotentialManager):
         super().__init__()
 
         return
-    
+
     def register_calculator(self, calc_params, *agrs, **kwargs) -> None:
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
@@ -54,7 +54,7 @@ class BiasManager(AbstractPotentialManager):
             calc = bias_register[bias_type](**calc_params)
         else:
             ...
-        
+
         self.calc = calc
 
         return
