@@ -134,12 +134,8 @@ def main():
         help="run selected batch number (useful when queue run)"
     )
     parser_compute.add_argument(
-        "-o", "--output", default="last", choices=["last","traj"],
-        help="retrieve last frame or entire trajectory"
-    )
-    parser_compute.add_argument(
         "--spawn", action="store_true",
-        help="If the computation is spawned, it will not save results when all jobs are finished."
+        help="If the computation is spawned, it will not save results until all jobs are finished."
     )
     parser_compute.add_argument(
         "--archive", action="store_true",
@@ -255,10 +251,10 @@ def main():
         from gdpx.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "compute":
-        from gdpx.worker.interface import run_worker
+        from .cli.compute import run_worker
         run_worker(
-            args.STRUCTURE, args.directory, potter, args.output, args.batch, 
-            args.spawn, args.archive
+            args.STRUCTURE, potter, batch=args.batch, 
+            spawn=args.spawn, archive=args.archive, directory=args.directory
         )
     elif args.subcommand == "explore":
         from .expedition.interface import run_expedition

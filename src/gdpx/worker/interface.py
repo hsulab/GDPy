@@ -3,34 +3,22 @@
 
 import copy
 import itertools
-import logging
 import pathlib
 from typing import NoReturn, Optional, List, Callable
 
-import numpy as np
-
 import omegaconf
-
-from ase import Atoms
-from ase.io import read, write
-from ase.geometry import find_mic
 
 from ..core.operation import Operation
 from ..core.variable import Variable
 from ..core.register import registers
 from ..utils.command import parse_input_file
 
-from ..computation.driver import AbstractDriver
-from ..data.array import AtomsNDArray
 from ..potential.manager import AbstractPotentialManager
-from ..reactor.reactor import AbstractReactor
 from ..scheduler.scheduler import AbstractScheduler
 from .worker import AbstractWorker
 from .drive import DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
 from .react import ReactorBasedWorker
 from .single import SingleWorker
-
-DEFAULT_MAIN_DIRNAME = "MyWorker"
 
 
 def convert_config_to_potter(config):
@@ -367,64 +355,6 @@ class ReactorVariable(Variable):
             worker.batchsize = batchsize
 
         return workers
-
-
-def run_worker(
-    structure: List[str],
-    directory=pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
-    worker: DriverBasedWorker = None,
-    output: str = None,
-    batch: int = None,
-    spawn: bool = False,
-    archive: bool = False,
-):
-    """"""
-    # - some imported packages change `logging.basicConfig`
-    #   and accidently add a StreamHandler to logging.root
-    #   so remove it...
-    for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(
-            h, logging.FileHandler
-        ):
-            logging.root.removeHandler(h)
-
-    directory = pathlib.Path(directory)
-    if not directory.exists():
-        directory.mkdir()
-
-    # - read structures
-    from gdpx.builder import create_builder
-
-    frames = []
-    for i, s in enumerate(structure):
-        builder = create_builder(s)
-        builder.directory = directory / "init" / f"s{i}"
-        frames.extend(builder.run())
-
-    # - find input frames
-    worker.directory = directory
-
-    _ = worker.run(frames, batch=batch)
-    worker.inspect(resubmit=True)
-    if not spawn and worker.get_number_of_running_jobs() == 0:
-        # BUG: bacthes may conflict to save results
-        # - report
-        res_dir = directory / "results"
-        if not res_dir.exists():
-            res_dir.mkdir(exist_ok=True)
-
-            ret = worker.retrieve(include_retrieved=True, use_archive=archive)
-            if not isinstance(worker.driver, AbstractReactor):
-                end_frames = [traj[-1] for traj in ret]
-                write(res_dir / "end_frames.xyz", end_frames)
-            else:
-                ...
-
-            # AtomsNDArray(ret).save_file(res_dir/"trajs.h5")
-        else:
-            print("Results have already been retrieved.")
-
-    return
 
 
 if __name__ == "__main__":
