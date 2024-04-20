@@ -62,16 +62,17 @@ def convert_input_to_potter(
     # HACK:
     if isinstance(potter.calc, list):
         num_calculators = len(potter.calc)
+        assert num_calculators > 1
+        calcs = potter.calc
+        potter.calc = None
+        potters = []
+        for i in range(num_calculators):
+            p = copy.deepcopy(potter)
+            p.calc = calcs[i]
+            potters.append(p)
     else:
         num_calculators = 1
-
-    calcs = potter.calc
-    potter.calc = None
-    potters = []
-    for i in range(num_calculators):
-        p = copy.deepcopy(potter)
-        p.calc = calcs[i]
-        potters.append(p)
+        potters = [potter]
 
     # adjust potter behaviour
     for i, potter in enumerate(potters):

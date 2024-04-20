@@ -55,6 +55,9 @@ class BiasManager(AbstractPotentialManager):
             bias_cls = registers.bias[bias_method]
             if hasattr(bias_cls, "broadcast"):
                 calc = bias_cls.broadcast(calc_params)
+                num_calcs = len(calc)
+                if num_calcs == 1:
+                    calc = calc[0]
             else:
                 calc = bias_cls(**calc_params)
         else:
