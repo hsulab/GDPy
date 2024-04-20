@@ -6,6 +6,7 @@ import copy
 import dataclasses
 import io
 import pathlib
+import shutil
 import tarfile
 import traceback
 from typing import Optional, List, Tuple
@@ -140,7 +141,8 @@ def save_trajectory(atoms, log_fpath) -> None:
 
 
 def save_checkpoint(
-    dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, start_step: int = 0
+    dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number: int=3,
+    start_step: int = 0
 ):
     """"""
     ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps+start_step}"
@@ -159,6 +161,13 @@ def save_checkpoint(
         for calc in atoms.calc.calcs:
             if hasattr(calc, "_save_checkpoint"):
                 calc._save_checkpoint(ckpt_wdir)
+
+    # remove checkpoints if the number is over ckpt_number
+    ckpt_wdirs = sorted(wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:]))
+    num_ckpts = len(ckpt_wdirs)
+    if num_ckpts > ckpt_number:
+        for w in ckpt_wdirs[:-ckpt_number]:
+            shutil.rmtree(w)
 
     return
 
@@ -628,6 +637,7 @@ class AseDriver(AbstractDriver):
                 dyn=dynamics,
                 atoms=atoms,
                 wdir=self.directory,
+                ckpt_number=self.setting.ckpt_number,
                 start_step=start_step,
             )
             dynamics.attach(
@@ -665,7 +675,8 @@ class AseDriver(AbstractDriver):
                 if should_dump_last:
                     update_atoms_info(atoms, dynamics, start_step=start_step)
                     save_checkpoint(
-                        dynamics, atoms, self.directory, start_step=start_step
+                        dynamics, atoms, self.directory, ckpt_number=self.setting.ckpt_number,
+                        start_step=start_step
                     )
                     save_trajectory(atoms, self.directory / self.xyz_fname)
                     retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)

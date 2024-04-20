@@ -95,6 +95,9 @@ class DriverSetting:
     #: The interval steps to save a check point that is used for restart.
     ckpt_period: int = 100
 
+    #: The number of checkpoints to save.
+    ckpt_number: int = 3
+
     #: run params
     etol: float = None # 5e-2
     fmax: float = None # 1e-5
