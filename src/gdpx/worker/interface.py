@@ -21,47 +21,6 @@ from .react import ReactorBasedWorker
 from .single import SingleWorker
 
 
-def convert_config_to_potter(config):
-    """Convert a configuration file or a dict to a potter/reactor.
-
-    This function is only called in the `main.py`.
-
-    """
-    if isinstance(config, dict):
-        params = config
-    else:  # assume it is json or yaml
-        params = parse_input_file(input_fpath=config)
-
-    ptype = params.pop("type", "computer")
-
-    # NOTE: compatibility
-    potter_params = params.pop("potter", None)
-    potential_params = params.pop("potential", None)
-    if potter_params is None:
-        if potential_params is not None:
-            params["potter"] = potential_params
-        else:
-            raise RuntimeError("Fail to find any potter (potential) definition.")
-    else:
-        params["potter"] = potter_params
-
-    if ptype == "computer":
-        potter = ComputerVariable(**params).value[0]
-    elif ptype == "reactor":
-        from gdpx.reactor.interface import ReactorVariable
-
-        potter = ReactorVariable(
-            potter=params["potter"],
-            driver=params.get("driver", None),
-            scheduler=params.get("scheduler", {}),
-            batchsize=params.get("batchsize", 1),
-        ).value[0]
-    else:
-        ...
-
-    return potter
-
-
 def convert_input_to_potter(
     inp,
     estimate_uncertainty: Optional[bool] = False,

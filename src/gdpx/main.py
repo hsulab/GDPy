@@ -230,8 +230,9 @@ def main():
     # - potential
     potter = None
     if args.potential:
-        from gdpx.worker.interface import convert_config_to_potter
-        potter = convert_config_to_potter(args.potential)
+        # a worker or a List of worker
+        from .cli.compute import convert_config_to_potter
+        potter = convert_config_to_potter(args.potential) 
 
     # - use subcommands
     if args.subcommand == "session":
@@ -259,11 +260,11 @@ def main():
     elif args.subcommand == "explore":
         from .expedition.interface import run_expedition
         params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory, potter)
+        run_expedition(params, args.wait, args.directory, potter[0])
     elif args.subcommand == "valid":
         from gdpx.validator import run_validation
         params = parse_input_file(args.CONFIG)
-        run_validation(params, args.directory, potter)
+        run_validation(params, args.directory, potter[0])
     else:
         ...
     
