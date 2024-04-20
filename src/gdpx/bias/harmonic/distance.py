@@ -80,7 +80,7 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
 
     def _write_first_step(self):
         """"""
-        content = f"# {pace =} {group =} {center =} {kspring =}"
+        content = f"# {self.pace =} {self.group =} {self.center =} {self.kspring =}\n"
         content += "# {:>10s}  {:>12s}  {:>12s}\n".format("step", "distance", "energy")
         with open(self.log_fpath, "w") as fopen:
             fopen.write(content)
