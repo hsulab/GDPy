@@ -95,6 +95,7 @@ def read_cp2k_outputs(wdir, prefix: str="cp2k") -> List[Atoms]:
     steps = data[:, 0]
     boxes = data[:, 2:-1]
 
+    # TODO: step must be int?
     # attach forces to frames, zip the shortest
     frames = []
     for step, symbols, box, positions, energy, forces in zip(
