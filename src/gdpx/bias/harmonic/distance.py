@@ -80,7 +80,8 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
 
     def _write_first_step(self):
         """"""
-        content = "# {:>10s}  {:>12s}  {:>12s}\n".format("step", "distance", "energy")
+        content = f"# {pace =} {group =} {center =} {kspring =}"
+        content += "# {:>10s}  {:>12s}  {:>12s}\n".format("step", "distance", "energy")
         with open(self.log_fpath, "w") as fopen:
             fopen.write(content)
 
@@ -93,6 +94,39 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
             fopen.write(content)
 
         return
+    
+    @staticmethod
+    def broadcast(inp_dict: dict) -> List["DistanceHarmonicCalculator"]:
+        """Create a list of calculators based on input parameters."""
+        # broadcast center or kspring
+        centers = inp_dict.get("center", [])
+        if isinstance(centers, float):
+            centers = [centers]
+        num_centers = len(centers)
+
+        ksprings = inp_dict.get("kspring", [])
+        if isinstance(ksprings, float):
+            ksprings = [ksprings]
+        num_ksprings = len(ksprings)
+
+        new_inputs = []
+        if num_centers == 1 and num_ksprings == 1:
+            new_inputs = [inp_dict]
+        elif num_centers == 1 and num_ksprings > 1:
+            new_inputs = [copy.deepcopy(inp_dict) for _ in range(num_ksprings)]
+            for i, x in enumerate(new_inputs):
+                x["kspring"] = ksprings[i]
+        elif num_centers > 1 and num_ksprings == 1:
+            new_inputs = [copy.deepcopy(inp_dict) for _ in range(num_centers)]
+            for i, x in enumerate(new_inputs):
+                x["center"] = centers[i]
+        else:
+            raise RuntimeError("Broadcast cannot.")
+        # print(f"{new_inputs =}")
+
+        calcs = [DistanceHarmonicCalculator(**x) for x in new_inputs]
+
+        return calcs
 
 
 if __name__ == "__main__":

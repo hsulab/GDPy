@@ -31,11 +31,12 @@ class BiasManager(AbstractPotentialManager):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
-        # - parse params
-        bias_type = calc_params.get("type", None)
-        assert bias_type is not None, "Bias must have a type."
+        # parse params
+        calc_params = copy.deepcopy(calc_params)
+        bias_method = calc_params.pop("method", None)
+        assert bias_method is not None, "Bias must have a method."
 
-        # -- check whether have a colvar key
+        # check whether have a colvar key
         colvar_ = None
         for k, v in calc_params.items():
             if k == "colvar":
@@ -48,11 +49,14 @@ class BiasManager(AbstractPotentialManager):
         if colvar_ is not None:
             calc_params["colvar"] = colvar_
 
-        # - instantiate calculator
+        # instantiate calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            bias_cls = registers.bias[bias_type]
-            calc = bias_cls(**calc_params)
+            bias_cls = registers.bias[bias_method]
+            if hasattr(bias_cls, "broadcast"):
+                calc = bias_cls.broadcast(calc_params)
+            else:
+                calc = bias_cls(**calc_params)
         else:
             ...
 
