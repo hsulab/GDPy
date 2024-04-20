@@ -34,9 +34,6 @@ class AbstractPotentialManager(abc.ABC):
     #: Supported combinations of calculator backend and driver/engine.
     valid_combinations: tuple = ()
 
-    #: Current calculator backend.
-    calc_backend: Optional[str] = None
-
     def __init__(self):
         """ """
         #: Attached calculator.
@@ -54,17 +51,24 @@ class AbstractPotentialManager(abc.ABC):
         self._calc = calc_
         return
 
+    @property
+    def calc_backend(self) -> str:
+        """Backend of attached calculator."""
+
+        return self.calc_params.get("backend", self.name)
+
     @abc.abstractmethod
     def register_calculator(self, calc_params: dict, *agrs, **kwargs):
         """Register the host calculator."""
-        if self.calc_backend is None:
-            self.calc_backend = calc_params.pop("backend", self.name)
+        # Save the original copy of calc_params and pop the backend keyword
+        # as it is not for calculator.
+        self.calc_params = copy.deepcopy(calc_params)
+        calc_params.pop("backend")
+
         if self.calc_backend not in self.implemented_backends:
             raise RuntimeError(
                 f"Unknown backend {self.calc_backend} for potential {self.name} with {self.implemented_backends}."
             )
-
-        self.calc_params = copy.deepcopy(calc_params)
 
         return
 
@@ -183,10 +187,7 @@ class AbstractPotentialManager(abc.ABC):
         """"""
         params = {}
         params["name"] = self.name
-
-        pot_params = {"backend": self.calc_backend}
-        pot_params.update(copy.deepcopy(self.calc_params))
-        params["params"] = pot_params
+        params["params"] = copy.deepcopy(self.calc_params)
 
         return params
 
