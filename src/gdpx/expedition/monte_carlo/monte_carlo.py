@@ -361,7 +361,7 @@ class MonteCarlo(AbstractExpedition):
             curr_tags = curr_atoms.get_tags()
 
             # - run postprocess (spc, min or md)
-            _ = self.worker.run([curr_atoms], read_exists=True)
+            _ = self.worker.run([curr_atoms], read_ckpt=True)
             self.worker.inspect(resubmit=True)
             if self.worker.get_number_of_running_jobs() == 0:
                 curr_atoms = self.worker.retrieve()[0][-1]

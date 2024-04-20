@@ -91,7 +91,7 @@ class SingleWorker(AbstractWorker):
                     f"{time.asctime( time.localtime(time.time()) )} {wdir.name} {self.driver.directory.name} is running..."
                 )
                 self.driver.reset()
-                self.driver.run(frames[0], read_exists=True, extra_info=None)
+                self.driver.run(frames[0], read_ckpt=True, extra_info=None)
         else:
             worker_params = {}
             worker_params["use_single"] = True

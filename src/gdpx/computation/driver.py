@@ -235,11 +235,6 @@ class AbstractDriver(AbstractNode):
         checkpoint...
 
         """
-        # - compatibility
-        read_exists = kwargs.pop("read_exists", None)
-        if read_exists is not None:
-            read_ckpt = read_exists
-
         # - NOTE: input atoms from WORKER may have minimal properties as
         #         cell, pbc, positions, symbols, tags, momenta...
         atoms = atoms.copy()

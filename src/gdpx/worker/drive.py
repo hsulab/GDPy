@@ -801,7 +801,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                         f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                     )
                     self.driver.reset()
-                    self.driver.run(atoms, read_exists=True, extra_info=None)
+                    self.driver.run(atoms, read_ckpt=True, extra_info=None)
                     self.driver.set_rng(seed=prev_random_seed)
             else:
                 cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
@@ -823,7 +823,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                     )
                     self.driver.reset()
                     new_atoms = self.driver.run(
-                        atoms, read_exists=False, extra_info=dict(wdir=wdir)
+                        atoms, read_ckpt=False, extra_info=dict(wdir=wdir)
                     )
                     # - save data
                     # TODO: There may have conflicts in write as many groups may run at the same time.
