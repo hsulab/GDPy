@@ -74,6 +74,9 @@ class DriverBasedWorker(AbstractWorker):
     #: How many structures performed in one job.
     batchsize: int = 1
 
+    #: Print period of share_wdir calculations.
+    print_period: int = 100
+
     #: Reserved keys in atoms.info by gdp.
     reserved_keys: List["str"] = ["energy", "step", "wdir"]
 
@@ -804,23 +807,29 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                     self.driver.run(atoms, read_ckpt=True, extra_info=None)
                     self.driver.set_rng(seed=prev_random_seed)
             else:
+                # read calculation cache
                 cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
                 if cache_fpath.exists():
                     cache_frames = read(cache_fpath, ":")
                     cache_wdirs = [a.info["wdir"] for a in cache_frames]
                 else:
                     cache_wdirs = []
+
+                num_curr_frames = len(curr_frames)
+
+                # run calculations
                 temp_wdir = self.directory / "_shared"
-                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
+                for i, (wdir, atoms, rs) in enumerate(zip(curr_wdirs, curr_frames, rng_states)):
                     if wdir in cache_wdirs:
                         continue
                     if temp_wdir.exists():
                         shutil.rmtree(temp_wdir)
                     self.driver.directory = temp_wdir
+                    if i % self.print_period == 0 or i+1 == num_curr_frames:
+                        self._print(
+                            f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
+                        )
                     self.driver.set_rng(seed=rs)
-                    self._print(
-                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                    )
                     self.driver.reset()
                     new_atoms = self.driver.run(
                         atoms, read_ckpt=False, extra_info=dict(wdir=wdir)
