@@ -472,7 +472,6 @@ class ReannManager(AbstractPotentialManager):
         if self.calc_backend == "ase":
             try:
                 import torch
-                from reann.ASE import getneigh
                 from .calculators.reann import REANN
 
                 device = torch.device(
@@ -494,7 +493,7 @@ class ReannManager(AbstractPotentialManager):
                 calc = REANN(
                     atomtype=type_list,
                     maxneigh=max_nneigh,
-                    getneigh=getneigh,
+                    getneigh=None,
                     nn=m,
                     device=device,
                     dtype=precision,

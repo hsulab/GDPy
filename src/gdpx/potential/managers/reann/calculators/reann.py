@@ -53,12 +53,15 @@ class REANN(Calculator):
         # self.pes=torch.compile(pes)
 
     def _init_model(self) -> None:
-        """"""
+        """Lazy import some attributes as they not picklable."""
         pes = torch.jit.load(self._nn_path)
         pes.to(self.device).to(self.dtype)
         pes.eval()
         self.cutoff = pes.cutoff
         self.pes = torch.jit.optimize_for_inference(pes)
+
+        from reann.ASE import getneigh
+        self.getneigh = getneigh
 
         return
 
