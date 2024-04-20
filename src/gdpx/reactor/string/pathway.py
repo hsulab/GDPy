@@ -293,16 +293,35 @@ class AseStringReactor(AbstractStringReactor):
         """"""
         converged = False
         if self.cache_nebtraj.exists():
-            nimages_per_band = self.setting.nimages
             images = self.read_trajectory()
-            # nsteps = len(images)
             nsteps = images[-1][0].info["step"] + 1
-            nt = NEBTools(images[-1])
-            fmax = nt.get_fmax()
-            if (fmax <= self.setting.fmax) or (nsteps >= self.setting.steps + 1):
+
+            # end_band = images[-1]
+            # for a in end_band:
+            #     self._preprocess_constraints(a, self.setting.constraint)
+            # self._print(end_band[3].get_forces(apply_constraint=True))
+            # self._print(np.max(np.fabs(end_band[3].get_forces(apply_constraint=True))))
+
+            # NOTE: Read convergece from neb.log instead of computing fmax from 
+            #       structures as sometimes it is inconsistent due to some reasons
+            #       (precision?)
+
+            # Step     Time          Energy         fmax
+            # BFGS:    0 21:24:07     -195.368118        5.8916
+            data = np.loadtxt(self.directory / "neb.log", dtype=str, skiprows=1)
+            if len(data.shape) == 1:
+                data = data[np.newaxis, :]
+            end_step = data.shape[0]
+            assert end_step == nsteps, "Inconsistent `end_step` in neb.log and nebtraj.xyz."
+            end_fmax = float(data[-1, -1])
+
+            # nt = NEBTools(end_band)
+            # fmax = nt.get_fmax()
+
+            if (end_fmax <= self.setting.fmax) or (end_step >= self.setting.steps + 1):
                 converged = True
             self._print(
-                f"STEP: {nsteps} >= {self.setting.steps} MAXFRC: {fmax} <=? {self.setting.fmax}"
+                f"STEP: {end_step} >= {self.setting.steps} MAXFRC: {end_fmax} <=? {self.setting.fmax}"
             )
 
         return converged
