@@ -200,7 +200,7 @@ class AseStringReactor(AbstractStringReactor):
             else:
                 nebtraj = self.read_trajectory()
                 images = nebtraj[-1]
-                start_step = images[0].info["steps"]
+                start_step = images[0].info["step"]
                 run_params["steps"] = run_params["steps"] - start_step
 
             for a in images:
