@@ -94,10 +94,10 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
             fopen.write(content)
 
         return
-    
+
     @staticmethod
-    def broadcast(inp_dict: dict) -> List["DistanceHarmonicCalculator"]:
-        """Create a list of calculators based on input parameters."""
+    def broadcast_params(inp_dict: dict) -> List[dict]:
+        """"""
         # broadcast center or kspring
         centers = inp_dict.get("center", [])
         if isinstance(centers, float):
@@ -122,8 +122,14 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
                 x["center"] = centers[i]
         else:
             raise RuntimeError("Broadcast cannot.")
-        # print(f"{new_inputs =}")
 
+        return new_inputs
+    
+    @staticmethod
+    def broadcast(inp_dict: dict) -> List["DistanceHarmonicCalculator"]:
+        """Create a list of calculators based on input parameters."""
+
+        new_inputs = DistanceHarmonicCalculator.broadcast_params(inp_dict)
         calcs = [DistanceHarmonicCalculator(**x) for x in new_inputs]
 
         return calcs
