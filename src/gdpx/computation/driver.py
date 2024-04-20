@@ -452,7 +452,7 @@ class AbstractDriver(AbstractNode):
                 # just spc, only need to check force convergence
                 if nframes == 1:
                     converged = True
-            self._print(f"energy: {traj_frames[-1].get_potential_energy():12.4f}")
+            # self._print(f"energy: {traj_frames[-1].get_potential_energy():12.4f}")
         else:
             ...
 
