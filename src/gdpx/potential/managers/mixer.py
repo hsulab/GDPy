@@ -64,15 +64,17 @@ class MixerManager(AbstractPotentialManager):
 
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            pot_calcs = [p.calc for p in potters]
             if broadcast_index == -1:
+                pot_calcs = [p.calc for p in potters]
                 calc = EnhancedCalculator(pot_calcs, save_host=save_host)
             else:
                 # non-broadcasted calculators are shared...
                 num_instances = len(potters[broadcast_index].calc)
-                new_pot_calcs = [pot_calcs for _ in range(num_instances)]
-                for i, x in enumerate(new_pot_calcs):
-                    x[broadcast_index] = pot_calcs[i]
+                new_pot_calcs = []
+                for i in range(num_instances):
+                    x = [p.calc for p in potters]
+                    x[broadcast_index] = potters[broadcast_index].calc[i]
+                    new_pot_calcs.append(x)
                 calc = [
                     EnhancedCalculator(x, save_host=save_host) for x in new_pot_calcs
                 ]
