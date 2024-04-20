@@ -67,7 +67,7 @@ def convert_input_to_potter(
     estimate_uncertainty: Optional[bool] = False,
     switch_backend: Optional[str] = None,
     print_func: Callable = print,
-) -> AbstractPotentialManager:
+) -> List[AbstractPotentialManager]:
     """Convert an input to a potter and adjust its behaviour."""
     potter = None
     if isinstance(inp, AbstractPotentialManager):
@@ -100,30 +100,46 @@ def convert_input_to_potter(
     else:
         raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
 
+    # HACK:
+    if isinstance(potter.calc, list):
+        num_calculators = len(potter.calc)
+    else:
+        num_calculators = 1
+
+    calcs = potter.calc
+    potter.calc = None
+    potters = []
+    for i in range(num_calculators):
+        p = copy.deepcopy(potter)
+        p.calc = calcs[i]
+        potters.append(p)
+
     # adjust potter behaviour
-    if hasattr(potter, "switch_uncertainty_estimation"):
-        if estimate_uncertainty is not None:
+    for i, potter in enumerate(potters):
+        print_func(f"potter-{i} {potter.name}")
+        if hasattr(potter, "switch_uncertainty_estimation"):
+            if estimate_uncertainty is not None:
+                print_func(
+                    f"{potter.name} switches its uncertainty estimation to {estimate_uncertainty}..."
+                )
+                potter.switch_uncertainty_estimation(estimate_uncertainty)
+            else:
+                ...
+        else:
             print_func(
-                f"{potter.name} switches its uncertainty estimation to {estimate_uncertainty}..."
+                f"{potter.name} does not support switching its uncertainty estimation..."
             )
-            potter.switch_uncertainty_estimation(estimate_uncertainty)
-        else:
-            ...
-    else:
-        print_func(
-            f"{potter.name} does not support switching its uncertainty estimation..."
-        )
 
-    if hasattr(potter, "switch_backend"):
-        if switch_backend is not None:
-            print_func(f"{potter.name} switches its backend to {switch_backend}...")
-            potter.switch_backend(backend=switch_backend)
+        if hasattr(potter, "switch_backend"):
+            if switch_backend is not None:
+                print_func(f"{potter.name} switches its backend to {switch_backend}...")
+                potter.switch_backend(backend=switch_backend)
+            else:
+                ...
         else:
-            ...
-    else:
-        print_func(f"{potter.name} does not support switching its backend...")
+            print_func(f"{potter.name} does not support switching its backend...")
 
-    return potter
+    return potters
 
 
 @registers.variable.register
@@ -141,7 +157,6 @@ class ComputerVariable(Variable):
         share_wdir: bool = False,
         use_single: bool = False,
         retain_info: bool = False,
-        custom_wdirs=None,
         directory=pathlib.Path.cwd(),
     ):
         """"""
@@ -157,19 +172,17 @@ class ComputerVariable(Variable):
         # - ...
         self.batchsize = batchsize  # NOTE: This can be updated in drive operation.
 
-        workers = self._create_workers(
+        workers = self._broadcast_workers(
             self.potter,
             self.driver,
             self.scheduler,
-            self.batchsize,
+            batchsize=self.batchsize,
             share_wdir=share_wdir,
             use_single=use_single,
             retain_info=retain_info,
-            custom_wdirs=custom_wdirs,
         )
         super().__init__(workers)
 
-        self.custom_wdirs = None
         self.use_single = use_single
 
         return
@@ -211,48 +224,47 @@ class ComputerVariable(Variable):
 
         return scheduler
 
-    def _create_workers(
+    def _broadcast_workers(
         self,
-        potter,
+        potters,
         drivers,
         scheduler,
+        *,
         batchsize: int = 1,
         share_wdir: bool = False,
         use_single: bool = False,
         retain_info: bool = False,
-        custom_wdirs=None,
-    ):
+    ) -> List[AbstractWorker]:
         """Create a list of workers."""
-        # - check if there were custom wdirs, and zip longest
-        ndrivers = len(drivers)
-        if custom_wdirs is not None:
-            wdirs = [pathlib.Path(p) for p in custom_wdirs]
-        else:
-            wdirs = [self.directory / f"w{i}" for i in range(ndrivers)]
+        # check potters
+        num_potters = len(potters)
+        self._print(f"{num_potters =}")
 
-        nwdirs = len(wdirs)
-        assert (nwdirs == ndrivers and ndrivers > 1) or (
-            nwdirs >= 1 and ndrivers == 1
-        ), "Invalid wdirs and drivers."
-        pairs = itertools.zip_longest(wdirs, drivers, fillvalue=drivers[0])
+        # check if there were custom wdirs, and zip longest
+        num_drivers = len(drivers)
 
-        # - create workers
-        # TODO: broadcast potters, schedulers as well?
+        # broadcast
+        pairs = list(itertools.product(range(num_potters), range(num_drivers)))
+        num_pairs = len(pairs)
+
+        wdirs = [self.directory / f"w{i}" for i in range(num_pairs)]
+
+        # create workers
         workers = []
-        for wdir, driver_params in pairs:
+        for i, (p_i, d_i) in enumerate(pairs):
             # workers share calculator in potter
-            driver = potter.create_driver(driver_params)
+            driver = potters[p_i].create_driver(drivers[d_i])
             if not use_single:
                 if scheduler.name == "local":
-                    worker = CommandDriverBasedWorker(potter, driver, scheduler)
+                    worker = CommandDriverBasedWorker(potters[p_i], driver, scheduler)
                 else:
-                    worker = QueueDriverBasedWorker(potter, driver, scheduler)
+                    worker = QueueDriverBasedWorker(potters[p_i], driver, scheduler)
             else:
-                worker = SingleWorker(potter, driver, scheduler)
+                worker = SingleWorker(potters[d_i], driver, scheduler)
             worker._share_wdir = share_wdir
             worker._retain_info = retain_info
             # wdir is temporary as it may be reset by drive operation
-            worker.directory = wdir
+            worker.directory = wdirs[i]
             workers.append(worker)
 
         for worker in workers:
