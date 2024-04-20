@@ -8,6 +8,8 @@ from typing import NoReturn, Optional, List, Callable
 
 import omegaconf
 
+from ase.calculators.calculator import Calculator
+
 from ..core.operation import Operation
 from ..core.variable import Variable
 from ..core.register import registers
@@ -59,20 +61,30 @@ def convert_input_to_potter(
     else:
         raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
 
-    # HACK:
-    if isinstance(potter.calc, list):
-        num_calculators = len(potter.calc)
-        assert num_calculators > 1
-        calcs = potter.calc
-        potter.calc = None
-        potters = []
-        for i in range(num_calculators):
-            p = copy.deepcopy(potter)
-            p.calc = calcs[i]
-            potters.append(p)
+    # HACK: broadcast potters
+
+    # if isinstance(potter.calc, list):
+    #     num_calculators = len(potter.calc)
+    #     assert num_calculators > 1
+    #     calcs = potter.calc
+    #     potter.calc = None
+    #     potters = []
+    #     for i in range(num_calculators):
+    #         p = copy.deepcopy(potter)
+    #         p.calc = calcs[i]
+    #         potters.append(p)
+    # else:
+    #     num_calculators = 1
+    #     potters = [potter]
+
+    if hasattr(potter, "broadcast"):
+        potters = potter.broadcast(potter)
+        # print_func(f"{potters =}")
     else:
-        num_calculators = 1
         potters = [potter]
+
+    for p in potters:
+        assert isinstance(p.calc, Calculator)
 
     # adjust potter behaviour
     for i, potter in enumerate(potters):

@@ -3,6 +3,7 @@
 
 
 import copy
+from typing import List
 
 from . import registers
 from . import AbstractPotentialManager, DummyCalculator
@@ -14,12 +15,12 @@ from . import AbstractPotentialManager, DummyCalculator
 class BiasManager(AbstractPotentialManager):
 
     name = "bias"
-    implemented_backends = ["ase"]
+    implemented_backends = ("ase",)
 
-    valid_combinations = [
-        ["ase", "ase"],
-        ["ase", "lammps"],
-    ]
+    valid_combinations = (
+        ("ase", "ase"),
+        ("ase", "lammps"),
+    )
 
     def __init__(self) -> None:
         """"""
@@ -37,6 +38,7 @@ class BiasManager(AbstractPotentialManager):
         assert bias_method is not None, "Bias must have a method."
 
         # check whether have a colvar key
+        # FIXME: we need a better code structures to deal with colvar
         colvar_ = None
         for k, v in calc_params.items():
             if k == "colvar":
@@ -66,6 +68,33 @@ class BiasManager(AbstractPotentialManager):
         self.calc = calc
 
         return
+
+    @staticmethod
+    def get_bias_cls(backend, method):
+        """"""
+
+        return registers.bias[method]
+
+    @staticmethod
+    def broadcast(manager: "BiasManager") -> List["BiasManager"]:
+        """"""
+        calc_params = copy.deepcopy(manager.calc_params)
+        calc_params["backend"] = manager.calc_backend
+        # print(f"{calc_params =}")
+
+        bias_cls = manager.get_bias_cls(calc_params["backend"], calc_params["method"])
+        if hasattr(bias_cls, "broadcast_params"):
+            broadcasted_params = bias_cls.broadcast_params(calc_params)
+            # print(f"{broadcasted_params =}")
+            managers = []
+            for inp_dict in broadcasted_params:
+                manager = BiasManager()
+                manager.register_calculator(inp_dict)
+                managers.append(manager)
+        else:
+            managers = [manager]
+
+        return managers
 
 
 if __name__ == "__main__":

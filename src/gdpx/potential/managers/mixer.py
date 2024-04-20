@@ -3,6 +3,7 @@
 
 
 import copy
+from typing import List
 
 from . import registers
 from . import AbstractPotentialManager, DummyCalculator
@@ -14,13 +15,13 @@ from ase.calculators.calculator import Calculator
 class MixerManager(AbstractPotentialManager):
 
     name = "mixer"
-    implemented_backends = ["ase"]
+    implemented_backends = ("ase",)
 
-    valid_combinations = [
+    valid_combinations = (
         # calculator, dynamics
         ("ase", "ase"),
         ("ase", "lammps"),
-    ]
+    )
 
     def __init__(self) -> None:
         """"""
@@ -48,7 +49,9 @@ class MixerManager(AbstractPotentialManager):
                 potter = registers.create("manager", name, convert_name=True)
                 potter.register_calculator(potter_.get("params", {}))
             potters.append(potter)
-        self.potters = potters  # Used by ASE to determine timestep, dump_period ...
+
+        # Used by ASE to determine timestep, dump_period ...
+        self.potters = potters
 
         # try broadcasting calculators
         broadcast_index = -1
@@ -91,6 +94,48 @@ class MixerManager(AbstractPotentialManager):
         params["params"]["potters"] = [p.as_dict() for p in self.potters]
 
         return params
+
+    @staticmethod
+    def broadcast(manager: "MixerManager") -> List["MixerManager"]:
+        """"""
+        calc_params = copy.deepcopy(manager.calc_params)
+        calc_params["backend"] = manager.calc_backend
+        # print(f"{calc_params =}")
+
+        # HACK: Here we use potter.calc to dertermine whether
+        #       the potter is broadcastable
+        broadcast_index = -1
+        for i, p in enumerate(manager.potters):
+            if isinstance(p.calc, Calculator):
+                ...
+            else:  # assume it is a List of calculators
+                if broadcast_index != -1:
+                    raise RuntimeError(
+                        f"Broadcast cannot on {broadcast_index} and {i}."
+                    )
+                broadcast_index = i
+
+        if broadcast_index != -1:
+            b_potter = manager.potters[broadcast_index]
+            b_potter_cls = b_potter.__class__
+            # print(f"{b_potter_cls =}")
+            b_potters = b_potter_cls.broadcast(manager=b_potter)
+            # print(f"{b_potters =}")
+            num_potters = len(b_potters)
+            broadcasted_params = []
+            for i in range(num_potters):
+                x = copy.deepcopy(calc_params)
+                x["potters"][broadcast_index] = b_potters[i]
+                broadcasted_params.append(x)
+            managers = []
+            for inp_dict in broadcasted_params:
+                manager = MixerManager()
+                manager.register_calculator(inp_dict)
+                managers.append(manager)
+        else:
+            managers = [manager]
+
+        return managers
 
 
 if __name__ == "__main__":
