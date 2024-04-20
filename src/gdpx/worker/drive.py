@@ -275,7 +275,7 @@ class DriverBasedWorker(AbstractWorker):
         self, frames: List[Atoms], start_confid: int, rng_states: Union[List[int], List[dict]]
     ):
         # - check wdir
-        nframes = len(frames)
+        num_frames = len(frames)
         # NOTE: get a list even if it only has one structure
         # TODO: a better strategy to deal with wdirs...
         #       conflicts:
@@ -288,17 +288,17 @@ class DriverBasedWorker(AbstractWorker):
             atoms.info["wdir"] = wdir
         # - check whether each structure has a unique wdir
         assert (
-            len(set(wdirs)) == nframes
-        ), f"Found duplicated wdirs {len(set(wdirs))} vs. {nframes}..."
+            len(set(wdirs)) == num_frames
+        ), f"Found duplicated wdirs {len(set(wdirs))} vs. {num_frames}..."
 
         # - split structures into different batches
-        # if self.scheduler.name == "local":
-        #    self._print(f"Worker overwrites batchsize to nframes {nframes} as it uses a LOCAL SCHEDULER.")
-        #    batchsize_ = nframes
-        # else:
-        #    batchsize_ = self.batchsize
-        batchsize_ = self.batchsize
-        starts, ends = self._split_groups(nframes, batchsize_)
+        if self._share_wdir:
+           self._print(f"Worker overwrites batchsize to {num_frames =} as it uses share_wdir.")
+           batchsize = num_frames
+        else:
+           batchsize = self.batchsize
+
+        starts, ends = self._split_groups(num_frames, batchsize)
 
         batches = []
         for i, (s, e) in enumerate(zip(starts, ends)):
