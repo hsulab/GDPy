@@ -88,6 +88,24 @@ class MixerManager(AbstractPotentialManager):
 
         return
 
+    def switch_uncertainty_estimation(self, status: bool=True):
+        """"""
+        if self.calc_backend == "ase":
+            has_switched = False
+            for manager in self.potters:
+                if hasattr(manager, "switch_uncertainty_estimation"):
+                    manager.switch_uncertainty_estimation(status=status)
+                    has_switched = True
+                else:
+                    ...
+            if has_switched:
+                self.calc_params["potters"] = self.potters
+                self.register_calculator(self.calc_params)
+        else:
+            ...
+
+        return
+
     def as_dict(self) -> dict:
         """"""
         params = super().as_dict()
