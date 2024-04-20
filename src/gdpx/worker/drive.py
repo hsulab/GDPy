@@ -11,6 +11,7 @@ import time
 from typing import Tuple, List, NoReturn, Union
 import tempfile
 import warnings
+import json
 import yaml
 
 import numpy as np
@@ -409,6 +410,11 @@ class DriverBasedWorker(AbstractWorker):
                             queued=True,
                         )
                     )
+                # save worker input for later review
+                worker_input_fpath = self.directory/"_data"/f"worker-{identifier}.json"
+                if not worker_input_fpath.exists():
+                    with open(worker_input_fpath, "w") as fopen:
+                        json.dump(self.as_dict(), fopen, indent=2)
 
         return
 
@@ -706,6 +712,20 @@ class DriverBasedWorker(AbstractWorker):
             a.info["wdir"] = str(wdir.name)
 
         return traj_frames
+    
+    def _write_worker_inputs(self, uid: str):
+        """"""
+        worker_params = {}
+        worker_params["driver"] = self.driver.as_dict()
+        worker_params["potential"] = self.potter.as_dict()
+        worker_params["batchsize"] = self.batchsize
+        worker_params["share_wdir"] = self._share_wdir
+        worker_params["retain_info"] = self._retain_info
+
+        with open(self.directory / f"worker-{uid}.yaml", "w") as fopen:
+            yaml.dump(worker_params, fopen)
+
+        return
 
     def as_dict(self) -> dict:
         """"""
@@ -733,16 +753,8 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         batch_number = int(batch_name.split("-")[-1])
 
         # - save worker file
-        worker_params = {}
-        worker_params["driver"] = self.driver.as_dict()
-        worker_params["potential"] = self.potter.as_dict()
-        worker_params["batchsize"] = self.batchsize
-        worker_params["share_wdir"] = self._share_wdir
-        worker_params["retain_info"] = self._retain_info
-
-        with open(self.directory / f"worker-{uid}.yaml", "w") as fopen:
-            yaml.dump(worker_params, fopen)
-
+        self._write_worker_inputs(uid=uid)
+        
         # - save structures
         dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").resolve())
 
