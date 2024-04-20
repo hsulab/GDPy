@@ -3,13 +3,17 @@
 
 import abc
 import copy
-from typing import Optional, Union, List, NoReturn
+from typing import Optional, Union, Tuple, List, NoReturn
 
 import numpy as np
+
+from ase.calculators.calculator import Calculator
 
 from .. import config
 from ..core.register import registers
 from ..computation import register_drivers
+from .calculators.dummy import DummyCalculator
+
 
 """The abstract base class of any potential manager.
 
@@ -21,23 +25,28 @@ class AbstractPotentialManager(abc.ABC):
     Create various potential instances
     """
 
-    name = "potential"
-    version = "m00"  # calculator name
+    #: Name of the potential.
+    name: str = "potential"
 
-    implemented_backends = []
-    valid_combinations = []
+    #: Supported calculator backends.
+    implemented_backends: List[str] = []
 
-    _calc = None
+    #: Supported combinations of calculator backend and driver/engine.
+    valid_combinations: tuple = ()
 
+    #: Current calculator backend.
     calc_backend: Optional[str] = None
 
     def __init__(self):
         """ """
+        #: Attached calculator.
+        self._calc: Calculator = DummyCalculator()
 
         return
 
     @property
-    def calc(self):
+    def calc(self) -> Calculator:
+        """Attached calculator."""
         return self._calc
 
     @calc.setter
