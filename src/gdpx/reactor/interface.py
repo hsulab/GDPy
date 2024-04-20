@@ -18,8 +18,6 @@ from ..data.array import AtomsNDArray
 @registers.operation.register
 class pair_stru(Operation):
 
-    status: str = "finished"
-
     def __init__(self, structures, method="couple", pairs=None, directory="./") -> None:
         """"""
         super().__init__(input_nodes=[structures], directory=directory)
@@ -57,6 +55,10 @@ class pair_stru(Operation):
         pair_structures = []
         for p in pair_indices:
             pair_structures.append([intermediates[i] for i in p])
+
+        # Must update status at the end of forward! Otherwise, the status will be 
+        # overwritten in active session by node.reset().
+        self.status = "finished"
 
         return AtomsNDArray(pair_structures)
 
