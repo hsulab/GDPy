@@ -281,7 +281,7 @@ class ReactorVariable(Variable):
         # - create a reactor
         # reactor = self.potter.create_reactor(kwargs)
         workers = self._create_workers(
-            self.potter, self.driver, self.scheduler, self.batchsize
+            self.potter, self.driver, self.scheduler, batchsize=self.batchsize
         )
 
         super().__init__(initial_value=workers, directory=directory)
@@ -323,12 +323,18 @@ class ReactorVariable(Variable):
 
     def _create_workers(
         self,
-        potter,
+        potters,
         drivers: List[dict],
         scheduler,
+        *,
         batchsize: int = 1,
     ):
         """"""
+        # FIXME: Support several potters?
+        num_potters = len(potters)
+        assert num_potters == 1, "Reactor only supports one potter."
+        potter = potters[0]
+
         workers = []
         for driver_params in drivers:
             driver = potter.create_reactor(driver_params)
