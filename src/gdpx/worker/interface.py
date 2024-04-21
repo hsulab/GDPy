@@ -173,14 +173,16 @@ class ComputerVariable(Variable):
         num_drivers = len(drivers)
 
         # broadcast
-        pairs = list(itertools.product(range(num_potters), range(num_drivers)))
+        # pairs = list(itertools.product(range(num_potters), range(num_drivers)))
+        pairs = list(itertools.product(range(num_drivers), range(num_potters)))
         num_pairs = len(pairs)
 
         wdirs = [self.directory / f"w{i}" for i in range(num_pairs)]
 
         # create workers
         workers = []
-        for i, (p_i, d_i) in enumerate(pairs):
+        # for i, (p_i, d_i) in enumerate(pairs):
+        for i, (d_i, p_i) in enumerate(pairs):
             # workers share calculator in potter
             driver = potters[p_i].create_driver(drivers[d_i])
             if not use_single:
