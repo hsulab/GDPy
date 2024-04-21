@@ -4,14 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdpx"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
   "ase>=3.22",
   "h5py>=3.7.0",
   "joblib>=1.1.0",
   "networkx>=2.6.3",
   "omegaconf>=2.3.0",
-  "pydantic>=2.1.1",
   "pyyaml>=6.0",
   "tinydb>=4.7.0",
 ]

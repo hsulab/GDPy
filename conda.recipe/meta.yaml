@@ -1,19 +1,19 @@
 {% set name = "gdpx" %}
-{% set version = "0.0.7" %}
+{% set version = "0.0.8" %}
 
 package:
   name: {{ name|lower }}
   version: {{ version }}
 
 source:
-  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.7.tar.gz
-  sha256: 0df36df3e207716c2267eaafd5415f9b99d0e5fa38295471e9f75d1d27f9f0de
+  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.8.tar.gz
+  sha256: 17f39862379881db9d43b3031ab70746933822085642e48080012096ee870881
 
 build:
   noarch: python
   number: 0
   script: {{ PYTHON }} -m pip install . -vv
-  entry_points: 
+  entry_points:
     - gdp = gdpx.main:main
 
 requirements:
@@ -27,7 +27,6 @@ requirements:
     - joblib >=1.1.0
     - networkx >=2.6.3
     - omegaconf >=2.3.0
-    - pydantic >=2.1.1
     - pyyaml >=6.0
     - tinydb >=4.7.0
 
