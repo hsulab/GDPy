@@ -16,6 +16,7 @@ from ..core.register import registers
 from ..utils.command import parse_input_file
 
 from ..potential.manager import AbstractPotentialManager
+from ..potential.utils import convert_input_to_potter
 from ..scheduler.scheduler import AbstractScheduler
 from .worker import AbstractWorker
 from .drive import DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
@@ -23,63 +24,19 @@ from .react import ReactorBasedWorker
 from .single import SingleWorker
 
 
-def convert_input_to_potter(
+def broadcast_and_adjust_potter(
     inp,
     estimate_uncertainty: Optional[bool] = False,
     switch_backend: Optional[str] = None,
     print_func: Callable = print,
 ) -> List[AbstractPotentialManager]:
     """Convert an input to a potter and adjust its behaviour."""
-    potter = None
-    if isinstance(inp, AbstractPotentialManager):
-        potter = inp
-    elif isinstance(inp, Variable):
-        potter = inp.value
-    elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
-        potter_params = copy.deepcopy(inp)
-        name = potter_params.get("name", None)
-        potter = registers.create(
-            "manager",
-            name,
-            convert_name=True,
-        )
-        potter.register_calculator(potter_params.get("params", {}))
-        potter.version = potter_params.get("version", "unknown")
-    elif isinstance(inp, str) or isinstance(inp, pathlib.Path):
-        if pathlib.Path(inp).exists():
-            potter_params = parse_input_file(input_fpath=inp)
-            name = potter_params.get("name", None)
-            potter = registers.create(
-                "manager",
-                name,
-                convert_name=True,
-            )
-            potter.register_calculator(potter_params.get("params", {}))
-            potter.version = potter_params.get("version", "unknown")
-        else:
-            raise RuntimeError(f"The potter configuration `{inp}` does not exist.")
-    else:
-        raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
+    # convert everything into potter
+    potter = convert_input_to_potter(inp)
 
     # HACK: broadcast potters
-
-    # if isinstance(potter.calc, list):
-    #     num_calculators = len(potter.calc)
-    #     assert num_calculators > 1
-    #     calcs = potter.calc
-    #     potter.calc = None
-    #     potters = []
-    #     for i in range(num_calculators):
-    #         p = copy.deepcopy(potter)
-    #         p.calc = calcs[i]
-    #         potters.append(p)
-    # else:
-    #     num_calculators = 1
-    #     potters = [potter]
-
     if hasattr(potter, "broadcast"):
         potters = potter.broadcast(potter)
-        # print_func(f"{potters =}")
     else:
         potters = [potter]
 
@@ -132,7 +89,7 @@ class ComputerVariable(Variable):
         directory=pathlib.Path.cwd(),
     ):
         """"""
-        self.potter = convert_input_to_potter(
+        self.potter = broadcast_and_adjust_potter(
             potter,
             estimate_uncertainty=estimate_uncertainty,
             switch_backend=switch_backend,
@@ -267,7 +224,7 @@ class ReactorVariable(Variable):
     ):
         """"""
         # - save state by all nodes
-        self.potter = convert_input_to_potter(
+        self.potter = broadcast_and_adjust_potter(
             potter,
             estimate_uncertainty=estimate_uncertainty,
             switch_backend=switch_backend,

@@ -5,11 +5,11 @@
 import copy
 from typing import List
 
-from . import registers
+from ase.calculators.calculator import Calculator
+
 from . import AbstractPotentialManager, DummyCalculator
 from ..calculators.mixer import EnhancedCalculator
-
-from ase.calculators.calculator import Calculator
+from ..utils import convert_input_to_potter
 
 
 class MixerManager(AbstractPotentialManager):
@@ -28,7 +28,7 @@ class MixerManager(AbstractPotentialManager):
 
         return
 
-    def register_calculator(self, calc_params) -> None:
+    def register_calculator(self, calc_params, *args, **kwargs) -> None:
         """"""
         super().register_calculator(calc_params)
 
@@ -42,12 +42,7 @@ class MixerManager(AbstractPotentialManager):
 
         potters = []
         for potter_ in potters_:
-            if isinstance(potter_, AbstractPotentialManager):
-                potter = potter_
-            else:  # assume it is a dict
-                name = potter_.get("name", None)
-                potter = registers.create("manager", name, convert_name=True)
-                potter.register_calculator(potter_.get("params", {}))
+            potter = convert_input_to_potter(potter_)
             potters.append(potter)
 
         # Used by ASE to determine timestep, dump_period ...
