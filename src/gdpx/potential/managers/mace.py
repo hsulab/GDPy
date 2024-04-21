@@ -255,7 +255,7 @@ class MaceTrainer(AbstractTrainer):
                     ckpt_dir.mkdir()
                     curr_seed = train_config["seed"]
                     (ckpt_dir/f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
-                    train_config.pop("restart_latest")
+                    train_config.pop("restart_latest", None)
                     train_config["init_latest"] = True
                 else:
                     self._print(f"FAILED to init from `{str(init_model)}`.")
@@ -269,7 +269,7 @@ class MaceTrainer(AbstractTrainer):
                 self._print(f"{prev_seed =}")
                 if prev_seed is not None:
                     train_config["seed"] = prev_seed
-                    train_config.pop("init_latest")
+                    train_config.pop("init_latest", None)
                     train_config["restart_latest"] = True
             else:
                 if init_model is not None:
@@ -282,7 +282,7 @@ class MaceTrainer(AbstractTrainer):
                         ckpt_dir.mkdir()
                         curr_seed = train_config["seed"]
                         (ckpt_dir/f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
-                        train_config.pop("restart_latest")
+                        train_config.pop("restart_latest", None)
                         train_config["init_latest"] = True
                     else:
                         self._print(f"FAILED to init from `{str(init_model)}`.")
