@@ -36,15 +36,22 @@ class DriverVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""
-        # - compat
         copied_params = copy.deepcopy(kwargs)
         merged_params = dict(
-            # task=copied_params.get("task", "min"),
             backend=copied_params.get("backend", "external"),
             ignore_convergence=copied_params.get("ignore_convergence", False),
         )
         merged_params.update(**copied_params.get("init", {}))
         merged_params.update(**copied_params.get("run", {}))
+
+        # HACK: Computer and Reactor both use this variable
+        #       but Reactor does not have task keyword for now
+        #       we need update it later.
+        task = copied_params.get("task", "")
+        if task:
+            merged_params.update(task=task)
+        else:
+            ...
 
         initial_value = self._broadcast_drivers(merged_params)
 
