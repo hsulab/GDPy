@@ -33,6 +33,9 @@ registers.expedition.register("monte_carlo")(MonteCarlo)
 from .simulated_annealing.simulated_annealing import SimulatedAnnealing
 registers.expedition.register("simulated_annealing")(SimulatedAnnealing)
 
+from .accelerated_dynamics.catnano import AcceleratedReactor
+registers.expedition.register("accelerated_reactor")(AcceleratedReactor)
+
 # - optional
 try:
     from .af.afir import AFIRSearch
