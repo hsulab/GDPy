@@ -9,6 +9,37 @@ from typing import List, Tuple
 import numpy as np
 
 from ase import Atoms
+from ase.data import atomic_numbers, covalent_radii
+
+
+def get_equidis_dict(bonds, ratio: float = 1.0):
+    """Get bond equilibrium distance from a string input.
+
+    Args:
+        bonds: A list [C, H, O] or [(C-O), (C-H)].
+        ratio: Mutiplier to the atomic covalent radii.
+
+    Returns:
+        Atomic symbols, bond pairs, equilibrium distance dict.
+
+    """
+    #: Equilibrium bond distance dict.
+    if isinstance(bonds[0], str):
+        symbols = bonds
+        bonds = list(itertools.product(bonds, bonds))
+    else:
+        symbols_, bonds_ = [], []
+        for i, j in bonds:
+            symbols_.extend([i, j])
+            bonds_.append((i, j))
+            bonds_.append((j, i))
+        symbols = list(set(symbols_))
+        bonds = list(set(bonds_))
+
+    radii = {s: ratio * covalent_radii[atomic_numbers[s]] for s in symbols}
+    equidis_dict = {k: radii[k[0]] + radii[k[1]] for k in bonds}
+
+    return symbols, bonds, equidis_dict
 
 
 def get_distance_and_shift(cell, positions, i, j, pbc: bool = True):

@@ -17,6 +17,9 @@ registers.bias.register("afir")(AFIRCalculator)
 from .bondboost import BondBoostCalculator
 registers.bias.register("bondboost")(BondBoostCalculator)
 
+from .nuclei import NucleiRepulsionCalculator
+registers.bias.register("nuclei_repulsion")(NucleiRepulsionCalculator)
+
 # from .harmonic import HarmonicBias
 # bias_register.register("harmonic")(HarmonicBias)
 
