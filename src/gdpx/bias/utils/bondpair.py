@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import itertools
 from typing import List, Tuple
 
 
@@ -10,14 +11,16 @@ import numpy as np
 from ase import Atoms
 
 
-def get_distance_and_shift(cell, positions, i, j, pbc: bool=True):
+def get_distance_and_shift(cell, positions, i, j, pbc: bool = True):
     """"""
     # FIXME: ...
 
     return
 
 
-def compute_distance_and_shift(atoms: Atoms, neighlist, grp_a: List[int], grp_b: List[int]):
+def compute_distance_and_shift(
+    atoms: Atoms, grp_a: List[int], grp_b: List[int], neighlist=None
+):
     """Find valid bond pairs between group_a and group_b.
 
     NOTE: We use a full-list here.
@@ -27,22 +30,31 @@ def compute_distance_and_shift(atoms: Atoms, neighlist, grp_a: List[int], grp_b:
     cell = atoms.get_cell(complete=True)
 
     # - find pairs within given distance
-    bond_pairs = []
-    bond_distances = []
-    bond_shifts = []
-    for i in grp_a:
-        indices, offsets = neighlist.get_neighbors(i)
-        for j, offset in zip(indices, offsets):
-            if j in grp_b:
-                shift = np.dot(offset, cell)
-                dis = np.linalg.norm(atoms.positions[i] - (atoms.positions[j] + shift))
-                bond_pairs.append(sorted([i, j]))
-                bond_distances.append(dis)
-                bond_shifts.append(dis)
-
-    bond_pairs = np.array(bond_pairs, dtype=np.int32)
-    bond_distances = np.array(bond_distances)
-    # bond_shifts = np.array(bond_shifts)
+    if neighlist is not None:
+        bond_pairs = []
+        bond_distances = []
+        bond_shifts = []
+        for i in grp_a:
+            indices, offsets = neighlist.get_neighbors(i)
+            for j, offset in zip(indices, offsets):
+                if j in grp_b:
+                    shift = np.dot(offset, cell)
+                    dis = np.linalg.norm(
+                        atoms.positions[i] - (atoms.positions[j] + shift)
+                    )
+                    bond_pairs.append(sorted([i, j]))
+                    bond_distances.append(dis)
+                    bond_shifts.append(dis)
+        bond_pairs = np.array(bond_pairs, dtype=np.int32)
+        bond_distances = np.array(bond_distances)
+        # bond_shifts = np.array(bond_shifts)
+    else:
+        bond_pairs = np.array(list(itertools.product(grp_a, grp_b)), dtype=np.int32)
+        bond_distances = np.linalg.norm(
+            atoms.positions[bond_pairs[:, 0]] - atoms.positions[bond_pairs[:, 1]],
+            axis=1,
+        )
+        bond_shifts = np.zeros((len(bond_pairs), 3))
 
     return bond_pairs, bond_distances, bond_shifts
 
@@ -76,9 +88,7 @@ def get_bond_information(
             pair = (sym_i, sym_j)
             if pair in allowed_bonds:
                 shift = np.dot(offset, cell)
-                dis = np.linalg.norm(
-                    atoms.positions[i] - (atoms.positions[j] + shift)
-                )
+                dis = np.linalg.norm(atoms.positions[i] - (atoms.positions[j] + shift))
                 if dis >= eqdis_dict[pair] * covalent_min:
                     bond_pairs.append(tuple(sorted([i, j])))
                     bond_curr_distances.append(dis)

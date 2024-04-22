@@ -89,7 +89,7 @@ class AFIRCalculator(Calculator):
 
     default_parameters = dict(gamma=2.5, power=6, cutoff=6.0)
 
-    def __init__(self, groups, restart=None, label=None, atoms=None, directory=".", **kwargs):
+    def __init__(self, groups, use_pbc: bool=False, restart=None, label=None, atoms=None, directory=".", **kwargs):
         """"""
         super().__init__(
             restart=restart, label=label, atoms=atoms, directory=directory, **kwargs
@@ -103,6 +103,8 @@ class AFIRCalculator(Calculator):
         self.power = int(self.parameters.get("power", POW_AFIR))
 
         self.groups = groups
+
+        self.use_pbc = use_pbc
         self.cutoff = self.parameters["cutoff"]
 
         assert len(self.groups) == 2
@@ -122,12 +124,15 @@ class AFIRCalculator(Calculator):
         super().calculate(atoms, properties, system_changes)
 
         # NOTE: check cutoff before assigning groups
-        if self.neighlist is None:
-            self.neighlist = NeighborList(
-                [self.cutoff/2.]*len(atoms),
-                skin=0.0, self_interaction=False, bothways=True
-            )
-        self.neighlist.update(atoms)
+        if self.use_pbc:
+            if self.neighlist is None:
+                self.neighlist = NeighborList(
+                    [self.cutoff/2.]*len(atoms),
+                    skin=0.0, self_interaction=False, bothways=True
+                )
+            self.neighlist.update(atoms)
+        else:
+            self.neighlist = None
 
         # - get constants
         atomic_numbers = atoms.get_atomic_numbers()
@@ -135,12 +140,8 @@ class AFIRCalculator(Calculator):
 
         # - find bond pairs
         bond_pairs, bond_distances, bond_shifts = compute_distance_and_shift(
-            atoms, self.neighlist, self.groups[0], self.groups[1]
+            atoms, self.groups[0], self.groups[1], neighlist=self.neighlist
         )
-
-        # print(f"{bond_pairs =}")
-        # print(f"{bond_distances =}")
-        # print(f"{bond_shifts =}")
 
         # - compute properties
         energy, forces = compute_afir_energy_and_forces(
