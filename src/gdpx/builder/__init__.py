@@ -6,6 +6,7 @@ import warnings
 
 from .. import config
 from ..utils.command import CustomTimer
+from ..utils.strconv import str2array
 
 from .interface import create_builder
 
@@ -76,7 +77,9 @@ registers.builder.register("zoom")(ZoomModifier)
 
 # - optional
 try:
-    from .hypercube import HypercubeBuilder
+    from .scan.angle import ScanAngleModifier
+    registers.builder.register("scan_angle")(ScanAngleModifier)
+    from .scan.hypercube import HypercubeBuilder
     registers.builder.register("hypercube")(HypercubeBuilder)
 except ImportError as e:
     warnings.warn("Module {} import failed: {}".format("hypercube", e), UserWarning)
