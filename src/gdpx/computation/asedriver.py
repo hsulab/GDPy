@@ -499,8 +499,11 @@ class AseDriver(AbstractDriver):
                 # atoms have momenta
                 ...
             else:
+                # nve does not have temp in dyn_params so we use setting.temp
+                # for all ensembles just for consistency
+                target_temperature = self.setting.temp
                 MaxwellBoltzmannDistribution(
-                    atoms, temperature_K=init_params_["temperature_K"], rng=vrng
+                    atoms, temperature_K=target_temperature, rng=vrng
                 )
                 if self.setting.remove_rotation:
                     ZeroRotation(atoms, preserve_temperature=False)
@@ -508,7 +511,7 @@ class AseDriver(AbstractDriver):
                     Stationary(atoms, preserve_temperature=False)
                 # NOTE: respect constraints
                 #       ase code does not consider constraints
-                force_temperature(atoms, init_params_["temperature_K"], unit="K")
+                force_temperature(atoms, target_temperature, unit="K")
 
             # - some dynamics need rng
             if "rng" in init_params_:
