@@ -228,11 +228,12 @@ def main():
         config._print(l)
 
     # - potential
-    potter = None
     if args.potential:
         # a worker or a List of worker
         from .cli.compute import convert_config_to_potter
         potter = convert_config_to_potter(args.potential) 
+    else:
+        potter = [None]
 
     # - use subcommands
     if args.subcommand == "session":
