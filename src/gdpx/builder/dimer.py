@@ -14,15 +14,26 @@ from .builder import StructureBuilder
 
 class DimerBuilder(StructureBuilder):
 
-    def __init__(self, elements: List[str], distances: List[float]=[0.8,2.5,0.05], directory=Path.cwd(), *args, **kwargs):
+    def __init__(
+        self,
+        elements: List[str],
+        distances: List[float] = [0.8, 2.5, 0.05],
+        directory=Path.cwd(),
+        *args,
+        **kwargs,
+    ):
         """"""
         super().__init__(directory, *args, **kwargs)
 
         self.elements = elements
-        assert len(self.elements) == 2, "DimerBuilder needs two chemical symbols as elements."
+        assert (
+            len(self.elements) == 2
+        ), "DimerBuilder needs two chemical symbols as elements."
 
         self.distances = distances
-        assert len(self.distances) == 3, "DimerBuilder needs min, max and intv for the distance."
+        assert (
+            len(self.distances) == 3
+        ), "DimerBuilder needs min, max and intv for the distance."
 
         return
 
@@ -31,19 +42,17 @@ class DimerBuilder(StructureBuilder):
         super().run(*args, **kwargs)
 
         dmin, dmax, intv = self.distances
-        distances = np.arange(dmin, dmax+intv, intv)
+        distances = np.arange(dmin, dmax + intv, intv)
+        self._print(f"{distances}")
 
         frames = []
         for dis in distances:
             atoms = Atoms(
-                symbols=self.elements, 
-                positions=[
-                    [0., 0., 0.],
-                    [0., 0., dis]
-                ],
-                #cell = 20.*np.eye(3),
-                cell = [[19., 0., 0.], [0., 20., 0.], [0., 0., 21.]],
-                pbc=[True,True,True]
+                symbols=self.elements,
+                positions=[[10.0, 10.0, 10.0], [10.0, 10.0, 10.0+dis]],
+                # cell = 20.*np.eye(3),
+                cell=[[19.0, 0.0, 0.0], [0.0, 20.0, 0.0], [0.0, 0.0, 21.0]],
+                pbc=[True, True, True],
             )
             atoms.set_constraint(FixAtoms(indices=[0]))
             frames.append(atoms)

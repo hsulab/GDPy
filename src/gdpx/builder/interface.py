@@ -185,22 +185,40 @@ class build(Operation):
 
         return
 
+    @Operation.directory.setter
+    def directory(self, directory_) -> None:
+        """"""
+        self._directory = pathlib.Path(directory_)
+
+        self.input_nodes[0].directory = self._directory / "builder"
+
+        return
+
     def forward(self, builder) -> List[Atoms]:
         """"""
         super().forward()
 
-        builder.directory = self.directory
-        curr_builder_output = self.directory / f"{builder.name}_output.xyz"
-        if curr_builder_output.exists():
-            frames = read(curr_builder_output, ":")
-        else:
+        cache_path = self.directory / f"{builder.name}-out.xyz"
+        if not cache_path.exists():
             frames = builder.run(size=self.size)
-            write(curr_builder_output, frames)
-        self._print(f"{builder.name} nframes: {len(frames)}")
+            write(cache_path, frames)
+        else:
+            frames = read(cache_path, ":")
+        # self._print(f"{builder.name} nframes: {len(frames)}")
 
         self.status = "finished"
 
         return frames
+
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        builder = input_nodes[0]
+        if isinstance(builder, dict) or isinstance(
+            builder, omegaconf.dictconfig.DictConfig
+        ):
+            builder = BuilderVariable(directory=self.directory / "builder", **builder)
+
+        return [builder]
 
 
 @registers.operation.register
