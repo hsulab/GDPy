@@ -130,6 +130,8 @@ class ReadBuilder(StructureBuilder):
     def run(self, *args, **kwargs):
         """"""
         frames = read(self.fname, self.index, self.format)
+        if isinstance(frames, Atoms):
+            frames = [frames]
 
         return frames
     
