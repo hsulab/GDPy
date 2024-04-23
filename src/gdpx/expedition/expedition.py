@@ -40,12 +40,27 @@ class AbstractExpedition(AbstractNode):
             ):
                 logging.root.removeHandler(h)
 
-        assert self.worker is not None, "MC has not set its worker properly."
+        assert self.worker is not None, f"{self.name} has not set its worker properly."
 
         return
 
-    def register_worker(self, worker: dict, *args, **kwargs):
-        """"""
+    def register_builder(self, builder: dict) -> None:
+        """Register StructureBuilder for this expedition."""
+        if isinstance(builder, dict):
+            builder_params = copy.deepcopy(builder)
+            builder_method = builder_params.pop("method")
+            builder = registers.create(
+                "builder", builder_method, convert_name=False, **builder_params
+            )
+        else:
+            builder = builder
+
+        self.builder = builder
+
+        return
+
+    def register_worker(self, worker: dict, *args, **kwargs) -> None:
+        """Register DriverBasedWorker for this expedition."""
         if isinstance(worker, dict):
             worker_params = copy.deepcopy(worker)
             worker = registers.create(

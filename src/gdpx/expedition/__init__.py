@@ -12,6 +12,7 @@ from ..worker.single import SingleWorker
 from ..worker.drive import DriverBasedWorker
 from ..worker.interface import ComputerVariable
 from ..utils.command import convert_indices, dict2str
+from ..potential.interface import create_mixer
 
 from .interface import ExpeditionVariable
 registers.variable.register(ExpeditionVariable)
@@ -33,16 +34,8 @@ registers.expedition.register("monte_carlo")(MonteCarlo)
 from .simulated_annealing.simulated_annealing import SimulatedAnnealing
 registers.expedition.register("simulated_annealing")(SimulatedAnnealing)
 
-from .accelerated_dynamics.catnano import AcceleratedReactor
-registers.expedition.register("accelerated_reactor")(AcceleratedReactor)
-
-# - optional
-try:
-    from .af.afir import AFIRSearch
-    registers.expedition.register("artificial_reaction")(AFIRSearch)
-except:
-    config._print("AFIR is not loaded.")
-    config._print(traceback.print_exc())
+from .artificial_force.afir import AFIRSearch
+registers.expedition.register("artificial_reaction")(AFIRSearch)
 
 
 if __name__ == "__main__":
