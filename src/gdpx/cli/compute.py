@@ -8,8 +8,11 @@ from typing import Optional, Union, List
 
 from ase.io import write
 
-from ..worker.drive import DriverBasedWorker
+from .. import config
+from ..builder.interface import BuilderVariable
 from ..worker.interface import ComputerVariable, ReactorVariable
+from ..worker.drive import DriverBasedWorker
+from ..worker.grid import GridDriverBasedWorker
 from ..reactor.reactor import AbstractReactor
 from ..utils.command import parse_input_file
 
@@ -73,7 +76,7 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
             else:
                 ...
         else:
-            print(f"{directory.name} has already been retrieved.")
+            config._print(f"{directory.name} has already been retrieved.")
 
     return
 
@@ -101,7 +104,7 @@ def run_worker(
     if not directory.exists():
         directory.mkdir()
 
-    # - read structures
+    # read structures
     from gdpx.builder import create_builder
 
     frames = []
@@ -117,6 +120,48 @@ def run_worker(
     else:
         for i, w in enumerate(workers):
             run_one_worker(frames, w, directory/f"w{i}", batch, spawn, archive)
+
+    return
+
+
+def run_grid_worker(grid_params: dict, directory):
+    """"""
+    directory = pathlib.Path(directory)
+
+    # config._print(grid_params)
+    grid_data = grid_params.get("grid", None)
+    assert grid_data is not None
+
+    # TODO: scheduler
+
+    structures, potters, drivers = [], [], []
+    for data in grid_data:
+        builder_params = data.get("builder")
+        builder = BuilderVariable(**builder_params).value
+        structures.extend(builder.run())
+
+        # FIXME: broadcast worker to structures?
+        computer_params = data.get("computer")
+        computers = ComputerVariable(**computer_params).value
+        num_computers = len(computers)
+        assert num_computers == 1
+        potters.append(computers[0].potter)
+        drivers.append(computers[0].driver)
+        # config._print(f"{builder =}")
+        # config._print(f"{computer =}")
+        ...
+    config._print(f"{structures =}")
+    config._print(f"{potters =}")
+    config._print(f"{drivers =}")
+
+    worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
+    worker.directory = directory
+
+    # run computations
+    worker.run(structures)
+    worker.inspect(resubmit=True)
+    if worker.get_number_of_running_jobs() == 0:
+        ...
 
     return
 

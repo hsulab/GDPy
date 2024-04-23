@@ -253,11 +253,19 @@ def main():
         from gdpx.selector.interface import run_selection
         run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "compute":
-        from .cli.compute import run_worker
-        run_worker(
-            args.STRUCTURE, potter, batch=args.batch, 
-            spawn=args.spawn, archive=args.archive, directory=args.directory
-        )
+        first_worker = potter[0]
+        config._print(f"{first_worker =}")
+        if first_worker is not None:
+            # For compatibility, the classic mode
+            # `gdp -p ./worker.yaml compute structures.xyz`
+            from .cli.compute import run_worker
+            run_worker(
+                args.STRUCTURE, potter, batch=args.batch, 
+                spawn=args.spawn, archive=args.archive, directory=args.directory
+            )
+        else: # Use GridWorker here!!
+            from .cli.compute import run_grid_worker
+            run_grid_worker(parse_input_file(args.STRUCTURE[0]), args.directory)
     elif args.subcommand == "explore":
         from .expedition.interface import run_expedition
         params = parse_input_file(args.CONFIG)
