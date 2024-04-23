@@ -10,6 +10,7 @@ from ase.constraints import FixAtoms
 
 from .builder import StructureBuilder
 
+
 def read_xsd2(fd) -> Atoms:
     """read xsd file by Material Studio
 
@@ -18,7 +19,7 @@ def read_xsd2(fd) -> Atoms:
 
     """
     import xml.etree.ElementTree as ET
-    from xml.dom import minidom 
+    from xml.dom import minidom
 
     tree = ET.parse(fd)
     root = tree.getroot()
@@ -36,7 +37,7 @@ def read_xsd2(fd) -> Atoms:
         formula = str()
 
         names = list()
-        restrictions = list() 
+        restrictions = list()
 
         for atom in system:
             if atom.tag == "Atom3d":
@@ -50,25 +51,27 @@ def read_xsd2(fd) -> Atoms:
                     coord = [0.0, 0.0, 0.0]
                 coords.append(coord)
 
-                name = atom.get("Name") 
+                name = atom.get("Name")
                 if name:
-                    pass # find name 
-                else: 
-                    name = symbol + str(len(names)+1) # None due to copy atom 
+                    pass  # find name
+                else:
+                    name = symbol + str(len(names) + 1)  # None due to copy atom
                 names.append(name)
 
                 restriction = atom.get("RestrictedProperties", None)
                 if restriction:
-                    if restriction.startswith("FractionalXYZ"):  # TODO: may have 1-3 flags
+                    if restriction.startswith(
+                        "FractionalXYZ"
+                    ):  # TODO: may have 1-3 flags
                         restrictions.append(True)
-                    else: 
+                    else:
                         raise ValueError("unknown RestrictedProperties")
-                else: 
+                else:
                     restrictions.append(False)
             elif atom.tag == "SpaceGroup":
-                avec = [float(vec) for vec in atom.get('AVector').split(',')]
-                bvec = [float(vec) for vec in atom.get('BVector').split(',')]
-                cvec = [float(vec) for vec in atom.get('CVector').split(',')]
+                avec = [float(vec) for vec in atom.get("AVector").split(",")]
+                bvec = [float(vec) for vec in atom.get("BVector").split(",")]
+                cvec = [float(vec) for vec in atom.get("CVector").split(",")]
 
                 cell.append(avec)
                 cell.append(bvec)
@@ -77,14 +80,14 @@ def read_xsd2(fd) -> Atoms:
         atoms = Atoms(formula, cell=cell, pbc=True)
         atoms.set_scaled_positions(coords)
 
-        # add constraints 
+        # add constraints
         fixed_indices = [idx for idx, val in enumerate(restrictions) if val]
         if fixed_indices:
             atoms.set_constraint(FixAtoms(indices=fixed_indices))
 
-        # add two atoms constrained optimisation 
+        # add two atoms constrained optimisation
         constrained_indices = [
-            idx for idx, name in enumerate(names) if name.endswith('_c') 
+            idx for idx, name in enumerate(names) if name.endswith("_c")
         ]
         if constrained_indices:
             assert len(constrained_indices) == 2
@@ -111,22 +114,36 @@ def read_xsd2(fd) -> Atoms:
         atoms.set_scaled_positions(coords)
         return atoms
 
+
 class ReadBuilder(StructureBuilder):
 
     def __init__(
-        self, fname, index=":", format=None, use_tags=False, 
-        directory="./", random_seed=None, *args, **kwargs
+        self,
+        fname,
+        index=":",
+        format=None,
+        use_tags=False,
+        directory="./",
+        random_seed=None,
+        *args,
+        **kwargs,
     ):
         """"""
-        super().__init__(use_tags=use_tags, directory=directory, random_seed=random_seed, *args, **kwargs)
+        super().__init__(
+            use_tags=use_tags,
+            directory=directory,
+            random_seed=random_seed,
+            *args,
+            **kwargs,
+        )
 
         self.fname = pathlib.Path(fname)
         self.index = index
         self.format = format
-        #self.kwargs = kwargs
+        # self.kwargs = kwargs
 
         return
-    
+
     def run(self, *args, **kwargs):
         """"""
         frames = read(self.fname, self.index, self.format)
@@ -134,7 +151,7 @@ class ReadBuilder(StructureBuilder):
             frames = [frames]
 
         return frames
-    
+
     def as_dict(self) -> dict:
         """"""
         params = {}
@@ -147,29 +164,29 @@ class ReadBuilder(StructureBuilder):
 
 
 class DirectBuilder(StructureBuilder):
-    """This generator directly returns structures that it stores.
-    """
+    """This generator directly returns structures that it stores."""
 
     #: Builder's name.
     name: str = "direct"
 
-    default_parameters: dict= {
-
-    }
+    default_parameters: dict = {}
 
     #: Stored structures.
     _frames: Optional[List[Atoms]] = None
 
     #: The file path of stored structures.
-    _fpath: Optional[Union[str,pathlib.Path]] = None
+    _fpath: Optional[Union[str, pathlib.Path]] = None
 
     #: Selected structure indices.
-    _indices: Union[str,List[int]] = None
+    _indices: Union[str, List[int]] = None
 
     def __init__(
-        self, frames: Union[str,pathlib.Path,List[Atoms]], 
-        indices: Union[str,List[int]] = None, directory: Union[str,pathlib.Path]="./", 
-        *args, **kwargs
+        self,
+        frames: Union[str, pathlib.Path, List[Atoms]],
+        indices: Union[str, List[int]] = None,
+        directory: Union[str, pathlib.Path] = "./",
+        *args,
+        **kwargs,
     ):
         """Create a direct generator.
 
@@ -180,27 +197,29 @@ class DirectBuilder(StructureBuilder):
         """
         super().__init__(directory, *args, **kwargs)
 
-        if isinstance(frames, (str,pathlib.Path)):
+        if isinstance(frames, (str, pathlib.Path)):
             self._fpath = pathlib.Path(frames).resolve()
         else:
-            assert all(isinstance(x,Atoms) for x in frames), "Input should be a list of atoms."
+            assert all(
+                isinstance(x, Atoms) for x in frames
+            ), "Input should be a list of atoms."
             self._frames = frames
 
         self._indices = indices
 
         return
-    
+
     @property
-    def fpath(self) -> Union[str,pathlib.Path]:
+    def fpath(self) -> Union[str, pathlib.Path]:
         """Return the file path of stored structures."""
         return self._fpath
-    
+
     @property
-    def indices(self) -> Union[str,List[int]]:
+    def indices(self) -> Union[str, List[int]]:
         """Return selected indices."""
         return self._indices
-    
-    def run(self, indices: Union[str,List[int]]=[], *args, **kwargs) -> List[Atoms]:
+
+    def run(self, indices: Union[str, List[int]] = [], *args, **kwargs) -> List[Atoms]:
         """Return stored structures.
 
         Args:
@@ -213,7 +232,9 @@ class DirectBuilder(StructureBuilder):
         else:
             indices_ = self.indices
 
-        assert (bool(self._frames) ^ bool(self.fpath)), "Cant have frames and fpath at the same time."
+        assert bool(self._frames) ^ bool(
+            self.fpath
+        ), "Cant have frames and fpath at the same time."
 
         # - read frames if it is a path
         if self.fpath:
@@ -240,13 +261,15 @@ class DirectBuilder(StructureBuilder):
         else:
             ret_frames = frames_
         return ret_frames
-    
+
     def as_dict(self) -> dict:
         """Return generator parameters"""
         params = dict(
-            method = "direct",
-            frames = str(self._fpath.resolve()), # TODO: if not exists, and only have _frames
-            indices = self.indices
+            method="direct",
+            frames=str(
+                self._fpath.resolve()
+            ),  # TODO: if not exists, and only have _frames
+            indices=self.indices,
         )
 
         return params
