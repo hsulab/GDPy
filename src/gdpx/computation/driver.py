@@ -37,6 +37,9 @@ MD_INIT_KEYS: List[str] = [
     "press", "Pdamp", "dump_period"
 ]
 
+# Key name for earlystopping in atoms.info.
+EARLYSTOP_KEY: str = "earlystop"
+
 
 @dataclasses.dataclass
 class Controller:
@@ -448,6 +451,11 @@ class AbstractDriver(AbstractNode):
                     self._debug(f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}")
                 else:
                     raise NotImplementedError("Unknown task in read_convergence.")
+                # check if simulation stops early
+                earlystop = traj_frames[-1].info.get(EARLYSTOP_KEY, False)
+                if earlystop:
+                    converged = True
+                    self._debug("  the simulation early stopped.")
             else:
                 # just spc, only need to check force convergence
                 if nframes == 1:

@@ -34,7 +34,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from .. import config as GDPCONFIG
 from ..potential.calculators.mixer import EnhancedCalculator
-from .driver import AbstractDriver, DriverSetting, Controller
+from .driver import AbstractDriver, DriverSetting, Controller, EARLYSTOP_KEY
 from .md.md_utils import force_temperature
 
 
@@ -112,6 +112,9 @@ def save_trajectory(atoms, log_fpath) -> None:
 
     # - save atoms info...
     atoms_to_save.info["step"] = atoms.info["step"]
+    print(atoms.info)
+    if EARLYSTOP_KEY in atoms.info:
+        atoms_to_save.info[EARLYSTOP_KEY] = atoms.info[EARLYSTOP_KEY]
 
     # - save special keys and arrays from calc
     natoms = len(atoms)
@@ -141,8 +144,11 @@ def save_trajectory(atoms, log_fpath) -> None:
 
 
 def save_checkpoint(
-    dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number: int=3,
-    start_step: int = 0
+    dyn: Dynamics,
+    atoms: Atoms,
+    wdir: pathlib.Path,
+    ckpt_number: int = 3,
+    start_step: int = 0,
 ):
     """"""
     ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps+start_step}"
@@ -168,6 +174,21 @@ def save_checkpoint(
     if num_ckpts > ckpt_number:
         for w in ckpt_wdirs[:-ckpt_number]:
             shutil.rmtree(w)
+
+    return
+
+
+def monit_and_intervene(
+    atoms: Atoms, dynamics: Dynamics, patience: int, print_func=print
+) -> None:
+    """"""
+    energy = atoms.get_potential_energy()
+    # print_func(f"{energy =}")
+
+    # if dynamics.nsteps > patience:
+    #     dynamics.max_steps = 0
+    #     print_func("EARLY STOPPED!!")
+    #     atoms.info[EARLYSTOP_KEY] = True
 
     return
 
@@ -625,15 +646,31 @@ class AseDriver(AbstractDriver):
             if hasattr(dynamics, "rng") and rng_state is not None:
                 dynamics.rng.bit_generator.state = rng_state
 
-            # --- callback functions
-            dynamics.insert_observer(
+            # callback functions
+            init_params = self.setting.get_init_params()
+
+            # update atoms.info at the beginning of each step
+            dynamics.attach(
                 update_atoms_info,
                 dyn=dynamics,
                 atoms=atoms,
                 start_step=start_step,
             )
-            # NOTE: traj file not stores properties (energy, forces) properly
-            init_params = self.setting.get_init_params()
+
+            # HACK: add some observers to early stop the simulation
+            #       make sure this must be added before save_trajectory
+            #       as it adds `earlystop` in atoms.info and
+            #       BE CAREFUL it changes some attributes affect convergence
+            dynamics.attach(
+                monit_and_intervene,
+                interval=self.setting.dump_period,
+                atoms=atoms,
+                dynamics=dynamics,
+                patience=20,
+                print_func=self._print,
+            )
+
+            # traj file not stores properties (energy, forces) properly
             dynamics.attach(
                 save_checkpoint,
                 interval=self.setting.ckpt_period,
@@ -649,42 +686,47 @@ class AseDriver(AbstractDriver):
                 atoms=atoms,
                 log_fpath=self.directory / self.xyz_fname,
             )
-            # NOTE: retrieve deviation info
             dynamics.attach(
                 retrieve_and_save_deviation,
                 interval=init_params["loginterval"],
                 atoms=atoms,
                 devi_fpath=self.directory / self.devi_fname,
             )
+
+            # run simulation
             dynamics.run(**run_params)
 
             # NOTE: check if the last frame is properly stored
             dump_period = self.setting.dump_period
             assert init_params["loginterval"] == dump_period
 
-            if dump_period > 1:
-                should_dump_last = False
-                if self.setting.task == "min":
-                    # optimiser dumps every step to log...
-                    data = np.loadtxt(self.directory / "dyn.log", dtype=str, skiprows=1)
-                    if len(data.shape) == 1:
-                        data = data[np.newaxis, :]
-                    nsteps = data.shape[0]
-                    if nsteps > 0 and (nsteps - 1) % dump_period != 0:
+            should_dump_last = False
+            if self.setting.task == "min":
+                # optimiser dumps every step to log...
+                data = np.loadtxt(self.directory / "dyn.log", dtype=str, skiprows=1)
+                if len(data.shape) == 1:
+                    data = data[np.newaxis, :]
+                nsteps = data.shape[0]
+                if nsteps > 0 and dump_period > 1 and (nsteps - 1) % dump_period != 0:
+                    should_dump_last = True
+            elif self.setting.task == "md":
+                nsteps = atoms.info["step"] + 1
+                if nsteps > 0 and dump_period > 1 and (nsteps - 1) % dump_period != 0:
+                    if atoms.info.get(EARLYSTOP_KEY, False):
                         should_dump_last = True
-                elif self.setting.task == "md":
-                    if dump_period > self.setting.steps:
-                        should_dump_last = True
-                if should_dump_last:
-                    update_atoms_info(atoms, dynamics, start_step=start_step)
-                    save_checkpoint(
-                        dynamics, atoms, self.directory, ckpt_number=self.setting.ckpt_number,
-                        start_step=start_step
-                    )
-                    save_trajectory(atoms, self.directory / self.xyz_fname)
-                    retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
-            else:
-                ...
+            if should_dump_last:
+                self._print("dump the last frame...")
+                update_atoms_info(atoms, dynamics, start_step=start_step)
+                # FIXME: save checkpoint at the end of each simulation
+                save_checkpoint(
+                    dynamics,
+                    atoms,
+                    self.directory,
+                    ckpt_number=self.setting.ckpt_number,
+                    start_step=start_step,
+                )
+                save_trajectory(atoms, self.directory / self.xyz_fname)
+                retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
 
             # - Some interactive calculator needs kill processes after finishing,
             #   e.g. VaspInteractive...
@@ -693,7 +735,6 @@ class AseDriver(AbstractDriver):
             # To restart, velocities are always retained
             self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
         except Exception as e:
-            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
             self._debug(
                 f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
             )
