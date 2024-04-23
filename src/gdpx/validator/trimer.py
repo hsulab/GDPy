@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
+
 import itertools
-from typing import List
+import pathlib
 import warnings
+
+from typing import List
 
 import numpy as np
 
@@ -22,9 +24,16 @@ from .validator import AbstractValidator
 from .utils import get_properties
 
 
-class DimerValidator(AbstractValidator):
+class TrimerValidator(AbstractValidator):
 
-    def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
+    def __init__(self, angle: List[int], *args, **kwargs):
+        """"""
+        super().run(*args, **kwargs)
+        self.angle = angle
+
+        return
+
+    def run(self, dataset, worker, *args, **kwargs):
         """"""
         super().run()
         self._print(dataset["reference"])
@@ -41,7 +50,7 @@ class DimerValidator(AbstractValidator):
         chemicals = []
         for atoms in ref_frames:
             natoms = len(atoms)
-            assert natoms == 2, f"Input structure at {self.directory} must be a dimer."
+            assert natoms == 3, f"Input structure at {self.directory} must be a trimer."
             chemicals.append(atoms.get_chemical_formula())
             assert (
                 len(set(chemicals)) == 1
@@ -79,16 +88,18 @@ class DimerValidator(AbstractValidator):
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
 
         # - get reaction coordinate (dimer distance here)
-        ref_distances = []
+        a1, a2, a3 = self.angle[1], self.angle[0], self.angle[2]
+
+        ref_angles = []
         for atoms in ref_frames:
-            dis = atoms.get_distance(0, 1, mic=True)
-            ref_distances.append(dis)
+            ang = atoms.get_angle(a1, a2, a3, mic=True)
+            ref_angles.append(ang)
 
         # - save data
         abs_errors = [x - y for x, y in zip(pred_energies, ref_energies)]
         rel_errors = [(x / y) * 100.0 for x, y in zip(abs_errors, ref_energies)]
         data = np.array(
-            [ref_distances, ref_energies, pred_energies, abs_errors, rel_errors]
+            [ref_angles, ref_energies, pred_energies, abs_errors, rel_errors]
         ).T
 
         np.savetxt(
@@ -96,7 +107,7 @@ class DimerValidator(AbstractValidator):
             data,
             fmt="%8.4f  %12.4f  %12.4f  %12.4f  %8.4f",
             header="{:<8s}  {:<12s}  {:<12s}  {:<12s}  {:<8s}".format(
-                "dis", "ref", "mlp", "abs", "rel [%]"
+                "ang", "ref", "mlp", "abs", "rel [%]"
             ),
         )
 
@@ -107,14 +118,14 @@ class DimerValidator(AbstractValidator):
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
         ax.plot(
-            ref_distances,
+            ref_angles,
             ref_energies,
             marker="o",
             markerfacecolor="w",
             label="Reference",
         )
         ax.plot(
-            ref_distances,
+            ref_angles,
             pred_energies,
             marker="o",
             markerfacecolor="w",
@@ -135,4 +146,4 @@ class DimerValidator(AbstractValidator):
 
 
 if __name__ == "__main__":
-    pass
+    ...

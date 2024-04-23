@@ -11,6 +11,9 @@ from ..core.register import registers
 from .dimer import DimerValidator
 registers.validator.register("dimer")(DimerValidator)
 
+from .trimer import TrimerValidator
+registers.validator.register("trimer")(TrimerValidator)
+
 from .mdf import MassDistributionValidator
 registers.validator.register("mass_distribution")(MassDistributionValidator)
 
