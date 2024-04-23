@@ -1,38 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import dataclasses
 import itertools
 
 from typing import List, Mapping
 
+import networkx as nx
+
 from ase import Atoms
+from ase.formula import Formula
+from ase.neighborlist import NeighborList, natural_cutoffs
+
+from .utils import grid_iterator, node_symbol, unpack_node_name
 
 
-def find_product(atoms: Atoms, reactants: List[List[int]], grid=[1,1,0], radii_multi=1.0, skin=0.0) -> List[List[int]]:
+def find_product(
+    atoms: Atoms, reactants: List[List[int]], grid=[1, 1, 0], radii_multi=1.0, skin=0.0
+) -> List[List[int]]:
     """Find if there were a product from input reactants."""
     valid_indices = list(itertools.chain.from_iterable(reactants))
 
     # - create local graph
     covalent_radii = natural_cutoffs(atoms, radii_multi)
     nl = NeighborList(
-        covalent_radii, 
-        skin = skin, sorted=False,
-        self_interaction=False, 
-        bothways=True
+        covalent_radii, skin=skin, sorted=False, self_interaction=False, bothways=True
     )
     nl.update(atoms)
 
-    #print([covalent_radii[i] for i in valid_indices])
+    # print([covalent_radii[i] for i in valid_indices])
 
     graph = nx.Graph()
-    
-    #grid = [1,1,0] # for surface
+
+    # grid = [1,1,0] # for surface
     # -- add nodes
     for centre_idx in valid_indices:
         for x, y, z in grid_iterator(grid):
             graph.add_node(
-                node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
-                index=centre_idx
+                node_symbol(atoms[centre_idx].symbol, centre_idx, (x, y, z)),
+                index=centre_idx,
             )
 
     # -- add edges
@@ -52,58 +59,68 @@ def find_product(atoms: Atoms, reactants: List[List[int]], grid=[1,1,0], radii_m
                         continue
                     # ---
                     graph.add_edge(
-                        node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
-                        node_symbol(atoms[nei_idx].symbol, nei_idx, (x+ox,y+oy,z+oz))
+                        node_symbol(atoms[centre_idx].symbol, centre_idx, (x, y, z)),
+                        node_symbol(
+                            atoms[nei_idx].symbol, nei_idx, (x + ox, y + oy, z + oz)
+                        ),
                     )
                 else:
                     ...
-    
-    #plot_graph(graph, "xxx.png")
+
+    # plot_graph(graph, "xxx.png")
 
     # - find products
-    reax_nodes = [node_symbol(atoms[i].symbol, i, (0,0,0)) for i in valid_indices]
+    reax_nodes = [node_symbol(atoms[i].symbol, i, (0, 0, 0)) for i in valid_indices]
     reax_graphs = nx.subgraph(graph, reax_nodes)
 
-    prod_graphs = [reax_graphs.subgraph(c) for c in nx.connected_components(reax_graphs)]
+    prod_graphs = [
+        reax_graphs.subgraph(c) for c in nx.connected_components(reax_graphs)
+    ]
 
     products = [[unpack_node_name(u)[1] for u in g.nodes()] for g in prod_graphs]
 
     return products
 
-from ase.formula import Formula
-def find_molecules(atoms: Atoms, valid_indices: List[int], grid=[1,1,0], radii_multi=1.0, skin=0.0) -> Mapping[str,List[List[int]]]:
-    """Find if there were a product from input reactants."""
-    #valid_indices = list(chain.from_iterable(reactants))
 
-    # - create local graph
+@dataclasses.dataclass
+class GraphNodeName:
+
+    #: Atom symbol.
+    symbol: str
+
+    #: Atom index.
+    index: int
+
+
+def find_molecules(
+    atoms: Atoms, reactive_indices: List[int], grid=[1, 1, 0], radii_multi: float=1.0, skin=0.0
+) -> Mapping[str, List[List[int]]]:
+    """Find molecules by graph."""
+    # valid_indices = list(chain.from_iterable(reactants))
+
+    # add a neighlist
     covalent_radii = natural_cutoffs(atoms, radii_multi)
     nl = NeighborList(
-        covalent_radii, 
-        skin = skin, sorted=False,
-        self_interaction=False, 
-        bothways=True
+        covalent_radii, skin=skin, sorted=False, self_interaction=False, bothways=True
     )
     nl.update(atoms)
 
-    #print([covalent_radii[i] for i in valid_indices])
 
+    # create a graph
     graph = nx.Graph()
-    
-    #grid = [1,1,0] # for surface
-    # -- add nodes
-    for centre_idx in valid_indices:
+
+    for centre_idx in reactive_indices:
         for x, y, z in grid_iterator(grid):
             graph.add_node(
-                node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
-                index=centre_idx
+                node_symbol(atoms[centre_idx].symbol, centre_idx, (x, y, z)),
+                index=centre_idx,
             )
 
-    # -- add edges
-    for centre_idx in valid_indices:
+    for centre_idx in reactive_indices:
         for x, y, z in grid_iterator(grid):
             nei_indices, nei_offsets = nl.get_neighbors(centre_idx)
             for nei_idx, offset in zip(nei_indices, nei_offsets):
-                if nei_idx in valid_indices:
+                if nei_idx in reactive_indices:
                     # NOTE: check if neighbour is in the grid space
                     #       this is not the case when cutoff is too large
                     ox, oy, oz = offset
@@ -115,19 +132,23 @@ def find_molecules(atoms: Atoms, valid_indices: List[int], grid=[1,1,0], radii_m
                         continue
                     # ---
                     graph.add_edge(
-                        node_symbol(atoms[centre_idx].symbol, centre_idx, (x,y,z)),
-                        node_symbol(atoms[nei_idx].symbol, nei_idx, (x+ox,y+oy,z+oz))
+                        node_symbol(atoms[centre_idx].symbol, centre_idx, (x, y, z)),
+                        node_symbol(
+                            atoms[nei_idx].symbol, nei_idx, (x + ox, y + oy, z + oz)
+                        ),
                     )
                 else:
                     ...
-    
-    #plot_graph(graph, "xxx.png")
 
-    # - find products
-    reax_nodes = [node_symbol(atoms[i].symbol, i, (0,0,0)) for i in valid_indices]
+    # plot_graph(graph, "xxx.png")
+
+    # find molecules 
+    reax_nodes = [node_symbol(atoms[i].symbol, i, (0, 0, 0)) for i in reactive_indices]
     reax_graphs = nx.subgraph(graph, reax_nodes)
 
-    prod_graphs = [reax_graphs.subgraph(c) for c in nx.connected_components(reax_graphs)]
+    prod_graphs = [
+        reax_graphs.subgraph(c) for c in nx.connected_components(reax_graphs)
+    ]
 
     products = [[unpack_node_name(u)[1] for u in g.nodes()] for g in prod_graphs]
 
@@ -141,7 +162,7 @@ def find_molecules(atoms: Atoms, valid_indices: List[int], grid=[1,1,0], radii_m
         else:
             fragments[formula] = [atomic_indices]
 
-    return fragments 
+    return fragments
 
 
 if __name__ == "__main__":
