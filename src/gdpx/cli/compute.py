@@ -124,7 +124,7 @@ def run_worker(
     return
 
 
-def run_grid_worker(grid_params: dict, directory):
+def run_grid_worker(grid_params: dict, batch: int, spawn, directory):
     """"""
     directory = pathlib.Path(directory)
 
@@ -154,11 +154,14 @@ def run_grid_worker(grid_params: dict, directory):
     # config._print(f"{potters =}")
     # config._print(f"{drivers =}")
 
-    worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
+    # other parameters
+    batchsize = grid_params.get("batchsize", 1)
+
+    worker = GridDriverBasedWorker(potters=potters, drivers=drivers, batchsize=batchsize)
 
     # run computations
     worker.driver = None # FIXME: compat
-    run_one_worker(structures, worker, directory, batch=0, spawn=False, archive=True)
+    run_one_worker(structures, worker, directory, batch=batch, spawn=spawn, archive=True)
 
     return
 
