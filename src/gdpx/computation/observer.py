@@ -36,13 +36,27 @@ class Observer:
 
 class DistanceObserver(Observer):
 
-    def __init__(self, symbols: List[str], covalent_ratio=[0.8, 2.0], *args, **kwargs):
+    def __init__(
+        self,
+        symbols: List[str],
+        covalent_ratio=[0.8, 2.0],
+        custom_dmin=[],
+        *args,
+        **kwargs,
+    ):
         """"""
         super().__init__(*args, **kwargs)
 
         self.symbols = symbols
 
         self.cov_min, self.cov_max = covalent_ratio
+
+        custom_dmin_dict = {}
+        for i, j, d in custom_dmin:
+            s_i, s_j = atomic_numbers[i], atomic_numbers[j]
+            custom_dmin_dict[(s_i, s_j)] = d
+            custom_dmin_dict[(s_j, s_i)] = d
+        self.custom_dmin_dict = custom_dmin_dict
 
         self._neighlist = None
 
@@ -67,9 +81,10 @@ class DistanceObserver(Observer):
             self._dmin_dict = closest_distances_generator(
                 set(atoms.get_atomic_numbers()), self.cov_min
             )
-            # for k, v in custom_dmin_dict.items():
-            #     dmin_dict[k] = v
-            selected_indices = [i for i, a in enumerate(atoms) if a.symbol in self.symbols]
+            self._dmin_dict.update(self.custom_dmin_dict)
+            selected_indices = [
+                i for i, a in enumerate(atoms) if a.symbol in self.symbols
+            ]
             self._included_pairs = list(itertools.permutations(selected_indices, 2))
         else:
             ...
@@ -96,6 +111,7 @@ class DistanceObserver(Observer):
             nei_indices, nei_offsets = neighlist.get_neighbors(i)
             for j, offset in zip(nei_indices, nei_offsets):
                 if (i, j) in included_pairs and (i, j) not in excluded_pairs:
+                    print(f"check {i} <> {j}")
                     distance = np.linalg.norm(
                         atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell))
                     )
