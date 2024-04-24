@@ -40,7 +40,8 @@ def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
             ...
 
     # remove duplicates
-    ret = sorted(list(set(ret)))
+    # ret = sorted(list(set(ret)))
+    ret = list(set(ret))
 
     return ret
 
@@ -63,7 +64,9 @@ kk
             raise RuntimeError(f"Invalid range `{curr_range}`.")
         ret.extend(np.arange(start, end, step).tolist())
 
-    ret = np.array(sorted(ret))
+    # Donot sort entries and just keep it as what it is
+    # ret = np.array(sorted(ret))
+    ret = np.array(ret)
 
     return ret
 
