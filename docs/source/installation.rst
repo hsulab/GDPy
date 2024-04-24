@@ -33,28 +33,32 @@ Optional:
 - sella 2.0.2
 - plumed 2.7.3
 
-From Source
------------
-
-Use conda to install necessary packages and add executable **gdp** to PATH.
+From Source, Conda or Pip
+-------------------------
 
 .. code-block:: shell
 
-    # install packages
-    $ conda install ase dscribe joblib networkx tinydb pyyaml omegaconf h5py -c conda-forge
-    # download repository
+    # Create a python environment
+    
+    # Install the latest RELEASED version from anaconda
+    $ conda install gdpx -c conda-forge
+    
+    # or from pypi
+    $ pip install gdpx
+    
+    # Install the latest development version
+    # 1. download the MAIN branch
     $ git clone https://github.com/hsulab/GDPy.git
-    # copy package to conda lib if it is python3.10
-    $ cp -r ./GDPy/GDPy $CONDA_PREFIX/lib/python3.10/site-packages/
-    # copy executable to conda bin
-    $ cp ./GDPy/bin/gdp $CONDA_PREFIX/bin
-
-From Conda
-----------
-
-Coming...
-
-From Pip
---------
-
-Coming...
+    #    or the DEV branch
+    $ git clone -b dev https://github.com/hsulab/GDPy.git
+    
+    # 2. Use pip to install the an editable version to 
+    #    the current environment
+    $ cd GDPy
+    $ pip install -e ./
+    
+    # 3. Update the source code
+    $ cd GDPy
+    $ git fetch
+    $ git pull
+    
