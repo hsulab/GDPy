@@ -4,6 +4,8 @@
 
 from ..core.register import registers
 
+from ..utils.strconv import str2array
+
 """Add bias on potential energy surface. 
 
 Some of bias forces are based on JAX. In the future, we need replace those oft-used
