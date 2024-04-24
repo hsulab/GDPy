@@ -5,20 +5,26 @@ import pathlib
 import time
 import uuid
 import yaml
+import tempfile
 
-from typing import Optional, List
+from typing import Optional, Tuple, List
 
 from tinydb import Query, TinyDB
 
 from ase import Atoms
 from ase.io import read, write
 
-from .worker import AbstractWorker
 from ..computation.driver import AbstractDriver
 from ..potential.manager import AbstractPotentialManager
 from ..utils.command import CustomTimer
 from ..scheduler.scheduler import AbstractScheduler
 from ..scheduler.local import LocalScheduler
+from .worker import AbstractWorker
+from .utils import copy_minimal_frames, get_file_md5
+
+
+#: Structure ID Key.
+STRU_ID_KEY: str = "md5"
 
 
 class GridDriverBasedWorker(AbstractWorker):
@@ -43,19 +49,57 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return
 
-    def _preprocess_structures(self, structures) -> List[Atoms]:
+    def _preprocess_structures(self, structures) -> Tuple[str, List[Atoms]]:
         """Preprocess structures."""
         if isinstance(structures, list):  # assume List[Atoms]
             structures = structures
         else:  # assume it is a builder
             structures = structures.run()
 
-        return structures
+        # check differences of input structures
+        metadata_dpath = self.directory / "_data"
+        metadata_dpath.mkdir(exist_ok=True)
+
+        # NOTE: atoms.info is a dict that does not maintain order
+        #       thus, the saved file maybe different
+        copied_structures, copied_info = copy_minimal_frames(structures)
+
+        # get MD5 of current input structures
+        # NOTE: if two jobs start too close,
+        #       there may be conflicts in checking structures
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
+            write(
+                tmp.name,
+                copied_structures,
+                columns=["symbols", "positions", "move_mask"],
+            )
+
+            with open(tmp.name, "rb") as fopen:
+                inp_stru_md5 = get_file_md5(fopen)
+
+        # check
+        cache_stru_fname = f"{inp_stru_md5}.xyz"
+        if (metadata_dpath / cache_stru_fname).exists():
+            ...
+        else:
+            write(metadata_dpath / cache_stru_fname, copied_structures)
+
+        return inp_stru_md5, copied_structures
 
     def _spawn_computations(self):
         """"""
 
         return
+
+    def _prepare_batches(self, structures, potters, drivers):
+        """"""
+        num_structures = len(structures)
+        num_drivers = len(drivers)
+        assert num_structures == num_drivers
+
+        wdir_names = [f"cand{i}" for i in range(num_drivers)]
+
+        return [(wdir_names, structures, potters, drivers)]
 
     def run(self, structures, *args, **kwargs):
         """Run computations in batch.
@@ -69,19 +113,35 @@ class GridDriverBasedWorker(AbstractWorker):
         super().run(*args, **kwargs)
 
         # prepare batch
-        structures = self._preprocess_structures(structures)
-        num_structures = len(structures)
+        identifier, structures = self._preprocess_structures(structures)
+        batches = self._prepare_batches(structures, self.potters, self.drivers)
 
-        drivers = self.drivers
-        num_drivers = len(drivers)
+        # read metadata from file or database
+        with TinyDB(
+            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
+        ) as database:
+            queued_jobs = database.search(Query().queued.exists())
+        queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
+        queued_structures = [q[STRU_ID_KEY] for q in queued_jobs]
 
-        assert num_structures == num_drivers
+        for ib, (curr_wdirs, curr_structures, curr_potters, curr_drivers) in enumerate(
+            batches
+        ):
+            if identifier in queued_structures:
+                continue
+            else:
+                ...
 
-        wdir_names = [f"cand{i}" for i in range(num_drivers)]
+            self._run_one_batch(
+                identifier, curr_wdirs, curr_structures, curr_potters, curr_drivers
+            )
 
+        return
+
+    def _run_one_batch(self, identifier, wdir_names, structures, potters, drivers):
+        """Run one batch."""
         # ---
         uid = str(uuid.uuid1())
-        # wdir_names = [f"pott{i}" for i in range(ndrivers)]
         job_name = uid
 
         scheduler = self.scheduler
@@ -130,9 +190,8 @@ class GridDriverBasedWorker(AbstractWorker):
             _ = database.insert(
                 dict(
                     uid=uid,
-                    # md5 = identifier,
+                    md5=identifier,
                     gdir=job_name,
-                    # group_number=ig,
                     wdir_names=wdir_names,
                     queued=True,
                 )
@@ -143,45 +202,61 @@ class GridDriverBasedWorker(AbstractWorker):
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+inspect")
 
         running_jobs = self._get_running_jobs()
 
         with TinyDB(
             self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
-            for job_name in running_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                uid = doc_data["uid"]
+            self._inspect_and_update(
+                running_jobs=running_jobs, database=database, resubmit=resubmit
+            )
 
-                self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory / "train.script"
+        return
 
-                if self.scheduler.is_finished():
-                    # -- check if the job finished properly
-                    is_finished = False
-                    wdir_names = doc_data["wdir_names"]
-                    for x in wdir_names:
-                        wdir = self.directory / x
-                        if not wdir.exists():
+    def _inspect_and_update(self, running_jobs, database, resubmit: bool = True):
+        """"""
+        for job_name in running_jobs:
+            doc_data = database.get(Query().gdir == job_name)
+            uid = doc_data["uid"]
+            wdir_names = doc_data["wdir_names"]
+
+            self.scheduler.job_name = job_name
+            self.scheduler.script = self.directory / f"run-{uid}.script"
+
+            if self.scheduler.is_finished():
+                # check if the job finished properly
+                is_finished = False
+                wdir_existence = [(self.directory / x).exists() for x in wdir_names]
+                if all(wdir_existence):
+                    # FIXME: use driver id in the db?
+                    for i, x in enumerate(wdir_names):
+                        curr_wdir = self.directory / x
+                        curr_driver = self.drivers[i]
+                        curr_driver.directory = curr_wdir
+                        if not curr_driver.read_convergence():
+                            self._print(
+                                f"Found unfinished computation at {curr_wdir.name}"
+                            )
                             break
-                        else:
-                            self.driver.directory = wdir
-                            if not self.driver.read_convergence():
-                                break
                     else:
                         is_finished = True
-                    if is_finished:
-                        self._print(f"{job_name} is finished.")
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-                    else:
-                        if resubmit:
-                            jobid = self.scheduler.submit()
-                            self._print(
-                                f"{job_name} is re-submitted with JOBID {jobid}."
-                            )
                 else:
-                    self._print(f"{job_name} is running...")
+                    self._print("NOT ALL working directories exist.")
+
+                num_wdirs = len(wdir_existence)
+                num_wdir_exists = sum(1 for x in wdir_existence if x)
+                self._print(f"progress: {num_wdir_exists}/{num_wdirs}.")
+
+                if is_finished:
+                    self._print(f"{job_name} is finished.")
+                    database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                else:
+                    if resubmit:
+                        jobid = self.scheduler.submit()
+                        self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+            else:
+                self._print(f"{job_name} is running...")
 
         return
 
@@ -190,7 +265,7 @@ class GridDriverBasedWorker(AbstractWorker):
         self.inspect(*args, **kwargs)
         self._debug(f"~~~{self.__class__.__name__}+retrieve")
 
-        unretrieved_wdirs_ = []
+        # check status and get results
         if not include_retrieved:
             unretrieved_jobs = self._get_unretrieved_jobs()
         else:
@@ -199,24 +274,35 @@ class GridDriverBasedWorker(AbstractWorker):
         with TinyDB(
             self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
-            for job_name in unretrieved_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                unretrieved_wdirs_.extend(
-                    (self.directory / w).resolve() for w in doc_data["wdir_names"]
-                )
-            unretrieved_wdirs = unretrieved_wdirs_
+            results = self._retrieve_and_update(
+                unretrieved_jobs=unretrieved_jobs, database=database
+            )
 
-            results = []
-            if unretrieved_wdirs:
-                unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-                self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
-                for p in unretrieved_wdirs:
-                    self.driver.directory = p
-                    results.append(self.driver.read_trajectory())
+        return results
 
-            for job_name in unretrieved_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
+    def _retrieve_and_update(self, unretrieved_jobs, database):
+        """"""
+        unretrieved_wdirs_ = []
+        for job_name in unretrieved_jobs:
+            doc_data = database.get(Query().gdir == job_name)
+            unretrieved_wdirs_.extend(
+                (self.directory / w).resolve() for w in doc_data["wdir_names"]
+            )
+        unretrieved_wdirs = unretrieved_wdirs_
+
+        results = []
+        if unretrieved_wdirs:
+            unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
+            self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
+            # FIXME: use driver id in the db?
+            for i, p in enumerate(unretrieved_wdirs):
+                driver = self.drivers[i]
+                driver.directory = p
+                results.append(driver.read_trajectory())
+
+        for job_name in unretrieved_jobs:
+            doc_data = database.get(Query().gdir == job_name)
+            database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results
 
