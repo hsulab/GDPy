@@ -60,7 +60,7 @@ def str2array(inp: str):
             start, end, step = curr_range
         else:
             raise RuntimeError(f"Invalid range `{curr_range}`.")
-        ret.extend(np.arange(start, end + step, step).tolist())
+        ret.extend(np.arange(start, end + 0.01, step).tolist())
 
     ret = np.array(sorted(ret))
 

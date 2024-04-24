@@ -11,6 +11,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.geometry import find_mic
 
+from .. import str2array
 from ..timeio import TimeIOCalculator
 
 
@@ -54,8 +55,10 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
         self.group = group
 
         self.center = center
+        assert isinstance(self.center, float)
 
         self.kspring = kspring
+        assert isinstance(self.kspring, float)
 
         return
 
@@ -102,11 +105,19 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
         centers = inp_dict.get("center", [])
         if isinstance(centers, float):
             centers = [centers]
+        elif isinstance(centers, str):
+            centers = str2array(centers)
+        else:
+            raise TypeError(f"{centers =}")
         num_centers = len(centers)
 
         ksprings = inp_dict.get("kspring", [])
         if isinstance(ksprings, float):
             ksprings = [ksprings]
+        elif isinstance(ksprings, str):
+            ksprings = str2array(ksprings)
+        else:
+            raise TypeError(f"{ksprings =}")
         num_ksprings = len(ksprings)
 
         new_inputs = []
