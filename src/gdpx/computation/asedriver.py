@@ -183,8 +183,8 @@ def monit_and_intervene(
 ) -> None:
     """"""
     if dynamics.nsteps >= observer.patience:
-        dynamics.max_steps = 0
         if observer.run(atoms):
+            dynamics.max_steps = 0
             atoms.info[EARLYSTOP_KEY] = True
             print_func(f"EARLY STOPPED at step {dynamics.nsteps}!!")
 
