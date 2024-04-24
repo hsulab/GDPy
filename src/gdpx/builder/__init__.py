@@ -38,6 +38,9 @@ registers.builder.register("reader")(ReadBuilder)
 registers.builder.register("dimer")(DimerBuilder)
 registers.builder.register("molecule")(MoleculeBuilder)
 
+from .wulff import WulffConstructionBuilder
+registers.builder.register("wulff_construction")(WulffConstructionBuilder)
+
 from .perturbator import PerturbatorBuilder
 registers.builder.register("perturb")(PerturbatorBuilder)
 
