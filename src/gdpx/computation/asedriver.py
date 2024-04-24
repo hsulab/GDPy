@@ -36,6 +36,7 @@ from .. import config as GDPCONFIG
 from ..potential.calculators.mixer import EnhancedCalculator
 from .driver import AbstractDriver, DriverSetting, Controller, EARLYSTOP_KEY
 from .md.md_utils import force_temperature
+from .observer import create_an_observer
 
 
 def set_calc_state(calc: Calculator, timestep: float, stride: int):
@@ -112,7 +113,6 @@ def save_trajectory(atoms, log_fpath) -> None:
 
     # - save atoms info...
     atoms_to_save.info["step"] = atoms.info["step"]
-    print(atoms.info)
     if EARLYSTOP_KEY in atoms.info:
         atoms_to_save.info[EARLYSTOP_KEY] = atoms.info[EARLYSTOP_KEY]
 
@@ -179,16 +179,14 @@ def save_checkpoint(
 
 
 def monit_and_intervene(
-    atoms: Atoms, dynamics: Dynamics, patience: int, print_func=print
+    atoms: Atoms, dynamics: Dynamics, observer, print_func=print
 ) -> None:
     """"""
-    energy = atoms.get_potential_energy()
-    # print_func(f"{energy =}")
-
-    # if dynamics.nsteps > patience:
-    #     dynamics.max_steps = 0
-    #     print_func("EARLY STOPPED!!")
-    #     atoms.info[EARLYSTOP_KEY] = True
+    if dynamics.nsteps >= observer.patience:
+        dynamics.max_steps = 0
+        if observer.run(atoms):
+            atoms.info[EARLYSTOP_KEY] = True
+            print_func(f"EARLY STOPPED at step {dynamics.nsteps}!!")
 
     return
 
@@ -661,14 +659,19 @@ class AseDriver(AbstractDriver):
             #       make sure this must be added before save_trajectory
             #       as it adds `earlystop` in atoms.info and
             #       BE CAREFUL it changes some attributes affect convergence
-            dynamics.attach(
-                monit_and_intervene,
-                interval=self.setting.dump_period,
-                atoms=atoms,
-                dynamics=dynamics,
-                patience=20,
-                print_func=self._print,
-            )
+            if self.setting.observers is not None:
+                observers = []
+                for ob_params in self.setting.observers:
+                    observers.append(create_an_observer(ob_params))
+                for ob in observers:
+                    dynamics.attach(
+                        monit_and_intervene,
+                        interval=self.setting.dump_period,
+                        atoms=atoms,
+                        dynamics=dynamics,
+                        observer=ob,
+                        print_func=self._print
+                    )
 
             # traj file not stores properties (energy, forces) properly
             dynamics.attach(
@@ -695,6 +698,10 @@ class AseDriver(AbstractDriver):
 
             # run simulation
             dynamics.run(**run_params)
+
+            # make sure the max_steps are the same as input even if 
+            # it is set by earlystop observer
+            dynamics.max_steps = self.setting.steps
 
             # NOTE: check if the last frame is properly stored
             dump_period = self.setting.dump_period

@@ -63,6 +63,9 @@ class DriverSetting:
     #: Driver setting.
     backend: str = "external"
 
+    #: Some observers
+    observers: Optional[List[dict]] = None
+
     #: 
     min_style: str = "bfgs"
     min_modify: str = "integrator verlet tmax 4"
