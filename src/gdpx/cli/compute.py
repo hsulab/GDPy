@@ -150,18 +150,15 @@ def run_grid_worker(grid_params: dict, directory):
         # config._print(f"{builder =}")
         # config._print(f"{computer =}")
         ...
-    config._print(f"{structures =}")
-    config._print(f"{potters =}")
-    config._print(f"{drivers =}")
+    # config._print(f"{structures =}")
+    # config._print(f"{potters =}")
+    # config._print(f"{drivers =}")
 
     worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
-    worker.directory = directory
 
     # run computations
-    worker.run(structures)
-    worker.inspect(resubmit=True)
-    if worker.get_number_of_running_jobs() == 0:
-        ...
+    worker.driver = None # FIXME: compat
+    run_one_worker(structures, worker, directory, batch=0, spawn=False, archive=True)
 
     return
 
