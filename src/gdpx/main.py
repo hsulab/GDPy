@@ -247,7 +247,7 @@ def main():
         run_newtrainer(args.CONFIG, args.directory)
     elif args.subcommand == "build":
         build_config = parse_input_file(args.CONFIG)
-        from .builder.interface import build_structures
+        from .cli.build import build_structures
         build_structures(build_config, args.substrates, args.number, args.directory)
     elif args.subcommand == "select":
         from gdpx.selector.interface import run_selection
