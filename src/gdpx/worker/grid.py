@@ -99,9 +99,25 @@ class GridDriverBasedWorker(AbstractWorker):
 
         wdir_names = [f"cand{i}" for i in range(num_drivers)]
 
-        return [(wdir_names, structures, potters, drivers)]
+        starts, ends = self._split_groups(num_structures)
 
-    def run(self, structures, *args, **kwargs):
+        batches = []
+        for i, (s, e) in enumerate(zip(starts, ends)):
+            selected_indices = range(s, e)
+            curr_wdir_names = [wdir_names[x] for x in selected_indices]
+            curr_structures = [structures[x] for x in selected_indices]
+            curr_potters = [potters[x] for x in selected_indices]
+            curr_drivers = [drivers[x] for x in selected_indices]
+            assert len(set(curr_wdir_names)) == len(
+                curr_structures
+            ), f"Found duplicated wdirs {len(set(curr_wdir_names))} vs. {len(curr_structures)} for group {i}..."
+            batches.append(
+                (curr_wdir_names, curr_structures, curr_potters, curr_drivers)
+            )
+
+        return batches
+
+    def run(self, structures, batch: int, *args, **kwargs):
         """Run computations in batch.
 
         The structure and the driver must be one-to-one
@@ -115,6 +131,7 @@ class GridDriverBasedWorker(AbstractWorker):
         # prepare batch
         identifier, structures = self._preprocess_structures(structures)
         batches = self._prepare_batches(structures, self.potters, self.drivers)
+        self._print(f"num_computations: {len(structures)} num_batches: {len(batches)}")
 
         # read metadata from file or database
         with TinyDB(
@@ -127,22 +144,32 @@ class GridDriverBasedWorker(AbstractWorker):
         for ib, (curr_wdirs, curr_structures, curr_potters, curr_drivers) in enumerate(
             batches
         ):
-            if identifier in queued_structures:
-                continue
+            # skip submitted jobs
+            batch_name = f"batch-{ib}"
+            self._print(f"{batch =} {batch_name =} {identifier =}")
+            if identifier in queued_structures and batch_name in queued_names:
+                if self.scheduler.name != "local":
+                    continue
+                else:
+                    ...
             else:
                 ...
 
+            # skip batches except for the given one
+            if isinstance(batch, int) and ib != batch:
+                continue
+
             self._run_one_batch(
-                identifier, curr_wdirs, curr_structures, curr_potters, curr_drivers
+                batch_name, identifier, curr_wdirs, curr_structures, curr_potters, curr_drivers
             )
 
         return
 
-    def _run_one_batch(self, identifier, wdir_names, structures, potters, drivers):
+    def _run_one_batch(self, batch_name: str, identifier, wdir_names, structures, potters, drivers):
         """Run one batch."""
         # ---
         uid = str(uuid.uuid1())
-        job_name = uid
+        job_name = uid + "-" + batch_name
 
         scheduler = self.scheduler
         if scheduler.name == "local":
