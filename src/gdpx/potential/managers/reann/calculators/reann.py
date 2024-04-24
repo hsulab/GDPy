@@ -110,9 +110,9 @@ class REANN(Calculator):
         species = [self.atomtype.index(i) for i in symbols]
         species = torch.tensor(species, device=self.device, dtype=torch.long)
         energy, force = self.pes(cart, neighlist, shifts, species)
-        energy = float(energy.detach().numpy())
+        energy = float(energy.detach().cpu().numpy())
         self.results["energy"] = energy
-        force = force.detach().numpy()
+        force = force.detach().cpu().numpy()
         self.results["forces"] = force.copy()
 
 
