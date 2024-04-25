@@ -501,7 +501,8 @@ class LmpDriverSetting(DriverSetting):
                     seed=random_seed,
                 )
                 _init_md_params.update(**thermostat.conv_params)
-                thermo_line = "fix {fix_id:>24s} {group} langevin {Tstart} {Tstop} {damp} {seed}".format(
+                thermo_line = "fix {fix_id:>24s}0 {group} nve\n".format(**_init_md_params)
+                thermo_line += "fix {fix_id:>24s}1 {group} langevin {Tstart} {Tstop} {damp} {seed}".format(
                     **_init_md_params
                 )
             elif thermostat.name == "nose_hoover_chain":
