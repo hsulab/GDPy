@@ -25,7 +25,7 @@ from .utils import copy_minimal_frames, get_file_md5
 
 
 #: Structure ID Key.
-STRU_ID_KEY: str = "md5"
+STRU_ID_KEY: str = "identifier"
 
 #: Batch ID key used for tracking jobs.
 BATCH_ID_KEY: str = "gdir"  # FIXME: change to batch?
@@ -151,7 +151,7 @@ class GridDriverBasedWorker(AbstractWorker):
         datatable = database
 
         queued_jobs = datatable.search(Query().queued.exists())
-        queued_batch_names = [q["batch"][self.UUIDLEN + 1 :] for q in queued_jobs]
+        queued_batch_names = [q[BATCH_ID_KEY][self.UUIDLEN + 1 :] for q in queued_jobs]
 
         for ib, (
             curr_indices,
@@ -161,12 +161,7 @@ class GridDriverBasedWorker(AbstractWorker):
             batch_name = f"batch-{ib}"
             self._print(f"{batch =} {batch_name =} {identifier =}")
             if batch_name in queued_batch_names:
-                if self.scheduler.name != "local":
-                    continue
-                else:
-                    ...
-            else:
-                ...
+                continue
 
             # skip batches except for the given one
             if isinstance(batch, int) and ib != batch:
@@ -226,31 +221,23 @@ class GridDriverBasedWorker(AbstractWorker):
         uid = str(uuid.uuid1())
         job_name = uid + "-" + batch_name
 
-        scheduler = self.scheduler
-        if scheduler.name == "local":
-            curr_wdirs = [self.directory / x for x in wdir_names]
-            curr_structures = [structures[x] for x in batch_indices]
-            curr_drivers = [self.drivers[x] for x in batch_indices]
-            assert len(set(wdir_names)) == len(
-                curr_structures
-            ), f"Found duplicated wdirs {len(set(wdir_names))} vs. {len(curr_structures)} for group {i}..."
-            self.run_grid_computations_in_command(
-                curr_wdirs, curr_structures, curr_drivers, self._print
-            )
+        # - TODO: check whether params for scheduler is changed
+        user_commands = "gdp compute {} --batch {}\n".format(
+            (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
+                self.directory
+            ),
+            batch_name[6:],
+        )
+        self.scheduler.user_commands = user_commands
+
+        if self.scheduler.name == "local":
+            from ..utils.command import run_command
+            run_command(self.directory, self.scheduler.user_commands)
         else:
             # - save scheduler file
-            jobscript_fname = f"run-{uid}.script"
             self.scheduler.job_name = job_name
-            self.scheduler.script = self.directory / jobscript_fname
+            self.scheduler.script = self.directory / f"run-{uid}.script"
 
-            self.scheduler.user_commands = "gdp compute {} --batch {}\n".format(
-                (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
-                    self.directory
-                ),
-                batch_name[6:],
-            )
-
-            # - TODO: check whether params for scheduler is changed
             self.scheduler.write()
             if self._submit:
                 self._print(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
@@ -261,7 +248,8 @@ class GridDriverBasedWorker(AbstractWorker):
         _ = database.insert(
             {
                 "uid": uid,
-                "identifier": identifier,
+                STRU_ID_KEY: identifier,
+                "batch": int(batch_name[6:]),
                 BATCH_ID_KEY: job_name,
                 "wdir_names": wdir_names,
                 "queued": True,
@@ -273,6 +261,11 @@ class GridDriverBasedWorker(AbstractWorker):
     @staticmethod
     def run_grid_computations_in_command(wdirs, structures, drivers, print_func):
         """"""
+        wdir_names = [wdir.name for wdir in wdirs]
+        assert len(set(wdir_names)) == len(
+            structures
+        ), f"Found duplicated wdirs {len(set(wdir_names))} vs. {len(structures)}..."
+
         with CustomTimer(name="run-driver", func=print_func):
             for wdir, atoms, driver in zip(wdirs, structures, drivers):
                 driver.directory = wdir
@@ -303,8 +296,17 @@ class GridDriverBasedWorker(AbstractWorker):
         """"""
         for job_name in running_jobs:
             doc_data = database.get(Query()[BATCH_ID_KEY] == job_name)
+            identifier = doc_data[STRU_ID_KEY]
             uid = doc_data["uid"]
             wdir_names = doc_data["wdir_names"]
+
+            user_commands = "gdp compute {} --batch {}\n".format(
+                (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
+                    self.directory
+                ),
+                doc_data["batch"]
+            )
+            self.scheduler.user_commands = user_commands
 
             self.scheduler.job_name = job_name
             self.scheduler.script = self.directory / f"run-{uid}.script"
@@ -338,11 +340,14 @@ class GridDriverBasedWorker(AbstractWorker):
                     database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                 else:
                     if resubmit:
-                        if self._submit:
+                        if self.scheduler.name != "local":
                             jobid = self.scheduler.submit()
                             self._print(
                                 f"{job_name} is re-submitted with JOBID {jobid}."
                             )
+                        else:
+                            from ..utils.command import run_command
+                            run_command(self.directory, self.scheduler.user_commands)
             else:
                 self._print(f"{job_name} is running...")
 
@@ -382,9 +387,12 @@ class GridDriverBasedWorker(AbstractWorker):
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
-            # FIXME: use driver id in the db?
-            for i, p in enumerate(unretrieved_wdirs):
-                driver = self.drivers[i]
+            # FIXME: Assume driver ID from the dir name
+            #        and drivers do not change
+            #        it is better recover the driver from a DB
+            for p in unretrieved_wdirs:
+                driver_id = int(p.name[4:])
+                driver = self.drivers[driver_id]
                 driver.directory = p
                 results.append(driver.read_trajectory())
 
