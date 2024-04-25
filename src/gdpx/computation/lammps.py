@@ -3,6 +3,7 @@
 
 import os
 import copy
+import dataclasses
 import io
 import itertools
 import shutil
@@ -10,6 +11,7 @@ import warnings
 import subprocess
 import pathlib
 import pickle
+import traceback
 import tarfile
 import dataclasses
 
@@ -37,7 +39,7 @@ from ase.calculators.mixing import LinearCombinationCalculator
 
 from .. import config
 from ..builder.constraints import parse_constraint_info
-from .driver import AbstractDriver, DriverSetting
+from .driver import AbstractDriver, DriverSetting, Controller
 
 from ..potential.managers.plumed.calculators.plumed2 import (
     Plumed,
@@ -45,9 +47,7 @@ from ..potential.managers.plumed.calculators.plumed2 import (
 )
 
 
-dataclasses.dataclass(frozen=True)
-
-
+@dataclasses.dataclass(frozen=True)
 class AseLammpsSettings:
     """File names."""
 
@@ -324,10 +324,97 @@ def read_single_simulation(
 
 
 @dataclasses.dataclass
+class FireMinimizer(Controller):
+
+    name: str = "fire"
+
+    def __post_init__(self):
+        """"""
+        self.conv_params = dict(
+            min_style="fire",
+            min_modify=self.params.get("min_modify", "integrator verlet tmax 4"),
+        )
+
+        return
+
+
+@dataclasses.dataclass
+class LangevinThermostat(Controller):
+
+    name: str = "langevin"
+
+    def __post_init__(self):
+        """"""
+        friction = self.params.get("friction", 0.01)  # fs^-1
+        assert friction is not None
+
+        friction_seed = self.params.get("friction_seed", None)
+
+        self.conv_params = dict(
+            damp=unitconvert.convert(1.0 / friction, "time", "real", self.units)
+        )
+        if friction_seed is not None:
+            self.conv_params.update(seed=friction_seed)
+
+        return
+
+
+@dataclasses.dataclass
+class NoseHooverChainThermostat(Controller):
+
+    name: str = "nose_hoover_chain"
+
+    def __post_init__(self):
+        """"""
+        Tdamp = self.params.get("Tdamp", 100.0)
+        assert Tdamp is not None
+
+        self.conv_params = dict(
+            Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units)
+        )
+
+        return
+
+
+@dataclasses.dataclass
+class ParrinelloRahmanBarostat(Controller):
+
+    name: str = "parrinello_rahman"
+
+    def __post_init__(self):
+        """"""
+        Tdamp = self.params.get("Tdamp", 100.0)
+        assert Tdamp is not None
+
+        Pdamp = self.params.get("Pdamp", 100.0)
+        assert Pdamp is not None
+
+        self.conv_params = dict(
+            Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units),
+            Pdamp=unitconvert.convert(Pdamp, "time", "real", self.units),
+        )
+
+        return
+
+
+controllers = dict(
+    # nvt
+    langevin_nvt=LangevinThermostat,
+    nose_hoover_chain_nvt=NoseHooverChainThermostat,
+    parrinello_rahman_npt=ParrinelloRahmanBarostat,
+)
+
+
+@dataclasses.dataclass
 class LmpDriverSetting(DriverSetting):
 
-    min_style: str = "fire"
-    min_modify: str = "integrator verlet tmax 4"
+    units: str = "metal"
+
+    ensemble: str = "nve"
+
+    controller: dict = dataclasses.field(default_factory=dict)
+
+    use_lmpvel: bool = True
 
     etol: float = 0
     fmax: float = 0.05
@@ -343,34 +430,14 @@ class LmpDriverSetting(DriverSetting):
         """"""
         if self.task == "min":
             self._internals.update(
-                min_style=self.min_style,
-                min_modify=self.min_modify,
                 etol=self.etol,
                 ftol=self.fmax,
-                # maxstep = self.maxstep
             )
 
         if self.task == "md":
             self._internals.update(
-                md_style=self.md_style,
-                timestep=self.timestep,
-                velocity_seed=self.velocity_seed,
-                ignore_atoms_velocities=self.ignore_atoms_velocities,
-                remove_rotation=self.remove_rotation,
-                remove_translation=self.remove_translation,
-                temp=self.temp,
-                # TODO: end temperature
-                Tdamp=self.Tdamp,
-                press=self.press,
-                Pdamp=self.Pdamp,
-                # - ext
                 plumed=self.plumed,
             )
-
-        # - shared params
-        self._internals.update(
-            task=self.task, dump_period=self.dump_period, ckpt_period=self.ckpt_period
-        )
 
         # - special params
         self._internals.update(
@@ -380,6 +447,103 @@ class LmpDriverSetting(DriverSetting):
         )
 
         return
+
+    def get_minimisation_inputs(self, random_seed, group: str = "mobile") -> List[str]:
+        """"""
+        """Convert parameters into lammps input lines."""
+        MIN_FIX_ID: str = "controller"
+        _init_min_params = dict(
+            fix_id=MIN_FIX_ID,
+            group=group,
+        )
+        if self.controller:
+            min_cls_name = self.controller["name"] + "_min"
+            min_cls = controllers[min_cls_name]
+        else:
+            min_cls = FireMinimizer
+
+        minimiser = min_cls(units=self.units, **self.controller)
+        _init_min_params.update(**minimiser.conv_params)
+
+        if minimiser.name == "fire":
+            min_line = "min_style  {min_style}\nmin_modify {min_modify}".format(
+                **_init_min_params
+            )
+        else:
+            raise RuntimeError(f"Unknown minimiser {minimiser}.")
+
+        lines = [min_line]
+
+        return lines
+
+    def get_molecular_dynamics_inputs(
+        self, random_seed, group: str = "mobile"
+    ) -> List[str]:
+        """Convert parameters into lammps input lines."""
+        MD_FIX_ID: str = "controller"
+        _init_md_params = dict(
+            fix_id=MD_FIX_ID,
+            group=group,
+            timestep=unitconvert.convert(self.timestep, "time", "real", self.units),
+        )
+
+        if self.ensemble == "nve":
+            lines = [
+                "fix {fix_id:>24s} {group} nve".format(**_init_md_params),
+                f"timestep {_init_md_params['timestep']}",
+            ]
+        elif self.ensemble == "nvt":
+            _init_md_params.update(
+                Tstart=self.temp,
+                Tstop=self.temp,  # FIXME: end temperature??
+            )
+            if self.controller:
+                thermo_cls_name = self.controller["name"] + "_" + self.ensemble
+                thermo_cls = controllers[thermo_cls_name]
+            else:
+                thermostat = LangevinThermostat
+            thermostat = thermo_cls(units=self.units, **self.controller)
+            if thermostat.name == "langevin":
+                _init_md_params.update(
+                    seed=random_seed,
+                )
+                _init_md_params.update(**thermostat.conv_params)
+                thermo_line = "fix {fix_id:>24s} {group} langevin {Tstart} {Tstop} {damp} {seed}".format(
+                    **_init_md_params
+                )
+            elif thermostat.name == "nose_hoover_chain":
+                _init_md_params.update(**thermostat.conv_params)
+                thermo_line = "fix {fix_id:>24s} {group} nvt temp {Tstart} {Tstop} {Tdamp}".format(
+                    **_init_md_params
+                )
+            else:
+                raise RuntimeError(f"Unknown thermostat {thermostat}.")
+            lines = [thermo_line, f"timestep {_init_md_params['timestep']}"]
+        elif self.ensemble == "npt":
+            _init_md_params.update(
+                Tstart=self.temp,
+                Tstop=self.temp,  # FIXME: end temperature??
+                Pstart=self.press,
+                Pstop=self.press,  # FIXME: end pressure??
+            )
+            if self.controller:
+                baro_cls_name = self.controller["name"] + "_" + self.ensemble
+                baro_cls = controllers[baro_cls_name]
+            else:
+                ...
+            barostat = baro_cls(units=self.units, **self.controller)
+            if barostat.name == "parrinello_rahman":
+                _init_md_params.update(**barostat.conv_params)
+                baro_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} {Tdamp} aniso {Pstart} {Pstop} {Pdamp}".format(
+                    **_init_md_params
+                )
+            else:
+                raise RuntimeError(f"Unknown barostat {barostat}.")
+            lines = [baro_line, f"timestep {_init_md_params['timestep']}"]
+        else:
+            raise RuntimeError(f"Unknown ensemble {self.ensemble}.")
+
+        return lines
 
     def get_run_params(self, *args, **kwargs):
         """"""
@@ -395,11 +559,10 @@ class LmpDriverSetting(DriverSetting):
         steps_ = kwargs.pop("steps", self.steps)
 
         run_params = dict(
+            steps=steps_,
             constraint=kwargs.get("constraint", self.constraint),
             etol=etol_,
             ftol=ftol_,
-            maxiter=steps_,
-            maxeval=2 * steps_,
         )
 
         # - add extra parameters
@@ -434,6 +597,8 @@ class LmpDriver(AbstractDriver):
         calc, params = self._check_plumed(calc=calc, params=params)
 
         super().__init__(calc, params, directory=directory, *args, **kwargs)
+
+        params.update(units=calc.units)
         self.setting = LmpDriverSetting(**params)
 
         return
@@ -464,10 +629,52 @@ class LmpDriver(AbstractDriver):
 
         return verified
 
+    def _create_dynamics(self, atoms: Atoms, *args, **kwargs):
+        """Convert parameters into lammps input lines."""
+        lines = []
+        if self.setting.task == "min":
+            dynamics = self.setting.get_minimisation_inputs(
+                random_seed=self.random_seed
+            )
+            lines.extend(dynamics)
+        else:  # assume md
+            # NOTE: Velocities by ASE may lose precision as
+            #       they are first written to data file and read by lammps then
+            if self.setting.use_lmpvel:
+                velocity_seed = self.setting.velocity_seed
+                if velocity_seed is None:
+                    velocity_seed = self.random_seed
+                self._print(f"MD Driver's velocity_seed: {velocity_seed}")
+                line = f"velocity        mobile create {self.setting.temp} {velocity_seed} dist gaussian "
+                if self.setting.remove_translation:
+                    line += "mom yes "
+                if self.setting.remove_rotation:
+                    line += "rot yes "
+                if atoms.get_kinetic_energy() > 0.0:
+                    if self.setting.ignore_atoms_velocities:
+                        atoms.set_momenta(np.zeros(atoms.positions.shape))
+                        lines.append(line)
+                    else:
+                        lines.append("# Use atoms' velocities.")
+                else:
+                    atoms.set_momenta(np.zeros(atoms.positions.shape))
+                    lines.append(line)
+            else:
+                self._prepare_velocities(
+                    atoms,
+                    self.setting.velocity_seed,
+                    self.setting.ignore_atoms_velocities,
+                )
+            dynamics = self.setting.get_molecular_dynamics_inputs(
+                random_seed=self.random_seed
+            )
+            lines.extend(dynamics)
+
+        return lines
+
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
         try:
-            # - params
             run_params = self.setting.get_init_params()
             run_params.update(**self.setting.get_run_params(**kwargs))
 
@@ -479,20 +686,35 @@ class LmpDriver(AbstractDriver):
                     key=lambda x: int(x.name.split(".")[1]),
                 )
                 self._debug(f"checkpoints to restart: {checkpoints}")
-                target_steps = run_params["maxiter"]
+                target_steps = run_params["steps"]
                 run_params.update(
                     read_restart=str(checkpoints[-1].resolve()),
-                    maxiter=target_steps - int(checkpoints[-1].name.split(".")[1]),
+                    steps=target_steps - int(checkpoints[-1].name.split(".")[1]),
                 )
 
+            dynamics = self._create_dynamics(atoms, *args, **kwargs)
+
             # - check constraint
-            self.calc.set(**run_params)
+            self.calc.set(
+                task=self.setting.task,
+                dump_period=self.setting.dump_period,
+                ckpt_period=self.setting.ckpt_period,
+                dynamics=dynamics,
+                steps=run_params["steps"],
+                constraint=run_params["constraint"],
+                etol=run_params["etol"],
+                ftol=run_params["ftol"],
+                # misc
+                extra_fix=run_params["extra_fix"], # e.g. fixcm
+                neighbor=run_params["neighbor"],
+                neighb_modify=run_params["neigh_modify"],
+            )
             atoms.calc = self.calc
 
             # - run
             _ = atoms.get_forces()
         except Exception as e:
-            config._debug(e)
+            config._debug(traceback.format_exc())
 
         return
 
@@ -569,10 +791,15 @@ class Lammps(FileIOCalculator):
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters: dict = dict(
-        # ase params
+        # ase prepared parameters
         task="min",
+        dump_period=1,
+        ckpt_period=100,
+        dynamics="",
+        steps=0,
         constraint=None,  # index of atoms, start from 0
-        ignore_atoms_velocities=False,
+        etol=0.0,
+        ftol=0.05,
         # --- lmp params ---
         read_restart=None,
         units="metal",
@@ -585,24 +812,6 @@ class Lammps(FileIOCalculator):
         neighbor="0.0 bin",
         neigh_modify=None,
         mass="* 1.0",
-        dump_period=1,
-        ckpt_period=100,
-        # - md
-        md_style="nvt",
-        md_steps=0,
-        velocity_seed=None,
-        timestep=1.0,  # fs
-        temp=300,
-        pres=1.0,
-        Tdamp=100,  # fs
-        Pdamp=100,
-        # - minimisation
-        etol=0.0,
-        ftol=0.05,
-        maxiter=0,  # NOTE: this is steps for MD
-        maxeval=0,
-        min_style="fire",
-        min_modify="integrator verlet tmax 4",
         # - extra fix
         extra_fix=[],
         # - externals
@@ -646,9 +855,9 @@ class Lammps(FileIOCalculator):
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
         # - check velocities
-        self.write_velocities = False
+        write_velocities = False
         if atoms.get_kinetic_energy() > 0.0:
-            self.write_velocities = True and not self.ignore_atoms_velocities
+            write_velocities = True
 
         # write structure
         prismobj = Prism(atoms.get_cell())  # TODO: nonpbc?
@@ -662,7 +871,7 @@ class Lammps(FileIOCalculator):
             specorder=self.type_list,
             force_skew=True,
             prismobj=prismobj,
-            velocities=self.write_velocities,
+            velocities=write_velocities,
             units=self.units,
             atom_style=self.atom_style,
         )
@@ -774,7 +983,6 @@ class Lammps(FileIOCalculator):
         content += "\n"
 
         # - pair, MLIP specific settings
-        # TODO: neigh settings?
         potential = self.pair_style.strip().split()[0]
         if potential == "reax/c":
             assert self.atom_style == "charge", "reax/c should have charge atom_style"
@@ -847,7 +1055,7 @@ class Lammps(FileIOCalculator):
             pass
         content += "thermo          {}\n".format(self.dump_period)
 
-        # TODO: How to dump total energy?
+        # total energy is not stored in dump so we need read from log.lammps
         content += (
             "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
                 self.dump_period, ASELMPCONFIG.trajectory_filename
@@ -862,54 +1070,21 @@ class Lammps(FileIOCalculator):
 
         # --- run type
         if self.task == "min":
-            # - minimisation
-            content += "min_style       {}\n".format(self.min_style)
-            content += "min_modify      {}\n".format(self.min_modify)
+            content += "\n".join(self.dynamics) + "\n"
+
             content += "minimize        {:f} {:f} {:d} {:d}\n".format(
                 unitconvert.convert(self.etol, "energy", "ASE", self.units),
                 unitconvert.convert(self.ftol, "force", "ASE", self.units),
-                self.maxiter,
-                self.maxeval,
+                self.steps,
+                2 * self.steps,
             )
         elif self.task == "md":
-            if not self.write_velocities and self.read_restart is None:
-                velocity_seed = self.velocity_seed
-                if velocity_seed is None:
-                    velocity_seed = np.random.randint(0, 10000)
-                velocity_command = (
-                    "velocity        mobile create {} {} dist gaussian ".format(
-                        self.temp, velocity_seed
-                    )
-                )
-                if hasattr(self, "remove_translation"):
-                    if self.remove_translation:
-                        velocity_command += "mom yes "
-                if hasattr(self, "remove_rotation"):
-                    if self.remove_rotation:
-                        velocity_command += "rot yes "
-                velocity_command += "\n"
-                content += velocity_command
+            if self.read_restart is not None:
+                # pop up velocity line
+                self.dynamics.pop(0)
 
-            if self.md_style == "nvt":
-                Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
-                content += (
-                    "fix             thermostat mobile nvt temp {} {} {}\n".format(
-                        self.temp, self.temp, Tdamp_
-                    )
-                )
-            elif self.md_style == "npt":
-                pres_ = unitconvert.convert(self.pres, "pressure", "metal", self.units)
-                Tdamp_ = unitconvert.convert(self.Tdamp, "time", "real", self.units)
-                Pdamp_ = unitconvert.convert(self.Pdamp, "time", "real", self.units)
-                content += "fix             thermostat mobile npt temp {} {} {} aniso {} {} {}\n".format(
-                    self.temp, self.temp, Tdamp_, pres_, pres_, Pdamp_
-                )
-            elif self.md_style == "nve":
-                content += "fix             thermostat mobile nve \n"
+            content += "\n".join(self.dynamics) + "\n"
 
-            timestep_ = unitconvert.convert(self.timestep, "time", "real", self.units)
-            content += "\n"
-            content += f"timestep        {timestep_}\n"
             if self.plumed is not None:
                 plumed_inp = update_stride_and_file(
                     self.plumed, wdir=str(self.directory), stride=self.dump_period
@@ -917,7 +1092,7 @@ class Lammps(FileIOCalculator):
                 with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
                     fopen.write("".join(plumed_inp))
                 content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
-            content += f"run             {self.maxiter}\n"
+            content += f"run             {self.steps}\n"
         else:
             # TODO: NEB?
             ...
