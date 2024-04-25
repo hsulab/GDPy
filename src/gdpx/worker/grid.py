@@ -4,6 +4,7 @@
 import pathlib
 import time
 import uuid
+import json
 import yaml
 import tempfile
 
@@ -25,6 +26,9 @@ from .utils import copy_minimal_frames, get_file_md5
 
 #: Structure ID Key.
 STRU_ID_KEY: str = "md5"
+
+#: Batch ID key used for tracking jobs.
+BATCH_ID_KEY: str = "gdir"  # FIXME: change to batch?
 
 
 class GridDriverBasedWorker(AbstractWorker):
@@ -97,20 +101,19 @@ class GridDriverBasedWorker(AbstractWorker):
         starts, ends = self._split_groups(num_structures)
 
         batches = []
+        batch_numbers = []
         for i, (s, e) in enumerate(zip(starts, ends)):
-            selected_indices = range(s, e)
+            selected_indices = list(range(s, e))
+            batch_numbers.extend([i for _ in selected_indices])
             curr_wdir_names = [wdir_names[x] for x in selected_indices]
-            curr_structures = [structures[x] for x in selected_indices]
-            curr_potters = [potters[x] for x in selected_indices]
-            curr_drivers = [drivers[x] for x in selected_indices]
-            assert len(set(curr_wdir_names)) == len(
-                curr_structures
-            ), f"Found duplicated wdirs {len(set(curr_wdir_names))} vs. {len(curr_structures)} for group {i}..."
             batches.append(
-                (curr_wdir_names, curr_structures, curr_potters, curr_drivers)
+                (
+                    selected_indices,
+                    curr_wdir_names,
+                )
             )
 
-        return batches
+        return batches, batch_numbers, wdir_names
 
     def run(self, structures, batch: int, *args, **kwargs) -> str:
         """Run computations in batch.
@@ -129,24 +132,31 @@ class GridDriverBasedWorker(AbstractWorker):
 
         # prepare batch
         identifier, structures = self._preprocess_structures(structures)
-        batches = self._prepare_batches(structures, self.potters, self.drivers)
+        batches, batch_numbers, wdir_names = self._prepare_batches(
+            structures, self.potters, self.drivers
+        )
         self._print(f"num_computations: {len(structures)} num_batches: {len(batches)}")
+
+        # save computation inputs for review
+        self._write_inputs(identifier, batch_numbers, wdir_names)
 
         # read metadata from file or database
         database = TinyDB(
             self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         )
-        self._print(database.tables())
 
-        # store each input structures into one different table
-        datatable = database.table(identifier)
+        # TODO: The search only works in default_table for now
+        #       store each input structures into one different table
+        #       datatable = database.table(identifier + "_structures")
+        datatable = database
 
         queued_jobs = datatable.search(Query().queued.exists())
         queued_batch_names = [q["batch"][self.UUIDLEN + 1 :] for q in queued_jobs]
 
-        for ib, (curr_wdirs, curr_structures, curr_potters, curr_drivers) in enumerate(
-            batches
-        ):
+        for ib, (
+            curr_indices,
+            curr_wdirs,
+        ) in enumerate(batches):
             # skip submitted jobs
             batch_name = f"batch-{ib}"
             self._print(f"{batch =} {batch_name =} {identifier =}")
@@ -163,20 +173,53 @@ class GridDriverBasedWorker(AbstractWorker):
                 continue
 
             self._run_one_batch(
-                datatable,
-                batch_name,
-                curr_wdirs,
-                curr_structures,
-                curr_potters,
-                curr_drivers,
+                identifier, datatable, batch_name, curr_indices, curr_wdirs, structures
             )
 
         database.close()
 
         return identifier
 
+    def _write_inputs(self, identifier: str, batch_numbers, wdir_names):
+        """"""
+        inp_fpath = self.directory / "_data" / f"inp-{identifier}.json"
+        if inp_fpath.exists():
+            return
+
+        grid_params = {}
+        grid_params["grid"] = []
+
+        for i, (ib, wdir_name, potter, driver) in enumerate(
+            zip(batch_numbers, wdir_names, self.potters, self.drivers)
+        ):
+            comput_data = {"batch": ib, "wdir_name": wdir_name}
+            comput_data["builder"] = dict(
+                method="reader",
+                fname=str(
+                    (self.directory / "_data" / f"{identifier}.xyz").relative_to(
+                        self.directory
+                    )
+                ),
+                index=f"{i}",
+            )
+            comput_data["computer"] = {}
+            comput_data["computer"]["potter"] = potter.as_dict()
+            comput_data["computer"]["driver"] = driver.as_dict()
+            grid_params["grid"].append(comput_data)
+
+        with open(inp_fpath, "w") as fopen:
+            json.dump(grid_params, fopen, indent=2)
+
+        return
+
     def _run_one_batch(
-        self, database, batch_name: str, wdir_names, structures, potters, drivers
+        self,
+        identifier,
+        database,
+        batch_name: str,
+        batch_indices: List[int],
+        wdir_names,
+        structures,
     ):
         """Run one batch."""
         # ---
@@ -185,34 +228,26 @@ class GridDriverBasedWorker(AbstractWorker):
 
         scheduler = self.scheduler
         if scheduler.name == "local":
-            with CustomTimer(name="run-driver", func=self._print):
-                for wdir_name, atoms, driver in zip(wdir_names, structures, drivers):
-                    driver.directory = self.directory / wdir_name
-                    self._print(
-                        f"{time.asctime( time.localtime(time.time()) )} {wdir_name} {driver.directory.name} is running..."
-                    )
-                    driver.reset()
-                    driver.run(atoms, read_ckpt=True, extra_info=None)
+            curr_wdirs = [self.directory / x for x in wdir_names]
+            curr_structures = [structures[x] for x in batch_indices]
+            curr_drivers = [self.drivers[x] for x in batch_indices]
+            assert len(set(wdir_names)) == len(
+                curr_structures
+            ), f"Found duplicated wdirs {len(set(wdir_names))} vs. {len(curr_structures)} for group {i}..."
+            self.run_grid_computations_in_command(
+                curr_wdirs, curr_structures, curr_drivers, self._print
+            )
         else:
-            worker_params = {}
-            worker_params["use_single"] = True
-            worker_params["driver"] = self.driver.as_dict()
-            worker_params["potential"] = self.potter.as_dict()
-
-            with open(self.directory / f"worker-{uid}.yaml", "w") as fopen:
-                yaml.dump(worker_params, fopen)
-
-            # - save structures
-            dataset_path = str((self.directory / f"_gdp_inp.xyz").resolve())
-            write(dataset_path, frames[0])
-
             # - save scheduler file
             jobscript_fname = f"run-{uid}.script"
             self.scheduler.job_name = job_name
             self.scheduler.script = self.directory / jobscript_fname
 
-            self.scheduler.user_commands = "gdp -p {} compute {}\n".format(
-                (self.directory / f"worker-{uid}.yaml").name, dataset_path
+            self.scheduler.user_commands = "gdp compute {} --batch {}\n".format(
+                (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
+                    self.directory
+                ),
+                batch_name[6:],
             )
 
             # - TODO: check whether params for scheduler is changed
@@ -222,15 +257,30 @@ class GridDriverBasedWorker(AbstractWorker):
             else:
                 self._print(f"{self.directory.name} waits to submit.")
 
-        # - save this batch job to the database
+        # save the information of this batch to the database
         _ = database.insert(
-            dict(
-                uid=uid,
-                batch=job_name,
-                wdir_names=wdir_names,
-                queued=True,
-            )
+            {
+                "uid": uid,
+                "identifier": identifier,
+                BATCH_ID_KEY: job_name,
+                "wdir_names": wdir_names,
+                "queued": True,
+            }
         )
+
+        return
+
+    @staticmethod
+    def run_grid_computations_in_command(wdirs, structures, drivers, print_func):
+        """"""
+        with CustomTimer(name="run-driver", func=print_func):
+            for wdir, atoms, driver in zip(wdirs, structures, drivers):
+                driver.directory = wdir
+                print_func(
+                    f"{time.asctime( time.localtime(time.time()) )} {driver.directory.name} is running..."
+                )
+                driver.reset()
+                driver.run(atoms, read_ckpt=True, extra_info=None)
 
         return
 
@@ -252,7 +302,7 @@ class GridDriverBasedWorker(AbstractWorker):
     def _inspect_and_update(self, running_jobs, database, resubmit: bool = True):
         """"""
         for job_name in running_jobs:
-            doc_data = database.get(Query().batch == job_name)
+            doc_data = database.get(Query()[BATCH_ID_KEY] == job_name)
             uid = doc_data["uid"]
             wdir_names = doc_data["wdir_names"]
 
@@ -288,8 +338,11 @@ class GridDriverBasedWorker(AbstractWorker):
                     database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                 else:
                     if resubmit:
-                        jobid = self.scheduler.submit()
-                        self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
+                        if self._submit:
+                            jobid = self.scheduler.submit()
+                            self._print(
+                                f"{job_name} is re-submitted with JOBID {jobid}."
+                            )
             else:
                 self._print(f"{job_name} is running...")
 
@@ -319,7 +372,7 @@ class GridDriverBasedWorker(AbstractWorker):
         """"""
         unretrieved_wdirs_ = []
         for job_name in unretrieved_jobs:
-            doc_data = database.get(Query().batch == job_name)
+            doc_data = database.get(Query()[BATCH_ID_KEY] == job_name)
             unretrieved_wdirs_.extend(
                 (self.directory / w).resolve() for w in doc_data["wdir_names"]
             )
@@ -336,7 +389,7 @@ class GridDriverBasedWorker(AbstractWorker):
                 results.append(driver.read_trajectory())
 
         for job_name in unretrieved_jobs:
-            doc_data = database.get(Query().batch == job_name)
+            doc_data = database.get(Query()[BATCH_ID_KEY] == job_name)
             database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results

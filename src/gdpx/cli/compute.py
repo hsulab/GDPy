@@ -14,6 +14,7 @@ from ..worker.interface import ComputerVariable, ReactorVariable
 from ..worker.drive import DriverBasedWorker
 from ..worker.grid import GridDriverBasedWorker
 from ..reactor.reactor import AbstractReactor
+from ..scheduler.interface import SchedulerVariable
 from ..utils.command import parse_input_file
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
@@ -58,6 +59,7 @@ def convert_config_to_potter(config):
 
     return potter
 
+
 def run_one_worker(structures, worker, directory, batch, spawn, archive):
     """"""
     worker.directory = directory
@@ -73,12 +75,14 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
             if not isinstance(worker.driver, AbstractReactor):
                 end_frames = [traj[-1] for traj in ret]
                 write(res_dir / "end_frames.xyz", end_frames)
+                config._print(f"{directory.name} has already been retrieved.")
             else:
                 ...
         else:
             config._print(f"{directory.name} has already been retrieved.")
 
     return
+
 
 def run_worker(
     structure: List[str],
@@ -119,20 +123,19 @@ def run_worker(
         run_one_worker(frames, workers[0], directory, batch, spawn, archive)
     else:
         for i, w in enumerate(workers):
-            run_one_worker(frames, w, directory/f"w{i}", batch, spawn, archive)
+            run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
 
     return
 
 
-def run_grid_worker(grid_params: dict, batch: int, spawn, directory):
+def convert_config_to_grid_components(grid_params: dict):
     """"""
-    directory = pathlib.Path(directory)
-
     # config._print(grid_params)
     grid_data = grid_params.get("grid", None)
     assert grid_data is not None
 
-    # TODO: scheduler
+    # scheduler
+    scheduler = SchedulerVariable(**grid_params.get("scheduler", {})).value
 
     structures, potters, drivers = [], [], []
     for data in grid_data:
@@ -154,14 +157,51 @@ def run_grid_worker(grid_params: dict, batch: int, spawn, directory):
     # config._print(f"{potters =}")
     # config._print(f"{drivers =}")
 
-    # other parameters
+    # aux parameters
     batchsize = grid_params.get("batchsize", 1)
 
-    worker = GridDriverBasedWorker(potters=potters, drivers=drivers, batchsize=batchsize)
+    aux_params = dict(batchsize=batchsize)
 
-    # run computations
-    worker.driver = None # FIXME: compat
-    run_one_worker(structures, worker, directory, batch=batch, spawn=spawn, archive=True)
+    return scheduler, structures, potters, drivers, aux_params
+
+
+def run_grid_worker(grid_params: dict, batch: Optional[int], spawn, directory):
+    """"""
+    directory = pathlib.Path(directory)
+
+    if batch is None:  # submit jobs to queue
+        scheduler, structures, potters, drivers, aux_params = (
+            convert_config_to_grid_components(grid_params)
+        )
+        worker = GridDriverBasedWorker(
+            potters=potters, drivers=drivers, scheduler=scheduler, **aux_params
+        )
+        worker._submit = False
+
+        # run computations
+        worker.driver = None  # FIXME: compat
+        run_one_worker(
+            structures, worker, directory, batch=batch, spawn=spawn, archive=True
+        )
+    else:  # run jobs in command line
+        batch_grid_params, batch_wdirs = [], []
+        for x in grid_params["grid"]: 
+            if x["batch"] == batch:
+                batch_grid_params.append(x)
+                batch_wdirs.append(directory/x["wdir_name"])
+        grid_params = {}
+        grid_params["grid"] = batch_grid_params
+
+        scheduler, structures, potters, drivers, aux_params = (
+            convert_config_to_grid_components(grid_params)
+        )
+        # aux_params["batchsize"] = len(structures)
+        # worker = GridDriverBasedWorker(
+        #     potters=potters, drivers=drivers, scheduler=scheduler, **aux_params
+        # )
+        GridDriverBasedWorker.run_grid_computations_in_command(
+            batch_wdirs, structures, drivers, print_func=config._print
+        )
 
     return
 
