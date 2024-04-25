@@ -6,9 +6,6 @@ import copy
 import dataclasses
 import io
 import itertools
-import shutil
-import warnings
-import subprocess
 import pathlib
 import pickle
 import traceback
@@ -24,14 +21,10 @@ from ase import Atoms
 from ase import units
 from ase.data import atomic_numbers, atomic_masses
 from ase.io import read, write
-from ase.io.lammpsrun import read_lammps_dump_text
-from ase.io.lammpsdata import read_lammps_data, write_lammps_data
+from ase.io.lammpsdata import write_lammps_data
 from ase.calculators.lammps import unitconvert, Prism
 from ase.calculators.calculator import (
-    CalculationFailed,
-    Calculator,
     all_changes,
-    PropertyNotImplementedError,
     FileIOCalculator,
 )
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -420,11 +413,11 @@ class LmpDriverSetting(DriverSetting):
     fmax: float = 0.05
 
     neighbor: str = "0.0 bin"
-    neigh_modify: str = None
+    neigh_modify: Optional[str] = None
 
     extra_fix: List[str] = dataclasses.field(default_factory=list)
 
-    plumed: str = None
+    plumed: Optional[str] = None
 
     def __post_init__(self):
         """"""
@@ -705,7 +698,7 @@ class LmpDriver(AbstractDriver):
                 etol=run_params["etol"],
                 ftol=run_params["ftol"],
                 # misc
-                extra_fix=run_params["extra_fix"], # e.g. fixcm
+                extra_fix=run_params["extra_fix"],  # e.g. fixcm
                 neighbor=run_params["neighbor"],
                 neighb_modify=run_params["neigh_modify"],
             )
@@ -788,6 +781,7 @@ class Lammps(FileIOCalculator):
 
     #: LAMMPS command.
     command: str = "lmp 2>&1 > lmp.out"
+    # command: str = "lmp"
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters: dict = dict(
@@ -827,6 +821,11 @@ class Lammps(FileIOCalculator):
     def __init__(self, command=None, label=name, **kwargs):
         """"""
         FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
+        
+        # check command
+        # if "-in" in self.command or ">" in self.command:
+        #     raise RuntimeError(f"LAMMPS command must not contain input or output files.")
+        # self.command = self.command + "  -in in.lammps 2>&1 > lmp.out"
 
         # - check potential
         assert self.pair_style is not None, "pair_style is not set."
