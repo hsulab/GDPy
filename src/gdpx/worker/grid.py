@@ -316,10 +316,14 @@ class GridDriverBasedWorker(AbstractWorker):
                 is_finished = False
                 wdir_existence = [(self.directory / x).exists() for x in wdir_names]
                 if all(wdir_existence):
-                    # FIXME: use driver id in the db?
-                    for i, x in enumerate(wdir_names):
-                        curr_wdir = self.directory / x
-                        curr_driver = self.drivers[i]
+                    # FIXME: Assume driver ID from the dir name
+                    #        and drivers do not change
+                    #        it is better recover the driver from a DB
+                    # See also in retrieve!!
+                    for wdir_name in wdir_names:
+                        curr_wdir = self.directory / wdir_name
+                        driver_id = int(curr_wdir.name[4:])
+                        curr_driver = self.drivers[driver_id]
                         curr_driver.directory = curr_wdir
                         if not curr_driver.read_convergence():
                             self._print(
