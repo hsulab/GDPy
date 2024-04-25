@@ -86,11 +86,6 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return inp_stru_md5, copied_structures
 
-    def _spawn_computations(self):
-        """"""
-
-        return
-
     def _prepare_batches(self, structures, potters, drivers):
         """"""
         num_structures = len(structures)
@@ -117,13 +112,17 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return batches
 
-    def run(self, structures, batch: int, *args, **kwargs):
+    def run(self, structures, batch: int, *args, **kwargs) -> str:
         """Run computations in batch.
 
-        The structure and the driver must be one-to-one
+        The structures and the drivers must be one-to-one.
 
         Args:
             structures: A plain List[Atoms] or a builder.
+            batch: batch number.
+
+        Returns:
+            The ID of input structures.
 
         """
         super().run(*args, **kwargs)
@@ -134,12 +133,16 @@ class GridDriverBasedWorker(AbstractWorker):
         self._print(f"num_computations: {len(structures)} num_batches: {len(batches)}")
 
         # read metadata from file or database
-        with TinyDB(
+        database = TinyDB(
             self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            queued_jobs = database.search(Query().queued.exists())
-        queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
-        queued_structures = [q[STRU_ID_KEY] for q in queued_jobs]
+        )
+        self._print(database.tables())
+
+        # store each input structures into one different table
+        datatable = database.table(identifier)
+
+        queued_jobs = datatable.search(Query().queued.exists())
+        queued_batch_names = [q["batch"][self.UUIDLEN + 1 :] for q in queued_jobs]
 
         for ib, (curr_wdirs, curr_structures, curr_potters, curr_drivers) in enumerate(
             batches
@@ -147,7 +150,7 @@ class GridDriverBasedWorker(AbstractWorker):
             # skip submitted jobs
             batch_name = f"batch-{ib}"
             self._print(f"{batch =} {batch_name =} {identifier =}")
-            if identifier in queued_structures and batch_name in queued_names:
+            if batch_name in queued_batch_names:
                 if self.scheduler.name != "local":
                     continue
                 else:
@@ -160,12 +163,21 @@ class GridDriverBasedWorker(AbstractWorker):
                 continue
 
             self._run_one_batch(
-                batch_name, identifier, curr_wdirs, curr_structures, curr_potters, curr_drivers
+                datatable,
+                batch_name,
+                curr_wdirs,
+                curr_structures,
+                curr_potters,
+                curr_drivers,
             )
 
-        return
+        database.close()
 
-    def _run_one_batch(self, batch_name: str, identifier, wdir_names, structures, potters, drivers):
+        return identifier
+
+    def _run_one_batch(
+        self, database, batch_name: str, wdir_names, structures, potters, drivers
+    ):
         """Run one batch."""
         # ---
         uid = str(uuid.uuid1())
@@ -211,18 +223,14 @@ class GridDriverBasedWorker(AbstractWorker):
                 self._print(f"{self.directory.name} waits to submit.")
 
         # - save this batch job to the database
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            _ = database.insert(
-                dict(
-                    uid=uid,
-                    md5=identifier,
-                    gdir=job_name,
-                    wdir_names=wdir_names,
-                    queued=True,
-                )
+        _ = database.insert(
+            dict(
+                uid=uid,
+                batch=job_name,
+                wdir_names=wdir_names,
+                queued=True,
             )
+        )
 
         return
 
@@ -244,7 +252,7 @@ class GridDriverBasedWorker(AbstractWorker):
     def _inspect_and_update(self, running_jobs, database, resubmit: bool = True):
         """"""
         for job_name in running_jobs:
-            doc_data = database.get(Query().gdir == job_name)
+            doc_data = database.get(Query().batch == job_name)
             uid = doc_data["uid"]
             wdir_names = doc_data["wdir_names"]
 
@@ -311,7 +319,7 @@ class GridDriverBasedWorker(AbstractWorker):
         """"""
         unretrieved_wdirs_ = []
         for job_name in unretrieved_jobs:
-            doc_data = database.get(Query().gdir == job_name)
+            doc_data = database.get(Query().batch == job_name)
             unretrieved_wdirs_.extend(
                 (self.directory / w).resolve() for w in doc_data["wdir_names"]
             )
@@ -328,7 +336,7 @@ class GridDriverBasedWorker(AbstractWorker):
                 results.append(driver.read_trajectory())
 
         for job_name in unretrieved_jobs:
-            doc_data = database.get(Query().gdir == job_name)
+            doc_data = database.get(Query().batch == job_name)
             database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
 
         return results
