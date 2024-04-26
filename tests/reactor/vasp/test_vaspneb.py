@@ -11,7 +11,7 @@ import numpy as np
 
 from ase.io import read, write
 
-from gdpx.worker.interface import convert_config_to_potter
+from gdpx.cli.compute import convert_config_to_potter
 
 
 @pytest.mark.vasp_rxn

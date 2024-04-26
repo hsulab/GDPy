@@ -13,8 +13,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.worker.interface import run_worker
-from gdpx.worker.interface import ComputerVariable
+from gdpx.cli.compute import run_worker, ComputerVariable
 
 
 @pytest.fixture

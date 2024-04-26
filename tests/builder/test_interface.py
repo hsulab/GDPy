@@ -8,10 +8,7 @@ import tempfile
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.core.register import import_all_modules_for_register
-from gdpx.builder.interface import build_structures
-
-import_all_modules_for_register()
+from gdpx.cli.build import build_structures
 
 """"""
 

@@ -11,7 +11,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.build import molecule
 
-from gdpx.worker.interface import run_worker, ComputerVariable
+from gdpx.cli.compute import run_worker, ComputerVariable
 from gdpx.utils.command import parse_input_file
 
 

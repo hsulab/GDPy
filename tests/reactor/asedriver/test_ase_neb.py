@@ -15,7 +15,7 @@ from ase.calculators.emt import EMT
 from ase.constraints import FixAtoms
 from ase.optimize import QuasiNewton
 
-from gdpx.worker.interface import convert_config_to_potter
+from gdpx.cli.compute import convert_config_to_potter
 
 
 @pytest.mark.basic
