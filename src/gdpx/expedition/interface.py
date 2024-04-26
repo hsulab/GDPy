@@ -128,51 +128,5 @@ class explore(Operation):
         return basic_workers
 
 
-def run_expedition(exp_params: dict, wait: float=None, directory="./", potter=None):
-    """"""
-    directory = pathlib.Path(directory)
-
-    if potter is not None:
-        exp_params["worker"] = potter
-    else:
-        if "worker" not in exp_params:
-            raise RuntimeError("Expedition must have a worker.")
-
-    scheduler_params = exp_params.pop("scheduler", {})
-    scheduler = SchedulerVariable(**scheduler_params).value
-
-    #method = exp_params.pop("method")
-    #expedition = registers.create("variable", method, convert_name=True, **exp_params).value
-    expedition = ExpeditionVariable(directory=directory, **exp_params).value
-    expedition.directory = directory
-    if hasattr(expedition, "register_worker"):
-        expedition.register_worker(exp_params["worker"])
-
-    if scheduler.name == "local":
-        if wait is not None:
-            for i in range(1000):
-                expedition.run()
-                if expedition.read_convergence():
-                    break
-                time.sleep(wait)
-                config._print(f"wait {wait} seconds...")
-            else:
-                ...
-        else:
-            expedition.run()
-    else: # submit to queue
-        worker = ExpeditionBasedWorker(
-            expedition=expedition, scheduler=scheduler, directory=directory
-        )
-        worker.run()
-        worker.inspect(resubmit=True)
-        if worker.get_number_of_running_jobs() == 0:
-            config._print("Expedition finished...")
-        else:
-            ...
-
-    return
-
-
 if __name__ == "__main__":
     ...

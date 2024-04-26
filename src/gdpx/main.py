@@ -276,7 +276,7 @@ def main():
                 directory=args.directory,
             )
     elif args.subcommand == "explore":
-        from .expedition.interface import run_expedition
+        from .cli.explore import run_expedition
 
         params = parse_input_file(args.CONFIG)
         run_expedition(params, args.wait, args.directory, potter[0])
