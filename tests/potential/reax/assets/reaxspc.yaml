@@ -1,0 +1,6 @@
+potter:
+  name: reax
+  params:
+    backend: lammps
+    command: lmp_mpi -in ./in.lammps 2>&1 > lmp.out
+    model: ./assets/ffield.PdO
