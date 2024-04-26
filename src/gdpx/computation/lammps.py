@@ -85,7 +85,7 @@ def parse_thermo_data(lines) -> dict:
             break
     else:
         end_idx = idx
-    config._debug(f"Initial lammps LOG index: {start_idx} {end_idx}")
+    config._debug(f"INITIAL LAMMPS LOG INDEX: {start_idx} {end_idx}")
 
     # - check valid lines
     #   sometimes the line may not be complete
@@ -93,29 +93,27 @@ def parse_thermo_data(lines) -> dict:
     for i in range(end_idx, start_idx, -1):
         curr_data = lines[i].strip().split()
         curr_ncols = len(curr_data)
-        config._debug(f"Error: {lines[i]}")
-        if curr_ncols == ncols:  # still log step info and no LOOP
+        config._debug(f"  LAMMPS LINE: {lines[i].strip()}")
+        if curr_ncols == ncols:  # The Line has the full thermo info...
             try:
                 step = int(curr_data[0])
                 end_idx = i + 1
             except ValueError:
-                config._debug(f"Error: {lines[i]}")
+                ...
             finally:
+                end_info = lines[i].strip()
+                config._debug(f"  LAMMPS STEP: {end_info}")
                 break
         else:
             ...
     else:
         end_idx = None  # even not one single complete line
-    config._debug(f"Sanitised lammps LOG index: {start_idx} {end_idx}")
+    config._debug(f"FINAL   LAMMPS LOG INDEX: {start_idx} {end_idx}")
 
     if start_idx is None or end_idx is None:
         raise RuntimeError(
-            f"Error in lammps output with start {start_idx} end {end_idx}."
+            f"ERROR   LAMMPS LOG INDEX {start_idx} {end_idx}."
         )
-    end_info = lines[end_idx]  # either loop time or error
-    config._debug(f"lammps END info: {end_info}")
-
-    config._debug(f"lammps LOG index: {start_idx} {end_idx}")
 
     # -- parse index of PotEng
     # TODO: save timestep info?
@@ -699,6 +697,7 @@ class LmpDriver(AbstractDriver):
                 etol=run_params["etol"],
                 ftol=run_params["ftol"],
                 # misc
+                read_restart=run_params.get("read_restart", None),
                 extra_fix=run_params["extra_fix"],  # e.g. fixcm
                 neighbor=run_params["neighbor"],
                 neighb_modify=run_params["neigh_modify"],
@@ -1081,7 +1080,7 @@ class Lammps(FileIOCalculator):
         elif self.task == "md":
             if self.read_restart is not None:
                 # pop up velocity line
-                self.dynamics.pop(0)
+                self.dynamics[0] = "#  use velocities in restart"
 
             content += "\n".join(self.dynamics) + "\n"
 
