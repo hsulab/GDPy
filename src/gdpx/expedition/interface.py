@@ -3,14 +3,9 @@
 
 
 import copy
-import logging
-import pathlib
-import time
 
 import numpy as np
 
-from .. import config
-from ..utils.command import parse_input_file
 from ..core.variable import Variable
 from ..core.operation import Operation
 from ..core.register import registers
@@ -20,6 +15,7 @@ from ..scheduler.interface import SchedulerVariable
 
 """
 """
+
 
 class ExpeditionVariable(Variable):
 
@@ -41,7 +37,7 @@ class ExpeditionVariable(Variable):
         super().__init__(initial_value=expedition, directory=directory)
 
         return
-    
+
     def _create_a_builder(self, builder: dict, random_seed: int):
         """"""
         # - builder
@@ -54,7 +50,7 @@ class ExpeditionVariable(Variable):
         else:  # variable
             builder = builder.value
             np.random.seed(random_seed)
-        
+
         return builder
 
 
@@ -64,8 +60,15 @@ class explore(Operation):
     _active: bool = False
 
     def __init__(
-        self, expedition, worker, scheduler=None, wait_time=60, 
-        active: bool=False, directory="./", *args, **kwargs
+        self,
+        expedition,
+        worker,
+        scheduler=None,
+        wait_time=60,
+        active: bool = False,
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """"""
         if scheduler is None:
@@ -84,7 +87,7 @@ class explore(Operation):
 
         Returns:
             Workers that store structures.
-        
+
         """
         super().forward()
 
@@ -96,9 +99,9 @@ class explore(Operation):
                 self._print("    >>> Update seed_file...")
                 for i in range(nexpeditions):
                     prev_wdir = (
-                        self.directory.parent.parent / 
-                        f"iter.{str(curr_iter-1).zfill(4)}" / 
-                        self.directory.name
+                        self.directory.parent.parent
+                        / f"iter.{str(curr_iter-1).zfill(4)}"
+                        / self.directory.name
                     ) / f"expedition-{i}"
                     if hasattr(expedition, "update_active_params"):
                         expedition.update_active_params(prev_wdir)
@@ -106,7 +109,7 @@ class explore(Operation):
         # -
         if hasattr(expedition, "register_worker"):
             expedition.register_worker(dyn_worker)
-        
+
         # - run expedition with a worker
         worker = ExpeditionBasedWorker(expedition, scheduler)
         worker.directory = self.directory

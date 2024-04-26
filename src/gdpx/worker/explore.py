@@ -18,6 +18,7 @@ tracks its progress.
 
 """
 
+
 class ExpeditionBasedWorker(AbstractWorker):
 
     #: Prefix of the expedition folder name.
@@ -27,7 +28,13 @@ class ExpeditionBasedWorker(AbstractWorker):
 
     _script_name: str = "run.script"
 
-    def __init__(self, expedition, scheduler: AbstractScheduler, batchsize: int=1, directory=None) -> None:
+    def __init__(
+        self,
+        expedition,
+        scheduler: AbstractScheduler,
+        batchsize: int = 1,
+        directory=None,
+    ) -> None:
         """"""
         super().__init__(directory)
 
@@ -48,10 +55,10 @@ class ExpeditionBasedWorker(AbstractWorker):
 
         # - read metadata from file or database
         with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             queued_jobs = database.search(Query().queued.exists())
-        queued_names = [q["gdir"][self.UUIDLEN+1:] for q in queued_jobs]
+        queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
 
         size = 1
         for i in range(size):
@@ -68,13 +75,13 @@ class ExpeditionBasedWorker(AbstractWorker):
                 expedition.directory = wdir
                 expedition.run()
             else:
-                inp_fpath = (wdir/f"exp-{uid}.yaml").absolute()
+                inp_fpath = (wdir / f"exp-{uid}.yaml").absolute()
                 exp_params = expedition.as_dict()
                 with open(inp_fpath, "w") as fopen:
                     yaml.safe_dump(exp_params, fopen)
 
                 scheduler.job_name = job_name
-                scheduler.script = wdir/f"{self._script_name}-{uid}"
+                scheduler.script = wdir / f"{self._script_name}-{uid}"
                 scheduler.user_commands = "gdp explore {} --wait {}".format(
                     str(inp_fpath), self.wait_time
                 )
@@ -86,20 +93,20 @@ class ExpeditionBasedWorker(AbstractWorker):
 
             # - update database
             with TinyDB(
-                self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+                self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
             ) as database:
                 _ = database.insert(
                     dict(
-                        uid = uid,
-                        gdir=job_name, 
-                        group_number=i, 
-                        wdir_names=[wdir.name], 
-                        queued=True
+                        uid=uid,
+                        gdir=job_name,
+                        group_number=i,
+                        wdir_names=[wdir.name],
+                        queued=True,
                     )
                 )
 
         return
-    
+
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
@@ -108,7 +115,7 @@ class ExpeditionBasedWorker(AbstractWorker):
         running_jobs = self._get_running_jobs()
 
         with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             for job_name in running_jobs:
                 doc_data = database.get(Query().gdir == job_name)
@@ -116,13 +123,13 @@ class ExpeditionBasedWorker(AbstractWorker):
                 wdir_names = doc_data["wdir_names"]
 
                 self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory/f"{self._script_name}-{uid}"
+                self.scheduler.script = self.directory / f"{self._script_name}-{uid}"
 
                 if self.scheduler.is_finished():
                     # -- check if the job finished properly
                     is_finished = False
                     for x in wdir_names:
-                        wdir_path = self.directory/x
+                        wdir_path = self.directory / x
                         if not wdir_path.exists():
                             break
                         else:
@@ -133,10 +140,12 @@ class ExpeditionBasedWorker(AbstractWorker):
                         is_finished = True
                     if is_finished:
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-                        #self._print(f"{job_name} finished.")
+                        # self._print(f"{job_name} finished.")
                     else:
-                        warnings.warn("Exploration does not support re-submit.", UserWarning)
-                        #if resubmit:
+                        warnings.warn(
+                            "Exploration does not support re-submit.", UserWarning
+                        )
+                        # if resubmit:
                         #    if self.scheduler.name != "local":
                         #        jobid = self.scheduler.submit()
                         #        self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
@@ -147,10 +156,10 @@ class ExpeditionBasedWorker(AbstractWorker):
                     self._print(f"{job_name} is running...")
 
         return
-    
-    def retrieve(self, include_retrieved: bool=False, *args, **kwargs):
+
+    def retrieve(self, include_retrieved: bool = False, *args, **kwargs):
         """"""
-        #raise NotImplementedError(f"{self.__class__.__name__}")
+        # raise NotImplementedError(f"{self.__class__.__name__}")
         self.inspect(*args, **kwargs)
         self._debug(f"~~~{self.__class__.__name__}+retrieve")
 
@@ -161,12 +170,12 @@ class ExpeditionBasedWorker(AbstractWorker):
             unretrieved_jobs = self._get_finished_jobs()
 
         with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_wdirs_.extend(
-                    (self.directory/w).resolve() for w in doc_data["wdir_names"]
+                    (self.directory / w).resolve() for w in doc_data["wdir_names"]
                 )
             unretrieved_wdirs = unretrieved_wdirs_
 
@@ -179,12 +188,12 @@ class ExpeditionBasedWorker(AbstractWorker):
                 workers.extend(self.expedition.get_workers())
 
         with TinyDB(
-            self.directory/f"_{self.scheduler.name}_jobs.json", indent=2
+            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
-        
+
         return workers
 
 
