@@ -494,7 +494,7 @@ class LmpDriverSetting(DriverSetting):
                 thermo_cls_name = self.controller["name"] + "_" + self.ensemble
                 thermo_cls = controllers[thermo_cls_name]
             else:
-                thermostat = LangevinThermostat
+                thermo_cls = LangevinThermostat
             thermostat = thermo_cls(units=self.units, **self.controller)
             if thermostat.name == "langevin":
                 _init_md_params.update(
