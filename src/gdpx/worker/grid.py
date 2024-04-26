@@ -115,7 +115,7 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return batches, batch_numbers, wdir_names
 
-    def run(self, structures, batch: int, *args, **kwargs) -> str:
+    def run(self, structures, batch: Optional[int]=None, *args, **kwargs) -> str:
         """Run computations in batch.
 
         The structures and the drivers must be one-to-one.
