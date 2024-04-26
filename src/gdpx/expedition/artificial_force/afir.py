@@ -10,20 +10,15 @@ import pickle
 
 from typing import NoReturn, Union, List, Mapping
 
-# from itertools import combinations, product, chain, groupby
-
 import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
 from ase.formula import Formula
 
-from .. import registers
-from .. import StructureBuilder
-from .. import ComputerVariable, DriverBasedWorker
-from ..expedition import AbstractExpedition
-
 from .. import create_mixer
+from .. import AtomsNDArray
+from ..expedition import AbstractExpedition
 
 from gdpx.worker.grid import GridDriverBasedWorker
 from gdpx.builder.group import create_a_group, create_a_molecule_group
@@ -64,6 +59,17 @@ def find_target_fragments(
             fragments[group_command] = create_a_molecule_group(atoms, group_command)
 
     return fragments
+
+
+def get_last_atoms(frames):
+    """"""
+    num_frames = len(frames)
+    for i in range(num_frames, 0, -1):
+        atoms = frames[i-1]
+        if atoms is not None:
+            break
+
+    return atoms
 
 
 @dataclasses.dataclass
@@ -179,10 +185,7 @@ class AFIRSearch(AbstractExpedition):
         """"""
         super().run()
 
-        # check worker
-
-        # check builder
-        # - assume input structures are minimised
+        # assume input structures are minimised
         structures = self.builder.run()
         num_structures = len(structures)
         assert num_structures == 1, "Only one structure for now."
@@ -207,18 +210,18 @@ class AFIRSearch(AbstractExpedition):
         possible_pairs = [([50], [45, 46])]
         self._print(f"{possible_pairs =}")
 
+        num_pairs = len(possible_pairs)
+
         # NOTE: Sampled structures are
         #       (num_structures, num_reactions, num_gamma, num_frames)
         #       num_computations = num_structures * num_reactions * num_gamma??
-
-        # prepare workers
-        self._print(f"{self.worker =}")
 
         # TODO: If gamma is too large, the first computation leads to reaction
 
         # - run each pair
         grid_workers = []
         for i, rxn_pair in enumerate(possible_pairs):
+            # write to log
             self._print(f"===== Pair {i} =====")
             reactants = convert_index_to_formula(atoms, rxn_pair)
             self._print("reactants: ")
@@ -227,20 +230,49 @@ class AFIRSearch(AbstractExpedition):
 
             potters, drivers = self._spawn_computers(rxn_pair, self.gamma_factors)
             num_potters = len(potters)
+            # FIXME: batchsize?
             curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
             curr_worker.directory = self.directory / f"pair{i}"
             grid_workers.append(curr_worker)
             curr_worker.run([atoms for _ in range(num_potters)])
 
-        # - extract each pair
-        # worker_status = []
-        # for i, curr_worker in enumerate(grid_workers):
-        #     curr_worker.inspect(resubmit=True)
-        #     if curr_worker.get_number_of_running_jobs() == 0:
-        #         worker_status.append(True)
-        #     else:
-        #         worker_status.append(False)
+        # extract each pair
+        worker_status = []
+        for i, curr_worker in enumerate(grid_workers):
+            curr_worker.inspect(resubmit=True)
+            if curr_worker.get_number_of_running_jobs() == 0:
+                worker_status.append(True)
+            else:
+                worker_status.append(False)
 
+        if all(worker_status):
+            results = self._extract_results(grid_workers)
+            self._print(f"{results =}")
+            assert num_pairs == results.shape[0]
+
+            # save pathways?
+            ret_dir = self.directory / "results"
+            ret_dir.mkdir(exist_ok=True)
+            for i in range(num_pairs):
+                pseudo_pathway = [get_last_atoms(p) for p in results[i]]
+                self._print(f"{pseudo_pathway =}")
+                write(ret_dir/f"prp{i}.xyz", pseudo_pathway)
+
+        return
+
+    def _extract_results(self, workers):
+        """"""
+        num_workers = len(workers)
+
+        results = []
+        for i, worker in enumerate(workers):
+            curr_results = worker.retrieve(include_retrieved=True)
+            results.append(curr_results)
+        results = AtomsNDArray(results)
+
+        return results
+
+    def _postprocess(self):
         # if all(worker_status):
         #     self._print("---------------------------")
         #     self._print("| AFIRSearch is finished. |")

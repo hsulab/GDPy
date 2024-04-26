@@ -6,6 +6,7 @@ import traceback
 
 from .. import config
 from ..core.register import registers
+from ..data.array import AtomsNDArray
 from ..builder.builder import StructureBuilder
 from ..builder.utils import convert_string_to_atoms
 from ..worker.single import SingleWorker
