@@ -7,6 +7,7 @@ import itertools
 import pathlib
 import time
 import pickle
+import json
 
 from typing import NoReturn, Union, List, Mapping
 
@@ -212,11 +213,19 @@ class AFIRSearch(AbstractExpedition):
 
         num_pairs = len(possible_pairs)
 
+        # serialisation pair data
+        pair_data_fpath = self.directory/"pairs.json"
+        with open(pair_data_fpath, "w") as fopen:
+            json.dump(possible_pairs, fopen)
+
         # NOTE: Sampled structures are
         #       (num_structures, num_reactions, num_gamma, num_frames)
         #       num_computations = num_structures * num_reactions * num_gamma??
 
         # TODO: If gamma is too large, the first computation leads to reaction
+
+        comput_dpath = self.directory/"comput"
+        comput_dpath.mkdir(exist_ok=True)
 
         # - run each pair
         grid_workers = []
@@ -228,12 +237,13 @@ class AFIRSearch(AbstractExpedition):
             for ir, r in enumerate(reactants):
                 self._print(f"  {r:>24s}_{rxn_pair[ir]}")
 
-            potters, drivers = self._spawn_computers(rxn_pair, self.gamma_factors)
-            num_potters = len(potters)
             # FIXME: batchsize?
+            potters, drivers = self._spawn_computers(rxn_pair, self.gamma_factors)
             curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
-            curr_worker.directory = self.directory / f"pair{i}"
+            curr_worker.directory = comput_dpath / f"pair{i}"
             grid_workers.append(curr_worker)
+
+            num_potters = len(potters)
             curr_worker.run([atoms for _ in range(num_potters)])
 
         # extract each pair
@@ -255,8 +265,12 @@ class AFIRSearch(AbstractExpedition):
             ret_dir.mkdir(exist_ok=True)
             for i in range(num_pairs):
                 pseudo_pathway = [get_last_atoms(p) for p in results[i]]
-                self._print(f"{pseudo_pathway =}")
+                # self._print(f"{pseudo_pathway =}")
                 write(ret_dir/f"prp{i}.xyz", pseudo_pathway)
+
+            # dump finished flag
+            with open(self.directory/"FINISHED", "w") as fopen:
+                fopen.write("")
 
         return
 
@@ -321,25 +335,17 @@ class AFIRSearch(AbstractExpedition):
         if hasattr(self.worker.potter, "remove_loaded_models"):
             self.worker.potter.remove_loaded_models()
 
-        pair_data_path = self.directory / "_data" / "pairs.pkl"
-        if pair_data_path.exists():
-            with open(pair_data_path, "rb") as fopen:
-                pairs = pickle.load(fopen)
-            wdirs = sorted(
-                list(self.directory.glob("pair*")), key=lambda x: int(x.name[4:])
-            )
-            assert len(pairs) == len(
-                wdirs
-            ), f"Inconsistent number of pairs {len(pairs)} and wdirs {len(wdirs)}."
-
-            gamma_list = np.linspace(*self.gamma, endpoint=True)
-            for i, pair in enumerate(pairs):
-                potters = self._create_afir_potters(pair, gamma_list)
-                curr_worker = GridDriverBasedWorker(potters, driver=self.worker.driver)
-                curr_worker.directory = self.directory / f"pair{i}"
-                workers.append(curr_worker)
-        else:
-            raise FileNotFoundError("There is no cache for pairs.")
+        with open(self.directory/"pairs.json", "r") as fopen:
+            pairs = json.load(fopen)
+        num_pairs = len(pairs)
+        
+        workers = []
+        for i in range(num_pairs):
+            potters, drivers = self._spawn_computers(pairs[i], self.gamma_factors)
+            curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
+            curr_worker.directory = self.directory/ "comput"/ f"pair{i}"
+            assert curr_worker.directory.exists()
+            workers.append(curr_worker)
 
         return workers
 
