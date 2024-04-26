@@ -251,7 +251,12 @@ def main():
 
         run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "compute":
-        first_worker = potter[0]
+        if isinstance(potter, list):
+            first_worker = potter[0]
+        else:
+            # FIXME: This is for reactor but we need unify this with computer.
+            first_worker = potter
+            potter = [potter]
         config._print(f"{first_worker =}")
         if first_worker is not None:
             # For compatibility, the classic mode
