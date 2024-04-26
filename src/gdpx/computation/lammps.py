@@ -47,7 +47,8 @@ class AseLammpsSettings:
     inputstructure_filename: str = "stru.data"
     trajectory_filename: str = "traj.dump"
     input_fname: str = "in.lammps"
-    log_filename: str = "log.lammps"
+    # log_filename: str = "log.lammps"
+    log_filename: str = "lmp.out"
     deviation_filename: str = "model_devi.out"
     prism_filename: str = "ase-prism.bindat"
 
@@ -111,9 +112,7 @@ def parse_thermo_data(lines) -> dict:
     config._debug(f"FINAL   LAMMPS LOG INDEX: {start_idx} {end_idx}")
 
     if start_idx is None or end_idx is None:
-        raise RuntimeError(
-            f"ERROR   LAMMPS LOG INDEX {start_idx} {end_idx}."
-        )
+        raise RuntimeError(f"ERROR   LAMMPS LOG INDEX {start_idx} {end_idx}.")
 
     # -- parse index of PotEng
     # TODO: save timestep info?
@@ -499,7 +498,9 @@ class LmpDriverSetting(DriverSetting):
                     seed=random_seed,
                 )
                 _init_md_params.update(**thermostat.conv_params)
-                thermo_line = "fix {fix_id:>24s}0 {group} nve\n".format(**_init_md_params)
+                thermo_line = "fix {fix_id:>24s}0 {group} nve\n".format(
+                    **_init_md_params
+                )
                 thermo_line += "fix {fix_id:>24s}1 {group} langevin {Tstart} {Tstop} {damp} {seed}".format(
                     **_init_md_params
                 )
@@ -726,7 +727,7 @@ class LmpDriver(AbstractDriver):
 
         # - find runs...
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
-        self._debug(f"prev_wdirs: {prev_wdirs}")
+        self._debug(f"{self.directory.name} prev_wdirs: {prev_wdirs}")
 
         traj_list = []
         for w in prev_wdirs:
@@ -757,12 +758,14 @@ class LmpDriver(AbstractDriver):
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
+                prev_end_frame = traj_list[i - 1][-1]
+                curr_beg_frame = traj_list[i][0]
                 assert np.allclose(
-                    traj_list[i - 1][-1].positions, traj_list[i][0].positions
+                    prev_end_frame.positions, curr_beg_frame.positions
                 ), f"Traj {i-1} and traj {i} are not consecutive in positions."
                 assert np.allclose(
-                    traj_list[i - 1][-1].get_potential_energy(),
-                    traj_list[i][0].get_potential_energy(),
+                    prev_end_frame.get_potential_energy(),
+                    curr_beg_frame.get_potential_energy(),
                 ), f"Traj {i-1} and traj {i} are not consecutive in energy."
                 traj_frames.extend(traj_list[i][1:])
         else:
@@ -821,7 +824,7 @@ class Lammps(FileIOCalculator):
     def __init__(self, command=None, label=name, **kwargs):
         """"""
         FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
-        
+
         # check command
         # if "-in" in self.command or ">" in self.command:
         #     raise RuntimeError(f"LAMMPS command must not contain input or output files.")
@@ -1053,6 +1056,7 @@ class Lammps(FileIOCalculator):
         else:
             pass
         content += "thermo          {}\n".format(self.dump_period)
+        content += "thermo_modify   flush yes\n"
 
         # total energy is not stored in dump so we need read from log.lammps
         content += (
@@ -1060,7 +1064,7 @@ class Lammps(FileIOCalculator):
                 self.dump_period, ASELMPCONFIG.trajectory_filename
             )
         )
-        content += "dump_modify 1 element {}\n".format(" ".join(self.type_list))
+        content += "dump_modify 1 element {} flush yes\n".format(" ".join(self.type_list))
         content += "\n"
 
         # - add extra fix
