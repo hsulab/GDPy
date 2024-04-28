@@ -8,6 +8,7 @@ import io
 import itertools
 import pathlib
 import pickle
+import shutil
 import traceback
 import tarfile
 import dataclasses
@@ -138,8 +139,9 @@ def read_single_simulation(
     mdir,
     wdir: pathlib.Path,
     prefix: str,
+    *,
     units: str,
-    add_step_info=True,
+    ckpt_period: int = -1,
     archive_path: pathlib.Path = None,
 ):
     """"""
@@ -218,6 +220,11 @@ def read_single_simulation(
         traj_io, index=":", format="lammps-dump-text", prismobj=prismobj, units=units
     )
     nframes_traj = len(curr_traj_frames_)
+    if ckpt_period > 0:
+        nframes_traj_ = (nframes_traj // ckpt_period) * ckpt_period + 1
+        config._debug(f"cut nframes from {nframes_traj} to {nframes_traj_}.")
+        nframes_traj = nframes_traj_
+
     timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
     # - read thermo data
@@ -684,6 +691,9 @@ class LmpDriver(AbstractDriver):
                     read_restart=str(checkpoints[-1].resolve()),
                     steps=target_steps - int(checkpoints[-1].name.split(".")[1]),
                 )
+                # shutil.move(
+                #     checkpoints[-1].parent / "traj.dump", self.directory / "traj.dump"
+                # )
 
             dynamics = self._create_dynamics(atoms, *args, **kwargs)
 
@@ -715,7 +725,6 @@ class LmpDriver(AbstractDriver):
     def read_trajectory(
         self,
         type_list=None,
-        add_step_info=True,
         archive_path: pathlib.Path = None,
         *args,
         **kwargs,
@@ -736,7 +745,7 @@ class LmpDriver(AbstractDriver):
                 wdir=w,
                 prefix="",
                 units=curr_units,
-                add_step_info=add_step_info,
+                ckpt_period=self.setting.ckpt_period,
                 archive_path=archive_path,
             )
             traj_list.append(curr_frames)
@@ -748,7 +757,7 @@ class LmpDriver(AbstractDriver):
                 wdir=self.directory,
                 prefix="",
                 units=curr_units,
-                add_step_info=add_step_info,
+                ckpt_period=1,  # read all structures and ignore ckpt
                 archive_path=archive_path,
             )
         )
@@ -762,11 +771,11 @@ class LmpDriver(AbstractDriver):
                 curr_beg_frame = traj_list[i][0]
                 assert np.allclose(
                     prev_end_frame.positions, curr_beg_frame.positions
-                ), f"Traj {i-1} and traj {i} are not consecutive in positions."
+                ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
                 assert np.allclose(
                     prev_end_frame.get_potential_energy(),
                     curr_beg_frame.get_potential_energy(),
-                ), f"Traj {i-1} and traj {i} are not consecutive in energy."
+                ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
                 traj_frames.extend(traj_list[i][1:])
         else:
             ...
@@ -926,11 +935,7 @@ class Lammps(FileIOCalculator):
         # read forces from dump file
         curr_wdir = pathlib.Path(self.directory)
         self.cached_traj_frames = read_single_simulation(
-            mdir=curr_wdir,
-            wdir=curr_wdir,
-            prefix="",
-            units=self.units,
-            add_step_info=True,
+            mdir=curr_wdir, wdir=curr_wdir, prefix="", units=self.units, ckpt_period=-1
         )
         converged_frame = self.cached_traj_frames[-1]
 
@@ -1064,7 +1069,9 @@ class Lammps(FileIOCalculator):
                 self.dump_period, ASELMPCONFIG.trajectory_filename
             )
         )
-        content += "dump_modify 1 element {} flush yes\n".format(" ".join(self.type_list))
+        content += "dump_modify 1 element {} flush yes\n".format(
+            " ".join(self.type_list)
+        )
         content += "\n"
 
         # - add extra fix
