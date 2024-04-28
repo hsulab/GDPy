@@ -3,10 +3,9 @@
 
 
 import copy
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import numpy as np
-
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.geometry import find_mic
@@ -66,11 +65,16 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
         """"""
         vec, dis = compute_distance(atoms.cell, atoms.positions[self.group], pbc=True)
 
-        energy, ext_forces = compute_distance_harmonic_energy_and_forces(
-            vec, dis, self.center, self.kspring
-        )
+        energy = 0.0
         forces = np.zeros(atoms.positions.shape)
-        forces[self.group] = ext_forces
+        if self.num_steps >= self.delay:
+            energy, ext_forces = compute_distance_harmonic_energy_and_forces(
+                vec, dis, self.center, self.kspring
+            )
+            forces = np.zeros(atoms.positions.shape)
+            forces[self.group] = ext_forces
+        else:
+            ...
 
         results = {}
         results["energy"] = energy
@@ -89,7 +93,7 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
             fopen.write(content)
 
         return
-    
+
     def _write_step(self):
         """"""
         content = "{:>12d}  {:>12.4f}  {:>12.4f}\n".format(*self.step_info)
@@ -135,7 +139,7 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
             raise RuntimeError("Broadcast cannot.")
 
         return new_inputs
-    
+
     @staticmethod
     def broadcast(inp_dict: dict) -> List["DistanceHarmonicCalculator"]:
         """Create a list of calculators based on input parameters."""

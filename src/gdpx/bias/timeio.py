@@ -9,11 +9,13 @@ from ase.calculators.calculator import Calculator
 
 class TimeIOCalculator(Calculator):
 
-    def __init__(self, pace: int=1, *args, **kwargs):
+    def __init__(self, pace: int = 1, delay: int = 0, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
         self.pace = pace
+
+        self.delay = delay
 
         self._num_steps = 0
 
@@ -42,7 +44,9 @@ class TimeIOCalculator(Calculator):
         if self.num_steps == 0:
             self._write_first_step()
 
-        self.results, self.step_info = self._icalculate(atoms, properties, system_changes)
+        self.results, self.step_info = self._icalculate(
+            atoms, properties, system_changes
+        )
 
         if self.num_steps % self.pace == 0:
             self._write_step()
@@ -65,6 +69,7 @@ class TimeIOCalculator(Calculator):
         """"""
 
         raise NotImplementedError()
+
 
 if __name__ == "__main__":
     ...
