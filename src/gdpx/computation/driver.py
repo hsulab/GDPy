@@ -322,9 +322,7 @@ class AbstractDriver(AbstractNode):
 
         # - check again
         cache_traj = self.read_trajectory()
-        curr_atoms, converged = None, self.read_convergence(
-            cache_traj=cache_traj
-        )  # NOTE: This will read_trajectory
+        curr_atoms, converged = None, self.read_convergence(cache_traj=cache_traj)
         if converged:
             self._debug(f"... 2. converged @ {self.directory.name} ...")
             traj = cache_traj
@@ -583,13 +581,20 @@ class AbstractDriver(AbstractNode):
         #       some spin systems may give different scf convergence on the same
         #       structure. Sometimes, the preivous failed but the next run converged,
         #       The concat below uses the previous one...
+        # FIXME: Check if energies are consistent? DFT spin energy inconsistent see above?
         traj_frames, ntrajs = [], len(traj_list)
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
+                prev_end_frame = traj_list[i - 1][-1]
+                curr_beg_frame = traj_list[i][0]
                 assert np.allclose(
-                    traj_list[i - 1][-1].positions, traj_list[i][0].positions
-                ), f"Traj {i-1} and traj {i} are not consecutive."
+                    prev_end_frame.positions, curr_beg_frame.positions
+                ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
+                # assert np.allclose(
+                #     prev_end_frame.get_potential_energy(),
+                #     curr_beg_frame.get_potential_energy(),
+                # ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
                 traj_frames.extend(traj_list[i][1:])
         else:
             ...
