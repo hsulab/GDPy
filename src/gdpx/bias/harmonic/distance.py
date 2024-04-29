@@ -28,11 +28,12 @@ def compute_distance_harmonic_energy_and_forces(
 ):
     """"""
     # compute energy
-    energy = np.sum(0.5 * kspring * (dis - center) ** 2)
+    dx = dis - center
+    energy = 0.5 * kspring * dx**2
 
     # compute forces
     forces = np.zeros((2, 3))
-    frc_i = -kspring * vec / dis
+    frc_i = -kspring * dx * vec / dis
     forces[0] += frc_i
     forces[1] += -frc_i
 
