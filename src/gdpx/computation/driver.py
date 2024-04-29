@@ -606,7 +606,17 @@ class AbstractDriver(AbstractNode):
         else:
             ...
 
-        return traj_frames
+        # We only keep structures at dump_period and the last one.
+        # If ckpt_period != dump_period, sometimes the structure at ckpt_period is
+        # only save but we do not need it so remove it here!
+        frames = []
+        for a in traj_frames:
+            if a.info["step"] % self.setting.dump_period == 0:
+                frames.append(a)
+        if traj_frames[-1].info["step"] % self.setting.dump_period != 0:
+            frames.append(traj_frames[-1])
+
+        return frames
 
     def as_dict(self) -> dict:
         """Return parameters of this driver."""
