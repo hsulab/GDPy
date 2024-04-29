@@ -298,7 +298,9 @@ class AbstractDriver(AbstractNode):
                 converged = self.read_convergence(cache_traj=cache_traj)
                 self._debug(f"... convergence {converged} ...")
                 if not converged:
-                    self._debug(f"... unconverged @ {self.directory.name} ...")
+                    self._debug(
+                        f"... continue from unconverged @ {self.directory.name} ..."
+                    )
                     ckpt_wdir = self._save_checkpoint() if read_ckpt else None
                     self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
                     self._cleanup()
@@ -313,7 +315,7 @@ class AbstractDriver(AbstractNode):
                 else:
                     self._debug(f"... converged @ {self.directory.name} ...")
             else:
-                self._debug(f"... clean up @ {self.directory.name} ...")
+                self._debug(f"... start after clean up @ {self.directory.name} ...")
                 self._cleanup()
                 self._irun(atoms, *args, **kwargs)
 
