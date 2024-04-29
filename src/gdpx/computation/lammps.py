@@ -1,44 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import copy
 import dataclasses
 import io
 import itertools
+import os
 import pathlib
 import pickle
 import shutil
-import traceback
 import tarfile
-import dataclasses
-
+import traceback
 from collections.abc import Iterable
-from typing import List, Mapping, Dict, Optional, NoReturn, Tuple
+from typing import Dict, List, Mapping, NoReturn, Optional, Tuple
 
 import numpy as np
-
-from ase import Atoms
-from ase import units
-from ase.data import atomic_numbers, atomic_masses
+from ase import Atoms, units
+from ase.calculators.calculator import FileIOCalculator, all_changes
+from ase.calculators.lammps import Prism, unitconvert
+from ase.calculators.mixing import LinearCombinationCalculator
+from ase.calculators.singlepoint import SinglePointCalculator
+from ase.data import atomic_masses, atomic_numbers
 from ase.io import read, write
 from ase.io.lammpsdata import write_lammps_data
-from ase.calculators.lammps import unitconvert, Prism
-from ase.calculators.calculator import (
-    all_changes,
-    FileIOCalculator,
-)
-from ase.calculators.singlepoint import SinglePointCalculator
-from ase.calculators.mixing import LinearCombinationCalculator
 
 from .. import config
 from ..builder.constraints import parse_constraint_info
-from .driver import AbstractDriver, DriverSetting, Controller
-
 from ..potential.managers.plumed.calculators.plumed2 import (
-    Plumed,
-    update_stride_and_file,
-)
+    Plumed, update_stride_and_file)
+from .driver import AbstractDriver, Controller, DriverSetting
 
 
 @dataclasses.dataclass(frozen=True)
@@ -141,7 +131,6 @@ def read_single_simulation(
     prefix: str,
     *,
     units: str,
-    ckpt_period: int = -1,
     archive_path: pathlib.Path = None,
 ):
     """"""
@@ -220,10 +209,10 @@ def read_single_simulation(
         traj_io, index=":", format="lammps-dump-text", prismobj=prismobj, units=units
     )
     nframes_traj = len(curr_traj_frames_)
-    if ckpt_period > 0:
-        nframes_traj_ = (nframes_traj // ckpt_period) * ckpt_period + 1
-        config._debug(f"cut nframes from {nframes_traj} to {nframes_traj_}.")
-        nframes_traj = nframes_traj_
+    # if ckpt_period > 0:
+    #     nframes_traj_ = (nframes_traj // ckpt_period) * ckpt_period + 1
+    #     config._debug(f"cut nframes from {nframes_traj} to {nframes_traj_}.")
+    #     nframes_traj = nframes_traj_
 
     timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
@@ -745,7 +734,6 @@ class LmpDriver(AbstractDriver):
                 wdir=w,
                 prefix="",
                 units=curr_units,
-                ckpt_period=self.setting.ckpt_period,
                 archive_path=archive_path,
             )
             traj_list.append(curr_frames)
@@ -757,18 +745,21 @@ class LmpDriver(AbstractDriver):
                 wdir=self.directory,
                 prefix="",
                 units=curr_units,
-                ckpt_period=1,  # read all structures and ignore ckpt
                 archive_path=archive_path,
             )
         )
 
         # -- concatenate
-        traj_frames, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
+        traj_frames, num_trajs = [], len(traj_list)
+        if num_trajs == 1:
             traj_frames.extend(traj_list[0])
-            for i in range(1, ntrajs):
-                prev_end_frame = traj_list[i - 1][-1]
+        elif num_trajs > 1:
+            for i in range(1, num_trajs):
                 curr_beg_frame = traj_list[i][0]
+                curr_beg_step = curr_beg_frame.info["step"]
+                prev_steps = [a.info["step"] for a in traj_list[i - 1]]
+                prev_traj = traj_list[i - 1][: prev_steps.index(curr_beg_step) + 1]
+                prev_end_frame = prev_traj[-1]
                 assert np.allclose(
                     prev_end_frame.positions, curr_beg_frame.positions
                 ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
@@ -776,7 +767,8 @@ class LmpDriver(AbstractDriver):
                     prev_end_frame.get_potential_energy(),
                     curr_beg_frame.get_potential_energy(),
                 ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
-                traj_frames.extend(traj_list[i][1:])
+                traj_frames.extend(prev_traj[:-1])
+            traj_frames.extend(traj_list[-1])
         else:
             ...
 
