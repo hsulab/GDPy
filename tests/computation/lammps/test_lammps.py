@@ -8,11 +8,9 @@ import pathlib
 import shutil
 import tempfile
 
-import yaml
-import pytest
-
 import numpy as np
-
+import pytest
+import yaml
 from ase.io import read, write
 
 from gdpx import config
@@ -54,6 +52,40 @@ def test_reax_nvt():
     energy = results[-1][-1].get_potential_energy()
 
     assert np.allclose(energy, -115.088791411)
+
+    return
+
+
+def test_reax_nvt_archive():
+    """"""
+    atoms = read("./assets/Pd38_oct.xyz")
+    structures = [atoms]
+
+    worker = convert_config_to_potter("./assets/reaxnvt.yaml")[0]
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        worker.directory = tmpdirname
+        # worker.directory = "./_xxx"
+        worker.run(structures)
+        worker.inspect(structures)
+
+        # read unarchived results
+        results = worker.retrieve(include_retrieved=True, use_archive=True)
+
+        num_frames = len(results[-1])
+        assert num_frames == 18
+
+        energy = results[-1][-1].get_potential_energy()
+        assert np.allclose(energy, -115.088791411)
+
+        # read archived results
+        results = worker.retrieve(include_retrieved=True, use_archive=True)
+
+        num_frames = len(results[-1])
+        assert num_frames == 18
+
+        energy = results[-1][-1].get_potential_energy()
+        assert np.allclose(energy, -115.088791411)
 
     return
 
