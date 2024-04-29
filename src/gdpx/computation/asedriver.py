@@ -23,6 +23,7 @@ from ase.io import read, write
 import ase.constraints
 from ase.constraints import Filter
 from ase.optimize.optimize import Dynamics
+from ase.md.md import MolecularDynamics
 from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
     Stationary,
@@ -53,9 +54,9 @@ def set_calc_state(calc: Calculator, timestep: float, stride: int):
     return
 
 
-def update_atoms_info(atoms: Atoms, dyn: Dynamics, start_step: int = 0) -> None:
+def update_atoms_info(atoms: Atoms, dyn: Dynamics) -> None:
     """Update step in atoms.info."""
-    atoms.info["step"] = dyn.nsteps + start_step
+    atoms.info["step"] = dyn.nsteps
 
     return
 
@@ -144,14 +145,10 @@ def save_trajectory(atoms, log_fpath) -> None:
 
 
 def save_checkpoint(
-    dyn: Dynamics,
-    atoms: Atoms,
-    wdir: pathlib.Path,
-    ckpt_number: int = 3,
-    start_step: int = 0,
+    dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number: int = 3
 ):
     """"""
-    ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps+start_step}"
+    ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps}"
     ckpt_wdir.mkdir(parents=True, exist_ok=True)
 
     # write(ckpt_wdir/"structure.xyz", atoms)
@@ -620,6 +617,7 @@ class AseDriver(AbstractDriver):
             else:  # restart ...
                 ckpt_wdir = self._find_latest_checkpoint(prev_wdir)
                 atoms, rng_state = self._load_checkpoint(ckpt_wdir)
+                write(self.directory / self.xyz_fname, atoms)
                 start_step = atoms.info["step"]
                 if hasattr(self.calc, "calcs"):
                     for calc in self.calc.calcs:
@@ -628,7 +626,11 @@ class AseDriver(AbstractDriver):
                 # --- update run_params in settings
                 target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
                 if target_steps > 0:
-                    steps = target_steps - start_step
+                    if self.setting.task == "md":
+                        steps = target_steps - start_step
+                    else:
+                        # ase v3.22.1 opt will reset max_steps to steps in run
+                        steps = target_steps
                 assert steps > 0, "Steps should be greater than 0."
                 kwargs.update(steps=steps)
 
@@ -640,7 +642,8 @@ class AseDriver(AbstractDriver):
 
             # - set dynamics
             dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
-            # dynamics.nsteps = start_step
+            dynamics.nsteps = start_step
+            dynamics.max_steps = self.setting.steps
             if hasattr(dynamics, "rng") and rng_state is not None:
                 dynamics.rng.bit_generator.state = rng_state
 
@@ -652,7 +655,6 @@ class AseDriver(AbstractDriver):
                 update_atoms_info,
                 dyn=dynamics,
                 atoms=atoms,
-                start_step=start_step,
             )
 
             # HACK: add some observers to early stop the simulation
@@ -681,7 +683,6 @@ class AseDriver(AbstractDriver):
                 atoms=atoms,
                 wdir=self.directory,
                 ckpt_number=self.setting.ckpt_number,
-                start_step=start_step,
             )
             dynamics.attach(
                 save_trajectory,
@@ -706,36 +707,39 @@ class AseDriver(AbstractDriver):
             # NOTE: check if the last frame is properly stored
             dump_period = self.setting.dump_period
             assert init_params["loginterval"] == dump_period
+            ckpt_period = self.setting.ckpt_period
 
-            should_dump_last = False
+            should_dump_last, should_ckpt_last = False, False
             if self.setting.task == "min":
                 # optimiser dumps every step to log but we control saved structures
                 # by dump_period
-                data = np.loadtxt(self.directory / "dyn.log", dtype=str, skiprows=1)
-                if len(data.shape) == 1:
-                    data = data[np.newaxis, :]
-                nsteps = data.shape[0]
+                nsteps = atoms.info["step"] + 1
                 if nsteps > 0 and (nsteps - 1) % dump_period != 0:
                     should_dump_last = True
+                if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
+                    should_ckpt_last = True
             elif self.setting.task == "md":
                 nsteps = atoms.info["step"] + 1
                 if nsteps > 0 and (nsteps - 1) % dump_period != 0:
                     should_dump_last = True
                     if atoms.info.get(EARLYSTOP_KEY, False):
                         should_dump_last = True
+                if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
+                    should_ckpt_last = True
             if should_dump_last:
                 self._print("dump the last frame...")
-                update_atoms_info(atoms, dynamics, start_step=start_step)
-                # FIXME: save checkpoint at the end of each simulation
+                update_atoms_info(atoms, dynamics)
+                save_trajectory(atoms, self.directory / self.xyz_fname)
+                retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
+
+            if should_ckpt_last:
+                self._print("ckpt the last frame...")
                 save_checkpoint(
                     dynamics,
                     atoms,
                     self.directory,
                     ckpt_number=self.setting.ckpt_number,
-                    start_step=start_step,
                 )
-                save_trajectory(atoms, self.directory / self.xyz_fname)
-                retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
 
             # - Some interactive calculator needs kill processes after finishing,
             #   e.g. VaspInteractive...
@@ -799,6 +803,9 @@ class AseDriver(AbstractDriver):
                         break
                 else:
                     frames = []
+
+        # HACK: No need cut frames to the checkpoint like other driver backends
+        #       as we always dump the last frame as a checkpoint
 
         return frames
 
