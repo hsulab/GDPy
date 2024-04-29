@@ -734,6 +734,23 @@ class LmpDriver(AbstractDriver):
 
         return traj_frames
 
+    def read_convergence(self, *args, **kwargs):
+        """"""
+        if self.ignore_convergence:
+            return True
+
+        converged = False
+        log_fpath = self.directory / ASELMPCONFIG.log_filename
+        if log_fpath:
+            with open(log_fpath, "r") as fopen:
+                lines = fopen.readlines()
+            if lines[-1].strip().startswith("Total wall time:"):
+                converged = True
+        else:
+            ...
+
+        return converged
+
 
 class Lammps(FileIOCalculator):
 

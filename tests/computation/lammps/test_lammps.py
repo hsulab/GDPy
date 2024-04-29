@@ -100,7 +100,7 @@ def test_reax_nvt_continue():
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         wdir = tmpdirname
-        wdir = "./_xxx"
+        # wdir = "./_xxx"
         wdir = pathlib.Path(wdir)
         # run first simulation
         worker = convert_config_to_potter(worker_params)[0]
@@ -114,6 +114,11 @@ def test_reax_nvt_continue():
 
         # run more steps
         os.remove(wdir / "_local_jobs.json")
+        with open(wdir / "cand0" / "lmp.out", "r") as fopen:
+            lines = fopen.readlines()
+        with open(wdir / "cand0" / "lmp.out", "w") as fopen:
+            fopen.write("".join(lines[:-1]))
+
         worker_params["driver"]["run"]["steps"] = 29
 
         worker = convert_config_to_potter(worker_params)[0]
