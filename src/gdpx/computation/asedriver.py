@@ -9,33 +9,25 @@ import pathlib
 import shutil
 import tarfile
 import traceback
-from typing import Optional, List, Tuple
 import warnings
+from typing import List, Optional, Tuple
 
-import numpy as np
-
-import yaml
-
-from ase import Atoms
-from ase import units
-
-from ase.io import read, write
 import ase.constraints
-from ase.constraints import Filter
-from ase.optimize.optimize import Dynamics
-from ase.md.md import MolecularDynamics
-from ase.md.velocitydistribution import (
-    MaxwellBoltzmannDistribution,
-    Stationary,
-    ZeroRotation,
-)
-
+import numpy as np
+import yaml
+from ase import Atoms, units
 from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.constraints import Filter
+from ase.io import read, write
+from ase.md.md import MolecularDynamics
+from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
+                                         Stationary, ZeroRotation)
+from ase.optimize.optimize import Dynamics
 
 from .. import config as GDPCONFIG
 from ..potential.calculators.mixer import EnhancedCalculator
-from .driver import AbstractDriver, DriverSetting, Controller, EARLYSTOP_KEY
+from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
 from .md.md_utils import force_temperature
 from .observer import create_an_observer
 
@@ -390,7 +382,7 @@ class AseDriverSetting(DriverSetting):
         if self.task == "rxn":
             # TODO: move to reactor
             try:
-                from sella import Sella, Constraints
+                from sella import Constraints, Sella
 
                 driver_cls = Sella
             except:
@@ -806,6 +798,9 @@ class AseDriver(AbstractDriver):
 
         # HACK: No need cut frames to the checkpoint like other driver backends
         #       as we always dump the last frame as a checkpoint
+        # NOTE: Actually, if the simulation stopped in the middle, we do not have
+        #       the checkpoint of the last frame thus the trajectories are not
+        #       consecutive. So we concatenate trajectoies by atoms.info["step"]!!!
 
         return frames
 
