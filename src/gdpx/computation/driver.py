@@ -247,7 +247,7 @@ class AbstractDriver(AbstractNode):
 
     def run(
         self, atoms, read_ckpt: bool = True, extra_info: dict = None, *args, **kwargs
-    ) -> Atoms:
+    ) -> None:
         """Return the last frame of the simulation.
 
         Copy input atoms, and return a new atoms. Check whether the simulation is
@@ -258,8 +258,8 @@ class AbstractDriver(AbstractNode):
         checkpoint...
 
         """
-        # - NOTE: input atoms from WORKER may have minimal properties as
-        #         cell, pbc, positions, symbols, tags, momenta...
+        # NOTE: input atoms from WORKER may have minimal properties as
+        #       cell, pbc, positions, symbols, tags, momenta...
         atoms = atoms.copy()
 
         # - set driver's atoms to the current one
@@ -275,22 +275,21 @@ class AbstractDriver(AbstractNode):
         else:
             system_changed = False
 
-        # - backup old params
-        params_old = copy.deepcopy(self.calc.parameters)
+        # backup old params
+        prev_params = copy.deepcopy(self.calc.parameters)
 
-        # - run dynamics
-        cache_traj = None
+        # run dynamics
+        self.cache_traj: Optional[List[Atoms]] = None
         if not self._verify_checkpoint():
             # If there is no valid checkpoint, just run the simulation from the scratch
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True, exist_ok=True)
             self._irun(atoms, *args, **kwargs)
         else:
-            # If there is valid checkpoints...
+            # If there is any valid checkpoint...
             if not system_changed:
                 self._debug(f"... system not changed @ {self.directory.name} ...")
-                cache_traj = self.read_trajectory()
-                converged = self.read_convergence(cache_traj=cache_traj)
+                converged = self.read_convergence()
                 self._debug(f"... convergence {converged} ...")
                 if not converged:
                     self._debug(
@@ -302,11 +301,11 @@ class AbstractDriver(AbstractNode):
                     self._irun(
                         atoms,
                         ckpt_wdir=ckpt_wdir,
-                        cache_traj=cache_traj,
+                        cache_traj=self.cache_traj,
                         *args,
                         **kwargs,
                     )
-                    cache_traj = None
+                    self.cache_traj = None
                 else:
                     self._debug(f"... converged @ {self.directory.name} ...")
             else:
@@ -314,30 +313,10 @@ class AbstractDriver(AbstractNode):
                 self._cleanup()
                 self._irun(atoms, *args, **kwargs)
 
-        self.calc.parameters = params_old
+        self.calc.parameters = prev_params
         self.calc.reset()
 
-        # - check again
-        cache_traj = self.read_trajectory()
-        curr_atoms, converged = None, self.read_convergence(cache_traj=cache_traj)
-        if converged:
-            self._debug(f"... 2. converged @ {self.directory.name} ...")
-            traj = cache_traj
-            nframes = len(traj)
-            if nframes > 0:
-                curr_atoms = traj[-1]
-                if extra_info is not None:
-                    curr_atoms.info.update(**extra_info)
-            else:
-                warnings.warn(
-                    f"The calculation at {self.directory.name} performed but failed.",
-                    RuntimeWarning,
-                )
-                curr_atoms = None
-        else:
-            self._debug(f"... 2. unconverged @ {self.directory.name} ...")
-
-        return curr_atoms  # TODO: change None to ...
+        return
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
@@ -444,7 +423,7 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def read_convergence(self, cache_traj: List[Atoms] = None, *args, **kwargs) -> bool:
+    def read_convergence(self, *args, **kwargs) -> bool:
         """Read output to check whether the simulation is converged.
 
         TODO:
@@ -455,10 +434,10 @@ class AbstractDriver(AbstractNode):
             return True
 
         # - check whether the driver is coverged
-        if cache_traj is None:
+        if self.cache_traj is None:
             traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
         else:
-            traj_frames = cache_traj
+            traj_frames = self.cache_traj
 
         # - check if this structure is bad
         is_badstru = False
