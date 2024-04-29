@@ -452,7 +452,7 @@ class AseDriver(AbstractDriver):
         """"""
         super().__init__(calc, params, directory, *args, **kwargs)
 
-        self.setting = AseDriverSetting(**params)
+        self.setting: AseDriverSetting = AseDriverSetting(**params)
 
         self._log_fpath = self.directory / self.log_fname
 
@@ -670,7 +670,7 @@ class AseDriver(AbstractDriver):
                         atoms=atoms,
                         dynamics=dynamics,
                         observer=ob,
-                        print_func=self._print
+                        print_func=self._print,
                     )
 
             # traj file not stores properties (energy, forces) properly
@@ -699,7 +699,7 @@ class AseDriver(AbstractDriver):
             # run simulation
             dynamics.run(**run_params)
 
-            # make sure the max_steps are the same as input even if 
+            # make sure the max_steps are the same as input even if
             # it is set by earlystop observer
             dynamics.max_steps = self.setting.steps
 
@@ -709,16 +709,18 @@ class AseDriver(AbstractDriver):
 
             should_dump_last = False
             if self.setting.task == "min":
-                # optimiser dumps every step to log...
+                # optimiser dumps every step to log but we control saved structures
+                # by dump_period
                 data = np.loadtxt(self.directory / "dyn.log", dtype=str, skiprows=1)
                 if len(data.shape) == 1:
                     data = data[np.newaxis, :]
                 nsteps = data.shape[0]
-                if nsteps > 0 and dump_period > 1 and (nsteps - 1) % dump_period != 0:
+                if nsteps > 0 and (nsteps - 1) % dump_period != 0:
                     should_dump_last = True
             elif self.setting.task == "md":
                 nsteps = atoms.info["step"] + 1
-                if nsteps > 0 and dump_period > 1 and (nsteps - 1) % dump_period != 0:
+                if nsteps > 0 and (nsteps - 1) % dump_period != 0:
+                    should_dump_last = True
                     if atoms.info.get(EARLYSTOP_KEY, False):
                         should_dump_last = True
             if should_dump_last:
