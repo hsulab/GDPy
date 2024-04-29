@@ -9,24 +9,19 @@ import re
 import shutil
 import tarfile
 import warnings
-
-from typing import Optional, NoReturn, List, Callable, Union
 from collections.abc import Iterable
+from typing import Callable, List, NoReturn, Optional, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.constraints import FixAtoms
 from ase.calculators.calculator import compare_atoms
-from ase.md.velocitydistribution import (
-    MaxwellBoltzmannDistribution,
-    Stationary,
-    ZeroRotation,
-)
+from ase.constraints import FixAtoms
+from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
+                                         Stationary, ZeroRotation)
 
-from .md.md_utils import force_temperature
-from ..builder.constraints import parse_constraint_info, convert_indices
+from ..builder.constraints import convert_indices, parse_constraint_info
 from ..core.node import AbstractNode
+from .md.md_utils import force_temperature
 
 #: Prefix of backup files
 BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
@@ -582,14 +577,18 @@ class AbstractDriver(AbstractNode):
         # NOTE: For DFT calculations,
         #       some spin systems may give different scf convergence on the same
         #       structure. Sometimes, the preivous failed but the next run converged,
-        #       The concat below uses the previous one...
+        #       The concat below uses the latest one...
         # FIXME: Check if energies are consistent? DFT spin energy inconsistent see above?
-        traj_frames, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
+        traj_frames, num_trajs = [], len(traj_list)
+        if num_trajs == 1:
             traj_frames.extend(traj_list[0])
-            for i in range(1, ntrajs):
-                prev_end_frame = traj_list[i - 1][-1]
+        elif num_trajs > 1:
+            for i in range(1, num_trajs):
                 curr_beg_frame = traj_list[i][0]
+                curr_beg_step = curr_beg_frame.info["step"]
+                prev_steps = [a.info["step"] for a in traj_list[i - 1]]
+                prev_traj = traj_list[i - 1][: prev_steps.index(curr_beg_step) + 1]
+                prev_end_frame = prev_traj[-1]
                 assert np.allclose(
                     prev_end_frame.positions, curr_beg_frame.positions
                 ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
@@ -597,7 +596,8 @@ class AbstractDriver(AbstractNode):
                 #     prev_end_frame.get_potential_energy(),
                 #     curr_beg_frame.get_potential_energy(),
                 # ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
-                traj_frames.extend(traj_list[i][1:])
+                traj_frames.extend(prev_traj[:-1])
+            traj_frames.extend(traj_list[-1])
         else:
             ...
 
