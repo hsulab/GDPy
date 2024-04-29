@@ -1,0 +1,12 @@
+potter:
+  name: emt
+  params:
+    backend: ase
+driver:
+  task: md
+  backend: ase
+  init:
+    dump_period: 1
+  run:
+    steps: 23
+  random_seed: 1112
