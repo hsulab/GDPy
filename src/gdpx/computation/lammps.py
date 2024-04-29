@@ -734,11 +734,8 @@ class LmpDriver(AbstractDriver):
 
         return traj_frames
 
-    def read_convergence(self, *args, **kwargs):
+    def read_convergence_from_logfile(self, *args, **kwargs):
         """"""
-        if self.ignore_convergence:
-            return True
-
         converged = False
         log_fpath = self.directory / ASELMPCONFIG.log_filename
         if log_fpath:

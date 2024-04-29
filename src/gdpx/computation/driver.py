@@ -71,6 +71,9 @@ class DriverSetting:
     #: Driver setting.
     backend: str = "external"
 
+    #: Whether check convergence based on the trajectory.
+    check_trajectory_convergence: bool = False
+
     #: Some observers
     observers: Optional[List[dict]] = None
 
@@ -158,7 +161,7 @@ class AbstractDriver(AbstractNode):
     accept_bad_structure: bool = False
 
     #: Driver setting.
-    setting: Optional[DriverSetting] = None
+    setting: DriverSetting = None
 
     #: List of output files would be saved when restart.
     saved_fnames: List[str] = []
@@ -423,6 +426,69 @@ class AbstractDriver(AbstractNode):
 
         return
 
+    def read_convergence_from_trajectory(self, frames: List[Atoms], *args, **kwargs):
+        """"""
+        converged = False
+
+        num_frames = len(frames)
+        if num_frames == 0:
+            return converged
+
+        if self.setting.steps > 0:
+            step = frames[-1].info["step"]
+            self._debug(f"nframes: {num_frames}")
+            if self.setting.task == "min":
+                # NOTE: check geometric convergence (forces)...
+                #       some drivers does not store constraints in trajectories
+                # NOTE: Sometimes constraint changes if `lowest` is used.
+                frozen_indices = None
+                run_params = self.setting.get_run_params()
+                cons_text = run_params.pop("constraint", None)
+                mobile_indices, beg_frozen_indices = parse_constraint_info(
+                    frames[0], cons_text, ret_text=False
+                )
+                if beg_frozen_indices:
+                    frozen_indices = beg_frozen_indices
+                end_atoms = frames[-1]
+                if frozen_indices:
+                    mobile_indices, end_frozen_indices = parse_constraint_info(
+                        end_atoms, cons_text, ret_text=False
+                    )
+                    if convert_indices(end_frozen_indices) != convert_indices(
+                        beg_frozen_indices
+                    ):
+                        self._print(
+                            "Constraint changes after calculation, which may be from `lowest`. Most times it is fine."
+                        )
+                    end_atoms._del_constraints()
+                    end_atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                # TODO: Different codes have different definition for the max force
+                maxfrc = np.max(np.fabs(end_atoms.get_forces(apply_constraint=True)))
+                if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
+                    converged = True
+                self._debug(
+                    f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
+                )
+            elif self.setting.task == "md":
+                if step + 1 >= self.setting.steps:  # step startswith 0
+                    converged = True
+                self._debug(
+                    f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}"
+                )
+            else:
+                raise NotImplementedError("Unknown task in read_convergence.")
+            # check if simulation stops early
+            earlystop = frames[-1].info.get(EARLYSTOP_KEY, False)
+            if earlystop:
+                converged = True
+                self._debug("  the simulation early stopped.")
+        else:
+            # just spc, only need to check force convergence
+            if num_frames == 1:
+                converged = True
+
+        return converged
+
     def read_convergence(self, *args, **kwargs) -> bool:
         """Read output to check whether the simulation is converged.
 
@@ -433,92 +499,40 @@ class AbstractDriver(AbstractNode):
         if self.ignore_convergence:
             return True
 
-        # - check whether the driver is coverged
-        if self.cache_traj is None:
-            traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
+        # For some large simulations, the convergence check by reading the trajectory
+        # can be very time-consuming. Thus, we implement another way to check convergence
+        # by reading some lines in the logfile for some driver backends.
+        if not self.setting.check_trajectory_convergence and hasattr(
+            self, "read_convergence_from_logfile"
+        ):
+            converged = self.read_convergence_from_logfile()
         else:
-            traj_frames = self.cache_traj
+            # - check whether the driver is coverged
+            if self.cache_traj is None:
+                traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
+            else:
+                traj_frames = self.cache_traj
 
-        # - check if this structure is bad
-        is_badstru = False
-        for a in traj_frames:
-            curr_is_badstru = a.info.get("is_badstru", False)
-            if curr_is_badstru:
-                is_badstru = True
-                break
-        else:
-            ...
-
-        if self.accept_bad_structure:
-            return True
-        else:
-            if is_badstru:
-                return False
+            # - check if this structure is bad
+            is_badstru = False
+            for a in traj_frames:
+                curr_is_badstru = a.info.get("is_badstru", False)
+                if curr_is_badstru:
+                    is_badstru = True
+                    break
             else:
                 ...
 
-        # - check actual convergence
-        nframes = len(traj_frames)
-
-        converged = False
-        if nframes > 0:
-            if self.setting.steps > 0:
-                step = traj_frames[-1].info["step"]
-                self._debug(f"nframes: {nframes}")
-                if self.setting.task == "min":
-                    # NOTE: check geometric convergence (forces)...
-                    #       some drivers does not store constraints in trajectories
-                    # NOTE: Sometimes constraint changes if `lowest` is used.
-                    frozen_indices = None
-                    run_params = self.setting.get_run_params()
-                    cons_text = run_params.pop("constraint", None)
-                    mobile_indices, beg_frozen_indices = parse_constraint_info(
-                        traj_frames[0], cons_text, ret_text=False
-                    )
-                    if beg_frozen_indices:
-                        frozen_indices = beg_frozen_indices
-                    end_atoms = traj_frames[-1]
-                    if frozen_indices:
-                        mobile_indices, end_frozen_indices = parse_constraint_info(
-                            end_atoms, cons_text, ret_text=False
-                        )
-                        if convert_indices(end_frozen_indices) != convert_indices(
-                            beg_frozen_indices
-                        ):
-                            self._print(
-                                "Constraint changes after calculation, which may be from `lowest`. Most times it is fine."
-                            )
-                        end_atoms._del_constraints()
-                        end_atoms.set_constraint(FixAtoms(indices=frozen_indices))
-                    # TODO: Different codes have different definition for the max force
-                    maxfrc = np.max(
-                        np.fabs(end_atoms.get_forces(apply_constraint=True))
-                    )
-                    if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
-                        converged = True
-                    self._debug(
-                        f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
-                    )
-                elif self.setting.task == "md":
-                    if step + 1 >= self.setting.steps:  # step startswith 0
-                        converged = True
-                    self._debug(
-                        f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}"
-                    )
-                else:
-                    raise NotImplementedError("Unknown task in read_convergence.")
-                # check if simulation stops early
-                earlystop = traj_frames[-1].info.get(EARLYSTOP_KEY, False)
-                if earlystop:
-                    converged = True
-                    self._debug("  the simulation early stopped.")
+            if self.accept_bad_structure:
+                return True
             else:
-                # just spc, only need to check force convergence
-                if nframes == 1:
-                    converged = True
-            # self._print(f"energy: {traj_frames[-1].get_potential_energy():12.4f}")
-        else:
-            ...
+                if is_badstru:
+                    return False
+                else:
+                    ...
+
+            # check actual convergence
+            converged = self.read_convergence_from_trajectory(traj_frames)
 
         return converged
 
