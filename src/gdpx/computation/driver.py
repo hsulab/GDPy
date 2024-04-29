@@ -549,7 +549,9 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def _aggregate_trajectories(self, archive_path=None) -> List[Atoms]:
+    def _aggregate_trajectories(
+        self, check_energy: bool = False, archive_path=None, *args, **kwargs
+    ) -> List[Atoms]:
         """"""
         prev_wdirs = []
         if archive_path is None:
@@ -563,13 +565,15 @@ class AbstractDriver(AbstractNode):
             prev_wdirs = [
                 self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)
             ]
-        self._debug(f"prev_wdirs: {prev_wdirs}")
+        self._debug(f"prev_wdirs@{self.directory.name}: {prev_wdirs}")
 
         all_wdirs = prev_wdirs + [self.directory]
 
         traj_list = []
         for w in all_wdirs:
-            curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path)
+            curr_frames = self._read_a_single_trajectory(
+                w, archive_path=archive_path, **kwargs
+            )
             if curr_frames:
                 traj_list.append(curr_frames)
 
@@ -592,10 +596,11 @@ class AbstractDriver(AbstractNode):
                 assert np.allclose(
                     prev_end_frame.positions, curr_beg_frame.positions
                 ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
-                # assert np.allclose(
-                #     prev_end_frame.get_potential_energy(),
-                #     curr_beg_frame.get_potential_energy(),
-                # ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
+                if check_energy:
+                    assert np.allclose(
+                        prev_end_frame.get_potential_energy(),
+                        curr_beg_frame.get_potential_energy(),
+                    ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
                 traj_frames.extend(prev_traj[:-1])
             traj_frames.extend(traj_list[-1])
         else:
