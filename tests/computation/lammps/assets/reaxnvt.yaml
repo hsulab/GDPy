@@ -1,0 +1,16 @@
+potter:
+  name: reax
+  params:
+    backend: lammps
+    command: lmp_mpi -in ./in.lammps 2>&1 > lmp.out
+    model: ./assets/ffield.PdO
+driver:
+  task: md
+  init:
+    ckpt_period: 7
+    ensemble: nvt
+    controller:
+      name: nose_hoover_chain
+  run:
+    steps: 17
+  random_seed: 45869826
