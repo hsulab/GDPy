@@ -198,12 +198,25 @@ class DirectBuilder(StructureBuilder):
         super().__init__(directory, *args, **kwargs)
 
         if isinstance(frames, (str, pathlib.Path)):
-            self._fpath = pathlib.Path(frames).resolve()
+            fdata = frames.strip().split("::")
+            if len(fdata) == 1:
+                fpath, ornaments = frames, 0
+            elif len(fdata) == 2:
+                fpath, ornaments = fdata
+            else:
+                raise RuntimeError()
+            self._fpath = pathlib.Path(fpath).resolve()
+            assert self._fpath.exists(), f"{str(self._fpath)} does not exist."
+            try:
+                self.ornaments = int(ornaments)
+            except:
+                self.ornaments = 0
         else:
             assert all(
                 isinstance(x, Atoms) for x in frames
             ), "Input should be a list of atoms."
             self._frames = frames
+            self.ornaments = 0
 
         self._indices = indices
 
@@ -260,6 +273,14 @@ class DirectBuilder(StructureBuilder):
             ret_frames = [frames_[i] for i in indices_]
         else:
             ret_frames = frames_
+
+        # some ornaments
+        if self.ornaments > 0:
+            new_frames = []
+            for _ in range(self.ornaments):
+                new_frames.extend(ret_frames)
+            ret_frames = new_frames
+
         return ret_frames
 
     def as_dict(self) -> dict:
@@ -270,6 +291,7 @@ class DirectBuilder(StructureBuilder):
                 self._fpath.resolve()
             ),  # TODO: if not exists, and only have _frames
             indices=self.indices,
+            ornaments=self.ornaments,
         )
 
         return params
