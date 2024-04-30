@@ -3,7 +3,7 @@
 
 import abc
 import pathlib
-from typing import Union, Callable
+from typing import Callable, Union
 
 from .. import config
 
@@ -11,6 +11,7 @@ from .. import config
 class Operation(abc.ABC):
     """"""
 
+    #: Node ID.
     identifier: str = "op"
 
     #: Working directory for the operation.
@@ -25,7 +26,9 @@ class Operation(abc.ABC):
     #: Standard debug function.
     _debug: Callable = config._debug
 
-    def __init__(self, input_nodes=[], directory: Union[str, pathlib.Path] = "./") -> None:
+    def __init__(
+        self, input_nodes=[], directory: Union[str, pathlib.Path] = "./"
+    ) -> None:
         """"""
         if hasattr(self, "_preprocess_input_nodes"):
             self.input_nodes = self._preprocess_input_nodes(input_nodes)
@@ -64,7 +67,7 @@ class Operation(abc.ABC):
             self.status = "unfinished"
 
         return
-    
+
     def is_about_to_exit(self) -> bool:
         """Check whether this operation has an input is about to exit."""
         status = [node.status == "exit" for node in self.input_nodes]
