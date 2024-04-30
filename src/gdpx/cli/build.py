@@ -3,10 +3,30 @@
 
 
 import pathlib
+from typing import Union
 
 from ase.io import read, write
 
+from ..builder.builder import StructureBuilder
 from ..builder.interface import BuilderVariable
+
+
+def create_builder(config: Union[str, dict]) -> StructureBuilder:
+    """"""
+    supported_configtypes = ["json", "yaml"]
+    if isinstance(config, (str, pathlib.Path)):
+        params = str(config)
+        suffix = params[-4:]
+        if suffix in supported_configtypes:
+            from gdpx.utils.command import parse_input_file
+
+            params = parse_input_file(config)
+        else:  # assume it is an ASE readable structure file
+            params = dict(method="direct", frames=params)
+
+    builder = BuilderVariable(**params).value
+
+    return builder
 
 
 def build_structures(

@@ -4,40 +4,43 @@
 import copy
 import itertools
 import pathlib
-from typing import Union, List, NoReturn
+from typing import List, NoReturn, Union
 
 import omegaconf
-
 from ase import Atoms
 from ase.io import read, write
 
-from ..core.variable import Variable
+from ..builder.interface import BuilderVariable, build
+from ..cli.build import create_builder
 from ..core.operation import Operation
 from ..core.register import registers
-
-from ..worker.worker import AbstractWorker
+from ..core.variable import Variable
 from ..data.array import AtomsNDArray
-
-from ..builder.interface import build, BuilderVariable
-
-from .selector import AbstractSelector, load_cache
+from ..worker.worker import AbstractWorker
 from .composition import ComposedSelector
+from .selector import AbstractSelector, load_cache
 
 
 @registers.variable.register
 class SelectorVariable(Variable):
 
-    def __init__(self, selection: Union[dict, List[dict]], directory="./", *args, **kwargs) -> None:
+    def __init__(
+        self, selection: Union[dict, List[dict]], directory="./", *args, **kwargs
+    ) -> None:
         """Define a Variable that has a Selector."""
         # We can define a selector in two different ways:
         # The Dict must have a selection key
         # - a Dict that defines a single selector
-        # - a List of Dict that defines several selectors, 
+        # - a List of Dict that defines several selectors,
         #   which will be converted into a composed one
         selection = copy.deepcopy(selection)
-        if isinstance(selection, dict) or isinstance(selection, omegaconf.dictconfig.DictConfig):
+        if isinstance(selection, dict) or isinstance(
+            selection, omegaconf.dictconfig.DictConfig
+        ):
             selection = [selection]
-        elif isinstance(selection, list) or isinstance(selection, omegaconf.listconfig.ListConfig):
+        elif isinstance(selection, list) or isinstance(
+            selection, omegaconf.listconfig.ListConfig
+        ):
             ...
         else:
             raise TypeError(f"Unknown type of {selection =}.")
@@ -91,7 +94,7 @@ class select(Operation):
         # We can define a selector in two different ways:
         # The Dict must have a selection key
         # - a Dict that defines a single selector
-        # - a List of Dict that defines several selectors, 
+        # - a List of Dict that defines several selectors,
         #   which will be converted into a composed one
         if isinstance(selector, dict) or isinstance(
             selector, omegaconf.dictconfig.DictConfig
@@ -99,7 +102,7 @@ class select(Operation):
             selector = SelectorVariable(
                 directory=self.directory / "selector", **selector
             )
-        #self._print(f"{selector = }")
+        # self._print(f"{selector = }")
 
         return structures, selector
 
@@ -119,7 +122,7 @@ class select(Operation):
             structures.markers = markers
             if cache_fpath.stat().st_size != 0:
                 new_frames = read(cache_fpath, ":")
-            else: # sometimes selection gives no structures and writes empty file
+            else:  # sometimes selection gives no structures and writes empty file
                 new_frames = []
         self._print(f"nframes: {len(new_frames)}")
 
@@ -130,10 +133,10 @@ class select(Operation):
             self.status = "exit"
 
         return structures
-    
+
     # NOTE: This operation exits when no structures are selected
     #       so we donot need convergence check here?
-    #def report_convergence(self, *args, **kwargs) -> bool:
+    # def report_convergence(self, *args, **kwargs) -> bool:
     #    """"""
     #    input_nodes = self.input_nodes
     #    assert self.status == "finished", f"Operation {self.directory.name} cannot report convergence without forwarding."
@@ -162,9 +165,9 @@ def run_selection(
 ) -> None:
     """Run selection with input selector and input structures.
 
-    This no more accepts a worker as all data used in the selection should be 
+    This no more accepts a worker as all data used in the selection should be
     computed in advance.
-    
+
     """
     directory = pathlib.Path(directory)
     if not directory.exists():
@@ -174,14 +177,10 @@ def run_selection(
 
     params = parse_input_file(param_file)
 
-    selector = SelectorVariable(
-        directory=directory, **params
-    ).value
+    selector = SelectorVariable(directory=directory, **params).value
     selector.directory = directory
 
     # - read structures
-    from gdpx.builder import create_builder
-
     builder = create_builder(structure)
     frames = builder.run()  # -> List[Atoms]
 
