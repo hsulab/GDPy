@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
 import collections
+import copy
 import itertools
 import pathlib
-
-from typing import NoReturn, List, Union
-
-import omegaconf
+from typing import List, NoReturn, Union
 
 import numpy as np
-
+import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
-from ..core.placeholder import Placeholder
-from ..core.variable import Variable
 from ..core.operation import Operation
+from ..core.placeholder import Placeholder
 from ..core.register import registers
+from ..core.variable import Variable
 from ..data.array import AtomsNDArray
 from .builder import StructureBuilder
 
@@ -284,24 +281,6 @@ class modify(Operation):
         self.status = "finished"
 
         return frames
-
-
-def create_builder(config: Union[str, dict]) -> StructureBuilder:
-    """"""
-    supported_configtypes = ["json", "yaml"]
-    if isinstance(config, (str, pathlib.Path)):
-        params = str(config)
-        suffix = params[-4:]
-        if suffix in supported_configtypes:
-            from gdpx.utils.command import parse_input_file
-
-            params = parse_input_file(config)
-        else:  # assume it is an ASE readable structure file
-            params = dict(method="direct", frames=params)
-
-    builder = BuilderVariable(**params).value
-
-    return builder
 
 
 if __name__ == "__main__":

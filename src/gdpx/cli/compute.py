@@ -4,18 +4,19 @@
 
 import logging
 import pathlib
-from typing import Optional, Union, List
+from typing import List, Optional, Union
 
 from ase.io import write
 
 from .. import config
 from ..builder.interface import BuilderVariable
-from ..worker.interface import ComputerVariable, ReactorVariable
-from ..worker.drive import DriverBasedWorker
-from ..worker.grid import GridDriverBasedWorker
 from ..reactor.reactor import AbstractReactor
 from ..scheduler.interface import SchedulerVariable
 from ..utils.command import parse_input_file
+from ..worker.drive import DriverBasedWorker
+from ..worker.grid import GridDriverBasedWorker
+from ..worker.interface import ComputerVariable, ReactorVariable
+from .build import create_builder
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -109,8 +110,6 @@ def run_worker(
         directory.mkdir()
 
     # read structures
-    from gdpx.builder import create_builder
-
     frames = []
     for i, s in enumerate(structure):
         builder = create_builder(s)
@@ -185,10 +184,10 @@ def run_grid_worker(grid_params: dict, batch: Optional[int], spawn, directory):
         )
     else:  # run jobs in command line
         batch_grid_params, batch_wdirs = [], []
-        for x in grid_params["grid"]: 
+        for x in grid_params["grid"]:
             if x["batch"] == batch:
                 batch_grid_params.append(x)
-                batch_wdirs.append(directory/x["wdir_name"])
+                batch_wdirs.append(directory / x["wdir_name"])
         grid_params = {}
         grid_params["grid"] = batch_grid_params
 
