@@ -22,9 +22,10 @@ def create_builder(config: Union[str, dict]) -> StructureBuilder:
 
             params = parse_input_file(config)
         else:  # assume it is an ASE readable structure file
+            # FIXME: separate reading structures from a file or a direct python object
             params = dict(method="direct", frames=params)
 
-    builder = BuilderVariable(**params).value
+    builder: StructureBuilder = BuilderVariable(**params).value
 
     return builder
 
@@ -35,7 +36,7 @@ def build_structures(
     """"""
     directory = pathlib.Path(directory)
 
-    builder = BuilderVariable(directory=directory, **config).value
+    builder: StructureBuilder = BuilderVariable(directory=directory, **config).value
     builder.directory = directory
 
     # assume substrates is a file path
