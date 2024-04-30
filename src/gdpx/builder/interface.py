@@ -1,42 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import collections
-import copy
-import itertools
 import pathlib
-from typing import List, NoReturn, Union
+from typing import List, Union
 
-import numpy as np
 import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
 from ..core.operation import Operation
-from ..core.placeholder import Placeholder
 from ..core.register import registers
 from ..core.variable import Variable
 from ..data.array import AtomsNDArray
-from .builder import StructureBuilder
-
-
-@registers.placeholder.register
-class StructurePlaceholder(Placeholder):
-
-    name = "structure"
-
-    def __init__(self, *args, **kwargs):
-        """"""
-        super().__init__()
-
-        return
 
 
 @registers.variable.register
 class BuilderVariable(Variable):
     """Build structures from the scratch."""
 
-    def __init__(self, directory="./", *args, **kwargs):
+    def __init__(self, directory: Union[str, pathlib.Path] = "./", *args, **kwargs):
         """"""
         # - create a validator
         method = kwargs.get("method", "direct")
@@ -47,7 +29,7 @@ class BuilderVariable(Variable):
         return
 
     @Variable.directory.setter
-    def directory(self, directory_) -> NoReturn:
+    def directory(self, directory_) -> None:
         """"""
         self._directory = pathlib.Path(directory_)
 
@@ -143,39 +125,10 @@ class write_stru(Operation):
 
 
 @registers.operation.register
-class xbuild(Operation):
-    """Build structures without substrate structures."""
-
-    def __init__(self, builders, directory="./") -> NoReturn:
-        super().__init__(input_nodes=builders, directory=directory)
-
-    def forward(self, *args, **kwargs) -> List[Atoms]:
-        """"""
-        super().forward()
-
-        bundle = []
-        for i, builder in enumerate(args):
-            builder.directory = self.directory
-            curr_builder_output = self.directory / f"{builder.name}_output-{i}.xyz"
-            if curr_builder_output.exists():
-                frames = read(curr_builder_output, ":")
-            else:
-                frames = builder.run()
-                write(curr_builder_output, frames)
-            self._print(f"{i} - {builder.name} nframes: {len(frames)}")
-            bundle.extend(frames)
-        self._print(f"nframes: {len(bundle)}")
-
-        self.status = "finished"
-
-        return bundle
-
-
-@registers.operation.register
 class build(Operation):
     """Build structures without substrate structures."""
 
-    def __init__(self, builder, size: int = 1, directory="./") -> NoReturn:
+    def __init__(self, builder, size: int = 1, directory="./") -> None:
         super().__init__(input_nodes=[builder], directory=directory)
 
         self.size = size
