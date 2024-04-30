@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import NoReturn, Optional, Union, List
+from typing import List, NoReturn, Optional, Union
 
 from ase import Atoms
-from ase.io import read, write
 from ase.constraints import FixAtoms
+from ase.io import read, write
 
 from .builder import StructureBuilder
 
@@ -178,12 +178,12 @@ class DirectBuilder(StructureBuilder):
     _fpath: Optional[Union[str, pathlib.Path]] = None
 
     #: Selected structure indices.
-    _indices: Union[str, List[int]] = None
+    _indices: Optional[Union[str, List[int]]] = None
 
     def __init__(
         self,
         frames: Union[str, pathlib.Path, List[Atoms]],
-        indices: Union[str, List[int]] = None,
+        indices: Optional[Union[str, List[int]]] = None,
         directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
