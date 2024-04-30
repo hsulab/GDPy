@@ -1,13 +1,13 @@
 {% set name = "gdpx" %}
-{% set version = "0.0.8" %}
+{% set version = "0.0.9" %}
 
 package:
   name: {{ name|lower }}
   version: {{ version }}
 
 source:
-  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.8.tar.gz
-  sha256: 17f39862379881db9d43b3031ab70746933822085642e48080012096ee870881
+  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.9.tar.gz
+  sha256: b7bffcadd405a57d52a1b92a987fd20c0bb0aec2204d963f5fefe71b17e3fb81
 
 build:
   noarch: python
