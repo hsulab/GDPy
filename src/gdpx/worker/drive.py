@@ -3,35 +3,30 @@
 
 
 import copy
-import uuid
+import json
 import pathlib
 import shutil
 import tarfile
-import time
-from typing import Tuple, List, NoReturn, Union
 import tempfile
+import time
+import uuid
 import warnings
-import json
-import yaml
+from typing import List, NoReturn, Tuple, Union
 
 import numpy as np
-
-from tinydb import Query, TinyDB
-
-from joblib import Parallel, delayed
-
+import yaml
 from ase import Atoms
 from ase.io import read, write
+from joblib import Parallel, delayed
+from tinydb import Query, TinyDB
 
 from .. import config
 from ..builder.builder import StructureBuilder
 from ..computation.driver import AbstractDriver
 from ..potential.manager import AbstractPotentialManager
 from ..utils.command import CustomTimer
-
-from .worker import AbstractWorker
 from .utils import copy_minimal_frames, get_file_md5
-
+from .worker import AbstractWorker
 
 """Monitor computation tasks with Worker.
 
@@ -273,7 +268,10 @@ class DriverBasedWorker(AbstractWorker):
         return curr_md5, curr_frames, start_confid, random_seeds
 
     def _prepare_batches(
-        self, frames: List[Atoms], start_confid: int, rng_states: Union[List[int], List[dict]]
+        self,
+        frames: List[Atoms],
+        start_confid: int,
+        rng_states: Union[List[int], List[dict]],
     ):
         # - check wdir
         num_frames = len(frames)
@@ -294,10 +292,12 @@ class DriverBasedWorker(AbstractWorker):
 
         # - split structures into different batches
         if self._share_wdir:
-           self._print(f"Worker overwrites batchsize to {num_frames =} as it uses share_wdir.")
-           batchsize = num_frames
+            self._print(
+                f"Worker overwrites batchsize to {num_frames =} as it uses share_wdir."
+            )
+            batchsize = num_frames
         else:
-           batchsize = self.batchsize
+            batchsize = self.batchsize
 
         starts, ends = self._split_groups(num_frames, batchsize)
 
@@ -327,7 +327,7 @@ class DriverBasedWorker(AbstractWorker):
 
         # - check if the same input structures are provided
         identifier, frames, start_confid, new_rng_states = self._preprocess(builder)
-        if rng_states: # Sometimes we need explicit rng_states as in active learning
+        if rng_states:  # Sometimes we need explicit rng_states as in active learning
             new_rng_states = rng_states
         batches = self._prepare_batches(frames, start_confid, new_rng_states)
 
@@ -411,7 +411,9 @@ class DriverBasedWorker(AbstractWorker):
                         )
                     )
                 # save worker input for later review
-                worker_input_fpath = self.directory/"_data"/f"worker-{identifier}.json"
+                worker_input_fpath = (
+                    self.directory / "_data" / f"worker-{identifier}.json"
+                )
                 if not worker_input_fpath.exists():
                     with open(worker_input_fpath, "w") as fopen:
                         json.dump(self.as_dict(), fopen, indent=2)
@@ -712,7 +714,7 @@ class DriverBasedWorker(AbstractWorker):
             a.info["wdir"] = str(wdir.name)
 
         return traj_frames
-    
+
     def _write_worker_inputs(self, uid: str):
         """"""
         worker_params = {}
@@ -754,7 +756,7 @@ class QueueDriverBasedWorker(DriverBasedWorker):
 
         # - save worker file
         self._write_worker_inputs(uid=uid)
-        
+
         # - save structures
         dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").resolve())
 
@@ -831,21 +833,23 @@ class CommandDriverBasedWorker(DriverBasedWorker):
 
                 # run calculations
                 temp_wdir = self.directory / "_shared"
-                for i, (wdir, atoms, rs) in enumerate(zip(curr_wdirs, curr_frames, rng_states)):
+                for i, (wdir, atoms, rs) in enumerate(
+                    zip(curr_wdirs, curr_frames, rng_states)
+                ):
                     if wdir in cache_wdirs:
                         continue
                     if temp_wdir.exists():
                         shutil.rmtree(temp_wdir)
                     self.driver.directory = temp_wdir
-                    if i % self.print_period == 0 or i+1 == num_curr_frames:
+                    if i % self.print_period == 0 or i + 1 == num_curr_frames:
                         self._print(
                             f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
                         )
                     self.driver.set_rng(seed=rs)
                     self.driver.reset()
-                    new_atoms = self.driver.run(
-                        atoms, read_ckpt=False, extra_info=dict(wdir=wdir)
-                    )
+                    self.driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=wdir))
+                    new_atoms = self.driver.read_trajectory()[-1]
+                    new_atoms.info["wdir"] = atoms.info["wdir"]
                     # - save data
                     # TODO: There may have conflicts in write as many groups may run at the same time.
                     #       Add protection to the file.
