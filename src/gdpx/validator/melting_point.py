@@ -21,6 +21,7 @@ except Exception as e:
 from ..builder.group import create_a_group
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
+from ..utils.strconv import str2array
 from .utils import wrap_traj
 from .validator import AbstractValidator
 
@@ -94,9 +95,9 @@ class MeltingPointValidator(AbstractValidator):
     def __init__(
         self,
         group,
+        temperatures: Union[List[float], str],
         run_fit: bool = True,
         start=0,
-        temperatures: List[float] = None,
         fitting="sigmoid",
         directory: Union[str, pathlib.Path] = "./",
         *args,
@@ -111,8 +112,13 @@ class MeltingPointValidator(AbstractValidator):
 
         self.start = start
 
-        if temperatures is None:
+        if isinstance(temperatures, list):
             temperatures = []
+        elif isinstance(temperatures, str):
+            temperatures = str2array(temperatures)
+        else:
+            raise TypeError(f"Unknown {temperatures} of type {type(temperatures)}.")
+
         self.temperatures = temperatures
 
         assert fitting in ["sigmoid", "jpcc2020"], "Unsupported fitting function."
