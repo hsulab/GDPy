@@ -5,12 +5,10 @@ import copy
 import itertools
 import pathlib
 import time
-from typing import Optional, List, Tuple, Union
-
-import omegaconf
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
-
+import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
@@ -21,6 +19,7 @@ from ..core.variable import Variable
 from ..data.array import AtomsNDArray
 from ..selector.scf import ScfSelector
 from ..utils.command import CustomTimer
+from ..utils.strconv import str2array
 from ..worker.drive import (
     CommandDriverBasedWorker,
     DriverBasedWorker,
@@ -61,19 +60,27 @@ class DriverVariable(Variable):
 
     def _broadcast_drivers(self, params: dict) -> List[dict]:
         """Broadcast parameters if there were any parameter is a list."""
-        # - find longest params
-        plengths = []
+        # find longest params
+        params_, plengths = {}, []
         for k, v in params.items():
             if isinstance(v, list):
                 n = len(v)
+            elif isinstance(v, str):
+                if ":" in v:
+                    v = str2array(v).tolist()
+                    n = len(v)
+                else:
+                    n = 1
             else:  # int, float, string
                 n = 1
+            params_[k] = v
             plengths.append((k, n))
         plengths = sorted(plengths, key=lambda x: x[1])
-        # NOTE: check only has one list params
+        # check only has one list params
         assert sum([p[1] > 1 for p in plengths]) <= 1, "only accept one param as list."
+        params = params_
 
-        # - convert to dataclass
+        # convert to dataclass
         params_list = []
         maxname, maxlength = plengths[-1]
         for i in range(maxlength):
