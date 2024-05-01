@@ -27,7 +27,9 @@ from ase.io.lammpsdata import write_lammps_data
 from .. import config
 from ..builder.constraints import parse_constraint_info
 from ..potential.managers.plumed.calculators.plumed2 import (
-    Plumed, update_stride_and_file)
+    Plumed,
+    update_stride_and_file,
+)
 from .driver import AbstractDriver, Controller, DriverSetting
 
 
@@ -216,6 +218,9 @@ class LmpDriverSetting(DriverSetting):
 
     controller: dict = dataclasses.field(default_factory=dict)
 
+    #: Whether fix com to the its initial position.
+    fix_com: bool = False
+
     use_lmpvel: bool = True
 
     etol: float = 0
@@ -347,6 +352,12 @@ class LmpDriverSetting(DriverSetting):
             lines = [baro_line, f"timestep {_init_md_params['timestep']}"]
         else:
             raise RuntimeError(f"Unknown ensemble {self.ensemble}.")
+
+        if self.fix_com:
+            com_line = "fix  fix_com {group} recenter INIT INIT INIT".format(
+                **_init_md_params
+            )
+            lines.insert(0, com_line)
 
         return lines
 
