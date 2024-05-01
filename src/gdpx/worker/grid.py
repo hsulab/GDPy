@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+import json
 import pathlib
+import tempfile
 import time
 import uuid
-import json
+from typing import List, Optional, Tuple
+
 import yaml
-import tempfile
-
-from typing import Optional, Tuple, List
-
-from tinydb import Query, TinyDB
-
 from ase import Atoms
 from ase.io import read, write
+from tinydb import Query, TinyDB
 
 from ..computation.driver import AbstractDriver
 from ..potential.manager import AbstractPotentialManager
-from ..utils.command import CustomTimer
-from ..scheduler.scheduler import AbstractScheduler
 from ..scheduler.local import LocalScheduler
-from .worker import AbstractWorker
+from ..scheduler.scheduler import AbstractScheduler
+from ..utils.command import CustomTimer
 from .utils import copy_minimal_frames, get_file_md5
-
+from .worker import AbstractWorker
 
 #: Structure ID Key.
 STRU_ID_KEY: str = "identifier"
@@ -90,11 +87,27 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return inp_stru_md5, copied_structures
 
-    def _prepare_batches(self, structures, potters, drivers):
+    def _prepare_batches(self, identifier, structures, potters, drivers):
         """"""
+        # try broadcasting structures to drivers
         num_structures = len(structures)
         num_drivers = len(drivers)
-        assert num_structures == num_drivers
+
+        has_broadcast = False
+        if num_structures == num_drivers:
+            ...
+        else:
+            if num_structures == 1:
+                structures_ = []
+                for _ in range(num_drivers):
+                    structures_.extend(structures)
+                structures = structures_
+                num_structures = len(structures)
+                has_broadcast = True
+            else:
+                raise RuntimeError(
+                    f"Failed to broadcast {num_structures =} to {num_drivers =}."
+                )
 
         wdir_names = [f"cand{i}" for i in range(num_drivers)]
 
@@ -113,9 +126,12 @@ class GridDriverBasedWorker(AbstractWorker):
                 )
             )
 
-        return batches, batch_numbers, wdir_names
+        # save computation inputs for review
+        self._write_inputs(identifier, batch_numbers, wdir_names, has_broadcast)
 
-    def run(self, structures, batch: Optional[int]=None, *args, **kwargs) -> str:
+        return batches
+
+    def run(self, structures, batch: Optional[int] = None, *args, **kwargs) -> str:
         """Run computations in batch.
 
         The structures and the drivers must be one-to-one.
@@ -132,13 +148,12 @@ class GridDriverBasedWorker(AbstractWorker):
 
         # prepare batch
         identifier, structures = self._preprocess_structures(structures)
-        batches, batch_numbers, wdir_names = self._prepare_batches(
-            structures, self.potters, self.drivers
+        batches = self._prepare_batches(
+            identifier, structures, self.potters, self.drivers
         )
-        self._print(f"num_computations: {len(structures)} num_batches: {len(batches)}")
-
-        # save computation inputs for review
-        self._write_inputs(identifier, batch_numbers, wdir_names)
+        self._print(
+            f"num_computations: {len(self.drivers)} num_batches: {len(batches)}"
+        )
 
         # read metadata from file or database
         database = TinyDB(
@@ -175,7 +190,9 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return identifier
 
-    def _write_inputs(self, identifier: str, batch_numbers, wdir_names):
+    def _write_inputs(
+        self, identifier: str, batch_numbers, wdir_names, has_broadcast: bool = False
+    ):
         """"""
         inp_fpath = self.directory / "_data" / f"inp-{identifier}.json"
         if inp_fpath.exists():
@@ -187,6 +204,10 @@ class GridDriverBasedWorker(AbstractWorker):
         for i, (ib, wdir_name, potter, driver) in enumerate(
             zip(batch_numbers, wdir_names, self.potters, self.drivers)
         ):
+            if not has_broadcast:
+                stru_i = i
+            else:
+                stru_i = 0
             comput_data = {"batch": ib, "wdir_name": wdir_name}
             comput_data["builder"] = dict(
                 method="reader",
@@ -195,7 +216,7 @@ class GridDriverBasedWorker(AbstractWorker):
                         self.directory
                     )
                 ),
-                index=f"{i}",
+                index=f"{stru_i}",
             )
             comput_data["computer"] = {}
             comput_data["computer"]["potter"] = potter.as_dict()
@@ -232,6 +253,7 @@ class GridDriverBasedWorker(AbstractWorker):
 
         if self.scheduler.name == "local":
             from ..utils.command import run_command
+
             run_command(self.directory, self.scheduler.user_commands)
         else:
             # - save scheduler file
@@ -304,7 +326,7 @@ class GridDriverBasedWorker(AbstractWorker):
                 (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
                     self.directory
                 ),
-                doc_data["batch"]
+                doc_data["batch"],
             )
             self.scheduler.user_commands = user_commands
 
@@ -351,6 +373,7 @@ class GridDriverBasedWorker(AbstractWorker):
                             )
                         else:
                             from ..utils.command import run_command
+
                             run_command(self.directory, self.scheduler.user_commands)
             else:
                 self._print(f"{job_name} is running...")
