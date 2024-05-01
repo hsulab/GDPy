@@ -20,11 +20,8 @@ from ..data.array import AtomsNDArray
 from ..selector.scf import ScfSelector
 from ..utils.command import CustomTimer
 from ..utils.strconv import str2array
-from ..worker.drive import (
-    CommandDriverBasedWorker,
-    DriverBasedWorker,
-    QueueDriverBasedWorker,
-)
+from ..worker.drive import (CommandDriverBasedWorker, DriverBasedWorker,
+                            QueueDriverBasedWorker)
 from ..worker.interface import ComputerVariable
 
 # --- variable ---
@@ -320,15 +317,19 @@ class compute(Operation):
 
         nworkers = len(workers)
 
-        # TODO: It is better to move this part to driver...
+        # FIXME: It is better to move this part to driver...
         #       We only convert spc worker structures shape here...
-        driver0_dict = workers[0].driver.as_dict()
+        try:  # DriverBasedWorker
+            driver0_dict = workers[0].driver.as_dict()
+        except:  # GridDriverBasedWorker
+            driver0_dict = dict(task="unknown")
+
         if (
             nworkers == 1
             and driver0_dict.get("task", "min") == "min"
             and (driver0_dict.get("steps", 0) <= 0)
-        ):  # TODO: spc?
-            # - check input data type
+        ):
+            # check input data type
             inp_shape, inp_markers = None, None
             if isinstance(structures, AtomsNDArray):
                 frames = structures.get_marked_structures()
@@ -341,7 +342,7 @@ class compute(Operation):
                 inp_shape = (1, nframes)
                 inp_markers = [(0, i) for i in range(nframes)]
             # self._print(inp_markers)
-            # -- Dump shape data
+            # Dump shape data
             # NOTE: Since all workers use the same input structures,
             #       we only need to dump once here
             shape_dir = self.directory / "_shape"

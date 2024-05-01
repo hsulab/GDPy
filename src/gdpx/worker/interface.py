@@ -4,24 +4,24 @@
 import copy
 import itertools
 import pathlib
-from typing import NoReturn, Optional, List, Callable
+from typing import Callable, List, NoReturn, Optional
 
 import omegaconf
-
 from ase.calculators.calculator import Calculator
 
 from ..core.operation import Operation
-from ..core.variable import Variable
 from ..core.register import registers
-from ..utils.command import parse_input_file
-
+from ..core.variable import Variable
 from ..potential.manager import AbstractPotentialManager
 from ..potential.utils import convert_input_to_potter
 from ..scheduler.scheduler import AbstractScheduler
-from .worker import AbstractWorker
-from .drive import DriverBasedWorker, CommandDriverBasedWorker, QueueDriverBasedWorker
+from ..utils.command import parse_input_file
+from .drive import (CommandDriverBasedWorker, DriverBasedWorker,
+                    QueueDriverBasedWorker)
+from .grid import GridDriverBasedWorker
 from .react import ReactorBasedWorker
 from .single import SingleWorker
+from .worker import AbstractWorker
 
 
 def broadcast_and_adjust_potter(
@@ -80,6 +80,7 @@ class ComputerVariable(Variable):
         driver={},
         scheduler={},
         *,
+        use_grid: bool = False,
         estimate_uncertainty: Optional[bool] = None,
         switch_backend: Optional[str] = None,
         batchsize: int = 1,
@@ -105,6 +106,7 @@ class ComputerVariable(Variable):
             self.potter,
             self.driver,
             self.scheduler,
+            use_grid=use_grid,
             batchsize=self.batchsize,
             share_wdir=share_wdir,
             use_single=use_single,
@@ -159,6 +161,7 @@ class ComputerVariable(Variable):
         drivers,
         scheduler,
         *,
+        use_grid: bool = False,
         batchsize: int = 1,
         share_wdir: bool = False,
         use_single: bool = False,
@@ -173,33 +176,48 @@ class ComputerVariable(Variable):
         num_drivers = len(drivers)
 
         # broadcast
-        # pairs = list(itertools.product(range(num_potters), range(num_drivers)))
         pairs = list(itertools.product(range(num_drivers), range(num_potters)))
-        num_pairs = len(pairs)
 
-        wdirs = [self.directory / f"w{i}" for i in range(num_pairs)]
+        if not use_grid:
+            num_pairs = len(pairs)
+            wdirs = [self.directory / f"w{i}" for i in range(num_pairs)]
 
-        # create workers
-        workers = []
-        # for i, (p_i, d_i) in enumerate(pairs):
-        for i, (d_i, p_i) in enumerate(pairs):
-            # workers share calculator in potter
-            driver = potters[p_i].create_driver(drivers[d_i])
-            if not use_single:
-                if scheduler.name == "local":
-                    worker = CommandDriverBasedWorker(potters[p_i], driver, scheduler)
+            # create workers
+            workers = []
+            # for i, (p_i, d_i) in enumerate(pairs):
+            for i, (d_i, p_i) in enumerate(pairs):
+                # workers share calculator in potter
+                driver = potters[p_i].create_driver(drivers[d_i])
+                if not use_single:
+                    if scheduler.name == "local":
+                        worker = CommandDriverBasedWorker(
+                            potters[p_i], driver, scheduler
+                        )
+                    else:
+                        worker = QueueDriverBasedWorker(potters[p_i], driver, scheduler)
                 else:
-                    worker = QueueDriverBasedWorker(potters[p_i], driver, scheduler)
-            else:
-                worker = SingleWorker(potters[d_i], driver, scheduler)
-            worker._share_wdir = share_wdir
-            worker._retain_info = retain_info
-            # wdir is temporary as it may be reset by drive operation
-            worker.directory = wdirs[i]
-            workers.append(worker)
+                    worker = SingleWorker(potters[d_i], driver, scheduler)
+                worker._share_wdir = share_wdir
+                worker._retain_info = retain_info
+                # wdir is temporary as it may be reset by drive operation
+                worker.directory = wdirs[i]
+                workers.append(worker)
 
-        for worker in workers:
+            for worker in workers:
+                worker.batchsize = batchsize
+        else:
+            new_potters, new_drivers = [], []
+            for d_i, p_i in pairs:
+                potter = potters[p_i]
+                new_potters.append(potter)
+                driver = potter.create_driver(drivers[d_i])
+                new_drivers.append(driver)
+            worker = GridDriverBasedWorker(
+                new_potters, new_drivers, scheduler=scheduler
+            )
             worker.batchsize = batchsize
+            worker.directory = self.directory
+            workers = [worker]
 
         return workers
 
