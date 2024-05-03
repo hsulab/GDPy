@@ -62,7 +62,7 @@ class GaussianCalculator(Calculator):
 
         _width = np.array(self.parameters["width"])
         if len(_width.shape) == 0:
-            _width = _width.reshape(-1)
+            _width = _width.reshape(-1).repeat(self._colvar.dim)
         self._width = _width
         self._height = np.array(self.parameters["height"])
 
@@ -81,9 +81,10 @@ class GaussianCalculator(Calculator):
         
         positions = atoms.positions
         cvfunc, cvparams = self._colvar.cvfunc, self._colvar.params
+        cvdim = self._colvar.dim
 
-        if False: # Combined function...
-            num_his = len(self._history)
+        num_his = len(self._history)
+        if False: # Combined function can be directly differentiated
             if num_his == 0:
                 curr_colvar = cvfunc(positions, cvparams)
                 natoms = len(atoms)
@@ -95,9 +96,16 @@ class GaussianCalculator(Calculator):
                 )
             self._history.append(curr_colvar)
         else:
-            curr_colvar = cvfunc(atoms, cvparams)
+            if num_his == 0:
+                curr_colvar = cvfunc(atoms, cvparams)
+                natoms = len(atoms)
+                e, f = omega, np.zeros((natoms, 3))
+            else:
+                ...
             print(f"colvar: {curr_colvar}")
-            ...
+
+        print(f"bias ene: {e}")
+        print(f"bias frc: {f}")
 
         # ---
         fpath = pathlib.Path(self.directory)/self._fname
@@ -106,7 +114,9 @@ class GaussianCalculator(Calculator):
             fmode = "a"
         
         with open(fpath, fmode) as fopen:
-            content = f"{curr_colvar[0][0]:<8.4f}  {sigma[0]:<8.4f}  {omega:<8.4f}\n"
+            content =  ("{:<8.4f}  "*cvdim).format(*curr_colvar[0])
+            content += ("{:<8.4f}  "*cvdim).format(*sigma)
+            content += f"{omega:<8.4f}\n"
             fopen.write(content)
 
         self.results["energy"] = np.asarray(e)
