@@ -12,6 +12,9 @@ from ..core.register import registers
 from .distance import DistanceColvar
 registers.colvar.register("DistanceColvar")(DistanceColvar)
 
+from .rmsd import RmsdColvar
+registers.colvar.register("RmsdColvar")(RmsdColvar)
+
 from .fingerprint import FingerprintColvar
 registers.colvar.register("FingerprintColvar")(FingerprintColvar)
 
