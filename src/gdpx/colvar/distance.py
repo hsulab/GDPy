@@ -9,12 +9,18 @@ import jax.numpy as jnp
 
 
 class DistanceColvar():
-
+    
     def __init__(self, pairs, *args, **kwargs) -> None:
         """"""
         self.params = np.array(pairs).T
 
         return
+    
+    @property
+    def dim(self):
+        """"""
+
+        return 1
 
     @staticmethod
     @jax.jit
