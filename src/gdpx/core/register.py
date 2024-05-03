@@ -179,7 +179,7 @@ ALL_MODULES = [
     # -- comparators
     ("gdpx", ["comparator"]),
     # -- expeditions
-    ("gdpx", ["expedition"]),
+    ("gdpx.expedition", ["interface"]),
     # -- reactors
     # -- validators
     ("gdpx", ["validator"]),
