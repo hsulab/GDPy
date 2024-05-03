@@ -41,11 +41,25 @@ def compute_gaussian_and_gradient(s, s_t, sigma, omega):
     """
     s1 = s - s_t
     s2 = s1**2 / 2.0 / sigma**2
-    v = np.sum(omega * np.exp(-np.sum(s2, axis=1)))
 
-    dvds = np.sum(-v * s1 / sigma**2, axis=0)  # shape (num_dim, )
+    v0 = omega * np.exp(-np.sum(s2, axis=1))[:, np.newaxis]
+    v = np.sum(omega)
+
+    dvds = np.sum(-v0 * s1 / sigma**2, axis=0)  # shape (num_dim, )
 
     return v, dvds
+
+
+def compute_bias_forces(dvds, dsdx):
+    """"""
+    # dvds (num_dim, ) dsdx (num_dim, num_atoms, 3)
+    print(np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]))
+    print(np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]) * dsdx)
+    forces = -np.sum(
+        np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]) * dsdx, axis=0
+    )
+
+    return forces
 
 
 class DistanceGaussianCalculator(TimeIOCalculator):
@@ -79,12 +93,9 @@ class DistanceGaussianCalculator(TimeIOCalculator):
             if self.num_steps % self.pace == 0:
                 self._history_records.append(s)
             energy, dvds = compute_gaussian_and_gradient(
-                s, self._history_records, self.width, self.height
+                s, np.array(self._history_records), self.width, self.height
             )
-            # dvds (num_dim, ) dsdx (num_dim, num_atoms, 3)
-            forces[self.group] = -np.sum(
-                np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]) * dvds, axis=0
-            )
+            forces[self.group] = compute_bias_forces(dvds, dsdx)
         else:
             ...
 
