@@ -43,7 +43,7 @@ def compute_gaussian_and_gradient(s, s_t, sigma, omega):
     s2 = s1**2 / 2.0 / sigma**2
 
     v0 = omega * np.exp(-np.sum(s2, axis=1))[:, np.newaxis]
-    v = np.sum(omega)
+    v = np.sum(v0)
 
     dvds = np.sum(-v0 * s1 / sigma**2, axis=0)  # shape (num_dim, )
 
@@ -53,8 +53,6 @@ def compute_gaussian_and_gradient(s, s_t, sigma, omega):
 def compute_bias_forces(dvds, dsdx):
     """"""
     # dvds (num_dim, ) dsdx (num_dim, num_atoms, 3)
-    print(np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]))
-    print(np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]) * dsdx)
     forces = -np.sum(
         np.tile(dvds[:, np.newaxis, np.newaxis], dsdx.shape[1:]) * dsdx, axis=0
     )
