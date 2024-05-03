@@ -198,6 +198,8 @@ class AbstractDriver(AbstractNode):
         self.calc = calc
         self.calc.reset()
 
+        self.cache_traj: Optional[List[Atoms]] = None
+
         self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
