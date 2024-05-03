@@ -4,26 +4,21 @@
 import copy
 import dataclasses
 import itertools
-import pathlib
-import time
-import pickle
 import json
-
-from typing import NoReturn, Union, List, Mapping
+import pathlib
+import pickle
+import time
+from typing import List, Mapping, NoReturn, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
 from ase.formula import Formula
+from ase.io import read, write
 
-from .. import create_mixer
-from .. import AtomsNDArray
+from .. import (AtomsNDArray, GridDriverBasedWorker, create_a_group,
+                create_a_molecule_group, create_mixer, find_molecules,
+                str2array)
 from ..expedition import AbstractExpedition
-
-from gdpx.worker.grid import GridDriverBasedWorker
-from gdpx.builder.group import create_a_group, create_a_molecule_group
-from gdpx.graph.molecule import find_product, find_molecules
 
 
 def convert_index_to_formula(atoms, group_indices: List[List[int]]):
@@ -66,7 +61,7 @@ def get_last_atoms(frames):
     """"""
     num_frames = len(frames)
     for i in range(num_frames, 0, -1):
-        atoms = frames[i-1]
+        atoms = frames[i - 1]
         if atoms is not None:
             break
 
@@ -76,18 +71,29 @@ def get_last_atoms(frames):
 @dataclasses.dataclass
 class ReactionSpace:
 
-    ...
+    group: str
+    pairs: list[dict] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         """"""
 
         return
 
+    def get_reactive_indices(self, atoms: Atoms):
+        """"""
+
+        return create_a_group(atoms, group_command=self.group)
+
 
 class AFIRSearch(AbstractExpedition):
 
     def __init__(
-        self, builder, reaction: dict, gamma: Union[float, str] = "2.0", *args, **kwargs
+        self,
+        builder,
+        reaction_space: dict,
+        gamma: Union[float, str] = "2.0",
+        *args,
+        **kwargs,
     ) -> None:
         """Define some basic parameters for the afir search.
 
@@ -98,50 +104,11 @@ class AFIRSearch(AbstractExpedition):
         super().__init__(*args, **kwargs)
 
         self.builder = builder
-        self.reaction = reaction
+        self.reaction_space = ReactionSpace(**reaction_space)
 
         self.gamma_factors = gamma
 
         return
-
-    def _prepare_fragments(self, atoms, *args, **kwargs):
-        """"""
-        data_path = self.directory / "_data"
-        if not data_path.exists():
-            data_path.mkdir(parents=True, exist_ok=True)
-
-        # - find possible reaction pairs
-        frag_fpath = data_path / "fragments.pkl"
-        # TODO: assure the pair order is the same when restart
-        if not frag_fpath.exists():
-            fragments = find_target_fragments(atoms, self.target)
-            with open(frag_fpath, "wb") as fopen:
-                pickle.dump(fragments, fopen)
-        else:
-            with open(frag_fpath, "rb") as fopen:
-                fragments = pickle.load(fopen)
-
-        # TODO: assert molecules in one group are the same type?
-        self._print("Found Target Fragments: ")
-        for k, v in fragments.items():
-            self._print("  {:<24s}:  {}".format(k, v))
-
-        frag_list = []
-        for k, v in fragments.items():
-            frag_list.append(v)
-
-        ntypes = len(frag_list)
-        comb = combinations(range(ntypes), 2)
-
-        possible_pairs = []
-        for i, j in comb:
-            f1, f2 = frag_list[i], frag_list[j]
-            possible_pairs.extend(list(product(f1, f2)))
-
-        with open(self.directory / "_data" / "pairs.pkl", "wb") as fopen:
-            pickle.dump(possible_pairs, fopen)
-
-        return possible_pairs
 
     def _spawn_computers(
         self, pair: List[List[int]], gamma_factors: List[float], *args, **kwargs
@@ -164,7 +131,7 @@ class AFIRSearch(AbstractExpedition):
             curr_bias["params"]["method"] = "afir"
             curr_bias["params"]["gamma"] = g
             curr_bias["params"]["groups"] = pair
-            curr_bias["params"]["use_pbc"] = False # FIXME:
+            curr_bias["params"]["use_pbc"] = False  # FIXME:
             bias_list.append(curr_bias)
 
         # Use shared host potter to reduce loading time and memory usage
@@ -199,9 +166,10 @@ class AFIRSearch(AbstractExpedition):
         self._print("---------------------------")
 
         # - find fragments
-        # possible_pairs = self._prepare_fragments(atoms)
-        num_atoms = len(atoms)
-        fragments = find_molecules(atoms, reactive_indices=range(45, num_atoms))
+        reactive_indices = self.reaction_space.get_reactive_indices(atoms)
+        self._print(f"{reactive_indices =}")
+
+        fragments = find_molecules(atoms, reactive_indices=reactive_indices)
         self._print(fragments)
 
         # pair order is random
@@ -214,7 +182,7 @@ class AFIRSearch(AbstractExpedition):
         num_pairs = len(possible_pairs)
 
         # serialisation pair data
-        pair_data_fpath = self.directory/"pairs.json"
+        pair_data_fpath = self.directory / "pairs.json"
         with open(pair_data_fpath, "w") as fopen:
             json.dump(possible_pairs, fopen)
 
@@ -224,7 +192,7 @@ class AFIRSearch(AbstractExpedition):
 
         # TODO: If gamma is too large, the first computation leads to reaction
 
-        comput_dpath = self.directory/"comput"
+        comput_dpath = self.directory / "comput"
         comput_dpath.mkdir(exist_ok=True)
 
         # - run each pair
@@ -237,10 +205,10 @@ class AFIRSearch(AbstractExpedition):
             for ir, r in enumerate(reactants):
                 self._print(f"  {r:>24s}_{rxn_pair[ir]}")
 
-            # FIXME: batchsize?
             potters, drivers = self._spawn_computers(rxn_pair, self.gamma_factors)
             curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
             curr_worker.directory = comput_dpath / f"pair{i}"
+            curr_worker.batchsize = self.worker.batchsize
             grid_workers.append(curr_worker)
 
             num_potters = len(potters)
@@ -266,10 +234,10 @@ class AFIRSearch(AbstractExpedition):
             for i in range(num_pairs):
                 pseudo_pathway = [get_last_atoms(p) for p in results[i]]
                 # self._print(f"{pseudo_pathway =}")
-                write(ret_dir/f"prp{i}.xyz", pseudo_pathway)
+                write(ret_dir / f"prp{i}.xyz", pseudo_pathway)
 
             # dump finished flag
-            with open(self.directory/"FINISHED", "w") as fopen:
+            with open(self.directory / "FINISHED", "w") as fopen:
                 fopen.write("")
 
         return
@@ -335,15 +303,15 @@ class AFIRSearch(AbstractExpedition):
         if hasattr(self.worker.potter, "remove_loaded_models"):
             self.worker.potter.remove_loaded_models()
 
-        with open(self.directory/"pairs.json", "r") as fopen:
+        with open(self.directory / "pairs.json", "r") as fopen:
             pairs = json.load(fopen)
         num_pairs = len(pairs)
-        
+
         workers = []
         for i in range(num_pairs):
             potters, drivers = self._spawn_computers(pairs[i], self.gamma_factors)
             curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
-            curr_worker.directory = self.directory/ "comput"/ f"pair{i}"
+            curr_worker.directory = self.directory / "comput" / f"pair{i}"
             assert curr_worker.directory.exists()
             workers.append(curr_worker)
 
