@@ -23,7 +23,8 @@ def compute_colvar_and_gradient(cell, positions, pbc: bool = True):
     vec, dis = find_mic(positions[0] - positions[1], cell=cell)
 
     s = np.array(dis)[np.newaxis]
-    dsdx = np.vstack([vec / dis, -vec / dis]).reshape(s.shape, -1, 3)
+    dsdx1 = vec / dis
+    dsdx = np.vstack([dsdx1, -dsdx1]).reshape(s.shape[0], -1, 3)
 
     return s, dsdx
 
@@ -51,7 +52,7 @@ class DistanceGaussianCalculator(TimeIOCalculator):
 
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(self, group: List[int], sigma: float, omega: float, *args, **kwargs):
+    def __init__(self, group: List[int], width: float, height: float, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
@@ -59,8 +60,8 @@ class DistanceGaussianCalculator(TimeIOCalculator):
         assert num_group_atoms == 2
         self.group = group
 
-        self.sigma = np.array(sigma)[np.newaxis]
-        self.omega = omega
+        self.width = np.array(width)[np.newaxis]
+        self.height = height
 
         self._history_records = []
 
@@ -78,7 +79,7 @@ class DistanceGaussianCalculator(TimeIOCalculator):
             if self.num_steps % self.pace == 0:
                 self._history_records.append(s)
             energy, dvds = compute_gaussian_and_gradient(
-                s, self._history_records, self.sigma, self.omega
+                s, self._history_records, self.width, self.height
             )
             # dvds (num_dim, ) dsdx (num_dim, num_atoms, 3)
             forces[self.group] = -np.sum(
@@ -92,9 +93,26 @@ class DistanceGaussianCalculator(TimeIOCalculator):
         results["free_energy"] = energy
         results["forces"] = forces
 
-        step_info = (self.num_steps, s, energy)
+        step_info = (self.num_steps, s[0], energy)
 
         return results, step_info
+
+    def _write_first_step(self):
+        """"""
+        content = f"# {self.pace =} {self.group =} {self.width =} {self.height =}\n"
+        content += "# {:>10s}  {:>12s}  {:>12s}\n".format("step", "distance", "energy")
+        with open(self.log_fpath, "w") as fopen:
+            fopen.write(content)
+
+        return
+
+    def _write_step(self):
+        """"""
+        content = "{:>12d}  {:>12.4f}  {:>12.4f}\n".format(*self.step_info)
+        with open(self.log_fpath, "a") as fopen:
+            fopen.write(content)
+
+        return
 
 
 if __name__ == "__main__":
