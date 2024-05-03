@@ -6,17 +6,42 @@ import copy
 
 import numpy as np
 
-from ..core.variable import Variable
 from ..core.operation import Operation
 from ..core.register import registers
-from ..worker.explore import ExpeditionBasedWorker
+from ..core.variable import Variable
 from ..scheduler.interface import SchedulerVariable
+from ..worker.explore import ExpeditionBasedWorker
 
 
-"""
-"""
+def register_expedition_methods():
+    """"""
+    from .ga.engine import GeneticAlgorithemEngine
+
+    registers.expedition.register("genetic_algorithm")(GeneticAlgorithemEngine)
+
+    from .monte_carlo.basin_hopping import BasinHopping
+
+    registers.expedition.register("basin_hopping")(BasinHopping)
+
+    from .monte_carlo.monte_carlo import MonteCarlo
+
+    registers.expedition.register("monte_carlo")(MonteCarlo)
+
+    from .simulated_annealing.simulated_annealing import SimulatedAnnealing
+
+    registers.expedition.register("simulated_annealing")(SimulatedAnnealing)
+
+    from .artificial_force.afir import AFIRSearch
+
+    registers.expedition.register("artificial_reaction")(AFIRSearch)
+
+    return
 
 
+register_expedition_methods()
+
+
+@registers.variable.register
 class ExpeditionVariable(Variable):
 
     def __init__(self, directory="./", **kwargs):
@@ -54,6 +79,7 @@ class ExpeditionVariable(Variable):
         return builder
 
 
+@registers.operation.register
 class explore(Operation):
 
     #: Whether to actively update some attrs.
