@@ -5,31 +5,29 @@
 import copy
 import logging
 import os
-import re
-import shutil
 import pathlib
 import pickle
+import re
+import shutil
 import tarfile
-from typing import NoReturn, List
+from typing import List, NoReturn
 
 import numpy as np
-
-from ase import Atoms
-from ase import data, units
-from ase.io import read, write
+from ase import Atoms, data, units
 from ase.formula import Formula
 from ase.ga.utilities import closest_distances_generator
+from ase.io import read, write
 
-from .. import registers
-from .. import SingleWorker, DriverBasedWorker
-from .. import dict2str
+from .. import DriverBasedWorker, SingleWorker, dict2str, registers
 from ..expedition import AbstractExpedition
-from .operators import select_operator, parse_operators, save_operator, load_operator
+from .operators import (load_operator, parse_operators, save_operator,
+                        select_operator)
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
+EARLYSTOP_STATE_NAME = "EARLYSTOPPED"
 
 
 def convert_blmin_to_str(blmin: dict) -> str:
@@ -298,7 +296,7 @@ class MonteCarlo(AbstractExpedition):
                 if curr_step > self.convergence["steps"]:
                     self._print("Monte Carlo reaches the maximum step.")
                     break
-                if (self.directory/MC_EARLYSTOP_FNAME).exists():
+                if (self.directory / MC_EARLYSTOP_FNAME).exists():
                     self._print("Monte Carlo reaches the earlystopping.")
                     break
                 # -- run step
@@ -318,10 +316,10 @@ class MonteCarlo(AbstractExpedition):
                     curr_step += 1
                 elif step_state == "FAILED":
                     self._print(f"RETRY STEP {curr_step}.")
-                elif step_state == "EARLYSTOPPED":
+                elif step_state == EARLYSTOP_STATE_NAME:
                     # We need a file flag to indicate the simutlation is finshed
                     # when read_convergence is called.
-                    with open(self.directory/MC_EARLYSTOP_FNAME, "w") as fopen:
+                    with open(self.directory / MC_EARLYSTOP_FNAME, "w") as fopen:
                         fopen.write(f"{step_state =}")
                 else:
                     ...  # This should not happen.
@@ -377,6 +375,12 @@ class MonteCarlo(AbstractExpedition):
 
                 self._save_step_info(curr_op, success)
 
+                # -- check earlystopping
+                # We earlystop the simulation at the end of each step and use
+                # the MC-updated atoms, which may be unaccepted (failure) and
+                # further lead the inconsistency in the final saved structure.
+                step_state = self._check_earlystop(curr_atoms)
+
                 # -- update atoms
                 if success:
                     self.energy_stored = self.energy_operated
@@ -384,12 +388,9 @@ class MonteCarlo(AbstractExpedition):
                     self._print("success...")
                 else:
                     self._print("failure...")
+
+                # FIXME: Save unaccepted structures as well?
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
-
-                step_state = "FINISHED"
-
-                # -- check earlystopping
-                step_state = self._check_earlystop(self.atoms)
             else:
                 step_state = "UNFINISHED"
         else:
@@ -405,6 +406,7 @@ class MonteCarlo(AbstractExpedition):
             A state string `FINISHED` or `EARLYSTOPPED`.
 
         """
+        # check MC earlystop convergence
         es_dict = self.convergence.get("earlystop", None)
         if es_dict is not None:
             prop = es_dict.get("property", None)
@@ -414,11 +416,18 @@ class MonteCarlo(AbstractExpedition):
                 if ae_min <= energy_per_atom < ae_max:
                     es_state = "FINISHED"
                 else:
-                    es_state = "EARLYSTOPPED"
+                    es_state = EARLYSTOP_STATE_NAME
+                    self._print("MC earlystops by `energy_per_atom`.")
             else:
                 raise NotImplementedError(f"Unknown earlystop: {es_dict =}.")
         else:
             es_state = "FINISHED"
+
+        # check atoms earlystop convergence only works with ase driver
+        earlystop = atoms.info.get("earlystop", False)
+        if earlystop:
+            es_state = EARLYSTOP_STATE_NAME
+            self._print("MC earlystops by `driver observer`.")
 
         return es_state
 
@@ -537,7 +546,7 @@ class MonteCarlo(AbstractExpedition):
             # self.start_step = nframes
             if nframes > self.convergence["steps"]:
                 converged = True
-            if (self.directory/MC_EARLYSTOP_FNAME).exists():
+            if (self.directory / MC_EARLYSTOP_FNAME).exists():
                 converged = True
         else:
             ...
