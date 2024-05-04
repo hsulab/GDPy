@@ -4,17 +4,15 @@
 
 import copy
 import itertools
-
 from typing import List
 
 import numpy as np
-
 from ase import Atoms
 from ase.data import atomic_numbers
-from ase.neighborlist import NeighborList, natural_cutoffs
 from ase.ga.utilities import closest_distances_generator
+from ase.neighborlist import NeighborList, natural_cutoffs
 
-from ..core.register import registers, Register
+from ..core.register import Register, registers
 
 registers.observer = Register("observer")
 
@@ -115,7 +113,7 @@ class SmallDistanceObserver(Observer):
             atoms, self._neighlist, self._dmin_dict, included_pairs=self._included_pairs
         ):
             should_stop = True
-        
+
         return should_stop
 
     def _check_whether_distance_is_not_small(
@@ -161,7 +159,7 @@ class IsolatedAtomObserver(SmallDistanceObserver):
             atoms, self._neighlist, included_indices=self._included_indices
         ):
             should_stop = True
-        
+
         return should_stop
 
     def _check_whether_atom_is_isolated(
@@ -191,8 +189,41 @@ class IsolatedAtomObserver(SmallDistanceObserver):
         return is_isolated
 
 
+class MoleculeNumberObserver(Observer):
+
+    def __init__(self, species: List[str], number_limit: int, *args, **kwargs):
+        """"""
+        super().__init__(*args, **kwargs)
+
+        self.species = species
+        self.number_limit = number_limit
+
+        return
+
+    def run(self, atoms: Atoms):
+        """"""
+        should_stop = False
+
+        tags = atoms.get_tags()
+        tags_dict = {}  # species -> tag list
+        for key, group in itertools.groupby(enumerate(tags), key=lambda x: x[1]):
+            cur_indices = [x[0] for x in group]
+            cur_atoms = atoms[cur_indices]
+            formula = cur_atoms.get_chemical_formula()
+            if formula not in tags_dict:
+                tags_dict[formula] = []
+            tags_dict[formula].append([key, cur_indices])
+
+        curr_number = sum(len(tags_dict.get(s, [])) for s in self.species)
+        if curr_number > self.number_limit:
+            should_stop = True
+
+        return should_stop
+
+
 registers.observer.register("small_distance")(SmallDistanceObserver)
 registers.observer.register("isolated_atom")(IsolatedAtomObserver)
+registers.observer.register("molecule_number")(MoleculeNumberObserver)
 
 
 def create_an_observer(params: dict) -> "Observer":
