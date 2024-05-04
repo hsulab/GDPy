@@ -85,7 +85,15 @@ class NucleiRepulsionCalculator(Calculator):
         """"""
         super().calculate(atoms, properties, system_changes)
 
-        # - create a neighlist
+        # find target atoms
+        if self.target_indices is None:
+            self.target_indices = [
+                i for i, a in enumerate(atoms) if a.symbol in self.symbols
+            ]
+        else:
+            ...
+
+        # create a neighlist
         if self.neighlist is None:
             self.neighlist = NeighborList(
                 self.cov_min * np.array(natural_cutoffs(atoms)),
@@ -94,24 +102,27 @@ class NucleiRepulsionCalculator(Calculator):
                 bothways=False,
             )
         else:
-            if self.check_atoms_change:
-                num_atoms = len(atoms)
-                num_stored_atoms = self.neighlist.nl.cutoffs.shape[0]
-                if num_atoms != num_stored_atoms:
-                    self.neighlist = NeighborList(
-                        self.cov_min * np.array(natural_cutoffs(atoms)),
-                        skin=0.0,
-                        self_interaction=False,
-                        bothways=False,
-                    )
-            else:
-                ...
-        self.neighlist.update(atoms)
+            ...
 
-        if self.target_indices is None:
+        # For some simulations, e.g. GCMC, the number of atoms are changing!!
+        # We should manully set check on!!
+        if self.check_atoms_change:
+            num_atoms = len(atoms)
+            num_stored_atoms = self.neighlist.nl.cutoffs.shape[0]
+            if num_atoms != num_stored_atoms:
+                self.neighlist = NeighborList(
+                    self.cov_min * np.array(natural_cutoffs(atoms)),
+                    skin=0.0,
+                    self_interaction=False,
+                    bothways=False,
+                )
             self.target_indices = [
                 i for i, a in enumerate(atoms) if a.symbol in self.symbols
             ]
+        else:
+            ...
+
+        self.neighlist.update(atoms)
 
         bond_pairs, bond_distances, bond_shifts, bond_equi_distances = (
             get_bond_information(
