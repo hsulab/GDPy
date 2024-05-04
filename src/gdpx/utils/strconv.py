@@ -48,7 +48,7 @@ def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
 
 def str2array(inp: str):
     """Convert a string to a np.array using np.arange.
-kk
+
     The endpoint is always included.
 
     """
@@ -59,7 +59,7 @@ kk
             start, end, step = curr_range[0], curr_range[0] + 0.01, 1e8
         elif len(curr_range) == 3:
             start, end, step = curr_range
-            end += step*1e-8
+            end += step * 1e-8
         else:
             raise RuntimeError(f"Invalid range `{curr_range}`.")
         ret.extend(np.arange(start, end, step).tolist())
