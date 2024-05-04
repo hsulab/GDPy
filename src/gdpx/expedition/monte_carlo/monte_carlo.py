@@ -213,17 +213,9 @@ class MonteCarlo(AbstractExpedition):
 
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
-        # - some imported packages change `logging.basicConfig`
-        #   and accidently add a StreamHandler to logging.root
-        #   so remove it...
-        for h in logging.root.handlers:
-            if isinstance(h, logging.StreamHandler) and not isinstance(
-                h, logging.FileHandler
-            ):
-                logging.root.removeHandler(h)
+        super().run(*args, **kwargs)
 
         # - check if it has a valid worker..
-        assert self.worker is not None, "MC has not set its worker properly."
         if isinstance(self.worker, DriverBasedWorker):
             self._print("Convert a DriverBasedWorker to a SingleWorker.")
             self.worker = SingleWorker.from_a_worker(self.worker)
