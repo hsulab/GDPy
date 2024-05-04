@@ -13,11 +13,19 @@ from typing import List, Mapping, NoReturn, Union
 import numpy as np
 from ase import Atoms
 from ase.formula import Formula
+from ase.geometry import find_mic
 from ase.io import read, write
 
-from .. import (AtomsNDArray, GridDriverBasedWorker, create_a_group,
-                create_a_molecule_group, create_mixer, find_molecules,
-                str2array)
+from .. import (
+    AtomsNDArray,
+    GridDriverBasedWorker,
+    MolecularAdsorbate,
+    create_a_group,
+    create_a_molecule_group,
+    create_mixer,
+    find_molecules,
+    str2array,
+)
 from ..expedition import AbstractExpedition
 
 
@@ -72,10 +80,12 @@ def get_last_atoms(frames):
 class ReactionSpace:
 
     group: str
-    pairs: list[dict] = dataclasses.field(default_factory=list)
+    reactions: list[dict] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         """"""
+        self._reactant_list = [tuple(sorted(p["reactants"])) for p in self.reactions]
+        self._distance_list = [p["distance"] for p in self.reactions]
 
         return
 
@@ -83,6 +93,26 @@ class ReactionSpace:
         """"""
 
         return create_a_group(atoms, group_command=self.group)
+
+    def is_reaction_possible(self, atoms, molecules) -> bool:
+        """"""
+        is_possible = False
+
+        assert len(molecules) == 2
+        m0, m1 = molecules[0], molecules[1]
+
+        if m0.atomic_indices != m1.atomic_indices:
+            reactants = tuple(sorted([m0.chemical_formula, m1.chemical_formula]))
+            if reactants in self._reactant_list:
+                com_vec = m0.get_center_of_mass() - m1.get_center_of_mass()
+                vec, dis = find_mic(com_vec, atoms.cell)
+                if dis < self._distance_list[self._reactant_list.index(reactants)]:
+                    is_possible = True
+                    print(m0, m1, dis)
+        else:
+            ...
+
+        return is_possible
 
 
 class AFIRSearch(AbstractExpedition):
@@ -171,20 +201,31 @@ class AFIRSearch(AbstractExpedition):
 
         fragments = find_molecules(atoms, reactive_indices=reactive_indices)
         self._print(fragments)
+        num_fragraments = len(fragments)
 
         # pair order is random
-        possible_pairs = list(itertools.product(fragments["H"], fragments["CO"]))
-        for pp in possible_pairs:
-            self._print(pp)
-        possible_pairs = [([50], [45, 46])]
-        self._print(f"{possible_pairs =}")
+        pair_data_fpath = self.directory / "pairs.json"
+        if not pair_data_fpath.exists():
+            possible_pairs = []
+            for pp in itertools.combinations(range(num_fragraments), 2):
+                m0, m1 = fragments[pp[0]], fragments[pp[1]]
+                if self.reaction_space.is_reaction_possible(atoms, [m0, m1]):
+                    possible_pairs.append([m0, m1])
+            self._print(f"{possible_pairs =}")
+
+            # serialisation pair data
+            pair_data = [[m0.as_dict(), m1.as_dict()] for m0, m1 in possible_pairs]
+            with open(pair_data_fpath, "w") as fopen:
+                json.dump(pair_data, fopen, indent=2)
+        else:
+            with open(pair_data_fpath, "r") as fopen:
+                pair_data = json.load(fopen)
+            possible_pairs = [
+                [MolecularAdsorbate.from_dict(p0), MolecularAdsorbate.from_dict(p1)]
+                for (p0, p1) in pair_data
+            ]
 
         num_pairs = len(possible_pairs)
-
-        # serialisation pair data
-        pair_data_fpath = self.directory / "pairs.json"
-        with open(pair_data_fpath, "w") as fopen:
-            json.dump(possible_pairs, fopen)
 
         # NOTE: Sampled structures are
         #       (num_structures, num_reactions, num_gamma, num_frames)
@@ -200,12 +241,15 @@ class AFIRSearch(AbstractExpedition):
         for i, rxn_pair in enumerate(possible_pairs):
             # write to log
             self._print(f"===== Pair {i} =====")
-            reactants = convert_index_to_formula(atoms, rxn_pair)
+            # reactants = convert_index_to_formula(atoms, rxn_pair)
             self._print("reactants: ")
-            for ir, r in enumerate(reactants):
-                self._print(f"  {r:>24s}_{rxn_pair[ir]}")
+            # for ir, r in enumerate(reactants):
+            #     self._print(f"  {r:>24s}_{rxn_pair[ir]}")
+            for r in rxn_pair:
+                self._print(f"  {str(r):<48s}")
+            group_indices = [m.atomic_indices for m in rxn_pair]
 
-            potters, drivers = self._spawn_computers(rxn_pair, self.gamma_factors)
+            potters, drivers = self._spawn_computers(group_indices, self.gamma_factors)
             curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
             curr_worker.directory = comput_dpath / f"pair{i}"
             curr_worker.batchsize = self.worker.batchsize
