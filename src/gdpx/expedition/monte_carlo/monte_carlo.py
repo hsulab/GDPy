@@ -95,21 +95,12 @@ class MonteCarlo(AbstractExpedition):
             random_seed=random_seed,
         )
 
-        self.directory = directory
         self.dump_period = dump_period
         self.ckpt_period = ckpt_period
         self.restart = restart
 
         # - check system type
-        if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
-            builder_method = builder_params.pop("method")
-            builder = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
-        else:
-            builder = builder
-        self.builder = builder
+        self.register_builder(builder)
 
         # - create worker
         self.worker = None
