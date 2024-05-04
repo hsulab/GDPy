@@ -254,6 +254,12 @@ class MonteCarlo(AbstractExpedition):
         #    if self.operators[i].region != self.operators[i-1].region:
         #        raise RuntimeError(f"Inconsistent region found in op {i-1} and op {i}")
 
+        # For other MC methods, it only needs rewrite `_run` method.
+        self._run()
+
+        return
+
+    def _run(self, *args, **kwargs):
         # - start!!!
         converged = self.read_convergence()
         if not converged:
