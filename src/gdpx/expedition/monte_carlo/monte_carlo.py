@@ -375,12 +375,6 @@ class MonteCarlo(AbstractExpedition):
 
                 self._save_step_info(curr_op, success)
 
-                # -- check earlystopping
-                # We earlystop the simulation at the end of each step and use
-                # the MC-updated atoms, which may be unaccepted (failure) and
-                # further lead the inconsistency in the final saved structure.
-                step_state = self._check_earlystop(curr_atoms)
-
                 # -- update atoms
                 if success:
                     self.energy_stored = self.energy_operated
@@ -391,6 +385,15 @@ class MonteCarlo(AbstractExpedition):
 
                 # FIXME: Save unaccepted structures as well?
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
+
+                # -- check earlystopping
+                # We earlystop the simulation at the end of each step and use
+                # the MC-updated atoms, which may be unaccepted (failure) and
+                # further lead the inconsistency in the final saved structure.
+                # After several tests, it is better to check on accepted structures
+                # so ignore the below comment
+                step_state = self._check_earlystop(self.atoms)
+
             else:
                 step_state = "UNFINISHED"
         else:
