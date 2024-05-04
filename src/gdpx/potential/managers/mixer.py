@@ -7,9 +7,9 @@ from typing import List
 
 from ase.calculators.calculator import Calculator
 
-from . import AbstractPotentialManager, DummyCalculator
 from ..calculators.mixer import EnhancedCalculator
 from ..utils import convert_input_to_potter
+from . import AbstractPotentialManager, DummyCalculator
 
 
 class MixerManager(AbstractPotentialManager):
@@ -83,7 +83,7 @@ class MixerManager(AbstractPotentialManager):
 
         return
 
-    def switch_uncertainty_estimation(self, status: bool=True):
+    def switch_uncertainty_estimation(self, status: bool = True):
         """"""
         if self.calc_backend == "ase":
             has_switched = False
@@ -107,6 +107,17 @@ class MixerManager(AbstractPotentialManager):
         params["params"]["potters"] = [p.as_dict() for p in self.potters]
 
         return params
+
+    def remove_loaded_models(self, *args, **kwargs):
+        """Loaded TF models should be removed before any copy.deepcopy operations."""
+        if self.calc_backend == "ase":
+            for potter in self.potters:
+                if hasattr(potter, "remove_loaded_models"):
+                    potter.remove_loaded_models()
+        else:
+            ...
+
+        return
 
     @staticmethod
     def broadcast(manager: "MixerManager") -> List["MixerManager"]:
