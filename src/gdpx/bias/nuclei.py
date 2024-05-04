@@ -2,15 +2,14 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import List, Callable
+from typing import Callable, List
 
 import numpy as np
-
 from ase.calculators.calculator import Calculator
 from ase.calculators.morse import MorsePotential
 from ase.neighborlist import NeighborList, natural_cutoffs
 
-from .utils import get_equidis_dict, get_bond_information
+from .utils import get_bond_information, get_equidis_dict
 
 
 def compute_repulsion_energy_and_forces(
@@ -34,7 +33,7 @@ def compute_repulsion_energy_and_forces(
 
     for ip, (i, j) in enumerate(bond_pairs):
         vec_mic = positions[i] - (positions[j] + bond_shifts[ip])
-        frc_ij = -dEdr[ip]*vec_mic/bond_distances[ip]
+        frc_ij = -dEdr[ip] * vec_mic / bond_distances[ip]
         forces[i, :] += frc_ij
         forces[j, :] += -frc_ij
 
@@ -53,6 +52,7 @@ class NucleiRepulsionCalculator(Calculator):
         covalent_ratio=[0.8, 2.0],
         epsilon: float = 1.0,
         rho0: float = 6.0,
+        check_atoms_change: bool = False,
         *args,
         **kwargs,
     ):
@@ -70,6 +70,8 @@ class NucleiRepulsionCalculator(Calculator):
         self.symbols, self.bonds, self.equidis_dict = get_equidis_dict(
             bonds, ratio=self.cov_min
         )
+
+        self.check_atoms_change = check_atoms_change
 
         self.neighlist = None
 
@@ -92,7 +94,18 @@ class NucleiRepulsionCalculator(Calculator):
                 bothways=False,
             )
         else:
-            ...
+            if self.check_atoms_change:
+                num_atoms = len(atoms)
+                num_stored_atoms = self.neighlist.nl.cutoffs.shape[0]
+                if num_atoms != num_stored_atoms:
+                    self.neighlist = NeighborList(
+                        self.cov_min * np.array(natural_cutoffs(atoms)),
+                        skin=0.0,
+                        self_interaction=False,
+                        bothways=False,
+                    )
+            else:
+                ...
         self.neighlist.update(atoms)
 
         if self.target_indices is None:
