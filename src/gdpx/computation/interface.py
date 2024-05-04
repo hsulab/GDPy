@@ -63,7 +63,7 @@ class DriverVariable(Variable):
             if isinstance(v, list):
                 n = len(v)
             elif isinstance(v, str):
-                if ":" in v:
+                if ":" in v and k != "constraint":
                     v = str2array(v).tolist()
                     n = len(v)
                 else:
