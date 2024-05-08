@@ -193,10 +193,10 @@ class Cp2kDriverSetting(DriverSetting):
                 [
                     ("GLOBAL", "RUN_TYPE VIBRATIONAL_ANALYSIS"),
                     ("VIBRATIONAL_ANALYSIS", "DX 0.01"),
-                    ("VIBRATIONAL_ANALYSIS", "NPROC_REP 4"),
-                    ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "INITIAL_GUESS ATOMIC"),
-                    ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_NORM 1.0E-5"),
-                    ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_MAX_VAL 1.0E-6"),
+                    ("VIBRATIONAL_ANALYSIS", "NPROC_REP 16"),
+                    # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "INITIAL_GUESS ATOMIC"),
+                    # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_NORM 1.0E-5"),
+                    # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_MAX_VAL 1.0E-6"),
                 ]
             )
 
@@ -299,17 +299,17 @@ class Cp2kDriver(AbstractDriver):
                 mobile_indices, frozen_indices = parse_constraint_info(
                     atoms, cons_text, ret_text=False
                 )
-                if self.setting.task == "freq" and mobile_indices:
-                    mobile_indices = sorted(mobile_indices)
-                    sec.add_keyword(
-                        "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE",
-                        f"ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
-                    )
-                    sec.add_keyword(
-                        "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE/INVOLVED_ATOMS",
-                        f"INVOLVED_ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
-                    )
-                if self.setting.task in ["min", "md"] and frozen_indices:
+                # if self.setting.task == "freq" and mobile_indices:
+                #     mobile_indices = sorted(mobile_indices)
+                #     sec.add_keyword(
+                #         "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE",
+                #         f"ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
+                #     )
+                #     sec.add_keyword(
+                #         "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE/INVOLVED_ATOMS",
+                #         f"INVOLVED_ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
+                #     )
+                if frozen_indices:
                     # atoms._del_constraints()
                     # atoms.set_constraint(FixAtoms(indices=frozen_indices))
                     frozen_indices = sorted(frozen_indices)
