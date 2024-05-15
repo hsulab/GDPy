@@ -34,3 +34,14 @@ Issues = "https://github.com/hsulab/GDPy/issues"
 [project.scripts]
 gdp = "gdpx.main:main"
 
+[tool.pyright]
+include = [
+  "src"
+]
+exclude = [
+  "**/tests",
+]
+
+venvPath = "/home/jx1279/.conda/envs"
+venv = "catorch"
+pythonVersion = "3.9"

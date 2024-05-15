@@ -50,19 +50,42 @@ def get_distance_matrix(atoms: Atoms, indices=None):
         selected_positions = atoms.positions[indices, :]
         return distance_matrix(selected_positions, selected_positions)
 
+def recenter_com_by_group(frames: List[Atoms], group_indices: List[int]):
+    """"""
+    # FIXME: The current implementation is the center of positions.
+    #        We should implement center of mass later!!!
+    atoms = frames[0]
+    positions = atoms.positions[group_indices, :]
+    init_com = np.mean(positions, axis=0)
 
-def _icalc_local_lindemann_index(frames, group, n_jobs=1):
+    for atoms in frames[1:]:
+        positions = atoms.positions[group_indices, :]
+        curr_com = np.mean(positions, axis=0)
+        atoms.positions[group_indices, :] -= curr_com - init_com
+
+    return frames
+
+def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool=False, n_jobs=1):
     """Calculate Lindemann Index of each atom.
 
     Returns:
         An array with shape (natoms,)
 
     """
-    # NOTE: Use unwrapped positions when under PBC?
+    # FIXME: Use unwrapped positions when under PBC?
     frames = wrap_traj(frames)  # align structures
 
     group_indices = create_a_group(frames[0], group)
-    natoms = len(group_indices)
+    num_atoms = len(group_indices)
+
+    if recenter_com:
+        frames = recenter_com_by_group(frames, group_indices)
+        # from ase.io import write
+        # write("./xxx.xyz", frames)
+    else:
+        ...
+    
+    frames = frames[start:]
 
     with CustomTimer("Lindemann Index"):
         distances = Parallel(n_jobs=n_jobs)(
@@ -74,10 +97,10 @@ def _icalc_local_lindemann_index(frames, group, n_jobs=1):
     dis2_avg = np.average(dis2, axis=0)
 
     dis_avg = np.average(distances, axis=0)
-    masked_dis_avg = dis_avg + np.eye(natoms)  # avoid 0. in denominator
+    masked_dis_avg = dis_avg + np.eye(num_atoms)  # avoid 0. in denominator
     # print(masked_dis_avg)
 
-    q = np.sum(np.sqrt(dis2_avg - dis_avg**2) / masked_dis_avg, axis=1) / (natoms - 1)
+    q = np.sum(np.sqrt(dis2_avg - dis_avg**2) / masked_dis_avg, axis=1) / (num_atoms - 1)
 
     return q
 
@@ -99,6 +122,7 @@ class MeltingPointValidator(AbstractValidator):
         run_fit: bool = True,
         start=0,
         fitting="sigmoid",
+        recenter_com: bool=False,
         directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
@@ -107,6 +131,8 @@ class MeltingPointValidator(AbstractValidator):
         super().__init__(directory, *args, **kwargs)
 
         self.group = group
+
+        self.recenter_com = recenter_com
 
         self.run_fit = run_fit
 
@@ -184,8 +210,10 @@ class MeltingPointValidator(AbstractValidator):
             with CustomTimer("joblib", func=self._print):
                 qmat = Parallel(n_jobs=1)(
                     delayed(_icalc_local_lindemann_index)(
-                        [a for a in curr_frames[start::] if a is not None],
-                        self.group,
+                        [a for a in curr_frames if a is not None],
+                        start=start, # wrap_traj based on the first, so we should take start after wrap
+                        group=self.group,
+                        recenter_com=self.recenter_com,
                         n_jobs=self.njobs,
                     )
                     for curr_frames in trajectories
