@@ -2,28 +2,25 @@
 # -*- coding: utf-8 -*-
 
 
+import dataclasses
 import io
 import os
-import re
-import dataclasses
 import pathlib
+import re
+import shutil
 import tarfile
 import traceback
-from typing import Union, Optional, List, Tuple
-
-import shutil
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
 from ase.calculators.vasp import Vasp
+from ase.io import read, write
 
 from ..data.extatoms import ScfErrAtoms
-from ..utils.strucopy import read_sort, resort_atoms_with_spc
 from ..utils.cmdrun import run_ase_calculator
-from .driver import AbstractDriver, DriverSetting, Controller
-
+from ..utils.strucopy import read_sort, resort_atoms_with_spc
+from .driver import AbstractDriver, Controller, DriverSetting
 
 """Driver for VASP."""
 #: Ase-vasp resort fname.
@@ -485,7 +482,32 @@ class VaspDriver(AbstractDriver):
         if outcar_lines is not None and oszicar_lines is not None:
             nelm, ediff = read_outcar_scf(outcar_lines)
             scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
-            assert len(scf_convergences) == len(frames)
+            num_scfconvs, num_frames = len(scf_convergences), len(frames)
+            self._debug(f"{num_scfconvs =} {num_frames =}")
+            if num_scfconvs == num_frames:
+                # assert len(scf_convergences) == len(
+                #     frames
+                # ), f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
+                ...
+            elif num_scfconvs == num_frames - 1:
+                # The LAST SCF failed due to some error, for example, too small distance
+                # So we manually set conv to false for the last step and also
+                # we set frames energy and forces to a very large value...
+                scf_convergences.append(False)
+                # FIXME: Use a new CustomAtoms object to deal with this?
+                from ase.calculators.singlepoint import SinglePointCalculator
+
+                calc = SinglePointCalculator(
+                    frames[-1],
+                    energy=1e8,
+                    free_energy=1e8,
+                    forces=1e8 * np.ones(frames[-1].positions.shape),
+                )
+                frames[-1].calc = calc
+            else:
+                raise RuntimeError(
+                    f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
+                )
             for i, is_converged in enumerate(scf_convergences):
                 if not is_converged:
                     frames[i] = ScfErrAtoms.from_atoms(frames[i])
