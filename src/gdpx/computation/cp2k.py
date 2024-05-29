@@ -494,10 +494,25 @@ class Cp2kFileIO(FileIOCalculator):
         """"""
         super().write_input(atoms, properties, system_changes)
 
+        # Support mixed basis_set
+        prev_basis_set = self.parameters.basis_set
+        if isinstance(prev_basis_set, str):
+            curr_basis_set = {k: prev_basis_set for k in list(set(atoms.get_chemical_symbols()))}
+        elif isinstance(prev_basis_set, dict):
+            for k in list(set(atoms.get_chemical_symbols())):
+                if k not in prev_basis_set:
+                    raise RuntimeError(f"No basis_set for {k}.")
+            curr_basis_set = prev_basis_set
+        else:
+            raise RuntimeError(f"Unknown basis_set {prev_basis_set}.")
+        self.parameters.basis_set = curr_basis_set
+
         label_name = pathlib.Path(self.label).name
         wdir = pathlib.Path(self.directory)
         with open(wdir / f"{label_name}.inp", "w") as fopen:
             fopen.write(self._generate_input())
+
+        self.parameters.basis_set = prev_basis_set
 
         return
 
@@ -608,7 +623,7 @@ class Cp2kFileIO(FileIOCalculator):
                 subsys.append(s)
                 kinds[elem] = s
             if p.basis_set:
-                kinds[elem].keywords.append("BASIS_SET " + p.basis_set)
+                kinds[elem].keywords.append("BASIS_SET " + p.basis_set[elem])
             if potential:
                 kinds[elem].keywords.append("POTENTIAL " + potential)
 
