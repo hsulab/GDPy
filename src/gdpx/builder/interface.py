@@ -140,7 +140,7 @@ class build(Operation):
         """"""
         self._directory = pathlib.Path(directory_)
 
-        self.input_nodes[0].directory = self._directory / "builder"
+        # self.input_nodes[0].directory = self._directory / "builder"
 
         return
 
@@ -190,8 +190,8 @@ class modify(Operation):
         """"""
         self._directory = pathlib.Path(directory_)
 
-        self.input_nodes[0].directory = self._directory / "substrates"
-        self.input_nodes[1].directory = self._directory / "modifier"
+        # self.input_nodes[0].directory = self._directory / "substrates"
+        # self.input_nodes[1].directory = self._directory / "modifier"
 
         return
 
