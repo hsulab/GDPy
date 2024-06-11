@@ -2,11 +2,18 @@
 # -*- coding: utf-8 -*-
 
 import itertools
+import io
 import os
 import pathlib
 
 import numpy as np
 
+import matplotlib
+import matplotlib.pyplot as plt
+
+import PIL
+
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import SimpleDocTemplate, Image, Table, Paragraph, PageBreak
 
 from ase.io import read, write
@@ -124,12 +131,22 @@ class CompareSelector(AbstractSelector):
                 curr_frames = [structures[x] for x in v]
                 curr_nframes = len(curr_frames)
                 if curr_nframes > 1:
-                    story.append(Paragraph(f"Group {k}"))
-                    story.append(Paragraph(" ".join([str(x) for x in v])))
+                    story.append(Paragraph(f"Group {k} num_structures {len(v)}"))
                     images = []
                     for ia, a in enumerate(curr_frames[:]):
-                        write(unique_wdir / f"xxx-{i}_{ia}.png", a)
-                        image = Image(unique_wdir / f"xxx-{i}_{ia}.png")
+                        # ---
+                        buffer = io.BytesIO()
+                        write(buffer, a, format="png")
+                        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+                        img = PIL.Image.open(buffer)
+                        ax.imshow(img)
+                        ax.axis("off")
+                        ax.text(0.05, 1.05, f"{str(v[ia]).zfill(4)}", style="italic", bbox={"facecolor": "gray", "alpha": 0.5, "pad": 10})
+                        buffer2 = io.BytesIO()
+                        fig.savefig(buffer2, transparent=True, bbox_inches="tight")
+                        plt.close()
+                        # ---
+                        image = Image(buffer2)
                         image.drawWidth = 108
                         image.drawHeight = 100
                         images.append(image)
