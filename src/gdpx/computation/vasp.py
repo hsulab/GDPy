@@ -16,6 +16,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.vasp import Vasp
 from ase.io import read, write
+from ase.geometry import find_mic
 
 from ..data.extatoms import ScfErrAtoms
 from ..utils.cmdrun import run_ase_calculator
@@ -55,7 +56,7 @@ def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
         if start.isdigit():
             scfsteps = [int(s.split()[1]) for s in content.strip().split("\n")]
             num_scfsteps = len(scfsteps)
-            assert num_scfsteps == scfsteps[-1]
+            assert num_scfsteps == scfsteps[-1], f"{num_scfsteps =}, {scfsteps[-1] =}"
             enediffs = [float(s.split()[3]) for s in content.strip().split("\n")]
             is_converged = num_scfsteps < nelm or np.fabs(enediffs[-1]) <= ediff
             convergence.append(is_converged)
@@ -559,8 +560,16 @@ class VaspDriver(AbstractDriver):
         if ntrajs > 0:
             traj_frames_.extend(traj_list[0])
             for i in range(1, ntrajs):
+                # FIXME: ase complete_cell bug?
+                prev_box = traj_list[i-1][-1].get_cell(complete=True)
+                curr_box = traj_list[i][0].get_cell(complete=True)
+                assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
+
+                prev_pos = traj_list[i-1][-1].positions
+                curr_pos = traj_list[i][0].positions
+                pos_vec, _ = find_mic(prev_pos-curr_pos, traj_list[i-1][-1].get_cell())
                 assert np.allclose(
-                    traj_list[i - 1][-1].positions, traj_list[i][0].positions
+                    pos_vec, np.zeros(pos_vec.shape)
                 ), f"Traj {i-1} and traj {i} are not consecutive."
                 traj_frames_.extend(traj_list[i][1:])
         else:
