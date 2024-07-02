@@ -527,7 +527,7 @@ class LmpDriver(AbstractDriver):
                 read_restart=run_params.get("read_restart", None),
                 extra_fix=run_params["extra_fix"],  # e.g. fixcm
                 neighbor=run_params["neighbor"],
-                neighb_modify=run_params["neigh_modify"],
+                neigh_modify=run_params["neigh_modify"],
             )
             atoms.calc = self.calc
 
