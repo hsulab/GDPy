@@ -198,9 +198,10 @@ class MeltingPointValidator(AbstractValidator):
         """"""
         start, intv, end = self.start, None, None
         temperatures = self.temperatures
-        assert len(trajectories) == len(
-            temperatures
-        ), "Inconsitent number of trajectories and temperatures."
+
+        num_trajectories = len(trajectories)
+        num_temperatures = len(temperatures)
+        assert num_trajectories == num_temperatures, f"Inconsitent number of trajectories {num_trajectories} and temperatures {num_temperatures}."
 
         qnames = [str(t) for t in temperatures]
 
