@@ -3,14 +3,17 @@
 
 
 import pathlib
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import networkx as nx
 import numpy as np
+from ase import Atoms
 from ase.io import read, write
 from ase.neighborlist import NeighborList, natural_cutoffs
+from joblib import Parallel, delayed
 
 from ..builder.group import create_a_group
+from ..utils.command import CustomTimer
 from .comparator import AbstractComparator
 
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
@@ -89,7 +92,33 @@ class GraphComparator(AbstractComparator):
 
         return
 
-    def looks_like(self, a1, a2):
+    @staticmethod
+    def _process_single_structure(atoms, group):
+        """"""
+        group_indices = create_a_group(atoms, group)
+        graph = create_a_graph(atoms, group_indices)
+
+        return graph
+
+    def prepare_data(self, frames: List[Atoms]):
+        """"""
+        with CustomTimer(name="graph", func=self._debug):
+            graphs = Parallel(n_jobs=self.njobs)(
+                delayed(self._process_single_structure)(atoms, self.group)
+                for atoms in frames
+            )
+
+        return graphs
+
+    def looks_like(self, fp1, fp2):
+        """"""
+        is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(
+            fp1, fp2, edge_match=bond_match
+        )
+
+        return is_isomorphic
+
+    def _looks_like_with_atoms(self, a1, a2):
         """"""
         is_similar = self.compare_composition(a1, a2)
         if is_similar:
