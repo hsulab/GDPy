@@ -164,7 +164,7 @@ def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
 
     if x_types is None:
         # -- all togather
-        ax.scatter(x_ref, x_pred, label=x_name)
+        ax.scatter(x_ref, x_pred, alpha=0.5, label=x_name)
         # -- rmse text
         add_rmse_text(ax, x_rmse, x_rmse_names)
     else:
@@ -177,7 +177,7 @@ def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
             #print(t_mask)
             x_ref_t, x_pred_t = x_ref[t_mask], x_pred[t_mask]
             #print(t, x_ref_t.shape)
-            ax.scatter(x_ref_t, x_pred_t, label=t)
+            ax.scatter(x_ref_t, x_pred_t, alpha=0.5, label=t)
 
             _rms = rms_dict(x_ref_t, x_pred_t)
             x_rmse.append(_rms)
