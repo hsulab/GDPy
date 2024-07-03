@@ -174,7 +174,7 @@ class SinglepointValidator(AbstractValidator):
             nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
         )
         axarr = axarr.flatten()
-        plt.suptitle(f"{prefix} with nframes {nframes}")
+        fig.suptitle(f"{prefix} with nframes {nframes}")
 
         # -- energies
         ene_rmse = plot_parity(
@@ -188,7 +188,7 @@ class SinglepointValidator(AbstractValidator):
 
         # if (self.directory/f"{prefix}.png").exists():
         #    warnings.warn(f"Figure file {prefix} exists.", UserWarning)
-        plt.savefig(self.directory / prefix / "rmse.png")
+        fig.savefig(self.directory / prefix / "rmse.png", bbox_inches="tight")
         plt.close()
 
         # plot distributions
