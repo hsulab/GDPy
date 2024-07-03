@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import itertools
 import io
+import itertools
 import os
 import pathlib
 
-import numpy as np
-
 import matplotlib
 import matplotlib.pyplot as plt
-
+import numpy as np
 import PIL
-
-from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Image, Table, Paragraph, PageBreak
-
 from ase.io import read, write
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate,
+                                Table)
 
 from . import registers
 from .selector import AbstractSelector
@@ -70,105 +67,58 @@ class CompareSelector(AbstractSelector):
             # - compare structural fingerprint
             selected_indices, unique_groups, scores = [], {}, []
             for i, fp in enumerate(fingerprints):
-                for j in selected_indices[::-1]:
-                    # TODO: The ditribution maybe too wide?
-                    fp_avg = np.average(
-                        [fingerprints[x] for x in unique_groups[j]], axis=0
-                    )
-                    if self.comparator(fp, fp_avg):
+                for j in selected_indices[::-1]: # j -> unique_group_index
+                    # --- average ---
+                    # # TODO: The ditribution maybe too wide?
+                    # fp_avg = np.average(
+                    #     [fingerprints[x] for x in unique_groups[j]], axis=0
+                    # )
+                    # if self.comparator(fp, fp_avg):
+                    #     unique_groups[j].append(i)
+                    #     break
+                    # --- normal ---
+                    if self.comparator(fp, fingerprints[unique_groups[j][0]]):
                         unique_groups[j].append(i)
                         break
                 else:
                     selected_indices.append(i)
                     unique_groups[i] = [i]
 
-            # - merge groups with similar average fingerprint
-            unique_fingerprints = {}
-            for k, v in unique_groups.items():
-                unique_fingerprints[k] = np.average(
-                    [fingerprints[x] for x in v], axis=0
-                )
+            # merge groups with similar average fingerprint
+            # unique_fingerprints = {}
+            # for k, v in unique_groups.items():
+            #     unique_fingerprints[k] = np.average(
+            #         [fingerprints[x] for x in v], axis=0
+            #     )
+            #
+            # selected_group_indices, merged_groups = [], {}
+            # for i, fp in unique_fingerprints.items():
+            #     for j in selected_group_indices:
+            #         # TODO: The ditribution maybe too wide?
+            #         fp_avg = np.average(
+            #             [unique_fingerprints[x] for x in merged_groups[j]], axis=0
+            #         )
+            #         if self.comparator(fp, fp_avg):
+            #             merged_groups[j].append(i)
+            #             break
+            #     else:
+            #         selected_group_indices.append(i)
+            #         merged_groups[i] = [i]
 
-            selected_group_indices, merged_groups = [], {}
-            for i, fp in unique_fingerprints.items():
-                for j in selected_group_indices:
-                    # TODO: The ditribution maybe too wide?
-                    fp_avg = np.average(
-                        [unique_fingerprints[x] for x in merged_groups[j]], axis=0
-                    )
-                    if self.comparator(fp, fp_avg):
-                        merged_groups[j].append(i)
-                        break
-                else:
-                    selected_group_indices.append(i)
-                    merged_groups[i] = [i]
+            # sort structures in unique_group
+            # new_selected_indices, new_unique_groups = [], {}
+            # for k, v in merged_groups.items():
+            #     curr_indices = sorted(
+            #         list(itertools.chain(*[unique_groups[x] for x in v]))
+            #     )
+            #     # print(curr_indices)
+            #     # print(unique_fingerprints[k])
+            #     new_unique_groups[curr_indices[0]] = curr_indices
+            #     new_selected_indices.append(curr_indices[0])
+            # selected_indices = new_selected_indices
+            # unique_groups = new_unique_groups
 
-            new_selected_indices, new_unique_groups = [], {}
-            for k, v in merged_groups.items():
-                curr_indices = sorted(
-                    list(itertools.chain(*[unique_groups[x] for x in v]))
-                )
-                # print(curr_indices)
-                # print(unique_fingerprints[k])
-                new_unique_groups[curr_indices[0]] = curr_indices
-                new_selected_indices.append(curr_indices[0])
-            selected_indices = new_selected_indices
-            unique_groups = new_unique_groups
-
-            # - report data
-            unique_wdir = self.directory / "unique"
-            unique_wdir.mkdir(parents=True, exist_ok=True)
-
-            # -- save structures per group?
-            with open(unique_wdir / "unique.dat", "w") as fopen:
-                for k, v in unique_groups.items():
-                    fopen.write(f"{k}_{len(v)}: {v}\n")
-            #        write(unique_wdir/f"g_{k}.xyz", [structures[i] for i in v])
-
-            # -- write a report?
-            story = []
-            for i, (k, v) in enumerate(unique_groups.items()):
-                curr_frames = [structures[x] for x in v]
-                curr_nframes = len(curr_frames)
-                if curr_nframes > 1:
-                    story.append(Paragraph(f"Group {k} num_structures {len(v)}"))
-                    images = []
-                    for ia, a in enumerate(curr_frames[:]):
-                        # ---
-                        buffer = io.BytesIO()
-                        write(buffer, a, format="png")
-                        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-                        img = PIL.Image.open(buffer)
-                        ax.imshow(img)
-                        ax.axis("off")
-                        ax.text(0.05, 1.05, f"{str(v[ia]).zfill(4)}", style="italic", bbox={"facecolor": "gray", "alpha": 0.5, "pad": 10})
-                        buffer2 = io.BytesIO()
-                        fig.savefig(buffer2, transparent=True, bbox_inches="tight")
-                        plt.close()
-                        # ---
-                        image = Image(buffer2)
-                        image.drawWidth = 108
-                        image.drawHeight = 100
-                        images.append(image)
-                    image_table = []
-                    nrows = int(curr_nframes / 4.0)
-                    for x in range(nrows):
-                        image_table.append(
-                            [images[im] for im in range(x * 4, (x + 1) * 4)]
-                        )
-                    if (curr_nframes - nrows * 4) > 0:
-                        image_table.append(
-                            [images[im] for im in range(nrows * 4, curr_nframes)]
-                        )
-
-                    story.append(Table(image_table))
-                    story.append(PageBreak())
-
-            doc = SimpleDocTemplate(str(self.directory / "report.pdf"))
-            doc.build(story)
-
-            for x in unique_wdir.glob("*.png"):
-                os.remove(x)
+            self.report(structures, unique_groups)
 
         curr_markers = data.markers
         # NOTE: convert to np.array as there may have 2D markers
@@ -176,6 +126,83 @@ class CompareSelector(AbstractSelector):
         data.markers = selected_markers
 
         return
+
+    def report(self, structures, unique_groups):
+        """"""
+        # - report data
+        unique_wdir = self.directory / "unique"
+        unique_wdir.mkdir(parents=True, exist_ok=True)
+
+        # -- save structures per group?
+        with open(unique_wdir / "unique.dat", "w") as fopen:
+            for k, v in unique_groups.items():
+                fopen.write(f"{k}_{len(v)}: {v}\n")
+        #        write(unique_wdir/f"g_{k}.xyz", [structures[i] for i in v])
+
+        # -- write a report?
+        num_structures_per_row = 4
+        story = []
+        for i, (k, v) in enumerate(unique_groups.items()):
+            curr_frames = [structures[x] for x in v]
+            curr_nframes = len(curr_frames)
+            if curr_nframes > 1:
+                story.append(Paragraph(f"Group {k} num_structures {len(v)}"))
+                images = []
+                for ia, a in enumerate(curr_frames[:]):
+                    image = self._convert_structure_to_image(
+                        a,
+                        f"{str(v[ia]).zfill(4)}",
+                    )
+                    images.append(image)
+                image_table = []
+                nrows = int(curr_nframes / num_structures_per_row)
+                for x in range(nrows):
+                    image_table.append(
+                        [
+                            images[im]
+                            for im in range(
+                                x * num_structures_per_row,
+                                (x + 1) * num_structures_per_row,
+                            )
+                        ]
+                    )
+                if (curr_nframes - nrows * num_structures_per_row) > 0:
+                    image_table.append(
+                        [images[im] for im in range(nrows * 4, curr_nframes)]
+                    )
+
+                story.append(Table(image_table))
+                story.append(PageBreak())
+
+        doc = SimpleDocTemplate(str(self.directory / "report.pdf"))
+        doc.build(story)
+
+        return
+
+    def _convert_structure_to_image(self, atoms, text):
+        """Convert ase.Atoms to reportlab.image"""
+        buffer = io.BytesIO()
+        write(buffer, atoms, format="png")
+        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+        img = PIL.Image.open(buffer)
+        ax.imshow(img)
+        ax.axis("off")
+        ax.text(
+            0.05,
+            1.05,
+            text,
+            style="italic",
+            bbox={"facecolor": "gray", "alpha": 0.5, "pad": 10},
+        )
+        buffer2 = io.BytesIO()
+        fig.savefig(buffer2, transparent=True, bbox_inches="tight")
+        plt.close()
+        # ---
+        image = Image(buffer2)
+        image.drawWidth = 108
+        image.drawHeight = 100
+
+        return image
 
 
 if __name__ == "__main__":
