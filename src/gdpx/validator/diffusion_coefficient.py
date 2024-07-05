@@ -58,9 +58,9 @@ def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, pref
     ax.set_ylabel("MSD [Å^2]")
     ax.set_xlabel("Time [ps]")
 
-    ax.legend()
+    ax.legend(fontsize=12)
 
-    plt.savefig(wdir/ f"{prefix}msd.png")
+    fig.savefig(wdir/ f"{prefix}msd.png", bbox_inches="tight")
 
     return
 
