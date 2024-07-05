@@ -495,6 +495,7 @@ class extract_cache(Operation):
         else:
             self._print("read cache...")
             trajectories = AtomsNDArray.from_file(cache_data)
+        self._print(f"{trajectories.shape =}")
 
         self.status = "finished"
 
