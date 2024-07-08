@@ -7,12 +7,11 @@ import pathlib
 from typing import List
 
 import numpy as np
-
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read, write
-from ase.ga.population import Population
 from ase.ga.data import DataConnection
+from ase.ga.population import Population
+from ase.io import read, write
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: List[str] = ["extinct", "origin"]

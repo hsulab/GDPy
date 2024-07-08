@@ -3,26 +3,22 @@
 
 import copy
 import inspect
-import time
 import pathlib
-from typing import Callable, List
+import time
 import warnings
-
-import numpy as np
+from typing import Callable, List
 
 import ase.formula
-
+import numpy as np
 from ase import Atoms
-from ase.io import read, write
-from ase.ga.data import PrepareDB, DataConnection
-from ase.ga.population import Population
+from ase.ga.data import DataConnection, PrepareDB
 from ase.ga.offspring_creator import OperationSelector
+from ase.ga.population import Population
+from ase.io import read, write
 
-from .population import AbstractPopulationManager
-
-from .. import registers
-from .. import convert_indices
+from .. import convert_indices, registers
 from ..expedition import AbstractExpedition
+from .population import AbstractPopulationManager
 
 """
 TODO: search variational composition
@@ -566,6 +562,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 "comparator": {"name": "InteratomicDistanceComparator"},
                 "crossover": {"name": "CutAndSplicePairing"},
             }
+
+        # get_slab
 
         specific_params = dict(
             slab=self.da.get_slab(),
