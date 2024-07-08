@@ -11,10 +11,7 @@ class ReaxManager(AbstractPotentialManager):
     name = "reax"
     implemented_backends = ["lammps"]
 
-    valid_combinations = (
-        ("lammps", "ase"),
-        ("lammps", "lammps")
-    )
+    valid_combinations = (("lammps", "ase"), ("lammps", "lammps"))
 
     def __init__(self, *args, **kwargs):
         """"""
@@ -30,16 +27,20 @@ class ReaxManager(AbstractPotentialManager):
 
         model = calc_params.get("model", None)
         model = str(Path(model).resolve())
+        self.calc_params["model"] = model
 
         if self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
+
             if model:
                 pair_style = "reax/c NULL"
                 pair_coeff = f"* * {model}"
                 calc = Lammps(
-                    command=command, directory=directory, 
-                    pair_style=pair_style, pair_coeff=pair_coeff,
-                    **calc_params
+                    command=command,
+                    directory=directory,
+                    pair_style=pair_style,
+                    pair_coeff=pair_coeff,
+                    **calc_params,
                 )
                 # - update several params
                 calc.set(units="real")
