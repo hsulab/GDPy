@@ -622,6 +622,14 @@ class GeneticAlgorithemEngine(AbstractExpedition):
     ):
         # create the database to store information in
         # TODO: move this part to where before generator is created
+        # HACK: As the substrate is lazy-evaluated, it is unknown until
+        #       generator.run() is called. The unknwon substrate will
+        #       cause the crossover giving inconsistent pbc.
+        #       Thus, we initialise a substrate by default in generator's setting.
+        try:
+            self.generator._update_settings()
+        except:
+            ...
         da = PrepareDB(
             db_file_name=self.db_path,
             simulation_cell=self.generator._substrate,
