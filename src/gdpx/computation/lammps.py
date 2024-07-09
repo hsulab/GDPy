@@ -992,6 +992,13 @@ class Lammps(FileIOCalculator):
             content += "pair_coeff	{} {}\n".format(
                 self.pair_coeff, " ".join(self.type_list)
             )
+        elif potential == "nequip":
+            content += "pair_style  {}\n".format(
+                self.pair_style
+            )
+            content += "pair_coeff	{} {}\n".format(
+                self.pair_coeff, " ".join(self.type_list)
+            )
         else:
             content += "pair_style {}\n".format(self.pair_style)
             # content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
