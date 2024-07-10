@@ -7,7 +7,7 @@ import pathlib
 from typing import Callable, List, NoReturn, Optional
 
 import omegaconf
-from ase.calculators.calculator import Calculator
+from ase.calculators.calculator import Calculator, BaseCalculator
 
 from ..core.operation import Operation
 from ..core.register import registers
@@ -41,7 +41,7 @@ def broadcast_and_adjust_potter(
         potters = [potter]
 
     for p in potters:
-        assert isinstance(p.calc, Calculator)
+        assert isinstance(p.calc, BaseCalculator), f"{p.calc} is not `Calculator`."
 
     # adjust potter behaviour
     for i, potter in enumerate(potters):
