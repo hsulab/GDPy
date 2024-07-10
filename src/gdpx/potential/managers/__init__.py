@@ -79,6 +79,12 @@ registers.manager.register(MixerManager)
 
 # - optional potentials
 try:
+    from .abacus import AbacusManager
+    registers.manager.register(AbacusManager)
+except ImportError as e:
+    warnings.warn("Module {} import failed: {}".format("abacus", e), UserWarning)
+
+try:
     from .xtb import XtbManager
     registers.manager.register(XtbManager)
 except ImportError as e:

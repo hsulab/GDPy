@@ -15,6 +15,9 @@ register_drivers.register("lammps")(LmpDriver)
 from gdpx.computation.lasp import LaspDriver
 register_drivers.register("lasp")(LaspDriver)
 
+from .abacus import AbacusDriver
+register_drivers.register("abacus")(AbacusDriver)
+
 from gdpx.computation.vasp import VaspDriver
 register_drivers.register("vasp")(VaspDriver)
 
