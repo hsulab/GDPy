@@ -66,7 +66,7 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
     worker.directory = directory
 
     _ = worker.run(structures, batch=batch)
-    worker.inspect(resubmit=True)
+    worker.inspect(resubmit=True, batch=batch)
     if not spawn and worker.get_number_of_running_jobs() == 0:
         res_dir = directory / "results"
         if not res_dir.exists():

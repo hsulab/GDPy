@@ -425,7 +425,7 @@ class DriverBasedWorker(AbstractWorker):
 
         raise NotImplementedError("Function to run a batch of structures is undefined.")
 
-    def inspect(self, resubmit=False, *args, **kwargs):
+    def inspect(self, resubmit=False, batch=None, *args, **kwargs):
         """Check if any job were finished correctly not due to time limit.
 
         Args:
@@ -445,7 +445,7 @@ class DriverBasedWorker(AbstractWorker):
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
-                batch = doc_data["group_number"]
+                curr_batch = doc_data["group_number"]
 
                 # self.scheduler.set(**{"job-name": job_name})
                 self.scheduler.job_name = job_name
@@ -503,10 +503,18 @@ class DriverBasedWorker(AbstractWorker):
                                     f"{job_name} is re-submitted with JOBID {jobid}."
                                 )
                             else:
-                                frames = read(
-                                    self.directory / "_data" / f"{identifier}.xyz", ":"
-                                )
-                                self.run(frames, batch=batch, resubmit=True)
+                                if curr_batch == batch:
+                                    self._print(
+                                        f"{job_name} is re-submitted with local."
+                                    )
+                                    frames = read(
+                                        self.directory / "_data" / f"{identifier}.xyz", ":"
+                                    )
+                                    self.run(frames, batch=curr_batch, resubmit=True)
+                                else:
+                                    self._print(
+                                        f"SKIP resubmitting {job_name} on local."
+                                    )
                 else:
                     self._print(f"{job_name} is running...")
 
