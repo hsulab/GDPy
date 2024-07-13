@@ -430,6 +430,9 @@ class VaspDriver(AbstractDriver):
             self._debug(
                 f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
             )
+            # TODO: Deal with different exceptions...
+            # If CalculationFailed and no outputs, it may not have an appropriate
+            # caculation environment...
 
         return
 
@@ -439,11 +442,14 @@ class VaspDriver(AbstractDriver):
         if archive_path is None:
             # - read trajectory
             vasprun = wdir / "vasprun.xml"
-            frames = read(vasprun, ":")
-            with open(wdir / "OUTCAR") as fopen:
-                outcar_lines = fopen.readlines()
-            with open(wdir / "OSZICAR") as fopen:
-                oszicar_lines = fopen.readlines()
+            if vasprun.exists():
+                frames = read(vasprun, ":")
+                with open(wdir / "OUTCAR") as fopen:
+                    outcar_lines = fopen.readlines()
+                with open(wdir / "OSZICAR") as fopen:
+                    oszicar_lines = fopen.readlines()
+            else:
+                frames = []
         else:
             flags = [False, False, False]
             vasprun_name = str(
@@ -476,8 +482,11 @@ class VaspDriver(AbstractDriver):
                         flags[2] = True
                     if all(flags):
                         break
-                else:  # TODO: if not find target traj?
-                    ...
+                else:  
+                    if not flags[0]:  # check if vasprun exists
+                        frames = []
+                    else:
+                        self._print(f"FILE FLAG AT {str(wdir)} IS {flags}.")
 
         # - read oszicar and outcar
         if outcar_lines is not None and oszicar_lines is not None:
@@ -545,12 +554,17 @@ class VaspDriver(AbstractDriver):
             curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path)
             traj_list.append(curr_frames)
 
+        # Try to read the latest outputs.
+        # If the latest calculation is not finished/converged, the ouputs will be moved to
+        # a new folder 000x.run and an empty trajectory should be return.
         # Even though vasprun file may be empty, the read can give a empty list...
-        vasprun = self.directory / "vasprun.xml"
         curr_frames = self._read_a_single_trajectory(
             self.directory, archive_path=archive_path
         )
-        traj_list.append(curr_frames)
+        if not curr_frames:  # empty trajectory
+            ...
+        else:
+            traj_list.append(curr_frames)
 
         # -- concatenate
         # NOTE: Some spin systems may give different scf convergence on the same
