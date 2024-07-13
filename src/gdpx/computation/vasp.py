@@ -333,15 +333,19 @@ class VaspDriver(AbstractDriver):
         """Check whether there is a previous calculation in the `self.directory`."""
         verified = True
         if self.directory.exists():
-            vasprun = self.directory / "vasprun.xml"
-            if vasprun.exists() and vasprun.stat().st_size != 0:
-                temp_frames = read(vasprun, ":")
-                try:
-                    _ = temp_frames[0].get_forces()
-                except:  # `RuntimeError: Atoms object has no calculator.`
+            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+            if not prev_wdirs:  # no previous checkpoints
+                vasprun = self.directory / "vasprun.xml"
+                if vasprun.exists() and vasprun.stat().st_size != 0:
+                    temp_frames = read(vasprun, ":")
+                    try:
+                        _ = temp_frames[0].get_forces()
+                    except:  # `RuntimeError: Atoms object has no calculator.`
+                        verified = False
+                else:
                     verified = False
-            else:
-                verified = False
+            else:  # TODO: verify the previous checkpoint?
+                verified = True
         else:
             verified = False
 
