@@ -302,7 +302,7 @@ class LmpDriverSetting(DriverSetting):
         elif self.ensemble == "nvt":
             _init_md_params.update(
                 Tstart=self.temp,
-                Tstop=self.temp,  # FIXME: end temperature??
+                Tstop=self.tend,
             )
             if self.controller:
                 thermo_cls_name = self.controller["name"] + "_" + self.ensemble
@@ -332,7 +332,7 @@ class LmpDriverSetting(DriverSetting):
         elif self.ensemble == "npt":
             _init_md_params.update(
                 Tstart=self.temp,
-                Tstop=self.temp,  # FIXME: end temperature??
+                Tstop=self.tend,
                 Pstart=self.press,
                 Pstop=self.press,  # FIXME: end pressure??
             )
