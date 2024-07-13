@@ -22,7 +22,7 @@ requirements:
     - pip
   run:
     - python >=3.9
-    - ase >=3.22
+    - ase >=3.23
     - h5py >=3.7.0
     - joblib >=1.1.0
     - networkx >=2.6.3
