@@ -330,25 +330,38 @@ class AbstractDriver(AbstractNode):
 
     def _save_checkpoint(self, *args, **kwargs):
         """Save the previous simulation to a checkpoint directory."""
-        # - find previous runs...
-        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+        # find previous runs...
+        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"), key= lambda p: int(p.name[:4]))
         self._debug(f"prev_wdirs: {prev_wdirs}")
-        curr_index = len(prev_wdirs)
 
-        curr_wdir = self.directory / f"{str(curr_index).zfill(4)}.run"
-        self._debug(f"curr_wdir: {curr_wdir}")
-
-        # - backup files
-        curr_wdir.mkdir()
-        for x in self.directory.iterdir():
-            if not re.match(r"[0-9]{4}\.run", x.name):
-                # if x.name in self.saved_fnames:
-                #    shutil.move(x, curr_wdir)
-                # else:
-                #    x.unlink()
-                shutil.move(x, curr_wdir)  # save everything...
+        # get output files
+        has_outputs = False
+        pattern = re.compile(r"[0-9]{4}[.]run")
+        for p in self.directory.iterdir():
+            if re.match(pattern, p.name):
+                continue
             else:
-                ...
+                has_outputs = True
+                break
+
+        # backup files
+        if has_outputs:
+            curr_index = len(prev_wdirs)
+            curr_wdir = self.directory / f"{str(curr_index).zfill(4)}.run"
+            self._debug(f"curr_wdir: {curr_wdir}")
+            curr_wdir.mkdir()
+            for x in self.directory.iterdir():
+                if not re.match(r"[0-9]{4}\.run", x.name):
+                    # if x.name in self.saved_fnames:
+                    #    shutil.move(x, curr_wdir)
+                    # else:
+                    #    x.unlink()
+                    shutil.move(x, curr_wdir)  # save everything...
+                else:
+                    ...
+        else:
+            curr_wdir = prev_wdirs[-1].resolve()
+            self._debug(f"No outputs in {str(self.directory)} and they may be backed up before.")
 
         return curr_wdir
 
