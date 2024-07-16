@@ -99,7 +99,7 @@ class DriverSetting:
     timestep: float = 1.0
 
     temp: float = 300.0
-    tend: float = 300.0
+    tend: Optional[float] = None
     Tdamp: float = 100.0  # fs
 
     press: float = 1.0  # bar
