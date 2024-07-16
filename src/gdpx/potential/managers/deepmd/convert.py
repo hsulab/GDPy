@@ -5,6 +5,7 @@
 import collections
 import copy
 import pathlib
+import traceback
 
 from typing import Union, List, Callable
 
@@ -71,22 +72,30 @@ def convert_groups(
         frames_ = copy.deepcopy(frames)
         # check pbc
         pbc = np.all([np.all(a.get_pbc()) for a in frames_])
-        for atoms in frames_:
+        for i, atoms in enumerate(frames_):
             try:
                 # NOTE: We need update info and arrays as well
                 #       as some dpdata uses data from them instead of calculator
-                results = atoms.calc.results
+                results = copy.deepcopy(atoms.calc.results)
                 for k, v in results.items():
                     if k in atoms.info:
                         atoms.info[k] = v
                     if k in atoms.arrays:
                         atoms.arrays[k] = v
-                # - change force data
-                forces = results["forces"].copy()
-                del atoms.arrays["forces"]
+                # make sure atoms has at least energy and optional free_energy
+                for k in ["energy", "free_energy"]:
+                    if k in results.keys():
+                        atoms.info[k] = results[k]
+                    else:
+                        ...
+                assert "energy" in atoms.info, f"No energy in atoms.info `{i}  {atoms}`!"
+                # make sure atoms has forces, and convert it to force
+                forces = copy.deepcopy(results["forces"])
                 atoms.arrays["force"] = forces
-                # - remove some keys as dpdata cannot recognise them
-                #   e.g. tags, momenta, initial_charges
+                assert "force" in atoms.arrays, f"No force in atoms.info `{i}  {atoms}`!"
+                # make sure atoms has forces, and convert it to force
+                # remove some keys as dpdata cannot recognise them
+                # e.g. tags, momenta, initial_charges
                 keys = copy.deepcopy(list(atoms.arrays.keys()))
                 for k in keys:
                     if k not in ["numbers", "positions", "force"]:
