@@ -67,6 +67,20 @@ def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
 
     return convergence
 
+def read_report(lines: List[str]):
+    """Read VASP-REPORT and find RANDOM_SEED."""
+    pattern = re.compile(r"RANDOM_SEED =\s*(\d+)\s+(\d+)\s+(\d+)")
+    random_seeds = []
+    for line in lines:
+        match = pattern.search(line)
+        if match:
+            random_seeds.append([match.group(1), match.group(2), match.group(3)])
+        else:
+            ...
+    random_seeds = np.array(random_seeds, dtype=np.int32)
+
+    return random_seeds
+
 
 @dataclasses.dataclass
 class LangevinThermostat(Controller):
@@ -411,8 +425,13 @@ class VaspDriver(AbstractDriver):
                 dump_period = 1  # since we read vasprun.xml, every frame is dumped
                 target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
                 if target_steps > 0:  # not a spc
-                    # BUG: ...
-                    steps = target_steps + dump_period - nframes * dump_period
+                    # NOTE: vasp md is not consecutive, see read_trajectory
+                    if self.setting.task == "min":
+                        steps = target_steps + dump_period - nframes * dump_period
+                    elif self.setting.task == "md":
+                        steps = target_steps + dump_period - nframes * dump_period - 1
+                    else:
+                        ...
                     assert (
                         steps > 0
                     ), f"Steps should be greater than 0. (steps = {steps})"
@@ -421,6 +440,16 @@ class VaspDriver(AbstractDriver):
                 #       thus we manually call the function to write input files and
                 #       run the calculation
                 # FIXME: Read random_seed in REPORT!!!
+                if self.setting.task == "md":
+                    # read random_seed from REPORT
+                    with open(ckpt_wdir/"REPORT", "r") as fopen:
+                        lines = fopen.readlines()
+                        report_random_seeds = read_report(lines)
+                    self._print(f"{report_random_seeds.shape =}")
+                    assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
+                    self.calc.set(random_seed=report_random_seeds[-1].tolist())
+                else:
+                    ...
                 self.calc.write_input(atoms)
                 # To restart, velocities are always retained
                 # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
@@ -577,19 +606,27 @@ class VaspDriver(AbstractDriver):
         traj_frames_, ntrajs = [], len(traj_list)
         if ntrajs > 0:
             traj_frames_.extend(traj_list[0])
-            for i in range(1, ntrajs):
-                # FIXME: ase complete_cell bug?
-                prev_box = traj_list[i-1][-1].get_cell(complete=True)
-                curr_box = traj_list[i][0].get_cell(complete=True)
-                assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
+            if self.setting.task == "min":
+                for i in range(1, ntrajs):
+                    # FIXME: ase complete_cell bug?
+                    prev_box = traj_list[i-1][-1].get_cell(complete=True)
+                    curr_box = traj_list[i][0].get_cell(complete=True)
+                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
 
-                prev_pos = traj_list[i-1][-1].positions
-                curr_pos = traj_list[i][0].positions
-                pos_vec, _ = find_mic(prev_pos-curr_pos, traj_list[i-1][-1].get_cell())
-                assert np.allclose(
-                    pos_vec, np.zeros(pos_vec.shape)
-                ), f"Traj {i-1} and traj {i} are not consecutive."
-                traj_frames_.extend(traj_list[i][1:])
+                    prev_pos = traj_list[i-1][-1].positions
+                    curr_pos = traj_list[i][0].positions
+                    pos_vec, _ = find_mic(prev_pos-curr_pos, traj_list[i-1][-1].get_cell())
+                    assert np.allclose(
+                        pos_vec, np.zeros(pos_vec.shape)
+                    ), f"Traj {i-1} and traj {i} are not consecutive."
+                    traj_frames_.extend(traj_list[i][1:])
+            elif self.setting.task == "md":
+                # NOTE: vasp md restart is not from the last frame
+                #       as it addes the velocities in contcar to get a new frame to restart.
+                for i in range(1, ntrajs):
+                    traj_frames_.extend(traj_list[i][:])
+            else:
+                ...
         else:
             ...
 
