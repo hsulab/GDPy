@@ -75,7 +75,7 @@ class EnhancedCalculator(LinearCombinationCalculator):
 
 class CommitteeCalculator(LinearCombinationCalculator):
 
-    def __init__(self, calcs, use_avg=False, save_atomic=True, ddof=0, atoms=None):
+    def __init__(self, calcs, use_avg=False, save_atomic=True, ddof=0, directory: str="./"):
         """Init the committee calculator.
 
         Args:
@@ -93,7 +93,33 @@ class CommitteeCalculator(LinearCombinationCalculator):
         self.ddof = ddof
         self.save_atomic = save_atomic
 
-        super().__init__(calcs, weights, atoms)
+        self._directory = directory
+
+        super().__init__(calcs, weights)
+
+        return
+
+    @property
+    def directory(self) -> str:
+        """"""
+
+        return self._directory
+
+    @directory.setter
+    def directory(self, directory):
+        """"""
+        self._directory = directory
+
+        return
+
+    def reset(self):
+        """Clear all information from old calculation."""
+
+        self.atoms = None
+        self.results = {}
+
+        for calc in self.mixer.calcs:
+            calc.reset()
 
         return
 
@@ -114,12 +140,16 @@ class CommitteeCalculator(LinearCombinationCalculator):
     
     def _compute_deviation(self, atoms, properties):
         """Compute the RMSE deviation of calculator properties."""
-        if "energy" in properties:
-            tot_energies = np.array([c.results["energy"] for c in self.calcs])
+        # We directly check contributions in results as some properties not in `properties`
+        # are still calculated.
+        if "energy_contributions" in self.results:
+            # tot_energies = np.array([c.results["energy"] for c in self.calcs])
+            tot_energies = np.array(self.results["energy_contributions"])
             self.results["devi_te"] = np.sqrt(np.var(tot_energies, ddof=self.ddof))
 
-        if "forces" in properties:
-            cmt_forces = np.array([c.results["forces"].flatten() for c in self.calcs])
+        if "forces_contributions" in self.results:
+            # cmt_forces = np.array([c.results["forces"].flatten() for c in self.calcs])
+            cmt_forces = np.array([contrib.flatten() for contrib in self.results["forces_contributions"]])
             frc_devi = np.sqrt(np.var(np.array(cmt_forces), axis=0))
             self.results["max_devi_f"] = np.max(frc_devi)
             self.results["min_devi_f"] = np.min(frc_devi)
