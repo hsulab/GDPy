@@ -147,6 +147,7 @@ class NucleiRepulsionCalculator(Calculator):
         )
 
         self.results["energy"] = energy
+        self.results["free_energy"] = energy
         self.results["forces"] = forces
 
         return
