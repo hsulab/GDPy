@@ -26,7 +26,7 @@ class AddonCalculator(MixedCalculator):
 
 class EnhancedCalculator(LinearCombinationCalculator):
 
-    def __init__(self, calcs, save_host=True, weights=None, atoms=None):
+    def __init__(self, calcs, save_host=True, weights=None, atoms=None, directory: str="./"):
         """Init the enhanced calculator.
 
         Args:
@@ -35,16 +35,43 @@ class EnhancedCalculator(LinearCombinationCalculator):
         """
         if weights is None:
             weights = np.ones(len(calcs))
-        super().__init__(calcs, weights, atoms)
+        self._directory = directory
+
+        super().__init__(calcs, weights)
 
         self.save_host = save_host
 
         return
 
+    @property
+    def directory(self) -> str:
+        """"""
+
+        return self._directory
+
+    @directory.setter
+    def directory(self, directory):
+        """"""
+        self._directory = directory
+
+        return
+
+    def reset(self):
+        """Clear all information from old calculation."""
+
+        self.atoms = None
+        self.results = {}
+
+        for calc in self.mixer.calcs:
+            calc.reset()
+
+        return
+
+
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
         """"""
         # - for sub calculators...
-        for i, subcalc in enumerate(self.calcs):
+        for i, subcalc in enumerate(self.mixer.calcs):
             subcalc.directory = str(
                 (pathlib.Path(self.directory)/(str(i).zfill(2)+"."+subcalc.__class__.__name__)).resolve()
             )
@@ -57,16 +84,16 @@ class EnhancedCalculator(LinearCombinationCalculator):
         atoms.calc = prev_calc
 
         if self.save_host:
-            self.results["host_energy"] = self.calcs[0].get_property("energy", atoms)
-            self.results["host_forces"] = self.calcs[0].get_property("forces", atoms)
+            self.results["host_energy"] = self.mixer.calcs[0].get_property("energy", atoms)
+            self.results["host_forces"] = self.mixer.calcs[0].get_property("forces", atoms)
         
         # - save deviation if the host calculator is a committee
-        if isinstance(self.calcs[0], CommitteeCalculator):
+        if isinstance(self.mixer.calcs[0], CommitteeCalculator):
             natoms = len(atoms)
-            for k, v in self.calcs[0].results.items():
+            for k, v in self.mixer.calcs[0].results.items():
                 if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS:
                     self.results[k] = v
-            for k, v in self.calcs[0].results.items():
+            for k, v in self.mixer.calcs[0].results.items():
                 if k in GDPCONFIG.VALID_DEVI_ATOMIC_KEYS:
                     self.results[k] = np.reshape(v, (natoms, -1))
 
@@ -127,6 +154,7 @@ class CommitteeCalculator(LinearCombinationCalculator):
         """"""
         # NOTE: nequip requires that atoms has NequipCalculator or None
         #       thus, we set atoms.calc to None and restore it later
+        print(f"{atoms.calc =}")
         prev_calc = atoms.calc
         atoms.calc = None
 

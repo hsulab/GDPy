@@ -5,7 +5,7 @@
 import copy
 from typing import List
 
-from ase.calculators.calculator import Calculator
+from ase.calculators.calculator import Calculator, BaseCalculator
 
 from ..calculators.mixer import EnhancedCalculator
 from ..utils import convert_input_to_potter
@@ -51,7 +51,7 @@ class MixerManager(AbstractPotentialManager):
         # try broadcasting calculators
         broadcast_index = -1
         for i, p in enumerate(potters):
-            if isinstance(p.calc, Calculator):
+            if isinstance(p.calc, BaseCalculator):
                 ...
             else:  # assume it is a List of calculators
                 if broadcast_index != -1:
@@ -130,7 +130,7 @@ class MixerManager(AbstractPotentialManager):
         #       the potter is broadcastable
         broadcast_index = -1
         for i, p in enumerate(manager.potters):
-            if isinstance(p.calc, Calculator):
+            if isinstance(p.calc, BaseCalculator):
                 ...
             else:  # assume it is a List of calculators
                 if broadcast_index != -1:
