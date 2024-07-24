@@ -154,7 +154,6 @@ class CommitteeCalculator(LinearCombinationCalculator):
         """"""
         # NOTE: nequip requires that atoms has NequipCalculator or None
         #       thus, we set atoms.calc to None and restore it later
-        print(f"{atoms.calc =}")
         prev_calc = atoms.calc
         atoms.calc = None
 
