@@ -11,7 +11,7 @@ import numpy as np
 from ase.constraints import constrained_indices, FixAtoms
 
 
-def convert_indices(indices: Union[str,List[int]], index_convention="lmp"):
+def convert_indices(indices: Union[str,List[int]], index_convention="lmp") -> str:
     """ parse indices for reading xyz by ase, get start for counting
         constrained indices followed by lammps convention
         "2:4 3:8"
@@ -56,7 +56,7 @@ def convert_indices(indices: Union[str,List[int]], index_convention="lmp"):
                 ret.append("{}:{}".format(group[0],group[-1]))
         ret = " ".join(ret)
     else:
-        pass
+        ...
 
     return ret
 
