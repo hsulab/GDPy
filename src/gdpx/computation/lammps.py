@@ -25,7 +25,8 @@ from ase.io import read, write
 from ase.io.lammpsdata import write_lammps_data
 
 from .. import config
-from ..builder.constraints import parse_constraint_info
+from ..builder.constraints import parse_constraint_info, convert_indices
+from ..builder.group import create_a_group
 from ..potential.managers.plumed.calculators.plumed2 import (
     Plumed,
     update_stride_and_file,
@@ -1060,7 +1061,13 @@ class Lammps(FileIOCalculator):
 
         # - add extra fix
         for i, fix_info in enumerate(self.extra_fix):
-            content += "{:<24s}  {:<24s}  {:<s}\n".format("fix", f"extra{i}", fix_info)
+            if isinstance(fix_info, str):  # fix ID command
+                content += "{:<24s}  {:<24s}  {:<s}\n".format("fix", f"extra{i}", fix_info)
+            else:  # fix ID group-ID command
+                group_indices = create_a_group(atoms, fix_info[0])
+                group_text = convert_indices(group_indices, index_convention="py") # py-index -> lmp-index text
+                content += "{:<24s}  {:<24s}  {:<s}  \n".format("group", f"extra_group_{i}", group_text)
+                content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format("fix", f"extra{i}", f"extra_group_{i}", fix_info[1])
 
         # --- run type
         if self.task == "min":
