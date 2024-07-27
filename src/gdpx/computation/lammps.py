@@ -1066,8 +1066,9 @@ class Lammps(FileIOCalculator):
             else:  # fix ID group-ID command
                 group_indices = create_a_group(atoms, fix_info[0])
                 group_text = convert_indices(group_indices, index_convention="py") # py-index -> lmp-index text
-                content += "{:<24s}  {:<24s}  {:<s}  \n".format("group", f"extra_group_{i}", group_text)
+                content += "{:<24s}  {:<24s}  id  {:<s}  \n".format("group", f"extra_group_{i}", group_text)
                 content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format("fix", f"extra{i}", f"extra_group_{i}", fix_info[1])
+        content += "\n"
 
         # --- run type
         if self.task == "min":
