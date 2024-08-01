@@ -94,13 +94,14 @@ class SlurmScheduler(AbstractScheduler):
             universal_newlines=True,
         )
         output = p.stdout
+        lines = output.readlines()
+        content = "".join(lines)
 
         pattern = re.compile(
-            r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+\s+"
+            r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+"
         )
-        matches = pattern.findall("".join(output.readlines()))
+        matches = pattern.findall(content)
         names = [m[1] for m in matches]
-
         if self.job_name not in names:
             finished = True
         else:

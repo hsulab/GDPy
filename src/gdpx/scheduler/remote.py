@@ -196,7 +196,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
             output = stdout.read().decode()
 
             pattern = re.compile(
-                r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+\s+"
+                r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+"
             )
             matches = pattern.findall(output)
             names = [m[1] for m in matches]
