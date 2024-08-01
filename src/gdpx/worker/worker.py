@@ -11,6 +11,7 @@ import numpy as np
 from tinydb import TinyDB, Query
 
 from .. import config
+from ..scheduler import LocalScheduler
 from ..scheduler.scheduler import AbstractScheduler
 
 
@@ -35,7 +36,7 @@ class AbstractWorker(abc.ABC):
     batchsize: int = 1
 
     _directory: Optional[pathlib.Path] = None
-    _scheduler = None
+    _scheduler: AbstractScheduler = LocalScheduler()
     _database = None
 
     _submit = True
@@ -78,13 +79,10 @@ class AbstractWorker(abc.ABC):
         return self._scheduler
 
     @scheduler.setter
-    def scheduler(self, scheduler_):
+    def scheduler(self, scheduler_) -> AbstractScheduler:
         """"""
         assert isinstance(scheduler_, AbstractScheduler), ""
         self._scheduler = scheduler_
-
-        # - update mode
-        # if self._scheduler.name == "local"
 
         return
 

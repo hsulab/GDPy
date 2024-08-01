@@ -11,7 +11,7 @@ import tempfile
 import time
 import uuid
 import warnings
-from typing import List, NoReturn, Tuple, Union
+from typing import List, NoReturn, Tuple, Union, Optional
 
 import numpy as np
 import yaml
@@ -24,6 +24,8 @@ from .. import config
 from ..builder.builder import StructureBuilder
 from ..computation.driver import AbstractDriver
 from ..potential.manager import AbstractPotentialManager
+from ..scheduler import LocalScheduler
+from ..scheduler.scheduler import AbstractScheduler
 from ..utils.command import CustomTimer
 from .utils import copy_minimal_frames, get_file_md5
 from .worker import AbstractWorker
@@ -89,20 +91,19 @@ class DriverBasedWorker(AbstractWorker):
     _retain_info: bool = False
 
     def __init__(
-        self, potter_, driver_=None, scheduler_=None, directory_=None, *args, **kwargs
+        self, potter_, driver_=None, scheduler_=Optional[AbstractScheduler], *args, **kwargs
     ):
         """"""
-        self.batchsize = kwargs.pop("batchsize", 1)
+        super().__init__(*args, **kwargs)
 
         assert isinstance(potter_, AbstractPotentialManager), ""
-
         self.potter = potter_
         self.driver = driver_
-        self.scheduler = scheduler_
-        if directory_:
-            self.directory = directory_
 
-        self.n_jobs = config.NJOBS
+        if scheduler_ is not None:
+            self.scheduler = scheduler_ 
+        else:
+            self.scheduler = LocalScheduler()
 
         return
 
@@ -766,7 +767,7 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         self._write_worker_inputs(uid=uid)
 
         # - save structures
-        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").resolve())
+        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
 
         # - save scheduler file
         jobscript_fname = f"run-{uid}.script"
