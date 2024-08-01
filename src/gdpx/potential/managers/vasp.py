@@ -50,6 +50,13 @@ class VaspManager(AbstractPotentialManager):
         # - check backends
         super().register_calculator(calc_params)
 
+        # check whether the calculation will be sent to remote
+        # If so, incar will be not read until actually simulation is performed.
+        # The stored potter parameters should not contain remote.
+        # Maybe it is better to move incar-related thing to VaspDriver...
+        self.calc_params.pop("remote")
+        is_remote = calc_params.pop("remote", False)
+
         # - some extra params
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", pathlib.Path.cwd())
@@ -57,16 +64,21 @@ class VaspManager(AbstractPotentialManager):
         # NOTE: whether check pp and vdw existence
         #       since sometimes we'd like a dummy calculator
         #       -- convert paths to absolute ones
-        incar = calc_params.pop("incar", None)
-        pp_path = calc_params.pop("pp_path", "")
-        vdw_path = calc_params.pop("vdw_path", "")
 
-        incar = str(pathlib.Path(incar).absolute())
-        self.calc_params.update(incar=incar)
-        pp_path = str(pathlib.Path(pp_path).absolute())
-        self.calc_params.update(pp_path=pp_path)
-        vdw_path = str(pathlib.Path(vdw_path).absolute())
-        self.calc_params.update(vdw_path=vdw_path)
+        inp_fdict = dict(
+            incar = calc_params.pop("incar", None),
+            pp_path = calc_params.pop("pp_path", ""),
+            vdw_path = calc_params.pop("vdw_path", "")
+        )
+
+        if not is_remote:
+            for fname in inp_fdict.keys():
+                inp_fdict[fname] = str(pathlib.Path(inp_fdict[fname]).resolve())
+            self.calc_params.update(**inp_fdict)
+        else:
+            for fname, fpath in inp_fdict.items():
+                if not pathlib.Path(fpath).is_absolute():
+                    raise RuntimeError(f"{fname} for remote must be an absolute path.")
 
         if self.calc_backend == "vasp":
             # return ase calculator
@@ -78,9 +90,9 @@ class VaspManager(AbstractPotentialManager):
             calc.set(lorbit=10)
             calc.set(gamma=True)
             calc.set(lreal="Auto")
-            if incar is not None:
-                calc.read_incar(incar)
-            self._set_environs(pp_path, vdw_path)
+            if not is_remote and inp_fdict["incar"] is not None:
+                calc.read_incar(inp_fdict["incar"])
+            self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
             # - update residual params
             calc.set(**calc_params)
         elif self.calc_backend == "vasp_interactive":
@@ -91,14 +103,14 @@ class VaspManager(AbstractPotentialManager):
             calc.set(lorbit=10)
             calc.set(gamma=True)
             calc.set(lreal="Auto")
-            if incar is not None:
-                calc.read_incar(incar)
+            if not is_remote and inp_fdict["incar"] is not None:
+                calc.read_incar(inp_fdict["incar"])
             # - set some vasp_interactive parameters
             calc.set(potim=0.0)
             calc.set(ibrion=-1)
             calc.set(ediffg=0)
             #calc.set(isif=3) # TODO: Does not support stress for now...
-            self._set_environs(pp_path, vdw_path)
+            self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
             # - update residual params
             calc.set(**calc_params)
         else:
