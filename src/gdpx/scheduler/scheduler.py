@@ -20,6 +20,9 @@ class AbstractScheduler(ABC):
     #: The name of the scheduler.
     name: str = "abstract"
 
+    #: Host name.
+    hostname: str = "local"
+
     #: A string starts at each option line.
     PREFIX: str = None
 
@@ -67,6 +70,9 @@ class AbstractScheduler(ABC):
         # - update params
         self.environs = kwargs.pop("environs", "")
         self.user_commands = kwargs.pop("user_commands", "")
+
+        self.hostname = kwargs.pop("hostname", "local")
+        self.remote_wdir = kwargs.pop("remote_wdir", "./")
 
         # - make default params
         self.parameters = self._get_default_parameters()

@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*
 
 
+import warnings
+
 """Create scheduler based on parameters
 
 This module includes several schedulers.
@@ -33,6 +35,12 @@ registers.scheduler.register(PbsScheduler)
 from .slurm import SlurmScheduler
 
 registers.scheduler.register(SlurmScheduler)
+
+try:
+    from .remote import RemoteSlurmScheduler
+    registers.scheduler.register(RemoteSlurmScheduler)
+except Exception as e:
+    warnings.warn("Module {} import failed: {}".format("remote", e), UserWarning)
 
 
 if __name__ == "__main__":
