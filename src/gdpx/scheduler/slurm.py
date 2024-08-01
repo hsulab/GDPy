@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
+import re
 import subprocess
 
 from .scheduler import AbstractScheduler
@@ -91,24 +93,18 @@ class SlurmScheduler(AbstractScheduler):
             close_fds=True,
             universal_newlines=True,
         )
-        fout = p.stdout
-        lines = fout.readlines()
+        output = p.stdout
 
-        # - run over results
-        finished = False
-        for line in lines[1:]:  # skipe first info line
-            data = line.strip().split()
-            jobid, name, status = data[0], data[2], data[3]
-            # if name.startswith(self.prefix) and status in self.running_status:
-            #    indices = re.match(self.prefix+"*", name).span()
-            #    if indices is not None:
-            #        confid = int(name[indices[1]:])
-            #    confids.append(int(confid))
-            if name == self.parameters["job-name"]:
-                finished = False
-                break
-        else:
+        pattern = re.compile(
+            r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+\s+"
+        )
+        matches = pattern.findall("".join(output.readlines()))
+        names = [m[1] for m in matches]
+
+        if self.job_name not in names:
             finished = True
+        else:
+            finished = False
 
         return finished
 
