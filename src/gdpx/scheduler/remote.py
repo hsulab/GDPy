@@ -80,7 +80,7 @@ def _remove_outdated_r(sftp, remote_dir, local_dir, skipped_items):
         if item in skipped_items:
             continue
         try:
-            stat = sftp.stat(str(remote_dir))
+            rdir_stat = sftp.stat(str(remote_dir))
             if os.path.isdir(local_dir_item):
                 items_removed += _remove_outdated_r(
                     sftp, remote_dir_item, local_dir_item, skipped_items
@@ -129,8 +129,8 @@ class RemoteSlurmScheduler(SlurmScheduler):
         local_dir = self.script.parent
 
         try:
-            stat = sftp.stat(str(remote_dir))
-            print(f"transfer remote_dir {stat =}")
+            rdir_stat = sftp.stat(str(remote_dir))
+            print(f"transfer remote_dir {rdir_stat =}")
         except IOError:
             sftp.mkdir(str(remote_dir))
 
@@ -214,13 +214,19 @@ class RemoteSlurmScheduler(SlurmScheduler):
                 juid = self.script.name.split(".")[0][4:]  # run-{uid}.script
                 remote_dir = str(pathlib.Path(self.remote_wdir) / juid)
 
-                files_synced = _sync_r(sftp, remote_dir, local_dir, [f"_{self.name}_jobs.json"])
-                print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
-                # remove_outdated
-                print(f"cleaning up outdated items of '{remote_dir}' starting...")
-                outdated_removed = _remove_outdated_r(sftp, remote_dir, local_dir, [f"_{self.name}_jobs.json"])
-                print(f"removed {outdated_removed} outdated item(s) of '{remote_dir}'")
-                sftp.close()
+                try:
+                    rdir_stat = sftp.stat(str(remote_dir))
+
+                    files_synced = _sync_r(sftp, remote_dir, local_dir, [f"_{self.name}_jobs.json"])
+                    print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
+                    # remove_outdated
+                    print(f"cleaning up outdated items of '{remote_dir}' starting...")
+                    outdated_removed = _remove_outdated_r(sftp, remote_dir, local_dir, [f"_{self.name}_jobs.json"])
+                    print(f"removed {outdated_removed} outdated item(s) of '{remote_dir}'")
+                except:
+                    ...
+                finally:
+                    sftp.close()
             else:
                 ...
         finally:
