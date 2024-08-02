@@ -101,7 +101,7 @@ class read_stru(Operation):
 class write_stru(Operation):
 
     def __init__(
-        self, fname, structures, format="extxyz", directory="./", *args, **kwargs
+        self, structures, fname=None, format="extxyz", directory="./", *args, **kwargs
     ) -> None:
         """"""
         input_nodes = [structures]
@@ -117,7 +117,21 @@ class write_stru(Operation):
         """"""
         super().forward()
 
-        write(self.directory / self.fname, structures, format=self.format)
+        if isinstance(structures, AtomsNDArray):
+            structures = structures.get_marked_structures()
+
+        self._print(f"write structures to {str(self.directory/'structures.xyz')}")
+        write(self.directory/"structures.xyz", structures, format=self.format)
+
+        if self.fname is not None:
+            fpath = pathlib.Path(self.fname)
+            fpath.parent.mkdir(parents=True, exist_ok=True)
+            if fpath.exists():
+                self._print("remove previous saved_structures")
+                fpath.unlink()
+            fpath.symlink_to(self.directory/"structures.xyz")
+        else:
+            ...
 
         self.status = "finished"
 
