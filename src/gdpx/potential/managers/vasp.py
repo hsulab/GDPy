@@ -54,7 +54,7 @@ class VaspManager(AbstractPotentialManager):
         # If so, incar will be not read until actually simulation is performed.
         # The stored potter parameters should not contain remote.
         # Maybe it is better to move incar-related thing to VaspDriver...
-        self.calc_params.pop("remote")
+        self.calc_params.pop("remote", None)
         is_remote = calc_params.pop("remote", False)
 
         # - some extra params
