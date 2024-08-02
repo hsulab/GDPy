@@ -64,9 +64,19 @@ class select(Operation):
 
     cache_fname = "selected_frames.xyz"
 
-    def __init__(self, structures, selector, directory="./", *args, **kwargs):
+    def __init__(
+        self,
+        structures,
+        selector,
+        ignore_previous_selections: bool = False,
+        directory="./",
+        *args,
+        **kwargs,
+    ):
         """"""
         super().__init__(input_nodes=[structures, selector], directory=directory)
+
+        self.ignore_previous_selections = ignore_previous_selections
 
         return
 
@@ -110,6 +120,11 @@ class select(Operation):
         """"""
         super().forward()
         selector.directory = self.directory
+
+        # Sometimes we perform selections in parallel, thus,
+        # we can ignore previous selections (markers).
+        if self.ignore_previous_selections:
+            structures.reset_markers()
 
         cache_fpath = self.directory / self.cache_fname
         if not cache_fpath.exists():

@@ -20,8 +20,11 @@ from ..data.array import AtomsNDArray
 from ..selector.scf import ScfSelector
 from ..utils.command import CustomTimer
 from ..utils.strconv import str2array
-from ..worker.drive import (CommandDriverBasedWorker, DriverBasedWorker,
-                            QueueDriverBasedWorker)
+from ..worker.drive import (
+    CommandDriverBasedWorker,
+    DriverBasedWorker,
+    QueueDriverBasedWorker,
+)
 from ..worker.interface import ComputerVariable
 
 # --- variable ---
@@ -173,7 +176,7 @@ def get_shape_data(shape_dir: Union[str, pathlib.Path]):
 
 
 def convert_results_to_structures(
-    structures: List[Atoms],
+    structures: AtomsNDArray,
     inp_shape,
     inp_markers,
     *,
@@ -248,6 +251,7 @@ class compute(Operation):
         self,
         builder: Variable,
         worker: Variable,
+        *,
         batchsize: Optional[int] = None,
         share_wdir: bool = False,
         retain_info: bool = False,
@@ -256,6 +260,7 @@ class compute(Operation):
         merge_workers: bool = False,
         reduce_single_worker: bool = True,
         check_scf_convergence: bool = False,
+        ignore_previous_selections: bool = False,
         directory: Union[str, pathlib.Path] = "./",
     ):
         """Initialise a compute operation.
@@ -284,6 +289,8 @@ class compute(Operation):
 
         # -
         self.check_scf_convergence = check_scf_convergence
+
+        self.ignore_previous_selections = ignore_previous_selections
 
         return
 
@@ -315,7 +322,7 @@ class compute(Operation):
         """
         super().forward()
 
-        nworkers = len(workers)
+        num_workers = len(workers)
 
         # FIXME: It is better to move this part to driver...
         #       We only convert spc worker structures shape here...
@@ -325,22 +332,26 @@ class compute(Operation):
             driver0_dict = dict(task="unknown")
 
         if (
-            nworkers == 1
+            num_workers == 1
             and driver0_dict.get("task", "min") == "min"
             and (driver0_dict.get("steps", 0) <= 0)
         ):
             # check input data type
             inp_shape, inp_markers = None, None
             if isinstance(structures, AtomsNDArray):
-                frames = structures.get_marked_structures()
-                nframes = len(frames)
+                if not self.ignore_previous_selections:
+                    curr_markers = structures.markers
+                else:
+                    curr_markers = structures.init_markers
+                frames = structures.get_marked_structures(markers=curr_markers)
+                num_frames = len(frames)
                 inp_shape = structures.shape
-                inp_markers = [tuple(iloc.tolist()) for iloc in structures.markers]
+                inp_markers = [tuple(iloc.tolist()) for iloc in curr_markers]
             else:  # assume it is just a List of Atoms
                 frames = structures
-                nframes = len(frames)
-                inp_shape = (1, nframes)
-                inp_markers = [(0, i) for i in range(nframes)]
+                num_frames = len(frames)
+                inp_shape = (1, num_frames)
+                inp_markers = [(0, i) for i in range(num_frames)]
             # self._print(inp_markers)
             # Dump shape data
             # NOTE: Since all workers use the same input structures,
@@ -357,10 +368,14 @@ class compute(Operation):
             )
         else:
             if isinstance(structures, AtomsNDArray):
-                frames = structures.get_marked_structures()
+                if not self.ignore_previous_selections:
+                    curr_markers = structures.markers
+                else:
+                    curr_markers = structures.init_markers
+                frames = structures.get_marked_structures(markers=curr_markers)
             else:  # assume it is just a plain List of Atoms
                 frames = structures
-            nframes = len(frames)
+            num_frames = len(frames)
             inp_shape, inp_markers = None, None
 
         # - create workers
@@ -369,22 +384,22 @@ class compute(Operation):
             if self.batchsize is not None:
                 worker.batchsize = self.batchsize
             else:
-                worker.batchsize = nframes
+                worker.batchsize = num_frames
             # if self.share_wdir and worker.scheduler.name == "local":
             if self.share_wdir:
                 worker._share_wdir = True
             if self.retain_info:
                 worker._retain_info = True
-        nworkers = len(workers)
+        num_workers = len(workers)
 
-        if nworkers == 1:
+        if num_workers == 1:
             workers[0].directory = self.directory
 
         # - run workers
         worker_status = []
         for i, worker in enumerate(workers):
             flag_fpath = worker.directory / "FINISHED"
-            self._print(f"run worker {i} for {nframes} nframes")
+            self._print(f"run worker {i} for {num_frames} nframes")
             if not flag_fpath.exists():
                 worker.run(frames)
                 worker.inspect(resubmit=True)  # if not running, resubmit
