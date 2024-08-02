@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import copy
 import itertools
 import functools
 import operator
 import numbers
 import pathlib
-from typing import Any, Optional, List, Mapping
+from typing import Any, Union, Optional, List, Mapping
 
 import h5py
 import numpy as np
@@ -91,12 +93,11 @@ class AtomsNDArray:
 
     """
 
-    def __init__(self, data: list = None, markers=None) -> None:
+    def __init__(self, data: Optional[Union[list,'AtomsNDArray']] = None, markers=None) -> None:
         """Init from a List^n object."""
         # TODO: Check data should be a list
         if data is None:
             data = []
-        # TODO: Check data should be a list
         if isinstance(data, list):
             data = data
         elif isinstance(data, AtomsNDArray):
@@ -110,6 +111,7 @@ class AtomsNDArray:
 
         self._shape, self._data, self._markers, self._ind_map = self._process_data(
             data)
+        self._init_markers = copy.deepcopy(self._markers)
 
         # TODO: Check IndexError?
         if markers is not None:
@@ -194,7 +196,7 @@ class AtomsNDArray:
         return raw_markers
 
     @property
-    def markers(self):
+    def markers(self) -> np.ndarray:
         """Return markers.
 
         If it is the first time, all structures are returned.
@@ -220,6 +222,18 @@ class AtomsNDArray:
             raise ValueError("Index must be a list or a ndarray.")
 
         self._markers = np.array(sorted(new_markers))
+
+        return
+
+    @property
+    def init_markers(self) -> np.ndarray:
+        """"""
+
+        return self._init_markers
+
+    def reset_markers(self):
+        """"""
+        self._markers = copy.deepcopy(self.init_markers)
 
         return
 
@@ -288,6 +302,14 @@ class AtomsNDArray:
             if data is not None:
                 for atoms, v in zip(images, data):
                     atoms.info[name] = v
+
+        # add some extra properties (momenta, charges, ...)
+        data = grp.get("momenta", default=None)
+        if data is not None:
+            for i, v in enumerate(data):
+                a_v = v[:natoms_list[i]]
+                if not np.all(np.isnan(a_v)):
+                    images[i].set_momenta(a_v)
 
         # -- add calc
         results = [{} for _ in range(nimages)]  # List[Mapping[str,data]]
@@ -388,12 +410,20 @@ class AtomsNDArray:
 
         # forces = np.array([a.get_forces() for a in images], dtype=np.float64)
         forces = np.zeros((nimages, max(natoms_list), 3), dtype=np.float64)
+        momenta = np.empty((nimages, max(natoms_list), 3), dtype=np.float64)
+        momenta.fill(np.nan)
         for i, a in enumerate(images):
             forces[i, :natoms_list[i], :] = a.get_forces()
+            if "momenta" in a.arrays:
+                momenta[i, :natoms_list[i], :] = a.get_momenta()
+            else:
+                ...
 
+        # save properties to dataset
         ene_dset = grp.create_dataset("energy", data=energies, dtype="f8")
         fen_dset = grp.create_dataset("free_energy", data=free_energies, dtype="f8")
         frc_dset = grp.create_dataset("forces", data=forces, dtype="f8")
+        mom_dset = grp.create_dataset("momenta", data=momenta, dtype="f8")
 
         return
 
