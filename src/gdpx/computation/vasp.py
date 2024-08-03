@@ -536,6 +536,8 @@ class VaspDriver(AbstractDriver):
                 # The LAST SCF failed due to some error, for example, too small distance
                 # So we manually set conv to false for the last step and also
                 # we set frames energy and forces to a very large value...
+                # FIXME: We need check whether the last step unfinished is due to exceed wall time
+                #        or some other errors... Othwise, a normal structure will be considered as an error.
                 scf_convergences.append(False)
                 # FIXME: Use a new CustomAtoms object to deal with this?
                 from ase.calculators.singlepoint import SinglePointCalculator
