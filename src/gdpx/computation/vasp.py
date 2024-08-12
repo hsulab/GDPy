@@ -633,15 +633,15 @@ class VaspDriver(AbstractDriver):
             ...
 
         nframes = len(traj_frames_)
-        natoms = len(traj_frames_[0])
 
         # - sort frames
         traj_frames = []
         if nframes > 0:
+            num_atoms = len(traj_frames_[0])
             if (self.directory / ASE_VASP_SORT_FNAME).exists():
                 sort, resort = read_sort(self.directory)
             else:  # without sort file, use default order
-                sort, resort = list(range(natoms)), list(range(natoms))
+                sort, resort = list(range(num_atoms)), list(range(num_atoms))
             for i, sorted_atoms in enumerate(traj_frames_):
                 # NOTE: calculation with only one unfinished step does not have forces
                 input_atoms = resort_atoms_with_spc(
