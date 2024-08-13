@@ -12,9 +12,10 @@ class XtbManager(AbstractPotentialManager):
 
     name = "xtb"
 
-    implemented_backends = ["xtb"]
+    implemented_backends = ["xtb", "tblite"]
     valid_combinations = (
-        ("xtb", "ase")
+        ("xtb", "ase"),
+        ("tblite", "ase"),
     )
 
     """See XTB documentation for calculator parameters.
@@ -38,14 +39,20 @@ class XtbManager(AbstractPotentialManager):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
-        try:
-            from xtb.ase.calculator import XTB
-        except:
-            print("Please install xtb python to use this module.")
-            exit()
-
         if self.calc_backend == "xtb":
+            try:
+                from xtb.ase.calculator import XTB
+            except:
+                print("Please install xtb python to use this module.")
+                exit()
             calc_cls = XTB
+        elif self.calc_backend == "tblite":
+            try:
+                from tblite.ase import TBLite
+            except:
+                print("Please install xtb python to use this module.")
+                exit()
+            calc_cls = TBLite
         else:
             raise NotImplementedError(f"Unsupported backend {self.calc_backend}.")
         
