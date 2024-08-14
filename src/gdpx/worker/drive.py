@@ -452,11 +452,15 @@ class DriverBasedWorker(AbstractWorker):
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory / f"run-{uid}.script"
 
-                # -- check whether the jobs if running
-                if self.scheduler.is_finished():  # if it is still in the queue
-                    # -- valid if the task finished correctly not due to time-limit
-                    is_finished = False
-                    wdir_names = doc_data["wdir_names"]
+                # check if the job is still running (or in the queue) 
+                # True if the task finished correctly not due to time-limit
+                if self.scheduler.is_finished():
+                    is_finished = False  # whether all calculations are correctly finished
+                    wdir_names = doc_data["wdir_names"]  # cand0 cand1 ... cand{N-1} cand{N}
+                    if hasattr(self.scheduler, "_sync_remote"):
+                        self.scheduler._sync_remote(wdir_names=wdir_names)
+                    else:
+                        ...
                     if not self._share_wdir:
                         # - first a quick check if all wdirs exist
                         wdir_existence = [
@@ -589,6 +593,7 @@ class DriverBasedWorker(AbstractWorker):
                     )
                 # - archive results if it has not been done
                 if use_archive and not archive_path.exists():
+                    # TODO: Check if all computation folders are valid?
                     self._print("archive computation folders...")
                     with tarfile.open(archive_path, "w:gz", compresslevel=6) as tar:
                         for w in unretrieved_wdirs:

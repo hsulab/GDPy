@@ -8,6 +8,7 @@ import re
 import shutil
 import stat
 import traceback
+from typing import List
 
 import paramiko
 
@@ -37,9 +38,10 @@ def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_pa
         )
 
 
-def _sync_r(sftp: paramiko.SFTPClient, remote_dir, local_dir, skipp_items):
+def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items):
     """
-    Recursively sync the sftp contents starting at remote dir to the local dir and return the number of files synced.
+    Recursively sync the sftp contents starting at remote dir to the local dir,
+    and return the number of files synced.
 
     Args:
         sftp:        Connection to the sftp server.
@@ -54,7 +56,7 @@ def _sync_r(sftp: paramiko.SFTPClient, remote_dir, local_dir, skipp_items):
     for item in sftp.listdir_attr(remote_dir):
         remote_dir_item = os.path.join(remote_dir, item.filename)
         local_dir_item = os.path.join(local_dir, item.filename)
-        if item.filename in skipp_items:
+        if item.filename in skipped_items:
             continue
         # print("check {} => {}".format(remote_dir_item, local_dir_item))
         if stat.S_ISREG(item.st_mode):
@@ -70,12 +72,17 @@ def _sync_r(sftp: paramiko.SFTPClient, remote_dir, local_dir, skipp_items):
                 os.utime(local_dir_item, times)
                 files_synced += 1
         else:
-            files_synced += _sync_r(sftp, remote_dir_item, local_dir_item, skipp_items)
+            files_synced += _sync_r(
+                sftp, remote_dir_item, local_dir_item, skipped_items
+            )
 
     return files_synced
 
 
-def _remove_outdated_r(sftp, remote_dir, local_dir, skipped_items):
+def _remove_outdated_r(
+    sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items: List[str]
+):
+    """Remove outdated items."""
     items_removed = 0
     for item in os.listdir(local_dir):
         remote_dir_item = os.path.join(remote_dir, item)
@@ -127,16 +134,15 @@ class RemoteSlurmScheduler(SlurmScheduler):
     def _transfer(self, sftp, remote_dir, skipped_items):
         """"""
         # Check if the remote_wdir exists before sending files
-        sftp = self.ssh.open_sftp()
-
-        local_dir = self.script.parent
-
+        # If several batches are submitted, this transfer will
+        # just run once.
         try:
             rdir_stat = sftp.stat(str(remote_dir))
-            print(f"transfer remote_dir {rdir_stat =}")
+            print(f"remote_dir `{rdir_stat =}` has already been transferred.")
         except IOError:
             sftp.mkdir(str(remote_dir))
 
+            local_dir = self.script.parent
             for p in local_dir.rglob("*"):
                 # print(f"put {p}")
                 relative_path = p.relative_to(local_dir)
@@ -184,6 +190,54 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
         return job_id
 
+    def _sync_remote(self, wdir_names: List[str]) -> None:
+        """Syncronize the working directories from the remote machine.
+
+        Normally, this method should be called after the remote job is finished.
+
+        """
+        password = os.environ.get(f"{self.hostname.upper()}_PASSWORD")
+        try:
+            self.ssh.connect(hostname=self.hostname, password=password)
+
+            # pull results from the remote
+            sftp = self.ssh.open_sftp()
+
+            local_dir = str(self.script.parent)
+
+            juid = self.script.name.split(".")[0][4:]  # run-{uid}.script
+            remote_dir = str(pathlib.Path(self.remote_wdir) / juid)
+
+            try:
+                rdir_stat = sftp.stat(str(remote_dir))
+
+                files_synced = _sync_r(
+                    sftp,
+                    remote_dir,
+                    local_dir,
+                    skipped_items=[f"_{self.name}_jobs.json"],
+                )
+                print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
+                # remove_outdated (only outdated files in wdirs will be removed)
+                print(f"cleaning up outdated items of '{remote_dir}' starting...")
+                outdated_removed = 0
+                for item_name in wdir_names:
+                    outdated_removed += _remove_outdated_r(
+                        sftp,
+                        str(pathlib.Path(remote_dir) / item_name),
+                        str(pathlib.Path(local_dir) / item_name),
+                        [f"_{self.name}_jobs.json"],
+                    )
+                print(f"removed {outdated_removed} outdated item(s) of '{remote_dir}'")
+            except:
+                ...
+            finally:
+                sftp.close()
+        finally:
+            self.ssh.close()
+
+        return
+
     def is_finished(self) -> bool:
         """"""
         finished = False
@@ -205,45 +259,9 @@ class RemoteSlurmScheduler(SlurmScheduler):
                 finished = True
             else:
                 finished = False
-            # print(f"{finished =}")
 
-            # pull results from the remote
-            sftp = None
-            if finished:
-                sftp = self.ssh.open_sftp()
-
-                local_dir = str(self.script.parent)
-
-                juid = self.script.name.split(".")[0][4:]  # run-{uid}.script
-                remote_dir = str(pathlib.Path(self.remote_wdir) / juid)
-
-                try:
-                    rdir_stat = sftp.stat(str(remote_dir))
-
-                    files_synced = _sync_r(
-                        sftp, remote_dir, local_dir, [f"_{self.name}_jobs.json"]
-                    )
-                    print(
-                        "synced {} file(s) from '{}'".format(files_synced, remote_dir)
-                    )
-                    # remove_outdated
-                    print(f"cleaning up outdated items of '{remote_dir}' starting...")
-                    outdated_removed = _remove_outdated_r(
-                        sftp, remote_dir, local_dir, [f"_{self.name}_jobs.json"]
-                    )
-                    print(
-                        f"removed {outdated_removed} outdated item(s) of '{remote_dir}'"
-                    )
-                except:
-                    ...
-                finally:
-                    sftp.close()
-            else:
-                ...
         finally:
             self.ssh.close()
-            if sftp is not None:
-                sftp.close()
 
         return finished
 
