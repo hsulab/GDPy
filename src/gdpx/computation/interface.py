@@ -422,6 +422,7 @@ class compute(Operation):
         if all(worker_status):
             if self.extract_data:
                 self._print("--- extract results ---")
+                # TODO: check if computations are all valid before extract?
                 status, computed_structures = extract_results_from_workers(
                     self.directory / "extracted",
                     workers,
