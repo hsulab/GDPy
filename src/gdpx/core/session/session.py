@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import List, Callable
+from typing import Callable, List
 
 from .. import config
 from ..operation import Operation
-
 
 #: A List of valid session states.
 SESSION_STATE_LIST: List[str] = [
@@ -40,7 +39,6 @@ class AbstractSession:
     #: Standard debug function.
     _debug: Callable = config._debug
 
-
     @property
     def state(self) -> str:
         """"""
@@ -67,9 +65,7 @@ class AbstractSession:
         """"""
         if not node.is_about_to_exit():
             if node.is_ready_to_forward():  # All input nodes finished.
-                node.inputs = [
-                    input_node.output for input_node in node.input_nodes
-                ]
+                node.inputs = [input_node.output for input_node in node.input_nodes]
                 node.output = node.forward(*node.inputs)
             else:
                 # - check whether this node' not ready due to previous nodes are broken.
@@ -84,15 +80,27 @@ class AbstractSession:
                 is_broken = any(broken_states)
                 if not is_broken:
                     self.state = "StepToContinue"
-                    self._print("  wait previous nodes to finish...")
+                    self._print(
+                        "\x1b[1;33;40m"
+                        + "  wait previous nodes to finish..."
+                        + "\x1b[0m"
+                    )
                 else:
                     # The `broken` status is contagious
                     node.status = "exit"
                     self.state = "StepBroken"
-                    self._print("  The current node is broken.")
+                    self._print(
+                        "\x1b[1;31;40m"
+                        + "  The current node is broken."
+                        + "\x1b[0m"
+                    )
         else:
             self.state = "StepBroken"
-            self._print("  The current node is broken.")
+            self._print(
+                "\x1b[1;31;40m"
+                + "  The current node is broken."
+                + "\x1b[0m"
+            )
 
         return
 

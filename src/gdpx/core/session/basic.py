@@ -30,10 +30,13 @@ class Session(AbstractSession):
                 )
 
         self._print(
-            "[{:^24s}] NUM_NODES: {} AT MAIN: {}".format(
-                "START", len(nodes_postorder), str(self.directory)
+            "\x1b[1;34;40m"
+            + "[{:^24s}] NUM_NODES: {} AT MAIN: ".format(
+                "START", len(nodes_postorder)
             )
+            + "\x1b[0m"
         )
+        self._print("\x1b[1;34;40m" + "    {}".format(str(self.directory)) + "\x1b[0m")
 
         # - run nodes
         for i, node in enumerate(nodes_postorder):

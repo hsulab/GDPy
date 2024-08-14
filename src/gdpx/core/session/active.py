@@ -4,9 +4,7 @@
 import copy
 import pathlib
 import time
-
-from typing import NoReturn, Union, Tuple, List, Callable
-
+from typing import Callable, List, NoReturn, Tuple, Union
 
 from ..placeholder import Placeholder
 from ..variable import Variable
@@ -129,10 +127,13 @@ class ActiveSession(AbstractSession):
 
         # - find forward order
         self._print(
-            "[{:^24s}] NUM_NODES: {} AT MAIN: {}".format(
-                "START", len(nodes_postorder), str(wdir)
+            "\x1b[1;34;40m"
+            + "[{:^24s}] NUM_NODES: {} AT MAIN: ".format(
+                "START", len(nodes_postorder)
             )
+            + "\x1b[0m"
         )
+        self._print("\x1b[1;34;40m" + "    {}".format(str(wdir)) + "\x1b[0m")
 
         # - run nodes
         self.state = "StepFinished"
