@@ -8,7 +8,7 @@ import re
 import shutil
 import stat
 import traceback
-from typing import List
+from typing import List, Callable
 
 import paramiko
 
@@ -80,7 +80,12 @@ def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_
 
 
 def _remove_outdated_r(
-    sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items: List[str]
+    sftp: paramiko.SFTPClient,
+    remote_dir: str,
+    local_dir: str,
+    skipped_items: List[str],
+    print_func=print,
+    debug_func=print,
 ):
     """Remove outdated items."""
     items_removed = 0
@@ -93,17 +98,22 @@ def _remove_outdated_r(
             rdir_stat = sftp.stat(str(remote_dir))
             if os.path.isdir(local_dir_item):
                 items_removed += _remove_outdated_r(
-                    sftp, remote_dir_item, local_dir_item, skipped_items
+                    sftp,
+                    remote_dir_item,
+                    local_dir_item,
+                    skipped_items,
+                    print_func=print_func,
+                    debug_func=debug_func,
                 )
         except IOError:
-            print("removing {}".format(local_dir_item))
-            _remove(local_dir_item)
+            print_func("removing {}".format(local_dir_item))
+            _remove(local_dir_item, print_func=print_func, debug_func=debug_func)
             items_removed += 1
 
     return items_removed
 
 
-def _remove(path):
+def _remove(path, print_func=print, debug_func=print):
     """param <path> could either be relative or absolute."""
     try:
         if os.path.isfile(path):
@@ -111,7 +121,7 @@ def _remove(path):
         else:
             shutil.rmtree(path)  # remove directory
     except Exception as e:
-        print("could not remove {}, error {0}".format(path, str(e)))
+        print_func("could not remove {}, error {0}".format(path, str(e)))
 
 
 class RemoteSlurmScheduler(SlurmScheduler):
@@ -138,13 +148,12 @@ class RemoteSlurmScheduler(SlurmScheduler):
         # just run once.
         try:
             rdir_stat = sftp.stat(str(remote_dir))
-            print(f"remote_dir `{rdir_stat =}` has already been transferred.")
+            self._print(f"remote_dir `{rdir_stat =}` has already been transferred.")
         except IOError:
             sftp.mkdir(str(remote_dir))
 
             local_dir = self.script.parent
             for p in local_dir.rglob("*"):
-                # print(f"put {p}")
                 relative_path = p.relative_to(local_dir)
                 if relative_path.name in skipped_items:
                     continue
@@ -182,7 +191,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
             job_id += output.strip().split()[-1]
         except Exception:
-            print(f"{traceback.format_exc()}")
+            self._print(f"{traceback.format_exc()}")
             job_id += f"FAILED: {error}"
         finally:
             self.ssh.close()
@@ -217,18 +226,24 @@ class RemoteSlurmScheduler(SlurmScheduler):
                     local_dir,
                     skipped_items=[f"_{self.name}_jobs.json"],
                 )
-                print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
+                self._print(
+                    "synced {} file(s) from '{}'".format(files_synced, remote_dir)
+                )
                 # remove_outdated (only outdated files in wdirs will be removed)
-                print(f"cleaning up outdated items of '{remote_dir}' starting...")
+                self._print(f"cleaning up outdated items of '{remote_dir}' starting...")
                 outdated_removed = 0
                 for item_name in wdir_names:
                     outdated_removed += _remove_outdated_r(
                         sftp,
                         str(pathlib.Path(remote_dir) / item_name),
                         str(pathlib.Path(local_dir) / item_name),
-                        [f"_{self.name}_jobs.json"],
+                        skipped_items=[f"_{self.name}_jobs.json"],
+                        print_func=self._print,
+                        debug_func=self._debug
                     )
-                print(f"removed {outdated_removed} outdated item(s) of '{remote_dir}'")
+                self._print(
+                    f"removed {outdated_removed} outdated item(s) of '{remote_dir}'"
+                )
             except:
                 ...
             finally:

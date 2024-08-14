@@ -4,9 +4,11 @@
 import copy
 import pathlib
 import subprocess
-from typing import NoReturn, Union, List
+from typing import NoReturn, Union, List, Callable
 
 from abc import ABC, abstractmethod
+
+from .. import config
 
 
 class AbstractScheduler(ABC):
@@ -19,6 +21,12 @@ class AbstractScheduler(ABC):
 
     #: The name of the scheduler.
     name: str = "abstract"
+
+    #: Standard print function.
+    _print: Callable = config._print
+
+    #: Standard debug function.
+    _debug: Callable = config._debug
 
     #: Host name.
     hostname: str = "local"
