@@ -277,11 +277,14 @@ class AbstractPopulationManager:
         if rest_rep_size > 0 and num_random == 0:
             # pair finished but not enough, random already starts...
             for i in range(self.gen_rep_max_try):
+                self._print(f"Reproduction attempt {i} ->")
                 atoms = self._reproduce(database, population, pairing, mutations)
                 if atoms is not None:
                     paired_structures.append(atoms)
-                    self._print(f"  --> {atoms.info}")
-                    self._print("  --> confid %d\n" % (atoms.info["confid"]))
+                    parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
+                    self._print(f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}")
+                else:
+                    ... # Reproduction failed.
                 if len(paired_structures) == self.gen_rep_size:
                     break
             else:
@@ -426,31 +429,19 @@ class AbstractPopulationManager:
                 if curr_prob < self.pmut:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
                     if a3_mut is not None:
-                        self._print(f"a3_mut: {a3_mut.info}")
                         database.add_unrelaxed_step(a3_mut, mut_desc)
-                        # write("./pairs.xyz", a3, append=True)
-                        # write("./muts.xyz", a3_mut, append=True)
                         a3 = a3_mut
+                        self._print(f"  {desc}  {mut_desc}")
                     else:
-                        mut_desc = ""
-                self._print(
-                    f"  reproduce offspring with {desc} and ({curr_prob}) {mut_desc} after {i+1} attempts..."
-                )
+                        self._print(f"  {desc}") # Mutate failed.
                 break
             else:
-                mut_desc = ""
-                self._print(
-                    f"  failed to reproduce offspring with {desc} {mut_desc} after {i+1} attempts..."
-                )
+                ... # Reproduce failed.
         else:
-            self._print(
-                "cannot reproduce offspring a3 after {0} attempts".format(
-                    self.MAX_REPROC_TRY
-                )
-            )
+            self._print(f"  cannot reproduce offspring a3 after {self.MAX_REPROC_TRY} attempts")
 
         return a3
 
 
 if __name__ == "__main__":
-    pass
+    ...
