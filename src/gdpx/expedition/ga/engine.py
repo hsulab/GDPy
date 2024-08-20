@@ -420,11 +420,10 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             #    self._print(f"{ia} {a.info}")
 
             # TODO: send candidates directly to worker that respects the batchsize
-            self._print("\n")
-            self._print("\n")
             self._print("===== Optimisation =====")
             for ia, a in enumerate(current_candidates):
-                self._print(f"{ia} {a.info}")
+                parents = " ".join([str(x) for x in a.info["data"]["parents"]])
+                self._print(f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<20s} extinct={a.info['key_value_pairs']['extinct']:<4d}")
             if not (self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}").exists():
                 frames_to_work = []
                 for atoms in current_candidates:
@@ -456,8 +455,6 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)
             ]
             for cand in converged_candidates:
-                self._print(cand)
-                self._print(cand.info)
                 # update extra info
                 extra_info = dict(data={}, key_value_pairs={"extinct": 0})
                 cand.info.update(extra_info)
@@ -478,12 +475,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                     cand.set_tags(previous_tags)
                 # evaluate raw score
                 self.evaluate_candidate(cand)
-                self._print(f"  add relaxed cand {confid}")
-                self._print(
-                    "  with raw_score {:.4f}".format(
-                        cand.info["key_value_pairs"]["raw_score"]
-                    )
-                )
+                fitness = cand.info["key_value_pairs"]["raw_score"]
+                self._print(f"confid {confid} relaxed with fitness {fitness:>16.4f}")
                 self.da.add_relaxed_step(
                     cand,
                     find_neighbors=self.find_neighbors,
