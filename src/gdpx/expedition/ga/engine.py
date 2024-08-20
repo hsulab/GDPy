@@ -354,24 +354,23 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             current_population = Population(
                 data_connection=self.da,
                 population_size=self.pop_manager.gen_size,
-                comparator=self.comparing,
+                comparator=self.operators["mobile"]["comparing"],
                 rng=np.random,  # This is set when the generator is created
             )
             self.pop_manager._update_generation_settings(
-                current_population, self.mutations, self.pairing
+                current_population, self.operators["mobile"]["mutations"], self.operators["mobile"]["pairing"]
             )
 
             # ----
             current_candidates = []
             if self.beg_of_gen:  # (num_relaxed == num_unrelaxed == 0)
-                # -
                 current_candidates = self.pop_manager._prepare_current_population(
                     database=self.da,
                     curr_gen=self.cur_gen,
                     population=current_population,
                     generator=self.generator,
-                    pairing=self.pairing,
-                    mutations=self.mutations,
+                    pairing=self.operators["mobile"]["pairing"],
+                    mutations=self.operators["mobile"]["mutations"],
                 )
             else:
                 self._print("Current generation has not finished...")
@@ -386,8 +385,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                         curr_gen=self.cur_gen,
                         population=current_population,
                         generator=self.generator,
-                        pairing=self.pairing,
-                        mutations=self.mutations,
+                        pairing=self.operators["mobile"]["pairing"],
+                        mutations=self.operators["mobile"]["mutations"],
                         candidate_groups=candidate_groups,
                         num_paired=num_paired,
                         num_mutated=num_mutated,
@@ -402,8 +401,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                         curr_gen=self.cur_gen,
                         population=current_population,
                         generator=self.generator,
-                        pairing=self.pairing,
-                        mutations=self.mutations,
+                        pairing=self.operators["mobile"]["pairing"],
+                        mutations=self.operators["mobile"]["mutations"],
                         candidate_groups=candidate_groups,
                         num_paired=num_paired,
                         num_mutated=num_mutated,
@@ -476,7 +475,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 # evaluate raw score
                 self.evaluate_candidate(cand)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
-                self._print(f"confid {confid} relaxed with fitness {fitness:>16.4f}")
+                self._print(f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f}")
                 self.da.add_relaxed_step(
                     cand,
                     find_neighbors=self.find_neighbors,
@@ -546,17 +545,23 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         return op
 
     def _register_operators(self):
-        """register various operators
-        comparator, pairing, mutations
-        """
+        """"""
+        self.operators = {}
+
         op_dict = copy.deepcopy(self.ga_dict.get("operators", None))
         if op_dict is None:
             op_dict = {
-                "comparator": {"name": "InteratomicDistanceComparator"},
-                "crossover": {"name": "CutAndSplicePairing"},
+                "mobile": {
+                    "comparator": {"name": "InteratomicDistanceComparator"},
+                    "crossover": {"name": "CutAndSplicePairing"},
+                }
             }
-
-        # get_slab
+        else:
+            if "mobile" not in op_dict:  # This is for compatibility.
+                op_dict_ = dict(mobile=op_dict)
+                op_dict = op_dict_
+            else:
+                ...
 
         specific_params = dict(
             slab=self.da.get_slab(),
@@ -570,24 +575,42 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             # rng = self.rng # TODO: ase operators need np.random
         )
 
+        groups = ["mobile", "buffer", "frozen"]
+        for g in groups:
+            g_op_dict = op_dict.get(g, None)
+            if g_op_dict is not None:
+                self._print(f"operators for group {g} ->")
+                group_operators = self._parse_group_operators(g_op_dict, specific_params)
+                self.operators[g] = group_operators
+            else:
+                ...
+
+        return
+
+    def _parse_group_operators(self, op_dict: dict, specific_params: dict):
+        """Parse operators for a given group.
+
+        Returns:
+            A dict with comparing, pairing, and mutations.
+
+        """
         # --- comparator
         comp_params = op_dict.get("comparator", None)
-        self.comparing = self._create_operator(
+        comparing = self._create_operator(
             comp_params, specific_params, "comparator", convert_name=True
         )
 
-        self._print("--- comparator ---")
-        self._print(f"Use comparator {self.comparing.__class__.__name__}.")
+        self._print("  --- comparator ---")
+        self._print(f"  Use comparator {comparing.__class__.__name__}.")
 
         # --- crossover
         crossover_params = op_dict.get("crossover", None)
-        self.pairing = self._create_operator(
+        pairing = self._create_operator(
             crossover_params, specific_params, "builder", convert_name=False
         )
 
-        self._print("--- crossover ---")
-        self._print(f"Use crossover {self.pairing.__class__.__name__}.")
-        # self._print("pairing: ", self.pairing)
+        self._print("  --- crossover ---")
+        self._print(f"  Use crossover {pairing.__class__.__name__}.")
 
         # --- mutations
         mutations, probs = [], []
@@ -602,13 +625,13 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             )
             mutations.append(mut)
 
-        self._print("--- mutations ---")
+        self._print("  --- mutations ---")
         # self._print(f"mutation probability: {self.pmut}")
         for mut, prob in zip(mutations, probs):
-            self._print(f"Use mutation {mut.descriptor} with prob {prob}.")
-        self.mutations = OperationSelector(probs, mutations, rng=np.random)
+            self._print(f"  Use mutation {mut.descriptor} with prob {prob}.")
+        mutations = OperationSelector(probs, mutations, rng=np.random)
 
-        return
+        return dict(comparing=comparing, pairing=pairing, mutations=mutations)
 
     def _create_initial_population(
         self,
