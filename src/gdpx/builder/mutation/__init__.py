@@ -16,6 +16,9 @@ registers.builder.register("rattle")(RattleMutation)
 registers.builder.register("permutation")(PermutationMutation)
 registers.builder.register("mirror")(MirrorMutation)
 
+from .buffer import RattleBufferMutation
+registers.builder.register("rattle_buffer")(RattleBufferMutation)
+
 # - bulk
 registers.builder.register("strain")(StrainMutation)
 registers.builder.register("soft")(SoftMutation)
