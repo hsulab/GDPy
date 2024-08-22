@@ -3,6 +3,7 @@
 
 import copy
 import inspect
+import itertools
 import pathlib
 import time
 import warnings
@@ -16,7 +17,7 @@ from ase.ga.offspring_creator import OperationSelector
 from ase.ga.population import Population
 from ase.io import read, write
 
-from .. import convert_indices, registers
+from .. import convert_indices, registers, get_tags_per_species
 from ..expedition import AbstractExpedition
 from .population import AbstractPopulationManager
 
@@ -124,10 +125,14 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             ga_dict["population"], rng=self.rng
         )
 
-        # --- property ---
-        self.prop_dict = ga_dict["property"]
-        target = self.prop_dict.get("target", "energy")
-        self.prop_dict["target"] = target
+        # sanity check on target property
+        self.prop_dict = ga_dict.get("property", dict(target="energy"))
+        target = self.prop_dict.get("target", None)
+        assert target in ["energy", "formation_energy"], f"Target `{target}` is not supported yet."
+        if target == "formation_energy":
+            assert "chempot" in self.prop_dict, "The `chempot` is not provided in the property section."
+        else:
+            ...
 
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
@@ -464,15 +469,24 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                                 add_additional_information=True
                             )
                             previous_tags = previous_atoms.get_tags()
-                            self._print(f"tags: {previous_tags}")
                             break
                     else:
                         raise RuntimeError(f"Cant find tags for cand {confid}")
                     cand.set_tags(previous_tags)
+                    identities = get_tags_per_species(atoms)
+                    identity_stats = {}
+                    for k, v in identities.items():
+                        identity_stats[k] = len(v)
+                    cand.info["identity_stats"] = identity_stats
+                else:
+                    ...
                 # evaluate raw score
                 self.evaluate_candidate(cand)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
                 self._print(f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f}")
+                if "identity_stats" in cand.info:
+                    identity_info = "  " + " ".join([f"{k}: {v}" for k, v in cand.info["identity_stats"].items()])
+                    self._print(identity_info)
                 self.da.add_relaxed_step(
                     cand,
                     find_neighbors=self.find_neighbors,
@@ -681,17 +695,29 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         return
 
-    def evaluate_candidate(self, atoms):
-        """TODO: evaluate candidate based on raw score
-        in most cases, it's potential energy
-        but this is should be more flexible
-        e.g. enthalpy (pot+pressure), reaction energy
+    def evaluate_candidate(self, atoms: Atoms) -> None:
+        """Evaluate the candidate's fitness.
+
+        The fitness is stored in atoms.infop['raw_score']. The candidate 
+        is better with a larger raw_score.
+
+        The supported properties are 
+        
+            1. energy (potential energy)
+            2. enthalpy (potential energy plus pressure correction)
+            3. formation_energy (grand canonical)
+            4. reaction_energy (TODO)
+
+        Args:
+            atoms: The candidate with calculated properties.
+
+        Returns:
+            None.
+
         """
         assert (
             atoms.info["key_value_pairs"].get("raw_score", None) is None
         ), "candidate already has raw_score before evaluation"
-
-        # NOTE: larger raw_score, better candidate
 
         # evaluate based on target property
         target = self.prop_dict["target"]
@@ -699,6 +725,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
+
+            # Reduce the cell in the bulk structure search.
             from ase.build import niggli_reduce
             from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -713,8 +741,17 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                     atoms.info["key_value_pairs"]["raw_score"] = -energy
                 else:
                     atoms.info["key_value_pairs"]["raw_score"] = -1e8
-        elif target == "barrier":
-            pass
+        elif target == "formation_energy":
+            identity_stats = atoms.info.get("identity_stats", None)
+            assert identity_stats is not None, "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+            chempot_dict = self.prop_dict["chempot"]
+
+            energy = atoms.get_potential_energy()
+
+            formation_energy = energy - np.sum([chempot_dict[k]*v for k, v in identity_stats.items()])
+            atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
+        elif target == "reaction_energy":
+            ...  # TODO: ...
         else:
             raise RuntimeError(f"Unknown target {target}...")
 
