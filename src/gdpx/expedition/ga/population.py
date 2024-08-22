@@ -4,7 +4,7 @@
 
 import copy
 import pathlib
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from ase import Atoms
@@ -131,6 +131,7 @@ class AbstractPopulationManager:
 
         # - mutation
         self.pmut = params.get("pmut", 0.5)
+        self.pmut_custom = params.get("params", 0.5)
 
         return
 
@@ -252,20 +253,31 @@ class AbstractPopulationManager:
     def _prepare_current_population(
         self,
         database: DataConnection,
-        curr_gen,
+        curr_gen: int,
         population,
         generator,
-        pairing,
-        mutations,
+        operators: dict,
         candidate_groups: dict = {},
-        num_paired=0,
-        num_mutated=0,
-        num_random=0,
-    ):
+        num_paired: int=0,
+        num_mutated: int=0,
+        num_random: int=0,
+    ) -> List[Atoms]:
         """Prepare current population.
 
-        Usually, it should be the same as the initial size. However, for variat
+        Usually, it should be the same as the initial size. However, for variable
         composition search, a large init size can be useful.
+
+        Args:
+            database: database
+            curr_gen: current generation
+            population: current population
+            generator: generator
+            pairing: pairing
+            mutations: mutations
+            candidate_groups: candidate groups
+            num_paired: number of paired
+            num_mutated: number of mutated
+            num_random: number of random
 
         """
         current_candidates = []
@@ -278,7 +290,7 @@ class AbstractPopulationManager:
             # pair finished but not enough, random already starts...
             for i in range(self.gen_rep_max_try):
                 self._print(f"Reproduction attempt {i} ->")
-                atoms = self._reproduce(database, population, pairing, mutations)
+                atoms = self._reproduce(database, population, operators)
                 if atoms is not None:
                     paired_structures.append(atoms)
                     parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
@@ -409,11 +421,17 @@ class AbstractPopulationManager:
 
         return
 
-    def _reproduce(self, database, population, pairing, mutations) -> Atoms:
+    def _reproduce(self, database: DataConnection, population, operators: dict) -> Optional[Atoms]:
         """Reproduce a structure from the current population."""
+        pairing = operators["mobile"]["pairing"]
+        mutations = operators["mobile"]["mutations"]
+
+        custom_mutations = None
+        if operators.get("custom", None) is not None:
+            custom_mutations = operators["custom"]["mutations"]
+
         a3 = None
         for i in range(self.MAX_REPROC_TRY):
-            # try 10 times
             parents = population.get_two_candidates()
             a3, desc = pairing.get_new_individual(
                 parents
@@ -423,17 +441,37 @@ class AbstractPopulationManager:
                     a3,
                     description=desc,  # here, desc is used to add "pairing": 1 to database
                 )  # if mutation happens, it will not be relaxed
+                self._print(f"  confid= {a3.info['confid']} ")
 
-                mut_desc = ""
+                # mutate atoms in the mobile group
                 curr_prob = self.rng.random()
                 if curr_prob < self.pmut:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
                     if a3_mut is not None:
                         database.add_unrelaxed_step(a3_mut, mut_desc)
                         a3 = a3_mut
-                        self._print(f"  {desc}  {mut_desc}")
+                        self._print(f"  mobile: {desc}  {mut_desc}")
                     else:
-                        self._print(f"  {desc}") # Mutate failed.
+                        self._print(f"  mobile: {desc}") # Mutate failed.
+                else:
+                    self._print(f"  mobile: {desc}")  # No mutation is applied.
+
+                # mutate atoms in the custom group
+                if custom_mutations is not None:
+                    curr_prob = self.rng.random()
+                    if curr_prob < self.pmut_custom:
+                        a3_bmut, bmut_desc = custom_mutations.get_new_individual([a3])
+                        if a3_bmut is not None:
+                            database.add_unrelaxed_step(a3_bmut, bmut_desc)
+                            a3 = a3_bmut
+                            self._print(f"  custom: {bmut_desc}")
+                        else:
+                            ...
+                    else:
+                        ...
+                else:
+                    ...
+
                 break
             else:
                 ... # Reproduce failed.

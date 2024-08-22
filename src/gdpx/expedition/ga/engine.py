@@ -369,8 +369,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                     curr_gen=self.cur_gen,
                     population=current_population,
                     generator=self.generator,
-                    pairing=self.operators["mobile"]["pairing"],
-                    mutations=self.operators["mobile"]["mutations"],
+                    operators=self.operators,
                 )
             else:
                 self._print("Current generation has not finished...")
@@ -385,8 +384,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                         curr_gen=self.cur_gen,
                         population=current_population,
                         generator=self.generator,
-                        pairing=self.operators["mobile"]["pairing"],
-                        mutations=self.operators["mobile"]["mutations"],
+                        operators=self.operators,
                         candidate_groups=candidate_groups,
                         num_paired=num_paired,
                         num_mutated=num_mutated,
@@ -401,8 +399,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                         curr_gen=self.cur_gen,
                         population=current_population,
                         generator=self.generator,
-                        pairing=self.operators["mobile"]["pairing"],
-                        mutations=self.operators["mobile"]["mutations"],
+                        operators=self.operators,
                         candidate_groups=candidate_groups,
                         num_paired=num_paired,
                         num_mutated=num_mutated,
@@ -575,7 +572,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             # rng = self.rng # TODO: ase operators need np.random
         )
 
-        groups = ["mobile", "buffer", "frozen"]
+        groups = ["mobile", "custom"]
         for g in groups:
             g_op_dict = op_dict.get(g, None)
             if g_op_dict is not None:
@@ -596,40 +593,49 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         """
         # --- comparator
         comp_params = op_dict.get("comparator", None)
-        comparing = self._create_operator(
-            comp_params, specific_params, "comparator", convert_name=True
-        )
+        if comp_params is not None:
+            comparing = self._create_operator(
+                comp_params, specific_params, "comparator", convert_name=True
+            )
 
-        self._print("  --- comparator ---")
-        self._print(f"  Use comparator {comparing.__class__.__name__}.")
+            self._print("  --- comparator ---")
+            self._print(f"  Use comparator {comparing.__class__.__name__}.")
+        else:
+            comparing = None
 
         # --- crossover
         crossover_params = op_dict.get("crossover", None)
-        pairing = self._create_operator(
-            crossover_params, specific_params, "builder", convert_name=False
-        )
+        if crossover_params is not None:
+            pairing = self._create_operator(
+                crossover_params, specific_params, "builder", convert_name=False
+            )
 
-        self._print("  --- crossover ---")
-        self._print(f"  Use crossover {pairing.__class__.__name__}.")
+            self._print("  --- crossover ---")
+            self._print(f"  Use crossover {pairing.__class__.__name__}.")
+        else:
+            pairing = None
 
         # --- mutations
-        mutations, probs = [], []
         mutation_list = op_dict.get("mutation", [])
-        if not isinstance(mutation_list, list):
-            mutation_list = [mutation_list]
-        for mut_params in mutation_list:
-            prob = mut_params.pop("prob", 1.0)
-            probs.append(prob)
-            mut = self._create_operator(
-                mut_params, specific_params, "builder", convert_name=False
-            )
-            mutations.append(mut)
+        if mutation_list:
+            mutations, probs = [], []
+            if not isinstance(mutation_list, list):
+                mutation_list = [mutation_list]
+            for mut_params in mutation_list:
+                prob = mut_params.pop("prob", 1.0)
+                probs.append(prob)
+                mut = self._create_operator(
+                    mut_params, specific_params, "builder", convert_name=False
+                )
+                mutations.append(mut)
 
-        self._print("  --- mutations ---")
-        # self._print(f"mutation probability: {self.pmut}")
-        for mut, prob in zip(mutations, probs):
-            self._print(f"  Use mutation {mut.descriptor} with prob {prob}.")
-        mutations = OperationSelector(probs, mutations, rng=np.random)
+            self._print("  --- mutations ---")
+            # self._print(f"mutation probability: {self.pmut}")
+            for mut, prob in zip(mutations, probs):
+                self._print(f"  Use mutation {mut.descriptor} with prob {prob}.")
+            mutations = OperationSelector(probs, mutations, rng=np.random)
+        else:
+            mutations = None
 
         return dict(comparing=comparing, pairing=pairing, mutations=mutations)
 
