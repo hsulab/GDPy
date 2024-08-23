@@ -14,12 +14,13 @@ import numpy as np
 from ase import Atoms
 from ase.ga.data import DataConnection, PrepareDB
 from ase.ga.offspring_creator import OperationSelector
-from ase.ga.population import Population
 from ase.io import read, write
 
 from .. import convert_indices, registers, get_tags_per_species
 from ..expedition import AbstractExpedition
 from .population.manager import AbstractPopulationManager
+# from ase.ga.population import Population
+from .population.population import Population
 
 """
 TODO: search variational composition
@@ -360,10 +361,12 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 data_connection=self.da,
                 population_size=self.pop_manager.gen_size,
                 comparator=self.operators["mobile"]["comparing"],
-                rng=np.random,  # This is set when the generator is created
+                rng=self.rng
             )
             self.pop_manager._update_generation_settings(
-                current_population, self.operators["mobile"]["mutations"], self.operators["mobile"]["pairing"]
+                current_population, 
+                self.operators["mobile"]["mutations"], 
+                self.operators["mobile"]["pairing"]
             )
 
             # ----
