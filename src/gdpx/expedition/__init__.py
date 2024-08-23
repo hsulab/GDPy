@@ -6,6 +6,7 @@ from .. import config
 from ..builder.builder import StructureBuilder
 from ..builder.group import create_a_group, create_a_molecule_group
 from ..builder.utils import convert_string_to_atoms
+from ..builder.utils import get_tags_per_species
 from ..core.register import registers
 from ..data.array import AtomsNDArray
 from ..graph.molecule import MolecularAdsorbate, find_molecules
