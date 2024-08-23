@@ -463,17 +463,16 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 confid = cand.info["confid"]
                 if self.generator.use_tags:
                     rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
-                    for row in rows:
-                        if row.formula:
-                            previous_atoms = row.toatoms(
-                                add_additional_information=True
-                            )
-                            previous_tags = previous_atoms.get_tags()
-                            break
+                    rows = sorted([row for row in rows if row.formula], key=lambda row: row.mtime)
+                    if len(rows) > 0:
+                        previous_atoms = rows[-1].toatoms(
+                            add_additional_information=True
+                        )
+                        previous_tags = previous_atoms.get_tags()
                     else:
-                        raise RuntimeError(f"Cant find tags for cand {confid}")
+                        raise RuntimeError(f"Cannot find tags for candidate {confid}")
                     cand.set_tags(previous_tags)
-                    identities = get_tags_per_species(atoms)
+                    identities = get_tags_per_species(cand)
                     identity_stats = {}
                     for k, v in identities.items():
                         identity_stats[k] = len(v)
