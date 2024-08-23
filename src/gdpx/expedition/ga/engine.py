@@ -19,7 +19,7 @@ from ase.io import read, write
 
 from .. import convert_indices, registers, get_tags_per_species
 from ..expedition import AbstractExpedition
-from .population import AbstractPopulationManager
+from .population.manager import AbstractPopulationManager
 
 """
 TODO: search variational composition
