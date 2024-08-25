@@ -12,6 +12,7 @@ from ase.io import read
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.ga.data import DataConnection
 
+from .population import Population
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: List[str] = ["extinct", "origin"]
@@ -256,7 +257,7 @@ class AbstractPopulationManager:
         self,
         database: DataConnection,
         curr_gen: int,
-        population,
+        population: Population,
         generator,
         operators: dict,
         candidate_groups: dict = {},
@@ -281,8 +282,15 @@ class AbstractPopulationManager:
             num_mutated: number of mutated
             num_random: number of random
 
+        Returns:
+            A list of Atoms.
+
         """
         current_candidates = []
+
+        # We need adjust n_top for the variable composition search.
+        slab = database.get_slab()
+        num_atoms_substrate = len(slab)
 
         # - reproduction and then mutation
         rest_rep_size = self.gen_rep_size - num_paired
@@ -292,7 +300,7 @@ class AbstractPopulationManager:
             # pair finished but not enough, random already starts...
             for i in range(self.gen_rep_max_try):
                 self._print(f"Reproduction attempt {i} ->")
-                atoms = self._reproduce(database, population, operators)
+                atoms = self._reproduce(database, population, operators, num_atoms_substrate)
                 if atoms is not None:
                     paired_structures.append(atoms)
                     parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
@@ -426,7 +434,7 @@ class AbstractPopulationManager:
         return
 
     def _reproduce(
-        self, database: DataConnection, population, operators: dict
+        self, database: DataConnection, population, operators: dict, num_atoms_substrate: int
     ) -> Optional[Atoms]:
         """Reproduce a structure from the current population."""
         pairing = operators["mobile"]["pairing"]
@@ -435,6 +443,11 @@ class AbstractPopulationManager:
         custom_mutations = None
         if operators.get("custom", None) is not None:
             custom_mutations = operators["custom"]["mutations"]
+
+        if hasattr(pairing , "n_top"):
+            prev_ntop = pairing.n_top
+        else:
+            prev_ntop = None  # HACK: In the end, it should not None.
 
         a3 = None
         for _ in range(self.MAX_REPROC_TRY):
@@ -455,11 +468,23 @@ class AbstractPopulationManager:
                     raise RuntimeError(
                         "Different number of atoms in the two parents after 100 attempts."
                     )
+            # We need adjust n_top of some operators for comptability.
+            curr_ntop = natoms_p0 - num_atoms_substrate
+            if hasattr(pairing, "n_top"):
+                prev_ntop = pairing.n_top
+                self._print(f"  pairing  {prev_ntop =} -> {curr_ntop =}")
+                pairing.n_top = curr_ntop
+                assert natoms_p0 == pairing.n_top + num_atoms_substrate
+            else:
+                prev_ntop = curr_ntop
             # Perform the crossover and the mutations.
             a3, desc = pairing.get_new_individual(
                 parents
             )  # This also adds key_value_pairs to a.info
             if a3 is not None:
+                # We need update curr_ntop as a variable crossover may be performed.
+                curr_ntop = len(a3) - num_atoms_substrate
+
                 database.add_unrelaxed_candidate(
                     a3,
                     description=desc,  # here, desc is used to add "pairing": 1 to database
@@ -467,6 +492,12 @@ class AbstractPopulationManager:
                 self._print(f"  confid= {a3.info['confid']} ")
 
                 # mutate atoms in the mobile group
+                for mutation in mutations.oplist:
+                    if hasattr(mutation, "n_top"):
+                        self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
+                        mutation.n_top = curr_ntop
+                        assert natoms_p0 == mutation.n_top + num_atoms_substrate
+
                 curr_prob = self.rng.random()
                 if curr_prob < self.pmut:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
@@ -502,6 +533,13 @@ class AbstractPopulationManager:
             self._print(
                 f"  cannot reproduce offspring a3 after {self.MAX_REPROC_TRY} attempts"
             )
+
+        # restorre n_top, custom mutations should not have n_top...
+        if hasattr(pairing, "n_top"):
+            pairing.n_top = prev_ntop
+        for mutation in mutations.oplist:
+            if hasattr(mutation, "n_top"):
+                mutation.n_top = prev_ntop
 
         return a3
 
