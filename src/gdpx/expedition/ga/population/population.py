@@ -52,7 +52,7 @@ class Population:
         self.rng = rng
 
         self.pop = []
-        self.pairs = None
+        self.pairs: Optional[List[Tuple[int, int]]] = None
         self.all_cand = None
 
         self.__initialise_population__()
@@ -136,7 +136,10 @@ class Population:
 
             c1id = c1.info["confid"]
             c2id = c2.info["confid"]
-            used_before = (min([c1id, c2id]), max([c1id, c2id])) in self.pairs
+            if self.pairs is not None:
+                used_before = (min([c1id, c2id]), max([c1id, c2id])) in self.pairs
+            else:
+                raise Exception("This should not happen.")
         return (c1.copy(), c2.copy())
 
     def get_one_candidate(self, with_history=True) -> Optional[Atoms]:
