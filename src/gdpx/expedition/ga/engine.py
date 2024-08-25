@@ -625,9 +625,16 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             pairing = self._create_operator(
                 crossover_params, specific_params, "builder", convert_name=False
             )
+            # For some ase-builtin operators, we manually set allow_variable_composition to False 
+            # by default. For others, we can set it through the input file.
+            if hasattr(pairing, "allow_variable_composition"):
+                ...
+            else:
+                pairing.allow_variable_composition = False
 
             self._print("  --- crossover ---")
             self._print(f"  Use crossover {pairing.__class__.__name__}.")
+            self._print(f"  allow_variable_composition: {pairing.allow_variable_composition}.")
         else:
             pairing = None
 
