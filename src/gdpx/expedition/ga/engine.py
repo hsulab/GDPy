@@ -19,6 +19,7 @@ from ase.io import read, write
 from .. import convert_indices, registers, get_tags_per_species
 from ..expedition import AbstractExpedition
 from .population.manager import AbstractPopulationManager
+
 # from ase.ga.population import Population
 from .population.population import Population
 
@@ -129,9 +130,14 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         # sanity check on target property
         self.prop_dict = ga_dict.get("property", dict(target="energy"))
         target = self.prop_dict.get("target", None)
-        assert target in ["energy", "formation_energy"], f"Target `{target}` is not supported yet."
+        assert target in [
+            "energy",
+            "formation_energy",
+        ], f"Target `{target}` is not supported yet."
         if target == "formation_energy":
-            assert "chempot" in self.prop_dict, "The `chempot` is not provided in the property section."
+            assert (
+                "chempot" in self.prop_dict
+            ), "The `chempot` is not provided in the property section."
         else:
             ...
 
@@ -171,13 +177,22 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         )  # equals finished generation plus one
         self._print(f"Current generation number: {cur_gen_num}")
         for i in range(cur_gen_num):
-            # print('generation ', i)
-            energies = [
-                atoms.get_potential_energy()
-                for atoms in all_relaxed_candidates
-                if atoms.info["key_value_pairs"]["generation"] == i
-            ]
-            self._print(energies)
+            energies = np.array(
+                [
+                    atoms.get_potential_energy()
+                    for atoms in all_relaxed_candidates
+                    if atoms.info["key_value_pairs"]["generation"] == i
+                ]
+            )
+            stats = dict(
+                min=np.min(energies),
+                max=np.max(energies),
+                avg=np.mean(energies),
+                std=np.std(energies),
+            )
+            self._print(
+                f"num {energies.shape[0]} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
+            )
             data.append([i, energies])
 
         import matplotlib.pyplot as plt
@@ -361,12 +376,12 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 data_connection=self.da,
                 population_size=self.pop_manager.gen_size,
                 comparator=self.operators["mobile"]["comparing"],
-                rng=self.rng
+                rng=self.rng,
             )
             self.pop_manager._update_generation_settings(
-                current_population, 
-                self.operators["mobile"]["mutations"], 
-                self.operators["mobile"]["pairing"]
+                current_population,
+                self.operators["mobile"]["mutations"],
+                self.operators["mobile"]["pairing"],
             )
 
             # ----
@@ -427,7 +442,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self._print("===== Optimisation =====")
             for ia, a in enumerate(current_candidates):
                 parents = " ".join([str(x) for x in a.info["data"]["parents"]])
-                self._print(f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<20s} extinct={a.info['key_value_pairs']['extinct']:<4d}")
+                self._print(
+                    f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<20s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
+                )
             if not (self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}").exists():
                 frames_to_work = []
                 for atoms in current_candidates:
@@ -466,7 +483,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 confid = cand.info["confid"]
                 if self.generator.use_tags:
                     rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
-                    rows = sorted([row for row in rows if row.formula], key=lambda row: row.mtime)
+                    rows = sorted(
+                        [row for row in rows if row.formula], key=lambda row: row.mtime
+                    )
                     if len(rows) > 0:
                         previous_atoms = rows[-1].toatoms(
                             add_additional_information=True
@@ -485,9 +504,13 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 # evaluate raw score
                 self.evaluate_candidate(cand)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
-                self._print(f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f}")
+                self._print(
+                    f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f}"
+                )
                 if "identity_stats" in cand.info:
-                    identity_info = "  " + " ".join([f"{k}: {v}" for k, v in cand.info["identity_stats"].items()])
+                    identity_info = "  " + " ".join(
+                        [f"{k}: {v}" for k, v in cand.info["identity_stats"].items()]
+                    )
                     self._print(identity_info)
                 self.da.add_relaxed_step(
                     cand,
@@ -593,7 +616,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             g_op_dict = op_dict.get(g, None)
             if g_op_dict is not None:
                 self._print(f"operators for group {g} ->")
-                group_operators = self._parse_group_operators(g_op_dict, specific_params)
+                group_operators = self._parse_group_operators(
+                    g_op_dict, specific_params
+                )
                 self.operators[g] = group_operators
             else:
                 ...
@@ -625,7 +650,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             pairing = self._create_operator(
                 crossover_params, specific_params, "builder", convert_name=False
             )
-            # For some ase-builtin operators, we manually set allow_variable_composition to False 
+            # For some ase-builtin operators, we manually set allow_variable_composition to False
             # by default. For others, we can set it through the input file.
             if hasattr(pairing, "allow_variable_composition"):
                 ...
@@ -634,7 +659,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
             self._print("  --- crossover ---")
             self._print(f"  Use crossover {pairing.__class__.__name__}.")
-            self._print(f"  allow_variable_composition: {pairing.allow_variable_composition}.")
+            self._print(
+                f"  allow_variable_composition: {pairing.allow_variable_composition}."
+            )
         else:
             pairing = None
 
@@ -707,11 +734,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
     def evaluate_candidate(self, atoms: Atoms) -> None:
         """Evaluate the candidate's fitness.
 
-        The fitness is stored in atoms.infop['raw_score']. The candidate 
+        The fitness is stored in atoms.infop['raw_score']. The candidate
         is better with a larger raw_score.
 
-        The supported properties are 
-        
+        The supported properties are
+
             1. energy (potential energy)
             2. enthalpy (potential energy plus pressure correction)
             3. formation_energy (grand canonical)
@@ -752,12 +779,16 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                     atoms.info["key_value_pairs"]["raw_score"] = -1e8
         elif target == "formation_energy":
             identity_stats = atoms.info.get("identity_stats", None)
-            assert identity_stats is not None, "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+            assert (
+                identity_stats is not None
+            ), "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
             chempot_dict = self.prop_dict["chempot"]
 
             energy = atoms.get_potential_energy()
 
-            formation_energy = energy - np.sum([chempot_dict[k]*v for k, v in identity_stats.items()])
+            formation_energy = energy - np.sum(
+                [chempot_dict[k] * v for k, v in identity_stats.items()]
+            )
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
         elif target == "reaction_energy":
             ...  # TODO: ...
