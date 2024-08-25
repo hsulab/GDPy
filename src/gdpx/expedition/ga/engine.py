@@ -177,13 +177,12 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         )  # equals finished generation plus one
         self._print(f"Current generation number: {cur_gen_num}")
         for i in range(cur_gen_num):
-            energies = np.array(
-                [
-                    atoms.get_potential_energy()
-                    for atoms in all_relaxed_candidates
-                    if atoms.info["key_value_pairs"]["generation"] == i
-                ]
-            )
+            current_candidates = [
+                atoms
+                for atoms in all_relaxed_candidates
+                if atoms.info["key_value_pairs"]["generation"] == i
+            ]
+            energies = np.array([a.get_potential_energy() for a in current_candidates])
             stats = dict(
                 min=np.min(energies),
                 max=np.max(energies),
@@ -193,17 +192,25 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self._print(
                 f"num {energies.shape[0]} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
             )
-            data.append([i, energies])
+            fitnesses = np.array(
+                [a.info["key_value_pairs"]["raw_score"] for a in current_candidates]
+            )
+            data.append([i, energies, fitnesses])
 
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
         ax.set_title("Population Evolution")
-
-        for i, energies in data:
+        for i, energies, fitnesses in data:
             ax.scatter([i] * len(energies), energies)
+        fig.savefig(results / "pop_ene.png", bbox_inches="tight")
 
-        fig.savefig(results / "pop.png")
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
+        ax.set_title("Population Evolution")
+        for i, energies, fitnesses in data:
+            ax.scatter([i] * len(energies), fitnesses)
+        fig.savefig(results / "pop_fit.png", bbox_inches="tight")
+
         plt.close()
 
         return
@@ -443,7 +450,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             for ia, a in enumerate(current_candidates):
                 parents = " ".join([str(x) for x in a.info["data"]["parents"]])
                 self._print(
-                    f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<20s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
+                    f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
                 )
             if not (self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}").exists():
                 frames_to_work = []
