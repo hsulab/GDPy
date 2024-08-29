@@ -27,10 +27,6 @@ from ase.io.lammpsdata import write_lammps_data
 from .. import config
 from ..builder.constraints import parse_constraint_info, convert_indices
 from ..builder.group import create_a_group
-from ..potential.managers.plumed.calculators.plumed2 import (
-    Plumed,
-    update_stride_and_file,
-)
 from .driver import AbstractDriver, Controller, DriverSetting
 
 
@@ -422,14 +418,20 @@ class LmpDriver(AbstractDriver):
 
     def _check_plumed(self, calc, params: dict):
         """"""
-        new_calc, new_params = calc, params
-        if isinstance(calc, LinearCombinationCalculator):
-            ncalcs = len(calc.calcs)
-            assert ncalcs == 2, "Number of calculators should be 2."
-            if isinstance(calc.calcs[0], Lammps) and isinstance(calc.calcs[1], Plumed):
-                new_calc = calc.calcs[0]
-                new_params = copy.deepcopy(params)
-                new_params["plumed"] = "".join(calc.calcs[1].input)
+        # TODO: We should better move this to potential_manager.
+        try:
+            from ..potential.managers.plumed.calculators.plumed2 import Plumed
+            new_calc, new_params = calc, params
+            if isinstance(calc, LinearCombinationCalculator):
+                ncalcs = len(calc.calcs)
+                assert ncalcs == 2, "Number of calculators should be 2."
+                if isinstance(calc.calcs[0], Lammps) and isinstance(calc.calcs[1], Plumed):
+                    new_calc = calc.calcs[0]
+                    new_params = copy.deepcopy(params)
+                    new_params["plumed"] = "".join(calc.calcs[1].input)
+        except ImportError:
+            new_calc = calc
+            new_params = params
 
         return new_calc, new_params
 
@@ -1088,12 +1090,17 @@ class Lammps(FileIOCalculator):
             content += "\n".join(self.dynamics) + "\n"
 
             if self.plumed is not None:
-                plumed_inp = update_stride_and_file(
-                    self.plumed, wdir=str(self.directory), stride=self.dump_period
-                )
-                with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
-                    fopen.write("".join(plumed_inp))
-                content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
+                # TODO: We should better move this to driver setting.
+                try:
+                    from ..potential.managers.plumed.calculators.plumed2 import update_stride_and_file
+                    plumed_inp = update_stride_and_file(
+                        self.plumed, wdir=str(self.directory), stride=self.dump_period
+                    )
+                    with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
+                        fopen.write("".join(plumed_inp))
+                    content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
+                except:
+                    raise RuntimeError("Plumed Bias is included but cannot be imported.")
             content += f"run             {self.steps}\n"
         else:
             # TODO: NEB?

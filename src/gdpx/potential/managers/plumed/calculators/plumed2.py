@@ -14,11 +14,7 @@ from ase import units
 from ase.units import fs, mol, kJ, nm
 from ase.calculators.calculator import Calculator, all_changes
 
-try:
-    import plumed
-except Exception as e:
-    print(e)
-
+import plumed
 
 """A plumed wrapper for ase.
 

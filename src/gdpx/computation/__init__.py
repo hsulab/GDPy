@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+from .. import config
 from ..core.register import Register
 
 # - driver (dynamics) backends...
@@ -8,6 +9,12 @@ register_drivers = Register("driver")
 
 from gdpx.computation.asedriver import AseDriver
 register_drivers.register("ase")(AseDriver)
+
+try:
+    from .jarex import JarexDriver
+    register_drivers.register("jax")(JarexDriver)
+except ImportError:
+    config._print(f"Driver Backend `jax` is not imported.")
 
 from gdpx.computation.lammps import LmpDriver
 register_drivers.register("lammps")(LmpDriver)

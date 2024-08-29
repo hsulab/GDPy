@@ -17,14 +17,14 @@ from gdpx.core.node import AbstractNode
 try:
     from dscribe.descriptors import SOAP
 except Exception as e:
-    print(e)
+    ...
 
 USE_CHEMISCOPE = 0
 try:
     import chemiscope
     USE_CHEMISCOPE = 1
 except Exception as e:
-    print(e)
+    ...
 
 
 class AbstractDescriber(AbstractNode):

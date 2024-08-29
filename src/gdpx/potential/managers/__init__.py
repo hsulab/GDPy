@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*
 
 
-import warnings
-
+from .. import config
 from .. import registers
 from ..manager import AbstractPotentialManager
 from ..trainer import AbstractTrainer
@@ -82,7 +81,7 @@ try:
     from .abacus import AbacusManager
     registers.manager.register(AbacusManager)
 except ImportError as e:
-    warnings.warn("Module {} import failed: {}".format("abacus", e), UserWarning)
+    config._print(f"Potential {'abacus'} import failed: {e}")
 
 try:
     from .xtb import XtbManager
@@ -94,16 +93,19 @@ try:
     from .dftd3 import Dftd3Manager
     registers.manager.register(Dftd3Manager)
 except ImportError as e:
-    warnings.warn("Module {} import failed: {}".format("dftd3", e), UserWarning)
+    config._print(f"Potential {'dftd3'} import failed: {e}")
 
 try:
     from .bias import BiasManager
     registers.manager.register(BiasManager)
 except ImportError as e:
-    warnings.warn("Module {} import failed: {}".format("bias", e), UserWarning)
+    config._print(f"Potential {'bias'} import failed: {e}")
 
-from .plumed.plumed import PlumedManager
-registers.manager.register(PlumedManager)
+try:
+    from .plumed.plumed import PlumedManager
+    registers.manager.register(PlumedManager)
+except ImportError as e:
+    config._print(f"Potential {'plumed'} import failed: {e}")
 
 # - trainers
 from .gp.fgp import FGPTrainer

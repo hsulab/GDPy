@@ -202,16 +202,44 @@ ALL_MODULES = [
 
 def _handle_errors(errors):
     """Log out and possibly reraise errors during import."""
-    names = []  # unimported module names
+    names, reasons = [], []  # unimported module names and reasons
     if errors:
         for name, err in errors:
-            warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
+            # warnings.warn("Module {} import failed: {}".format(name, err), UserWarning)
             names.append(name)
+            reasons.append(err)
     else:
         ...
 
-    return names
+    return names, reasons
 
+
+def show_failed_modules_in_rows(names):
+    """"""
+    keys = sorted(names)
+    nkeys = len(keys)
+    ncols = 3
+    nrows = int(nkeys / ncols)
+
+    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
+    for i in range(nrows):
+        lines.append(
+            ("  " + "{:<48s}" * ncols + "").format(*keys[i * ncols : i * ncols + ncols])
+        )
+
+    nrest = nkeys - nrows * ncols
+    if nrest > 0:
+        lines.append(("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :]))
+
+    return lines
+
+def show_failed_modules_in_rows_with_reasons(names, reasons):
+    """"""
+    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
+    for name, err in zip(names, reasons):
+        lines.append(f"{name:<24} -> ({err})")
+
+    return lines
 
 def import_all_modules_for_register(custom_module_paths=None) -> str:
     """Import all modules for register."""
@@ -229,7 +257,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> str:
             importlib.import_module(module)
         except ImportError as error:
             errors.append((module, error))
-    names = _handle_errors(errors)
+    names, reasons = _handle_errors(errors)
 
     # - some imported packages change `logging.basicConfig`
     #   and accidently add a StreamHandler to logging.root
@@ -240,21 +268,8 @@ def import_all_modules_for_register(custom_module_paths=None) -> str:
         ):
             logging.root.removeHandler(h)
 
-    keys = sorted(names)
-    nkeys = len(keys)
-    ncols = 3
-    nrows = int(nkeys / ncols)
-
-    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
-    for i in range(nrows):
-        lines.append(
-            ("  " + "{:<48s}" * ncols + "").format(*keys[i * ncols : i * ncols + ncols])
-        )
-
-    nrest = nkeys - nrows * ncols
-    if nrest > 0:
-        lines.append(("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :]))
-
+    # lines = show_failed_modules_in_rows(names)
+    lines = show_failed_modules_in_rows_with_reasons(names, reasons)
     for line in lines:
         config._print(line)
 
