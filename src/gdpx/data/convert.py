@@ -56,7 +56,9 @@ def convert_dataset(pinp, custom_type_list=None):
         curr_frames = convert_dpset(p, custom_type_list)
         num_curr_frames = len(curr_frames)
         config._print(f"{num_curr_frames =} at {p.relative_to(pinp)}")
-        write(odir/f"{p.parent.parent.name}_{p.parent.name}.xyz", curr_frames)
+        ppp = odir/f"{p.parent.parent.name}_{p.parent.name}.xyz"
+        config._print(ppp.name)
+        write(ppp, curr_frames)
 
     return
 
