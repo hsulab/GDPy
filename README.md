@@ -2,7 +2,7 @@
   <img src="./assets/logo.png" width="400" height="300">
 </p>
 
-<font size=36>**NOTE: This package has been renamed as `gdpx` from `GDPy` as we found, unfortunately, the name of `gdpy` has been taken for a long time. The `x` instead of `y` can be seen as an extended and improved version of the original one. The development of `gdpx` will still be undergoing in this `GDPy` repository. Also, the documentation is changed to https://gdpx.readthedocs.io.**</font>
+<font size=36>**NOTE: `GDPy` is the name of this repository and the corresponding python package name is `gdpx`.**</font>
 
 <font size=36>**NOTE: `gdpx` is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
   backward compatibility.**</font>
