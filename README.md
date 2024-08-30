@@ -2,6 +2,10 @@
   <img src="./assets/logo.png" width="400" height="300">
 </p>
 
+![](https://anaconda.org/conda-forge/gdpx/badges/version.svg)
+![](https://anaconda.org/conda-forge/gdpx/badges/downloads.svg)
+![](https://anaconda.org/conda-forge/gdpx/badges/latest_release_date.svg)
+
 <font size=36>**NOTE: `GDPy` is the name of this repository and the corresponding python package name is `gdpx`.**</font>
 
 <font size=36>**NOTE: `gdpx` is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
