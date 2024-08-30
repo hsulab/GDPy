@@ -140,12 +140,13 @@ class CompareSelector(AbstractSelector):
         #        write(unique_wdir/f"g_{k}.xyz", [structures[i] for i in v])
 
         # -- write a report?
+        min_num_structures_to_show = 0
         num_structures_per_row = 4
         story = []
         for i, (k, v) in enumerate(unique_groups.items()):
             curr_frames = [structures[x] for x in v]
             curr_nframes = len(curr_frames)
-            if curr_nframes > 1:
+            if curr_nframes > min_num_structures_to_show:
                 story.append(Paragraph(f"Group {k} num_structures {len(v)}"))
                 images = []
                 for ia, a in enumerate(curr_frames[:]):

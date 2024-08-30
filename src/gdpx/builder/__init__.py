@@ -106,7 +106,7 @@ try:
 
     registers.builder.register("hypercube")(HypercubeBuilder)
 except ImportError as e:
-    warnings.warn("Module {} import failed: {}".format("hypercube", e), UserWarning)
+    config._print(f"Builder {'hypercube'} import failed: {e}")
 
 # - extra utilities
 from .utils import remove_vacuum, reset_cell

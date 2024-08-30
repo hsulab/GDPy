@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*
 
 
-import warnings
-
 """Create scheduler based on parameters
 
 This module includes several schedulers.
@@ -18,6 +16,7 @@ Example:
 
 """
 
+from .. import config
 from ..core.register import registers
 
 from .local import LocalScheduler
@@ -40,7 +39,7 @@ try:
     from .remote import RemoteSlurmScheduler
     registers.scheduler.register(RemoteSlurmScheduler)
 except Exception as e:
-    warnings.warn("Module {} import failed: {}".format("remote", e), UserWarning)
+    config._print(f"Module {'remote'} import failed: {e}")
 
 
 if __name__ == "__main__":
