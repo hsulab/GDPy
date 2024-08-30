@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.10.tar.gz
-  sha256: 496cc81371aeb1d43dcc1239c1bfda5352826e499e6a165193dfc652b84cc992
+  sha256: ffd485f15bd65553f42ae365c5e70b428d38ed75dad633a7429d270a26de3051
 
 build:
   noarch: python
