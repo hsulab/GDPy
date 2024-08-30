@@ -94,8 +94,8 @@ class DPJax(Calculator):
 
         return
 
-    def get_energy_fn(self, atoms: Atoms):
-        """"""
+    def prepare_jaxmd_simulation(self, atoms: Atoms):
+        """Prepare a jax_md simulation with a flax-based NN potential."""
         self.__init_model__()
 
         self._atype_sort, self._atype_rsort, self._type_count = (
