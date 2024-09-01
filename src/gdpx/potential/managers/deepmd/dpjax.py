@@ -115,7 +115,7 @@ class DPJax(Calculator):
                 self._variables, coord, box, head=self.head, static_args=static_args, nbrs_nm=nbrs_nm
             )[0]
 
-        return jax.jit(energy_fn)
+        return jax.jit(energy_fn), self._atype_sort, self._atype_rsort
 
     def calculate(
         self,
