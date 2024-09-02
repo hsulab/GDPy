@@ -40,7 +40,7 @@ class HybridMonteCarlo(MonteCarlo):
         if not converged:
             # init structure
             step_converged = False
-            if not self._veri_checkpoint():
+            if not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
                 step_converged = True
