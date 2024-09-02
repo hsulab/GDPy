@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import collections
 import inspect
 import itertools
 import pathlib
@@ -52,6 +53,45 @@ Operators
     mutation
 
 """
+
+
+def get_generation_number(da: DataConnection) -> int:
+    """Check the number of generation based on the number of relaxed candidates.
+
+    The population size of the first generation can be different from the following ones.
+
+    Args:
+        da: The ga data connection.
+
+    Returns:
+        The generation number.
+
+    """
+    init_pop_size: int = da.get_param("initial_population_size")
+    pop_size: int = da.get_param("population_size")
+
+    all_candidates = list(da.c.select(relaxed=1))
+    counter = collections.Counter([c.generation for c in all_candidates])
+    generations = sorted(list(counter.keys()))
+    num_generations = len(generations)
+    if num_generations == 0:
+        curr_gen = 0
+    else:
+        if num_generations == 1:
+            if counter[0] < init_pop_size:
+                curr_gen = 0
+            else:
+                assert counter[0] == init_pop_size
+                curr_gen = 1
+        else:
+            curr_gen = max(generations)
+            if counter[curr_gen] < pop_size:
+                ...
+            else:
+                assert counter[curr_gen] == pop_size
+                curr_gen += 1
+
+    return curr_gen
 
 
 class GeneticAlgorithemEngine(AbstractExpedition):
@@ -160,57 +200,58 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         return
 
     def report(self):
+        """Write reports of this GA search.
+
+        One file contains all relaxed structures and one figure shows the target properties
+        in each generation.
+
+        """
         self._print("restart the database...")
         self.da = DataConnection(self.db_path)
         results = self.directory / "results"
         if not results.exists():
             results.mkdir()
 
-        # - write structures
+        # write structures that are already sorted by raw_score
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
         write(results / "all_candidates.xyz", all_relaxed_candidates)
 
-        # - plot population evolution
+        target = self.prop_dict["target"]
+
+        # plot population evolution
         data = []
-        cur_gen_num = (
-            self.da.get_generation_number()
-        )  # equals finished generation plus one
-        self._print(f"Current generation number: {cur_gen_num}")
-        for i in range(cur_gen_num):
+        gen_num = get_generation_number(self.da) # equals finished generation plus one
+        self._print(f"Genetic Algorithm Statistics with {gen_num-1} generations: ")
+        for i in range(gen_num):
             current_candidates = [
                 atoms
                 for atoms in all_relaxed_candidates
                 if atoms.info["key_value_pairs"]["generation"] == i
             ]
-            energies = np.array([a.get_potential_energy() for a in current_candidates])
+            properties = np.array([a.info["key_value_pairs"]["target"] for a in current_candidates])
             stats = dict(
-                min=np.min(energies),
-                max=np.max(energies),
-                avg=np.mean(energies),
-                std=np.std(energies),
+                min=np.min(properties),
+                max=np.max(properties),
+                avg=np.mean(properties),
+                std=np.std(properties),
             )
             self._print(
-                f"num {energies.shape[0]} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
+                f"num {properties.shape[0]:>4d} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
             )
-            fitnesses = np.array(
-                [a.info["key_value_pairs"]["raw_score"] for a in current_candidates]
-            )
-            data.append([i, energies, fitnesses])
+            data.append([i, properties])
 
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
         ax.set_title("Population Evolution")
-        for i, energies, fitnesses in data:
-            ax.scatter([i] * len(energies), energies)
-        fig.savefig(results / "pop_ene.png", bbox_inches="tight")
-
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-        ax.set_title("Population Evolution")
-        for i, energies, fitnesses in data:
-            ax.scatter([i] * len(energies), fitnesses)
-        fig.savefig(results / "pop_fit.png", bbox_inches="tight")
-
+        for i, properties in data:
+            ax.scatter([i] * len(properties), properties, alpha=0.5)
+        ax.set(
+            xlabel="generation",
+            xticks=range(gen_num),
+            ylabel=target
+        )
+        fig.savefig(results / "pop.png", bbox_inches="tight")
         plt.close()
 
         return
@@ -278,10 +319,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         return
 
     def _check_generation(self):
-        """"""
-        # --- check current generation number
-        self.cur_gen = self.da.get_generation_number()
-        # output a few info
+        """Check the generation status."""
+        # self._print(f"{self.cur_gen =}")
+
+        self.cur_gen = get_generation_number(self.da)
+
         unrelaxed_strus_gen_ = list(
             self.da.c.select("relaxed=0,generation=%d" % self.cur_gen)
         )
@@ -385,6 +427,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 comparator=self.operators["mobile"]["comparing"],
                 rng=self.rng,
             )
+
+            pop_confids = [a.info["confid"] for a in current_population.pop]
+            self._print(f"number of structures in population: {len(pop_confids)}")
+            self._print(f"confids in population: {convert_indices(pop_confids)}")
+
             self.pop_manager._update_generation_settings(
                 current_population,
                 self.operators["mobile"]["mutations"],
@@ -448,7 +495,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             # TODO: send candidates directly to worker that respects the batchsize
             self._print("===== Optimisation =====")
             for ia, a in enumerate(current_candidates):
-                parents = " ".join([str(x) for x in a.info["data"]["parents"]])
+                parents = "none"
+                if "parents" in a.info["data"]:
+                    parents = " ".join([str(x) for x in a.info["data"]["parents"]])
                 self._print(
                     f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
                 )
@@ -484,7 +533,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             ]
             for cand in converged_candidates:
                 # update extra info
-                extra_info = dict(data={}, key_value_pairs={"extinct": 0})
+                extra_info = dict(data={}, key_value_pairs={"generation": self.cur_gen, "extinct": 0})
                 cand.info.update(extra_info)
                 # get tags
                 confid = cand.info["confid"]
@@ -732,6 +781,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         row = da.c.get(1)
         new_data = row["data"].copy()
         new_data["population_size"] = self.pop_manager.gen_size
+        new_data["initial_population_size"] = self.pop_manager.init_size
         da.c.update(1, data=new_data)
 
         self.da = DataConnection(self.db_path)
@@ -768,6 +818,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
+            atoms.info["key_value_pairs"]["target"] = energy
 
             # Reduce the cell in the bulk structure search.
             from ase.build import niggli_reduce
@@ -797,6 +848,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 [chempot_dict[k] * v for k, v in identity_stats.items()]
             )
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
+            atoms.info["key_value_pairs"]["target"] = formation_energy
         elif target == "reaction_energy":
             ...  # TODO: ...
         else:

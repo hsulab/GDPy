@@ -252,6 +252,7 @@ class transfer(Operation):
     def __init__(
         self, structures, dataset, version, 
         prefix: str="", system: str="mixed", clean_info: bool=False,
+        set_pbc: bool=True,
         directory="./"
     ) -> None:
         """"""
@@ -264,6 +265,7 @@ class transfer(Operation):
         self.system = system # molecule/cluster, surface, bulk
 
         self.clean_info = clean_info # whether clean atoms info
+        self.set_pbc = set_pbc # Whether set structures to full pbc
 
         return
     
@@ -306,6 +308,10 @@ class transfer(Operation):
             # -- save frames
             curr_frames = [frames[i] for i in curr_indices]
             curr_nframes = len(curr_frames)
+
+            if self.set_pbc:
+                for atoms in curr_frames:
+                    atoms.set_pbc(True)
 
             if self.clean_info:
                 self._clean_frames(curr_frames)
