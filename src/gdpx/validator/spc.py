@@ -3,17 +3,15 @@
 
 import copy
 import itertools
-import warnings
-import pathlib
 import re
-from typing import List, Union
+from typing import List, Optional
 
 import numpy as np
-import numpy.ma as ma
 
 from ase import Atoms
 from ase.io import read, write
 
+import matplotlib
 import matplotlib.pyplot as plt
 
 try:
@@ -32,7 +30,7 @@ from .validator import AbstractValidator
 class SinglepointValidator(AbstractValidator):
     """Calculate energies on each structures and save them to file."""
 
-    def __init__(self, groups: dict = None, convergence: dict = None, *args, **kwargs):
+    def __init__(self, groups: Optional[dict] = None, convergence: Optional[dict] = None, *args, **kwargs):
         """Init a spc validator.
 
         Args:
@@ -63,9 +61,12 @@ class SinglepointValidator(AbstractValidator):
 
         def run_selection():
             selected_prefixes, selected_groups = [], []
-            for k, v in group_params.items():
-                selected_prefixes.append(k)
-                selected_groups.append(convert_indices(v, index_convention="lmp"))
+            if group_params is not None:
+                for k, v in group_params.items():
+                    selected_prefixes.append(k)
+                    selected_groups.append(convert_indices(v, index_convention="lmp"))
+            else:
+                ...
             self._debug(selected_groups)
             self._debug(selected_prefixes)
 
@@ -123,7 +124,7 @@ class SinglepointValidator(AbstractValidator):
         return
 
     def _irun(
-        self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker
+        self, prefix: str, ref_frames: List[Atoms], pred_frames: Optional[List[Atoms]], worker
     ):
         """"""
         # - read structures
@@ -233,29 +234,32 @@ class SinglepointValidator(AbstractValidator):
                 [x.strip().split()[1:] for x in lines[1:]], dtype=np.float32
             )
 
-            # --
-            convergence = copy.deepcopy(self.convergence)
-            pattern = convergence.pop("pattern", None)
-            if pattern is not None:
-                matched_names = [x for x in row_names if re.match(pattern, x)]
+            if self.convergence is not None:
+                convergence = copy.deepcopy(self.convergence)
+                pattern = convergence.pop("pattern", None)
+                if pattern is not None:
+                    matched_names = [x for x in row_names if re.match(pattern, x)]
+                else:
+                    matched_names = row_names
+
+                assert all(
+                    [x in col_names for x in convergence.keys()]
+                ), "Unavailable keys for convergence."
+
+                converged = True
+                for name in matched_names:
+                    self._print(name)
+                    iname = row_names.index(name)
+                    for k, v in convergence.items():
+                        ik = col_names.index(k)
+                        self._print(f"{data[iname, ik]} <=? {v}")
+                        if data[iname, ik] <= v:
+                            converged = True
+                        else:
+                            converged = False
             else:
-                matched_names = row_names
-
-            assert all(
-                [x in col_names for x in convergence.keys()]
-            ), "Unavailable keys for convergence."
-
-            converged = True
-            for name in matched_names:
-                self._print(name)
-                iname = row_names.index(name)
-                for k, v in convergence.items():
-                    ik = col_names.index(k)
-                    self._print(f"{data[iname, ik]} <=? {v}")
-                    if data[iname, ik] <= v:
-                        converged = True
-                    else:
-                        converged = False
+                # No convergenc criteria is provided, set converged False
+                converged = False
         else:
             self._print("No rmse data is available and set convergence to True.")
 
