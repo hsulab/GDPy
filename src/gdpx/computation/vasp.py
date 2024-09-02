@@ -351,10 +351,13 @@ class VaspDriver(AbstractDriver):
             if not prev_wdirs:  # no previous checkpoints
                 vasprun = self.directory / "vasprun.xml"
                 if vasprun.exists() and vasprun.stat().st_size != 0:
-                    temp_frames = read(vasprun, ":")
                     try:
-                        _ = temp_frames[0].get_forces()
-                    except:  # `RuntimeError: Atoms object has no calculator.`
+                        # `xml.etree.ElementTree.ParseError` 
+                        # if vasprun.xml does not have a complete finshed single-point-calculation
+                        temp_atoms = read(vasprun, "0")
+                        # `RuntimeError: Atoms object has no calculator.`
+                        _ = temp_atoms.get_forces()
+                    except:
                         verified = False
                 else:
                     verified = False
