@@ -270,7 +270,7 @@ class MonteCarlo(AbstractExpedition):
             # - init structure
             # --
             step_converged = False
-            if not self._veri_checkpoint():
+            if not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
                 step_converged = True
@@ -427,7 +427,7 @@ class MonteCarlo(AbstractExpedition):
 
         return es_state
 
-    def _veri_checkpoint(self) -> bool:
+    def _verify_checkpoint(self) -> bool:
         """Verify checkpoints."""
         ckpt_wdirs = list(self.directory.glob("checkpoint.*"))
         nwdirs = len(ckpt_wdirs)
