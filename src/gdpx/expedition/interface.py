@@ -27,6 +27,10 @@ def register_expedition_methods():
 
     registers.expedition.register("basin_hopping")(BasinHopping)
 
+    from .monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
+
+    registers.expedition.register("hybrid_monte_carlo")(HybridMonteCarlo)
+
     from .monte_carlo.monte_carlo import MonteCarlo
 
     registers.expedition.register("monte_carlo")(MonteCarlo)
