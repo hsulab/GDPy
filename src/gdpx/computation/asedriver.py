@@ -140,29 +140,36 @@ def save_checkpoint(
     dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number: int = 3
 ):
     """"""
-    ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps}"
-    ckpt_wdir.mkdir(parents=True, exist_ok=True)
+    if dyn.nsteps > 0:
+        ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps}"
+        ckpt_wdir.mkdir(parents=True, exist_ok=True)
 
-    # write(ckpt_wdir/"structure.xyz", atoms)
-    save_trajectory(atoms=atoms, log_fpath=ckpt_wdir / "structures.xyz")
+        # write(ckpt_wdir/"structure.xyz", atoms)
+        save_trajectory(atoms=atoms, log_fpath=ckpt_wdir / "structures.xyz")
 
-    # For some optimisers and dynamics, they use random generator.
-    if hasattr(dyn, "rng"):
-        with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
-            yaml.safe_dump(dyn.rng.bit_generator.state, fopen)
+        # For some optimisers and dynamics, they use random generator.
+        if hasattr(dyn, "rng"):
+            with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
+                yaml.safe_dump(dyn.rng.bit_generator.state, fopen)
 
-    # For some mixed calculator, save information, for example, PLUMED...
-    if hasattr(atoms.calc, "calcs"):
-        for calc in atoms.calc.calcs:
-            if hasattr(calc, "_save_checkpoint"):
-                calc._save_checkpoint(ckpt_wdir)
+        # For some mixed calculator, save information, for example, PLUMED...
+        if hasattr(atoms.calc, "calcs"):
+            for calc in atoms.calc.calcs:
+                if hasattr(calc, "_save_checkpoint"):
+                    calc._save_checkpoint(ckpt_wdir)
 
-    # remove checkpoints if the number is over ckpt_number
-    ckpt_wdirs = sorted(wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:]))
-    num_ckpts = len(ckpt_wdirs)
-    if num_ckpts > ckpt_number:
-        for w in ckpt_wdirs[:-ckpt_number]:
-            shutil.rmtree(w)
+        # remove checkpoints if the number is over ckpt_number
+        ckpt_wdirs = sorted(wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:]))
+        num_ckpts = len(ckpt_wdirs)
+        if num_ckpts > ckpt_number:
+            for w in ckpt_wdirs[:-ckpt_number]:
+                shutil.rmtree(w)
+    else:
+        # Do not save checkpoint at step 0.
+        # Sometime it may be useful to save a ckpt at step 0 if
+        # an expensive potential is used. However, we normally 
+        # use ase-backend for very quick potentials.
+        ...
 
     return
 
