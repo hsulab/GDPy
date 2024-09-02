@@ -452,7 +452,7 @@ class AbstractDriver(AbstractNode):
         if self.setting.steps > 0:
             step = frames[-1].info["step"]
             self._debug(f"nframes: {num_frames}")
-            if self.setting.task == "min":
+            if self.setting.task == "min" or self.setting.task == "cmin":
                 # NOTE: check geometric convergence (forces)...
                 #       some drivers does not store constraints in trajectories
                 # NOTE: Sometimes constraint changes if `lowest` is used.

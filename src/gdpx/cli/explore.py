@@ -12,6 +12,7 @@ from .. import config
 from ..scheduler.interface import SchedulerVariable
 from ..expedition.interface import ExpeditionVariable
 from ..worker.explore import ExpeditionBasedWorker
+from ..utils.logio import remove_extra_stream_handlers
 
 
 def run_expedition(
@@ -33,6 +34,8 @@ def run_expedition(
     expedition.directory = directory
     if hasattr(expedition, "register_worker"):
         expedition.register_worker(exp_params["worker"])
+
+    remove_extra_stream_handlers()
 
     if scheduler.name == "local":
         if wait is not None:

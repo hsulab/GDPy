@@ -492,8 +492,6 @@ class ReannManager(AbstractPotentialManager):
             for m in models:
                 calc = REANN(
                     atomtype=type_list,
-                    maxneigh=max_nneigh,
-                    getneigh=None,
                     nn=m,
                     device=device,
                     dtype=precision,
@@ -559,10 +557,8 @@ class ReannManager(AbstractPotentialManager):
             if isinstance(self.calc, CommitteeCalculator):
                 for c in self.calc.calcs:
                     c.pes = None
-                    c.getneigh = None
             else:
                 self.calc.pes = None
-                self.calc.getneigh = None
         else:
             ...
 
