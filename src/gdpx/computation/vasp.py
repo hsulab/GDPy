@@ -442,14 +442,14 @@ class VaspDriver(AbstractDriver):
                 # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
                 #       thus we manually call the function to write input files and
                 #       run the calculation
-                # FIXME: Read random_seed in REPORT!!!
                 if self.setting.task == "md":
                     # read random_seed from REPORT
                     with open(ckpt_wdir/"REPORT", "r") as fopen:
                         lines = fopen.readlines()
                         report_random_seeds = read_report(lines)
                     self._print(f"{report_random_seeds.shape =}")
-                    assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
+                    # FIXME: The nframes is the number of frames of the entire trajectory.
+                    # assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
                     self.calc.set(random_seed=report_random_seeds[-1].tolist())
                 else:
                     ...
