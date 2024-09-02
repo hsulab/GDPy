@@ -247,7 +247,7 @@ def main():
 
         build_structures(build_config, args.substrates, args.number, args.directory)
     elif args.subcommand == "select":
-        from gdpx.selector.interface import run_selection
+        from .cli.select import run_selection
 
         run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "compute":

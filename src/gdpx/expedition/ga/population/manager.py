@@ -73,8 +73,9 @@ class AbstractPopulationManager:
                 seed_file: ./seed.xyz # seed structures for the initial population
             gen: # for the following generations
                 size: 20 # number of structures in each generation
-                reproduce: 20 # crossover + mutate
+                reprod: 20 # crossover + mutate
                 random: 0
+                mutate: 0
 
     """
 
@@ -300,7 +301,7 @@ class AbstractPopulationManager:
             # pair finished but not enough, random already starts...
             for i in range(self.gen_rep_max_try):
                 self._print(f"Reproduction attempt {i} ->")
-                atoms = self._reproduce(database, population, operators, num_atoms_substrate)
+                atoms = self._reproduce(database, curr_gen, population, operators, num_atoms_substrate)
                 if atoms is not None:
                     paired_structures.append(atoms)
                     parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
@@ -337,10 +338,10 @@ class AbstractPopulationManager:
         if rest_ran_size > 0 and num_mutated == 0:
             # random finished but not enough, mutation already starts...
             for i in range(gen_ran_max_try):
+                self._print(f"Random attempt {i} ->")
                 frames = generator.run(size=1, soft_error=True)
                 if frames:
                     atoms = frames[0]
-                    self._print("  reproduce randomly ")
                     atoms.info["key_value_pairs"] = {
                         "extinct": 0,
                         "origin": "RandomCandidateUnrelaxed",
@@ -348,9 +349,10 @@ class AbstractPopulationManager:
                     atoms.info["data"] = {}
                     confid = database.c.write(
                         atoms,
-                        origin="RandomCandidateUnrelaxed",
                         relaxed=0,
                         extinct=0,
+                        random=1,
+                        description="random",
                         generation=curr_gen,
                         key_value_pairs=atoms.info["key_value_pairs"],
                         data=atoms.info["data"],
@@ -358,8 +360,12 @@ class AbstractPopulationManager:
                     database.c.update(confid, gaid=confid)
                     atoms.info["confid"] = confid
 
-                    self._print("  --> confid %d\n" % (atoms.info["confid"]))
                     random_structures.append(atoms)
+                    self._print(
+                        f"  confid={atoms.info['confid']:>6d} parents={'none':<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
+                    )
+                else:
+                    ...  # Random failed.
                 if len(random_structures) == curr_ran_size:
                     break
             else:
@@ -387,13 +393,36 @@ class AbstractPopulationManager:
         mutated_structures = []
         mutated_structures.extend(candidate_groups.get("mutated", []))
         for i in range(gen_mut_max_try):
-            atoms = population.get_one_candidate(with_history=True)
-            a3, desc = operators["mobile"]["mutations"].get_new_individual([atoms])
+            self._print(f"Mutation attempt {i} ->")
+            parent = population.get_one_candidate(with_history=True)
+            atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
             if atoms is not None:
-                database.add_unrelaxed_step(a3, desc)
-                self._print("  Mutate cand{} by {}".format(atoms.info["confid"], desc))
-                self._print("  --> confid %d\n" % (a3.info["confid"]))
-                mutated_structures.append(a3)
+                t, desc = desc.split(":")
+                atoms.info["key_value_pairs"]["generation"]= curr_gen
+                atoms.info["data"] = {
+                    "parents": [parent.info["confid"]]
+                }
+                confid = database.c.write(
+                    atoms,
+                    relaxed=0,
+                    extinct=0,
+                    mutation=1,
+                    description=desc,
+                    generation=curr_gen,
+                    key_value_pairs=atoms.info["key_value_pairs"],
+                    data=atoms.info["data"],
+                )
+                database.c.update(confid, gaid=confid)
+                atoms.info["confid"] = confid
+
+                mutated_structures.append(atoms)
+
+                parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
+                self._print(
+                    f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
+                )
+            else:
+                ...  # mutation failed...
             if len(mutated_structures) == curr_mut_size:
                 break
         else:
@@ -434,9 +463,17 @@ class AbstractPopulationManager:
         return
 
     def _reproduce(
-        self, database: DataConnection, population, operators: dict, num_atoms_substrate: int
+        self, database: DataConnection, curr_gen: int, population, operators: dict, num_atoms_substrate: int
     ) -> Optional[Atoms]:
-        """Reproduce a structure from the current population."""
+        """Reproduce a structure from the current population.
+
+        Args:
+            curr_gen: The current generation number.
+
+        Returns:
+            An atoms.
+
+        """
         pairing = operators["mobile"]["pairing"]
         mutations = operators["mobile"]["mutations"]
 
@@ -447,27 +484,38 @@ class AbstractPopulationManager:
         if hasattr(pairing , "n_top"):
             prev_ntop = pairing.n_top
         else:
-            prev_ntop = None  # HACK: In the end, it should not None.
+            prev_ntop = None  # HACK: In the end, it should not be None.
+
+        # check if we have enough structures for pairing
+        num_structures_in_population = len(population.pop)
+        if not (num_structures_in_population > 0):
+            raise RuntimeError("Not enough structures in the current population. Some errors must have occurred before.")
 
         a3 = None
         for _ in range(self.MAX_REPROC_TRY):
-            # Get two parents.
-            if pairing.allow_variable_composition:
-                parents = population.get_two_candidates()
-                natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
-            else:
-                # TODO: If there is no two structures with the number of atoms?
-                for _ in range(100):
+            if num_structures_in_population >= 2:
+                # Get two parents.
+                if pairing.allow_variable_composition:
                     parents = population.get_two_candidates()
                     natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                    if natoms_p0 == natoms_p1:
-                        self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
-                        break
+                    self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
                 else:
-                    raise RuntimeError(
-                        "Different number of atoms in the two parents after 100 attempts."
-                    )
+                    # TODO: If there is no two structures with the number of atoms?
+                    for _ in range(100):
+                        parents = population.get_two_candidates()
+                        natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
+                        if natoms_p0 == natoms_p1:
+                            self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
+                            break
+                    else:
+                        raise RuntimeError(
+                            "Different number of atoms in the two parents after 100 attempts."
+                        )
+            else:
+                # We only have one structure
+                parents = [copy.deepcopy(population.pop[0])]
+                natoms_p0 = len(parents[0])
+
             # We need adjust n_top of some operators for comptability.
             curr_ntop = natoms_p0 - num_atoms_substrate
             if hasattr(pairing, "n_top"):
@@ -477,14 +525,34 @@ class AbstractPopulationManager:
                 assert natoms_p0 == pairing.n_top + num_atoms_substrate
             else:
                 prev_ntop = curr_ntop
+
             # Perform the crossover and the mutations.
-            a3, desc = pairing.get_new_individual(
-                parents
-            )  # This also adds key_value_pairs to a.info
+            if len(parents) == 2:
+                # This also adds key_value_pairs to a.info
+                is_parthenogenesis = False
+                a3, desc = pairing.get_new_individual(
+                    parents
+                )  
+            else:  # Not enough structures in the current population
+                # TODO: Better refactor codes here to separate
+                #       amphigenesis and parthenogenesis
+                is_parthenogenesis = True
+                a3, desc = parents[0], f"pairing: {parents[0].info['confid']} {parents[0].info['confid']}"
+                a3.info["data"] = dict(parents=[parents[0].info['confid'], parents[0].info['confid']])
+                a3.info["key_value_pairs"]["origin"] = "Parthenogenesis"
+
+            # adjust mutation n_tops
+            for mutation in mutations.oplist:
+                if hasattr(mutation, "n_top"):
+                    self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
+                    mutation.n_top = curr_ntop
+                    assert natoms_p0 == mutation.n_top + num_atoms_substrate
+
             if a3 is not None:
                 # We need update curr_ntop as a variable crossover may be performed.
                 curr_ntop = len(a3) - num_atoms_substrate
 
+                a3.info["key_value_pairs"]["generation"] = curr_gen
                 database.add_unrelaxed_candidate(
                     a3,
                     description=desc,  # here, desc is used to add "pairing": 1 to database
@@ -492,14 +560,8 @@ class AbstractPopulationManager:
                 self._print(f"  confid= {a3.info['confid']} ")
 
                 # mutate atoms in the mobile group
-                for mutation in mutations.oplist:
-                    if hasattr(mutation, "n_top"):
-                        self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
-                        mutation.n_top = curr_ntop
-                        assert natoms_p0 == mutation.n_top + num_atoms_substrate
-
                 curr_prob = self.rng.random()
-                if curr_prob < self.pmut:
+                if curr_prob < self.pmut or is_parthenogenesis:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
                     if a3_mut is not None:
                         database.add_unrelaxed_step(a3_mut, mut_desc)
@@ -507,6 +569,10 @@ class AbstractPopulationManager:
                         self._print(f"  mobile: {desc}  {mut_desc}")
                     else:
                         self._print(f"  mobile: {desc}")  # Mutate failed.
+                        if is_parthenogenesis:
+                            self._print("  single-parent reproduction-mutation failed.")
+                            a3 = None
+                            continue  # single-parent reproduction must mustate
                 else:
                     self._print(f"  mobile: {desc}")  # No mutation is applied.
 
@@ -526,7 +592,9 @@ class AbstractPopulationManager:
                 else:
                     ...
 
-                break
+                # a3 may be changed from a valid offspring to None due to parthenogenesis
+                if a3 is not None:
+                    break
             else:
                 ...  # Reproduce failed.
         else:

@@ -141,7 +141,7 @@ class SingleWorker(AbstractWorker):
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+inspect")
+        self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
 
         running_jobs = self._get_running_jobs() # Always return one job
         self._debug(f"running_jobs: {running_jobs}")

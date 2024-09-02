@@ -126,7 +126,7 @@ class XyzDataloader(AbstractDataloader):
         data_dirs = sorted(data_dirs)
 
         names = [
-            "+".join(str(x.relative_to(self.directory)).split("/")) for x in data_dirs
+            tuple(str(x.relative_to(self.directory)).split("/")) for x in data_dirs
         ]
 
         nframes_tot, frames_list = 0, []
