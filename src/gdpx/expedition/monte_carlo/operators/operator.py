@@ -3,12 +3,12 @@
 
 import abc
 import copy
-from typing import NoReturn, Callable, List
+from typing import Optional, Callable, List
 
 import numpy as np
 
 from ase import Atoms
-from ase import data, units
+from ase import data
 
 from .. import registers
 
@@ -24,14 +24,18 @@ class AbstractOperator(abc.ABC):
     #: Print function.
     _print: Callable = print
 
+    #: Debug function.
+    _debug: Callable = print
+
     def __init__(
         self,
         region: dict = {},
+        group: Optional[str] = None,
         temperature: float = 300.0,
         pressure: float = 1.0,
         covalent_ratio=[0.8, 2.0],
         use_rotation=True,
-        prob: str = 1.0,
+        prob: float = 1.0,
         allow_isolated: bool = False,
         *args,
         **kwargs,
@@ -53,6 +57,8 @@ class AbstractOperator(abc.ABC):
             "region", region_method, convert_name=True, **region_params
         )
 
+        self.group = group
+
         # - thermostat
         self.temperature = temperature
         self.pressure = pressure
@@ -73,11 +79,10 @@ class AbstractOperator(abc.ABC):
         return
 
     def _check_region(self, atoms: Atoms, *args, **kwargs):
-        """"""
+        """Set _curr_tags_dict."""
         if self.region.__class__.__name__ == "AutoRegion":
             self.region._curr_atoms = atoms
 
-        # NOTE: Modify only atoms in the region...
         tags_dict = self.region.get_tags_dict(atoms)
         content = "species within system:\n"
         content += (
@@ -103,7 +108,7 @@ class AbstractOperator(abc.ABC):
         return
 
     def _select_species(
-        self, atoms: Atoms, particles: List[str] = None, rng=np.random
+        self, atoms: Atoms, particles: Optional[List[str]] = None, rng=np.random
     ) -> List[int]:
         """"""
         # - pick a particle (atom/molecule)
@@ -226,19 +231,20 @@ class AbstractOperator(abc.ABC):
         """
         self._check_region(atoms)
 
-        return
+        ...
 
     @abc.abstractmethod
     def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
         """Monte Carlo."""
 
-        return
+        ...
 
     def as_dict(self) -> dict:
         """"""
         params = {}
         params["method"] = self.name
         params["region"] = self.region.as_dict()
+        params["group"] = self.group
         params["temperature"] = self.temperature
         params["pressure"] = self.pressure
         params["covalent_ratio"] = [self.covalent_min, self.covalent_max]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -18,8 +18,7 @@ class MoveOperator(AbstractOperator):
 
     def __init__(
         self,
-        particles: List[str] = None,
-        region: dict = {},
+        particles: List[str],
         temperature: float = 300.0,
         pressure: float = 1.0,
         covalent_ratio=[0.8, 2.0],
@@ -30,7 +29,6 @@ class MoveOperator(AbstractOperator):
     ):
         """"""
         super().__init__(
-            region=region,
             temperature=temperature,
             pressure=pressure,
             covalent_ratio=covalent_ratio,
