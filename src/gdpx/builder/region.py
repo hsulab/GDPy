@@ -455,7 +455,19 @@ class LatticeRegion(Region):
         return ran_pos
     
     def _is_within_region(self, position) -> bool:
-        """"""
+        """Check if a position is in the region.
+
+        Some atoms may have negative coordinates, thus, 
+        users need set origin with a small negative value (e.g. 1e-7)
+        to make atoms at boundary included in the region
+
+        Args:
+            position: An array that has a shape of (3,).
+
+        Returns:
+            A boolen.
+
+        """
         is_in = False
         pos_ = position - self._origin
         frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
