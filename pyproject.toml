@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdpx"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
-  "ase>=3.22",
+  "ase>=3.23",
   "h5py>=3.7.0",
   "joblib>=1.1.0",
   "networkx>=2.6.3",
@@ -41,7 +41,3 @@ include = [
 exclude = [
   "**/tests",
 ]
-
-venvPath = "/home/jx1279/.conda/envs"
-venv = "catorch"
-pythonVersion = "3.9"
