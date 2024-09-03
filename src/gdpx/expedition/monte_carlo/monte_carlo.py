@@ -190,8 +190,8 @@ class MonteCarlo(AbstractExpedition):
             if hasattr(op, "particles"):
                 for p in op.particles:
                     type_list.extend(list(Formula(p).count().keys()))
-            elif hasattr(op, "reservoir"):
-                type_list.extend(list(Formula(op.reservoir["species"]).count().keys()))
+            elif hasattr(op, "species"):
+                type_list.extend(list(Formula(op.species).count().keys()))
             else:
                 ...
         type_list = list(set(type_list + self.atoms.get_chemical_symbols()))
