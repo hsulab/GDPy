@@ -478,12 +478,15 @@ class VaspDriver(AbstractDriver):
         if archive_path is None:
             # - read trajectory
             vasprun = wdir / "vasprun.xml"
-            if vasprun.exists():
-                frames = read(vasprun, ":")
-                with open(wdir / "OUTCAR") as fopen:
-                    outcar_lines = fopen.readlines()
-                with open(wdir / "OSZICAR") as fopen:
-                    oszicar_lines = fopen.readlines()
+            if vasprun.exists() and vasprun.stat().st_size != 0:
+                try:  # Sometimes there are some outputs in vasprun but not a complete structure.
+                    frames = read(vasprun, ":")
+                    with open(wdir / "OUTCAR") as fopen:
+                        outcar_lines = fopen.readlines()
+                    with open(wdir / "OSZICAR") as fopen:
+                        oszicar_lines = fopen.readlines()
+                except:
+                    frames = []
             else:
                 frames = []
         else:
