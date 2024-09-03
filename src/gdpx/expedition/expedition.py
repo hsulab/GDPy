@@ -14,6 +14,26 @@ from . import ComputerVariable, DriverBasedWorker, SingleWorker
 from ..core.node import AbstractNode
 
 
+def parse_worker(inp_worker: dict, *args, **kwargs):
+    """Parse DriverBasedWorker for this expedition."""
+    worker = None
+    if isinstance(inp_worker, dict):
+        worker_params = copy.deepcopy(inp_worker)
+        worker = registers.create(
+            "variable", "computer", convert_name=True, **worker_params
+        ).value[0]
+    elif isinstance(inp_worker, list):  # assume it is from a computervariable
+        worker = worker[0]
+    elif isinstance(inp_worker, ComputerVariable):
+        worker = worker.value[0]
+    elif isinstance(inp_worker, DriverBasedWorker) or isinstance(worker, SingleWorker):
+        worker = worker
+    else:
+        raise RuntimeError(f"Unknown worker type {worker}")
+
+    return worker
+
+
 class AbstractExpedition(AbstractNode):
 
     #: Name of the expedition.
@@ -61,21 +81,7 @@ class AbstractExpedition(AbstractNode):
 
     def register_worker(self, worker: dict, *args, **kwargs) -> None:
         """Register DriverBasedWorker for this expedition."""
-        if isinstance(worker, dict):
-            worker_params = copy.deepcopy(worker)
-            worker = registers.create(
-                "variable", "computer", convert_name=True, **worker_params
-            ).value[0]
-        elif isinstance(worker, list):  # assume it is from a computervariable
-            worker = worker[0]
-        elif isinstance(worker, ComputerVariable):
-            worker = worker.value[0]
-        elif isinstance(worker, DriverBasedWorker) or isinstance(worker, SingleWorker):
-            worker = worker
-        else:
-            raise RuntimeError(f"Unknown worker type {worker}")
-
-        self.worker = worker
+        self.worker = parse_worker(inp_worker=worker)
 
         return
 
