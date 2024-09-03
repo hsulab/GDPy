@@ -377,90 +377,91 @@ class VaspDriver(AbstractDriver):
         **kwargs,
     ):
         """"""
-        try:
-            if ckpt_wdir is None:  # start from the scratch
-                # - merge params
-                run_params = self.setting.get_run_params(**kwargs)
-                run_params.update(**self.setting.get_init_params())
-                run_params["system"] = self.directory.name
+        if ckpt_wdir is None:  # start from the scratch
+            # - merge params
+            run_params = self.setting.get_run_params(**kwargs)
+            run_params.update(**self.setting.get_init_params())
+            run_params["system"] = self.directory.name
 
-                # FIXME: Init velocities?
-                prev_ignore_atoms_velocities = run_params.pop(
-                    "ignore_atoms_velocities", False
-                )
-                velocity_seed = run_params.pop("velocity_seed", None)
+            # FIXME: Init velocities?
+            prev_ignore_atoms_velocities = run_params.pop(
+                "ignore_atoms_velocities", False
+            )
+            velocity_seed = run_params.pop("velocity_seed", None)
 
-                if self.setting.task == "md":
-                    vasp_random_seed = [self.random_seed, 0, 0]
-                    self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
-                    self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
-                    run_params["random_seed"] = vasp_random_seed
-                    # TODO: use external velocities?
-                else:
-                    ...
-
-                # - update some system-dependant params
-                if "langevin_gamma" in run_params:
-                    ntypes = len(set(atoms.get_chemical_symbols()))
-                    run_params["langevin_gamma"] = [
-                        run_params["langevin_gamma"]
-                    ] * ntypes
-
-                # FIXME: LDA+U
-
-                # - constraint
-                self._preprocess_constraints(atoms, run_params)
-
-                self.calc.set(**run_params)
-                atoms.calc = self.calc
-                # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
-                #       thus we manually call the function to write input files and
-                #       run the calculation
-                self.calc.write_input(atoms)
+            if self.setting.task == "md":
+                vasp_random_seed = [self.random_seed, 0, 0]
+                self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
+                self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
+                run_params["random_seed"] = vasp_random_seed
+                # TODO: use external velocities?
             else:
-                self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
-                if cache_traj is None:
-                    traj = self.read_trajectory()
-                else:
-                    traj = cache_traj
-                nframes = len(traj)
-                assert nframes > 0, "VaspDriver restarts with a zero-frame trajectory."
-                dump_period = 1  # since we read vasprun.xml, every frame is dumped
-                target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
-                if target_steps > 0:  # not a spc
-                    # NOTE: vasp md is not consecutive, see read_trajectory
-                    if self.setting.task == "min":
-                        steps = target_steps + dump_period - nframes * dump_period
-                    elif self.setting.task == "md":
-                        steps = target_steps + dump_period - nframes * dump_period - 1
-                    else:
-                        ...
-                    assert (
-                        steps > 0
-                    ), f"Steps should be greater than 0. (steps = {steps})"
-                    self.calc.set(nsw=steps)
-                # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
-                #       thus we manually call the function to write input files and
-                #       run the calculation
-                if self.setting.task == "md":
-                    # read random_seed from REPORT
-                    with open(ckpt_wdir/"REPORT", "r") as fopen:
-                        lines = fopen.readlines()
-                        report_random_seeds = read_report(lines)
-                    self._print(f"{report_random_seeds.shape =}")
-                    # FIXME: The nframes is the number of frames of the entire trajectory.
-                    # assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
-                    self.calc.set(random_seed=report_random_seeds[-1].tolist())
+                ...
+
+            # - update some system-dependant params
+            if "langevin_gamma" in run_params:
+                ntypes = len(set(atoms.get_chemical_symbols()))
+                run_params["langevin_gamma"] = [
+                    run_params["langevin_gamma"]
+                ] * ntypes
+
+            # FIXME: LDA+U
+
+            # - constraint
+            self._preprocess_constraints(atoms, run_params)
+
+            self.calc.set(**run_params)
+            atoms.calc = self.calc
+            # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+            #       thus we manually call the function to write input files and
+            #       run the calculation
+            self.calc.write_input(atoms)
+        else:
+            self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
+            if cache_traj is None:
+                traj = self.read_trajectory()
+            else:
+                traj = cache_traj
+            nframes = len(traj)
+            assert nframes > 0, "VaspDriver restarts with a zero-frame trajectory."
+            dump_period = 1  # since we read vasprun.xml, every frame is dumped
+            target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
+            if target_steps > 0:  # not a spc
+                # NOTE: vasp md is not consecutive, see read_trajectory
+                if self.setting.task == "min":
+                    steps = target_steps + dump_period - nframes * dump_period
+                elif self.setting.task == "md":
+                    steps = target_steps + dump_period - nframes * dump_period - 1
                 else:
                     ...
-                self.calc.write_input(atoms)
-                # To restart, velocities are always retained
-                # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
-                #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-                shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
+                assert (
+                    steps > 0
+                ), f"Steps should be greater than 0. (steps = {steps})"
+                self.calc.set(nsw=steps)
+            # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+            #       thus we manually call the function to write input files and
+            #       run the calculation
+            if self.setting.task == "md":
+                # read random_seed from REPORT
+                with open(ckpt_wdir/"REPORT", "r") as fopen:
+                    lines = fopen.readlines()
+                    report_random_seeds = read_report(lines)
+                self._print(f"{report_random_seeds.shape =}")
+                # FIXME: The nframes is the number of frames of the entire trajectory.
+                # assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
+                self.calc.set(random_seed=report_random_seeds[-1].tolist())
+            else:
+                ...
+            self.calc.write_input(atoms)
+            # To restart, velocities are always retained
+            # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
+            #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+            shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
 
+        # TODO: Make gdpx process exists when calculation failed,
+        #       which maybe due to machine error and should be checked by users manually
+        try:
             run_ase_calculator("vasp", self.calc.command, self.directory)
-
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
             self._debug(
