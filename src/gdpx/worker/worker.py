@@ -132,13 +132,13 @@ class AbstractWorker(abc.ABC):
         # for h in logging.root.handlers:
         #    if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
         #        logging.root.removeHandler(h)
-        self._print(f"~~~{self.__class__.__name__}+run")
+        self._print(f"<<-- {self.__class__.__name__}+run -->>")
         return
 
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+inspect")
+        self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
 
         running_jobs = self._get_running_jobs()
 
@@ -147,7 +147,7 @@ class AbstractWorker(abc.ABC):
     def retrieve(self, *args, **kwargs):
         """"""
         self.inspect(*args, **kwargs)
-        self._print(f"~~~{self.__class__.__name__}+retrieve")
+        self._print(f"<<-- {self.__class__.__name__}+retrieve -->>")
 
         results = []
 

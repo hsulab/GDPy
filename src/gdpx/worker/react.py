@@ -281,7 +281,7 @@ class ReactorBasedWorker(AbstractWorker):
 
         """
         self._initialise(*args, **kwargs)
-        self._print(f"~~~{self.__class__.__name__}+inspect")
+        self._print(f"<<-- {self.__class__.__name__}+inspect -->>")
 
         running_jobs = self._get_running_jobs()
 
@@ -345,7 +345,7 @@ class ReactorBasedWorker(AbstractWorker):
 
         """
         self.inspect(*args, **kwargs)
-        self._print(f"~~~{self.__class__.__name__}+retrieve")
+        self._print(f"<<-- {self.__class__.__name__}+retrieve -->>")
 
         # NOTE: sometimes retrieve is used without run
         #self._info_data = self._read_cached_info() # update _info_data
