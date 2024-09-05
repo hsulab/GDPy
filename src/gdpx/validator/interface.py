@@ -47,7 +47,7 @@ class validate(Operation):
         Args:
             structures: A node that forwards structures.
             validator: A validator.
-            worker: A worker to run calculations. TODO: Make this optional.
+            worker: A worker to run calculations.
         
         """
         super().__init__(
@@ -117,8 +117,8 @@ class validate(Operation):
 
         # - create a worker
         if workers is not None:
-            nworkers = len(workers)
-            assert nworkers == 1, f"Validator only accepts one worker but {nworkers} were given."
+            num_workers = len(workers)
+            assert num_workers == 1, f"Validator only accepts one worker but {num_workers} were given."
             worker = workers[0]
             worker.directory = self.directory
         else:
@@ -129,9 +129,13 @@ class validate(Operation):
 
         # - run validation
         validator.directory = self.directory
-        validator.run(dataset, worker, **self.run_params)
+        status = validator.run(dataset, worker, **self.run_params)
+        if status is None:
+            status = "unfinished"
+        else:
+            ...
 
-        self.status = "finished"
+        self.status = status
 
         return # TODO: forward a reference-prediction pair?
     
