@@ -383,7 +383,7 @@ class GridDriverBasedWorker(AbstractWorker):
     def retrieve(self, include_retrieved: bool = False, *args, **kwargs):
         """Retrieve training results."""
         self.inspect(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+retrieve")
+        self._debug(f"<<-- {self.__class__.__name__}+retrieve -->>")
 
         # check status and get results
         if not include_retrieved:

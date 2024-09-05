@@ -110,7 +110,7 @@ class ExpeditionBasedWorker(AbstractWorker):
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+inspect")
+        self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
 
         running_jobs = self._get_running_jobs()
 
@@ -161,7 +161,7 @@ class ExpeditionBasedWorker(AbstractWorker):
         """"""
         # raise NotImplementedError(f"{self.__class__.__name__}")
         self.inspect(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+retrieve")
+        self._debug(f"<<-- {self.__class__.__name__}+retrieve -->>")
 
         unretrieved_wdirs_ = []
         if not include_retrieved:
