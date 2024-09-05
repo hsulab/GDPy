@@ -6,13 +6,11 @@ import itertools
 import re
 from typing import List, Optional
 
-import numpy as np
-
-from ase import Atoms
-from ase.io import read, write
-
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+from ase import Atoms
+from ase.io import read, write
 
 try:
     plt.style.use("presentation")
@@ -20,17 +18,23 @@ except Exception as e:
     ...
 
 
-from ..worker.drive import DriverBasedWorker
-from ..utils.comparision import get_properties, plot_parity, plot_distribution
 from ..utils.command import convert_indices
-
+from ..utils.comparision import get_properties, plot_distribution, plot_parity
+from ..worker.drive import DriverBasedWorker
 from .validator import AbstractValidator
 
 
 class SinglepointValidator(AbstractValidator):
     """Calculate energies on each structures and save them to file."""
 
-    def __init__(self, groups: Optional[dict] = None, convergence: Optional[dict] = None, *args, **kwargs):
+    def __init__(
+        self,
+        subsets: Optional[List[str]] = None,
+        groups: Optional[dict] = None,
+        convergence: Optional[dict] = None,
+        *args,
+        **kwargs,
+    ):
         """Init a spc validator.
 
         Args:
@@ -41,53 +45,90 @@ class SinglepointValidator(AbstractValidator):
         self.groups = groups
         self.convergence = convergence
 
+        self.subsets = subsets
+
         return
 
     def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
         """"""
         super().run()
 
-        data = []
-        frame_pairs = []
-        for prefix, frames in dataset["reference"]:
-            pred_frames = self._irun(prefix, frames, None, worker)
-            nframes, rmse_ret = self._plot_comparison(prefix, frames, pred_frames)
-            frame_pairs.append([frames, pred_frames])
-            data.append([prefix, nframes, rmse_ret])
+        # TODO: assert that the worker has a spc_driver
+
+        # Load previous rmse.dat
+        cache_rmse_data = []
+        if (self.directory / "rmse.dat").exists():
+            ...
+        else:
+            ...
+
+        # Load structures
+        is_spc_finished = True
+        if self.subsets is None:
+            data, frame_pairs = [], []
+            for prefix, frames in dataset["reference"]:
+                pred_frames = self._irun(prefix, frames, None, worker)
+                if pred_frames is None:
+                    is_spc_finished = False
+                    continue
+                nframes, rmse_ret = self._plot_comparison(prefix, frames, pred_frames)
+                frame_pairs.append([frames, pred_frames])
+                data.append([prefix, nframes, rmse_ret])
+        else:
+            # TODO: use tree structure
+            group_names = {k: [] for k in self.subsets}
+            group_structures = {k: [] for k in self.subsets}
+            for prefix, frames in dataset["reference"]:
+                for subset in self.subsets:
+                    if prefix.startswith(f"{subset}+"):
+                        group_names[subset].append(prefix)
+                        group_structures[subset].extend(frames)
+            for k, v in group_names.items():
+                with open(self.directory/f"subset-{k}.txt", "w") as fopen:
+                    fopen.write("\n".join(v))
+            data = []
+            for subset in self.subsets:
+                frames = group_structures[subset]
+                pred_frames = self._irun(subset, frames, None, worker)
+                if pred_frames is None:
+                    is_spc_finished = False
+                    continue
+                nframes, rmse_ret = self._plot_comparison(subset, frames, pred_frames)
+                data.append([subset, nframes, rmse_ret])
         self.write_data(data)
 
         # - plot specific groups
-        group_params = copy.deepcopy(self.groups)
+        # group_params = copy.deepcopy(self.groups)
+        #
+        # def run_selection():
+        #     selected_prefixes, selected_groups = [], []
+        #     if group_params is not None:
+        #         for k, v in group_params.items():
+        #             selected_prefixes.append(k)
+        #             selected_groups.append(convert_indices(v, index_convention="lmp"))
+        #     else:
+        #         ...
+        #     self._debug(selected_groups)
+        #     self._debug(selected_prefixes)
+        #
+        #     for curr_prefix, curr_indices in zip(selected_prefixes, selected_groups):
+        #         curr_ref = list(
+        #             itertools.chain(*[frame_pairs[i][0] for i in curr_indices])
+        #         )
+        #         curr_pre = list(
+        #             itertools.chain(*[frame_pairs[i][1] for i in curr_indices])
+        #         )
+        #         nframes, rmse_ret = self._plot_comparison(
+        #             curr_prefix, curr_ref, curr_pre
+        #         )
+        #         self.write_data(
+        #             [[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat"
+        #         )
+        #
+        # if group_params is not None:
+        #     run_selection()
 
-        def run_selection():
-            selected_prefixes, selected_groups = [], []
-            if group_params is not None:
-                for k, v in group_params.items():
-                    selected_prefixes.append(k)
-                    selected_groups.append(convert_indices(v, index_convention="lmp"))
-            else:
-                ...
-            self._debug(selected_groups)
-            self._debug(selected_prefixes)
-
-            for curr_prefix, curr_indices in zip(selected_prefixes, selected_groups):
-                curr_ref = list(
-                    itertools.chain(*[frame_pairs[i][0] for i in curr_indices])
-                )
-                curr_pre = list(
-                    itertools.chain(*[frame_pairs[i][1] for i in curr_indices])
-                )
-                nframes, rmse_ret = self._plot_comparison(
-                    curr_prefix, curr_ref, curr_pre
-                )
-                self.write_data(
-                    [[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat"
-                )
-
-        if group_params is not None:
-            run_selection()
-
-        return
+        return is_spc_finished
 
     def write_data(self, data, fname: str = "rmse.dat"):
         """"""
@@ -124,35 +165,30 @@ class SinglepointValidator(AbstractValidator):
         return
 
     def _irun(
-        self, prefix: str, ref_frames: List[Atoms], pred_frames: Optional[List[Atoms]], worker
+        self,
+        prefix: str,
+        ref_frames: List[Atoms],
+        pred_frames: Optional[List[Atoms]],
+        worker,
     ):
         """"""
         # - read structures
-        nframes = len(ref_frames)
+        num_frames = len(ref_frames)
         if pred_frames is None:
-            # NOTE: use worker to calculate
-            # TODO: use cached data?
-            self._print(f"Calculate reference frames {prefix} with potential...")
-            cached_pred_fpath = self.directory / prefix / "pred.xyz"
-            if not cached_pred_fpath.exists():
-                worker.directory = self.directory / prefix
-                worker.batchsize = nframes
+            self._print(f"calculate reference frames {prefix} with potential...")
+            worker.directory = self.directory / prefix
+            worker.batchsize = num_frames
+            worker._share_wdir = True
 
-                worker._share_wdir = True
-
-                worker.run(ref_frames)
-                worker.inspect(resubmit=True)
-                if worker.get_number_of_running_jobs() == 0:
-                    ret = worker.retrieve(
-                        include_retrieved=True,
-                    )
-                    pred_frames = list(itertools.chain(*ret))
-                else:
-                    # TODO: ...
-                    ...
-                write(cached_pred_fpath, pred_frames)
+            worker.run(ref_frames)
+            worker.inspect(resubmit=True)
+            if worker.get_number_of_running_jobs() == 0:
+                ret = worker.retrieve(
+                    include_retrieved=True,
+                )
+                pred_frames = list(itertools.chain(*ret))
             else:
-                pred_frames = read(cached_pred_fpath, ":")
+                ...
         else:
             ...
 
