@@ -300,7 +300,7 @@ class AbstractPopulationManager:
             # pair finished but not enough, random already starts...
             for i in range(self.gen_rep_max_try):
                 self._print(f"Reproduction attempt {i} ->")
-                atoms = self._reproduce(database, population, operators, num_atoms_substrate)
+                atoms = self._reproduce(database, curr_gen, population, operators, num_atoms_substrate)
                 if atoms is not None:
                     paired_structures.append(atoms)
                     parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
@@ -389,7 +389,8 @@ class AbstractPopulationManager:
         for i in range(gen_mut_max_try):
             atoms = population.get_one_candidate(with_history=True)
             a3, desc = operators["mobile"]["mutations"].get_new_individual([atoms])
-            if atoms is not None:
+            if a3 is not None:
+                a3.info["key_value_pairs"]["generation"] = curr_gen
                 database.add_unrelaxed_step(a3, desc)
                 self._print("  Mutate cand{} by {}".format(atoms.info["confid"], desc))
                 self._print("  --> confid %d\n" % (a3.info["confid"]))
@@ -434,9 +435,17 @@ class AbstractPopulationManager:
         return
 
     def _reproduce(
-        self, database: DataConnection, population, operators: dict, num_atoms_substrate: int
+        self, database: DataConnection, curr_gen: int, population, operators: dict, num_atoms_substrate: int
     ) -> Optional[Atoms]:
-        """Reproduce a structure from the current population."""
+        """Reproduce a structure from the current population.
+
+        Args:
+            curr_gen: The current generation number.
+
+        Returns:
+            An atoms.
+
+        """
         pairing = operators["mobile"]["pairing"]
         mutations = operators["mobile"]["mutations"]
 
@@ -485,6 +494,7 @@ class AbstractPopulationManager:
                 # We need update curr_ntop as a variable crossover may be performed.
                 curr_ntop = len(a3) - num_atoms_substrate
 
+                a3.info["key_value_pairs"]["generation"] = curr_gen
                 database.add_unrelaxed_candidate(
                     a3,
                     description=desc,  # here, desc is used to add "pairing": 1 to database
