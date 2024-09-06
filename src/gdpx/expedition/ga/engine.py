@@ -56,15 +56,23 @@ Operators
 
 
 def get_generation_number(da: DataConnection) -> int:
-    """"""
-    init_pop_size = da.get_param("initial_population_size")
-    print(f"{init_pop_size =}")
-    pop_size = da.get_param("population_size")
-    print(f"{pop_size =}")
+    """Check the number of generation based on the number of relaxed candidates.
+
+    The population size of the first generation can be different from the following ones.
+
+    Args:
+        da: The ga data connection.
+
+    Returns:
+        The generation number.
+
+    """
+    init_pop_size: int = da.get_param("initial_population_size")
+    pop_size: int = da.get_param("population_size")
 
     all_candidates = list(da.c.select(relaxed=1))
     counter = collections.Counter([c.generation for c in all_candidates])
-    generations = sorted(counter.elements())
+    generations = sorted(list(counter.keys()))
     num_generations = len(generations)
     if num_generations == 0:
         curr_gen = 0
@@ -515,7 +523,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             ]
             for cand in converged_candidates:
                 # update extra info
-                extra_info = dict(data={}, key_value_pairs={"extinct": 0})
+                extra_info = dict(data={}, key_value_pairs={"generation": self.cur_gen, "extinct": 0})
                 cand.info.update(extra_info)
                 # get tags
                 confid = cand.info["confid"]
