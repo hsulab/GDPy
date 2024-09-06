@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import numpy as np
-import os
-import torch
-import re
 
-# from gpu_sel import *
-from ase.data import chemical_symbols, atomic_numbers
-from ase.units import Bohr
-from ase.calculators.calculator import (
-    Calculator,
-    all_changes,
-    PropertyNotImplementedError,
-)
+import numpy as np
+import torch
+from ase.calculators.calculator import Calculator, all_changes
+from ase.neighborlist import neighbor_list
+
 
 """Reann Calculator.
 
@@ -30,8 +23,6 @@ class REANN(Calculator):
     def __init__(
         self,
         atomtype,
-        maxneigh,
-        getneigh,
         nn="PES.pt",
         device="cpu",
         dtype=torch.float32,
@@ -41,16 +32,15 @@ class REANN(Calculator):
         self.device = torch.device(device)
         self.dtype = dtype
         self.atomtype = atomtype
-        self.maxneigh = maxneigh
-        self.getneigh = getneigh
 
-        # - lazy init
+        # lazy init
         self._nn_path = nn
         self.pes = None
         self.cutoff = None
 
         self.table = 0
-        # self.pes=torch.compile(pes)
+
+        return
 
     def _init_model(self) -> None:
         """Lazy import some attributes as they not picklable."""
@@ -59,9 +49,6 @@ class REANN(Calculator):
         pes.eval()
         self.cutoff = pes.cutoff
         self.pes = torch.jit.optimize_for_inference(pes)
-
-        from reann.ASE import getneigh
-        self.getneigh = getneigh
 
         return
 
@@ -72,48 +59,39 @@ class REANN(Calculator):
         if self.pes is None:
             self._init_model()
 
-        # TODO: To re-use the same calculator, we init neigh_list every time
-        cell = np.array(self.atoms.cell)
-        #if self.table > 0.5 and "cell" in system_changes:
-        #    self.getneigh.deallocate_all()
-        #if "cell" in system_changes:
-        #    if cell.ndim == 1:
-        #        cell = np.diag(cell)
-        #    self.getneigh.init_neigh(self.cutoff, self.cutoff / 2.0, cell.T)
-        #    self.table += 1
-        if self.getneigh.initmod.rc > 0.:
-            self.getneigh.deallocate_all()
-
-        if cell.ndim == 1:
-            cell = np.diag(cell)
-        self.getneigh.init_neigh(self.cutoff, self.cutoff / 2.0, cell.T)
-        self.table += 1
-
-        icart = self.atoms.get_positions()
-        cart, neighlist, shiftimage, scutnum = self.getneigh.get_neigh(
-            icart.T, self.maxneigh
+        positions = (
+            torch.from_numpy(atoms.positions)
+            .contiguous()
+            .to(self.device)
+            .to(self.dtype)
         )
-        cart = torch.from_numpy(cart.T).contiguous().to(self.device).to(self.dtype)
-        neighlist = (
-            torch.from_numpy(neighlist[:, :scutnum])
+
+        i, j, S = neighbor_list("ijS", atoms, cutoff=self.cutoff)
+        pairs = (
+            torch.from_numpy(np.vstack([i, j]))
             .contiguous()
             .to(self.device)
             .to(torch.long)
         )
         shifts = (
-            torch.from_numpy(shiftimage.T[:scutnum, :])
+            torch.from_numpy(np.dot(S, atoms.cell))
             .contiguous()
             .to(self.device)
             .to(self.dtype)
         )
+
         symbols = list(self.atoms.symbols)
         species = [self.atomtype.index(i) for i in symbols]
         species = torch.tensor(species, device=self.device, dtype=torch.long)
-        energy, force = self.pes(cart, neighlist, shifts, species)
+        energy, force = self.pes(positions, pairs, shifts, species)
+
         energy = float(energy.detach().cpu().numpy())
-        self.results["energy"] = energy
         force = force.detach().cpu().numpy()
+
+        self.results["energy"] = energy
         self.results["forces"] = force.copy()
+
+        return
 
 
 if __name__ == "__main__":
