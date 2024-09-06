@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import collections
 import inspect
 import itertools
 import pathlib
@@ -52,6 +53,37 @@ Operators
     mutation
 
 """
+
+
+def get_generation_number(da: DataConnection) -> int:
+    """"""
+    init_pop_size = da.get_param("initial_population_size")
+    print(f"{init_pop_size =}")
+    pop_size = da.get_param("population_size")
+    print(f"{pop_size =}")
+
+    all_candidates = list(da.c.select(relaxed=1))
+    counter = collections.Counter([c.generation for c in all_candidates])
+    generations = sorted(counter.elements())
+    num_generations = len(generations)
+    if num_generations == 0:
+        curr_gen = 0
+    else:
+        if num_generations == 1:
+            if counter[0] < init_pop_size:
+                curr_gen = 0
+            else:
+                assert counter[0] == init_pop_size
+                curr_gen = 1
+        else:
+            curr_gen = max(generations)
+            if counter[curr_gen] < pop_size:
+                ...
+            else:
+                assert counter[curr_gen] == pop_size
+                curr_gen += 1
+
+    return curr_gen
 
 
 class GeneticAlgorithemEngine(AbstractExpedition):
@@ -172,9 +204,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         # - plot population evolution
         data = []
-        cur_gen_num = (
-            self.da.get_generation_number()
-        )  # equals finished generation plus one
+        cur_gen_num = get_generation_number(self.da) # equals finished generation plus one
         self._print(f"Current generation number: {cur_gen_num}")
         for i in range(cur_gen_num):
             current_candidates = [
@@ -278,10 +308,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         return
 
     def _check_generation(self):
-        """"""
-        # --- check current generation number
-        self.cur_gen = self.da.get_generation_number()
-        # output a few info
+        """Check the generation status."""
+        # self._print(f"{self.cur_gen =}")
+
+        self.cur_gen = get_generation_number(self.da)
+
         unrelaxed_strus_gen_ = list(
             self.da.c.select("relaxed=0,generation=%d" % self.cur_gen)
         )
@@ -732,6 +763,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         row = da.c.get(1)
         new_data = row["data"].copy()
         new_data["population_size"] = self.pop_manager.gen_size
+        new_data["initial_population_size"] = self.pop_manager.init_size
         da.c.update(1, data=new_data)
 
         self.da = DataConnection(self.db_path)
