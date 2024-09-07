@@ -200,55 +200,58 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         return
 
     def report(self):
+        """Write reports of this GA search.
+
+        One file contains all relaxed structures and one figure shows the target properties
+        in each generation.
+
+        """
         self._print("restart the database...")
         self.da = DataConnection(self.db_path)
         results = self.directory / "results"
         if not results.exists():
             results.mkdir()
 
-        # - write structures
+        # write structures that are already sorted by raw_score
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
         write(results / "all_candidates.xyz", all_relaxed_candidates)
 
-        # - plot population evolution
+        target = self.prop_dict["target"]
+
+        # plot population evolution
         data = []
-        cur_gen_num = get_generation_number(self.da) # equals finished generation plus one
-        self._print(f"Current generation number: {cur_gen_num}")
-        for i in range(cur_gen_num):
+        gen_num = get_generation_number(self.da) # equals finished generation plus one
+        self._print(f"Genetic Algorithm Statistics with {gen_num-1} generations: ")
+        for i in range(gen_num):
             current_candidates = [
                 atoms
                 for atoms in all_relaxed_candidates
                 if atoms.info["key_value_pairs"]["generation"] == i
             ]
-            energies = np.array([a.get_potential_energy() for a in current_candidates])
+            properties = np.array([a.info["key_value_pairs"]["target"] for a in current_candidates])
             stats = dict(
-                min=np.min(energies),
-                max=np.max(energies),
-                avg=np.mean(energies),
-                std=np.std(energies),
+                min=np.min(properties),
+                max=np.max(properties),
+                avg=np.mean(properties),
+                std=np.std(properties),
             )
             self._print(
-                f"num {energies.shape[0]} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
+                f"num {properties.shape[0]:>4d} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
             )
-            fitnesses = np.array(
-                [a.info["key_value_pairs"]["raw_score"] for a in current_candidates]
-            )
-            data.append([i, energies, fitnesses])
+            data.append([i, properties])
 
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
         ax.set_title("Population Evolution")
-        for i, energies, fitnesses in data:
-            ax.scatter([i] * len(energies), energies)
-        fig.savefig(results / "pop_ene.png", bbox_inches="tight")
-
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-        ax.set_title("Population Evolution")
-        for i, energies, fitnesses in data:
-            ax.scatter([i] * len(energies), fitnesses)
-        fig.savefig(results / "pop_fit.png", bbox_inches="tight")
-
+        for i, properties in data:
+            ax.scatter([i] * len(properties), properties, alpha=0.5)
+        ax.set(
+            xlabel="generation",
+            xticks=range(gen_num),
+            ylabel=target
+        )
+        fig.savefig(results / "pop.png", bbox_inches="tight")
         plt.close()
 
         return
@@ -808,6 +811,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
+            atoms.info["key_value_pairs"]["target"] = energy
 
             # Reduce the cell in the bulk structure search.
             from ase.build import niggli_reduce
@@ -837,6 +841,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 [chempot_dict[k] * v for k, v in identity_stats.items()]
             )
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
+            atoms.info["key_value_pairs"]["target"] = formation_energy
         elif target == "reaction_energy":
             ...  # TODO: ...
         else:
