@@ -80,12 +80,12 @@ class SinglepointValidator(AbstractValidator):
             group_structures = {k: [] for k in self.subsets}
             for prefix, frames in dataset["reference"]:
                 for subset in self.subsets:
-                    if prefix.startswith(f"{subset}"):
+                    if prefix[0].startswith(f"{subset}"):
                         group_names[subset].append(prefix)
                         group_structures[subset].extend(frames)
             for k, v in group_names.items():
                 with open(self.directory/f"subset-{k}.txt", "w") as fopen:
-                    fopen.write("\n".join(v))
+                    fopen.write("\n".join(["/".join(x) for x in v]))
             data = []
             for subset in self.subsets:
                 frames = group_structures[subset]
