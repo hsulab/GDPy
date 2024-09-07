@@ -39,6 +39,9 @@ from .nequip import NequipManager, NequipTrainer
 registers.manager.register(NequipManager)
 registers.trainer.register(NequipTrainer)
 
+from .sevennet import SevenManager
+registers.manager.register(SevenManager)
+
 #try:
 #    from .schnet import SchnetManager
 #    registers.manager.register(SchnetManager)
