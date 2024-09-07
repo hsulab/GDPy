@@ -80,7 +80,7 @@ class SinglepointValidator(AbstractValidator):
             group_structures = {k: [] for k in self.subsets}
             for prefix, frames in dataset["reference"]:
                 for subset in self.subsets:
-                    if prefix.startswith(f"{subset}+"):
+                    if prefix.startswith(f"{subset}"):
                         group_names[subset].append(prefix)
                         group_structures[subset].extend(frames)
             for k, v in group_names.items():
