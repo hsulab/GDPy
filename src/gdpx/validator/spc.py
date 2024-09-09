@@ -128,7 +128,11 @@ class SinglepointValidator(AbstractValidator):
         # if group_params is not None:
         #     run_selection()
 
-        return is_spc_finished
+        status = "unfinished"
+        if is_spc_finished:
+            status = "finished"
+
+        return status
 
     def write_data(self, data, fname: str = "rmse.dat"):
         """"""
