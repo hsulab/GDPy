@@ -73,8 +73,9 @@ class AbstractPopulationManager:
                 seed_file: ./seed.xyz # seed structures for the initial population
             gen: # for the following generations
                 size: 20 # number of structures in each generation
-                reproduce: 20 # crossover + mutate
+                reprod: 20 # crossover + mutate
                 random: 0
+                mutate: 0
 
     """
 
@@ -337,10 +338,10 @@ class AbstractPopulationManager:
         if rest_ran_size > 0 and num_mutated == 0:
             # random finished but not enough, mutation already starts...
             for i in range(gen_ran_max_try):
+                self._print(f"Random attempt {i} ->")
                 frames = generator.run(size=1, soft_error=True)
                 if frames:
                     atoms = frames[0]
-                    self._print("  reproduce randomly ")
                     atoms.info["key_value_pairs"] = {
                         "extinct": 0,
                         "origin": "RandomCandidateUnrelaxed",
@@ -358,8 +359,12 @@ class AbstractPopulationManager:
                     database.c.update(confid, gaid=confid)
                     atoms.info["confid"] = confid
 
-                    self._print("  --> confid %d\n" % (atoms.info["confid"]))
                     random_structures.append(atoms)
+                    self._print(
+                        f"  confid={atoms.info['confid']:>6d} parents={'none':<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
+                    )
+                else:
+                    ...  # Random failed.
                 if len(random_structures) == curr_ran_size:
                     break
             else:

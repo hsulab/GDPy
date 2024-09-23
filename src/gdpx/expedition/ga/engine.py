@@ -490,7 +490,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             # TODO: send candidates directly to worker that respects the batchsize
             self._print("===== Optimisation =====")
             for ia, a in enumerate(current_candidates):
-                parents = " ".join([str(x) for x in a.info["data"]["parents"]])
+                parents = "none"
+                if "parents" in a.info["data"]:
+                    parents = " ".join([str(x) for x in a.info["data"]["parents"]])
                 self._print(
                     f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
                 )
