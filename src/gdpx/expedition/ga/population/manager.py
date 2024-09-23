@@ -349,9 +349,10 @@ class AbstractPopulationManager:
                     atoms.info["data"] = {}
                     confid = database.c.write(
                         atoms,
-                        origin="RandomCandidateUnrelaxed",
                         relaxed=0,
                         extinct=0,
+                        random=1,
+                        description="random",
                         generation=curr_gen,
                         key_value_pairs=atoms.info["key_value_pairs"],
                         data=atoms.info["data"],
