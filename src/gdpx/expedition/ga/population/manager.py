@@ -392,14 +392,36 @@ class AbstractPopulationManager:
         mutated_structures = []
         mutated_structures.extend(candidate_groups.get("mutated", []))
         for i in range(gen_mut_max_try):
-            atoms = population.get_one_candidate(with_history=True)
-            a3, desc = operators["mobile"]["mutations"].get_new_individual([atoms])
-            if a3 is not None:
-                a3.info["key_value_pairs"]["generation"] = curr_gen
-                database.add_unrelaxed_step(a3, desc)
-                self._print("  Mutate cand{} by {}".format(atoms.info["confid"], desc))
-                self._print("  --> confid %d\n" % (a3.info["confid"]))
-                mutated_structures.append(a3)
+            self._print(f"Mutation attempt {i} ->")
+            parent = population.get_one_candidate(with_history=True)
+            atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
+            if atoms is not None:
+                t, desc = desc.split(":")
+                atoms.info["key_value_pairs"]["generation"]= curr_gen
+                atoms.info["data"] = {
+                    "parents": [parent.info["confid"]]
+                }
+                confid = database.c.write(
+                    atoms,
+                    relaxed=0,
+                    extinct=0,
+                    mutation=1,
+                    description=desc,
+                    generation=curr_gen,
+                    key_value_pairs=atoms.info["key_value_pairs"],
+                    data=atoms.info["data"],
+                )
+                database.c.update(confid, gaid=confid)
+                atoms.info["confid"] = confid
+
+                mutated_structures.append(atoms)
+
+                parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
+                self._print(
+                    f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
+                )
+            else:
+                ...  # mutation failed...
             if len(mutated_structures) == curr_mut_size:
                 break
         else:
