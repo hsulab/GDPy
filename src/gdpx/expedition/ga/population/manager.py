@@ -484,27 +484,38 @@ class AbstractPopulationManager:
         if hasattr(pairing , "n_top"):
             prev_ntop = pairing.n_top
         else:
-            prev_ntop = None  # HACK: In the end, it should not None.
+            prev_ntop = None  # HACK: In the end, it should not be None.
+
+        # check if we have enough structures for pairing
+        num_structures_in_population = len(population.pop)
+        if not (num_structures_in_population > 0):
+            raise RuntimeError("Not enough structures in the current population. Some errors must have occurred before.")
 
         a3 = None
         for _ in range(self.MAX_REPROC_TRY):
-            # Get two parents.
-            if pairing.allow_variable_composition:
-                parents = population.get_two_candidates()
-                natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
-            else:
-                # TODO: If there is no two structures with the number of atoms?
-                for _ in range(100):
+            if num_structures_in_population >= 2:
+                # Get two parents.
+                if pairing.allow_variable_composition:
                     parents = population.get_two_candidates()
                     natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                    if natoms_p0 == natoms_p1:
-                        self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
-                        break
+                    self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
                 else:
-                    raise RuntimeError(
-                        "Different number of atoms in the two parents after 100 attempts."
-                    )
+                    # TODO: If there is no two structures with the number of atoms?
+                    for _ in range(100):
+                        parents = population.get_two_candidates()
+                        natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
+                        if natoms_p0 == natoms_p1:
+                            self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
+                            break
+                    else:
+                        raise RuntimeError(
+                            "Different number of atoms in the two parents after 100 attempts."
+                        )
+            else:
+                # We only have one structure
+                parents = [copy.deepcopy(population.pop[0])]
+                natoms_p0 = len(parents[0])
+
             # We need adjust n_top of some operators for comptability.
             curr_ntop = natoms_p0 - num_atoms_substrate
             if hasattr(pairing, "n_top"):
@@ -514,10 +525,29 @@ class AbstractPopulationManager:
                 assert natoms_p0 == pairing.n_top + num_atoms_substrate
             else:
                 prev_ntop = curr_ntop
+
             # Perform the crossover and the mutations.
-            a3, desc = pairing.get_new_individual(
-                parents
-            )  # This also adds key_value_pairs to a.info
+            if len(parents) == 2:
+                # This also adds key_value_pairs to a.info
+                is_parthenogenesis = False
+                a3, desc = pairing.get_new_individual(
+                    parents
+                )  
+            else:  # Not enough structures in the current population
+                # TODO: Better refactor codes here to separate
+                #       amphigenesis and parthenogenesis
+                is_parthenogenesis = True
+                a3, desc = parents[0], f"pairing: {parents[0].info['confid']} {parents[0].info['confid']}"
+                a3.info["data"] = dict(parents=[parents[0].info['confid'], parents[0].info['confid']])
+                a3.info["key_value_pairs"]["origin"] = "Parthenogenesis"
+
+            # adjust mutation n_tops
+            for mutation in mutations.oplist:
+                if hasattr(mutation, "n_top"):
+                    self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
+                    mutation.n_top = curr_ntop
+                    assert natoms_p0 == mutation.n_top + num_atoms_substrate
+
             if a3 is not None:
                 # We need update curr_ntop as a variable crossover may be performed.
                 curr_ntop = len(a3) - num_atoms_substrate
@@ -530,14 +560,8 @@ class AbstractPopulationManager:
                 self._print(f"  confid= {a3.info['confid']} ")
 
                 # mutate atoms in the mobile group
-                for mutation in mutations.oplist:
-                    if hasattr(mutation, "n_top"):
-                        self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
-                        mutation.n_top = curr_ntop
-                        assert natoms_p0 == mutation.n_top + num_atoms_substrate
-
                 curr_prob = self.rng.random()
-                if curr_prob < self.pmut:
+                if curr_prob < self.pmut or is_parthenogenesis:
                     a3_mut, mut_desc = mutations.get_new_individual([a3])
                     if a3_mut is not None:
                         database.add_unrelaxed_step(a3_mut, mut_desc)
@@ -545,6 +569,10 @@ class AbstractPopulationManager:
                         self._print(f"  mobile: {desc}  {mut_desc}")
                     else:
                         self._print(f"  mobile: {desc}")  # Mutate failed.
+                        if is_parthenogenesis:
+                            self._print("  single-parent reproduction-mutation failed.")
+                            a3 = None
+                            continue  # single-parent reproduction must mustate
                 else:
                     self._print(f"  mobile: {desc}")  # No mutation is applied.
 
@@ -564,7 +592,9 @@ class AbstractPopulationManager:
                 else:
                     ...
 
-                break
+                # a3 may be changed from a valid offspring to None due to parthenogenesis
+                if a3 is not None:
+                    break
             else:
                 ...  # Reproduce failed.
         else:
