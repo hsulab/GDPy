@@ -427,6 +427,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 comparator=self.operators["mobile"]["comparing"],
                 rng=self.rng,
             )
+
+            pop_confids = [a.info["confid"] for a in current_population.pop]
+            self._print(f"number of structures in population: {len(pop_confids)}")
+            self._print(f"confids in population: {convert_indices(pop_confids)}")
+
             self.pop_manager._update_generation_settings(
                 current_population,
                 self.operators["mobile"]["mutations"],
