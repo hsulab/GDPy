@@ -337,7 +337,7 @@ class LmpDriverSetting(DriverSetting):
                 baro_cls_name = self.controller["name"] + "_" + self.ensemble
                 baro_cls = controllers[baro_cls_name]
             else:
-                ...
+                baro_cls = ParrinelloRahmanBarostat
             barostat = baro_cls(units=self.units, **self.controller)
             if barostat.name == "parrinello_rahman":
                 _init_md_params.update(**barostat.conv_params)
