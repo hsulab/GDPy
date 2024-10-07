@@ -67,6 +67,7 @@ class SinglepointValidator(AbstractValidator):
         if self.subsets is None:
             data, frame_pairs = [], []
             for prefix, frames in dataset["reference"]:
+                prefix = "+".join(prefix)
                 pred_frames = self._irun(prefix, frames, None, worker)
                 if pred_frames is None:
                     is_spc_finished = False
