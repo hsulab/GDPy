@@ -585,7 +585,7 @@ class DeepmdManager(AbstractPotentialManager):
                     "Please install deepmd-jax to use the jax interface."
                 )
             # TODO: only support one model...
-            calc = DPJax(model=models[0], type_map=type_map, head=calc_params.get("head", None))
+            calc = DPJax(model=models[0], type_map=type_map, head=calc_params.get("head", "default"))
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
 

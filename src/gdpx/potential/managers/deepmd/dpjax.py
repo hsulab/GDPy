@@ -68,7 +68,7 @@ class DPJax(Calculator):
 
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(self, model, type_map, head=None, label="DPJax", *args, **kwargs):
+    def __init__(self, model, type_map, head="default", label="DPJax", *args, **kwargs):
         """"""
         super().__init__(label=label, *args, **kwargs)
 
