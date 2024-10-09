@@ -4,6 +4,7 @@
 
 import copy
 import dataclasses
+import functools
 import io
 import pathlib
 import shutil
@@ -18,7 +19,7 @@ import yaml
 from ase import Atoms, units
 from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.constraints import Filter
+from ase.filters import Filter
 from ase.io import read, write
 from ase.md.md import MolecularDynamics
 from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
@@ -101,6 +102,11 @@ def save_trajectory(atoms, log_fpath) -> None:
     results = dict(
         energy=atoms.get_potential_energy(), forces=copy.deepcopy(atoms.get_forces())
     )
+    try:
+        results.update(stress=atoms.get_stress())
+    except:
+        ...  # Some calculators may not have stress data.
+
     spc = SinglePointCalculator(atoms, **results)
     atoms_to_save.calc = spc
 
@@ -185,6 +191,55 @@ def monit_and_intervene(
             print_func(f"EARLY STOPPED at step {dynamics.nsteps}!!")
 
     return
+
+
+@dataclasses.dataclass
+class BFGSMinimiser(Controller):
+
+    name: str = "bfgs"
+    
+    def __post_init__(self):
+        """"""
+        from ase.optimize import BFGS
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.conv_params = dict(driver_cls=functools.partial(BFGS, maxstep=maxstep))
+
+        return
+
+@dataclasses.dataclass
+class BFGSCellMinimiser(Controller):
+
+    name: str = "bfgs"
+
+    def __post_init__(self):
+        """"""
+        from ase.optimize import BFGS as min_cls
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        isotropic = self.params.get("isotropic", False)  # Ang
+        assert isotropic is not None
+
+        pressure = self.params.get("pressure", 1.0)  # bar
+        assert pressure is not None
+        pressure *= 1e-4/160.21766208  # bar -> eV/Ang^3
+
+        # TODO: StrainFilter, FrechetCellFilter
+        from ase.filters import UnitCellFilter as filter_cls
+
+        def combine_filter_and_minimiser(atoms, **kwargs):
+            """"""
+            new_filter_cls = functools.partial(filter_cls, hydrostatic_strain=isotropic, scalar_pressure=pressure)
+
+            return min_cls(atoms=new_filter_cls(atoms), maxstep=maxstep, **kwargs)  # type: ignore
+
+        self.conv_params = dict(driver_cls=combine_filter_and_minimiser)
+
+        return
 
 
 @dataclasses.dataclass
@@ -287,6 +342,10 @@ class MonteCarloController(Controller):
 
 
 controllers = dict(
+    # - min
+    bfgs_min=BFGSMinimiser,
+    # - cmin
+    bfgs_cell_min=BFGSCellMinimiser,
     # - nvt
     berendsen_nvt=BerendsenThermostat,
     langevin_nvt=LangevinThermostat,
@@ -373,28 +432,22 @@ class AseDriverSetting(DriverSetting):
             self._internals.update(**_init_md_params)
 
         if self.task == "min":
-            # - to opt atomic positions
-            from ase.optimize import BFGS
+            if self.controller:
+                min_cls_name = self.controller["name"] + "_min"
+                min_cls = controllers[min_cls_name]
+            else:
+                min_cls = BFGSMinimiser
+            minimiser = min_cls(**self.controller)
+            driver_cls = minimiser.conv_params["driver_cls"]
 
-            if self.min_style == "bfgs":
-                driver_cls = BFGS
-            # - to opt unit cell
-            #   UnitCellFilter, StrainFilter, ExpCellFilter
-            # TODO: add filter params
-            filter_names = ["unitCellFilter", "StrainFilter", "ExpCellFilter"]
-            if self.min_style in filter_names:
-                driver_cls = BFGS
-                self.filter_cls = getattr(ase.constraints, self.min_style)
-
-        if self.task == "rxn":
-            # TODO: move to reactor
-            try:
-                from sella import Constraints, Sella
-
-                driver_cls = Sella
-            except:
-                raise NotImplementedError(f"Sella is not installed.")
-            ...
+        if self.task == "cmin":
+            if self.controller:
+                min_cls_name = self.controller["name"] + "cell_min"
+                min_cls = controllers[min_cls_name]
+            else:
+                min_cls = BFGSCellMinimiser
+            minimiser = min_cls(**self.controller)
+            driver_cls = minimiser.conv_params["driver_cls"]
 
         try:
             self.driver_cls = driver_cls
@@ -485,8 +538,10 @@ class AseDriver(AbstractDriver):
 
         # - init driver
         if self.setting.task == "min":
-            if self.setting.filter_cls:
-                atoms = self.setting.filter_cls(atoms)
+            driver = self.setting.driver_cls(
+                atoms, logfile=self.log_fpath, trajectory=None
+            )
+        elif self.setting.task == "cmin":
             driver = self.setting.driver_cls(
                 atoms, logfile=self.log_fpath, trajectory=None
             )
