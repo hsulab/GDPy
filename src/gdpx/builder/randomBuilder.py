@@ -5,7 +5,7 @@ import copy
 import pathlib
 import warnings
 from pathlib import Path
-from typing import List, Mapping
+from typing import List, Mapping, Optional
 
 import ase
 import numpy as np
@@ -145,7 +145,7 @@ class RandomBuilder(StructureModifier):
         )  # test_dist_to_slab
 
         self.cell_volume = kwargs.get("cell_volume", None)
-        self.cell_bounds = kwargs.get("cell_bounds", None)
+        self.cell_bounds = kwargs.get("cell_bounds", {})
         self.cell_splits = kwargs.get("cell_splits", None)
         self.number_of_variable_cell_vectors = 0  # number_of_variable_cell_vectors
 
@@ -211,12 +211,12 @@ class RandomBuilder(StructureModifier):
 
         return frames
 
-    def _update_settings(self, substarte: Atoms = None):
+    def _update_settings(self, substarte: Optional[Atoms] = None):
         """"""
 
         raise NotImplementedError()
 
-    def _create_generator(self, substrates: List[Atoms] = None):
+    def _create_generator(self, substrates: Optional[List[Atoms]] = None):
         """"""
         if substrates is not None:
             self._update_settings(substrates[0])
@@ -339,15 +339,15 @@ class BulkBuilder(RandomBuilder):
 
     name: str = "random_bulk"
 
-    def _update_settings(self, substarte: Atoms = None):
+    def _update_settings(self, substarte: Optional[Atoms] = None):
         """"""
-        # - ignore substrate
+        # ignore substrate
         self._substrate = Atoms("", pbc=True)
 
         unique_atom_types = set(self.composition_atom_numbers)
         self.blmin = self._build_tolerance(unique_atom_types)
 
-        # - check number_of_variable_cell_vectors
+        # check number_of_variable_cell_vectors
         if self.cell is None:
             self.cell = []
         number_of_variable_cell_vectors = 3 - len(self.cell)
@@ -359,7 +359,7 @@ class BulkBuilder(RandomBuilder):
         self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
         self.box_to_place_in = box_to_place_in
 
-        # --- check volume
+        # check volume
         if self.cell_volume is None:
             radii = [
                 covalent_radii[x] * self.covalent_max
@@ -367,14 +367,18 @@ class BulkBuilder(RandomBuilder):
             ]
             self.cell_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
 
-        # --- cell bounds
-        cell_bounds = {}
-        angles, lengths = ["phi", "chi", "psi"], ["a", "b", "c"]
-        for k in angles:
-            cell_bounds[k] = self.cell_bounds.get(k, [15, 165])
-        for k in lengths:
-            cell_bounds[k] = self.cell_bounds.get(k, [2, 60])
-        self.cell_bounds = CellBounds(cell_bounds)
+        # cell bounds
+        if isinstance(self.cell_bounds, dict):
+            cell_bounds = {}
+            angles = ["a", "b", "c"]
+            for k in angles:
+                cell_bounds[k] = self.cell_bounds.get(k, [15, 165])
+            lengths = ["phi", "chi", "psi"]
+            for k in lengths:
+                cell_bounds[k] = self.cell_bounds.get(k, [2, 60])
+            self.cell_bounds = CellBounds(cell_bounds)
+        else:
+            assert isinstance(self.cell_bounds, CellBounds)
 
         # --- splits
         if self.cell_splits is not None:
