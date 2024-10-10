@@ -516,9 +516,6 @@ class AseDriverSetting(DriverSetting):
         except:
             raise RuntimeError("Ase Driver Class is not defined.")
 
-        # - shared params
-        self._internals.update(loginterval=self.dump_period)
-
         # NOTE: There is a bug in ASE as it checks `if steps` then fails when spc.
         if self.steps == 0:
             self.steps = -1
@@ -794,13 +791,13 @@ class AseDriver(AbstractDriver):
             )
             dynamics.attach(
                 save_trajectory,
-                interval=init_params["loginterval"],
+                interval=self.setting.dump_period,
                 atoms=atoms,
                 log_fpath=self.directory / self.xyz_fname,
             )
             dynamics.attach(
                 retrieve_and_save_deviation,
-                interval=init_params["loginterval"],
+                interval=self.setting.dump_period,
                 atoms=atoms,
                 devi_fpath=self.directory / self.devi_fname,
             )
@@ -814,7 +811,6 @@ class AseDriver(AbstractDriver):
 
             # NOTE: check if the last frame is properly stored
             dump_period = self.setting.dump_period
-            assert init_params["loginterval"] == dump_period
             ckpt_period = self.setting.ckpt_period
 
             should_dump_last, should_ckpt_last = False, False
