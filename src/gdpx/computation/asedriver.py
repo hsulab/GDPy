@@ -335,7 +335,7 @@ class LangevinThermostat(MDController):
         driver_cls = functools.partial(
             Langevin,
             timestep=self.timestep,
-            temperature=self.temperature,
+            temperature_K=self.temperature,
             fixcm=self.fix_com,
             friction=friction
         )
@@ -362,7 +362,7 @@ class NoseHooverThermostat(MDController):
         driver_cls = functools.partial(
             NoseHoover,
             timestep=self.timestep,
-            temperature=self.temperature,
+            temperature=self.temperature*units.kB,
             nvt_q=qmass
         )
         self.params.update(driver_cls=driver_cls)
