@@ -291,6 +291,16 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             self._print(l)
         self._print(f"random_state: f{self.generator.random_seed}")
 
+        # TODO: move this part to where before generator is created
+        # HACK: As the substrate is lazy-evaluated, it is unknown until
+        #       generator.run() is called. The unknwon substrate will
+        #       cause the crossover giving inconsistent pbc.
+        #       Thus, we initialise a substrate by default in generator's setting.
+        try:
+            self.generator._update_settings()
+        except:
+            ...
+
         # NOTE: check database existence and generation number to determine restart
         self._debug(f"database path: {str(self.db_path)}")
         if not self.db_path.exists():
@@ -661,9 +671,10 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             blmin=self.generator.blmin,
             number_of_variable_cell_vectors=self.generator.number_of_variable_cell_vectors,
             cell_bounds=self.generator.cell_bounds,
+            cellbounds=self.generator.cell_bounds,  #  StrainMutation uses cellbounds
             test_dist_to_slab=self.generator.test_dist_to_slab,
             use_tags=self.generator.use_tags,
-            used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",
+            used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
             # rng = self.rng # TODO: ase operators need np.random
         )
 
@@ -749,15 +760,6 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self,
     ):
         # create the database to store information in
-        # TODO: move this part to where before generator is created
-        # HACK: As the substrate is lazy-evaluated, it is unknown until
-        #       generator.run() is called. The unknwon substrate will
-        #       cause the crossover giving inconsistent pbc.
-        #       Thus, we initialise a substrate by default in generator's setting.
-        try:
-            self.generator._update_settings()
-        except:
-            ...
         da = PrepareDB(
             db_file_name=self.db_path,
             simulation_cell=self.generator._substrate,
