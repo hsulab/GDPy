@@ -7,7 +7,7 @@ from ase.ga.standard_comparators import InteratomicDistanceComparator
 
 from ..core.register import registers
 
-registers.comparator.register(OFPComparator)
+registers.comparator.register("OfpComparator")(OFPComparator)
 registers.comparator.register(NNMatComparator)
 registers.comparator.register(InteratomicDistanceComparator)
 
