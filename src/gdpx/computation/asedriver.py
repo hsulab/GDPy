@@ -243,6 +243,32 @@ class BFGSCellMinimiser(Controller):
 
 
 @dataclasses.dataclass
+class MDController(Controller):
+
+    name: str = "md"
+
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+    def __post_init__(self):
+        """"""
+
+        self.timestep *= units.fs
+        self.pressure *= (1e5 * units.Pascal)
+
+        return
+
+
+@dataclasses.dataclass
 class BerendsenThermostat(Controller):
 
     name: str = "berendsen"
@@ -299,7 +325,7 @@ class NoseHooverThermostat(Controller):
 
 
 @dataclasses.dataclass
-class BerendsenBarostat(Controller):
+class BerendsenBarostat(MDController):
 
     name: str = "berendsen"
 
@@ -307,19 +333,32 @@ class BerendsenBarostat(Controller):
         self,
     ):
         """"""
+        super().__post_init__()
+
         taut = self.params.get("Tdamp", 100.0)  # fs
+        taut *= units.fs
         assert taut is not None
 
         taup = self.params.get("Pdamp", 100.0)  # fs
+        taup *= units.fs
         assert taup is not None
 
+        # The default value is the one of water.
         compressibility = self.params.get("compressibility", 4.57e-5)  # bar^-1
+        compressibility *= compressibility / units.bar
 
-        self.conv_params = dict(
-            taut=taut * units.fs,
-            taup=taup * units.fs,
-            compressibility_au=compressibility / units.bar,
+        from ase.md.nptberendsen import NPTBerendsen
+        driver_cls = functools.partial(
+            NPTBerendsen, 
+            timestep=self.timestep,
+            temperature=self.temperature, 
+            pressure=self.pressure,
+            fixcm=self.fix_com,
+            taut=taut,
+            taup=taup,
+            compressibility_au=compressibility,
         )
+        self.params.update(driver_cls=driver_cls)
 
         return
 
@@ -360,7 +399,6 @@ controllers = dict(
 class AseDriverSetting(DriverSetting):
 
     driver_cls: Optional[Dynamics] = None
-    filter_cls: Optional[Filter] = None
 
     ensemble: str = "nve"
 
@@ -375,16 +413,15 @@ class AseDriverSetting(DriverSetting):
         # - task-specific params
         if self.task == "md":
             self._internals.update(
+                # md params
+                timestep=self.timestep * units.fs,
                 # - helper params
                 velocity_seed=self.velocity_seed,
                 ignore_atoms_velocities=self.ignore_atoms_velocities,
             )
             if self.ensemble == "nve":
                 from ase.md.verlet import VelocityVerlet as driver_cls
-
-                _init_md_params = dict(
-                    timestep=self.timestep * units.fs,
-                )
+                _init_md_params = dict()
             elif self.ensemble == "nvt":
                 if self.controller:
                     thermo_cls_name = self.controller["name"] + "_" + self.ensemble
@@ -405,29 +442,27 @@ class AseDriverSetting(DriverSetting):
                 thermo_params = thermostat.conv_params
                 _init_md_params = dict(
                     fixcm=self.fix_cm,
-                    timestep=self.timestep * units.fs,
                     temperature_K=self.temp,
                 )
                 _init_md_params.update(**thermo_params)
             elif self.ensemble == "npt":
                 if self.controller:
                     baro_cls_name = self.controller["name"] + "_" + self.ensemble
-                    baro_cls = controllers[baro_cls_name]
+                    if baro_cls_name in controllers:
+                        baro_cls = controllers[baro_cls_name]
+                    else:
+                        raise RuntimeError(f"Unknown barostat {baro_cls_name}.")
                 else:
                     baro_cls = BerendsenBarostat
-                barostat = baro_cls(**self.controller)
-                if barostat.name == "berendsen":
-                    from ase.md.nptberendsen import NPTBerendsen as driver_cls
-                else:
-                    raise RuntimeError(f"Unknown barostat {barostat}.")
-                baro_params = barostat.conv_params
                 _init_md_params = dict(
-                    fixcm=self.fix_cm,
-                    timestep=self.timestep * units.fs,
-                    temperature_K=self.temp,
-                    pressure_au=self.press * (1e5 * units.Pascal),
+                    timestep=self.timestep,
+                    temperature=self.temp,
+                    pressure=self.press,
+                    fix_com=self.fix_cm,
                 )
-                _init_md_params.update(**baro_params)
+                _init_md_params.update(**self.controller)
+                barostat = baro_cls(**_init_md_params)
+                driver_cls = barostat.params["driver_cls"]
 
             self._internals.update(**_init_md_params)
 
@@ -545,10 +580,6 @@ class AseDriver(AbstractDriver):
             driver = self.setting.driver_cls(
                 atoms, logfile=self.log_fpath, trajectory=None
             )
-        elif self.setting.task == "ts":
-            driver = self.setting.driver_cls(
-                atoms, order=1, internal=False, logfile=self.log_fpath, trajectory=None
-            )
         elif self.setting.task == "md":
             # - adjust params
             init_params_ = self.setting.get_init_params()
@@ -597,8 +628,9 @@ class AseDriver(AbstractDriver):
 
             # - construct the driver
             driver = self.setting.driver_cls(
-                atoms=atoms, **init_params_, logfile=self.log_fpath, trajectory=None
+                atoms=atoms, logfile=self.log_fpath, trajectory=None
             )
+            self._print(f"{driver =}")
         else:
             raise NotImplementedError(f"Unknown task {self.setting.task}.")
 
