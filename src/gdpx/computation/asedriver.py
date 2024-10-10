@@ -705,156 +705,151 @@ class AseDriver(AbstractDriver):
     ):
         """Run the simulation."""
         prev_wdir = ckpt_wdir
-        try:
+        # To restart, velocities are always retained
+        prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
+        if prev_wdir is None:  # start from the scratch
+            start_step = 0
+            rng_state = None
+
+            curr_params = {}
+            curr_params["random_seed"] = self.random_seed
+            curr_params["init"] = self.setting.get_init_params()
+            curr_params["run"] = self.setting.get_run_params()
+
+            with open(self.directory / "params.yaml", "w") as fopen:
+                yaml.safe_dump(curr_params, fopen, indent=2)
+        else:  # restart ...
+            ckpt_wdir = self._find_latest_checkpoint(prev_wdir)
+            atoms, rng_state = self._load_checkpoint(ckpt_wdir)
+            write(self.directory / self.xyz_fname, atoms)
+            start_step = atoms.info["step"]
+            if hasattr(self.calc, "calcs"):
+                for calc in self.calc.calcs:
+                    if hasattr(calc, "_load_checkpoint"):
+                        calc._load_checkpoint(ckpt_wdir, start_step=start_step)
+            # --- update run_params in settings
+            target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
+            if target_steps > 0:
+                if self.setting.task == "md":
+                    steps = target_steps - start_step
+                else:
+                    # ase v3.22.1 opt will reset max_steps to steps in run
+                    steps = target_steps
+            assert steps > 0, "Steps should be greater than 0."
+            kwargs.update(steps=steps)
+
             # To restart, velocities are always retained
-            prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
-            if prev_wdir is None:  # start from the scratch
-                start_step = 0
-                rng_state = None
+            self.setting.ignore_atoms_velocities = False
 
-                curr_params = {}
-                curr_params["random_seed"] = self.random_seed
-                curr_params["init"] = self.setting.get_init_params()
-                curr_params["run"] = self.setting.get_run_params()
+        # - set calculator
+        atoms.calc = self.calc
 
-                with open(self.directory / "params.yaml", "w") as fopen:
-                    yaml.safe_dump(curr_params, fopen, indent=2)
-            else:  # restart ...
-                ckpt_wdir = self._find_latest_checkpoint(prev_wdir)
-                atoms, rng_state = self._load_checkpoint(ckpt_wdir)
-                write(self.directory / self.xyz_fname, atoms)
-                start_step = atoms.info["step"]
-                if hasattr(self.calc, "calcs"):
-                    for calc in self.calc.calcs:
-                        if hasattr(calc, "_load_checkpoint"):
-                            calc._load_checkpoint(ckpt_wdir, start_step=start_step)
-                # --- update run_params in settings
-                target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
-                if target_steps > 0:
-                    if self.setting.task == "md":
-                        steps = target_steps - start_step
-                    else:
-                        # ase v3.22.1 opt will reset max_steps to steps in run
-                        steps = target_steps
-                assert steps > 0, "Steps should be greater than 0."
-                kwargs.update(steps=steps)
+        # - set dynamics
+        dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+        dynamics.nsteps = start_step
+        dynamics.max_steps = self.setting.steps
+        if hasattr(dynamics, "rng") and rng_state is not None:
+            dynamics.rng.bit_generator.state = rng_state
 
-                # To restart, velocities are always retained
-                self.setting.ignore_atoms_velocities = False
+        # callback functions
+        init_params = self.setting.get_init_params()
 
-            # - set calculator
-            atoms.calc = self.calc
+        # update atoms.info at the beginning of each step
+        dynamics.attach(
+            update_atoms_info,
+            dyn=dynamics,
+            atoms=atoms,
+        )
 
-            # - set dynamics
-            dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
-            dynamics.nsteps = start_step
-            dynamics.max_steps = self.setting.steps
-            if hasattr(dynamics, "rng") and rng_state is not None:
-                dynamics.rng.bit_generator.state = rng_state
-
-            # callback functions
-            init_params = self.setting.get_init_params()
-
-            # update atoms.info at the beginning of each step
-            dynamics.attach(
-                update_atoms_info,
-                dyn=dynamics,
-                atoms=atoms,
-            )
-
-            # HACK: add some observers to early stop the simulation
-            #       make sure this must be added before save_trajectory
-            #       as it adds `earlystop` in atoms.info and
-            #       BE CAREFUL it changes some attributes affect convergence
-            if self.setting.observers is not None:
-                observers = []
-                for ob_params in self.setting.observers:
-                    observers.append(create_an_observer(ob_params))
-                for ob in observers:
-                    dynamics.attach(
-                        monit_and_intervene,
-                        interval=self.setting.dump_period,
-                        atoms=atoms,
-                        dynamics=dynamics,
-                        observer=ob,
-                        print_func=self._print,
-                    )
-
-            # traj file not stores properties (energy, forces) properly
-            dynamics.attach(
-                save_checkpoint,
-                interval=self.setting.ckpt_period,
-                dyn=dynamics,
-                atoms=atoms,
-                wdir=self.directory,
-                ckpt_number=self.setting.ckpt_number,
-            )
-            dynamics.attach(
-                save_trajectory,
-                interval=self.setting.dump_period,
-                atoms=atoms,
-                log_fpath=self.directory / self.xyz_fname,
-            )
-            dynamics.attach(
-                retrieve_and_save_deviation,
-                interval=self.setting.dump_period,
-                atoms=atoms,
-                devi_fpath=self.directory / self.devi_fname,
-            )
-
-            # run simulation
-            dynamics.run(**run_params)
-
-            # make sure the max_steps are the same as input even if
-            # it is set by earlystop observer
-            dynamics.max_steps = self.setting.steps
-
-            # NOTE: check if the last frame is properly stored
-            dump_period = self.setting.dump_period
-            ckpt_period = self.setting.ckpt_period
-
-            should_dump_last, should_ckpt_last = False, False
-            if self.setting.task == "min":
-                # optimiser dumps every step to log but we control saved structures
-                # by dump_period
-                nsteps = atoms.info["step"] + 1
-                if nsteps > 0 and (nsteps - 1) % dump_period != 0:
-                    should_dump_last = True
-                if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
-                    should_ckpt_last = True
-            elif self.setting.task == "md":
-                nsteps = atoms.info["step"] + 1
-                if nsteps > 0 and (nsteps - 1) % dump_period != 0:
-                    should_dump_last = True
-                    if atoms.info.get(EARLYSTOP_KEY, False):
-                        should_dump_last = True
-                if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
-                    should_ckpt_last = True
-            if should_dump_last:
-                self._print("dump the last frame...")
-                update_atoms_info(atoms, dynamics)
-                save_trajectory(atoms, self.directory / self.xyz_fname)
-                retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
-
-            if should_ckpt_last:
-                self._print("ckpt the last frame...")
-                save_checkpoint(
-                    dynamics,
-                    atoms,
-                    self.directory,
-                    ckpt_number=self.setting.ckpt_number,
+        # HACK: add some observers to early stop the simulation
+        #       make sure this must be added before save_trajectory
+        #       as it adds `earlystop` in atoms.info and
+        #       BE CAREFUL it changes some attributes affect convergence
+        if self.setting.observers is not None:
+            observers = []
+            for ob_params in self.setting.observers:
+                observers.append(create_an_observer(ob_params))
+            for ob in observers:
+                dynamics.attach(
+                    monit_and_intervene,
+                    interval=self.setting.dump_period,
+                    atoms=atoms,
+                    dynamics=dynamics,
+                    observer=ob,
+                    print_func=self._print,
                 )
 
-            # - Some interactive calculator needs kill processes after finishing,
-            #   e.g. VaspInteractive...
-            if hasattr(self.calc, "finalize"):
-                self.calc.finalize()
-            # To restart, velocities are always retained
-            self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
+        # traj file not stores properties (energy, forces) properly
+        dynamics.attach(
+            save_checkpoint,
+            interval=self.setting.ckpt_period,
+            dyn=dynamics,
+            atoms=atoms,
+            wdir=self.directory,
+            ckpt_number=self.setting.ckpt_number,
+        )
+        dynamics.attach(
+            save_trajectory,
+            interval=self.setting.dump_period,
+            atoms=atoms,
+            log_fpath=self.directory / self.xyz_fname,
+        )
+        dynamics.attach(
+            retrieve_and_save_deviation,
+            interval=self.setting.dump_period,
+            atoms=atoms,
+            devi_fpath=self.directory / self.devi_fname,
+        )
+
+        # run simulation
+        try:
+            dynamics.run(**run_params)
         except Exception as e:
+            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
             self._debug(
                 f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
             )
+
+        # make sure the max_steps are the same as input even if
+        # it is set by earlystop observer
+        dynamics.max_steps = self.setting.steps
+
+        # NOTE: check if the last frame is properly stored
+        dump_period = self.setting.dump_period
+        ckpt_period = self.setting.ckpt_period
+
+        should_dump_last, should_ckpt_last = False, False
+        # task min optimiser dumps every step to log but we control saved structures
+        # by dump_period
+        nsteps = atoms.info["step"] + 1
+        if nsteps > 0 and (nsteps - 1) % dump_period != 0:
+            should_dump_last = True
+            if atoms.info.get(EARLYSTOP_KEY, False):
+                should_dump_last = True
+        if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
+            should_ckpt_last = True
+
+        if should_dump_last:
+            self._print("dump the last frame...")
+            update_atoms_info(atoms, dynamics)
+            save_trajectory(atoms, self.directory / self.xyz_fname)
+            retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
+
+        if should_ckpt_last:
+            self._print("ckpt the last frame...")
+            save_checkpoint(
+                dynamics,
+                atoms,
+                self.directory,
+                ckpt_number=self.setting.ckpt_number,
+            )
+
+        # - Some interactive calculator needs kill processes after finishing,
+        #   e.g. VaspInteractive...
+        if hasattr(self.calc, "finalize"):
+            self.calc.finalize()
+        # To restart, velocities are always retained
+        self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
 
         return
 
