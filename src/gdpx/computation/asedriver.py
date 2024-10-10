@@ -606,36 +606,12 @@ class AseDriver(AbstractDriver):
             )
         elif self.setting.task == "md":
             # velocity
-            # NOTE: every dynamics will have a new rng...
-            velocity_seed = self.setting.velocity_seed
-            if velocity_seed is None:
-                self._print(f"MD Driver's velocity_seed: {self.random_seed}")
-                vrng = np.random.Generator(np.random.PCG64(self.random_seed))
-            else:
-                self._print(f"MD Driver's velocity_seed: {velocity_seed}")
-                # vrng = np.random.default_rng(velocity_seed)
-                vrng = np.random.Generator(np.random.PCG64(velocity_seed))
+            self._prepare_velocities(
+                atoms,
+                self.setting.velocity_seed, self.setting.ignore_atoms_velocities
+            )
 
-            ignore_atoms_velocities = self.setting.ignore_atoms_velocities
-            if not ignore_atoms_velocities and atoms.get_kinetic_energy() > 0.0:
-                # atoms have momenta
-                ...
-            else:
-                # nve does not have temp in dyn_params so we use setting.temp
-                # for all ensembles just for consistency
-                target_temperature = self.setting.temp
-                MaxwellBoltzmannDistribution(
-                    atoms, temperature_K=target_temperature, rng=vrng
-                )
-                if self.setting.remove_rotation:
-                    ZeroRotation(atoms, preserve_temperature=False)
-                if self.setting.remove_translation:
-                    Stationary(atoms, preserve_temperature=False)
-                # NOTE: respect constraints
-                #       ase code does not consider constraints
-                force_temperature(atoms, target_temperature, unit="K")
-
-            # - other callbacks
+            # other callbacks
             set_calc_state(
                 self.calc,
                 timestep=self.setting.timestep,
