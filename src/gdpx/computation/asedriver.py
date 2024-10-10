@@ -245,6 +245,7 @@ class BFGSCellMinimiser(Controller):
 @dataclasses.dataclass
 class MDController(Controller):
 
+    #: Controller name.
     name: str = "md"
 
     #: Timestep in fs.
@@ -269,24 +270,52 @@ class MDController(Controller):
 
 
 @dataclasses.dataclass
-class BerendsenThermostat(Controller):
+class Verlet(MDController):
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        from ase.md.verlet import VelocityVerlet
+        driver_cls = functools.partial(
+            VelocityVerlet,
+            timestep=self.timestep
+        )
+        self.params.update(driver_cls=driver_cls)
+
+        return
+
+
+@dataclasses.dataclass
+class BerendsenThermostat(MDController):
 
     name: str = "berendsen"
 
     def __post_init__(
         self,
     ):
-        """"""
+        super().__post_init__()
+
         taut = self.params.get("Tdamp", 100.0)
+        taut *= units.fs
         assert taut is not None
 
-        self.conv_params = dict(taut=taut * units.fs)
+        from ase.md.nvtberendsen import NVTBerendsen
+
+        driver_cls = functools.partial(
+            NVTBerendsen,
+            timestep=self.timestep,
+            temperature=self.temperature,
+            fixcm=self.fix_com,
+            taut=taut
+        )
+        self.params.update(driver_cls=driver_cls)
 
         return
 
 
 @dataclasses.dataclass
-class LangevinThermostat(Controller):
+class LangevinThermostat(MDController):
 
     name: str = "langevin"
 
@@ -294,21 +323,29 @@ class LangevinThermostat(Controller):
         self,
     ):
         """"""
-        friction = self.params.get("friction", None)  # fs^-1
+        super().__post_init__()
+
+        # NOTE: The rng that generates friction normal distribution
+        #       is set in `create_dynamics` by the driver's random_seed
+        friction = self.params.get("friction", 0.01)  # fs^-1
+        friction *= 1./units.fs
         assert friction is not None
 
-        self.conv_params = dict(
-            friction=friction / units.fs,
-            # NOTE: The rng that generates friction normal distribution
-            #       is set in `create_dynamics` by the driver's random_seed
-            rng=None,
+        from ase.md.langevin import Langevin
+        driver_cls = functools.partial(
+            Langevin,
+            timestep=self.timestep,
+            temperature=self.temperature,
+            fixcm=self.fix_com,
+            friction=friction
         )
+        self.params.update(driver_cls=driver_cls)
 
         return
 
 
 @dataclasses.dataclass
-class NoseHooverThermostat(Controller):
+class NoseHooverThermostat(MDController):
 
     name: str = "nosehoover"
 
@@ -316,10 +353,19 @@ class NoseHooverThermostat(Controller):
         self,
     ):
         """"""
-        nvt_q = self.params.get("nvt_q", None)
-        assert nvt_q is not None
+        super().__post_init__()
 
-        self.conv_params = dict(nvt_q=nvt_q)  # thermostat mass
+        qmass = self.params.get("nvt_q", 334.0)  # a.u.
+        assert qmass is not None
+
+        from .md.nosehoover import NoseHoover
+        driver_cls = functools.partial(
+            NoseHoover,
+            timestep=self.timestep,
+            temperature=self.temperature,
+            nvt_q=qmass
+        )
+        self.params.update(driver_cls=driver_cls)
 
         return
 
@@ -364,18 +410,26 @@ class BerendsenBarostat(MDController):
 
 
 @dataclasses.dataclass
-class MonteCarloController(Controller):
+class MonteCarloController(MDController):
 
     name: str = "monte_carlo"
 
     def __post_init__(self):
         """"""
-        maxstepsize = self.params.get("maxstepsizes", 0.2)  # Ang
+        super().__post_init__()
 
-        self.conv_params = dict(
-            maxstepsize=maxstepsize,
-            rng=None,
+        maxstepsize = self.params.get("maxstepsizes", 0.2)  # Ang
+        assert maxstepsize is not None
+
+        from .mc.tfmc import TimeStampedMonteCarlo
+        driver_cls = functools.partial(
+            TimeStampedMonteCarlo,
+            timestep=self.timestep,
+            temperature=self.temperature,
+            fixcm=self.fix_com,
+            maxstepsize=maxstepsize
         )
+        self.params.update(driver_cls=driver_cls)
 
         return
 
@@ -385,6 +439,8 @@ controllers = dict(
     bfgs_min=BFGSMinimiser,
     # - cmin
     bfgs_cell_min=BFGSCellMinimiser,
+    # - nve
+    verlet_nve=Verlet,
     # - nvt
     berendsen_nvt=BerendsenThermostat,
     langevin_nvt=LangevinThermostat,
@@ -412,14 +468,9 @@ class AseDriverSetting(DriverSetting):
         """"""
         # - task-specific params
         if self.task == "md":
-            self._internals.update(
-                # md params
-                timestep=self.timestep * units.fs,
-                # - helper params
-                velocity_seed=self.velocity_seed,
-                ignore_atoms_velocities=self.ignore_atoms_velocities,
-            )
             default_controllers = dict(
+                nve = Verlet,
+                nvt = BerendsenThermostat,
                 npt = BerendsenBarostat,
             )
             if self.controller:
@@ -431,44 +482,16 @@ class AseDriverSetting(DriverSetting):
             else:
                 cont_cls = default_controllers[self.ensemble]
 
-            if self.ensemble == "nve":
-                from ase.md.verlet import VelocityVerlet as driver_cls
-                _init_md_params = dict()
-            elif self.ensemble == "nvt":
-                if self.controller:
-                    thermo_cls_name = self.controller["name"] + "_" + self.ensemble
-                    thermo_cls = controllers[thermo_cls_name]
-                else:
-                    thermo_cls = BerendsenThermostat
-                thermostat = thermo_cls(**self.controller)
-                if thermostat.name == "berendsen":
-                    from ase.md.nvtberendsen import NVTBerendsen as driver_cls
-                elif thermostat.name == "langevin":
-                    from ase.md.langevin import Langevin as driver_cls
-                elif thermostat.name == "nose_hoover":
-                    from .md.nosehoover import NoseHoover as driver_cls
-                elif thermostat.name == "monte_carlo":
-                    from .mc.tfmc import TimeStampedMonteCarlo as driver_cls
-                else:
-                    raise RuntimeError(f"Unknown thermostat {thermostat}.")
-                thermo_params = thermostat.conv_params
-                _init_md_params = dict(
-                    fixcm=self.fix_cm,
-                    temperature_K=self.temp,
-                )
-                _init_md_params.update(**thermo_params)
-            elif self.ensemble == "npt":
-                _init_md_params = dict(
-                    timestep=self.timestep,
-                    temperature=self.temp,
-                    pressure=self.press,
-                    fix_com=self.fix_cm,
-                )
-                _init_md_params.update(**self.controller)
-                barostat = cont_cls(**_init_md_params)
-                driver_cls = barostat.params["driver_cls"]
+            _init_md_params = dict(
+                timestep=self.timestep,
+                temperature=self.temp,
+                pressure=self.press,
+                fix_com=self.fix_cm,
+            )
+            _init_md_params.update(**self.controller)
 
-            self._internals.update(**_init_md_params)
+            cont = cont_cls(**_init_md_params)
+            driver_cls = cont.params.pop("driver_cls")
 
         if self.task == "min":
             if self.controller:
@@ -585,12 +608,9 @@ class AseDriver(AbstractDriver):
                 atoms, logfile=self.log_fpath, trajectory=None
             )
         elif self.setting.task == "md":
-            # - adjust params
-            init_params_ = self.setting.get_init_params()
-
-            # - velocity
+            # velocity
             # NOTE: every dynamics will have a new rng...
-            velocity_seed = init_params_.pop("velocity_seed")
+            velocity_seed = self.setting.velocity_seed
             if velocity_seed is None:
                 self._print(f"MD Driver's velocity_seed: {self.random_seed}")
                 vrng = np.random.Generator(np.random.PCG64(self.random_seed))
@@ -599,7 +619,7 @@ class AseDriver(AbstractDriver):
                 # vrng = np.random.default_rng(velocity_seed)
                 vrng = np.random.Generator(np.random.PCG64(velocity_seed))
 
-            ignore_atoms_velocities = init_params_.pop("ignore_atoms_velocities")
+            ignore_atoms_velocities = self.setting.ignore_atoms_velocities
             if not ignore_atoms_velocities and atoms.get_kinetic_energy() > 0.0:
                 # atoms have momenta
                 ...
@@ -618,23 +638,21 @@ class AseDriver(AbstractDriver):
                 #       ase code does not consider constraints
                 force_temperature(atoms, target_temperature, unit="K")
 
-            # - some dynamics need rng
-            if "rng" in init_params_:
-                self._print(f"MD Driver's rng: {self.rng.bit_generator.state}")
-                init_params_["rng"] = self.rng
-
             # - other callbacks
             set_calc_state(
                 self.calc,
-                timestep=init_params_["timestep"],
-                stride=init_params_["loginterval"],
+                timestep=self.setting.timestep,
+                stride=self.setting.dump_period,
             )
 
-            # - construct the driver
+            # construct the driver
             driver = self.setting.driver_cls(
                 atoms=atoms, logfile=self.log_fpath, trajectory=None
             )
-            self._print(f"{driver =}")
+            if hasattr(driver, "rng"):
+                # Langevin needs this!
+                self._print(f"MD Driver uses rng: {self.rng.bit_generator.state}")
+                driver.rng = self.rng
         else:
             raise NotImplementedError(f"Unknown task {self.setting.task}.")
 
@@ -920,7 +938,7 @@ class AseDriver(AbstractDriver):
             # ... infer from input settings
             for i, atoms in enumerate(traj_frames):
                 atoms.info["time"] = (
-                    i * init_params["timestep"] * init_params["loginterval"]
+                    i * self.setting.timestep * self.setting.dump_period
                 )
         elif self.setting.task == "min":
             # Method - Step - Time - Energy - fmax
