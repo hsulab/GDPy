@@ -419,6 +419,18 @@ class AseDriverSetting(DriverSetting):
                 velocity_seed=self.velocity_seed,
                 ignore_atoms_velocities=self.ignore_atoms_velocities,
             )
+            default_controllers = dict(
+                npt = BerendsenBarostat,
+            )
+            if self.controller:
+                cont_cls_name = self.controller["name"] + "_" + self.ensemble
+                if cont_cls_name in controllers:
+                    cont_cls = controllers[cont_cls_name]
+                else:
+                    raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+            else:
+                cont_cls = default_controllers[self.ensemble]
+
             if self.ensemble == "nve":
                 from ase.md.verlet import VelocityVerlet as driver_cls
                 _init_md_params = dict()
@@ -446,14 +458,6 @@ class AseDriverSetting(DriverSetting):
                 )
                 _init_md_params.update(**thermo_params)
             elif self.ensemble == "npt":
-                if self.controller:
-                    baro_cls_name = self.controller["name"] + "_" + self.ensemble
-                    if baro_cls_name in controllers:
-                        baro_cls = controllers[baro_cls_name]
-                    else:
-                        raise RuntimeError(f"Unknown barostat {baro_cls_name}.")
-                else:
-                    baro_cls = BerendsenBarostat
                 _init_md_params = dict(
                     timestep=self.timestep,
                     temperature=self.temp,
@@ -461,7 +465,7 @@ class AseDriverSetting(DriverSetting):
                     fix_com=self.fix_cm,
                 )
                 _init_md_params.update(**self.controller)
-                barostat = baro_cls(**_init_md_params)
+                barostat = cont_cls(**_init_md_params)
                 driver_cls = barostat.params["driver_cls"]
 
             self._internals.update(**_init_md_params)
