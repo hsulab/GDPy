@@ -205,7 +205,7 @@ class BFGSMinimiser(Controller):
         maxstep = self.params.get("maxstep", 0.2)  # Ang
         assert maxstep is not None
 
-        self.conv_params = dict(driver_cls=functools.partial(BFGS, maxstep=maxstep))
+        self.params.update(driver_cls=functools.partial(BFGS, maxstep=maxstep))
 
         return
 
@@ -237,7 +237,7 @@ class BFGSCellMinimiser(Controller):
 
             return min_cls(atoms=new_filter_cls(atoms), maxstep=maxstep, **kwargs)  # type: ignore
 
-        self.conv_params = dict(driver_cls=combine_filter_and_minimiser)
+        self.params.update(driver_cls=combine_filter_and_minimiser)
 
         return
 
@@ -438,7 +438,7 @@ controllers = dict(
     # - min
     bfgs_min=BFGSMinimiser,
     # - cmin
-    bfgs_cell_min=BFGSCellMinimiser,
+    bfgs_cmin=BFGSCellMinimiser,
     # - nve
     verlet_nve=Verlet,
     # - nvt
@@ -467,54 +467,38 @@ class AseDriverSetting(DriverSetting):
     def __post_init__(self):
         """"""
         # - task-specific params
-        if self.task == "md":
-            default_controllers = dict(
-                nve = Verlet,
-                nvt = BerendsenThermostat,
-                npt = BerendsenBarostat,
-            )
-            if self.controller:
-                cont_cls_name = self.controller["name"] + "_" + self.ensemble
-                if cont_cls_name in controllers:
-                    cont_cls = controllers[cont_cls_name]
-                else:
-                    raise RuntimeError(f"Unknown controller {cont_cls_name}.")
-            else:
-                cont_cls = default_controllers[self.ensemble]
+        default_controllers = dict(
+            min = BFGSMinimiser,
+            cmin = BFGSCellMinimiser,
+            nve = Verlet,
+            nvt = BerendsenThermostat,
+            npt = BerendsenBarostat,
+        )
 
-            _init_md_params = dict(
+        _init_params = {}
+        if self.task == "md":
+            suffix = self.ensemble
+            _init_params.update(
                 timestep=self.timestep,
                 temperature=self.temp,
                 pressure=self.press,
                 fix_com=self.fix_cm,
             )
-            _init_md_params.update(**self.controller)
+        else:
+            suffix = self.task
+        _init_params.update(**self.controller)
 
-            cont = cont_cls(**_init_md_params)
-            driver_cls = cont.params.pop("driver_cls")
-
-        if self.task == "min":
-            if self.controller:
-                min_cls_name = self.controller["name"] + "_min"
-                min_cls = controllers[min_cls_name]
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
             else:
-                min_cls = BFGSMinimiser
-            minimiser = min_cls(**self.controller)
-            driver_cls = minimiser.conv_params["driver_cls"]
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = default_controllers[suffix]
 
-        if self.task == "cmin":
-            if self.controller:
-                min_cls_name = self.controller["name"] + "cell_min"
-                min_cls = controllers[min_cls_name]
-            else:
-                min_cls = BFGSCellMinimiser
-            minimiser = min_cls(**self.controller)
-            driver_cls = minimiser.conv_params["driver_cls"]
-
-        try:
-            self.driver_cls = driver_cls
-        except:
-            raise RuntimeError("Ase Driver Class is not defined.")
+        cont = cont_cls(**_init_params)
+        self.driver_cls = cont.params.pop("driver_cls")
 
         # NOTE: There is a bug in ASE as it checks `if steps` then fails when spc.
         if self.steps == 0:
