@@ -78,6 +78,9 @@ class DriverBasedWorker(AbstractWorker):
     #: Reserved keys in atoms.info by gdp.
     reserved_keys: List["str"] = ["energy", "step", "wdir"]
 
+    #: Whether the worker is spawned.
+    is_spawned: bool = False
+
     #: Attached driver object.
     _driver = None
 
@@ -499,8 +502,6 @@ class DriverBasedWorker(AbstractWorker):
                     else:
                         # NOTE: no need to remove unfinished structures
                         #       since the driver would check it
-                        # BUG: If batchsize == 1, the resbumit run many times
-                        #      This is not as expected.
                         if resubmit:
                             if self.scheduler.name != "local":
                                 jobid = self.scheduler.submit()
@@ -508,7 +509,17 @@ class DriverBasedWorker(AbstractWorker):
                                     f"{job_name} is re-submitted with JOBID {jobid}."
                                 )
                             else:
-                                if curr_batch == batch:
+                                if self.is_spawned:
+                                    # spawned local worker respects batch keyword
+                                    if curr_batch == batch:
+                                        self._print(
+                                            f"{job_name} is re-submitted with local."
+                                        )
+                                        frames = read(
+                                            self.directory / "_data" / f"{identifier}.xyz", ":"
+                                        )
+                                        self.run(frames, batch=curr_batch, resubmit=True)
+                                else:
                                     self._print(
                                         f"{job_name} is re-submitted with local."
                                     )
@@ -516,10 +527,6 @@ class DriverBasedWorker(AbstractWorker):
                                         self.directory / "_data" / f"{identifier}.xyz", ":"
                                     )
                                     self.run(frames, batch=curr_batch, resubmit=True)
-                                else:
-                                    self._print(
-                                        f"SKIP resubmitting {job_name} on local."
-                                    )
                 else:
                     self._print(f"{job_name} is running...")
 
