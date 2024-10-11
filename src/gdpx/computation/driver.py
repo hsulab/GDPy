@@ -164,9 +164,6 @@ class AbstractDriver(AbstractNode):
     #: Driver setting.
     setting: DriverSetting = None
 
-    #: List of output files would be saved when restart.
-    saved_fnames: List[str] = []
-
     #: List of output files would be removed when restart.
     removed_fnames: List[str] = []
 
@@ -204,20 +201,6 @@ class AbstractDriver(AbstractNode):
         self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
-
-        return
-
-    @property
-    @abc.abstractmethod
-    def default_task(self) -> str:
-        """Default simulation task."""
-
-        return
-
-    @property
-    @abc.abstractmethod
-    def supported_tasks(self) -> List[str]:
-        """Supported simulation tasks"""
 
         return
 
@@ -312,7 +295,6 @@ class AbstractDriver(AbstractNode):
                     )
                     ckpt_wdir = self._save_checkpoint() if read_ckpt else None
                     self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
-                    self._cleanup()
                     self._irun(
                         atoms,
                         ckpt_wdir=ckpt_wdir,
@@ -325,7 +307,6 @@ class AbstractDriver(AbstractNode):
                     self._debug(f"... converged @ {self.directory.name} ...")
             else:
                 self._debug(f"... start after clean up @ {self.directory.name} ...")
-                self._cleanup()
                 self._irun(atoms, *args, **kwargs)
 
         return
@@ -380,20 +361,6 @@ class AbstractDriver(AbstractNode):
     @abc.abstractmethod
     def _irun(self, atoms: Atoms, *args, **kwargs):
         """Prepare input structure (atoms) and parameters and run the simulation."""
-
-        return
-
-    def _cleanup(self):
-        """Remove unnecessary files.
-
-        Some dynamics will not overwrite old files so cleanup is needed.
-
-        """
-        # retain calculator-related files
-        for fname in self.removed_fnames:
-            curr_fpath = self.directory / fname
-            if curr_fpath.exists():
-                curr_fpath.unlink()
 
         return
 
