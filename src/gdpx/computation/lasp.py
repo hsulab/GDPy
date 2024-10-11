@@ -278,6 +278,8 @@ def read_lasp_structures(
 @dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
 
+    smax: float = 0.10 # GPa
+
     def __post_init__(self):
         """"""
         if self.task == "min":
@@ -296,7 +298,7 @@ class LaspDriverSetting(DriverSetting):
                     "Run_Type": 15,
                     "SSW.SSWsteps": 1, # BFGS
                     "SSW.ftol": self.fmax,
-                    "SSW.strtol": 0.1,  # GPa
+                    "SSW.strtol": self.smax,  # GPa
                 }
             )
             assert self.dump_period == 1, "LaspDriver/cmin must have dump_period ==1."
@@ -324,6 +326,7 @@ class LaspDriverSetting(DriverSetting):
         """"""
         steps_ = kwargs.get("steps", self.steps)
         fmax_ = kwargs.get("fmax", self.fmax)
+        smax_ = kwargs.get("smax", self.smax)
 
         run_params = {
             "constraint": kwargs.get("constraint", self.constraint),
@@ -332,7 +335,10 @@ class LaspDriverSetting(DriverSetting):
 
         if self.task == "min":
             run_params.update(
-                **{"SSW.ftol": fmax_}
+                **{
+                    "SSW.ftol": fmax_,
+                    "SSW.strtol": smax_
+                }
             )
         
         if self.task == "md":
