@@ -222,11 +222,13 @@ def main():
     # - potential
     if args.potential:
         # a worker or a List of worker
-        from .cli.compute import convert_config_to_potter
+        from .cli.compute import convert_input_to_computer
 
-        potter = convert_config_to_potter(args.potential)
+        computer = convert_input_to_computer(args.potential)
+        workers = computer.value
     else:
-        potter = [None]
+        computer = None
+        workers = [None]
 
     # - use subcommands
     if args.subcommand == "session":
@@ -251,45 +253,25 @@ def main():
 
         run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "compute":
-        if isinstance(potter, list):
-            first_worker = potter[0]
-        else:
-            # FIXME: This is for reactor but we need unify this with computer.
-            first_worker = potter
-            potter = [potter]
-        config._print(f"{first_worker =}")
-        if first_worker is not None:
-            # For compatibility, the classic mode
-            # `gdp -p ./worker.yaml compute structures.xyz`
-            from .cli.compute import run_worker
-
-            run_worker(
-                args.STRUCTURE,
-                potter,
-                batch=args.batch,
-                spawn=args.spawn,
-                archive=args.archive,
-                directory=args.directory,
-            )
-        else:  # Use GridWorker here!!
-            from .cli.compute import run_grid_worker
-
-            run_grid_worker(
-                parse_input_file(args.STRUCTURE[0]),
-                batch=args.batch,
-                spawn=args.spawn,
-                directory=args.directory,
-            )
+        from .cli.compute import run_computation
+        run_computation(
+            args.STRUCTURE,
+            computer,
+            batch=args.batch,
+            spawn=args.spawn,
+            archive=args.archive,
+            directory=args.directory,
+        )
     elif args.subcommand == "explore":
         from .cli.explore import run_expedition
 
         params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory, potter[0])
+        run_expedition(params, args.wait, args.directory, workers[0])
     elif args.subcommand == "valid":
         from gdpx.validator import run_validation
 
         params = parse_input_file(args.CONFIG)
-        run_validation(params, args.directory, potter[0])
+        run_validation(params, args.directory, workers[0])
     else:
         ...
 
