@@ -72,6 +72,20 @@ def broadcast_and_adjust_potter(
 
 
 @registers.variable.register
+class ComputerChainVariable(Variable):
+
+    def __init__(self, computers, directory=pathlib.Path.cwd()):
+        """"""
+        value = []  # List[List[Worker]]
+        for i, computer in enumerate(computers):
+            assert len(computer.value) == 1, f"ChainStep.{str(i).zfill(2)} has more than one workers."
+            value.append(computer.value[0])
+        super().__init__(value)
+
+        return
+
+
+@registers.variable.register
 class ComputerVariable(Variable):
 
     def __init__(

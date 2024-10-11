@@ -6,7 +6,7 @@ import logging
 import pathlib
 from typing import List, Optional, Union
 
-from ase.io import write
+from ase.io import read, write
 
 from .. import config
 from ..builder.interface import BuilderVariable
@@ -15,24 +15,53 @@ from ..scheduler.interface import SchedulerVariable
 from ..utils.command import parse_input_file
 from ..worker.drive import DriverBasedWorker
 from ..worker.grid import GridDriverBasedWorker
-from ..worker.interface import ComputerVariable, ReactorVariable
+from ..worker.interface import ComputerVariable, ReactorVariable, ComputerChainVariable
 from .build import create_builder
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
 
-def convert_config_to_potter(config):
-    """Convert a configuration file or a dict to a potter/reactor.
+def convert_input_to_computer(config):
+    """Convert an input configuration to a computer.
 
-    This function is only called in the `main.py`.
+    The `computer` can be ComputerVariable, ReactorVariable, and
+    ComputerChainVariable. This function should only be called in 
+    the `main.py`.
 
     """
+    if isinstance(config, str) or isinstance(config, pathlib.Path):
+        config = parse_input_file(input_fpath=config)
+
+    computer = None
+    if isinstance(config, dict):
+        computer = convert_config_to_computer(config)
+    elif isinstance(config, list):
+        assert len(config) >= 1, "ComputerChain must have more than one computer configuration."
+        computer = convert_config_to_computer_chain(config)
+    else:
+        raise RuntimeError(f"Unknown input for computer with a type of {config}.")
+
+    return computer
+
+def convert_config_to_computer_chain(config: list):
+    """"""
+    computers = []
+    for subconfig in config:
+        computers.append(convert_config_to_computer(subconfig))
+    if len(computers) > 1:
+        computer_chain = ComputerChainVariable(computers=computers)
+    else:
+        computer_chain = computers[0]
+
+    return computer_chain
+
+
+def convert_config_to_computer(config):
+    """Convert a configuration file or a dict to a computer."""
     if isinstance(config, dict):
         params = config
     else:  # assume it is json or yaml
         params = parse_input_file(input_fpath=config)
-
-    ptype = params.pop("type", "computer")
 
     # NOTE: compatibility
     potter_params = params.pop("potter", None)
@@ -45,50 +74,73 @@ def convert_config_to_potter(config):
     else:
         params["potter"] = potter_params
 
+    ptype = params.pop("type", "computer")
     if ptype == "computer":
-        potter = ComputerVariable(**params).value
+        computer = ComputerVariable(**params)
     elif ptype == "reactor":
-
-        potter = ReactorVariable(
+        computer = ReactorVariable(
             potter=params["potter"],
             driver=params.get("driver", None),
             scheduler=params.get("scheduler", {}),
             batchsize=params.get("batchsize", 1),
-        ).value[0]
+        )
     else:
-        ...
+        raise RuntimeError(f"Unknown computer type {ptype}.")
+
+    return computer
+
+def convert_config_to_potter(config):
+    """Convert a configuration file or a dict to a potter/reactor.
+
+    This function is only called in tests.
+
+    """
+    computer = convert_config_to_computer(config)
+    if isinstance(computer, ComputerVariable):
+        potter = computer.value
+    elif isinstance(computer, ReactorVariable):
+        potter = computer.value[0]
+    else:
+        raise RuntimeError()
 
     return potter
 
 
 def run_one_worker(structures, worker, directory, batch, spawn, archive):
-    """"""
+    """Run one worker on several structures."""
+    # update working directory
     worker.directory = directory
 
+    worker.is_spawned = spawn
+
+    # run computations
     _ = worker.run(structures, batch=batch)
     worker.inspect(resubmit=True, batch=batch)
-    worker.is_spawned = spawn
+
+    # check results
+    is_finished = False
     if not spawn and worker.get_number_of_running_jobs() == 0:
         res_dir = directory / "results"
         if not res_dir.exists():
-            res_dir.mkdir(exist_ok=True)
-
+            res_dir.mkdir()
             ret = worker.retrieve(include_retrieved=True, use_archive=archive)
             if not isinstance(worker.driver, AbstractReactor):
                 end_frames = [traj[-1] for traj in ret]
                 write(res_dir / "end_frames.xyz", end_frames)
                 config._print(f"{directory.name} has already been retrieved.")
+                is_finished = True
             else:
-                ...
+                config._print(f"Reactor results cannot be retreived for now.")
         else:
             config._print(f"{directory.name} has already been retrieved.")
+            is_finished = True
 
-    return
+    return is_finished
 
 
 def run_worker(
     structure: List[str],
-    workers: List[DriverBasedWorker],
+    computer,
     *,
     batch: Optional[int] = None,
     spawn: bool = False,
@@ -117,13 +169,30 @@ def run_worker(
         builder.directory = directory / "init" / f"s{i}"
         frames.extend(builder.run())
 
-    # - find input frames
-    num_workers = len(workers)
-    if num_workers == 1:
-        run_one_worker(frames, workers[0], directory, batch, spawn, archive)
+    # find input frames
+    if isinstance(computer, ComputerVariable):
+        workers: List[DriverBasedWorker] = computer.value
+        num_workers = len(workers)
+        if num_workers == 1:
+            run_one_worker(frames, workers[0], directory, batch, spawn, archive)
+        else:
+            for i, w in enumerate(workers):
+                run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
+    elif isinstance(computer, ComputerChainVariable):
+        workers: List[DriverBasedWorker] = computer.value
+        curr_frames = frames
+        for i, worker in enumerate(workers):
+            config._print(f"<- ComputerChainStep.{str(i).zfill(2)} ->")
+            chainstep_directory = directory/f"chainstep.{str(i).zfill(2)}"
+            is_finished = run_one_worker(curr_frames, worker, chainstep_directory, batch, spawn, archive)
+            if is_finished:
+                config._print("chainstep is finished.")
+                curr_frames = read(chainstep_directory/"results"/"end_frames.xyz", ":")
+            else:
+                config._print("chainstep is not finished.")
+                break
     else:
-        for i, w in enumerate(workers):
-            run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
+        raise RuntimeError(f"Unknown computer `{computer}`.")
 
     return
 
@@ -201,6 +270,39 @@ def run_grid_worker(grid_params: dict, batch: Optional[int], spawn, directory):
         # )
         GridDriverBasedWorker.run_grid_computations_in_command(
             batch_wdirs, structures, drivers, print_func=config._print
+        )
+
+    return
+
+
+def run_computation(
+    structure,
+    computer,
+    *,
+    batch: Optional[int] = None,
+    spawn: bool = False,
+    archive: bool = False,
+    directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
+):
+    """"""
+    if computer is not None:
+        # For compatibility, the classic mode
+        # `gdp -p ./worker.yaml compute structures.xyz`
+        run_worker(
+            structure,
+            computer,
+            batch=batch,
+            spawn=spawn,
+            archive=archive,
+            directory=directory,
+        )
+    else:
+        # Use GridWorker here!!
+        run_grid_worker(
+            parse_input_file(structure[0]),
+            batch=batch,
+            spawn=spawn,
+            directory=directory,
         )
 
     return
