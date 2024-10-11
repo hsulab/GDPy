@@ -189,7 +189,10 @@ def parse_input_file(
     input_dict = None
 
     # - parse input type
-    if isinstance(input_fpath, dict):
+    if isinstance(input_fpath, list):
+        input_dict = input_fpath
+        json_path = Path.cwd()
+    elif isinstance(input_fpath, dict):
         input_dict = input_fpath
         json_path = Path.cwd()
     else:
@@ -218,10 +221,18 @@ def parse_input_file(
 
     # NOTE: recursive read internal json or yaml files
     if input_dict is not None:
-        for key, value in input_dict.items():
-            key_dict = parse_input_file(value, write_json=False)
-            if key_dict is not None:
-                input_dict[key] = key_dict
+        if isinstance(input_dict, dict):
+            for key, value in input_dict.items():
+                key_dict = parse_input_file(value, write_json=False)
+                if key_dict is not None:
+                    input_dict[key] = key_dict
+        elif isinstance(input_dict, list):
+            for i, data in enumerate(input_dict):
+                new_data = parse_input_file(data, write_json=False)
+                if new_data is not None:
+                    input_dict[i] = new_data
+        else:
+            raise RuntimeError(f"Unknown input `{input_dict}`.")
 
     if input_dict and write_json:
         with open(json_path / "params.json", "w") as fopen:
