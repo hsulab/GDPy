@@ -251,14 +251,11 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def run(
-        self, atoms, read_ckpt: bool = True, extra_info: dict = None, *args, **kwargs
-    ) -> None:
+    def run(self, atoms, read_ckpt: bool = True, *args, **kwargs) -> None:
         """Return the last frame of the simulation.
 
         Copy input atoms, and return a new atoms. Check whether the simulation is
-        finished and retrieve stored results. If necessary, extra information could
-        be added to the atoms.info.
+        finished and retrieve stored results.
 
         The simulation should either run from the scratch or restart from a given
         checkpoint...
@@ -332,7 +329,10 @@ class AbstractDriver(AbstractNode):
     def _save_checkpoint(self, *args, **kwargs):
         """Save the previous simulation to a checkpoint directory."""
         # find previous runs...
-        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"), key= lambda p: int(p.name[:4]))
+        prev_wdirs = sorted(
+            self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"),
+            key=lambda p: int(p.name[:4]),
+        )
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
         # get output files
@@ -362,7 +362,9 @@ class AbstractDriver(AbstractNode):
                     ...
         else:
             curr_wdir = prev_wdirs[-1].resolve()
-            self._debug(f"No outputs in {str(self.directory)} and they may be backed up before.")
+            self._debug(
+                f"No outputs in {str(self.directory)} and they may be backed up before."
+            )
 
         return curr_wdir
 

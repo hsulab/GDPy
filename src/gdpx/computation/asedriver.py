@@ -516,7 +516,6 @@ class AseDriverSetting(DriverSetting):
             run_params.update(
                 fmax=kwargs.get("fmax", self.fmax),
             )
-        run_params.update(**kwargs)
 
         return run_params
 
