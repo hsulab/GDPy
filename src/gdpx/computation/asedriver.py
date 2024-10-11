@@ -80,7 +80,7 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
     return
 
 
-def save_trajectory(atoms, log_fpath) -> None:
+def save_trajectory(atoms, traj_fpath) -> None:
     """Create a clean atoms from the input and save simulation trajectory.
 
     We need an explicit copy of atoms as some calculators may not return all
@@ -137,7 +137,7 @@ def save_trajectory(atoms, log_fpath) -> None:
         atoms_to_save.arrays["host_forces"] = copy.deepcopy(calc.results["host_forces"])
 
     # - append to traj
-    write(log_fpath, atoms_to_save, append=True)
+    write(traj_fpath, atoms_to_save, append=True)
 
     return
 
@@ -151,7 +151,7 @@ def save_checkpoint(
         ckpt_wdir.mkdir(parents=True, exist_ok=True)
 
         # write(ckpt_wdir/"structure.xyz", atoms)
-        save_trajectory(atoms=atoms, log_fpath=ckpt_wdir / "structures.xyz")
+        save_trajectory(atoms=atoms, traj_fpath=ckpt_wdir / "structures.xyz")
 
         # For some optimisers and dynamics, they use random generator.
         if hasattr(dyn, "rng"):
@@ -540,27 +540,14 @@ class AseDriver(AbstractDriver):
 
         self.setting: AseDriverSetting = AseDriverSetting(**params)
 
-        self._log_fpath = self.directory / self.log_fname
-
         return
 
     @property
     def log_fpath(self):
         """File path of the simulation log."""
 
-        return self._log_fpath
-
-    @AbstractDriver.directory.setter
-    def directory(self, directory_):
-        """Set log and traj path regarding to the working directory."""
-        # - main and calc
-        super(AseDriver, AseDriver).directory.__set__(self, directory_)
-
-        # - other files
-        self._log_fpath = self.directory / self.log_fname
-
-        return
-
+        return self.directory/self.log_fname
+    
     def _create_dynamics(self, atoms: Atoms, *args, **kwargs) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
@@ -746,7 +733,7 @@ class AseDriver(AbstractDriver):
             save_trajectory,
             interval=self.setting.dump_period,
             atoms=atoms,
-            log_fpath=self.directory / self.xyz_fname,
+            traj_fpath=self.directory / self.xyz_fname,
         )
         dynamics.attach(
             retrieve_and_save_deviation,
