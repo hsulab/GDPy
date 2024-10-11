@@ -116,8 +116,9 @@ class DriverSetting:
     ckpt_number: int = 3
 
     #: run params
-    etol: float = None  # 5e-2
-    fmax: float = None  # 1e-5
+    etol: float = None  # 5e-2, eV
+    fmax: float = None  # 1e-5, eV/Ang
+    smax: float = None  # 1e-1, GPa
     steps: int = 0
 
     constraint: str = None
