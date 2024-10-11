@@ -534,13 +534,8 @@ class AseDriver(AbstractDriver):
     #: Model deviation fielname.
     devi_fname: str = "model_devi-ase.dat"
 
-    def __init__(self, calc=None, params: dict = {}, directory="./", *args, **kwargs):
-        """"""
-        super().__init__(calc, params, directory, *args, **kwargs)
-
-        self.setting: AseDriverSetting = AseDriverSetting(**params)
-
-        return
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = AseDriverSetting
 
     @property
     def log_fpath(self):

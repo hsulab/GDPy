@@ -176,7 +176,7 @@ class AbstractDriver(AbstractNode):
         params: dict,
         directory="./",
         ignore_convergence: bool = False,
-        random_seed=None,
+        random_seed: Optional[Union[int,dict]]=None,
         *args,
         **kwargs,
     ):
@@ -198,6 +198,12 @@ class AbstractDriver(AbstractNode):
         self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
+
+        if hasattr(self, "setting_cls"):
+            self.setting = self.setting_cls(**params)  # type: ignore
+        else:
+            # We need init self.setting in subclass's init
+            ...
 
         return
 
