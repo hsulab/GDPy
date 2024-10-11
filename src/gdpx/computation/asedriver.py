@@ -522,22 +522,17 @@ class AseDriverSetting(DriverSetting):
 
 class AseDriver(AbstractDriver):
 
+    #: Driver name.
     name = "ase"
 
-    # - defaults
-    default_task = "min"
-    supported_tasks = ["min", "rxn", "md"]
+    #: Log filename.
+    log_fname: str = "dyn.log"
 
-    # - other files
-    log_fname = "dyn.log"
-    xyz_fname = "traj.xyz"
-    devi_fname = "model_devi-ase.dat"
+    #: Trajectory filename.
+    xyz_fname: str = "traj.xyz"
 
-    #: List of output files would be saved when restart.
-    saved_fnames: List[str] = [log_fname, xyz_fname, devi_fname]
-
-    #: List of output files would be removed when restart.
-    removed_fnames: List[str] = [log_fname, xyz_fname, devi_fname]
+    #: Model deviation fielname.
+    devi_fname: str = "model_devi-ase.dat"
 
     def __init__(self, calc=None, params: dict = {}, directory="./", *args, **kwargs):
         """"""
