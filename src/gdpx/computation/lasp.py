@@ -198,6 +198,7 @@ def read_lasp_structures(
 
     traj_steps = []
     traj_energies = []
+    traj_stress = []
     traj_forces = []
 
     # NOTE: for lbfgs opt, steps+2 frames would be output?
@@ -220,7 +221,9 @@ def read_lasp_structures(
             traj_energies.append(energy)
             # stress
             line = afrc_io.readline()
-            stress = np.array(line.split()) # TODO: what is the format of stress
+            stress = np.array(line.split())  # eV/Ang^3
+            assert stress.shape[0] == 6
+            traj_stress.append(stress)
             # forces
             forces = []
             for j in range(natoms):
@@ -248,7 +251,8 @@ def read_lasp_structures(
     # - create traj
     for i, atoms in enumerate(traj_frames):
         calc = SinglePointCalculator(
-            atoms, energy=traj_energies[i], forces=traj_forces[i]
+            atoms, energy=traj_energies[i], forces=traj_forces[i],
+            stress=traj_stress[i]
         )
         atoms.calc = calc
 
@@ -284,10 +288,19 @@ class LaspDriverSetting(DriverSetting):
                     "SSW.ftol": self.fmax
                 }
             )
-
-            assert self.dump_period == 1, "LaspDriver must have dump_period ==1."
-        
-        if self.task == "md":
+            assert self.dump_period == 1, "LaspDriver/min must have dump_period ==1."
+        elif self.task == "cmin":
+            self._internals.update(
+                **{
+                    "explore_type": "ssw",
+                    "Run_Type": 15,
+                    "SSW.SSWsteps": 1, # BFGS
+                    "SSW.ftol": self.fmax,
+                    "SSW.strtol": 0.1,  # GPa
+                }
+            )
+            assert self.dump_period == 1, "LaspDriver/cmin must have dump_period ==1."
+        elif self.task == "md":
             if self.tend is None:
                 self.tend = self.temp
             self._internals.update(
@@ -302,11 +315,8 @@ class LaspDriverSetting(DriverSetting):
                     "MD.prmass": self.Pdamp,
                 }
             )
-            ...
-
-        # - shared params
-
-        # - special params
+        else:
+            raise RuntimeError(f"Unknown task `{self.task}` for LaspDriver.")
 
         return
     
@@ -472,11 +482,10 @@ class LaspNN(FileIOCalculator):
     name: str = "LaspNN"
 
     #: Implemented properties.
-    implemented_properties: List[str] = ["energy", "forces"]
-    # implemented_propertoes = ["energy", "forces", "stress"]
+    implemented_properties: List[str] = ["energy", "forces", "stress"]
 
     #: LASP command.
-    command = "lasp"
+    command: str = "lasp"
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters = {
@@ -484,10 +493,12 @@ class LaspNN(FileIOCalculator):
         "potential": "NN",
         # - general settings
         "explore_type": "ssw", # ssw, nve nvt npt rigidssw train
+        "Run_Type": 5,  # 5 fixed-cell, 15 variable-cell
         "Ranseed": None,
         # - ssw
         "SSW.internal_LJ": True,
         "SSW.ftol": 0.05, # fmax
+        "SSW.strtol": 0.10, # smax
         "SSW.SSWsteps": 0, # 0 sp 1 opt >1 ssw search
         "SSW.Bfgs_maxstepsize": 0.2,
         "SSW.MaxOptstep": 0, # lasp default 300
@@ -586,7 +597,8 @@ class LaspNN(FileIOCalculator):
 
         # - simulation task
         explore_type = self.parameters["explore_type"]
-        content += "\nexplore_type {}\n".format(explore_type)
+        content += f"\nexplore_type {explore_type}\n"
+        content += f"Run_Type {self.parameters['Run_Type']}\n"
         if explore_type == "ssw":
             for key, value in self.parameters.items():
                 if key.startswith("SSW."):
