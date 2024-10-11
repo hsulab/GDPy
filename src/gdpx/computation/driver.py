@@ -167,9 +167,6 @@ class AbstractDriver(AbstractNode):
     #: List of output files would be removed when restart.
     removed_fnames: List[str] = []
 
-    #: Systemwise parameter keys.
-    syswise_keys: list = []
-
     #: Parameters for PotentialManager.
     pot_params: Optional[dict] = None
 
@@ -214,19 +211,6 @@ class AbstractDriver(AbstractNode):
             self.calc.directory = str(self.directory)
 
         return
-
-    def get(self, key):
-        """Get param value from init/run params by a mapped key name."""
-        parameters = copy.deepcopy(self.init_params)
-        parameters.update(copy.deepcopy(self.run_params))
-
-        value = parameters.get(key, None)
-        if not value:
-            mapped_key = self.param_mapping.get(key, None)
-            if mapped_key:
-                value = parameters.get(mapped_key, None)
-
-        return value
 
     def reset(self) -> None:
         """Remove results stored in dynamics calculator."""
@@ -614,7 +598,7 @@ class AbstractDriver(AbstractNode):
         )
         # NOTE: we use original params otherwise internal param names would be
         #       written out and make things confusing
-        #       org_params are merged params thatv have init and run sections
+        #       org_params are merged params that have init and run sections
         org_params = copy.deepcopy(self._org_params)
 
         # - update some special parameters
