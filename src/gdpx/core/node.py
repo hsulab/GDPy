@@ -4,7 +4,7 @@
 import abc
 import copy
 import pathlib
-from typing import NoReturn, Union, Callable
+from typing import NoReturn, Optional, Union, Callable
 
 import numpy as np
 
@@ -35,7 +35,7 @@ class AbstractNode(abc.ABC):
 
     def __init__(
         self, directory: Union[str,pathlib.Path]="./", 
-        random_seed: Union[int, dict]=None, *args, **kwargs
+        random_seed: Optional[Union[int, dict]]=None, *args, **kwargs
     ):
         """"""
         # - set working directory
