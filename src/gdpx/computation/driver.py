@@ -265,7 +265,7 @@ class AbstractDriver(AbstractNode):
         #       cell, pbc, positions, symbols, tags, momenta...
         atoms = atoms.copy()
 
-        # - set driver's atoms to the current one
+        # set driver's atoms to the current one
         if isinstance(self.atoms, Atoms):
             warnings.warn("Driver has attached atoms object.", RuntimeWarning)
             system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
@@ -278,9 +278,21 @@ class AbstractDriver(AbstractNode):
         else:
             system_changed = False
 
-        # backup old params
+        # backup calculator
         prev_params = copy.deepcopy(self.calc.parameters)
 
+        # run step
+        self._run_step(atoms, system_changed, read_ckpt, *args, **kwargs)
+
+        # restore calculator
+        self.calc.parameters = prev_params
+        self.calc.reset()
+
+        return
+
+
+    def _run_step(self, atoms, system_changed, read_ckpt, *args, **kwargs):
+        """"""
         # run dynamics
         self.cache_traj: Optional[List[Atoms]] = None
         if not self._verify_checkpoint():
@@ -315,9 +327,6 @@ class AbstractDriver(AbstractNode):
                 self._debug(f"... start after clean up @ {self.directory.name} ...")
                 self._cleanup()
                 self._irun(atoms, *args, **kwargs)
-
-        self.calc.parameters = prev_params
-        self.calc.reset()
 
         return
 
