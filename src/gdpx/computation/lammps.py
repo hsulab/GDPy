@@ -190,9 +190,13 @@ class ParrinelloRahmanBarostat(Controller):
         Pdamp = self.params.get("Pdamp", 100.0)
         assert Pdamp is not None
 
+        isotropic = self.params.get("isotropic", True)
+        assert isotropic is not None
+
         self.conv_params = dict(
             Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units),
             Pdamp=unitconvert.convert(Pdamp, "time", "real", self.units),
+            isotropic="iso" if isotropic else "aniso",
         )
 
         return
@@ -341,7 +345,7 @@ class LmpDriverSetting(DriverSetting):
             barostat = baro_cls(units=self.units, **self.controller)
             if barostat.name == "parrinello_rahman":
                 _init_md_params.update(**barostat.conv_params)
-                baro_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} {Tdamp} aniso {Pstart} {Pstop} {Pdamp}".format(
+                baro_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} {Tdamp} {isotropic} {Pstart} {Pstop} {Pdamp}".format(
                     **_init_md_params
                 )
             else:
