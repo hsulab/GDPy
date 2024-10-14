@@ -96,6 +96,10 @@ from .zoom import ZoomModifier
 
 registers.builder.register("zoom")(ZoomModifier)
 
+from .scale import ScaleModifier
+
+registers.builder.register("scale")(ScaleModifier)
+
 
 # - optional
 try:
