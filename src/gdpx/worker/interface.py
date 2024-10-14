@@ -76,13 +76,42 @@ class ComputerChainVariable(Variable):
 
     def __init__(self, computers, directory=pathlib.Path.cwd()):
         """"""
+        value = self._canonicalise_input_nodes([computers])
+        self._print(f"{value =}")
+        super().__init__(value)
+
+        return
+    
+    def _canonicalise_input_nodes(self, input_nodes):
+        """"""
+        computers, = input_nodes
+        self._print(f"{computers =}")
+
+        if isinstance(computers, list):
+            computers_ = []
+            for computer in computers:
+                if isinstance(computer, str) or isinstance(computer, pathlib.Path):
+                    computer = parse_input_file(input_fpath=computer)
+                computer_ = None
+                if isinstance(computer, dict):
+                    computer_ = ComputerVariable(**computer)
+                elif isinstance(computer, ComputerVariable):
+                    computer_ = computer
+                else:
+                    raise RuntimeError(f"Unknown input for computer with a type of {computer}.")
+                computers_.append(computer_)
+            computers = computers_
+        else:
+            raise RuntimeError()
+        self._print(f"{computers_ =}")
+
         value = []  # List[List[Worker]]
         for i, computer in enumerate(computers):
             assert len(computer.value) == 1, f"ChainStep.{str(i).zfill(2)} has more than one workers."
             value.append(computer.value[0])
-        super().__init__(value)
+        self._print(f"{value =}")
 
-        return
+        return value
 
 
 @registers.variable.register
