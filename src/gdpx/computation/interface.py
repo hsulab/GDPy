@@ -465,6 +465,111 @@ class compute(Operation):
 
 
 @registers.operation.register
+class compute_chain(Operation):
+
+    def __init__(self, structures, worker, *, batchsize: Optional[int]=None, use_archive: bool=True, extract_data: bool=True, directory: Union[str, pathlib.Path]="./"):
+        """"""
+        super().__init__(input_nodes=[structures, worker], directory=directory)
+
+        # other params
+        self.batchsize = batchsize
+        self.use_archive = use_archive
+        self.extract_data = extract_data
+
+        return
+    
+    def forward(self, structures, workers):
+        """"""
+        super().forward()
+
+        num_workers = len(workers)
+        self._print(f"{num_workers =}")
+
+        num_frames = len(structures)
+
+        for i, worker in enumerate(workers):
+            worker.directory = self.directory / f"chainstep.{str(i).zfill(2)}"
+            if self.batchsize is not None:
+                worker.batchsize = self.batchsize
+            else:
+                worker.batchsize = num_frames
+        if num_workers == 1:
+            workers[0].directory = self.directory
+
+
+        def run_one_step(worker, structures) -> bool:
+            """"""
+            _ = worker.run(structures)
+            worker.inspect(resubmit=True)
+
+            is_finished = False
+            if worker.get_number_of_running_jobs() == 0:
+                is_finished = True
+            else:
+                ...
+
+            return is_finished
+
+
+        is_finished = False
+
+        curr_structures = structures
+        for i, worker in enumerate(workers):
+            self._print(f"<- ComputerChainStep.{str(i).zfill(2)} ->")
+            flag_fpath = worker.directory/f"FINISHED.{str(i).zfill(2)}"
+            if not flag_fpath.exists():
+                is_step_finished = run_one_step(worker, curr_structures)
+                if is_step_finished:
+                    config._print("chainstep is finished.")
+                    results = worker.retrieve(include_retrieved=True, use_archive=self.use_archive)
+                    (worker.directory/"extracted").mkdir(exist_ok=True)
+                    AtomsNDArray(results).save_file(
+                        worker.directory/"extracted"/"results.h5"
+                    )
+                    curr_structures = [res[-1] for res in results]
+                    write(worker.directory/"end_frames.xyz", curr_structures)
+                    with open(flag_fpath, "w") as fopen:
+                        fopen.write(
+                            f"FINISHED.{str(i).zfill(2)} AT {time.asctime( time.localtime(time.time()) )}."
+                        )
+                else:
+                    break
+            else:
+                curr_structures = read(worker.directory/"end_frames.xyz", ":")
+                with open(flag_fpath, "r") as fopen:
+                    content = fopen.readlines()
+                self._print(content)
+        else:
+            is_finished = True
+
+        if is_finished:
+            if self.extract_data:
+                self._print("--- extract results ---")
+                new_results = []
+                for i, worker in enumerate(workers):
+                    curr_results = AtomsNDArray.from_file(
+                        worker.directory/"extracted"/"results.h5"
+                    )
+                    # TODO: inhomogeneous trajectories?
+                    if i == 0:
+                        for res in curr_results:
+                            new_results.append(res)
+                    else:  # i > 0:
+                        num_candidates = len(new_results)
+                        for j in range(num_candidates):
+                            new_results[j].extend(curr_results[j][1:])
+                output = AtomsNDArray(new_results)
+                self._print(f"{output =}")
+            else:
+                output = workers
+            self.status = "finished"
+        else:
+            output = None
+
+        return output
+
+
+@registers.operation.register
 class extract_cache(Operation):
     """Extract results from finished (cache) calculation wdirs.
 
