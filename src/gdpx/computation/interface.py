@@ -26,6 +26,7 @@ from ..worker.drive import (
     QueueDriverBasedWorker,
 )
 from ..worker.interface import ComputerVariable
+from ..computation.observer import create_an_observer
 
 # --- variable ---
 
@@ -464,14 +465,22 @@ class compute(Operation):
         return output
 
 
+class ChainStepEarlystop(Exception):
+
+    ...
+
 @registers.operation.register
 class compute_chain(Operation):
 
-    def __init__(self, structures, worker, *, batchsize: Optional[int]=None, use_archive: bool=True, extract_data: bool=True, directory: Union[str, pathlib.Path]="./"):
+    def __init__(self, structures, worker, *, observers = None, batchsize: Optional[int]=None, use_archive: bool=True, extract_data: bool=True, directory: Union[str, pathlib.Path]="./"):
         """"""
         super().__init__(input_nodes=[structures, worker], directory=directory)
 
         # other params
+        self.observers = []
+        if observers is not None:
+            for ob_params in observers:
+                self.observers.append(create_an_observer(ob_params))
         self.batchsize = batchsize
         self.use_archive = use_archive
         self.extract_data = extract_data
@@ -511,7 +520,7 @@ class compute_chain(Operation):
             return is_finished
 
 
-        is_finished = False
+        is_finished, is_earlystopped = False, False
 
         curr_structures = structures
         for i, worker in enumerate(workers):
@@ -532,6 +541,20 @@ class compute_chain(Operation):
                         fopen.write(
                             f"FINISHED.{str(i).zfill(2)} AT {time.asctime( time.localtime(time.time()) )}."
                         )
+                    # earlystop?
+                    try:
+                        for i, observer in enumerate(self.observers):
+                            for j, atoms in enumerate(curr_structures):
+                                if observer.run(atoms):
+                                    raise ChainStepEarlystop(f"{observer.__class__.__name__} stops at candidate {j}")
+                    except ChainStepEarlystop as e:
+                        self._print(str(e))
+                        is_finished, is_earlystopped = True, True
+                        content = f"EARLYSTOP.{str(i).zfill(2)} AT {time.asctime( time.localtime(time.time()) )}."
+                        with open(worker.directory/f"EARLYSTOP.{str(i).zfill(2)}", "w") as fopen:
+                            fopen.write(content)
+                        self._print(content)
+                        break
                 else:
                     break
             else:
@@ -558,6 +581,12 @@ class compute_chain(Operation):
                         num_candidates = len(new_results)
                         for j in range(num_candidates):
                             new_results[j].extend(curr_results[j][1:])
+                    if is_earlystopped:
+                        if (worker.directory/f"EARLYSTOP.{str(i).zfill(2)}").exists():
+                            with open(worker.directory/f"EARLYSTOP.{str(i).zfill(2)}", "r") as fopen:
+                                content = fopen.readlines()
+                            self._print(content)
+                            break
                 output = AtomsNDArray(new_results)
                 self._print(f"{output =}")
             else:
