@@ -4,7 +4,7 @@
 
 import copy
 import itertools
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from ase import Atoms
@@ -221,9 +221,42 @@ class MoleculeNumberObserver(Observer):
         return should_stop
 
 
+class VolumeObserver(Observer):
+
+    def __init__(
+        self,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        use_atomic: bool = False,
+        *args,
+        **kwargs,
+    ):
+        """"""
+        super().__init__(*args, **kwargs)
+
+        self.vmin, self.vmax = vmin, vmax
+        self.use_atomic = use_atomic
+
+        return
+    
+    def run(self, atoms: Atoms, step: int=0):
+        """"""
+        should_stop = False
+        if step >= self.patience:
+            v = atoms.get_volume()
+            v = v/len(atoms) if self.use_atomic else v
+            if self.vmin is not None and v < self.vmin:
+                should_stop = True
+            if self.vmax is not None and v > self.vmax:
+                should_stop = True
+
+        return should_stop
+
+
 registers.observer.register("small_distance")(SmallDistanceObserver)
 registers.observer.register("isolated_atom")(IsolatedAtomObserver)
 registers.observer.register("molecule_number")(MoleculeNumberObserver)
+registers.observer.register("volume")(VolumeObserver)
 
 
 def create_an_observer(params: dict) -> "Observer":
