@@ -77,7 +77,6 @@ class ComputerChainVariable(Variable):
     def __init__(self, computers, directory=pathlib.Path.cwd()):
         """"""
         value = self._canonicalise_input_nodes([computers])
-        self._print(f"{value =}")
         super().__init__(value)
 
         return
@@ -85,7 +84,6 @@ class ComputerChainVariable(Variable):
     def _canonicalise_input_nodes(self, input_nodes):
         """"""
         computers, = input_nodes
-        self._print(f"{computers =}")
 
         if isinstance(computers, list):
             computers_ = []
@@ -103,13 +101,11 @@ class ComputerChainVariable(Variable):
             computers = computers_
         else:
             raise RuntimeError()
-        self._print(f"{computers_ =}")
 
         value = []  # List[List[Worker]]
         for i, computer in enumerate(computers):
             assert len(computer.value) == 1, f"ChainStep.{str(i).zfill(2)} has more than one workers."
             value.append(computer.value[0])
-        self._print(f"{value =}")
 
         return value
 
