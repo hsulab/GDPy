@@ -85,13 +85,13 @@ class ComputerChainVariable(Variable):
         """"""
         computers, = input_nodes
 
-        if isinstance(computers, list):
+        if isinstance(computers, list) or isinstance(computers, omegaconf.ListConfig):
             computers_ = []
             for computer in computers:
                 if isinstance(computer, str) or isinstance(computer, pathlib.Path):
                     computer = parse_input_file(input_fpath=computer)
                 computer_ = None
-                if isinstance(computer, dict):
+                if isinstance(computer, dict) or isinstance(computer, omegaconf.DictConfig):
                     computer_ = ComputerVariable(**computer)
                 elif isinstance(computer, ComputerVariable):
                     computer_ = computer
