@@ -42,7 +42,7 @@ def compute_repulsion_energy_and_forces(
 
 class NucleiRepulsionCalculator(Calculator):
 
-    implemented_properties = ["energy", "free_energy", "forces"]
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
     default_parameters = dict()
 
@@ -124,6 +124,10 @@ class NucleiRepulsionCalculator(Calculator):
         self.results["energy"] = energy
         self.results["free_energy"] = energy
         self.results["forces"] = forces
+
+        # NOTE: Sometimes this calc is used in cell minimisation,
+        #       and we simply set stress to zeros.
+        self.results["stress"] = np.zeros(6)
 
         return
 
