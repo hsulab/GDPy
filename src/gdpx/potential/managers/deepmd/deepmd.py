@@ -406,6 +406,11 @@ class DeepmdTrainer(AbstractTrainer):
         )
         train_config["training"]["save_freq"] = save_freq
 
+        # NOTE: Currently, we check whether the training is fininished by steps in lcurve.out.
+        #       Thus, we need make sure the last step (numb_steps) is displayed in lcurve.out
+        #       by making numb_steps can be divided by disp_freq.
+        train_config["training"]["disp_freq"] = save_freq
+
         numb_steps = dataset.cum_batchsizes * self.train_epochs
         n_checkpoints = int(
             np.ceil(dataset.cum_batchsizes * self.train_epochs / save_freq)
