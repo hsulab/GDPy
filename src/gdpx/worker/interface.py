@@ -183,7 +183,7 @@ class ComputerVariable(Variable):
             scheduler = inp
         elif isinstance(inp, Variable):
             scheduler = inp.value
-        elif isinstance(inp, dict):
+        elif isinstance(inp, dict) or isinstance(inp, omegaconf.DictConfig):
             scheduler_params = copy.deepcopy(inp)
             backend = scheduler_params.pop("backend", "local")
             scheduler = registers.create(
@@ -326,7 +326,7 @@ class ReactorVariable(Variable):
         scheduler = None
         if isinstance(inp, Variable):
             scheduler = inp.value
-        elif isinstance(inp, dict):
+        elif isinstance(inp, dict) or isinstance(inp, omegaconf.DictConfig):
             scheduler_params = copy.deepcopy(inp)
             backend = scheduler_params.pop("backend", "local")
             scheduler = registers.create(
