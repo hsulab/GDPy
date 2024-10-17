@@ -416,6 +416,9 @@ class VaspDriver(AbstractDriver):
             #       thus we manually call the function to write input files and
             #       run the calculation
             self.calc.write_input(atoms)
+            if self.setting.task == "cmin":  # TODO: NPT simulation
+                # We need POSCAR in direct coordinates to deal with constraints
+                write(self.directory/"POSCAR", self.calc.atoms_sorted, symbol_count=self.calc.symbol_count, direct=True)
         else:
             self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
             if cache_traj is None:
