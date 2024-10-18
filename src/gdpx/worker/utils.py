@@ -5,6 +5,8 @@
 import copy
 from typing import List
 
+import numpy as np
+
 from ase import Atoms
 
 
@@ -39,6 +41,8 @@ def copy_minimal_frames(prev_frames: List[Atoms]):
         )
         if prev_atoms.get_kinetic_energy() > 0.: # retain this for MD
             curr_atoms.set_momenta(prev_atoms.get_momenta()) 
+        if np.any(np.fabs(prev_atoms.get_initial_charges()) > 0.):
+            curr_atoms.set_initial_charges(prev_atoms.get_initial_charges())
         curr_frames.append(curr_atoms)
         # - save info
         confid = prev_atoms.info.get("confid", -1)
