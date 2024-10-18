@@ -10,6 +10,8 @@
 from .. import config
 from ..core.register import registers
 
+from ..computation.lammps import Lammps
+
 
 if __name__ == "__main__":
     ...
