@@ -60,6 +60,9 @@ registers.manager.register(VaspManager)
 from .asepot import AsePotManager
 registers.manager.register("AseManager")(AsePotManager)
 
+from .classic import ClassicManager
+registers.manager.register(ClassicManager)
+
 from .eam import EamManager
 registers.manager.register(EamManager)
 
