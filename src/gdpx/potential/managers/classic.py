@@ -27,24 +27,37 @@ class ClassicManager(AbstractPotentialManager):
         # some shared params
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", pathlib.Path.cwd())
+
+        # TODO: No matter what user input, 
+        #       the type_list is sorted alphabetically.
         type_list = calc_params.pop("type_list", [])
+        type_list = sorted(type_list)
+
+        # TODO: For simple classic potentials,
+        #       we can define them by a dictionary.
+        #       Thus, we need pair_style (type),
+        #       pair_coeff (pair) without type id,
+        #       and kspace_style (coul) if necessary.
+        model_params = calc_params.pop("model", {})
+        for k in ["type", "pair"]:
+            assert k in model_params
 
         if self.calc_backend == "lammps":
-            pair_style = "buck/coul/long 10.0"
-            pair_coeff =[
-                "1 1 9547.96 0.21916 32.0",
-                "1 2  529.70 0.3581   0.0",
-                "2 2    0.0  1.0      0.0"
-            ]
+            pair_style = model_params.get("type")
+            pair_coeff =[]
+            for k, v in model_params["pair"].items():
+                coeff = " ".join([str(type_list.index(s)+1) for s in k.split("-")]) + "  " + v
+                pair_coeff.append(coeff)
             calc = Lammps(
                 command=command, directory=directory,
                 pair_style=pair_style,
                 pair_coeff=pair_coeff,
-                kspace_style="ewald  1e-4",
+                kspace_style=model_params.get("coul"),
                 **calc_params
             )
             calc.units = "metal"
-            calc.atom_style = "charge"
+            if calc.kspace_style is not None:
+                calc.atom_style = "charge"
             calc.is_classic = True
         else:
             ...
