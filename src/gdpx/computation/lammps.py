@@ -790,7 +790,8 @@ class Lammps(FileIOCalculator):
         constraint=None,  # index of atoms, start from 0
         etol=0.0,
         ftol=0.05,
-        # --- lmp params ---
+        is_classic=False,
+        # lmp params ---
         read_restart=None,
         units="metal",
         atom_style="atomic",
@@ -799,20 +800,21 @@ class Lammps(FileIOCalculator):
         newton=None,
         pair_style=None,
         pair_coeff=None,
-        neighbor="0.0 bin",
-        neigh_modify=None,
+        kspace_style=None,
+        neighbor="2.0 bin",
+        neigh_modify="every 10 check yes",
         mass="* 1.0",
-        # - extra fix
+        # extra fix
         extra_fix=[],
-        # - externals
+        # externals
         plumed=None,
     )
 
     #: Symbol to integer.
-    type_list: List[str] = None
+    type_list: Optional[List[str]] = None
 
     #: Cached trajectory of the previous simulation.
-    cached_traj_frames: List[Atoms] = None
+    cached_traj_frames: Optional[List[Atoms]] = None
 
     def __init__(self, command=None, label=name, **kwargs):
         """"""
@@ -864,7 +866,7 @@ class Lammps(FileIOCalculator):
             stru_data,
             atoms,
             specorder=self.type_list,
-            force_skew=True,
+            force_skew=False,
             prismobj=prismobj,
             velocities=write_velocities,
             units=self.units,
@@ -872,7 +874,7 @@ class Lammps(FileIOCalculator):
         )
 
         # write input
-        self._write_input(atoms)
+        self._write_input(atoms, prismobj)
 
         return
 
@@ -933,7 +935,7 @@ class Lammps(FileIOCalculator):
 
         return
 
-    def _write_input(self, atoms) -> None:
+    def _write_input(self, atoms, prismobj) -> None:
         """Write input file in.lammps"""
         # - write in.lammps
         content = f"restart         {self.ckpt_period}  restart.*.data\n\n"
@@ -957,15 +959,16 @@ class Lammps(FileIOCalculator):
         content += "\n"
         if self.newton:
             content += "newton {}\n".format(self.newton)
-        content += "box             tilt large\n"
         if self.read_restart is None:
             content += "read_data	    %s\n" % ASELMPCONFIG.inputstructure_filename
         else:
             content += f"read_restart    {self.read_restart}\n"
-            # os.remove(ASELMPCONFIG.inputstructure_filename)
-        content += "change_box      all triclinic\n"
 
-        # - particle masses
+        if prismobj.is_skewed():
+            content += "box             tilt large\n"
+            content += "change_box      all triclinic\n"
+
+        # particle masses
         mass_line = "".join(
             "mass %d %f\n" % (idx + 1, atomic_masses[atomic_numbers[elem]])
             for idx, elem in enumerate(self.type_list)
@@ -973,57 +976,71 @@ class Lammps(FileIOCalculator):
         content += mass_line
         content += "\n"
 
-        # - pair, MLIP specific settings
-        potential = self.pair_style.strip().split()[0]
-        if potential == "reax/c":
-            assert self.atom_style == "charge", "reax/c should have charge atom_style"
-            content += "pair_style  {}\n".format(self.pair_style)
-            content += "pair_coeff {} {}\n".format(
-                self.pair_coeff, " ".join(self.type_list)
-            )
-            content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-        elif potential == "eann":
-            pot_data = self.pair_style.strip().split()[1:]
-            endp = len(pot_data)
-            for ip, p in enumerate(pot_data):
-                if p == "out_freq":
-                    endp = ip
-                    break
-            pot_data = pot_data[:endp]
-            if len(pot_data) > 1:
-                pair_style = "eann {} out_freq {}".format(
-                    " ".join(pot_data), self.dump_period
-                )
-            else:
-                pair_style = "eann {}".format(" ".join(pot_data))
-            content += "pair_style  {}\n".format(pair_style)
-            # NOTE: make out_freq consistent with dump_period
-            if self.pair_coeff is None:
-                pair_coeff = "double * *"
+        # pair, MLIP specific settings
+        if self.is_classic:
+            assert self.atom_style == "charge", "For now, classic potentials need charge information."
+            content += f"pair_style  {self.pair_style}\n"
+            if isinstance(self.pair_coeff, str):
+                pair_coeff = [self.pair_coeff]
             else:
                 pair_coeff = self.pair_coeff
-            content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
-        elif potential == "deepmd":
-            content += "pair_style  {} out_freq {}\n".format(
-                self.pair_style, self.dump_period
-            )
-            content += "pair_coeff	{} {}\n".format(
-                self.pair_coeff, " ".join(self.type_list)
-            )
-        elif potential == "nequip":
-            content += "pair_style  {}\n".format(
-                self.pair_style
-            )
-            content += "pair_coeff	{} {}\n".format(
-                self.pair_coeff, " ".join(self.type_list)
-            )
+            for coeff in pair_coeff:
+                content += f"pair_coeff  {coeff}\n"
         else:
-            content += "pair_style {}\n".format(self.pair_style)
-            # content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
-            content += "pair_coeff {}\n".format(self.pair_coeff)
+            potential = self.pair_style.strip().split()[0]
+            if potential == "reax/c":
+                assert self.atom_style == "charge", "reax/c should have charge atom_style"
+                content += "pair_style  {}\n".format(self.pair_style)
+                content += "pair_coeff {} {}\n".format(
+                    self.pair_coeff, " ".join(self.type_list)
+                )
+                content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+            elif potential == "eann":
+                pot_data = self.pair_style.strip().split()[1:]
+                endp = len(pot_data)
+                for ip, p in enumerate(pot_data):
+                    if p == "out_freq":
+                        endp = ip
+                        break
+                pot_data = pot_data[:endp]
+                if len(pot_data) > 1:
+                    pair_style = "eann {} out_freq {}".format(
+                        " ".join(pot_data), self.dump_period
+                    )
+                else:
+                    pair_style = "eann {}".format(" ".join(pot_data))
+                content += "pair_style  {}\n".format(pair_style)
+                # NOTE: make out_freq consistent with dump_period
+                if self.pair_coeff is None:
+                    pair_coeff = "double * *"
+                else:
+                    pair_coeff = self.pair_coeff
+                content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
+            elif potential == "deepmd":
+                content += "pair_style  {} out_freq {}\n".format(
+                    self.pair_style, self.dump_period
+                )
+                content += "pair_coeff	{} {}\n".format(
+                    self.pair_coeff, " ".join(self.type_list)
+                )
+            elif potential == "nequip":
+                content += "pair_style  {}\n".format(
+                    self.pair_style
+                )
+                content += "pair_coeff	{} {}\n".format(
+                    self.pair_coeff, " ".join(self.type_list)
+                )
+            else:
+                content += "pair_style {}\n".format(self.pair_style)
+                # content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
+                content += "pair_coeff {}\n".format(self.pair_coeff)
         content += "\n"
 
-        # - neighbor
+        # TODO: kspace should be set with pair at the same time
+        if self.kspace_style is not None:
+            content += f"kspace_style  {self.kspace_style}\n\n"
+
+        # neighbor
         content += "neighbor        {}\n".format(self.neighbor)
         if self.neigh_modify:
             content += "neigh_modify        {}\n".format(self.neigh_modify)
@@ -1060,12 +1077,11 @@ class Lammps(FileIOCalculator):
                 self.dump_period, ASELMPCONFIG.trajectory_filename
             )
         )
-        content += "dump_modify 1 element {} flush yes\n".format(
-            " ".join(self.type_list)
-        )
+        assert self.type_list is not None
+        content += f"dump_modify 1 element {' '.join(self.type_list)} flush yes\n"
         content += "\n"
 
-        # - add extra fix
+        # add extra fix
         for i, fix_info in enumerate(self.extra_fix):
             if isinstance(fix_info, str):  # fix ID command
                 content += "{:<24s}  {:<24s}  {:<s}\n".format("fix", f"extra{i}", fix_info)
@@ -1076,7 +1092,7 @@ class Lammps(FileIOCalculator):
                 content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format("fix", f"extra{i}", f"extra_group_{i}", fix_info[1])
         content += "\n"
 
-        # --- run type
+        # run type
         if self.task == "min":
             content += "\n".join(self.dynamics) + "\n"
 
@@ -1110,7 +1126,7 @@ class Lammps(FileIOCalculator):
             # TODO: NEB?
             ...
 
-        # - output file
+        # output file
         in_file = os.path.join(self.directory, ASELMPCONFIG.input_fname)
         with open(in_file, "w") as fopen:
             fopen.write(content)
