@@ -31,7 +31,10 @@ class ClassicManager(AbstractPotentialManager):
         # TODO: No matter what user input, 
         #       the type_list is sorted alphabetically.
         type_list = calc_params.pop("type_list", [])
+        assert type_list == sorted(type_list)
         type_list = sorted(type_list)
+
+        type_charges = calc_params.pop("type_charges", [])
 
         # TODO: For simple classic potentials,
         #       we can define them by a dictionary.
@@ -55,6 +58,7 @@ class ClassicManager(AbstractPotentialManager):
                 kspace_style=model_params.get("coul"),
                 **calc_params
             )
+            calc.type_charges = type_charges
             calc.units = "metal"
             if calc.kspace_style is not None:
                 calc.atom_style = "charge"
