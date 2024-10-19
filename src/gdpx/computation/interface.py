@@ -523,9 +523,10 @@ class compute_chain(Operation):
         is_finished, is_earlystopped = False, False
 
         curr_structures = structures
-        for i, worker in enumerate(workers):
-            self._print(f"<- ComputerChainStep.{str(i).zfill(2)} ->")
-            flag_fpath = worker.directory/f"FINISHED.{str(i).zfill(2)}"
+        for istep, worker in enumerate(workers):
+            self._print(f"<- ComputerChainStep.{str(istep).zfill(2)} ->")
+            flag_fpath = worker.directory/f"FINISHED.{str(istep).zfill(2)}"
+            stop_fpath = worker.directory/f"EARLYSTOP.{str(istep).zfill(2)}"
             if not flag_fpath.exists():
                 is_step_finished = run_one_step(worker, curr_structures)
                 if is_step_finished:
@@ -539,7 +540,7 @@ class compute_chain(Operation):
                     write(worker.directory/"end_frames.xyz", curr_structures)
                     with open(flag_fpath, "w") as fopen:
                         fopen.write(
-                            f"FINISHED.{str(i).zfill(2)} AT {time.asctime( time.localtime(time.time()) )}."
+                            f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}."
                         )
                     # earlystop?
                     try:
@@ -550,8 +551,8 @@ class compute_chain(Operation):
                     except ChainStepEarlystop as e:
                         self._print(str(e))
                         is_finished, is_earlystopped = True, True
-                        content = f"EARLYSTOP.{str(i).zfill(2)} AT {time.asctime( time.localtime(time.time()) )}."
-                        with open(worker.directory/f"EARLYSTOP.{str(i).zfill(2)}", "w") as fopen:
+                        content = f"{stop_fpath} AT {time.asctime( time.localtime(time.time()) )}."
+                        with open(stop_fpath, "w") as fopen:
                             fopen.write(content)
                         self._print(content)
                         break
@@ -562,6 +563,12 @@ class compute_chain(Operation):
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
                 self._print(content)
+                if stop_fpath.exists():
+                    with open(stop_fpath, "r") as fopen:
+                        content = fopen.readlines()
+                    self._print(content)
+                    is_finished, is_earlystopped = True, True
+                    break
         else:
             is_finished = True
 
