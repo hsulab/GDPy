@@ -976,6 +976,12 @@ class Lammps(FileIOCalculator):
         content += mass_line
         content += "\n"
 
+        # particle charges
+        if self.atom_style == "charge" and self.type_charges:
+            for itype, charge in enumerate(self.type_charges):
+                content += f"set type {itype+1} charge {charge}\n"
+            content += "\n"
+
         # pair, MLIP specific settings
         if self.is_classic:
             assert self.atom_style == "charge", "For now, classic potentials need charge information."
