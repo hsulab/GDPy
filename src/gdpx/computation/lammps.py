@@ -1072,11 +1072,20 @@ class Lammps(FileIOCalculator):
         content += "thermo_modify   flush yes\n"
 
         # total energy is not stored in dump so we need read from log.lammps
-        content += (
-            "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
-                self.dump_period, ASELMPCONFIG.trajectory_filename
+        if self.atom_style == "atomic":
+            content += (
+                "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
+                    self.dump_period, ASELMPCONFIG.trajectory_filename
+                )
             )
-        )
+        elif self.atom_style == "charge":
+            content += (
+                "dump		1 all custom {} {} id type element q x y z fx fy fz vx vy vz\n".format(
+                    self.dump_period, ASELMPCONFIG.trajectory_filename
+                )
+            )
+        else:
+            ...
         assert self.type_list is not None
         content += f"dump_modify 1 element {' '.join(self.type_list)} flush yes\n"
         content += "\n"
