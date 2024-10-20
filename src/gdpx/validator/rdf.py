@@ -254,7 +254,7 @@ class RdfValidator(AbstractValidator):
         
         assert (ref_data is not None or pre_data is not None), "Neither reference nor prediction is given."
 
-        # - compare results
+        # compare results
         self._compare_results(ref_data, pre_data)
 
         return
@@ -280,13 +280,27 @@ class RdfValidator(AbstractValidator):
     def _compare_results(self, reference, prediction):
         """"""
         for pair in self.pairs:
-            p = prediction.get(pair, None)
-            r = reference.get(pair, None)
+            p, r = None, None
+            if prediction is not None:
+                p = prediction.get(pair, None)
+            if reference is not None:
+                r = reference.get(pair, None)
             if not (p is None and r is None):
                 plot_rdf(
                     self.directory/f"{pair}_rdf.png", 
                     p, r, title=pair
                 )
+            else:
+                if p is not None:
+                    plot_rdf(
+                        self.directory/f"{pair}_rdf.png", 
+                        p, None, title=pair
+                    )
+                else:  # if r is not None:
+                    plot_rdf(
+                        self.directory/f"{pair}_rdf.png", 
+                        None, r, title=pair
+                    )
 
         return
 
