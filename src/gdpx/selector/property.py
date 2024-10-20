@@ -296,6 +296,8 @@ class PropertySelector(AbstractSelector):
             elif prop_item.name == "forces":
                 forces = atoms.get_forces(apply_constraint=True)
                 atoms_property = forces
+            elif prop_item.name == "volume":
+                atoms_property = atoms.get_volume()
             else:
                 # -- any property stored in atoms.info
                 #    e.g. max_devi_f
