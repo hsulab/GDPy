@@ -229,13 +229,13 @@ class XyzDataloader(AbstractDataloader):
             # TODO: adjust batchsize of train and test separately
             nframes = len(frames)
             if nframes <= curr_batchsize:
+                # NOTE: use same train and test set
+                #       since they are very important structures...
                 if nframes == 1 or curr_batchsize == 1:
                     new_batchsize = 1
                 else:
                     new_batchsize = int(2 ** np.floor(np.log2(nframes)))
                 adjusted_batchsizes.append(new_batchsize)
-                # NOTE: use same train and test set
-                #       since they are very important structures...
                 train_index = list(range(nframes))
                 test_index = list(range(nframes))
             else:
@@ -251,8 +251,12 @@ class XyzDataloader(AbstractDataloader):
                         np.floor(nframes * self.train_ratio / new_batchsize)
                         * new_batchsize
                     )
-                    train_index = self.rng.choice(nframes, ntrain, replace=False)
-                    test_index = [x for x in range(nframes) if x not in train_index]
+                    if ntrain > 0:
+                        train_index = self.rng.choice(nframes, ntrain, replace=False)
+                        test_index = [x for x in range(nframes) if x not in train_index]
+                    else:
+                        train_index = list(range(nframes))
+                        test_index = list(range(nframes))
                 adjusted_batchsizes.append(new_batchsize)
 
             ntrain, ntest = len(train_index), len(test_index)
@@ -262,6 +266,7 @@ class XyzDataloader(AbstractDataloader):
             self._print(
                 f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}"
             )
+            assert ntrain > 0 and ntest > 0
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
             curr_test_frames = [frames[test_i] for test_i in test_index]
