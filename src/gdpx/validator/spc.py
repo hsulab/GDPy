@@ -87,6 +87,13 @@ class SinglepointValidator(AbstractValidator):
             for k, v in group_names.items():
                 with open(self.directory/f"subset-{k}.txt", "w") as fopen:
                     fopen.write("\n".join(["/".join(x) for x in v]))
+            for k in self.subsets:
+                num_systems = len(group_names[k])
+                num_frames = len(group_structures[k])
+                if num_systems > 0 and num_frames > 0:
+                    ...
+                else:
+                    raise RuntimeError(f"No structures for subset {k}.")
             data = []
             for subset in self.subsets:
                 frames = group_structures[subset]
