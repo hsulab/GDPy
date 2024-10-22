@@ -56,8 +56,8 @@ def calc_rdf(
 
     # --- parse system
     # NOTE: We assume the system volume does not change along the trajectory!
-    if volume is None:
-        volume = frames[0].get_volume()
+    # if volume is None:
+    #     volume = frames[0].get_volume()
 
     # NOTE: the atom order should be consistent in the entire trajectory
     #       i.e. this does not work for variable-composition system
@@ -73,16 +73,13 @@ def calc_rdf(
         second_indices = copy.deepcopy(sym_dict.get(p1, []))
         assert len(first_indices) > 0, f"Cant found {p0}."
         assert len(second_indices) > 0, f"Cant found {p1}."
-        #self._debug(f"first : {first_indices}")
-        #self._debug(f"second: {second_indices}")
 
         num_first, num_second = len(first_indices), len(second_indices)
         if p0 == p1:
-            avg_density = (num_first)*(num_second-1)/volume
+            num_pairs= (num_first)*(num_second-1)
         else:
-            avg_density = num_first*num_second/volume
-
-        pair_dict[pair] = [first_indices, second_indices, avg_density]
+            num_pairs = num_first*num_second
+        pair_dict[pair] = num_pairs
 
     # ---
     binwidth = cutoff/nbins
@@ -120,11 +117,20 @@ def calc_rdf(
         for k, v in curr_dis_hist.items():
             dis_hist[k].append(v)
 
+    # get pair density
+    density_dict = {k: [] for k in pairs}
+    for atoms in frames:
+        for k, num_pairs in pair_dict.items():
+            if volume is None:
+                density_dict[k].append(num_pairs/atoms.get_volume())
+            else:
+                density_dict[k].append(num_pairs/volume)
+
     # - reformat data
     results = {}
     for k, v in dis_hist.items():
         curr_dis_hist = np.array(v)
-        avg_density = pair_dict[k][2]
+        avg_density = np.array(density_dict[k])[:, np.newaxis]
 
         # NOTE: VMD likely uses this formula
         vshells = 4.*np.pi*left_edges**2*binwidth 
