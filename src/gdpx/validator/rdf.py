@@ -4,7 +4,7 @@
 import copy
 import itertools
 import pathlib
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from scipy.interpolate import make_interp_spline, BSpline
@@ -13,15 +13,15 @@ import matplotlib.pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
-    #print("Used default matplotlib style.")
     ...
+
+from joblib import delayed, Parallel
 
 from ase import Atoms
 from ase.io import read, write
-from ase.neighborlist import NeighborList
+from ase.neighborlist import NeighborList, neighbor_list
 
 from .validator import AbstractValidator
-from .utils import wrap_traj
 from ..data.array import AtomsNDArray
 
 def smooth_curve(bins, points):
@@ -37,8 +37,8 @@ def smooth_curve(bins, points):
     return bins, points
 
 def calc_rdf(
-        wdir: pathlib.Path, frames, pairs, volume: float=None, 
-        nbins: int=60, cutoff: float=6.0
+        wdir: pathlib.Path, frames, pairs, volume: Optional[float]=None, 
+        nbins: int=60, cutoff: float=6.0, n_jobs=1
     ) -> dict:
     """Calculate radial distribution.
 
@@ -76,15 +76,13 @@ def calc_rdf(
         #self._debug(f"first : {first_indices}")
         #self._debug(f"second: {second_indices}")
 
+        num_first, num_second = len(first_indices), len(second_indices)
         if p0 == p1:
-            avg_density = len(first_indices)/volume
+            avg_density = (num_first)*(num_second-1)/volume
         else:
-            avg_density = (len(first_indices)+len(second_indices))/volume
+            avg_density = num_first*num_second/volume
 
         pair_dict[pair] = [first_indices, second_indices, avg_density]
-
-    # -- What atoms we need access neighbour list
-    combined_first_indices = set(itertools.chain(*[v[0] for k, v in pair_dict.items()]))
 
     # ---
     binwidth = cutoff/nbins
@@ -94,33 +92,33 @@ def calc_rdf(
     bins = np.linspace(0., cutoff+binwidth, nbins+2)
 
     # ---
-    dis_hist = {k: [] for k in pairs}
-    for atoms in frames:
-        cell = atoms.get_cell()
+    def compute_distance_histogram(atoms, pairs, cutoff, bins, binwidth):
+        """"""
+        i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff+binwidth)
+
         symbols = atoms.get_chemical_symbols()
-        positions = atoms.get_positions()
-        natoms = len(atoms)
-        nl = NeighborList(
-            [(cutoff+binwidth)/2.]*natoms, skin=0., sorted=False,
-            self_interaction=False, bothways=True,
-        )
-        nl.update(atoms)
-        for x in combined_first_indices:
-            nei_indices, nei_offsets = nl.get_neighbors(x)
-            #distances, sel_indices = [], []
-            distance_dict = {k: [] for k in pairs}
-            for nei_ind, nei_off in zip(nei_indices, nei_offsets):
-                #if nei_ind in second_indices:
-                curr_pair = "-".join([symbols[s] for s in [x, nei_ind]])
-                if curr_pair in pairs:
-                    dis = np.linalg.norm(
-                        positions[x] -
-                        (positions[nei_ind] + np.dot(cell, nei_off))
-                    )
-                    distance_dict[curr_pair].append(dis)
-            for k, v in distance_dict.items():
-                hist_, edges_ = np.histogram(v, bins)
-                dis_hist[k].append(hist_)
+        num_pairs = len(d)
+
+        distance_dict = {k: [] for k in pairs}
+        for p in range(num_pairs):
+            pair = f"{symbols[i[p]]}-{symbols[j[p]]}"
+            distance_dict[pair].append(d[p])
+
+        dis_hist = {}
+        for k, v in distance_dict.items():
+            hist_, edges_ = np.histogram(v, bins)
+            dis_hist[k] = hist_
+
+        return dis_hist
+
+    ret = Parallel(n_jobs=n_jobs)(
+        delayed(compute_distance_histogram)(atoms, pairs, cutoff, bins, binwidth) for atoms in frames
+    )
+
+    dis_hist = {k: [] for k in pairs}
+    for curr_dis_hist in ret:
+        for k, v in curr_dis_hist.items():
+            dis_hist[k].append(v)
 
     # - reformat data
     results = {}
@@ -128,8 +126,9 @@ def calc_rdf(
         curr_dis_hist = np.array(v)
         avg_density = pair_dict[k][2]
 
-        vshells = 4.*np.pi*left_edges**2*binwidth # NOTE: VMD likely uses this formula
-        #vshells = 4./3.*np.pi*binwidth*(3*left_edges**2+3*left_edges*binwidth+binwidth**2)
+        # NOTE: VMD likely uses this formula
+        vshells = 4.*np.pi*left_edges**2*binwidth 
+        # vshells = 4./3.*np.pi*binwidth*(3*left_edges**2+3*left_edges*binwidth+binwidth**2)
         vshells[0] = 1. # avoid zero in division
 
         rdf = curr_dis_hist/vshells/avg_density
@@ -261,13 +260,9 @@ class RdfValidator(AbstractValidator):
     
     def _compute_rdf(self, wdir, frames: List[Atoms], pairs, cutoff, nbins, volume: float=None):
         """"""
-        # - treat pbc
-        if any(frames[0].pbc):
-            frames = wrap_traj(frames)
-
         if not wdir.exists():
             data = calc_rdf(
-                wdir, frames, pairs, volume, nbins, cutoff
+                wdir, frames, pairs, volume, nbins, cutoff, n_jobs=self.njobs
             )
         else:
             data = {}
