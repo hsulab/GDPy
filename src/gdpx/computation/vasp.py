@@ -411,10 +411,19 @@ class VaspDriver(AbstractDriver):
             self._preprocess_constraints(atoms, run_params)
 
             self.calc.set(**run_params)
-            atoms.calc = self.calc
+
+            # check dipole correction and set dipole as COM if enabled
+            use_dipole_correction = self.calc.int_params["idipol"]
+            if use_dipole_correction is not None and use_dipole_correction in [1, 2, 3, 4]:
+                assert self.calc.bool_params["ldipol"], f"Use dipole correction {use_dipole_correction} but LDIPOL is False."
+                # TODO: Check whether the scaled COM is wrapped?
+                dipole_centre = atoms.get_center_of_mass(scaled=True)
+                self.calc.set(dipol=dipole_centre)
+
             # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
             #       thus we manually call the function to write input files and
             #       run the calculation
+            atoms.calc = self.calc
             self.calc.write_input(atoms)
             if self.setting.task == "cmin":  # TODO: NPT simulation
                 # We need POSCAR in direct coordinates to deal with constraints
