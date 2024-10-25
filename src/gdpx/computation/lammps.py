@@ -27,7 +27,7 @@ from ase.io.lammpsdata import write_lammps_data
 from .. import config
 from ..builder.constraints import parse_constraint_info, convert_indices
 from ..builder.group import create_a_group
-from .driver import AbstractDriver, Controller, DriverSetting
+from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
 
 
 @dataclasses.dataclass(frozen=True)
@@ -59,7 +59,6 @@ def parse_type_list(atoms):
 def parse_thermo_data(lines) -> dict:
     """Read energy ... results from log.lammps file."""
     # - parse input lines
-    found_error = False
     start_idx, end_idx = None, None
     for idx, line in enumerate(lines):
         # - get the line index at the start of the thermo infomation
@@ -67,8 +66,7 @@ def parse_thermo_data(lines) -> dict:
         if line.strip().startswith("Step"):
             start_idx = idx
         # - NOTE: find line index at the end
-        if line.strip().startswith("ERROR: "):
-            found_error = True
+        if line.strip().startswith("ERROR: "):  # Lost atoms
             end_idx = idx
         if line.strip().startswith("Loop time"):
             end_idx = idx
@@ -550,7 +548,7 @@ class LmpDriver(AbstractDriver):
         wdir: pathlib.Path,
         mdir,
         units: str,
-        archive_path: pathlib.Path = None,
+        archive_path: Optional[pathlib.Path] = None,
         *args,
         **kwargs,
     ):
@@ -759,8 +757,15 @@ class LmpDriver(AbstractDriver):
         if log_fpath:
             with open(log_fpath, "r") as fopen:
                 lines = fopen.readlines()
-            if lines[-1].strip().startswith("Total wall time:"):
+            end_line = lines[-1].strip()
+            if end_line.startswith("Total wall time:"):
                 converged = True
+            elif end_line.startswith("Last command: run"):
+                with open(self.directory/"EARLYSTOP", "w") as fopen:
+                    fopen.write("")
+                converged = True
+            else:
+                self._print(f"LAMMPS ENDLINE: {end_line}")
         else:
             ...
 
