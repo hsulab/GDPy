@@ -165,6 +165,19 @@ def main():
         "-s", "--structure", required=True, help="structure generator"
     )
 
+    # describer
+    parser_describe = subparsers.add_parser(
+        "describe",
+        help="compute descriptors for given structures",
+        description=str(registers.describer),
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser_describe.add_argument("CONFIG", help="describer configuration")
+    parser_describe.add_argument(
+        "-s", "--structures", required=True,
+        help="structures"
+    )
+
     # --- validation
     parser_validation = subparsers.add_parser(
         "valid",
@@ -252,6 +265,10 @@ def main():
         from .cli.select import run_selection
 
         run_selection(args.CONFIG, args.structure, args.directory)
+    elif args.subcommand == "describe":
+        from .cli.describe import describe_structures
+        desc_config = parse_input_file(args.CONFIG)
+        describe_structures(desc_config, args.structures, args.directory)
     elif args.subcommand == "compute":
         from .cli.compute import run_computation
         run_computation(
