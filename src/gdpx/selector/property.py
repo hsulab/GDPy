@@ -11,6 +11,7 @@ import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
+from ase.neighborlist import NeighborList, neighbor_list
 
 from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
@@ -29,6 +30,15 @@ def get_metric_func(metric_name: str):
         raise NotImplementedError(f"Unknown metric function {metric_name}.")
 
     return metric_func
+
+
+def compute_minimum_distance(atoms: Atoms, cutoff: float):
+    """"""
+    i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff)
+
+    # pair specific?
+
+    return np.min(d)
 
 
 @dataclasses.dataclass
@@ -298,6 +308,10 @@ class PropertySelector(AbstractSelector):
                 atoms_property = forces
             elif prop_item.name == "volume":
                 atoms_property = atoms.get_volume()
+            elif prop_item.name == "min_distance":
+                # TODO: Move to observables?
+                #       Check if pmax is a valid float?
+                atoms_property = compute_minimum_distance(atoms, prop_item.pmax)
             else:
                 # -- any property stored in atoms.info
                 #    e.g. max_devi_f
