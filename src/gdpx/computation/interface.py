@@ -250,9 +250,10 @@ class compute(Operation):
 
     def __init__(
         self,
-        builder: Variable,
         worker: Variable,
         *,
+        structures: Optional[Variable] = None,
+        builder: Optional[Variable] = None,
         batchsize: Optional[int] = None,
         share_wdir: bool = False,
         retain_info: bool = False,
@@ -275,7 +276,15 @@ class compute(Operation):
             directory: Operation's directory that stores results can be set by Session.
 
         """
-        super().__init__(input_nodes=[builder, worker], directory=directory)
+        # We need deprecate builder in the newer versions.
+        if structures is None:
+            if builder is not None:
+                structures = builder
+            else:
+                raise RuntimeError("Either `structures` or `builder` should be set.")
+        else:
+            ...
+        super().__init__(input_nodes=[structures, worker], directory=directory)
 
         # - worker-run-related settings
         self.batchsize = batchsize
