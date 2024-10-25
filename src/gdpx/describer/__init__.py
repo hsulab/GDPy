@@ -5,7 +5,6 @@
 
 from ..core.register import registers
 
-# ---
 from .interface import DescriberVariable, describe
 registers.variable.register(DescriberVariable)
 registers.operation.register(describe)
@@ -13,6 +12,9 @@ registers.operation.register(describe)
 # ---
 from .spc import SpcDescriber
 registers.describer.register("spc")(SpcDescriber)
+
+from .coordination import CoordinationDescriber
+registers.describer.register("coordination")(CoordinationDescriber)
 
 
 if __name__ == "__main__":

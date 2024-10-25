@@ -2,64 +2,115 @@
 # -*- coding: utf-8 -*
 
 
+import itertools
+from typing import List, Optional
+
 import numpy as np
+import numpy.typing as npt
+from ase import Atoms
+from ase.io import read, write
+from ase.neighborlist import neighbor_list
 from scipy.spatial import distance_matrix
 
+from .describer import AbstractDescriber
 
-from ase.io import read, write
 
-
-def switch_function(distances, r_cut, r_shift=0., nn=6, mm: int=None):
+def switch_function(
+    distances: npt.NDArray,
+    r_cut: float,
+    r_shift: float = 0.0,
+    nn=6,
+    mm: Optional[int] = None,
+):
     """"""
-    if mm is None:
-        mm = nn*2
+    nn = 6 if nn is None else nn
+    mm = nn * 2 if mm is None else mm
 
     scaled_distances = (distances - r_shift) / r_cut
 
     return (1 - scaled_distances**nn) / (1 - scaled_distances**mm)
 
 
-def compute_coordination_number():
+def compute_coordination_number(atoms: Atoms, r_cut: float, type_list: List[str]):
     """"""
-    frames = read(
-        "/scratch/gpfs/jx1279/copper+alumina/dptrain/r8/_explore/_mrxn/Cu13+s001p32/_sinter/3xCu13/_200ps/cand0_400K_200ps/traj.dump", 
-        ":1"
-    )
-    nframes = len(frames)
-    print(f"nframes: {nframes}")
+    chemical_symbols = atoms.get_chemical_symbols()
+    num_types = len(type_list)
 
-    atoms = frames[0]
+    # i is in the ascending order
+    i, j, d = neighbor_list("ijd", atoms, cutoff=r_cut)
 
-    positions = atoms.positions[-13:, :]
-    print(positions)
-    clusters = [
-        atoms.positions[-13:, :],
-        atoms.positions[-26:-13, :],
-        atoms.positions[-39:-26, :],
-    ]
+    data = []
+    for k, v in itertools.groupby(zip(i, j, d), key=lambda x: x[0]):
+        # TODO: use pair-specific r_cut?
+        v = np.bincount(
+            [type_list.index(chemical_symbols[x[1]]) for x in v], minlength=num_types
+        )
+        data.append([type_list.index(chemical_symbols[k]), *v])
+    data = np.array(data, dtype=np.int32)
 
-    com_clusters = [np.mean(p, axis=0) for p in clusters]
-    print(com_clusters)
-    print(np.linalg.norm(com_clusters[2] - [0., 25.239, 0.] - com_clusters[1]))
-    print(np.linalg.norm(com_clusters[2] - com_clusters[0]))
+    return data
 
-    def xxx(positions):
-        dmat = distance_matrix(positions, positions)
-        #print(dmat)
 
-        sf = switch_function(dmat, r_cut=3.8, nn=8, mm=14)
-        np.fill_diagonal(sf, 0.)
-        coordination = np.sum(sf, axis=1)
-        print(coordination)
+def compute_coordination_number_statistics(data, cnmax: int, type_list: List[str]):
+    """
 
-        return coordination
-    
-    for positions in clusters:
-        print(np.sum(xxx(positions)))
+    Args:
+        cnmax: Maximum coordination number.
 
-    return
+    """
+    bins = np.arange(cnmax + 1, dtype=np.int32)
+
+    hist = []
+    num_types = len(type_list)
+    for i in range(num_types):
+        for j in range(num_types):
+            pair_data = data[data[:, 0] == i, j + 1]
+            hists_, edges_ = np.histogram(
+                pair_data, bins=bins, density=True
+            )
+            hist.append([np.mean(pair_data), *hists_])
+    hist = np.array(hist)
+
+    return hist
+
+
+class CoordinationDescriber(AbstractDescriber):
+
+    name: str = "coordination"
+
+    def __init__(self, r_cut: float, type_list: List[str], *args, **kwargs):
+        """"""
+        super().__init__(*args, **kwargs)
+
+        self.r_cut = r_cut
+        self.type_list = type_list
+
+        return
+
+    def run(self, structures):
+        """"""
+        self._print(f"{structures =}")
+
+        # compute data along trajectory
+        hist_data = []
+        for atoms in structures:
+            data = compute_coordination_number(
+                atoms, r_cut=self.r_cut, type_list=self.type_list
+            )
+            hist = compute_coordination_number_statistics(
+                data, cnmax=10, type_list=self.type_list
+            )
+            hist_data.append(hist)
+        hist = np.mean(hist_data, axis=0)
+
+        # save data
+        bins = np.arange(hist.shape[1]-1)
+        print("   avg  " + ("  CN{:>2d}  " * bins.shape[0]).format(*bins))
+        for hists_ in hist:
+            print(("{:>6.4f}  " * hists_.shape[0]).format(*hists_))
+
+        return
 
 
 if __name__ == "__main__":
-    compute_coordination_number()
     ...
