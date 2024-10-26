@@ -495,51 +495,72 @@ class LmpDriver(AbstractDriver):
 
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
-        try:
-            run_params = self.setting.get_init_params()
-            run_params.update(**self.setting.get_run_params(**kwargs))
+        run_params = self.setting.get_init_params()
+        run_params.update(**self.setting.get_run_params(**kwargs))
 
-            if ckpt_wdir is None:  # start from the scratch
-                ...
-            else:
-                checkpoints = sorted(
-                    list(ckpt_wdir.glob("restart.*")),
-                    key=lambda x: int(x.name.split(".")[1]),
-                )
-                self._debug(f"checkpoints to restart: {checkpoints}")
-                target_steps = run_params["steps"]
-                run_params.update(
-                    read_restart=str(checkpoints[-1].resolve()),
-                    steps=target_steps - int(checkpoints[-1].name.split(".")[1]),
-                )
-                # shutil.move(
-                #     checkpoints[-1].parent / "traj.dump", self.directory / "traj.dump"
-                # )
-
-            dynamics = self._create_dynamics(atoms, *args, **kwargs)
-
-            # - check constraint
-            self.calc.set(
-                task=self.setting.task,
-                dump_period=self.setting.dump_period,
-                ckpt_period=self.setting.ckpt_period,
-                dynamics=dynamics,
-                steps=run_params["steps"],
-                constraint=run_params["constraint"],
-                etol=run_params["etol"],
-                ftol=run_params["ftol"],
-                # misc
-                read_restart=run_params.get("read_restart", None),
-                extra_fix=run_params["extra_fix"],  # e.g. fixcm
-                neighbor=run_params["neighbor"],
-                neigh_modify=run_params["neigh_modify"],
+        prev_temperature, prev_pressure = self.setting.temp, self.setting.press
+        if ckpt_wdir is None:  # start from the scratch
+            curr_temperature, curr_pressure = self.setting.temp, self.setting.press
+        else:
+            checkpoints = sorted(
+                list(ckpt_wdir.glob("restart.*")),
+                key=lambda x: int(x.name.split(".")[1]),
             )
-            atoms.calc = self.calc
+            self._debug(f"checkpoints to restart: {checkpoints}")
+            target_steps = run_params["steps"]
+            finish_steps = int(checkpoints[-1].name.split(".")[1])
+            remain_steps = target_steps - finish_steps
+            run_params.update(
+                read_restart=str(checkpoints[-1].resolve()),
+                steps=remain_steps
+            )
+            # shutil.move(
+            #     checkpoints[-1].parent / "traj.dump", self.directory / "traj.dump"
+            # )
+            if self.setting.tend is not None:
+                curr_temperature = self.setting.temp+(self.setting.tend-self.setting.temp)/target_steps*finish_steps
+            else:
+                curr_temperature = self.setting.temp
+            if self.setting.pend is not None:
+                curr_pressure = self.setting.press+(self.setting.pend-self.setting.press)/target_steps*finish_steps
+            else:
+                curr_pressure = self.setting.press
 
-            # - run
+        # In case of temperature/pressure annealing
+        self.setting.temp = curr_temperature
+        self.setting.press = curr_pressure
+
+        dynamics = self._create_dynamics(atoms, *args, **kwargs)
+
+        self.setting.temp = prev_temperature
+        self.setting.press = prev_pressure
+
+        # - check constraint
+        self.calc.set(
+            task=self.setting.task,
+            dump_period=self.setting.dump_period,
+            ckpt_period=self.setting.ckpt_period,
+            dynamics=dynamics,
+            steps=run_params["steps"],
+            constraint=run_params["constraint"],
+            etol=run_params["etol"],
+            ftol=run_params["ftol"],
+            # misc
+            read_restart=run_params.get("read_restart", None),
+            extra_fix=run_params["extra_fix"],  # e.g. fixcm
+            neighbor=run_params["neighbor"],
+            neigh_modify=run_params["neigh_modify"],
+        )
+        atoms.calc = self.calc
+
+        # run simulation
+        try:
             _ = atoms.get_forces()
         except Exception as e:
             config._debug(traceback.format_exc())
+        finally:
+            # restore some temporary parameters.
+            ...
 
         return
 
