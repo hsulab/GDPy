@@ -17,7 +17,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.geometry import find_mic
 from ase.constraints import FixAtoms
-from ase.neb import interpolate, idpp_interpolate
+from ase.mep import interpolate, idpp_interpolate
 
 from .. import parse_constraint_info
 from ..reactor import AbstractReactor
