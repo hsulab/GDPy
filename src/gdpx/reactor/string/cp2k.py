@@ -169,88 +169,88 @@ class Cp2kStringReactor(AbstractStringReactor):
     
     def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
-        try:
-            if ckpt_wdir is None: # start from the scratch
-                images = self._align_structures(structures)
-                write(self.directory/"images.xyz", images)
-                atoms = images[0] # use the initial state
+        run_params = self.setting.get_run_params(**kwargs)
+        run_params.update(**self.setting.get_init_params())
 
-                run_params = self.setting.get_run_params(**kwargs)
-                run_params.update(**self.setting.get_init_params())
+        if ckpt_wdir is None: # start from the scratch
+            images = self._align_structures(structures, run_params)
+            write(self.directory/"images.xyz", images)
+            atoms = images[0] # use the initial state
 
-                # - update input template
-                # GLOBAL section is automatically created...
-                # FORCE_EVAL.(METHOD, POISSON)
-                inp = self.calc.parameters.inp # string
-                sec = parse_input(inp)
-                for (k, v) in run_params["pairs"]:
-                    sec.add_keyword(k, v)
-                for (k, v) in run_params["run_pairs"]:
-                    sec.add_keyword(k, v)
+            # - update input template
+            # GLOBAL section is automatically created...
+            # FORCE_EVAL.(METHOD, POISSON)
+            inp = self.calc.parameters.inp # string
+            sec = parse_input(inp)
+            for (k, v) in run_params["pairs"]:
+                sec.add_keyword(k, v)
+            for (k, v) in run_params["run_pairs"]:
+                sec.add_keyword(k, v)
 
-                # -- check constraint
-                cons_text = run_params.pop("constraint", None)
-                mobile_indices, frozen_indices = parse_constraint_info(
-                    atoms, cons_text=cons_text, ignore_ase_constraints=True, ret_text=False
+            # -- check constraint
+            cons_text = run_params.pop("constraint", None)
+            mobile_indices, frozen_indices = parse_constraint_info(
+                atoms, cons_text=cons_text, ignore_ase_constraints=True, ret_text=False
+            )
+            if frozen_indices:
+                #atoms._del_constraints()
+                #atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                frozen_indices = sorted(frozen_indices)
+                sec.add_keyword(
+                    "MOTION/CONSTRAINT/FIXED_ATOMS", 
+                    "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
                 )
-                if frozen_indices:
-                    #atoms._del_constraints()
-                    #atoms.set_constraint(FixAtoms(indices=frozen_indices))
-                    frozen_indices = sorted(frozen_indices)
-                    sec.add_keyword(
-                        "MOTION/CONSTRAINT/FIXED_ATOMS", 
-                        "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
-                    )
+        
+            # -- add replica information
+            band_section = sec.get_subsection("MOTION/BAND")
+            for replica in images:
+                cur_rep = InputSection(name="REPLICA")
+                for pos in replica.positions:
+                    cur_rep.add_keyword("COORD", ("{:.18e} "*3).format(*pos), unique=False)
+                band_section.subsections.append(cur_rep)
+        else: # start from a checkpoint
+            atoms  = read(ckpt_wdir/"images.xyz", "0")
+            with open(ckpt_wdir/"cp2k.inp", "r") as fopen:
+                inp = "".join(fopen.readlines())
+            sec = parse_input(inp)
+
+            def remove_keyword(section, keywords):
+                """"""
+                for kw in keywords:
+                    parts = kw.upper().split("/")
+                    subsection = section.get_subsection("/".join(parts[0:-1]))
+                    new_subkeywords = []
+                    for subkw in subsection.keywords:
+                        if parts[-1] not in subkw:
+                            new_subkeywords.append(subkw)
+                    subsection.keywords = new_subkeywords
+
+                return
             
-                # -- add replica information
-                band_section = sec.get_subsection("MOTION/BAND")
-                for replica in images:
-                    cur_rep = InputSection(name="REPLICA")
-                    for pos in replica.positions:
-                        cur_rep.add_keyword("COORD", ("{:.18e} "*3).format(*pos), unique=False)
-                    band_section.subsections.append(cur_rep)
-            else: # start from a checkpoint
-                atoms  = read(ckpt_wdir/"images.xyz", "0")
-                with open(ckpt_wdir/"cp2k.inp", "r") as fopen:
-                    inp = "".join(fopen.readlines())
-                sec = parse_input(inp)
+            remove_keyword(
+                sec, 
+                keywords=[ # avoid conflicts
+                    "GLOBAL/PROJECT", "GLOBAL/PRINT_LEVEL", "FORCE_EVAL/METHOD", 
+                    "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME", "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
+                    "FORCE_EVAL/SUBSYS/CELL/PERIODIC", 
+                    "FORCE_EVAL/SUBSYS/CELL/A", "FORCE_EVAL/SUBSYS/CELL/B", "FORCE_EVAL/SUBSYS/CELL/C"
+                ]
+            )
 
-                def remove_keyword(section, keywords):
-                    """"""
-                    for kw in keywords:
-                        parts = kw.upper().split("/")
-                        subsection = section.get_subsection("/".join(parts[0:-1]))
-                        new_subkeywords = []
-                        for subkw in subsection.keywords:
-                            if parts[-1] not in subkw:
-                                new_subkeywords.append(subkw)
-                        subsection.keywords = new_subkeywords
+            sec.add_keyword("EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir/"cp2k-1.restart"))
+            sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
 
-                    return
-                
-                remove_keyword(
-                    sec, 
-                    keywords=[ # avoid conflicts
-                        "GLOBAL/PROJECT", "GLOBAL/PRINT_LEVEL", "FORCE_EVAL/METHOD", 
-                        "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME", "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
-                        "FORCE_EVAL/SUBSYS/CELL/PERIODIC", 
-                        "FORCE_EVAL/SUBSYS/CELL/A", "FORCE_EVAL/SUBSYS/CELL/B", "FORCE_EVAL/SUBSYS/CELL/C"
-                    ]
-                )
+            # - copy wavefunctions...
+            restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
+            for wfn in restart_wfns:
+                (self.directory/wfn.name).symlink_to(wfn, target_is_directory=False)
 
-                sec.add_keyword("EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir/"cp2k-1.restart"))
-                sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
+        # update input
+        self.calc.parameters.inp = "\n".join(sec.write())
+        atoms.calc = self.calc
 
-                # - copy wavefunctions...
-                restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
-                for wfn in restart_wfns:
-                    (self.directory/wfn.name).symlink_to(wfn, target_is_directory=False)
-
-            # - update input
-            self.calc.parameters.inp = "\n".join(sec.write())
-            atoms.calc = self.calc
-
-            # - run calculation
+        # run calculation
+        try:
             self.calc.atoms = atoms
             self.calc.write_input(atoms)
             run_cp2k("cp2k", self.calc.command, self.directory)
