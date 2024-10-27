@@ -170,7 +170,7 @@ def run_worker(
         frames.extend(builder.run())
 
     # find input frames
-    if isinstance(computer, ComputerVariable):
+    if isinstance(computer, ComputerVariable) or isinstance(computer, ReactorVariable):
         workers: List[DriverBasedWorker] = computer.value
         num_workers = len(workers)
         if num_workers == 1:
