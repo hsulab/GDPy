@@ -100,6 +100,10 @@ from .scale import ScaleModifier
 
 registers.builder.register("scale")(ScaleModifier)
 
+from .roulette import RouletteBuilder
+
+registers.builder.register("roulette")(RouletteBuilder)
+
 
 # - optional
 try:
