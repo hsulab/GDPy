@@ -51,7 +51,7 @@ class Cp2kManager(AbstractPotentialManager):
             # TODO: check if run_type, default is ENERGY_FORCE
             # TODO: cutoff exists?
             _ = root_section.get_subsection("FORCE_EVAL/DFT/MGRID")
-            print("FORCE_EVAL/DFT/MGRID: ", _)
+            # print("FORCE_EVAL/DFT/MGRID: ", _)
             # TODO: max_scf exists?
             # TODO: xc exists?
         else:

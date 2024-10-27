@@ -421,7 +421,6 @@ class Cp2kDriver(AbstractDriver):
 class Cp2kFileIO(FileIOCalculator):
 
     implemented_properties = ["energy", "free_energy", "forces", "stress"]
-    command = None
 
     default_parameters = dict(
         auto_write=False,
@@ -453,13 +452,13 @@ class Cp2kFileIO(FileIOCalculator):
         )
 
         # complete command
-        command_ = self.command
+        command_ = self.profile.command
         if "-i" in command_:
             ...
         else:
             label_name = pathlib.Path(self.label).name
             command_ += f" -i {label_name}.inp -o {label_name}.out"
-        self.command = command_
+        self.profile.command = command_
 
         return
 
