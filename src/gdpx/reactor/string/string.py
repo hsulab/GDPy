@@ -249,7 +249,7 @@ class AbstractStringReactor(AbstractReactor):
             )
             assert np.allclose(c1, c2), "Inconsistent unit cell..."
 
-            cons_text = run_params.pop("constraint", None)
+            cons_text = run_params.get("constraint", None)
             self._preprocess_constraints(ini_atoms, cons_text)
             self._preprocess_constraints(fin_atoms, cons_text)
 
