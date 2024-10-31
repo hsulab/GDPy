@@ -37,7 +37,7 @@ def smooth_curve(bins, points):
     return bins, points
 
 def calc_rdf(
-        wdir: pathlib.Path, frames, pairs, volume: Optional[float]=None, 
+        wdir: pathlib.Path, frames, custom_pairs, volume: Optional[float]=None, 
         nbins: int=60, cutoff: float=6.0, n_jobs=1
     ) -> dict:
     """Calculate radial distribution.
@@ -62,12 +62,14 @@ def calc_rdf(
     # NOTE: the atom order should be consistent in the entire trajectory
     #       i.e. this does not work for variable-composition system
     chemical_symbols = frames[0].get_chemical_symbols()
-    sym_dict = {k: [] for k in set(chemical_symbols)}
+    species = list(set(chemical_symbols))
+    sym_dict = {k: [] for k in species}
     for k, v in itertools.groupby(enumerate(chemical_symbols), key=lambda x:x[1]):
         sym_dict[k].extend([x[0] for x in v])
+    all_pairs = ["-".join(p) for p in itertools.product(species, species)]
 
     pair_dict = {}
-    for pair in pairs:
+    for pair in custom_pairs:
         p0, p1 = pair.split("-")
         first_indices  = copy.deepcopy(sym_dict.get(p0, []))
         second_indices = copy.deepcopy(sym_dict.get(p1, []))
@@ -89,17 +91,19 @@ def calc_rdf(
     bins = np.linspace(0., cutoff+binwidth, nbins+2)
 
     # ---
-    def compute_distance_histogram(atoms, pairs, cutoff, bins, binwidth):
+    def compute_distance_histogram(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth):
         """"""
         i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff+binwidth)
 
         symbols = atoms.get_chemical_symbols()
         num_pairs = len(d)
 
-        distance_dict = {k: [] for k in pairs}
+        distance_dict_ = {k: [] for k in all_pairs}
         for p in range(num_pairs):
             pair = f"{symbols[i[p]]}-{symbols[j[p]]}"
-            distance_dict[pair].append(d[p])
+            distance_dict_[pair].append(d[p])
+
+        distance_dict = {k: distance_dict_[k] for k in custom_pairs}
 
         dis_hist = {}
         for k, v in distance_dict.items():
@@ -109,16 +113,16 @@ def calc_rdf(
         return dis_hist
 
     ret = Parallel(n_jobs=n_jobs)(
-        delayed(compute_distance_histogram)(atoms, pairs, cutoff, bins, binwidth) for atoms in frames
+        delayed(compute_distance_histogram)(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth) for atoms in frames
     )
 
-    dis_hist = {k: [] for k in pairs}
+    dis_hist = {k: [] for k in custom_pairs}
     for curr_dis_hist in ret:
         for k, v in curr_dis_hist.items():
             dis_hist[k].append(v)
 
     # get pair density
-    density_dict = {k: [] for k in pairs}
+    density_dict = {k: [] for k in custom_pairs}
     for atoms in frames:
         for k, num_pairs in pair_dict.items():
             if volume is None:
