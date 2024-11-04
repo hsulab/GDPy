@@ -295,8 +295,7 @@ class LmpDriverSetting(DriverSetting):
 
         if self.ensemble == "nve":
             lines = [
-                "fix {fix_id:>24s} {group} nve".format(**_init_md_params),
-                f"timestep {_init_md_params['timestep']}",
+                "fix {fix_id:>24s} {group} nve".format(**_init_md_params)
             ]
         elif self.ensemble == "nvt":
             _init_md_params.update(
@@ -327,7 +326,7 @@ class LmpDriverSetting(DriverSetting):
                 )
             else:
                 raise RuntimeError(f"Unknown thermostat {thermostat}.")
-            lines = [thermo_line, f"timestep {_init_md_params['timestep']}"]
+            lines = [thermo_line]
         elif self.ensemble == "npt":
             _init_md_params.update(
                 Tstart=self.temp,
@@ -348,7 +347,7 @@ class LmpDriverSetting(DriverSetting):
                 )
             else:
                 raise RuntimeError(f"Unknown barostat {barostat}.")
-            lines = [baro_line, f"timestep {_init_md_params['timestep']}"]
+            lines = [baro_line]
         else:
             raise RuntimeError(f"Unknown ensemble {self.ensemble}.")
 
@@ -356,7 +355,9 @@ class LmpDriverSetting(DriverSetting):
             com_line = "fix  fix_com {group} recenter INIT INIT INIT".format(
                 **_init_md_params
             )
-            lines.insert(0, com_line)
+            lines.append(com_line)
+  
+        lines.append(f"timestep {_init_md_params['timestep']}")
 
         return lines
 
