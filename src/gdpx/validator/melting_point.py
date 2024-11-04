@@ -13,6 +13,8 @@ from joblib import Parallel, delayed
 from scipy.optimize import curve_fit
 from scipy.spatial import distance_matrix
 
+import omegaconf
+
 try:
     plt.style.use("presentation")
 except Exception as e:
@@ -138,8 +140,8 @@ class MeltingPointValidator(AbstractValidator):
 
         self.start = start
 
-        if isinstance(temperatures, list):
-            temperatures = []
+        if isinstance(temperatures, list) or isinstance(temperatures, omegaconf.ListConfig):
+            temperatures = temperatures
         elif isinstance(temperatures, str):
             temperatures = str2array(temperatures)
         else:
