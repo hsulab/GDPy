@@ -4,7 +4,7 @@
 import copy
 import itertools
 import pathlib
-from typing import Union, List
+from typing import Optional, Union, List, Tuple
 import warnings
 
 import numpy as np
@@ -21,7 +21,7 @@ from .utils import is_a_valid_system_name
 
 
 #: How to map keys in structures.
-DEFAULT_PROP_MAP_KEYS: List[List[str]] = [("energy", "energy"), ("forces", "forces")]
+DEFAULT_PROP_MAP_KEYS: List[Tuple[str,str]] = [("energy", "energy"), ("forces", "forces")]
 
 
 def map_atoms_data(atoms: Atoms, prop_map_keys) -> None:
@@ -91,8 +91,8 @@ class XyzDataloader(AbstractDataloader):
         dataset_path: Union[str, pathlib.Path] = "./",
         batchsize: int = 32,
         train_ratio: float = 0.9,
-        random_seed: int = None,
-        prop_keys: List[List[str]] = DEFAULT_PROP_MAP_KEYS,
+        random_seed: Optional[int] = None,
+        prop_keys: List[Tuple[str,str]] = DEFAULT_PROP_MAP_KEYS,
         *args,
         **kwargs,
     ) -> None:
