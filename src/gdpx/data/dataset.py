@@ -4,12 +4,14 @@
 import copy
 import itertools
 import pathlib
+import traceback
 from typing import Optional, Union, List, Tuple
 import warnings
 
 import numpy as np
 
 from ase import Atoms
+from ase.formula import Formula
 from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -17,7 +19,7 @@ from ..core.register import registers
 from ..core.variable import Variable
 from ..core.node import AbstractNode
 
-from .utils import is_a_valid_system_name
+from .utils import is_a_valid_system_name, get_composition_from_system_tree
 
 
 #: How to map keys in structures.
@@ -70,6 +72,59 @@ def traverse_xyzdirs(wdir):
     return data_dirs
 
 
+def split_train_and_test_into_batches(num_frames: int, batchsize: int, train_ratio: float, rng):
+    """"""
+    # TODO: adjust batchsize of train and test separately
+    if num_frames <= batchsize:
+        # NOTE: use same train and test set
+        #       since they are very important structures...
+        if num_frames == 1 or batchsize == 1:
+            new_batchsize = 1
+        else:
+            new_batchsize = int(2 ** np.floor(np.log2(num_frames)))
+        train_index = list(range(num_frames))
+        test_index = list(range(num_frames))
+    else:
+        if num_frames == 1 or batchsize == 1:
+            new_batchsize = 1
+            train_index = list(range(num_frames))
+            test_index = list(range(num_frames))
+        else:
+            new_batchsize = batchsize
+            # - assure there is at least one batch for test
+            #          and number of train frames is integer times of batchsize
+            ntrain = int(
+                np.floor(num_frames * train_ratio / new_batchsize)
+                * new_batchsize
+            )
+            if ntrain > 0:
+                train_index = rng.choice(num_frames, ntrain, replace=False)
+                test_index = [x for x in range(num_frames) if x not in train_index]
+            else:
+                train_index = list(range(num_frames))
+                test_index = list(range(num_frames))
+
+    return new_batchsize, train_index, test_index
+
+
+def parse_batchsize_setting(batchsize: Union[int, str], num_atoms: int) -> int:
+    """"""
+    if isinstance(batchsize, int):
+        new_batchsize = batchsize
+    elif isinstance(batchsize, str):  # must be a string
+        method, number = batchsize.split(":")
+        if method == "n_structures":
+            new_batchsize = int(number)
+        elif method == "n_atoms":
+            new_batchsize = int(2 ** np.floor(np.log2(int(number)/num_atoms)))
+        else:
+            raise RuntimeError(f"Improper batchsize `{batchsize}.`")
+    else:
+        raise RuntimeError(f"Improper batchsize `{batchsize}.`")
+
+    return new_batchsize
+
+
 class AbstractDataloader(AbstractNode): ...
 
 
@@ -89,7 +144,7 @@ class XyzDataloader(AbstractDataloader):
     def __init__(
         self,
         dataset_path: Union[str, pathlib.Path] = "./",
-        batchsize: int = 32,
+        batchsize: Union[int, str] = 32,
         train_ratio: float = 0.9,
         random_seed: Optional[int] = None,
         prop_keys: List[Tuple[str,str]] = DEFAULT_PROP_MAP_KEYS,
@@ -192,11 +247,13 @@ class XyzDataloader(AbstractDataloader):
             system_groups_.append([k, v])
         system_groups = system_groups_
 
-        # -
+        # check batchsize
         batchsizes = self.batchsize
         nsystems = len(system_groups)
-        if isinstance(batchsizes, int):
+        if isinstance(batchsizes, int) or isinstance(batchsizes, str):
             batchsizes = [batchsizes] * nsystems
+        else:
+            ... # assume self.batchsize is a list
         assert (
             len(batchsizes) == nsystems
         ), "Number of systems and batchsizes are inconsistent."
@@ -206,13 +263,27 @@ class XyzDataloader(AbstractDataloader):
         train_size, test_size = [], []
         train_frames, test_frames = [], []
         adjusted_batchsizes = []  # auto-adjust batchsize based on nframes
+        accumulated_batches = 0
         for i, (curr_system_group, curr_batchsize) in enumerate(
             zip(system_groups, batchsizes)
         ):
             curr_system = pathlib.Path(curr_system_group[0])
-            set_name = "+".join(str(curr_system.relative_to(self.directory)).split("/"))
+            set_tree = str(curr_system.relative_to(self.directory)).split("/")
+            set_name = "+".join(set_tree)
             set_names.append(set_name)
-            self._print(f"System {set_name} Batchsize {curr_batchsize}")
+            try:
+                composition = get_composition_from_system_tree(set_tree)
+            except Exception as e:
+                self._print(traceback.format_exc())
+                self._print(f"{set_name =}")
+                raise RuntimeError()
+
+            # convert batchsize to an integer
+            num_atoms = sum(Formula(composition).count().values())
+            curr_batchsize = parse_batchsize_setting(curr_batchsize, num_atoms)
+
+            self._print(f"System {set_name}")
+            self._print(f"  {composition=}  batchsize={curr_batchsize}")
             frames = []  # all frames in this subsystem
             for curr_subsystem in curr_system_group[1]:
                 self._print(f"  {curr_subsystem.relative_to(curr_system)}")
@@ -226,46 +297,24 @@ class XyzDataloader(AbstractDataloader):
                     self._print(f"    subsystem: {p.name} number {p_nframes}")
 
             # split dataset and get adjusted batchsize
-            # TODO: adjust batchsize of train and test separately
-            nframes = len(frames)
-            if nframes <= curr_batchsize:
-                # NOTE: use same train and test set
-                #       since they are very important structures...
-                if nframes == 1 or curr_batchsize == 1:
-                    new_batchsize = 1
-                else:
-                    new_batchsize = int(2 ** np.floor(np.log2(nframes)))
-                adjusted_batchsizes.append(new_batchsize)
-                train_index = list(range(nframes))
-                test_index = list(range(nframes))
-            else:
-                if nframes == 1 or curr_batchsize == 1:
-                    new_batchsize = 1
-                    train_index = list(range(nframes))
-                    test_index = list(range(nframes))
-                else:
-                    new_batchsize = curr_batchsize
-                    # - assure there is at least one batch for test
-                    #          and number of train frames is integer times of batchsize
-                    ntrain = int(
-                        np.floor(nframes * self.train_ratio / new_batchsize)
-                        * new_batchsize
-                    )
-                    if ntrain > 0:
-                        train_index = self.rng.choice(nframes, ntrain, replace=False)
-                        test_index = [x for x in range(nframes) if x not in train_index]
-                    else:
-                        train_index = list(range(nframes))
-                        test_index = list(range(nframes))
-                adjusted_batchsizes.append(new_batchsize)
+            num_frames = len(frames)
+            new_batchsize, train_index, test_index = split_train_and_test_into_batches(
+                num_frames, curr_batchsize, self.train_ratio, self.rng
+            )
 
+            adjusted_batchsizes.append(new_batchsize)
+            
             ntrain, ntest = len(train_index), len(test_index)
             train_size.append(ntrain)
             test_size.append(ntest)
 
+            num_batches_train = int(ntrain/new_batchsize)
+            accumulated_batches += num_batches_train
+
             self._print(
-                f"    ntrain: {ntrain} ntest: {ntest} ntotal: {nframes} batchsize: {new_batchsize}"
+                f"    ntrain: {ntrain} ntest: {ntest} ntotal: {num_frames}"
             )
+            self._print(f"batchsize: {new_batchsize} batches: {num_batches_train}")
             assert ntrain > 0 and ntest > 0
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
@@ -287,7 +336,7 @@ class XyzDataloader(AbstractDataloader):
         ), "inconsistent train_size and test_size"
         train_size = sum(train_size)
         test_size = sum(test_size)
-        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size}")
+        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size} nbatches: {accumulated_batches}")
 
         # - map keys
         should_map_keys = False
