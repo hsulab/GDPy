@@ -5,12 +5,11 @@
 import collections
 import copy
 import pathlib
+import shutil
 import traceback
-
-from typing import Union, List, Callable
+from typing import Callable, List, Union
 
 import numpy as np
-
 from ase import Atoms
 from ase.io import read, write
 
@@ -88,11 +87,15 @@ def convert_groups(
                         atoms.info[k] = results[k]
                     else:
                         ...
-                assert "energy" in atoms.info, f"No energy in atoms.info `{i}  {atoms}`!"
+                assert (
+                    "energy" in atoms.info
+                ), f"No energy in atoms.info `{i}  {atoms}`!"
                 # make sure atoms has forces, and convert it to force
                 forces = copy.deepcopy(results["forces"])
                 atoms.arrays["force"] = forces
-                assert "force" in atoms.arrays, f"No force in atoms.info `{i}  {atoms}`!"
+                assert (
+                    "force" in atoms.arrays
+                ), f"No force in atoms.info `{i}  {atoms}`!"
                 # make sure atoms has forces, and convert it to force
                 # remove some keys as dpdata cannot recognise them
                 # e.g. tags, momenta, initial_charges
@@ -112,6 +115,7 @@ def convert_groups(
             fmt="quip/gap/xyz",
             type_map=type_map,
         )
+        (train_set_dir / f"{name}-{suffix}.xyz").unlink()
         # NOTE: this function create dir with composition and overwrite files
         #       so we need separate dirs...
         sys_dir = train_set_dir / name
