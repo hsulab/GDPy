@@ -117,6 +117,8 @@ def parse_batchsize_setting(batchsize: Union[int, str], num_atoms: int) -> int:
             new_batchsize = int(number)
         elif method == "n_atoms":
             new_batchsize = int(2 ** np.floor(np.log2(int(number)/num_atoms)))
+            if new_batchsize < 1:
+                new_batchsize = 1
         else:
             raise RuntimeError(f"Improper batchsize `{batchsize}.`")
     else:
