@@ -827,6 +827,7 @@ class Lammps(FileIOCalculator):
         newton=None,
         pair_style=None,
         pair_coeff=None,
+        pair_modify=None,
         kspace_style=None,
         neighbor="2.0 bin",
         neigh_modify="every 10 check yes",
@@ -1067,6 +1068,10 @@ class Lammps(FileIOCalculator):
                 content += "pair_style {}\n".format(self.pair_style)
                 # content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
                 content += "pair_coeff {}\n".format(self.pair_coeff)
+
+        if self.pair_modify is not None:
+            content += f"pair_modify {self.pair_modify}\n"
+
         content += "\n"
 
         # TODO: kspace should be set with pair at the same time
