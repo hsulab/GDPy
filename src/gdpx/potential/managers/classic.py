@@ -51,10 +51,12 @@ class ClassicManager(AbstractPotentialManager):
             for k, v in model_params["pair"].items():
                 coeff = " ".join([str(type_list.index(s)+1) for s in k.split("-")]) + "  " + v
                 pair_coeff.append(coeff)
+            pair_modify = model_params.get("modify", None)
             calc = Lammps(
                 command=command, directory=directory,
                 pair_style=pair_style,
                 pair_coeff=pair_coeff,
+                pair_modify=pair_modify,
                 kspace_style=model_params.get("coul"),
                 **calc_params
             )
