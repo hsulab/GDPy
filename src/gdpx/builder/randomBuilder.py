@@ -380,7 +380,7 @@ class BulkBuilder(RandomBuilder):
         else:
             assert isinstance(self.cell_bounds, CellBounds)
 
-        # --- splits
+        # cell splits
         if self.cell_splits is not None:
             splits_ = {}
             for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
@@ -441,10 +441,16 @@ class ClusterBuilder(RandomBuilder):
 
         # - ignore lattice parameters
         self.cell_volume = None
-        self.cell_splits = None
         self.cell_bounds = None
 
         self.box_to_place_in = [self.region._origin, self.region._cell]
+
+        # cell splits
+        if self.cell_splits is not None:
+            splits_ = {}
+            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
+                splits_[tuple(r)] = p
+            self.cell_splits = splits_
 
         return
 
@@ -501,10 +507,16 @@ class SurfaceBuilder(RandomBuilder):
 
         # - ignore lattice parameters
         self.cell_volume = None
-        self.cell_splits = None
         self.cell_bounds = None
 
         self.box_to_place_in = [self.region._origin, self.region._cell]
+
+        # cell splits
+        if self.cell_splits is not None:
+            splits_ = {}
+            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
+                splits_[tuple(r)] = p
+            self.cell_splits = splits_
 
         return
 
