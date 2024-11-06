@@ -229,10 +229,21 @@ class XyzDataloader(AbstractDataloader):
         # dir_indices = list(range(data_dirs))
         system_paths = []
         for d in data_dirs:
-            if is_a_valid_system_name(d.name):
-                system_paths.append(d)
+            d_tree = d.parts
+            num_parts = len(d_tree)
+            part_index = None
+            for ipart in range(num_parts-1, -1, -1):
+                if is_a_valid_system_name(d_tree[ipart]):
+                    part_index = ipart
+                    break
+                else:
+                    ...
             else:
-                system_paths.append(d.parent)
+                ...
+            if part_index is not None:
+                system_paths.append(pathlib.Path(*d_tree[:part_index+1]))
+            else:
+                raise RuntimeError(f"No system folder found in `{str(d)}`")
 
         system_groups = {}
         for k, v in itertools.groupby(enumerate(system_paths), key=lambda x: str(x[1])):
@@ -279,7 +290,13 @@ class XyzDataloader(AbstractDataloader):
                 raise RuntimeError()
 
             # convert batchsize to an integer
-            num_atoms = sum(Formula(composition).count().values())
+            try:
+                num_atoms = sum(Formula(composition).count().values())
+            except Exception as e:
+                self._print(traceback.format_exc())
+                self._print(f"{composition =}")
+                raise RuntimeError()
+
             curr_batchsize = parse_batchsize_setting(curr_batchsize, num_atoms)
 
             self._print(f"System {set_name}")
@@ -314,7 +331,7 @@ class XyzDataloader(AbstractDataloader):
             self._print(
                 f"    ntrain: {ntrain} ntest: {ntest} ntotal: {num_frames}"
             )
-            self._print(f"batchsize: {new_batchsize} batches: {num_batches_train}")
+            self._print(f"    batchsize: {new_batchsize} batches: {num_batches_train}")
             assert ntrain > 0 and ntest > 0
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
