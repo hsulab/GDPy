@@ -111,8 +111,14 @@ class SessionInitialiser:
         config._debug(f"YAML: {OmegaConf.to_yaml(conf)}")
 
         # check operations and their directories
+        if "operations" not in conf:
+            conf.operations = {}
+        num_operations = len(conf.operations)
+        if not (num_operations > 0):
+            raise RuntimeError(f"No operations is found in the session.")
         for op_name, op_params in conf.operations.items():
             op_params["directory"] = str(directory / op_name)
+
 
         # set variable directory
         if "variables" not in conf:
