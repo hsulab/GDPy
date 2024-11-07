@@ -34,9 +34,7 @@ class PbsScheduler(AbstractScheduler):
             # else:
             #    raise ValueError("Keyword *%s* not properly set." %key)
 
-        if self.environs:
-            content += "\n\n"
-            content += self.environs
+        content += self._convert_environs_to_content()
 
         if self.user_commands:
             content += "\n\n"
