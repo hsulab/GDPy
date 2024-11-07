@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
+import re
+import pathlib
 from typing import List
 
 import numpy as np
@@ -9,6 +11,42 @@ import numpy as np
 from ase import Atoms
 
 from .builder import StructureModifier
+
+
+active_iteration_pattern = re.compile(r"iter\.[0-9][0-9][0-9][0-9]")
+
+def get_current_iteration_from_path(path: pathlib.Path) -> int:
+    """"""
+    parts = path.parts
+    num_parts = len(parts)
+
+    iteration = -1
+    for i in range(num_parts-1, -1, -1):
+        if re.match(active_iteration_pattern, parts[i]):
+            iteration = int(parts[i].split(".")[-1])
+            break
+    else:
+        ...
+
+    return iteration
+
+def get_previous_path_from_current_by_iteration(path: pathlib.Path) -> pathlib.Path:
+    """"""
+    parts = path.parts
+    num_parts = len(parts)
+
+    new_parts = list(parts)
+    for i in range(num_parts-1, -1, -1):
+        if re.match(active_iteration_pattern, parts[i]):
+            iteration = int(parts[i].split(".")[-1])
+            assert iteration > 0
+            new_parts[i] = f"iter.{iteration-1:04d}"
+            break
+    else:
+        ...
+
+    return pathlib.Path(*new_parts)
+
 
 
 class RouletteBuilder(StructureModifier):
@@ -32,14 +70,11 @@ class RouletteBuilder(StructureModifier):
 
         prev_chosen = []
         if self.use_memory:  # TODO: Check if this builder is in active?
-            curr_iter = int(self.directory.parent.name.split(".")[-1])
+            curr_iter = get_current_iteration_from_path(self.directory)
+            assert curr_iter >= 0
             if curr_iter > 0:
                 self._print(">>> Update roulette...")
-                prev_wdir = (
-                    self.directory.parent.parent
-                    / f"iter.{str(curr_iter-1).zfill(4)}"
-                    / self.directory.name
-                )
+                prev_wdir = get_previous_path_from_current_by_iteration(self.directory)
                 prev_chosen = np.loadtxt(prev_wdir/"memory.dat").flatten()
             else:
                 ...
