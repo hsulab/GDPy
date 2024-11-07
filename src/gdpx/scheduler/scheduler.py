@@ -4,7 +4,7 @@
 import copy
 import pathlib
 import subprocess
-from typing import NoReturn, Union, List, Callable
+from typing import Optional, Union, List, Callable
 
 from abc import ABC, abstractmethod
 
@@ -32,19 +32,19 @@ class AbstractScheduler(ABC):
     hostname: str = "local"
 
     #: A string starts at each option line.
-    PREFIX: str = None
+    PREFIX: str = ""
 
     #: The suffix of a job script.
-    SUFFIX: str = None
+    SUFFIX: str = ""
 
     #: The first line of a script.
-    SHELL: str = None
+    SHELL: str = ""
 
     #: The command used to submit jobs.
-    SUBMIT_COMMAND: str = None
+    SUBMIT_COMMAND: str = ""
 
     #: The command used to check job status.
-    ENQUIRE_COMMAND: str = None
+    ENQUIRE_COMMAND: str = ""
 
     #: Default parameters.
     default_parameters: dict = {}
@@ -52,17 +52,17 @@ class AbstractScheduler(ABC):
     #: Current stored parameters.
     parameters: dict = {}
 
-    #: _script: The path of the job script.
-    _script: Union[str, pathlib.Path] = None
+    #: The path of the job script.
+    _script: Union[str, pathlib.Path] = "./run.script"
 
     #: The job name.
     _job_name: str = "scheduler"
 
     #: Environment settings for a job.
-    environs: str = None
+    environs: Union[str, List[str]] = ""
 
     #: Custom commands for a job.
-    user_commands: str = None
+    user_commands: str = ""
 
     #: The tags that a job may have in the queue.
     running_status: List[str] = []
@@ -75,22 +75,19 @@ class AbstractScheduler(ABC):
             **kwargs: Arbitrary keyword arguments.
 
         """
-        # - update params
+        # update params
         self.environs = kwargs.pop("environs", "")
         self.user_commands = kwargs.pop("user_commands", "")
 
         self.hostname = kwargs.pop("hostname", "local")
         self.remote_wdir = kwargs.pop("remote_wdir", "./")
 
-        # - make default params
+        # make default params
         self.parameters = self._get_default_parameters()
         # parameters_ = kwargs.pop("parameters", None)
         # if parameters_:
         #    self.parameters.update(parameters_)
         self.parameters.update(kwargs)
-
-        # - update some special keywords
-        #   job_name
 
         return
 
@@ -146,6 +143,7 @@ class AbstractScheduler(ABC):
 
     def submit(self) -> str:
         """Submit job using specific scheduler command and return job id."""
+        assert isinstance(self.script, pathlib.Path)
         command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
         proc = subprocess.Popen(
             command,
@@ -159,7 +157,7 @@ class AbstractScheduler(ABC):
         if errorcode:
             raise RuntimeError(f"Error in submitting job script {str(self.script)}")
 
-        output = "".join(proc.stdout.readlines())
+        output = "".join(proc.stdout.readlines())  # type: ignore
         job_id = output.strip().split()[-1]
 
         return job_id
@@ -172,7 +170,7 @@ class AbstractScheduler(ABC):
 
         """
 
-        return
+        ...
 
     def as_dict(self) -> dict:
         """"""
