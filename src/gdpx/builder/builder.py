@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import abc
-import copy
 import pathlib
-from typing import List, Callable
+from typing import List
 
 from ase import Atoms
-from ase.io import read, write
+from ase.io import read
 
 from .. import config
 from ..core.node import AbstractNode
@@ -23,12 +22,6 @@ class StructureBuilder(AbstractNode):
 
     name = "builder"
 
-    #: Standard print function.
-    _print: Callable = config._print
-
-    #: Standard debug function.
-    _debug: Callable = config._debug
-
     def __init__(
         self, use_tags=False, directory="./", random_seed=None, *args, **kwargs
     ):
@@ -42,17 +35,19 @@ class StructureBuilder(AbstractNode):
     @abc.abstractmethod
     def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
         """Generate structures based on rules."""
-        self._print(f"@@@{self.__class__.__name__}")
-
-        self._print(f"RANDOM_SEED : {self.random_seed}")
-        rng_state = self.rng.bit_generator.state
-        for l in dict2str(rng_state).split("\n"):
-            config._print(l)
+        if self.__class__.__name__ != "ComposedModifier":
+            self._print(f"-->{self.__class__.__name__}")
+            self._print(f"RANDOM_SEED : {self.random_seed}")
+            rng_state = self.rng.bit_generator.state
+            for l in dict2str(rng_state).split("\n"):
+                config._print(l)
+        else:
+            ...
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
-        return
+        ...
 
 
 class StructureModifier(StructureBuilder):
@@ -69,10 +64,8 @@ class StructureModifier(StructureBuilder):
             substrates = pathlib.Path(substrates).absolute()
         else:
             ...
-        # self._print(f"{substrates = }")
 
         self.substrates = self._load_substrates(substrates)
-        # self._print(f"{self.substrates = }")
 
         return
 
@@ -107,7 +100,7 @@ class StructureModifier(StructureBuilder):
         # assert self.substrates is not None, "Substrates are not set neither at inp nor at run."
         # self.substrates = [copy.deepcopy(s) for s in self.substrates]
 
-        return
+        ...
 
 
 if __name__ == "__main__":

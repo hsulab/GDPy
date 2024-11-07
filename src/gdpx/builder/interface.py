@@ -121,7 +121,7 @@ class write_stru(Operation):
             structures = structures.get_marked_structures()
 
         self._print(f"write structures to {str(self.directory/'structures.xyz')}")
-        write(self.directory/"structures.xyz", structures, format=self.format)
+        write(self.directory / "structures.xyz", structures, format=self.format)
 
         if self.fname is not None:
             fpath = pathlib.Path(self.fname)
@@ -129,7 +129,7 @@ class write_stru(Operation):
             if fpath.exists():
                 self._print("remove previous saved_structures")
                 fpath.unlink()
-            fpath.symlink_to(self.directory/"structures.xyz")
+            fpath.symlink_to(self.directory / "structures.xyz")
         else:
             ...
 
@@ -226,6 +226,22 @@ class modify(Operation):
         ):
             modifier = BuilderVariable(
                 directory=self.directory / "modifier", **modifier
+            )
+        elif isinstance(modifier, list) or isinstance(modifier, omegaconf.ListConfig):
+            modifiers_ = []
+            for modifier_ in modifier:
+                modifier_ = BuilderVariable(
+                    directory=self.directory / "modifier", **modifier_
+                ).value
+                modifiers_.append(modifier_)
+            modifier = BuilderVariable(
+                directory=self.directory / "modifier",
+                method="composed",
+                modifiers=modifiers_,
+            )
+        else:
+            raise RuntimeError(
+                f"Unknown modifier {modifier} with a type of `{type(modifier)}`."
             )
 
         return substrates, modifier
