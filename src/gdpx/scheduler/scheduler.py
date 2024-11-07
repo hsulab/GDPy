@@ -4,7 +4,7 @@
 import copy
 import pathlib
 import subprocess
-from typing import Optional, Union, List, Callable
+from typing import Optional, Union, List, Callable, Iterable
 
 from abc import ABC, abstractmethod
 
@@ -133,6 +133,23 @@ class AbstractScheduler(ABC):
             self.parameters[key] = value
 
         return
+
+    def _convert_environs_to_content(self) -> str:
+        """"""
+        content = "\n\n"
+        if self.environs:
+            if isinstance(self.environs, str):
+                content += self.environs
+            elif isinstance(self.environs, Iterable):
+                for env in self.environs:
+                    content += env.strip() + "\n"
+            else:
+                raise RuntimeError(f"Fail to convert environs `{self.environs}`.")
+        else:
+            ...
+        content += "\n\n"
+
+        return content
 
     def write(self) -> None:
         """Write self to the path of the job script."""
