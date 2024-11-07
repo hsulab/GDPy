@@ -104,6 +104,15 @@ from .roulette import RouletteBuilder
 
 registers.builder.register("roulette")(RouletteBuilder)
 
+from .change_element import ReplaceElementModifier, RemoveElementModifier
+
+registers.builder.register("replace_element")(ReplaceElementModifier)
+registers.builder.register("remove_element")(RemoveElementModifier)
+
+from .composed import ComposedModifier
+
+registers.builder.register("composed")(ComposedModifier)
+
 
 # - optional
 try:
