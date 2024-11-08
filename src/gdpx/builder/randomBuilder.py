@@ -146,7 +146,10 @@ class RandomBuilder(StructureModifier):
 
         self.cell_volume = kwargs.get("cell_volume", None)
         self.cell_bounds = kwargs.get("cell_bounds", {})
+
         self.cell_splits = kwargs.get("cell_splits", None)
+        self._converted_cell_splits = None
+
         self.number_of_variable_cell_vectors = 0  # number_of_variable_cell_vectors
 
         return
@@ -230,7 +233,7 @@ class RandomBuilder(StructureModifier):
             number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
             box_to_place_in=self.box_to_place_in,
             box_volume=self.cell_volume,
-            splits=self.cell_splits,
+            splits=self._converted_cell_splits,
             cellbounds=self.cell_bounds,
             test_dist_to_slab=self.test_dist_to_slab,
             test_too_far=self.test_too_far,
@@ -385,7 +388,7 @@ class BulkBuilder(RandomBuilder):
             splits_ = {}
             for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
                 splits_[tuple(r)] = p
-            self.cell_splits = splits_
+            self._converted_cell_splits = splits_
 
         return
 
@@ -450,7 +453,7 @@ class ClusterBuilder(RandomBuilder):
             splits_ = {}
             for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
                 splits_[tuple(r)] = p
-            self.cell_splits = splits_
+            self._converted_cell_splits = splits_
 
         return
 
@@ -512,11 +515,12 @@ class SurfaceBuilder(RandomBuilder):
         self.box_to_place_in = [self.region._origin, self.region._cell]
 
         # cell splits
+        self._print(f"{self.cell_splits =}")
         if self.cell_splits is not None:
             splits_ = {}
             for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
                 splits_[tuple(r)] = p
-            self.cell_splits = splits_
+            self._converted_cell_splits = splits_
 
         return
 
