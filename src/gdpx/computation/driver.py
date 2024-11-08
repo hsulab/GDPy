@@ -65,6 +65,9 @@ class Controller:
 class DriverSetting:
     """These are geometric parameters. Electronic?"""
 
+    #: Machine-related prefix added before executable (e.g. mpirun).
+    machine_prefix: str = ""
+
     #: Simulation task.
     task: str = "min"
 
@@ -255,9 +258,13 @@ class AbstractDriver(AbstractNode):
         prev_params = copy.deepcopy(self.calc.parameters)
 
         # run step
+        prev_command = self.calc.command
+        self.calc.command = self.setting.machine_prefix + " " + prev_command
+
         self._run_step(atoms, system_changed, read_ckpt, *args, **kwargs)
 
         # restore calculator
+        self.calc.command = prev_command
         self.calc.parameters = prev_params
         self.calc.reset()
 

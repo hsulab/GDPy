@@ -748,6 +748,11 @@ class DriverBasedWorker(AbstractWorker):
         with open(self.directory / f"worker-{uid}.yaml", "w") as fopen:
             yaml.dump(worker_params, fopen)
 
+        # TODO: MACHINE file will be overwritten by different batches
+        #       even though they are the same.
+        with open(self.directory/f"MACHINE", "w") as fopen:
+            fopen.write(self.scheduler.machine_prefix)
+
         return
 
     def as_dict(self) -> dict:
@@ -828,8 +833,16 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         # - get structures
         curr_frames = [frames[i] for i in curr_indices]
 
+        machine_prefix = ""
+        if (self.directory/"MACHINE").exists():
+            with open(self.directory/"MACHINE", "r") as fopen:
+                machine_prefix = "".join(fopen.readlines()).strip()
+
         # - run calculations
         with CustomTimer(name="run-driver", func=self._print):
+            prev_machine_prefix = self.driver.setting.machine_prefix
+            if machine_prefix:
+                self.driver.setting.machine_prefix = machine_prefix
             if not self._share_wdir:
                 for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
                     self.driver.directory = self.directory / wdir
@@ -879,6 +892,8 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                         new_atoms,
                         append=True,
                     )
+            # restore machine prefix
+            self.driver.setting.machine_prefix = prev_machine_prefix
 
         return
 
