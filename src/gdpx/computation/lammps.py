@@ -802,10 +802,6 @@ class Lammps(FileIOCalculator):
     #: Implemented properties.
     implemented_properties: List[str] = ["energy", "forces", "stress"]
 
-    #: LAMMPS command.
-    command: str = "lmp 2>&1 > lmp.out"
-    # command: str = "lmp"
-
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters: dict = dict(
         # ase prepared parameters
@@ -844,14 +840,17 @@ class Lammps(FileIOCalculator):
     #: Cached trajectory of the previous simulation.
     cached_traj_frames: Optional[List[Atoms]] = None
 
-    def __init__(self, command=None, label=name, **kwargs):
+    def __init__(self, command="lmp", label=name, **kwargs):
         """"""
         FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
 
-        # check command
-        # if "-in" in self.command or ">" in self.command:
-        #     raise RuntimeError(f"LAMMPS command must not contain input or output files.")
-        # self.command = self.command + "  -in in.lammps 2>&1 > lmp.out"
+        # complete command
+        command_ = self.profile.command
+        if "-in" in command_:
+            ...
+        else:
+            command_ += f" -in in.lammps 2>&1 > lmp.out"
+        self.profile.command = command_
 
         # - check potential
         assert self.pair_style is not None, "pair_style is not set."
