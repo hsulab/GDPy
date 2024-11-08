@@ -61,6 +61,9 @@ class AbstractScheduler(ABC):
     #: Environment settings for a job.
     environs: Union[str, List[str]] = ""
 
+    #: Machine-related prefix added before executable (e.g. mpirun).
+    machine_prefix : str = ""
+
     #: Custom commands for a job.
     user_commands: str = ""
 
@@ -77,6 +80,7 @@ class AbstractScheduler(ABC):
         """
         # update params
         self.environs = kwargs.pop("environs", "")
+        self.machine_prefix = kwargs.pop("machine_prefix", "")
         self.user_commands = kwargs.pop("user_commands", "")
 
         self.hostname = kwargs.pop("hostname", "local")
