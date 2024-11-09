@@ -125,7 +125,10 @@ class AseStringReactorSetting(StringReactorSetting):
         steps_ = kwargs.get("steps", self.steps)
         if steps_ <= 0:
             steps_ = -1
-        run_params = dict(steps=steps_, fmax=self.fmax)
+        run_params = dict(
+            constraint=kwargs.get("constraint", self.constraint),
+            steps=steps_, fmax=self.fmax
+        )
 
         return run_params
 
@@ -190,81 +193,83 @@ class AseStringReactor(AbstractStringReactor):
 
     def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
+        # run_params = self.setting.get_run_params()
+        run_params = self.setting.get_run_params(**kwargs)
+        run_params.update(**self.setting.get_init_params())
+
+        start_step = 0
+        if ckpt_wdir is None:  # start from the scratch
+            images = self._align_structures(structures, run_params)
+            write(self.directory / "images.xyz", images)
+        else:
+            nebtraj = self.read_trajectory()
+            images = nebtraj[-1]
+            start_step = images[0].info["step"]
+            run_params["steps"] = run_params["steps"] - start_step
+
+        for a in images:
+            a.calc = self.calc
+
+        neb = NEB(
+            images=images,
+            k=self.setting.k,
+            climb=self.setting.climb,
+            remove_rotation_and_translation=False,
+            method="aseneb",
+            allow_shared_calculator=True,
+            precon=None,
+        )
+
+        dynamics = self.setting.opt_cls(
+            neb,
+            logfile=self.directory / "neb.log",
+            trajectory=None,
+        )
+        dynamics.attach(
+            update_atoms_info,
+            interval=self.setting.dump_period,
+            neb=neb,
+            dyn=dynamics,
+            start_step=start_step,
+            print_func=self._print,
+            debug_func=self._debug,
+        )
+        dynamics.attach(
+            save_nebtraj,
+            interval=self.setting.dump_period,
+            neb=neb,
+            nebtraj_fpath=self.cache_nebtraj,
+        )
+
         try:
-            run_params = self.setting.get_run_params()
-
-            start_step = 0
-            if ckpt_wdir is None:  # start from the scratch
-                images = self._align_structures(structures, run_params)
-                write(self.directory / "images.xyz", images)
-            else:
-                nebtraj = self.read_trajectory()
-                images = nebtraj[-1]
-                start_step = images[0].info["step"]
-                run_params["steps"] = run_params["steps"] - start_step
-
-            for a in images:
-                a.calc = self.calc
-
-            neb = NEB(
-                images=images,
-                k=self.setting.k,
-                climb=self.setting.climb,
-                remove_rotation_and_translation=False,
-                method="aseneb",
-                allow_shared_calculator=True,
-                precon=None,
-            )
-
-            dynamics = self.setting.opt_cls(
-                neb,
-                logfile=self.directory / "neb.log",
-                trajectory=None,
-            )
-            dynamics.attach(
-                update_atoms_info,
-                interval=self.setting.dump_period,
-                neb=neb,
-                dyn=dynamics,
-                start_step=start_step,
-                print_func=self._print,
-                debug_func=self._debug,
-            )
-            dynamics.attach(
-                save_nebtraj,
-                interval=self.setting.dump_period,
-                neb=neb,
-                nebtraj_fpath=self.cache_nebtraj,
-            )
-
             # steps = run_params["steps"]
             # self._print(f"{steps =}")
             dynamics.run(steps=run_params["steps"], fmax=run_params["fmax"])
-
-            # Always save the last step
-            dump_period = self.setting.dump_period
-            if dump_period > 1:
-                # optimiser dumps every step to log!!
-                data = np.loadtxt(self.directory / "neb.log", dtype=str, skiprows=1)
-                if len(data.shape) == 1:
-                    data = data[np.newaxis, :]
-                nsteps = data.shape[0]
-                if nsteps > 0 and (nsteps - 1) % dump_period != 0:
-                    update_atoms_info(
-                        neb,
-                        dynamics,
-                        start_step=start_step,
-                        print_func=self._print,
-                        debug_func=self._debug,
-                    )
-                    save_nebtraj(neb, self.cache_nebtraj)
-            else:
-                ...
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
             self._debug(
                 f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
             )
+
+        # Always save the last step
+        dump_period = self.setting.dump_period
+        if dump_period > 1:
+            # optimiser dumps every step to log!!
+            data = np.loadtxt(self.directory / "neb.log", dtype=str, skiprows=1)
+            if len(data.shape) == 1:
+                data = data[np.newaxis, :]
+            nsteps = data.shape[0]
+            if nsteps > 0 and (nsteps - 1) % dump_period != 0:
+                update_atoms_info(
+                    neb,
+                    dynamics,
+                    start_step=start_step,
+                    print_func=self._print,
+                    debug_func=self._debug,
+                )
+                save_nebtraj(neb, self.cache_nebtraj)
+        else:
+            ...
 
         return
 
