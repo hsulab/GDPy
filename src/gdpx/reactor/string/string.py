@@ -27,6 +27,9 @@ from ..utils import plot_bands, plot_mep, compute_rxn_coords
 @dataclasses.dataclass
 class StringReactorSetting:
 
+    #: Machine-related prefix added before executable (e.g. mpirun).
+    machine_prefix: str = ""
+
     #: Reactor setting.
     backend: str = "external"
 
@@ -118,8 +121,12 @@ class AbstractStringReactor(AbstractReactor):
             # RuntimeError: Atoms object has no calculator.
             self._print("Not energies attached to IS and FS.")
 
-        # - backup old parameters
+        # backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
+
+        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
+            prev_command = self.calc.command
+            self.calc.command = self.setting.machine_prefix + " " + prev_command
 
         # -
         if not self._verify_checkpoint():
@@ -138,6 +145,8 @@ class AbstractStringReactor(AbstractReactor):
             else:
                 self._debug(f"... converged @ {self.directory.name} ...")
 
+        if hasattr(self.calc, "command"):
+            self.calc.command = prev_command
         self.calc.parameters = prev_params
         self.calc.reset()
 

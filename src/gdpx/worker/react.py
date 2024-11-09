@@ -229,7 +229,15 @@ class ReactorBasedWorker(AbstractWorker):
         """"""
         batch_number = int(name.split("-")[-1])
         if self.scheduler.name == "local":
+            machine_prefix = ""
+            if (self.directory/"MACHINE").exists():
+                with open(self.directory/"MACHINE", "r") as fopen:
+                    machine_prefix = "".join(fopen.readlines()).strip()
+
             with CustomTimer(name="run-reactor", func=self._print):
+                prev_machine_prefix = self.driver.setting.machine_prefix
+                if machine_prefix:
+                    self.driver.setting.machine_prefix = machine_prefix
                 # - here the driver is the reactor
                 for i, wdir in zip(curr_indices, curr_wdirs):
                     self._print(
@@ -238,6 +246,8 @@ class ReactorBasedWorker(AbstractWorker):
                     self.driver.directory = self.directory/wdir
                     self.driver.reset()
                     _ = self.driver.run(structures[i], read_cache=True)
+                # restore machine prefix
+                self.driver.setting.machine_prefix = prev_machine_prefix
         else:
             # - save worker file
             worker_params = {}
@@ -248,6 +258,11 @@ class ReactorBasedWorker(AbstractWorker):
 
             with open(self.directory/f"worker-{uid}.yaml", "w") as fopen:
                 yaml.dump(worker_params, fopen)
+
+            # TODO: MACHINE file will be overwritten by different batches
+            #       even though they are the same.
+            with open(self.directory/f"MACHINE", "w") as fopen:
+                fopen.write(self.scheduler.machine_prefix)
 
             # - save structures
             dataset_path = str((self.directory/"_data"/f"{identifier}.xyz").resolve())
