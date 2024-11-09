@@ -262,6 +262,10 @@ class AbstractStringReactor(AbstractReactor):
             self._preprocess_constraints(ini_atoms, cons_text)
             self._preprocess_constraints(fin_atoms, cons_text)
 
+            # TODO: We only support one constraint (FixAtoms) for NEB now.
+            assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == 1
+            assert np.all(ini_atoms.constraints[0].index == fin_atoms.constraints[0].index)
+
             # - 
             use_mic = self.setting.interpolation.get("mic", True)
             idpp_params = self.setting.interpolation.get("idpp", {})
