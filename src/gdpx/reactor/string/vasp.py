@@ -138,79 +138,79 @@ class VaspStringReactor(AbstractStringReactor):
 
     def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
-        try:
-            # --
-            run_params = self.setting.get_run_params(**kwargs)
-            run_params.update(**self.setting.get_init_params())
+        # get params
+        run_params = self.setting.get_run_params(**kwargs)
+        run_params.update(**self.setting.get_init_params())
 
-            if ckpt_wdir is None:  # start from the scratch
-                self._print("interpolate input images...")
-                images = self._align_structures(structures, run_params)
+        if ckpt_wdir is None:  # start from the scratch
+            self._print("interpolate input images...")
+            images = self._align_structures(structures, run_params)
+        else:
+            self._print("update input images...")
+            # - update structures
+            rep_dirs = sorted(
+                ckpt_wdir.glob(r"[0-9][0-9]"), key=lambda x: int(x.name)
+            )
+
+            frames_ = []
+            for x in rep_dirs[1:-1]:
+                frames_.append(read(x / "OUTCAR", ":"))
+            nframes_per_image = [len(x) for x in frames_]
+            nframes = min(nframes_per_image)
+            assert nframes > 0, "At least one step finished before resume..."
+            intermediates_ = [x[nframes - 1] for x in frames_]
+
+            # -- sort frames from outcar
+            if (ckpt_wdir / ASE_VASP_SORT_FNAME).exists():
+                sort, resort = read_sort(ckpt_wdir, ASE_VASP_SORT_FNAME)
             else:
-                self._print("update input images...")
-                # - update structures
-                rep_dirs = sorted(
-                    ckpt_wdir.glob(r"[0-9][0-9]"), key=lambda x: int(x.name)
+                natoms = len(structures[0])
+                sort, resort = list(range(natoms)), list(range(natoms))
+
+            intermediates = []
+            for a in intermediates_:
+                sorted_atoms = resort_atoms_with_spc(
+                    a, resort, "vasp", print_func=self._print, debug_func=self._debug
                 )
+                intermediates.append(sorted_atoms)
 
-                frames_ = []
-                for x in rep_dirs[1:-1]:
-                    frames_.append(read(x / "OUTCAR", ":"))
-                nframes_per_image = [len(x) for x in frames_]
-                nframes = min(nframes_per_image)
-                assert nframes > 0, "At least one step finished before resume..."
-                intermediates_ = [x[nframes - 1] for x in frames_]
+            images = [structures[0]] + intermediates + [structures[-1]]
 
-                # -- sort frames from outcar
-                if (ckpt_wdir / ASE_VASP_SORT_FNAME).exists():
-                    sort, resort = read_sort(ckpt_wdir, ASE_VASP_SORT_FNAME)
-                else:
-                    natoms = len(structures[0])
-                    sort, resort = list(range(natoms)), list(range(natoms))
+            # the param keys have been proprocessed to vasp ones
+            run_params.update(nsw=self.setting.steps + 1 - nframes)
 
-                intermediates = []
-                for a in intermediates_:
-                    sorted_atoms = resort_atoms_with_spc(
-                        a, resort, "vasp", print_func=self._print, debug_func=self._debug
-                    )
-                    intermediates.append(sorted_atoms)
+        # From scratch, constraint should be removed as vasp calc does have it.
+        # From restart, constraint info has already been in OUTCAR.
+        run_params.pop("constraint")
 
-                images = [structures[0]] + intermediates + [structures[-1]]
+        write(self.directory / "images.xyz", images)
 
-                # the param keys have been proprocessed to vasp ones
-                run_params.update(nsw=self.setting.steps + 1 - nframes)
+        # - update input
+        self.calc.set(**run_params)
 
-                # constraint info has already been in OUTCAR
-                run_params.pop("constraint")
+        atoms = images[0]
+        atoms.calc = self.calc
 
-            write(self.directory / "images.xyz", images)
+        # -- write input files
+        self.calc.write_input(atoms)
+        if (self.directory / "POSCAR").exists():
+            os.remove(self.directory / "POSCAR")
 
-            # - update input
-            self.calc.set(**run_params)
+        # -- add replica information
+        for i, a in enumerate(images):
+            rep_dir = self.directory / str(i).zfill(2)
+            # It has already been created when images are written.
+            # If the previous run has no outputs, we just overwrite everything.
+            rep_dir.mkdir(exist_ok=True)
+            write(
+                rep_dir / "POSCAR",
+                a[self.calc.sort],
+                symbol_count=self.calc.symbol_count,
+            )
 
-            atoms = images[0]
-            atoms.calc = self.calc
-
-            # -- write input files
-            self.calc.write_input(atoms)
-            if (self.directory / "POSCAR").exists():
-                os.remove(self.directory / "POSCAR")
-
-            # -- add replica information
-            for i, a in enumerate(images):
-                rep_dir = self.directory / str(i).zfill(2)
-                # It has already been created when images are written.
-                # If the previous run has no outputs, we just overwrite everything.
-                rep_dir.mkdir(exist_ok=True)
-                write(
-                    rep_dir / "POSCAR",
-                    a[self.calc.sort],
-                    symbol_count=self.calc.symbol_count,
-                )
-
-            # - run calculation
+        # run calculation
+        try:
             run_ase_calculator("vasp", atoms.calc.command, self.directory)
-
         except Exception as e:
             self._debug(e)
             self._debug(traceback.print_exc())
