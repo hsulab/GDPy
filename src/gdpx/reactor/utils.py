@@ -16,7 +16,7 @@ except Exception as e:
 
 from ase.formula import Formula
 from ase.geometry import find_mic
-from ase.neb import NEB, NEBTools
+from ase.mep import NEBTools
 
 
 def convert_index_to_formula(atoms, group_indices: List[List[int]]):
