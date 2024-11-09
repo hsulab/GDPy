@@ -260,13 +260,15 @@ class VaspStringReactor(AbstractStringReactor):
         # TODO: energy and forces of IS and FS?
         calc = SinglePointCalculator(
             ini_atoms,
-            energy=ini_atoms.info["energy"],
+            # energy=ini_atoms.info["energy"],
+            energy=ini_atoms.get_potential_energy(),
             forces=np.zeros((len(ini_atoms), 3)),
         )
         ini_atoms.calc = calc
         calc = SinglePointCalculator(
             fin_atoms,
-            energy=fin_atoms.info["energy"],
+            # energy=fin_atoms.info["energy"],
+            energy=fin_atoms.get_potential_energy(),
             forces=np.zeros((len(fin_atoms), 3)),
         )
         fin_atoms.calc = calc
