@@ -340,6 +340,7 @@ class AbstractStringReactor(AbstractReactor):
             plot_mep(self.directory, traj_frames[-1])
 
             curr_band = traj_frames[-1]
+            write(self.directory/"last_band.xyz", curr_band)
 
             rxn_coords = compute_rxn_coords(curr_band)
 
