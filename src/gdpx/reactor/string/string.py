@@ -264,7 +264,9 @@ class AbstractStringReactor(AbstractReactor):
 
             # TODO: We only support one constraint (FixAtoms) for NEB now.
             assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == 1
-            assert np.all(ini_atoms.constraints[0].index == fin_atoms.constraints[0].index)
+            sorted_constrained_indices_ini = np.array(sorted(ini_atoms.constraints[0].index))
+            sorted_constrained_indices_fin = np.array(sorted(fin_atoms.constraints[0].index))
+            assert np.all(sorted_constrained_indices_ini == sorted_constrained_indices_fin), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
 
             # - 
             use_mic = self.setting.interpolation.get("mic", True)
