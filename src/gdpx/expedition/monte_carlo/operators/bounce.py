@@ -50,7 +50,7 @@ class BounceOperator(AbstractOperator):
         assert len(species_indices) == 1
 
         self._extra_info = (
-            f"Bounce_{atoms[species_indices].get_chemical_formula()}_{species_indices}"
+            f"Bounce({self.direction})_{atoms[species_indices].get_chemical_formula()}_{species_indices}"
         )
 
         # get neighbour list
