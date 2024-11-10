@@ -18,5 +18,8 @@ from ..worker.grid import GridDriverBasedWorker
 from ..worker.interface import ComputerVariable
 from ..worker.single import SingleWorker
 
+from ..geometry.bounce import bounce_one_atom
+
+
 if __name__ == "__main__":
     ...
