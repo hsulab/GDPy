@@ -10,6 +10,7 @@ from ase import data, units
 
 from .. import convert_string_to_atoms
 from .move import MoveOperator
+from .bounce import BounceOperator
 from .swap import SwapOperator
 from .exchange import ExchangeOperator
 from .react import ReactOperator
@@ -48,6 +49,8 @@ def parse_operators(op_params: dict):
         prob = param.get("prob", 1.0)
         if name == "move":
             op = MoveOperator(**param)
+        elif name == "bounce":
+            op = BounceOperator(**param)
         elif name == "swap":
             op = SwapOperator(**param)
         elif name == "exchange":
