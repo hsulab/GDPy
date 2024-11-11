@@ -98,7 +98,22 @@ def create_a_molecule_group(atoms: Atoms, group_command: str, use_tags=True) -> 
     return groups
 
 
-def create_a_group(atoms: Atoms, group_command: str) -> List[int]:
+def create_a_group(atoms: Atoms, group_command: Union[str, List[int]]) -> List[int]:
+    """"""
+    if isinstance(group_command, str):
+        if "&&" in group_command:
+            group_commands_ = [c.strip() for c in group_command.split("&&")]
+            group_indices = create_an_intersect_group(atoms, group_commands_)
+        else:  # assume there is only one command
+            group_indices = create_a_group_by_a_command(atoms, group_command)
+    else: # indices fro compatibility
+        assert isinstance(group_command, list), "group command is not a list of int."
+        group_indices = create_a_group_by_a_command(atoms, group_command)
+
+    return group_indices
+
+
+def create_a_group_by_a_command(atoms: Atoms, group_command: Union[str, List[int]]) -> List[int]:
     """Create a group of atoms from a structure based on rules.
 
     Args:
@@ -157,15 +172,14 @@ def create_an_intersect_group(atoms, group_commands: List[str]) -> List[int]:
     """Create an intersect group of atoms based on commands.
     """
     # - init group from the first command
-    group_indices = create_a_group(atoms, group_commands[0])
+    group_indices = create_a_group_by_a_command(atoms, group_commands[0])
 
     # - intersect by other commands if have any
     for group_command in group_commands[1:]:
-        cur_indices = create_a_group(atoms, group_command)
+        cur_indices = create_a_group_by_a_command(atoms, group_command)
         # TODO: use data type set?
         temp_indices = [i for i in cur_indices if i in group_indices]
         group_indices = temp_indices
-        ...
 
     return group_indices
 

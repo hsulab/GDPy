@@ -120,6 +120,8 @@ class CoordinationComparator(AbstractComparator):
         for group_a, group_b, r_cut, nn, mm in pair_info:
             indices_a = create_a_group(atoms, group_a)
             indices_b = create_a_group(atoms, group_b)
+            # print(f"{indices_a =}  {len(indices_a) =}")
+            # print(f"{indices_b =}  {len(indices_b) =}")
             #curr_coordination = compute_coorditaion_number(
             #    atoms.positions, indices_a, indices_b, r_cut, nn, mm
             #)
