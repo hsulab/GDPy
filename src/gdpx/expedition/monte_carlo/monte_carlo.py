@@ -79,6 +79,7 @@ class MonteCarlo(AbstractExpedition):
         random_seed=None,
         dump_period: int = 1,
         ckpt_period: int = 100,
+        ignore_atoms_tags: bool = True,
         restart: bool = False,
         directory="./",
         *args,
@@ -87,7 +88,7 @@ class MonteCarlo(AbstractExpedition):
         """Parameters for Monte Carlo.
 
         Args:
-            overwrite: Whether overwrite calculation directory.
+            ignore_atoms_tags: Whether ignore tags in atoms and set them by chemical symbols.
 
         """
         super().__init__(
@@ -97,6 +98,9 @@ class MonteCarlo(AbstractExpedition):
 
         self.dump_period = dump_period
         self.ckpt_period = ckpt_period
+
+        self.ignore_atoms_tags = ignore_atoms_tags
+
         self.restart = restart
 
         # - check system type
@@ -127,7 +131,7 @@ class MonteCarlo(AbstractExpedition):
             # - prepare atoms
             self._print("===== MonteCarlo Structure =====\n")
             tags = self.atoms.arrays.get("tags", None)
-            if tags is None:
+            if self.ignore_atoms_tags or tags is None:
                 # default is setting tags by elements
                 symbols = self.atoms.get_chemical_symbols()
                 type_list = sorted(list(set(symbols)))
