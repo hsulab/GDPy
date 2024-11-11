@@ -121,6 +121,10 @@ class select(Operation):
         super().forward()
         selector.directory = self.directory
 
+        structures = AtomsNDArray(structures)
+        self._print(f"{structures = }")
+        self._print(f"{type(structures) = }")
+
         # Sometimes we perform selections in parallel, thus,
         # we can ignore previous selections (markers).
         if self.ignore_previous_selections:

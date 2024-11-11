@@ -101,6 +101,7 @@ class AtomsNDArray:
         if isinstance(data, list):
             data = data
         elif isinstance(data, AtomsNDArray):
+            markers = data.markers  # overwrite input markers
             data = data.tolist()
         else:
             raise ValueError(
