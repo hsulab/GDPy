@@ -818,7 +818,7 @@ class Lammps(FileIOCalculator):
         read_restart=None,
         units="metal",
         atom_style="atomic",
-        processors="* * 1",
+        processors=None,
         # boundary = "p p p",
         newton=None,
         pair_style=None,
