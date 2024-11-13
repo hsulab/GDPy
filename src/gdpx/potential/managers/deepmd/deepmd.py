@@ -503,11 +503,13 @@ class DeepmdManager(AbstractPotentialManager):
 
     name = "deepmd"
 
-    implemented_backends = ["ase", "lammps"]
+    implemented_backends = ["ase", "jax", "lammps"]
 
     valid_combinations = (
         # calculator, dynamics
         ("ase", "ase"),
+        ("jax", "ase"),
+        ("jax", "jax"),
         ("lammps", "ase"),
         ("lammps", "lammps"),
     )
@@ -580,6 +582,15 @@ class DeepmdManager(AbstractPotentialManager):
                     calc = calcs[0]
             else:
                 ...
+        elif self.calc_backend == "jax":
+            try:
+                from .dpjax import DPJax
+            except:
+                raise ModuleNotFoundError(
+                    "Please install deepmd-jax to use the jax interface."
+                )
+            # TODO: only support one model...
+            calc = DPJax(model=models[0], type_map=type_map, head=calc_params.get("head", "default"))
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
 
