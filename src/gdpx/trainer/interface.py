@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import copy
 import pathlib
 import re
 
 import yaml
+import omegaconf
 
 from ..core.variable import Variable, DummyVariable
 from ..core.operation import Operation
@@ -78,6 +81,20 @@ class train(Operation):
         self._auto_submit = auto_submit
 
         return
+
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        dataset, trainer, scheduler, potter = input_nodes
+
+        if isinstance(scheduler, Variable):
+            scheduler = scheduler
+        elif isinstance(scheduler, dict) or isinstance(scheduler, omegaconf.DictConfig):
+            scheduler_params = copy.deepcopy(scheduler)
+            scheduler = SchedulerVariable(directory=self.directory, **scheduler_params)
+        else:
+            raise RuntimeError(f"Unknown {scheduler} for the scheduler.")
+
+        return dataset, trainer, scheduler, potter
 
     def forward(
         self,
