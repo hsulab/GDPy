@@ -29,6 +29,7 @@ from ..scheduler.scheduler import AbstractScheduler
 from ..utils.command import CustomTimer
 from .utils import copy_minimal_frames, get_file_md5
 from .worker import AbstractWorker
+from ..utils.logio import remove_extra_stream_handlers
 
 """Monitor computation tasks with Worker.
 
@@ -845,6 +846,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                 self.driver.setting.machine_prefix = machine_prefix
             if not self._share_wdir:
                 for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
+                    remove_extra_stream_handlers()
                     self.driver.directory = self.directory / wdir
                     prev_random_seed = self.driver.random_seed
                     self.driver.set_rng(seed=rs)
