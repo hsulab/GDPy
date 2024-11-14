@@ -3,13 +3,14 @@
 
 import copy
 import itertools
-from typing import List
+from typing import Optional, List
 
 import numpy as np
 
 import ase
 from ase import Atoms
 from ase.io import read, write
+from ase.geometry import find_mic
 from ase.ga.utilities import closest_distances_generator, atoms_too_close
 
 from .builder import StructureModifier
@@ -32,8 +33,8 @@ class PackerBuilder(StructureModifier):
     MAX_TIMES_SIZE: int = 10
 
     def __init__(
-        self, substrates=None, numbers: List[int]=None, box=np.eye(3)*20., 
-        covalent_ratio=[1.0, 2.0], intermoleculer_distance=[-np.inf, np.inf],
+        self, substrates=None, numbers: Optional[List[int]]=None, box=np.eye(3)*20., 
+        pbc: bool=True, covalent_ratio=[1.0, 2.0], intermolecular_distance=[-np.inf, np.inf],
         *args, **kwargs
     ):
         """"""
@@ -43,14 +44,15 @@ class PackerBuilder(StructureModifier):
         self.numbers = numbers
 
         # TODO: replace this with Region
-        self.box = box
+        self.box = np.array(box)
+        self.pbc = pbc
 
         # distance restraints
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
-        self.intermol_min = intermoleculer_distance[0]
-        self.intermol_max = intermoleculer_distance[1]
+        self.intermol_min = intermolecular_distance[0]
+        self.intermol_max = intermolecular_distance[1]
 
         return
     
@@ -119,10 +121,10 @@ class PackerBuilder(StructureModifier):
             curr_cops = np.dot(self.rng.random((n_molecules,3)), box)
             # -- check intermolecular distances
             pairs = itertools.combinations(curr_cops, 2)
-            pair_distances = np.array(
-                [*itertools.starmap(lambda p1, p2: np.linalg.norm(p1-p2), pairs)]
+            pair_vectors = np.array(
+                [*itertools.starmap(lambda p1, p2: p1-p2, pairs)]
             )
-            #print(pair_distances)
+            pair_vectors, pair_distances = find_mic(pair_vectors, box, pbc=self.pbc)
             if np.any(pair_distances > self.intermol_max) or np.any(pair_distances < self.intermol_min):
                 continue
             # -- translate molecules
@@ -149,6 +151,8 @@ class PackerBuilder(StructureModifier):
         # - centre the atoms
         if packed_structure is not None:
             self._translate(packed_structure, np.sum(box/2., axis=0))
+
+        packed_structure.set_pbc(self.pbc)
 
         return packed_structure
     
