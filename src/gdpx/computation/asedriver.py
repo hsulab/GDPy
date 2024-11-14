@@ -88,7 +88,7 @@ def save_trajectory(atoms, traj_fpath) -> None:
     If only energy is required, there are no forces.
 
     """
-    # - save atoms
+    # save atoms
     atoms_to_save = Atoms(
         symbols=atoms.get_chemical_symbols(),
         positions=atoms.get_positions().copy(),
@@ -99,15 +99,21 @@ def save_trajectory(atoms, traj_fpath) -> None:
         atoms_to_save.set_tags(atoms.get_tags())
     if atoms.get_kinetic_energy() > 0.0:
         atoms_to_save.set_momenta(atoms.get_momenta())
+
     results = dict(
         energy=atoms.get_potential_energy(), forces=copy.deepcopy(atoms.get_forces())
     )
     try:
         results.update(stress=atoms.get_stress())
     except:
-        ...  # Some calculators may not have stress data.
+        # Some calculators may not have stress data.
+        # Also, some calcs also give stress when input atoms have pbc.
+        # If a mixer calc is used and one of its calcs do not have stress,
+        # the entire save_trajectory failed.
+        # Maybe we should tell this function only cmin must have stress info.
+        ...  
 
-    spc = SinglePointCalculator(atoms, **results)
+    spc = SinglePointCalculator(atoms_to_save, **results)
     atoms_to_save.calc = spc
 
     # - save atoms info...
@@ -116,7 +122,7 @@ def save_trajectory(atoms, traj_fpath) -> None:
         atoms_to_save.info[EARLYSTOP_KEY] = atoms.info[EARLYSTOP_KEY]
 
     # - save special keys and arrays from calc
-    natoms = len(atoms)
+    num_atoms = len(atoms)
 
     # -- add deviation
     for k, v in atoms.calc.results.items():
@@ -124,7 +130,7 @@ def save_trajectory(atoms, traj_fpath) -> None:
             atoms_to_save.info[k] = v
     for k, v in atoms.calc.results.items():
         if k in GDPCONFIG.VALID_DEVI_ATOMIC_KEYS:
-            atoms_to_save.arrays[k] = np.reshape(v, (natoms, -1))
+            atoms_to_save.arrays[k] = np.reshape(v, (num_atoms, -1))
     # print(f"keys: {atoms.calc.results.keys()}")
 
     # -- check special metadata
