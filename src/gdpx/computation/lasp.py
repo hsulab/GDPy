@@ -3,17 +3,14 @@
 
 import io
 import os
-import copy
 import dataclasses
-import time
-import shutil
 import warnings
 import pathlib
 import tarfile
 import tempfile
 import traceback
 from pathlib import Path
-from typing import List, Tuple
+from typing import Optional, List
 
 import numpy as np
 
@@ -35,6 +32,7 @@ Output files by LASP NVE-MD are
 
 """
 
+
 def is_number(s):
     """"""
     try:
@@ -44,6 +42,7 @@ def is_number(s):
         ...
 
     return False
+
 
 def compare_trajectory_continuity(t0, t1):
     """Compare positions."""
@@ -55,19 +54,21 @@ def compare_trajectory_continuity(t0, t1):
     # Due to the floating point precision, arc -> atoms may lead to
     # position inconsistent after 8 decimals...
     return np.allclose(
-        curr_vectors, np.zeros(curr_vectors.shape), 
-        #rtol=1e-05, atol=1e-08, equal_nan=False
-        rtol=1e-04, atol=1e-06, equal_nan=False
+        curr_vectors,
+        np.zeros(curr_vectors.shape),
+        # rtol=1e-05, atol=1e-08, equal_nan=False
+        rtol=1e-04,
+        atol=1e-06,
+        equal_nan=False,
     )
 
 
 class LaspEnergyError(Exception):
-    """Error due to the failure of LASP energy.
-
-    """
+    """Error due to the failure of LASP energy."""
 
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
+
 
 def read_laspset(train_structures):
     """Read LASP TrainStr.txt and TrainFor.txt files."""
@@ -90,7 +91,7 @@ def read_laspset(train_structures):
                 line = fopen.readline()
                 natoms = int(line.strip().split()[-1])
                 # skip 5 lines, symbol info and training weights
-                #skipped_lines = [fopen.readline() for i in range(5)]
+                # skipped_lines = [fopen.readline() for i in range(5)]
                 # - cell
                 cell = []
                 for _ in range(1000):
@@ -109,13 +110,15 @@ def read_laspset(train_structures):
                     anumbers.append(int(data[0]))
                     positions.append([float(x) for x in data[1:4]])
                     charges.append(float(data[-1]))
-                atoms = Atoms(numbers=anumbers, positions=positions, cell=cell, pbc=True)
+                atoms = Atoms(
+                    numbers=anumbers, positions=positions, cell=cell, pbc=True
+                )
                 assert fopen.readline().strip().startswith("End one structure")
                 frames.append(atoms)
-                #break
+                # break
             if not line:
                 break
-    
+
     # - TrainFor.txt
     train_forces = train_structures.parent / "TrainFor.txt"
     with open(train_forces, "r") as fopen:
@@ -137,10 +140,10 @@ def read_laspset(train_structures):
                         assert line.strip().startswith("End one structure")
                         break
                     line = fopen.readline()
-                #break
+                # break
             if not line:
                 break
-    
+
     for i, atoms in enumerate(frames):
         calc = SinglePointCalculator(
             atoms, energy=all_energies[i], forces=all_forces[i]
@@ -150,42 +153,52 @@ def read_laspset(train_structures):
 
     return frames
 
+
 def read_lasp_structures(
-        mdir: pathlib.Path, wdir: pathlib.Path, archive_path: pathlib.Path=None, 
-        *args, **kwargs
-    ) -> List[Atoms]:
+    mdir: pathlib.Path,
+    wdir: pathlib.Path,
+    archive_path: pathlib.Path = None,
+    *args,
+    **kwargs,
+) -> List[Atoms]:
     """Read simulation trajectory."""
     wdir = pathlib.Path(wdir)
 
     # - check if output file exists...
-    if (not (wdir/"allstr.arc").exists()) and archive_path is None:
+    if (not (wdir / "allstr.arc").exists()) and archive_path is None:
         return []
 
     # - get IO
     if archive_path is None:
-        with open(wdir/"allstr.arc", "r") as fopen:
+        with open(wdir / "allstr.arc", "r") as fopen:
             stru_io = io.StringIO(fopen.read())
-        afrc_io = open(wdir/"allfor.arc", "r") # atomic forces in arc format
-        lout_io = open(wdir/"lasp.out", "r")
+        afrc_io = open(wdir / "allfor.arc", "r")  # atomic forces in arc format
+        lout_io = open(wdir / "lasp.out", "r")
     else:
         rpath = wdir.relative_to(mdir.parent)
-        stru_tarname = str(rpath/"allstr.arc")
-        afrc_tarname = str(rpath/"allfor.arc")
-        lout_tarname = str(rpath/"lasp.out")
+        stru_tarname = str(rpath / "allstr.arc")
+        afrc_tarname = str(rpath / "allfor.arc")
+        lout_tarname = str(rpath / "lasp.out")
         with tarfile.open(archive_path, "r:gz") as tar:
             for tarinfo in tar:
                 if tarinfo.name.startswith(wdir.name):
                     if tarinfo.name == stru_tarname:
-                        stru_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        stru_io = io.StringIO(
+                            tar.extractfile(tarinfo.name).read().decode()
+                        )
                     elif tarinfo.name == afrc_tarname:
-                        afrc_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        afrc_io = io.StringIO(
+                            tar.extractfile(tarinfo.name).read().decode()
+                        )
                     elif tarinfo.name == lout_tarname:
-                        lout_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        lout_io = io.StringIO(
+                            tar.extractfile(tarinfo.name).read().decode()
+                        )
                     else:
                         ...
                 else:
                     ...
-            else: # TODO: if not find target traj?
+            else:  # TODO: if not find target traj?
                 ...
 
     # - parse data
@@ -216,7 +229,9 @@ def read_lasp_structures(
                 energy = float(energy_data)
             except ValueError:
                 energy = np.inf
-                msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(wdir)
+                msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(
+                    wdir
+                )
                 warnings.warn(msg, UserWarning)
             traj_energies.append(energy)
             # stress
@@ -229,7 +244,7 @@ def read_lasp_structures(
             for j in range(natoms):
                 line = afrc_io.readline()
                 force_data = line.strip().split()
-                if len(force_data) == 3: # expect three numbers
+                if len(force_data) == 3:  # expect three numbers
                     force_data_ = []
                     for x in force_data:
                         if not is_number(x):
@@ -237,22 +252,21 @@ def read_lasp_structures(
                         else:
                             force_data_.append(float(x))
                     force_data = force_data_
-                else: # too large forces make out become ******
-                    force_data = [np.inf]*3
+                else:  # too large forces make out become ******
+                    force_data = [np.inf] * 3
                 forces.append(force_data)
             forces = np.array(forces, dtype=float)
             traj_forces.append(forces)
         if line.strip() == "":
             pass
-        if not line: # if line == "":
+        if not line:  # if line == "":
             break
     assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
-    
+
     # - create traj
     for i, atoms in enumerate(traj_frames):
         calc = SinglePointCalculator(
-            atoms, energy=traj_energies[i], forces=traj_forces[i],
-            stress=traj_stress[i]
+            atoms, energy=traj_energies[i], forces=traj_forces[i], stress=traj_stress[i]
         )
         atoms.calc = calc
 
@@ -275,13 +289,21 @@ def read_lasp_structures(
 
     return traj_frames
 
+
 @dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
 
-    # MD ensemble.
+    #: MD ensemble.
     ensemble: str = "nve"
 
-    smax: float = 0.10 # GPa
+    #: Temperature damping factor.
+    Tdamp: float = 100.0  # fs
+
+    #: Pressure damping factor.
+    Pdamp: float = 100.0  # fs
+
+    #: Stress tolerance in minimisation.
+    smax: Optional[float] = 0.10  # GPa
 
     def __post_init__(self):
         """"""
@@ -289,8 +311,8 @@ class LaspDriverSetting(DriverSetting):
             self._internals.update(
                 **{
                     "explore_type": "ssw",
-                    "SSW.SSWsteps": 1, # BFGS
-                    "SSW.ftol": self.fmax
+                    "SSW.SSWsteps": 1,  # BFGS
+                    "SSW.ftol": self.fmax,
                 }
             )
             assert self.dump_period == 1, "LaspDriver/min must have dump_period ==1."
@@ -299,7 +321,7 @@ class LaspDriverSetting(DriverSetting):
                 **{
                     "explore_type": "ssw",
                     "Run_Type": 15,
-                    "SSW.SSWsteps": 1, # BFGS
+                    "SSW.SSWsteps": 1,  # BFGS
                     "SSW.ftol": self.fmax,
                     "SSW.strtol": self.smax,  # GPa
                 }
@@ -324,7 +346,7 @@ class LaspDriverSetting(DriverSetting):
             raise RuntimeError(f"Unknown task `{self.task}` for LaspDriver.")
 
         return
-    
+
     def get_run_params(self, *args, **kwargs):
         """"""
         steps_ = kwargs.get("steps", self.steps)
@@ -333,36 +355,29 @@ class LaspDriverSetting(DriverSetting):
 
         run_params = {
             "constraint": kwargs.get("constraint", self.constraint),
-            "SSW.MaxOptstep": steps_
+            "SSW.MaxOptstep": steps_,
         }
 
         if self.task == "min":
-            run_params.update(
-                **{
-                    "SSW.ftol": fmax_,
-                    "SSW.strtol": smax_
-                }
-            )
-        
+            run_params.update(**{"SSW.ftol": fmax_, "SSW.strtol": smax_})
+
         if self.task == "md":
             timestep = self._internals["MD.dt"]
             run_params.update(
                 **{
-                    "MD.ttotal": timestep*steps_,
-                    "MD.print_freq": self.dump_period*timestep, # freq has unit fs
-                    "MD.print_strfreq": self.dump_period*timestep
+                    "MD.ttotal": timestep * steps_,
+                    "MD.print_freq": self.dump_period * timestep,  # freq has unit fs
+                    "MD.print_strfreq": self.dump_period * timestep,
                 }
             )
 
         # - add extra parameters
-        run_params.update(
-            **kwargs
-        )
+        run_params.update(**kwargs)
 
         return run_params
 
-class LaspDriver(AbstractDriver):
 
+class LaspDriver(AbstractDriver):
     """Driver for LASP."""
 
     name = "lasp"
@@ -381,13 +396,13 @@ class LaspDriver(AbstractDriver):
         self.setting = LaspDriverSetting(**params)
 
         return
-    
+
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """"""
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
             laspstr = self.directory / "allstr.arc"
-            if (laspstr.exists() and laspstr.stat().st_size != 0):
+            if laspstr.exists() and laspstr.stat().st_size != 0:
                 verified = True
             else:
                 verified = False
@@ -396,10 +411,17 @@ class LaspDriver(AbstractDriver):
 
         return verified
 
-    def _irun(self, atoms: Atoms, ckpt_wdir=None, cache_traj: List[Atoms]=None, *args, **kwargs) -> None:
+    def _irun(
+        self,
+        atoms: Atoms,
+        ckpt_wdir=None,
+        cache_traj: List[Atoms] = None,
+        *args,
+        **kwargs,
+    ) -> None:
         """"""
         try:
-            if ckpt_wdir is None: # start from the scratch
+            if ckpt_wdir is None:  # start from the scratch
                 # - init params
                 run_params = self.setting.get_init_params()
                 run_params.update(**self.setting.get_run_params(**kwargs))
@@ -421,7 +443,7 @@ class LaspDriver(AbstractDriver):
                 target_steps = self.setting.steps
                 dump_period = self.setting.dump_period
                 if target_steps > 0:
-                    steps = target_steps + dump_period - nframes*dump_period
+                    steps = target_steps + dump_period - nframes * dump_period
                 assert steps > 0, "Steps should be greater than 0."
                 run_params = self.setting.get_init_params()
                 run_params.update(**self.setting.get_run_params(steps=steps))
@@ -436,18 +458,24 @@ class LaspDriver(AbstractDriver):
             self._debug(traceback.print_exc())
 
         return
-    
+
     def read_force_convergence(self, *args, **kwargs) -> bool:
         """"""
         return self.calc._is_converged()
-    
-    def _read_a_single_trajectory(self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs) -> List[Atoms]:
+
+    def _read_a_single_trajectory(
+        self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs
+    ) -> List[Atoms]:
         """"""
-        curr_frames = read_lasp_structures(self.directory, wdir, archive_path=archive_path)
+        curr_frames = read_lasp_structures(
+            self.directory, wdir, archive_path=archive_path
+        )
 
         return curr_frames
-    
-    def read_trajectory(self, archive_path: pathlib.Path=None, *args, **kwargs) -> List[Atoms]:
+
+    def read_trajectory(
+        self, archive_path: pathlib.Path = None, *args, **kwargs
+    ) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
@@ -456,7 +484,7 @@ class LaspDriver(AbstractDriver):
         for w in prev_wdirs:
             curr_frames = self._read_a_single_trajectory(w, archive_path)
             traj_list.append(curr_frames)
-        
+
         # Even though arc file may be empty, the read can give a empty list...
         laspstr = self.directory / "allstr.arc"
         traj_list.append(self._read_a_single_trajectory(self.directory, archive_path))
@@ -466,21 +494,23 @@ class LaspDriver(AbstractDriver):
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
-                if traj_list[i]: # check if the traj is a empty list
-                    #assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
-                    assert compare_trajectory_continuity(traj_list[i-1], traj_list[i]), f"Traj {i-1} and traj {i} are not consecutive."
+                if traj_list[i]:  # check if the traj is a empty list
+                    # assert np.allclose(traj_list[i-1][-1].positions, traj_list[i][0].positions), f"Traj {i-1} and traj {i} are not consecutive."
+                    assert compare_trajectory_continuity(
+                        traj_list[i - 1], traj_list[i]
+                    ), f"Traj {i-1} and traj {i} are not consecutive."
                     traj_frames.extend(traj_list[i][1:])
                 else:
                     ...
         else:
             ...
-        
+
         nframes = len(traj_frames)
         self._debug(f"LASP read_trajectory nframes: {nframes}")
 
         # NOTE: LASP only save step info in MD simulations...
         for i in range(nframes):
-            traj_frames[i].info["step"] = i*self.setting.dump_period
+            traj_frames[i].info["step"] = i * self.setting.dump_period
 
         return traj_frames
 
@@ -501,32 +531,32 @@ class LaspNN(FileIOCalculator):
         # built-in parameters
         "potential": "NN",
         # - general settings
-        "explore_type": "ssw", # ssw, nve nvt npt rigidssw train
+        "explore_type": "ssw",  # ssw, nve nvt npt rigidssw train
         "Run_Type": 5,  # 5 fixed-cell, 15 variable-cell
         "Ranseed": None,
         # - ssw
         "SSW.internal_LJ": True,
-        "SSW.ftol": 0.05, # fmax
-        "SSW.strtol": 0.10, # smax
-        "SSW.SSWsteps": 0, # 0 sp 1 opt >1 ssw search
+        "SSW.ftol": 0.05,  # fmax
+        "SSW.strtol": 0.10,  # smax
+        "SSW.SSWsteps": 0,  # 0 sp 1 opt >1 ssw search
         "SSW.Bfgs_maxstepsize": 0.2,
-        "SSW.MaxOptstep": 0, # lasp default 300
+        "SSW.MaxOptstep": 0,  # lasp default 300
         "SSW.output": "T",
         "SSW.printevery": "T",
         # md
-        "MD.dt": 1.0, # fs
-        "MD.ttotal": 0, 
+        "MD.dt": 1.0,  # fs
+        "MD.ttotal": 0,
         "MD.initial_T": None,
         "MD.equit": 0,
-        "MD.target_T": 300, # K
-        "MD.nhmass": 1000, # eV*fs**2
-        "MD.target_P": 300, # 1 bar = 1e-4 GPa
-        "MD.prmass": 1000, # eV*fs**2
+        "MD.target_T": 300,  # K
+        "MD.nhmass": 1000,  # eV*fs**2
+        "MD.target_P": 300,  # 1 bar = 1e-4 GPa
+        "MD.prmass": 1000,  # eV*fs**2
         "MD.realmass": ".true.",
         "MD.print_freq": 10,
         "MD.print_strfreq": 10,
         # calculator-related
-        "constraint": None, # str, lammps-like notation
+        "constraint": None,  # str, lammps-like notation
     }
 
     def __init__(self, *args, label="LASP", **kwargs):
@@ -545,13 +575,13 @@ class LaspNN(FileIOCalculator):
         self.set(pot=pot_)
 
         return
-    
+
     def calculate(self, *args, **kwargs):
         """Perform the calculation."""
         FileIOCalculator.calculate(self, *args, **kwargs)
 
         return
-    
+
     def write_input(self, atoms, properties=None, system_changes=None):
         """Write LASP inputs."""
         # create calc dir
@@ -559,17 +589,21 @@ class LaspNN(FileIOCalculator):
 
         # structure
         write(
-            os.path.join(self.directory, "lasp.str"), atoms, format="dmol-arc",
-            parallel=False
+            os.path.join(self.directory, "lasp.str"),
+            atoms,
+            format="dmol-arc",
+            parallel=False,
         )
 
         # check symbols and corresponding potential file
-        atomic_types = set(self.atoms.get_chemical_symbols()) # TODO: sort by 
+        atomic_types = set(self.atoms.get_chemical_symbols())  # TODO: sort by
 
         # - potential choice
         # NOTE: only for LaspNN now
-        content  = "potential {}\n".format(self.parameters["potential"])
-        assert self.parameters["potential"] == "NN", "Lasp calculator only support NN now."
+        content = "potential {}\n".format(self.parameters["potential"])
+        assert (
+            self.parameters["potential"] == "NN"
+        ), "Lasp calculator only support NN now."
 
         content += "%block netinfo\n"
         for atype in atomic_types:
@@ -577,8 +611,8 @@ class LaspNN(FileIOCalculator):
             pot_path = Path(self.parameters["pot"][atype]).resolve()
             content += "  {:<4s} {:s}\n".format(atype, pot_path.name)
             # creat potential link
-            pot_link = Path(os.path.join(self.directory,pot_path.name))
-            if not pot_link.is_symlink(): # false if not exists
+            pot_link = Path(os.path.join(self.directory, pot_path.name))
+            if not pot_link.is_symlink():  # false if not exists
                 pot_link.symlink_to(pot_path)
         content += "%endblock netinfo\n"
 
@@ -597,11 +631,11 @@ class LaspNN(FileIOCalculator):
                     s, e = info[0], info[0]
                 content += "  {} {} xyz\n".format(s, e)
             content += "%endblock fixatom\n"
-        
+
         # - general settings
         seed = self.parameters["Ranseed"]
         if seed is None:
-            seed = np.random.randint(1,10000)
+            seed = np.random.randint(1, 10000)
         content += "{}  {}".format("Ranseed", seed)
 
         # - simulation task
@@ -614,21 +648,24 @@ class LaspNN(FileIOCalculator):
                     content += "{}  {}\n".format(key, value)
         elif explore_type in ["nve", "nvt", "npt"]:
             required_keys = [
-                "MD.dt", "MD.ttotal", "MD.realmass", 
-                "MD.print_freq", "MD.print_strfreq"
+                "MD.dt",
+                "MD.ttotal",
+                "MD.realmass",
+                "MD.print_freq",
+                "MD.print_strfreq",
             ]
             if explore_type == "nvt":
                 required_keys.extend(["MD.initial_T", "MD.target_T", "MD.equit"])
             if explore_type == "npt":
                 required_keys.extend(["MD.target_P"])
-            
+
             self.parameters["MD.ttotal"] = (
                 self.parameters["MD.dt"] * self.parameters["SSW.MaxOptstep"]
             )
 
             for k, v in self.parameters.items():
                 if k == "MD.target_P":
-                    v *= 1e4 # from bar to GPa
+                    v *= 1e4  # from bar to GPa
                 if k in required_keys:
                     content += "{}  {}\n".format(k, v)
         else:
@@ -639,7 +676,7 @@ class LaspNN(FileIOCalculator):
             fopen.write(content)
 
         return
-    
+
     def read_results(self):
         """Read LASP results."""
         # have to read last structure
@@ -652,18 +689,21 @@ class LaspNN(FileIOCalculator):
         self.results["forces"] = forces
 
         return
-    
+
     def _is_converged(self) -> bool:
         """Check whether LASP simulation is converged."""
         converged = False
-        lasp_out = Path(os.path.join(self.directory, "lasp.out" ))
+        lasp_out = Path(os.path.join(self.directory, "lasp.out"))
         if lasp_out.exists():
             with open(lasp_out, "r") as fopen:
                 lines = fopen.readlines()
-            if (# NOTE: its a typo in LASP!!
-                lines[-1].strip().startswith("elapse_time") or # v3.3.4
-                lines[-1].strip().startswith("Elapse_time")    # v3.4.5
-            ):
+            if lines[-1].strip().startswith(  # NOTE: its a typo in LASP!!
+                "elapse_time"
+            ) or lines[  # v3.3.4
+                -1
+            ].strip().startswith(
+                "Elapse_time"
+            ):  # v3.4.5
                 converged = True
 
         return converged
