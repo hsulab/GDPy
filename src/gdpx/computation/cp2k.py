@@ -16,6 +16,7 @@ from ..backend.cp2k import (
     read_cp2k_convergence,
     read_cp2k_outputs,
     read_cp2k_spc,
+    read_cp2k_spc_convergence
 )
 from ..builder.constraints import parse_constraint_info
 from ..data.extatoms import ScfErrAtoms
@@ -369,10 +370,13 @@ class Cp2kDriver(AbstractDriver):
         """"""
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
-            checkpoints = list(self.directory.glob("*.restart"))
-            self._debug(f"checkpoints: {checkpoints}")
-            if not checkpoints:
-                verified = False
+            if self.setting.task == "spc":
+                verified = read_cp2k_spc_convergence(self.directory/"cp2k.out")
+            else:
+                checkpoints = list(self.directory.glob("*.restart"))
+                self._debug(f"checkpoints: {checkpoints}")
+                if not checkpoints:
+                    verified = False
         else:
             ...
 

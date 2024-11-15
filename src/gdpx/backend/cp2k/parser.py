@@ -253,6 +253,22 @@ def read_cp2k_convergence(out_fpath: pathlib.Path) -> bool:
 
     return converged
 
+CP2K_PROGRAM_END_FLAG: str = "PROGRAM ENDED AT"
+
+def read_cp2k_spc_convergence(out_fpath: pathlib.Path) -> bool:
+    """"""
+    converged = False
+    with open(out_fpath, "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if not line:
+                break
+            if CP2K_PROGRAM_END_FLAG in line:
+                converged = True
+                break
+
+    return converged
+
 
 if __name__ == "__main__":
     ...
