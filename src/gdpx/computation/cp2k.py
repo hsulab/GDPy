@@ -56,33 +56,153 @@ def read_cp2k_xyz(fpath):
     return frame_symbols, frame_energies, frame_properties
 
 
+INPUT_STRUCTURE_FLAG = ("MODULE", "QUICKSTEP:", "ATOMIC", "COORDINATES", "IN", "angstrom")
+
+def check_input_structure_section(line):
+    """Check the input structures from cp2k.out.
+
+    v2022.1 has one more space before ATOMIC than v2024.1.
+
+    """
+    # data = tuple(line.strip().split())
+
+    return line.strip().startswith("MODULE QUICKSTEP:")
+
+def check_input_pbc_section(line):
+    """"""
+    return (
+        line.strip().startswith("POISSON| Periodicity") or 
+        line.strip().startswith("CELL_TOP| Periodicity")
+    )
+
+
+def read_cp2k_spc(wdir, prefix: str="cp2k"):
+    """"""
+    wdir = pathlib.Path(wdir)
+    with open(wdir/f"{prefix}.out", "r") as fopen:
+        lines = fopen.readlines()
+
+    num_atoms = -1
+    pbc, cell, structure = "", [], []
+    energy, forces = None, []
+    is_coord, is_force = False, False
+    for line in lines:
+        # cell
+        if line.strip().startswith("CELL_TOP| Vector"):
+            cell.append(line)
+        if check_input_pbc_section(line):
+            pbc = line.strip().split()[-1]
+        # num of atoms
+        if line.strip().startswith("- Atoms:"):
+            if num_atoms < 0:
+                num_atoms = int(line.strip().split()[-1])
+            else:
+                raise RuntimeError()
+        # coordinates
+        if check_input_structure_section(line):
+            is_coord = True
+            assert num_atoms > 0
+        if is_coord:
+            if len(structure) < num_atoms + 3:
+                structure.append(line)
+            else:
+                is_coord = False
+        # energy
+        if line.strip().startswith("ENERGY| Total FORCE_EVAL"):
+            energy = float(line.strip().split()[-1])
+        # forces
+        if line.strip().startswith("ATOMIC FORCES in [a.u.]"):
+            is_force = True
+        if line.strip().startswith("SUM OF ATOMIC FORCES"):
+            is_force = False
+        if is_force:
+            forces.append(line)
+    
+    cell = np.array([c.strip().split()[4:7] for c in cell], dtype=np.float64)
+
+    if pbc == "XYZ":
+        pbc = True
+    else:
+        raise RuntimeError()
+
+    coordinates = np.array([c.strip().split()[4:7] for c in structure[3:]], dtype=np.float64)
+    symbols = [c.strip().split()[2] for c in structure[3:]]
+
+    atoms = Atoms(symbols, positions=coordinates, cell=cell, pbc=pbc)  
+
+    energy *= units.Hartree
+    forces = np.array([frc.strip().split()[3:] for frc in forces[3:]], dtype=np.float64)
+    forces *= units.Hartree/units.Bohr
+
+    results = dict(
+        energy=energy,
+        free_energy=energy,
+        forces=forces
+    )
+
+    calc = SinglePointCalculator(atoms, **results)
+    atoms.calc = calc
+
+    return atoms
+
+
+def read_cp2k_energy_force(wdir, prefix: str="cp2k"):
+    """"""
+    wdir = pathlib.Path(wdir)
+    with open(wdir/f"{prefix}.out", "r") as fopen:
+        lines = fopen.readlines()
+
+    "ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]:             `WHAT WE NEED`"
+    " ATOMIC FORCES in [a.u.]"
+
+    energy, forces = None, []
+    is_force = False
+    for line in lines:
+        if line.strip().startswith("ENERGY| Total FORCE_EVAL"):
+            energy = float(line.strip().split()[-1])
+        if line.strip().startswith("ATOMIC FORCES in [a.u.]"):
+            is_force = True
+        if line.strip().startswith("SUM OF ATOMIC FORCES"):
+            is_force = False
+        if is_force:
+            forces.append(line)
+    energy *= units.Hartree
+    forces = np.array([frc.strip().split()[3:] for frc in forces[3:]], dtype=np.float64)
+    forces *= units.Hartree/units.Bohr
+
+    results = dict(
+        energy = energy,
+        free_energy = energy,
+        forces = forces
+    )
+
+    return results
+
+
 def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> List[Atoms]:
     """"""
     wdir = pathlib.Path(wdir)
 
-    # - positions
+    # positions
     pos_fpath = wdir / (prefix + "-pos-1.xyz")
     frame_symbols, frame_energies, frame_positions = read_cp2k_xyz(pos_fpath)
-    # NOTE: cp2k uses a.u. and we use eV
+    # cp2k uses a.u. and we use eV
     frame_energies = np.array(frame_energies, dtype=np.float64)
     frame_energies *= units.Hartree  # 2.72113838565563E+01
-    # NOTE: cp2k uses AA the same as we do
+    # cp2k uses AA the same as we do
     frame_positions = np.array(frame_positions, dtype=np.float64)
-    # frame_positions *= 5.29177208590000E-01
-    # print("shape of positions: ", frame_positions.shape)
 
-    # - forces
+    # forces
     frc_fpath = wdir / (prefix + "-frc-1.xyz")
     _, _, frame_forces = read_cp2k_xyz(frc_fpath)
-    # NOTE: cp2k uses a.u. and we use eV/AA
+    # cp2k uses a.u. and we use eV/AA
     frame_forces = np.array(frame_forces, dtype=np.float64)
     frame_forces *= (
         units.Hartree / units.Bohr
     )  # (2.72113838565563E+01/5.29177208590000E-01)
-    # print("shape of forces: ", frame_forces.shape)
 
     # - simulation box
-    # TODO: parse cell from inp or out
+    # parse cell from inp or out
     box_fpath = wdir / (prefix + "-1.cell")
     with open(box_fpath, "r") as fopen:
         # Step   Time [fs]
@@ -122,11 +242,23 @@ def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> List[Atoms]:
 @dataclasses.dataclass
 class Cp2kDriverSetting(DriverSetting):
 
+    #: Simulation task.
+    task: str = "spc"
+
+    #: Force tolerance.
     fmax: float = 4.5e-4 * (units.Hartree / units.Bohr)
 
     def __post_init__(self):
         """"""
         pairs = []  # key-value pairs that avoid conflicts by same keys
+        if self.task == "spc":
+            pairs.extend(
+                [
+                    ("GLOBAL", "RUN_TYPE ENERGY_FORCE"),
+                    ("FORCE_EVAL/PRINT/FORCES", "_SECTION_PARAMETERS_ ON"),
+                ]
+            )
+
         if self.task == "min":
             # - fmax and steps can be set on-the-fly, see get_run_params
             method = self.min_style.upper()
@@ -142,10 +274,6 @@ class Cp2kDriverSetting(DriverSetting):
                     ),
                 ]
             )
-            # if self.fmax is not None:
-            #    pairs.append(
-            #        ("MOTION/GEO_OPT", f"MAX_FORCE {self.fmax/(units.Hartree/units.Bohr)}")
-            #    )
 
         if self.task == "md":
             # - steps can be set on-the-fly, see get_run_params
@@ -248,21 +376,16 @@ class Cp2kDriver(AbstractDriver):
 
     name = "cp2k"
 
-    default_task = "min"
-    supported_tasks = ["min", "md", "freq"]
+    default_task = "spc"
+    supported_tasks = ["spc", "min", "md", "freq"]
 
     # saved_fnames = [
     #    "cp2k.inp", "cp2k.out", "cp2k-1.cell", "cp2k-pos-1.xyz", "cp2k-frc-1.xyz",
     #    "cp2k-BFGS.Hessian"
     # ]
 
-    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
-        """"""
-        super().__init__(calc, params, directory, *args, **kwargs)
-
-        self.setting = Cp2kDriverSetting(**params)
-
-        return
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = Cp2kDriverSetting
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """"""
@@ -279,99 +402,98 @@ class Cp2kDriver(AbstractDriver):
 
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
-        try:
-            if ckpt_wdir is None:  # start from the scratch
-                run_params = self.setting.get_run_params(**kwargs)
-                run_params.update(**self.setting.get_init_params())
+        if ckpt_wdir is None:  # start from the scratch
+            run_params = self.setting.get_run_params(**kwargs)
+            run_params.update(**self.setting.get_init_params())
 
-                # - update input template
-                # GLOBAL section is automatically created...
-                # FORCE_EVAL.(METHOD, POISSON)
-                inp = self.calc.parameters.inp  # string
-                sec = parse_input(inp)
-                for k, v in run_params["pairs"]:
-                    sec.add_keyword(k, v)
-                for k, v in run_params["run_pairs"]:
-                    sec.add_keyword(k, v)
+            # - update input template
+            # GLOBAL section is automatically created...
+            # FORCE_EVAL.(METHOD, POISSON)
+            inp = self.calc.parameters.inp  # string
+            sec = parse_input(inp)
+            for k, v in run_params["pairs"]:
+                sec.add_keyword(k, v)
+            for k, v in run_params["run_pairs"]:
+                sec.add_keyword(k, v)
 
-                # -- check constraint
-                cons_text = run_params.pop("constraint", None)
-                mobile_indices, frozen_indices = parse_constraint_info(
-                    atoms, cons_text, ret_text=False
-                )
-                # if self.setting.task == "freq" and mobile_indices:
-                #     mobile_indices = sorted(mobile_indices)
-                #     sec.add_keyword(
-                #         "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE",
-                #         f"ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
-                #     )
-                #     sec.add_keyword(
-                #         "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE/INVOLVED_ATOMS",
-                #         f"INVOLVED_ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
-                #     )
-                if frozen_indices:
-                    # atoms._del_constraints()
-                    # atoms.set_constraint(FixAtoms(indices=frozen_indices))
-                    frozen_indices = sorted(frozen_indices)
-                    sec.add_keyword(
-                        "MOTION/CONSTRAINT/FIXED_ATOMS",
-                        "LIST {}".format(
-                            " ".join([str(i + 1) for i in frozen_indices])
-                        ),
-                    )
-            else:
-                with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
-                    inp = "".join(fopen.readlines())
-                sec = parse_input(inp)
-
-                def remove_keyword(section, keywords):
-                    """"""
-                    for kw in keywords:
-                        parts = kw.upper().split("/")
-                        subsection = section.get_subsection("/".join(parts[0:-1]))
-                        new_subkeywords = []
-                        for subkw in subsection.keywords:
-                            if parts[-1] not in subkw:
-                                new_subkeywords.append(subkw)
-                        subsection.keywords = new_subkeywords
-
-                    return
-
-                remove_keyword(
-                    sec,
-                    keywords=[  # avoid conflicts
-                        "GLOBAL/PROJECT",
-                        "GLOBAL/PRINT_LEVEL",
-                        "FORCE_EVAL/METHOD",
-                        "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME",
-                        "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
-                        "FORCE_EVAL/SUBSYS/CELL/PERIODIC",
-                        "FORCE_EVAL/SUBSYS/CELL/A",
-                        "FORCE_EVAL/SUBSYS/CELL/B",
-                        "FORCE_EVAL/SUBSYS/CELL/C",
-                    ],
-                )
-
+            # -- check constraint
+            cons_text = run_params.pop("constraint", None)
+            mobile_indices, frozen_indices = parse_constraint_info(
+                atoms, cons_text, ret_text=False
+            )
+            # if self.setting.task == "freq" and mobile_indices:
+            #     mobile_indices = sorted(mobile_indices)
+            #     sec.add_keyword(
+            #         "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE",
+            #         f"ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
+            #     )
+            #     sec.add_keyword(
+            #         "VIBRATIONAL_ANALYSIS/MODE_SELECTIVE/INVOLVED_ATOMS",
+            #         f"INVOLVED_ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
+            #     )
+            if frozen_indices:
+                # atoms._del_constraints()
+                # atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
-                    "EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir / "cp2k-1.restart")
+                    "MOTION/CONSTRAINT/FIXED_ATOMS",
+                    "LIST {}".format(
+                        " ".join([str(i + 1) for i in frozen_indices])
+                    ),
                 )
-                sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
+        else:
+            with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
+                inp = "".join(fopen.readlines())
+            sec = parse_input(inp)
 
-                # - copy wavefunctions...
-                restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
-                for wfn in restart_wfns:
-                    (self.directory / wfn.name).symlink_to(
-                        wfn, target_is_directory=False
-                    )
+            def remove_keyword(section, keywords):
+                """"""
+                for kw in keywords:
+                    parts = kw.upper().split("/")
+                    subsection = section.get_subsection("/".join(parts[0:-1]))
+                    new_subkeywords = []
+                    for subkw in subsection.keywords:
+                        if parts[-1] not in subkw:
+                            new_subkeywords.append(subkw)
+                    subsection.keywords = new_subkeywords
 
-            self.calc.parameters.inp = "\n".join(sec.write())
+                return
+
+            remove_keyword(
+                sec,
+                keywords=[  # avoid conflicts
+                    "GLOBAL/PROJECT",
+                    "GLOBAL/PRINT_LEVEL",
+                    "FORCE_EVAL/METHOD",
+                    "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME",
+                    "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
+                    "FORCE_EVAL/SUBSYS/CELL/PERIODIC",
+                    "FORCE_EVAL/SUBSYS/CELL/A",
+                    "FORCE_EVAL/SUBSYS/CELL/B",
+                    "FORCE_EVAL/SUBSYS/CELL/C",
+                ],
+            )
+
+            sec.add_keyword(
+                "EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir / "cp2k-1.restart")
+            )
+            sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
+
+            # - copy wavefunctions...
+            restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
+            for wfn in restart_wfns:
+                (self.directory / wfn.name).symlink_to(
+                    wfn, target_is_directory=False
+                )
+
+        self.calc.parameters.inp = "\n".join(sec.write())
+
+        try:
             atoms.calc = self.calc
-
             _ = atoms.get_forces()
-
         except Exception as e:
             self._debug(e)
-            self._debug(traceback.print_exc())
+            self._debug(traceback.format_exc())
 
         return
 
@@ -385,9 +507,11 @@ class Cp2kDriver(AbstractDriver):
         """"""
         super().read_trajectory(*args, **kwargs)
 
-        # TODO: support restart!!!
-        try:
-            # -- read backups
+        # read backups
+        if self.setting.task in ["spc"]:
+            atoms = read_cp2k_spc(self.directory, prefix="cp2k")
+            traj_frames = [atoms]
+        elif self.setting.task in ["min", "cmin", "md"]:
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
             self._debug(f"prev_wdirs: {prev_wdirs}")
 
@@ -411,9 +535,8 @@ class Cp2kDriver(AbstractDriver):
                     traj_frames.extend(traj_list[i][1:])
             else:
                 ...
-        except Exception as e:
-            self._debug(e)
-            self._debug(traceback.print_exc())
+        else:
+            raise RuntimeError(f"Unknown task `{self.setting.task}`.")
 
         return traj_frames
 
@@ -468,19 +591,21 @@ class Cp2kFileIO(FileIOCalculator):
 
         label_name = pathlib.Path(self.label).name
 
-        # check run_type
-        # run_type = "md"
-        # if run_type.upper() == "MD":
-        #    trajectory = read_cp2k_outputs(self.directory, prefix=label_name)
-        # else:
-        #    ... # GEO_OPT, CELL_OPT
-        trajectory = read_cp2k_outputs(self.directory, prefix=label_name)
-
-        atoms = trajectory[-1]
-        self.results["energy"] = atoms.get_potential_energy()
-        self.results["free_energy"] = atoms.get_potential_energy(force_consistent=True)
-        self.results["forces"] = atoms.get_forces()
         # TODO: stress
+        run_type = self.get_run_type().upper()
+        if run_type in ["GEO_OPT", "CELL_OPT", "MD"]:
+            trajectory = read_cp2k_outputs(self.directory, prefix=label_name)
+            atoms = trajectory[-1]
+            self.results["energy"] = atoms.get_potential_energy()
+            self.results["free_energy"] = atoms.get_potential_energy(force_consistent=True)
+            self.results["forces"] = atoms.get_forces()
+        elif run_type in ["ENERGY_FORCE"]:
+            atoms = self.atoms
+            self.results = read_cp2k_energy_force(self.directory, prefix=label_name)
+            assert self.results["energy"] is not None, f"{self.results['energy'] =}"
+            assert self.results["forces"].shape[0] == len(atoms), f"{self.results['forces'] =}"
+        else:
+            raise RuntimeError()
 
         scf_convergence = self.read_convergence()
         atoms.info["scf_convergence"] = scf_convergence
@@ -514,6 +639,27 @@ class Cp2kFileIO(FileIOCalculator):
         self.parameters.basis_set = prev_basis_set
 
         return
+
+    def get_run_type(self) -> str:
+        """"""
+        root = parse_input(self.parameters.inp)
+
+        run_type = ""
+        for subsection in root.subsections:
+            if subsection.name == "GLOBAL":
+                for keyword in subsection.keywords:
+                    kw = keyword.strip().split()
+                    if kw[0] == "RUN_TYPE":
+                        run_type = kw[1]
+                        break
+                if run_type:
+                    break
+        else:
+            ...
+
+        assert run_type in ["ENERGY_FORCE", "GEO_OPT", "CELL_OPT", "MD"], f"Unknown run_type `{run_type}`."
+
+        return run_type
 
     def _generate_input(self):
         """Generates a CP2K input file"""
