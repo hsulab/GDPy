@@ -6,9 +6,7 @@ import pathlib
 from typing import List
 
 import numpy as np
-
-from ase import Atoms
-from ase import units
+from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 
 
@@ -42,7 +40,15 @@ def read_cp2k_xyz(fpath):
     return frame_symbols, frame_energies, frame_properties
 
 
-INPUT_STRUCTURE_FLAG = ("MODULE", "QUICKSTEP:", "ATOMIC", "COORDINATES", "IN", "angstrom")
+INPUT_STRUCTURE_FLAG = (
+    "MODULE",
+    "QUICKSTEP:",
+    "ATOMIC",
+    "COORDINATES",
+    "IN",
+    "angstrom",
+)
+
 
 def check_input_structure_section(line):
     """Check the input structures from cp2k.out.
@@ -54,18 +60,18 @@ def check_input_structure_section(line):
 
     return line.strip().startswith("MODULE QUICKSTEP:")
 
+
 def check_input_pbc_section(line):
     """"""
-    return (
-        line.strip().startswith("POISSON| Periodicity") or 
-        line.strip().startswith("CELL_TOP| Periodicity")
+    return line.strip().startswith("POISSON| Periodicity") or line.strip().startswith(
+        "CELL_TOP| Periodicity"
     )
 
 
-def read_cp2k_spc(wdir, prefix: str="cp2k"):
+def read_cp2k_spc(wdir, prefix: str = "cp2k"):
     """"""
     wdir = pathlib.Path(wdir)
-    with open(wdir/f"{prefix}.out", "r") as fopen:
+    with open(wdir / f"{prefix}.out", "r") as fopen:
         lines = fopen.readlines()
 
     num_atoms = -1
@@ -103,7 +109,7 @@ def read_cp2k_spc(wdir, prefix: str="cp2k"):
             is_force = False
         if is_force:
             forces.append(line)
-    
+
     cell = np.array([c.strip().split()[4:7] for c in cell], dtype=np.float64)
 
     if pbc == "XYZ":
@@ -111,21 +117,19 @@ def read_cp2k_spc(wdir, prefix: str="cp2k"):
     else:
         raise RuntimeError()
 
-    coordinates = np.array([c.strip().split()[4:7] for c in structure[3:]], dtype=np.float64)
+    coordinates = np.array(
+        [c.strip().split()[4:7] for c in structure[3:]], dtype=np.float64
+    )
     symbols = [c.strip().split()[2] for c in structure[3:]]
 
-    atoms = Atoms(symbols, positions=coordinates, cell=cell, pbc=pbc)  
+    atoms = Atoms(symbols, positions=coordinates, cell=cell, pbc=pbc)
 
     assert isinstance(energy, float)
     energy *= units.Hartree
     forces = np.array([frc.strip().split()[3:] for frc in forces[3:]], dtype=np.float64)
-    forces *= units.Hartree/units.Bohr
+    forces *= units.Hartree / units.Bohr
 
-    results = dict(
-        energy=energy,
-        free_energy=energy,
-        forces=forces
-    )
+    results = dict(energy=energy, free_energy=energy, forces=forces)
 
     calc = SinglePointCalculator(atoms, **results)
     atoms.calc = calc
@@ -133,10 +137,10 @@ def read_cp2k_spc(wdir, prefix: str="cp2k"):
     return atoms
 
 
-def read_cp2k_energy_force(wdir, prefix: str="cp2k"):
+def read_cp2k_energy_force(wdir, prefix: str = "cp2k"):
     """"""
     wdir = pathlib.Path(wdir)
-    with open(wdir/f"{prefix}.out", "r") as fopen:
+    with open(wdir / f"{prefix}.out", "r") as fopen:
         lines = fopen.readlines()
 
     "ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]:             `WHAT WE NEED`"
@@ -157,13 +161,9 @@ def read_cp2k_energy_force(wdir, prefix: str="cp2k"):
     assert isinstance(energy, float)
     energy *= units.Hartree
     forces = np.array([frc.strip().split()[3:] for frc in forces[3:]], dtype=np.float64)
-    forces *= units.Hartree/units.Bohr
+    forces *= units.Hartree / units.Bohr
 
-    results = dict(
-        energy = energy,
-        free_energy = energy,
-        forces = forces
-    )
+    results = dict(energy=energy, free_energy=energy, forces=forces)
 
     return results
 
@@ -228,6 +228,31 @@ def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> List[Atoms]:
     return frames
 
 
+#: Test on cp2k:v2022.1
+UNCONVERGED_SCF_FLAG: str = "*** WARNING in qs_scf.F:598 :: SCF run NOT converged ***"
+
+#: Test on cp2k:v2022.1
+ABORT_FLAG: str = "ABORT"
+
+def read_cp2k_convergence(out_fpath: pathlib.Path) -> bool:
+    """Read SCF convergence."""
+    cp2kout = out_fpath
+
+    converged = True
+    with open(cp2kout, "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if not line:
+                break
+            if line.strip() == UNCONVERGED_SCF_FLAG:
+                converged = False
+                break
+            if ABORT_FLAG in line:
+                converged = False
+                break
+
+    return converged
+
+
 if __name__ == "__main__":
     ...
-  
