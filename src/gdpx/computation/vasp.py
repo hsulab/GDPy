@@ -38,11 +38,10 @@ class SinglePointController(Controller):
     def __post_init__(self):
         """"""
 
-        self.conv_params = dict(
-            nsw=0
-        )
+        self.conv_params = dict(nsw=0)
 
         return
+
 
 @dataclasses.dataclass
 class BFGSMinimiser(Controller):
@@ -54,11 +53,10 @@ class BFGSMinimiser(Controller):
 
         maxstep = self.params.get("maxstep", 0.1)
 
-        self.conv_params = dict(
-            ibrion=1, potim=maxstep
-        )
+        self.conv_params = dict(ibrion=1, potim=maxstep)
 
         return
+
 
 @dataclasses.dataclass
 class CGMinimiser(Controller):
@@ -70,11 +68,10 @@ class CGMinimiser(Controller):
 
         maxstep = self.params.get("maxstep", 0.1)
 
-        self.conv_params = dict(
-            ibrion=2, potim=maxstep
-        )
+        self.conv_params = dict(ibrion=2, potim=maxstep)
 
         return
+
 
 @dataclasses.dataclass
 class CellBFGSMinimiser(BFGSMinimiser):
@@ -83,15 +80,12 @@ class CellBFGSMinimiser(BFGSMinimiser):
         """"""
         super().__post_init__()
 
-        more_params = dict(
-            isif = 3
-        )
+        more_params = dict(isif=3)
 
-        self.conv_params.update(
-            **more_params
-        )
+        self.conv_params.update(**more_params)
 
         return
+
 
 @dataclasses.dataclass
 class CellCGMinimiser(CGMinimiser):
@@ -100,15 +94,12 @@ class CellCGMinimiser(CGMinimiser):
         """"""
         super().__post_init__()
 
-        more_params = dict(
-            isif = 3
-        )
+        more_params = dict(isif=3)
 
-        self.conv_params.update(
-            **more_params
-        )
+        self.conv_params.update(**more_params)
 
         return
+
 
 @dataclasses.dataclass
 class MDController(Controller):
@@ -137,9 +128,9 @@ class MDController(Controller):
     def __post_init__(self):
         """"""
         basic_params = dict(
-            ibrion = 0,
-            isif = 0,
-            potim =self.timestep,
+            ibrion=0,
+            isif=0,
+            potim=self.timestep,
             random_seed=None,  # init later in driver run
             tebeg=self.temperature,
         )
@@ -188,7 +179,7 @@ class LangevinThermostat(MDController):
             langevin_gamma=friction,
         )
 
-        self.conv_params.update(**more_params)  
+        self.conv_params.update(**more_params)
 
         return
 
@@ -205,10 +196,7 @@ class NoseHooverThermostat(MDController):
         assert smass >= 0, "NoseHoover-NVT needs positive SMASS."
 
         # MDALGO, SMASS
-        more_params = dict(
-            mdalgo=2,
-            smass=smass
-        )
+        more_params = dict(mdalgo=2, smass=smass)
 
         self.conv_params.update(**more_params)
 
@@ -243,14 +231,16 @@ class ParrinelloRahmanBarostat(MDController):
 
         more_params = dict(
             smass=smass,
-            langevin_gamma=friction,  
-            langevin_gamma_l=friction_lattice,  
+            langevin_gamma=friction,
+            langevin_gamma_l=friction_lattice,
             pmass=pmass,
             # pressure unit 1 GPa  = 10 kBar
             #               1 kBar = 1000 bar = 10^8 Pa
             pstress=1e-3 * self.pressure,  # vasp uses kB
         )
-        assert self.pressure_end is None, "VASP does not support NPT with changing pressure."
+        assert (
+            self.pressure_end is None
+        ), "VASP does not support NPT with changing pressure."
 
         self.conv_params.update(**more_params)
 
@@ -388,13 +378,8 @@ class VaspDriver(AbstractDriver):
         "REPORT",
     ]
 
-    def __init__(self, calc: Vasp, params: dict, directory="./", *args, **kwargs):
-        """"""
-        super().__init__(calc, params, directory=directory, *args, **kwargs)
-
-        self.setting = VaspDriverSetting(**params)
-
-        return
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = VaspDriverSetting
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
@@ -405,7 +390,7 @@ class VaspDriver(AbstractDriver):
                 vasprun = self.directory / "vasprun.xml"
                 if vasprun.exists() and vasprun.stat().st_size != 0:
                     try:
-                        # `xml.etree.ElementTree.ParseError` 
+                        # `xml.etree.ElementTree.ParseError`
                         # if vasprun.xml does not have a complete finshed single-point-calculation
                         temp_atoms = read(vasprun, "0")
                         # `RuntimeError: Atoms object has no calculator.`
@@ -449,9 +434,7 @@ class VaspDriver(AbstractDriver):
             # - update some system-dependant params
             if "langevin_gamma" in run_params:
                 ntypes = len(set(atoms.get_chemical_symbols()))
-                run_params["langevin_gamma"] = [
-                    run_params["langevin_gamma"]
-                ] * ntypes
+                run_params["langevin_gamma"] = [run_params["langevin_gamma"]] * ntypes
 
             # FIXME: LDA+U
 
@@ -462,8 +445,15 @@ class VaspDriver(AbstractDriver):
 
             # check dipole correction and set dipole as COM if enabled
             use_dipole_correction = self.calc.int_params["idipol"]
-            if use_dipole_correction is not None and use_dipole_correction in [1, 2, 3, 4]:
-                assert self.calc.bool_params["ldipol"], f"Use dipole correction {use_dipole_correction} but LDIPOL is False."
+            if use_dipole_correction is not None and use_dipole_correction in [
+                1,
+                2,
+                3,
+                4,
+            ]:
+                assert self.calc.bool_params[
+                    "ldipol"
+                ], f"Use dipole correction {use_dipole_correction} but LDIPOL is False."
                 # TODO: Check whether the scaled COM is wrapped?
                 dipole_centre = atoms.get_center_of_mass(scaled=True)
                 self.calc.set(dipol=dipole_centre)
@@ -475,7 +465,12 @@ class VaspDriver(AbstractDriver):
             self.calc.write_input(atoms)
             if self.setting.task == "cmin":  # TODO: NPT simulation
                 # We need POSCAR in direct coordinates to deal with constraints
-                write(self.directory/"POSCAR", self.calc.atoms_sorted, symbol_count=self.calc.symbol_count, direct=True)
+                write(
+                    self.directory / "POSCAR",
+                    self.calc.atoms_sorted,
+                    symbol_count=self.calc.symbol_count,
+                    direct=True,
+                )
         else:
             self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
             if cache_traj is None:
@@ -494,16 +489,14 @@ class VaspDriver(AbstractDriver):
                     steps = target_steps + dump_period - nframes * dump_period - 1
                 else:
                     ...
-                assert (
-                    steps > 0
-                ), f"Steps should be greater than 0. (steps = {steps})"
+                assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
                 self.calc.set(nsw=steps)
             # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
             #       thus we manually call the function to write input files and
             #       run the calculation
             if self.setting.task == "md":
                 # read random_seed from REPORT
-                with open(ckpt_wdir/"REPORT", "r") as fopen:
+                with open(ckpt_wdir / "REPORT", "r") as fopen:
                     lines = fopen.readlines()
                     report_random_seeds = read_report(lines)
                 self._print(f"{report_random_seeds.shape =}")
@@ -582,7 +575,7 @@ class VaspDriver(AbstractDriver):
                         flags[2] = True
                     if all(flags):
                         break
-                else:  
+                else:
                     if not flags[0]:  # check if vasprun exists
                         frames = []
                     else:
@@ -678,13 +671,17 @@ class VaspDriver(AbstractDriver):
             if self.setting.task == "min":
                 for i in range(1, ntrajs):
                     # FIXME: ase complete_cell bug?
-                    prev_box = traj_list[i-1][-1].get_cell(complete=True)
+                    prev_box = traj_list[i - 1][-1].get_cell(complete=True)
                     curr_box = traj_list[i][0].get_cell(complete=True)
-                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
+                    assert np.allclose(
+                        prev_box, curr_box
+                    ), f"Traj {i-1} and traj {i} are not consecutive in cell."
 
-                    prev_pos = traj_list[i-1][-1].positions
+                    prev_pos = traj_list[i - 1][-1].positions
                     curr_pos = traj_list[i][0].positions
-                    pos_vec, _ = find_mic(prev_pos-curr_pos, traj_list[i-1][-1].get_cell())
+                    pos_vec, _ = find_mic(
+                        prev_pos - curr_pos, traj_list[i - 1][-1].get_cell()
+                    )
                     assert np.allclose(
                         pos_vec, np.zeros(pos_vec.shape)
                     ), f"Traj {i-1} and traj {i} are not consecutive."
