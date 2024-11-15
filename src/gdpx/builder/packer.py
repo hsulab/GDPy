@@ -151,8 +151,8 @@ class PackerBuilder(StructureModifier):
         # - centre the atoms
         if packed_structure is not None:
             self._translate(packed_structure, np.sum(box/2., axis=0))
-
-        packed_structure.set_pbc(self.pbc)
+            packed_structure.set_pbc(self.pbc)
+            packed_structure.wrap()
 
         return packed_structure
     
