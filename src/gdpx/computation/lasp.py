@@ -278,6 +278,9 @@ def read_lasp_structures(
 @dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
 
+    # MD ensemble.
+    ensemble: str = "nve"
+
     smax: float = 0.10 # GPa
 
     def __post_init__(self):
@@ -307,7 +310,7 @@ class LaspDriverSetting(DriverSetting):
                 self.tend = self.temp
             self._internals.update(
                 **{
-                    "explore_type": self.md_style,
+                    "explore_type": self.ensemble,
                     "Ranseed": self.velocity_seed,
                     "MD.dt": self.timestep,
                     "MD.initial_T": self.temp,
