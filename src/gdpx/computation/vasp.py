@@ -31,6 +31,20 @@ ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 
 @dataclasses.dataclass
+class SinglePointController(Controller):
+
+    name: str = "spc"
+
+    def __post_init__(self):
+        """"""
+
+        self.conv_params = dict(
+            nsw=0
+        )
+
+        return
+
+@dataclasses.dataclass
 class BFGSMinimiser(Controller):
 
     name: str = "bfgs"  # RMM-DIIS
@@ -244,6 +258,8 @@ class ParrinelloRahmanBarostat(MDController):
 
 
 controllers = dict(
+    # - spc
+    single_point_spc=SinglePointController,
     # - min
     bfgs_min=BFGSMinimiser,
     cg_min=CGMinimiser,
@@ -257,6 +273,7 @@ controllers = dict(
 )
 
 default_controllers = dict(
+    spc=SinglePointController,
     min=CGMinimiser,
     cmin=CGMinimiser,
     nve=Verlet,
