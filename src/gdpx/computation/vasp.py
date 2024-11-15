@@ -31,7 +31,132 @@ ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 
 @dataclasses.dataclass
-class LangevinThermostat(Controller):
+class BFGSMinimiser(Controller):
+
+    name: str = "bfgs"  # RMM-DIIS
+
+    def __post_init__(self):
+        """"""
+
+        maxstep = self.params.get("maxstep", 0.1)
+
+        self.conv_params = dict(
+            ibrion=1, potim=maxstep
+        )
+
+        return
+
+@dataclasses.dataclass
+class CGMinimiser(Controller):
+
+    name: str = "cg"
+
+    def __post_init__(self):
+        """"""
+
+        maxstep = self.params.get("maxstep", 0.1)
+
+        self.conv_params = dict(
+            ibrion=2, potim=maxstep
+        )
+
+        return
+
+@dataclasses.dataclass
+class CellBFGSMinimiser(BFGSMinimiser):
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = dict(
+            isif = 3
+        )
+
+        self.conv_params.update(
+            **more_params
+        )
+
+        return
+
+@dataclasses.dataclass
+class CellCGMinimiser(CGMinimiser):
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = dict(
+            isif = 3
+        )
+
+        self.conv_params.update(
+            **more_params
+        )
+
+        return
+
+@dataclasses.dataclass
+class MDController(Controller):
+
+    #: Controller name.
+    name: str = "md"
+
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Temperature in Kelvin.
+    temperature_end: Optional[float] = None
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Pressure in Kelvin.
+    pressure_end: Optional[float] = None
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+    def __post_init__(self):
+        """"""
+        basic_params = dict(
+            ibrion = 0,
+            isif = 0,
+            potim =self.timestep,
+            random_seed=None,  # init later in driver run
+            tebeg=self.temperature,
+        )
+        # We need keywords: TEBEG and TEEND.
+        if self.temperature_end is not None:
+            basic_params.update(teend=self.temperature_end)
+
+        self.conv_params = basic_params
+
+        return
+
+
+@dataclasses.dataclass
+class Verlet(MDController):
+
+    name: str = "verlet"
+
+    def __post_init__(self):
+        """"""
+        more_params = dict(
+            mdalgo=2,
+            smass=3,
+        )
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class LangevinThermostat(MDController):
 
     name: str = "langevin"
 
@@ -40,67 +165,103 @@ class LangevinThermostat(Controller):
     ):
         """"""
         friction = self.params.get("friction", None)  # fs^-1
+        friction *= 1e3  # ps^-1
         assert friction is not None
 
-        self.conv_params = dict(langevin_gamma=friction * 1e3)  # ps^-1
+        # MDALGO, LANGEVIN_GAMMA
+        more_params = dict(
+            mdalgo=3,
+            langevin_gamma=friction,
+        )
+
+        self.conv_params.update(**more_params)  
 
         return
 
 
 @dataclasses.dataclass
-class NoseHooverThermostat(Controller):
+class NoseHooverThermostat(MDController):
 
     name: str = "nose_hoover"
 
-    def __post_init__(
-        self,
-    ):
+    def __post_init__(self):
         """"""
         # FIXME: convert taut to smass
-        smass = self.params.get("taut", 0.0)  # or smass?
+        smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, "NoseHoover-NVT needs positive SMASS."
 
-        self.conv_params = dict(smass=smass)
+        # MDALGO, SMASS
+        more_params = dict(
+            mdalgo=2,
+            smass=smass
+        )
+
+        self.conv_params.update(**more_params)
 
         return
 
 
 @dataclasses.dataclass
-class ParrinelloRahmanBarostat(Controller):
+class ParrinelloRahmanBarostat(MDController):
 
     name: str = "parrinello_rahman"
 
-    def __post_init__(
-        self,
-    ):
+    def __post_init__(self):
         """"""
         # FIXME: convert taut to smass
-        smass = self.params.get("taut", 0.0)  # or smass?
+        smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, f"{self.name} needs positive SMASS."
 
         friction = self.params.get("friction", None)  # fs^-1
+        friction *= 1e3  # array, ps^-1
         assert friction is not None
 
+        # FIXME: convert taut to pmass
+        pmass = self.params.get("Pdamp", 0.0)  # or smass?
+        assert pmass >= 0, f"{self.name} needs positive PMASS."
+
         friction_lattice = self.params.get("friction_lattice", None)  # fs^-1
+        friction_lattice *= 1e3  # real, ps^-1
         assert friction_lattice is not None
 
         pmass = self.params.get("pmass", None)  # a.m.u
         assert pmass > 0.0
 
-        self.conv_params = dict(
+        more_params = dict(
             smass=smass,
-            langevin_gamma=friction * 1e3,  # array, ps^-1
-            langevin_gamma_l=friction_lattice * 1e3,  # real, ps^-1
-            pmass=1000.0,
+            langevin_gamma=friction,  
+            langevin_gamma_l=friction_lattice,  
+            pmass=pmass,
+            # pressure unit 1 GPa  = 10 kBar
+            #               1 kBar = 1000 bar = 10^8 Pa
+            pstress=1e-3 * self.pressure,  # vasp uses kB
         )
+        assert self.pressure_end is None, "VASP does not support NPT with changing pressure."
+
+        self.conv_params.update(**more_params)
 
         return
 
 
 controllers = dict(
+    # - min
+    bfgs_min=BFGSMinimiser,
+    cg_min=CGMinimiser,
+    # - cmin
+    bfgs_cmin=CellBFGSMinimiser,
+    cg_cmin=CellCGMinimiser,
+    # - md
     langevin_nvt=LangevinThermostat,
     nose_hoover_nvt=NoseHooverThermostat,
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
+)
+
+default_controllers = dict(
+    min=CGMinimiser,
+    cmin=CGMinimiser,
+    nve=Verlet,
+    nvt=LangevinThermostat,
+    npt=ParrinelloRahmanBarostat,
 )
 
 
@@ -127,109 +288,36 @@ class VaspDriverSetting(DriverSetting):
 
         """
         # - update internals that are specific for each calculator...
+
+        _init_params = {}
         if self.task == "min":
-            # minimisation
-            if self.min_style == "bfgs":
-                ibrion = 1
-            elif self.min_style == "cg":
-                ibrion = 2
-            else:
-                # raise ValueError(f"Unknown minimisation {self.min_style} for vasp".)
-                ...
-
-            self._internals.update(ibrion=ibrion, potim=self.maxstep)
-
-        # -- cmin: cell minimisation
-        if self.task == "cmin":
-            if self.min_style == "bfgs":
-                ibrion = 1
-            elif self.min_style == "cg":
-                ibrion = 2
-            else:
-                # raise ValueError(f"Unknown minimisation {self.min_style} for vasp".)
-                ...
-
-            self._internals.update(isif=3, ibrion=ibrion, potim=self.maxstep)
-
-        if self.task == "md":
+            suffix = self.task
+        elif self.task == "cmin":
+            suffix = self.task
+        elif self.task == "md":
             # NOTE: Always use Selective Dynamics and MDALAGO
             #       since it properly treats the DOF and velocities
-            # some general
-            # if self.velocity_seed is None:
-            #     self.velocity_seed = np.random.randint(0, 10000)
-            # random_seed = [self.velocity_seed, 0, 0]
-            self._internals.update(
-                # -- Some shared parameters, every MD needs these!!
-                velocity_seed=self.velocity_seed,
-                ignore_atoms_velocities=self.ignore_atoms_velocities,
-                ibrion=0,
-                isif=0,
-                potim=self.timestep,  # fs
-                random_seed=None,  # NOTE: init later in driver run
-            )
-
-            if self.ensemble == "nve":
-                _init_md_params = dict()
-                _init_md_params.update(
-                    mdalgo=2,
-                    smass=-3,
-                )
-            elif self.ensemble == "nvt":
-                # We need keywords: TEBEG and TEEND.
-                # Also, only consistent-temperature simulation is supported.
-                _init_md_params = dict(tebeg=self.temp, teend=self.temp)
-
-                if self.controller is not None:
-                    thermo_cls_name = self.controller["name"] + "_" + self.ensemble
-                    thermo_cls = controllers[thermo_cls_name]
-                else:
-                    thermo_cls = LangevinThermostat
-                thermostat = thermo_cls(**self.controller)
-
-                if thermostat.name == "langevin":
-                    # MDALGO, LANGEVIN_GAMMA
-                    _init_md_params.update(
-                        mdalgo=3,
-                    )
-                    _init_md_params.update(**thermostat.conv_params)
-                elif thermostat.name == "nose_hoover":
-                    # MDALGO, SMASS
-                    _init_md_params.update(
-                        mdalgo=2,
-                    )
-                    _init_md_params.update(**thermostat.conv_params)
-                else:
-                    raise RuntimeError(f"Unknown {thermostat =}.")
-            elif self.ensemble == "npt":
-                # We need keywords: TEBEG, TEEND, PSTRESS
-                _init_md_params = dict(
-                    tebeg=self.temp,
-                    teend=self.temp,
-                    # pressure unit 1 GPa  = 10 kBar
-                    #               1 kBar = 1000 bar = 10^8 Pa
-                    pstress=1e-3 * self.press,  # vasp uses kB
-                )
-
-                if self.controller is not None:
-                    baro_cls_name = self.controller["name"] + "_" + self.ensemble
-                    baro_cls = controllers[baro_cls_name]
-                else:
-                    baro_cls = ParrinelloRahmanBarostat
-                barostat = baro_cls(**self.controller)
-
-                if barostat.name == "parrinello_rahman":
-                    _init_md_params.update(mdalgo=3)
-                    _init_md_params.update(**barostat.conv_params)
-                else:
-                    raise RuntimeError(f"Unknown {barostat =}.")
-            else:
-                raise NotImplementedError(f"{self.md_style} is not supported yet.")
-
-            self._internals.update(**_init_md_params)
-
-        if self.task == "freq":
+            suffix = self.ensemble
+            _init_params.update(temperature=self.temp, temperature_end=self.temp)
+        elif self.task == "freq":
             # ibrion, nfree, potim
             raise NotImplementedError("")
+        else:
+            raise RuntimeError(f"Unknown VASP task `{self.task}`.")
+
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = default_controllers[suffix]
+
+        _init_params.update(**self.controller)
+        cont = cont_cls(**_init_params)
+
+        self._internals.update(**cont.conv_params)
 
         return
 
@@ -332,11 +420,6 @@ class VaspDriver(AbstractDriver):
             run_params["system"] = self.directory.name
 
             # FIXME: Init velocities?
-            prev_ignore_atoms_velocities = run_params.pop(
-                "ignore_atoms_velocities", False
-            )
-            velocity_seed = run_params.pop("velocity_seed", None)
-
             if self.setting.task == "md":
                 vasp_random_seed = [self.random_seed, 0, 0]
                 self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
