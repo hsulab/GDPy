@@ -11,7 +11,6 @@ import pickle
 import shutil
 import tarfile
 import traceback
-from collections.abc import Iterable
 from typing import Dict, List, Mapping, NoReturn, Optional, Tuple
 
 import numpy as np
