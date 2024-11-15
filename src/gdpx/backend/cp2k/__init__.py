@@ -7,6 +7,7 @@ from .parser import (
     read_cp2k_outputs,
     read_cp2k_spc,
     read_cp2k_xyz,
+    read_cp2k_convergence
 )
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "read_cp2k_outputs",
     "read_cp2k_spc",
     "read_cp2k_xyz",
+    "read_cp2k_convergence",
 ]
 
 
