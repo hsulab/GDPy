@@ -9,7 +9,6 @@ import re
 import shutil
 import tarfile
 import warnings
-from collections.abc import Iterable
 from typing import Callable, List, NoReturn, Optional, Union
 
 import numpy as np
