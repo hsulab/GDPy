@@ -25,10 +25,35 @@ from .driver import AbstractDriver, Controller, DriverSetting
 
 
 @dataclasses.dataclass
+class SinglePointController(Controller):
+
+    #: Controller name.
+    name: str = "single_point"
+
+    #: Save checkpoint every.
+    ckpt_period: int = 100
+
+    def __post_init__(self):
+        """"""
+        # FIXME: We must use list here as the section may have duplicate keys
+        #        due to current terrible parser.
+        # NOTE: Add more parameters as tuples.
+        self.conv_params = [
+            ("GLOBAL", "RUN_TYPE ENERGY_FORCE"),
+            ("FORCE_EVAL/PRINT/FORCES", "_SECTION_PARAMETERS_ ON"),
+        ]
+
+        return
+
+
+@dataclasses.dataclass
 class MotionController(Controller):
 
     #: Controller name.
     name: str = "motion"
+
+    #: Save checkpoint every.
+    ckpt_period: int = 100
 
     def __post_init__(self):
         """"""
@@ -47,8 +72,6 @@ class MotionController(Controller):
 class BFGSMinimiser(MotionController):
 
     name: str = "bfgs"
-
-    ckpt_period: int = 100
 
     def __post_init__(self):
         """"""
@@ -71,8 +94,6 @@ class CGMinimiser(MotionController):
 
     name: str = "cg"
 
-    ckpt_period: int = 100
-
     def __post_init__(self):
         """"""
         super().__post_init__()
@@ -94,9 +115,6 @@ class MDController(MotionController):
 
     #: Controller name.
     name: str = "md"
-
-    #: Save checkpoint every.
-    ckpt_period: int = 100
 
     #: Timestep in fs.
     timestep: float = 1.0
@@ -216,6 +234,8 @@ class MartynaBarostat(MDController):
 
 
 controllers = dict(
+    # - spc,
+    single_point_spc=SinglePointController,
     # - min
     cg_min=CGMinimiser,
     bfgs_min=BFGSMinimiser,
@@ -244,16 +264,8 @@ class Cp2kDriverSetting(DriverSetting):
 
     def __post_init__(self):
         """"""
-        pairs = []  # key-value pairs that avoid conflicts by same keys
-        if self.task == "spc":
-            pairs.extend(
-                [
-                    ("GLOBAL", "RUN_TYPE ENERGY_FORCE"),
-                    ("FORCE_EVAL/PRINT/FORCES", "_SECTION_PARAMETERS_ ON"),
-                ]
-            )
-
         default_controllers = dict(
+            spc=SinglePointController,
             min=BFGSMinimiser,
             nve=Verlet,
             nvt=CSVRThermostat,
@@ -261,6 +273,8 @@ class Cp2kDriverSetting(DriverSetting):
             # TODO: Make this a submodule!
             freq=Controller,
         )
+
+        pairs = []  # key-value pairs that avoid conflicts by same keys
 
         _init_params = {}
         _init_params.update(ckpt_period=self.ckpt_period)
