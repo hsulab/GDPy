@@ -15,10 +15,213 @@ from ase.calculators.cp2k import InputSection, parse_input
 
 from ..backend.cp2k import read_cp2k_energy_force, read_cp2k_outputs, read_cp2k_spc
 from ..builder.constraints import parse_constraint_info
-from .driver import AbstractDriver, DriverSetting
+from .driver import AbstractDriver, Controller, DriverSetting
 
 UNCONVERGED_SCF_FLAG: str = "*** WARNING in qs_scf.F:598 :: SCF run NOT converged ***"
 ABORT_FLAG: str = "ABORT"
+
+
+@dataclasses.dataclass
+class MotionController(Controller):
+
+    #: Controller name.
+    name: str = "motion"
+
+    def __post_init__(self):
+        """"""
+        # FIXME: We must use list here as the section may have duplicate keys
+        #        due to current terrible parser.
+        self.conv_params = [
+            ("MOTION/PRINT/CELL", "_SECTION_PARAMETERS_ ON"),
+            ("MOTION/PRINT/TRAJECTORY", "_SECTION_PARAMETERS_ ON"),
+            ("MOTION/PRINT/FORCES", "_SECTION_PARAMETERS_ ON"),
+        ]
+
+        return
+
+
+@dataclasses.dataclass
+class BFGSMinimiser(MotionController):
+
+    name: str = "bfgs"
+
+    ckpt_period: int = 100
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = {
+            "GLOBAL": "RUN_TYPE GEO_OPT",
+            "MOTION/GEO_OPT": "TYPE MINIMIZATION",
+            "MOTION/GEO_OPT": "OPTIMIZER BFGS",
+            "MOTION/PRINT/RESTART_HISTORY/EACH": f"GEO_OPT {self.ckpt_period}",
+        }
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class CGMinimiser(MotionController):
+
+    name: str = "cg"
+
+    ckpt_period: int = 100
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = [
+            ("GLOBAL", "RUN_TYPE GEO_OPT"),
+            ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
+            ("MOTION/GEO_OPT", "OPTIMIZER CG"),
+            ("MOTION/PRINT/RESTART_HISTORY/EACH", f"GEO_OPT {self.ckpt_period}"),
+        ]
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class MDController(MotionController):
+
+    #: Controller name.
+    name: str = "md"
+
+    #: Save checkpoint every.
+    ckpt_period: int = 100
+
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = [
+            ("GLOBAL", "RUN_TYPE MD"),
+            ("MOTION/MD", f"TIMESTEP {self.timestep}"),
+            ("MOTION/PRINT/RESTART_HISTORY/EACH", f"MD {self.ckpt_period}"),
+        ]
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class Verlet(MDController):
+
+    name: str = "verlet"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = [
+            ("MOTION/MD", "ENSEMBLE NVE"),
+        ]
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class NoseHooverThermostat(MDController):
+
+    name: str = "nose_hoover"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        taut = self.params.get("Tdamp", 100.0)
+        assert taut is not None
+
+        more_params = [
+            ("MOTION/MD", "ENSEMBLE NVT"),
+            ("MOTION/MD/THERMOSTAT/NOSE", f"TIMECON {taut}"),
+        ]
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class CSVRThermostat(MDController):
+
+    name: str = "csvr"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        taut = self.params.get("Tdamp", 100.0)
+        assert taut is not None
+
+        more_params = [
+            ("MOTION/MD", "ENSEMBLE NVT"),
+            ("MOTION/MD/THERMOSTAT/CSVR", f"TIMECON {taut}"),
+        ]
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class MartynaBarostat(MDController):
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        taut = self.params.get("Tdamp", 100.0)
+        assert taut is not None
+
+        taup = self.params.get("Pdamp", 100.0)
+        assert taup is not None
+
+        isotropic = self.params.get("isotropic", True)
+        assert isotropic is not None
+
+        more_params = [
+            ("MOTION/MD", "ENSEMBLE NPT_I" if isotropic else "ENSEMBLE NPT_F"),
+            ("MOTION/MD/THERMOSTAT/NOSE", f"TIMECON {taut}"),
+            ("MOTION/MD/BAROSTAT", f"PRESSURE {self.pressure}"),
+            ("MOTION/MD/BAROSTAT", f"TIMECON {taup}"),
+        ]
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+controllers = dict(
+    # - min
+    cg_min=CGMinimiser,
+    bfgs_min=BFGSMinimiser,
+    # - md
+    verlet_nve=Verlet,
+    csvr_nvt=CSVRThermostat,
+    nose_hoover_nvt=NoseHooverThermostat,
+    martyna_npt=MartynaBarostat,
+)
 
 
 @dataclasses.dataclass
@@ -26,6 +229,12 @@ class Cp2kDriverSetting(DriverSetting):
 
     #: Simulation task.
     task: str = "spc"
+
+    #: MD Ensemble.
+    ensemble: str = "nve"
+
+    #: Dynamics controller.
+    controller: dict = dataclasses.field(default_factory=dict)
 
     #: Force tolerance.
     fmax: float = 4.5e-4 * (units.Hartree / units.Bohr)
@@ -41,64 +250,30 @@ class Cp2kDriverSetting(DriverSetting):
                 ]
             )
 
+        default_controllers = dict(
+            min=BFGSMinimiser,
+            nve=Verlet,
+            nvt=CSVRThermostat,
+            npt=MartynaBarostat,
+            # TODO: Make this a submodule!
+            freq=Controller,
+        )
+
+        _init_params = {}
+        _init_params.update(ckpt_period=self.ckpt_period)
         if self.task == "min":
-            # - fmax and steps can be set on-the-fly, see get_run_params
-            method = self.min_style.upper()
-            pairs.extend(
-                [
-                    ("GLOBAL", "RUN_TYPE GEO_OPT"),
-                    ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
-                    # ("MOTION/GEO_OPT", f"MAX_ITER {self.steps}"),
-                    ("MOTION/GEO_OPT", f"OPTIMIZER {method}"),
-                    (
-                        "MOTION/PRINT/RESTART_HISTORY/EACH",
-                        f"GEO_OPT {self.ckpt_period}",
-                    ),
-                ]
+            # fmax and steps can be set on-the-fly, see get_run_params
+            suffix = self.task
+        elif self.task == "md":
+            # steps can be set on-the-fly, see get_run_params
+            suffix = self.ensemble
+            _init_params.update(
+                timestep=self.timestep,
+                temperature=self.temp,
+                pressure=self.press,
             )
-
-        if self.task == "md":
-            # - steps can be set on-the-fly, see get_run_params
-            md_style = self.md_style.upper()
-            pairs.extend(
-                [
-                    ("GLOBAL", "RUN_TYPE MD"),
-                    ("MOTION/MD", f"TIMESTEP {self.timestep}"),
-                    ("MOTION/PRINT/RESTART_HISTORY/EACH", f"MD {self.ckpt_period}"),
-                ]
-            )
-            if self.md_style == "nve":
-                pairs.extend(
-                    [
-                        ("MOTION/MD", "ENSEMBLE NVE"),
-                        ("MOTION/MD", f"TEMPERATURE {self.temp}"),
-                    ]
-                )
-            elif self.md_style == "nvt":
-                # TODO: support different thermostats...
-                pairs.extend(
-                    [
-                        ("MOTION/MD", "ENSEMBLE NVT"),
-                        ("MOTION/MD", f"TEMPERATURE {self.temp}"),
-                        # ("MOTION/MD/THERMOSTAT/NOSE/TIMECON", "13.34")
-                        ("MOTION/MD/THERMOSTAT/CSVR", f"TIMECON {self.Tdamp}"),
-                    ]
-                )
-            elif self.md_style == "npt":
-                pairs.extend(
-                    [
-                        ("MOTION/MD", "ENSEMBLE NPT_I"),
-                        ("MOTION/MD", f"TEMPERATURE {self.temp}"),
-                        ("MOTION/MD/THERMOSTAT/NOSE", f"TIMECON {self.Tdamp}"),
-                        ("MOTION/MD/BAROSTAT", f"PRESSURE {self.press}"),
-                        ("MOTION/MD/BAROSTAT", f"TIMECON {self.Pdamp}"),
-                    ]
-                )
-            else:
-                ...
-
-        # TODO: It is better to move such calculation to a submodule
-        if self.task == "freq":
+        elif self.task == "freq":
+            # TODO: Make this a submodule!
             pairs.extend(
                 [
                     ("GLOBAL", "RUN_TYPE VIBRATIONAL_ANALYSIS"),
@@ -109,17 +284,23 @@ class Cp2kDriverSetting(DriverSetting):
                     # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_MAX_VAL 1.0E-6"),
                 ]
             )
+            suffix = "freq"
+        else:
+            suffix = self.task
 
-        if self.task in ["min", "md"]:
-            # TODO: Move to manager? as we always need this outputs to convert calculation
-            #       to a trajectory
-            pairs.extend(
-                [
-                    ("MOTION/PRINT/CELL", "_SECTION_PARAMETERS_ ON"),
-                    ("MOTION/PRINT/TRAJECTORY", "_SECTION_PARAMETERS_ ON"),
-                    ("MOTION/PRINT/FORCES", "_SECTION_PARAMETERS_ ON"),
-                ]
-            )
+        _init_params.update(**self.controller)
+
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = default_controllers[suffix]
+
+        cont = cont_cls(**_init_params)
+        pairs.extend(cont.conv_params)  # type: ignore
 
         # We store cp2k parameters as pairs
         self._internals["pairs"] = pairs
