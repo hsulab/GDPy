@@ -275,18 +275,20 @@ default_controllers = dict(
 @dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
 
-    # - md setting
+    #: MD ensemble.
     ensemble: str = "nve"
 
-    # - driver detailed controller setting
+    #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
 
-    # TODO: move below to controller?
-    # fix_cm: bool = False
+    #: Whether fix com to the its initial position.
+    fix_com: bool = False
 
-    # - min setting
-    etol: float = None
-    fmax: float = 0.05
+    #: Energy tolerance in minimisation, 1e-5 [eV].
+    emax: Optional[float] = None
+
+    #: Force tolerance in minimisation, 5e-2 eV/Ang.
+    fmax: Optional[float] = 0.05
 
     def __post_init__(self):
         """Convert parameters into driver-specific ones.
@@ -332,16 +334,16 @@ class VaspDriverSetting(DriverSetting):
         """"""
         # convergence criteria
         fmax_ = kwargs.get("fmax", self.fmax)
-        etol_ = kwargs.get("etol", self.etol)
+        emax_ = kwargs.get("emax", self.emax)
 
-        # etol is prioritised
-        if etol_ is not None:
-            ediffg = etol_
+        # emax is prioritised
+        if emax_ is not None:
+            ediffg = emax_ 
         else:
             if fmax_ is not None:
                 ediffg = -1.0 * fmax_
             else:
-                ediffg = -5e-2
+                raise RuntimeError(f"VASP fmax should not be `{fmax_}`.")
 
         steps_ = kwargs.get("steps", self.steps)
         nsw = steps_

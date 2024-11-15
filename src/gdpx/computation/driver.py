@@ -97,14 +97,14 @@ class DriverSetting:
     #: The number of checkpoints to save.
     ckpt_number: int = 3
 
-    #: Energy tolerance in minimisation.
-    etol: Optional[float] = None  # 5e-2, eV
+    #: Energy tolerance in minimisation, 1e-5 [eV].
+    emax: Optional[float] = None
 
-    #: Force tolerance in minimisation.
-    fmax: Optional[float] = None  # 1e-5, eV/Ang
+    #: Force tolerance in minimisation, 5e-2 eV/Ang.
+    fmax: Optional[float] = None
 
-    #: Stress tolerance in minimisation.
-    smax: Optional[float] = None  # 1e-1, GPa
+    #: Stress tolerance in minimisation, 1e-1 GPa.
+    smax: Optional[float] = None
 
     #: Number of steps for minimisation or molecular dynamics.
     steps: int = 0

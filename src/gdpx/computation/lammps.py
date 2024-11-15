@@ -210,32 +210,44 @@ controllers = dict(
 @dataclasses.dataclass
 class LmpDriverSetting(DriverSetting):
 
+    #: LAMMPS units.
     units: str = "metal"
 
+    #: MD ensemble.
     ensemble: str = "nve"
 
+    #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
 
     #: Whether fix com to the its initial position.
     fix_com: bool = False
 
+    #: Whether initialise velocties internally by LAMMPS.
     use_lmpvel: bool = True
 
-    etol: float = 0
-    fmax: float = 0.05
+    #: Energy tolerance in minimisation, 1e-5 [eV].
+    emax: Optional[float] = 0.0
 
+    #: Force tolerance in minimisation, 5e-2 eV/Ang.
+    fmax: Optional[float] = 0.05
+
+    #: Neighbor list.
     neighbor: str = "0.0 bin"
+
+    #: Neighbor list setting.
     neigh_modify: Optional[str] = None
 
+    #: More custom LAMMPS fixes.
     extra_fix: List[str] = dataclasses.field(default_factory=list)
 
+    #: PLUMED setting.
     plumed: Optional[str] = None
 
     def __post_init__(self):
         """"""
         if self.task == "min":
             self._internals.update(
-                etol=self.etol,
+                etol=self.emax,
                 ftol=self.fmax,
             )
 
@@ -362,22 +374,21 @@ class LmpDriverSetting(DriverSetting):
 
     def get_run_params(self, *args, **kwargs):
         """"""
-        # - pop out special keywords
         # convergence criteria
-        ftol_ = kwargs.pop("fmax", self.fmax)
-        etol_ = kwargs.pop("etol", self.etol)
-        if etol_ is None:
-            etol_ = 0.0
-        if ftol_ is None:
-            ftol_ = 0.0
+        fmax_ = kwargs.pop("fmax", self.fmax)
+        emax_ = kwargs.pop("emax", self.emax)
+        if emax_ is None:
+            emax_ = 0.0
+        if fmax_ is None:
+            fmax_ = 0.0
 
         steps_ = kwargs.pop("steps", self.steps)
 
         run_params = dict(
             steps=steps_,
             constraint=kwargs.get("constraint", self.constraint),
-            etol=etol_,
-            ftol=ftol_,
+            etol=emax_,
+            ftol=fmax_,
         )
 
         # - add extra parameters
