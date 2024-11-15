@@ -7,7 +7,8 @@ from .parser import (
     read_cp2k_outputs,
     read_cp2k_spc,
     read_cp2k_xyz,
-    read_cp2k_convergence
+    read_cp2k_convergence,
+    read_cp2k_spc_convergence
 )
 from .calculators import Cp2kFileIO
 
@@ -18,6 +19,7 @@ __all__ = [
     "read_cp2k_spc",
     "read_cp2k_xyz",
     "read_cp2k_convergence",
+    "read_cp2k_spc_convergence",
 ]
 
 
