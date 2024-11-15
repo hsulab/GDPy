@@ -15,33 +15,15 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import compare_atoms
 from ase.constraints import FixAtoms
-from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
-                                         Stationary, ZeroRotation)
+from ase.md.velocitydistribution import (
+    MaxwellBoltzmannDistribution,
+    Stationary,
+    ZeroRotation,
+)
 
 from ..builder.constraints import convert_indices, parse_constraint_info
 from ..core.node import AbstractNode
 from .md.md_utils import force_temperature
-
-#: Prefix of backup files
-BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
-
-#: Parameter keys used to init a minimisation task.
-MIN_INIT_KEYS: List[str] = ["min_style", "min_modify", "dump_period"]
-
-#: Parameter keys used to run a minimisation task.
-MIN_RUN_KEYS: List[str] = ["steps", "fmax"]
-
-#: Parameter keys used to init a molecular-dynamics task.
-MD_INIT_KEYS: List[str] = [
-    "md_style",
-    "velocity_seed",
-    "timestep",
-    "temp",
-    "Tdamp",
-    "press",
-    "Pdamp",
-    "dump_period",
-]
 
 # Key name for earlystopping in atoms.info.
 EARLYSTOP_KEY: str = "earlystop"
@@ -79,14 +61,7 @@ class DriverSetting:
     #: Some observers
     observers: Optional[List[dict]] = None
 
-    #:
-    min_style: str = "bfgs"
-    min_modify: str = "integrator verlet tmax 4"
-    maxstep: float = 0.1
-
-    #:
-    md_style: str = "nvt"
-
+    #: Random seed for velocity initialisation.
     velocity_seed: Optional[int] = None
 
     #: Whether ignore atoms' velocities and initialise it from the scratch.
@@ -98,32 +73,44 @@ class DriverSetting:
     #: Whether remove translation when init velocity.
     remove_translation: bool = True
 
+    #: MD Timestep in [fs].
     timestep: float = 1.0
 
+    #: MD temperature in [Kelvin].
     temp: float = 300.0
-    tend: Optional[float] = None
-    Tdamp: float = 100.0  # fs
 
-    press: float = 1.0  # bar
-    pend: float = None  # bar
-    Pdamp: float = 100.0
+    #: MD temperature at the end in [Kelvin].
+    tend: Optional[float] = None
+
+    #: MD pressure in [bar].
+    press: float = 1.0
+
+    #: MD pressure at the end in [bar].
+    pend: Optional[float] = None
 
     #: The interval steps to dump output files (e.g. trajectory).
     dump_period: int = 1
 
-    #: The interval steps to save a check point that is used for restart.
+    #: The interval steps to save a check point used for restart.
     ckpt_period: int = 100
 
     #: The number of checkpoints to save.
     ckpt_number: int = 3
 
-    #: run params
-    etol: float = None  # 5e-2, eV
-    fmax: float = None  # 1e-5, eV/Ang
-    smax: float = None  # 1e-1, GPa
+    #: Energy tolerance in minimisation.
+    etol: Optional[float] = None  # 5e-2, eV
+
+    #: Force tolerance in minimisation.
+    fmax: Optional[float] = None  # 1e-5, eV/Ang
+
+    #: Stress tolerance in minimisation.
+    smax: Optional[float] = None  # 1e-1, GPa
+
+    #: Number of steps for minimisation or molecular dynamics.
     steps: int = 0
 
-    constraint: str = None
+    #: How to constrain/fix/freeze some atoms in a structure.
+    constraint: Optional[str] = None
 
     #: Parameters that are used to update
     _internals: dict = dataclasses.field(default_factory=dict)
@@ -178,7 +165,7 @@ class AbstractDriver(AbstractNode):
         params: dict,
         directory="./",
         ignore_convergence: bool = False,
-        random_seed: Optional[Union[int,dict]]=None,
+        random_seed: Optional[Union[int, dict]] = None,
         *args,
         **kwargs,
     ):
@@ -270,7 +257,6 @@ class AbstractDriver(AbstractNode):
         self.calc.reset()
 
         return
-
 
     def _run_step(self, atoms, system_changed, read_ckpt, *args, **kwargs):
         """"""
