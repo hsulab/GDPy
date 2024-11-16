@@ -71,6 +71,7 @@ class DeepmdDataloader:
 
     def __init__(
         self,
+        batchsize,
         batchsizes,
         cum_batchsizes,
         train_sys_dirs,
@@ -79,7 +80,8 @@ class DeepmdDataloader:
         **kwargs,
     ) -> None:
         """"""
-        self.batchsizes = batchsizes
+        self.batchsize = batchsize
+        self.batchsizes = batchsizes  # batchsize per system
         self.cum_batchsizes = cum_batchsizes
         self.train_sys_dirs = [str(x) for x in train_sys_dirs]
         self.valid_sys_dirs = [str(x) for x in valid_sys_dirs]
@@ -102,10 +104,11 @@ class DeepmdDataloader:
         else:
             validset_dirs = []
 
+        batchsize = 1 
         batchsizes = [1]*len(trainset_dirs)
         cum_batchsizes = sum(batchsizes)
 
-        return DeepmdDataloader(batchsizes, cum_batchsizes, trainset_dirs, validset_dirs)
+        return DeepmdDataloader(batchsize, batchsizes, cum_batchsizes, trainset_dirs, validset_dirs)
 
     @property
     def systems(
@@ -360,6 +363,7 @@ class DeepmdTrainer(AbstractTrainer):
             self._print(f"accumulated number of batches: {cum_batchsizes}")
 
             dataset = DeepmdDataloader(
+                dataset.batchsize, # FIXME: xyz_dataset has this?
                 batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs
             )
         else:
@@ -582,15 +586,6 @@ class DeepmdManager(AbstractPotentialManager):
                     calc = calcs[0]
             else:
                 ...
-        elif self.calc_backend == "jax":
-            try:
-                from .dpjax import DPJax
-            except:
-                raise ModuleNotFoundError(
-                    "Please install deepmd-jax to use the jax interface."
-                )
-            # TODO: only support one model...
-            calc = DPJax(model=models[0], type_map=type_map, head=calc_params.get("head", "default"))
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
 
