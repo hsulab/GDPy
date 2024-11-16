@@ -3,9 +3,11 @@
 
 
 from .deepmd import DeepmdManager, DeepmdDataloader, DeepmdTrainer
+from .deepmd_jax import DeepmdJaxTrainer, DeepmdJaxManager
 
 __all__ = [
-    "DeepmdManager", "DeepmdDataloader", "DeepmdTrainer"
+    "DeepmdManager", "DeepmdDataloader", "DeepmdTrainer",
+    "DeepmdJaxTrainer", "DeepmdJaxManager"
 ]
 
 

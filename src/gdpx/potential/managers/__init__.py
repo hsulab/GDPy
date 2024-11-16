@@ -18,6 +18,13 @@ registers.manager.register(DeepmdManager)
 registers.trainer.register(DeepmdTrainer)
 registers.dataloader.register(DeepmdDataloader)
 
+try:
+    from .deepmd import DeepmdJaxManager, DeepmdJaxTrainer
+    registers.manager.register(DeepmdJaxManager)
+    registers.trainer.register(DeepmdJaxTrainer)
+except ImportError as e:
+    config._print(f"Potential `deepmd_jax` import failed: {e}")
+
 from .reann.beann import BeannManager, BeannTrainer
 registers.manager.register(BeannManager)
 registers.trainer.register(BeannTrainer)
