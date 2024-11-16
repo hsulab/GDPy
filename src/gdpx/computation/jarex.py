@@ -12,16 +12,19 @@ import jax
 import jax.numpy as jnp
 import jax_md
 import numpy as np
-from ase import Atoms
-from ase import units
+from ase import Atoms, units
 from ase.io import read, write
-from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
-                                         Stationary, ZeroRotation)
+from ase.md.velocitydistribution import (
+    MaxwellBoltzmannDistribution,
+    Stationary,
+    ZeroRotation,
+)
 
 from .driver import AbstractDriver, Controller, DriverSetting
 
 #: This makes the kinetic energy has a unit of eV and velocity Ang/fs.
 MASS_CONVERTOR: float = 1.036427e2
+
 
 def convert_data_to_atoms(symbols, box, coord, velocity, pbc, rsort) -> Atoms:
     """"""
@@ -32,6 +35,7 @@ def convert_data_to_atoms(symbols, box, coord, velocity, pbc, rsort) -> Atoms:
 
     return atoms
 
+
 @functools.partial(jax.jit, static_argnames="ene_fn")
 def get_quantity(state, ene_fn, **kwargs):
     """"""
@@ -40,15 +44,47 @@ def get_quantity(state, ene_fn, **kwargs):
         velocity=state.velocity, mass=state.mass
     )  # eV
     temperature = (
-        jax_md.quantity.temperature(
-            velocity=state.velocity, mass=state.mass
-        )  # eV
+        jax_md.quantity.temperature(velocity=state.velocity, mass=state.mass)  # eV
         / 1.380649e-23
         * 1.602176634e-19
     )
 
     return temperature, potential_energy, kinetic_energy
 
+
+@dataclasses.dataclass
+class NoseHooverChainThermostat(Controller):
+
+    name: str = "nose_hoover"
+
+    timestep: float = 1.0
+
+    temperature: float = 300.0
+
+    def __post_init__(self):
+        """"""
+        taut = self.params.get("Tdamp", 100.0)  # fs
+        assert taut is not None
+
+        chain_length = self.params.get("chain_length", 1)
+        assert chain_length is not None
+
+        from jax_md.simulate import nvt_nose_hoover as driver_cls
+
+        self.conv_params = dict(
+            driver_cls=driver_cls,
+            dt=self.timestep,
+            kT=self.temperature * 8.61733e-5,  # Kelvin -> kbT in eV
+            tau=taut,
+            chain_length=chain_length,
+        )
+
+        return
+
+
+controllers = dict(nose_hoover_nvt=NoseHooverChainThermostat)
+
+default_controllers = dict(nvt=NoseHooverChainThermostat)
 
 
 @dataclasses.dataclass
@@ -60,45 +96,34 @@ class JarexDriverSetting(DriverSetting):
 
     driver_cls: Optional[jax_md.simulate.Simulator] = None
 
-    fix_cm: bool = False
-
-    fmax: float = 0.05
+    fix_com: bool = False
 
     def __post_init__(self):
         """"""
-        if self.task == "spc":
-            ...
-        elif self.task == "md":
-            self.__parse_molecular_dynamics__()
+        _init_params = {}
+        if self.task == "md":
+            suffix = self.ensemble
+            _init_params.update(
+                timestep=self.timestep, temperature=self.temp
+            )
         else:
             raise RuntimeError(f"Failed to parse task {self.task}.")
+        _init_params.update(**self.controller)
 
-        return
-
-    def __parse_molecular_dynamics__(self):
-        """"""
-        self._internals.update(dt=self.timestep)
-        if self.ensemble == "nvt":
-            temperature = self.temp * 8.61733e-5  # Kelvin -> kbT in eV
-            self._internals.update(kT=temperature)
-            if self.controller:
-                thermo_cls_name = self.controller["name"] + "_" + self.ensemble
-                thermo_cls = controllers[thermo_cls_name]
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
             else:
-                thermo_cls = NoseHooverChainThermostat
-            thermostat = thermo_cls(**self.controller)
-            if thermostat.name == "nose_hoover":
-                from jax_md.simulate import nvt_nose_hoover as driver_cls
-            else:
-                raise RuntimeError(f"Unknown thermostat {thermostat}.")
-            thermo_params = thermostat.conv_params
-            _init_md_params = dict()
-            _init_md_params.update(**thermo_params)
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
         else:
-            raise NotImplementedError(f"Unimplemented ensemble {self.ensemble}")
+            cont_cls = default_controllers[suffix]
 
-        self.driver_cls = driver_cls
-        self._internals.update(**_init_md_params)
+        cont = cont_cls(**_init_params)
+        self.driver_cls = cont.conv_params.pop("driver_cls")
+
+        _init_params.update(**cont.conv_params)
+        self._internals.update(**_init_params)
 
         return
 
@@ -112,27 +137,6 @@ class JarexDriverSetting(DriverSetting):
         return run_params
 
 
-@dataclasses.dataclass
-class NoseHooverChainThermostat(Controller):
-
-    name: str = "nose_hoover"
-
-    def __post_init__(self):
-        """"""
-        taut = self.params.get("Tdamp", 100.0)  # fs
-        assert taut is not None
-
-        chain_length = self.params.get("chain_length", 1)
-        assert chain_length is not None
-
-        self.conv_params = dict(tau=taut, chain_length=chain_length)
-
-        return
-
-
-controllers = dict(nose_hoover_nvt=NoseHooverChainThermostat)
-
-
 class JarexDriver(AbstractDriver):
 
     #: Driver's name.
@@ -144,13 +148,8 @@ class JarexDriver(AbstractDriver):
     #: Supported tasks.
     supported_tasks: List[str] = ["spc", "min", "md"]
 
-    def __init__(self, calc, params: dict, *args, **kwargs):
-        """"""
-        super().__init__(calc=calc, params=params, *args, **kwargs)
-
-        self.setting: JarexDriverSetting = JarexDriverSetting(**params)
-
-        return
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = JarexDriverSetting
 
     def _irun(
         self,
@@ -191,11 +190,13 @@ class JarexDriver(AbstractDriver):
 
             # As jax-md init velocities by Maxwell-Boltzmann and
             # center the momenta, we redo everything by ourselves.
-            state = init_fn(
-                jax.random.PRNGKey(0), coord, mass=masses, nbrs_nm=None
-            )
+            state = init_fn(jax.random.PRNGKey(0), coord, mass=masses, nbrs_nm=None)
 
-            self._prepare_velocities(atoms, velocity_seed=self.setting.velocity_seed, ignore_atoms_velocities=self.setting.ignore_atoms_velocities)
+            self._prepare_velocities(
+                atoms,
+                velocity_seed=self.setting.velocity_seed,
+                ignore_atoms_velocities=self.setting.ignore_atoms_velocities,
+            )
             print(f"{atoms.get_temperature() =}")
 
             # velocities = (atoms.get_velocities() * units.fs)[a_sort]
