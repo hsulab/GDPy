@@ -19,10 +19,7 @@ class AbstractNode(abc.ABC):
     name: str = "node"
 
     #: The random seed when initialising the object.
-    _init_random_seed: Union[int, dict] = None
-
-    #: Working directory.
-    _directory: pathlib.Path = "./"
+    _init_random_seed: Optional[Union[int, dict]] = None
 
     #: Standard print function.
     _print: Callable = config._print
@@ -38,8 +35,8 @@ class AbstractNode(abc.ABC):
         random_seed: Optional[Union[int, dict]]=None, *args, **kwargs
     ):
         """"""
-        # - set working directory
-        self.directory = directory
+        #: Working directory.
+        self._directory = pathlib.Path(directory)
 
         # - set random generator
         self._init_random_seed = random_seed
@@ -71,10 +68,9 @@ class AbstractNode(abc.ABC):
         return self._directory
     
     @directory.setter
-    def directory(self, directory_: Union[str,pathlib.Path]) -> NoReturn:
-        self._directory = pathlib.Path(directory_)
-        #if not self._directory.exists():
-        #    self._directory.mkdir(parents=True)
+    def directory(self, directory: Union[str,pathlib.Path]) -> None:
+        """"""
+        self._directory = pathlib.Path(directory)
 
         return 
 
