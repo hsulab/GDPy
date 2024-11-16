@@ -59,7 +59,7 @@ class DeepmdJaxManager(AbstractPotentialManager):
         self.calc_params.update(model=models)
 
         calc = DummyCalculator()
-        if self.calc_backend == "ase":
+        if self.calc_backend == "ase" or self.calc_backend == "jax":
             try:
                 from .dpjax import DPJax
             except:
@@ -75,8 +75,6 @@ class DeepmdJaxManager(AbstractPotentialManager):
                 print(f"{calc =}")
             else:
                 ...  # No models.
-        elif self.calc_backend == "jax":
-            ...
         else:
             ...
 
