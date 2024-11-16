@@ -236,7 +236,7 @@ class DeepmdTrainer(AbstractTrainer):
     def __init__(
         self,
         config: dict,
-        type_list: List[str] = None,
+        type_list: Optional[List[str]] = None,
         train_epochs: int = 200,
         print_epochs: int = 5,
         directory=".",

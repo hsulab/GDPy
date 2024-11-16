@@ -8,7 +8,7 @@ import os
 import pathlib
 import subprocess
 
-from typing import Union, Callable, List
+from typing import Union, Callable, Optional, List
 
 from ..core.node import AbstractNode
 
@@ -31,13 +31,13 @@ class AbstractTrainer(AbstractNode):
     name: str = "trainer"
 
     #: The path of the command executable.
-    command: str = None
+    command: Optional[str] = None
 
     #: Command to freeze/deploy.
-    freeze_command: str = None
+    freeze_command: Optional[str] = None
 
     #: Type list e.g. [C, H, O].
-    _type_list: List[str] = None
+    _type_list: Optional[List[str]] = None
 
     #: Prefix of input file.
     prefix: str = "config"
@@ -45,13 +45,13 @@ class AbstractTrainer(AbstractNode):
     def __init__(
         self,
         config: dict,
-        type_list: List[str] = None,
+        type_list: Optional[List[str]] = None,
         train_epochs: int = 200,
         print_epochs: int = 5,
         directory=".",
-        command="train",
-        freeze_command="freeze",
-        random_seed: Union[int, dict] = None,
+        command: str="train",
+        freeze_command: str="freeze",
+        random_seed: Optional[Union[int, dict]] = None,
         *args,
         **kwargs,
     ) -> None:
@@ -65,8 +65,6 @@ class AbstractTrainer(AbstractNode):
 
         self.directory = directory
         self.config = config  # train model parameters
-
-        # - TODO: sync type_list
 
         self.train_epochs = train_epochs
         self.print_epochs = print_epochs
@@ -106,7 +104,7 @@ class AbstractTrainer(AbstractNode):
 
     @property
     @abc.abstractmethod
-    def frozen_name(self):
+    def frozen_name(self) -> str:
         """"""
         ...
 
@@ -185,7 +183,7 @@ class AbstractTrainer(AbstractNode):
     def read_convergence(self) -> bool:
         """"""
 
-        return
+        ...
 
     def as_dict(self) -> dict:
         """"""
