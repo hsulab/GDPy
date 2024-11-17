@@ -307,7 +307,10 @@ class VaspDriverSetting(DriverSetting):
             # NOTE: Always use Selective Dynamics and MDALAGO
             #       since it properly treats the DOF and velocities
             suffix = self.ensemble
-            _init_params.update(temperature=self.temp, temperature_end=self.temp)
+            _init_params.update(
+                temperature=self.temp, temperature_end=self.temp,
+                pressure=self.press, pressure_end=self.pend
+            )
         elif self.task == "freq":
             # ibrion, nfree, potim
             raise NotImplementedError("")
