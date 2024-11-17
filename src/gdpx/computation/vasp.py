@@ -150,6 +150,8 @@ class Verlet(MDController):
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         more_params = dict(
             mdalgo=2,
             smass=3,
@@ -169,6 +171,8 @@ class LangevinThermostat(MDController):
         self,
     ):
         """"""
+        super().__post_init__()
+
         friction = self.params.get("friction", None)  # fs^-1
         friction *= 1e3  # ps^-1
         assert friction is not None
@@ -191,6 +195,8 @@ class NoseHooverThermostat(MDController):
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         # FIXME: convert taut to smass
         smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, "NoseHoover-NVT needs positive SMASS."
@@ -210,6 +216,8 @@ class ParrinelloRahmanBarostat(MDController):
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         # FIXME: convert taut to smass
         smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, f"{self.name} needs positive SMASS."
