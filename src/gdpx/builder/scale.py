@@ -29,12 +29,19 @@ class ScaleModifier(StructureModifier):
     """Make a supercell and scale its box.
     """
 
-    def __init__(self, supercell: Optional[List[int]]=None, cubic: bool= False, density: float=-1.0, substrates=None, *args, **kwargs):
+    def __init__(self, supercell: Optional[List[int]]=None, box: Optional[List[float]]=None, density: float=-1.0, substrates=None, *args, **kwargs):
         """"""
         super().__init__(substrates=substrates, *args, **kwargs)
 
         self.supercell = np.array(supercell if supercell else [1,1,1])
-        self.cubic = cubic
+
+        box_ = np.array(box)
+        if box_.size == 3:
+            self.box = np.diag(box_)
+        elif box_.size == 9:
+            self.box = np.reshape(box_, (3,3))
+        else:
+            raise RuntimeError(f"Unknown box `{box}`.")
         
         self.density = density  # [g/cm^3]
 
@@ -54,9 +61,11 @@ class ScaleModifier(StructureModifier):
     def _irun(self, substrate: Atoms, size: int, *args, **kwargs) -> List[Atoms]:
         """"""
         new_atoms = make_supercell(substrate, np.diag(self.supercell))
-        if self.cubic:  # TODO: This works only for an ortho box.
-            new_cell = np.diag([np.max(new_atoms.cell.cellpar()[:3])]*3)
-            new_atoms.set_cell(new_cell, scale_atoms=True)
+        # if self.cubic:  # TODO: This works only for an ortho box.
+        #     new_cell = np.diag([np.max(new_atoms.cell.cellpar()[:3])]*3)
+        #     new_atoms.set_cell(new_cell, scale_atoms=True)
+        if self.box is not None:
+            new_atoms.set_cell(self.box, scale_atoms=True)
         if self.density > 0.:
             prev_density = compute_density(new_atoms)
             new_cell = new_atoms.get_cell(complete=True)/((self.density/prev_density)**(1/3))
