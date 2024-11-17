@@ -16,6 +16,12 @@ try:
 except ImportError:
     config._print(f"Driver Backend `jax` is not imported.")
 
+try:
+    from .deepmd_jax import DeepmdJaxDriver
+    register_drivers.register("deepmd_jax")(DeepmdJaxDriver)
+except ImportError:
+    config._print(f"Driver Backend `deepmd_jax` is not imported.")
+
 from gdpx.computation.lammps import LmpDriver
 register_drivers.register("lammps")(LmpDriver)
 
