@@ -68,12 +68,13 @@ class DPJax(Calculator):
 
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(self, model, type_map, label="DPJax", *args, **kwargs):
+    def __init__(self, model, type_list, label="DPJax", *args, **kwargs):
         """"""
         super().__init__(label=label, *args, **kwargs)
 
         self.model_fpath = model
-        self.type_map = type_map
+        self.type_list = type_list
+        self.type_map = {k: v for v, k in enumerate(self.type_list)}
 
         self._model = None
         self._variables = None

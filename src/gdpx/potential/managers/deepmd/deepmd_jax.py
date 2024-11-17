@@ -42,7 +42,9 @@ class DeepmdJaxManager(AbstractPotentialManager):
 
     valid_combinations = (
         ("ase", "ase"),
+        ("ase", "deepmd_jax"),
         ("jax", "jax"),
+        ("jax", "deepmd_jax"),
     )
 
     def register_calculator(self, calc_params: dict, *args, **kwargs) -> None:
@@ -70,7 +72,7 @@ class DeepmdJaxManager(AbstractPotentialManager):
             if models:
                 calc = DPJax(
                     model=models[0],
-                    type_map=type_map,
+                    type_list=type_list,
                 )
                 print(f"{calc =}")
             else:
