@@ -3,6 +3,7 @@
 
 
 import os
+import copy
 import pathlib
 
 from typing import Callable, List, Tuple
@@ -55,8 +56,8 @@ def resort_atoms_with_spc(
     _print = print_func
     _debug = debug_func
 
-    #
-    atoms = atoms_sorted.copy()[resort]
+    # get a copy of the input atoms
+    atoms = copy.deepcopy(atoms_sorted)[resort]
 
     # The original calculator must have an energy property
     results = dict(
@@ -69,7 +70,7 @@ def resort_atoms_with_spc(
         )
     except:
         free_energy = None  # results["energy"]
-        _print("No free_energy property.")
+        # _print("No free_energy property.")
     if free_energy is not None:
         results["free_energy"] = free_energy
 
@@ -77,7 +78,7 @@ def resort_atoms_with_spc(
         forces = atoms_sorted.get_forces(apply_constraint=False)[resort]
     except:
         forces = None
-        _print("No forces property.")
+        # _print("No forces property.")
     if forces is not None:
         results["forces"] = forces
 
@@ -85,9 +86,22 @@ def resort_atoms_with_spc(
         stress = atoms_sorted.get_stress()
     except:
         stress = None
-        _print("No stress property.")
+        # _print("No stress property.")
     if stress is not None:
         results["stress"] = stress
+
+    # add some extra electronic-structure data
+    try:
+        magmom = atoms_sorted.get_magnetic_moment()
+        results["magmom"] = magmom
+    except:
+        ...
+
+    try:
+        magmoms = atoms_sorted.get_magnetic_moments()
+        results["magmoms"] = magmoms
+    except:
+        ...
 
     calc = SinglePointCalculator(atoms, **results)
     calc.name = calc_name

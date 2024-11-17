@@ -3,25 +3,33 @@
 
 
 import re
-from typing import List, Tuple
+import io
+from typing import List, Tuple, TextIO
 
 import numpy as np
 
 
-def read_outcar_scf(lines: List[str]) -> Tuple[int, float]:
+def read_outcar_scf(outcar_lines: List[str]) -> dict:
     """"""
+    vasp_params_from_outcar = {}
+
     nelm, ediff = None, None
-    for line in lines:
+    for line in outcar_lines:
+        if line.strip().startswith("ISPIN"):
+            ispin = int(line.split()[2])
+            vasp_params_from_outcar.update(ispin=ispin)
         if line.strip().startswith("NELM"):
             nelm = int(line.split()[2][:-1])
+            vasp_params_from_outcar.update(nelm=nelm)
         if line.strip().startswith("EDIFF"):
             ediff = float(line.split()[2])
+            vasp_params_from_outcar.update(ediff=ediff)
         if nelm is not None and ediff is not None:
             break
     else:
-        ...  # TODO: raise an error?
+        ...
 
-    return nelm, ediff
+    return vasp_params_from_outcar
 
 def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
     """"""

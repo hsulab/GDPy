@@ -540,23 +540,28 @@ class VaspDriver(AbstractDriver):
         return
 
     def _read_a_single_trajectory(self, wdir, archive_path=None, *args, **kwargs):
-        """"""
-        oszicar_lines, outcar_lines = None, None
+        """Read vasp output files to get a list of Atoms.
+
+        The positions, energy, free_energy, and forces are read from `vasprun.xml`.
+        If necessary, the total and atomic magnetic moments are read from `OUTCAR` 
+        as they are not stored in `vasprun.xml`.
+
+        """
+        oszicar_fobj, outcar_fobj = None, None
         if archive_path is None:
             # - read trajectory
             vasprun = wdir / "vasprun.xml"
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 try:  # Sometimes there are some outputs in vasprun but not a complete structure.
                     frames = read(vasprun, ":")
-                    with open(wdir / "OUTCAR") as fopen:
-                        outcar_lines = fopen.readlines()
-                    with open(wdir / "OSZICAR") as fopen:
-                        oszicar_lines = fopen.readlines()
+                    oszicar_fobj = open(wdir/"OSZICAR", "r")
+                    outcar_fobj = open(wdir/"OUTCAR", "r")
                 except:
                     frames = []
             else:
                 frames = []
         else:
+            frames = []
             flags = [False, False, False]
             vasprun_name = str(
                 (wdir / "vasprun.xml").relative_to(self.directory.parent)
@@ -573,18 +578,14 @@ class VaspDriver(AbstractDriver):
                         fobj.close()
                         flags[0] = True
                     if tarinfo.name == oszicar_name:
-                        fobj = io.StringIO(
+                        oszicar_fobj = io.StringIO(
                             tar.extractfile(tarinfo.name).read().decode()
                         )
-                        oszicar_lines = fobj.readlines()
-                        fobj.close()
                         flags[1] = True
                     if tarinfo.name == outcar_name:
-                        fobj = io.StringIO(
+                        outcar_fobj = io.StringIO(
                             tar.extractfile(tarinfo.name).read().decode()
                         )
-                        outcar_lines = fobj.readlines()
-                        fobj.close()
                         flags[2] = True
                     if all(flags):
                         break
@@ -594,9 +595,36 @@ class VaspDriver(AbstractDriver):
                     else:
                         self._print(f"FILE FLAG AT {str(wdir)} IS {flags}.")
 
-        # - read oszicar and outcar
-        if outcar_lines is not None and oszicar_lines is not None:
-            nelm, ediff = read_outcar_scf(outcar_lines)
+        # number of frames from vasprun.xml
+        num_frames = len(frames)
+
+        # read magmom and magmoms if possible
+        if outcar_fobj is not None:
+            outcar_lines = outcar_fobj.readlines()
+            vasp_params_from_outcar = read_outcar_scf(outcar_lines)
+            assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
+            if vasp_params_from_outcar["ispin"] == 2:
+                outcar_fobj.seek(0)
+                outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
+                num_outcar_frames = len(outcar_frames)
+                assert num_frames == num_outcar_frames, f"vasprun {num_frames} != outcar {num_outcar_frames}"
+                for i in range(num_frames):
+                    frames[i].calc.results.update(
+                        magmom=outcar_frames[i].calc.results["magmom"],
+                        magmoms=outcar_frames[i].calc.results["magmoms"]
+                    )
+            outcar_fobj.close()
+        else:
+            vasp_params_from_outcar = {}
+            self._print(f"Cannot read OUTCAR at `{str(wdir)}`.")
+
+        # read oszicar and outcar to check scf convergence
+        if oszicar_fobj is not None:
+            assert "nelm" in vasp_params_from_outcar, "OUTCAR must have NELM information."
+            nelm = vasp_params_from_outcar["nelm"]
+            assert "ediff" in vasp_params_from_outcar, "OUTCAR must have EDIFF information."
+            ediff = vasp_params_from_outcar["ediff"]
+            oszicar_lines = oszicar_fobj.readlines()
             scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
             num_scfconvs, num_frames = len(scf_convergences), len(frames)
             self._debug(f"{num_scfconvs =} {num_frames =}")
@@ -630,6 +658,10 @@ class VaspDriver(AbstractDriver):
                 if not is_converged:
                     frames[i] = ScfErrAtoms.from_atoms(frames[i])
                     self._print(f"ScfErrAtoms Step {i} @ {str(wdir)}")
+
+            oszicar_fobj.close()
+        else:
+            self._print(f"Cannot read OSZICAR at `{str(wdir)}`.")
 
         return frames
 
