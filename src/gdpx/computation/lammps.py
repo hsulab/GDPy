@@ -343,7 +343,7 @@ class LmpDriverSetting(DriverSetting):
                 Tstart=self.temp,
                 Tstop=self.tend if self.tend else self.temp,
                 Pstart=self.press,
-                Pstop=self.press,  # FIXME: end pressure??
+                Pstop=self.pend if self.pend else self.press,  
             )
             if self.controller:
                 baro_cls_name = self.controller["name"] + "_" + self.ensemble
