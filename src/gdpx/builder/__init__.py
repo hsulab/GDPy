@@ -83,9 +83,10 @@ registers.builder.register("random_bulk")(BulkBuilder)
 registers.builder.register("random_cluster")(ClusterBuilder)
 registers.builder.register("random_surface")(SurfaceBuilder)
 
-from .cleave_surface import CleaveSurfaceModifier
+from .cleave_surface import CleaveSurfaceModifier, AddVacuumModifier
 
 registers.builder.register("cleave_surface")(CleaveSurfaceModifier)
+registers.builder.register("add_vacuum")(AddVacuumModifier)
 
 from .repeat import RepeatModifier
 
