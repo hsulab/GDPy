@@ -456,31 +456,34 @@ controllers = dict(
     berendsen_npt=BerendsenBarostat,
 )
 
+default_controllers = dict(
+    min = BFGSMinimiser,
+    cmin = BFGSCellMinimiser,
+    nve = Verlet,
+    nvt = BerendsenThermostat,
+    npt = BerendsenBarostat,
+)
+
 
 @dataclasses.dataclass
 class AseDriverSetting(DriverSetting):
 
-    driver_cls: Optional[Dynamics] = None
-
+    #: MD ensemble.
     ensemble: str = "nve"
 
+    #: Dynamics controller.
     controller: dict = dataclasses.field(default_factory=dict)
 
-    fix_cm: bool = False
+    #: Force tolerance.
+    fmax: Optional[float] = 0.05  # eV/Ang
 
-    fmax: float = 0.05  # eV/Ang
+    #: Whether fix com to the its initial position.
+    fix_com: bool = False
+
+    driver_cls: Optional[Dynamics] = None
 
     def __post_init__(self):
         """"""
-        # - task-specific params
-        default_controllers = dict(
-            min = BFGSMinimiser,
-            cmin = BFGSCellMinimiser,
-            nve = Verlet,
-            nvt = BerendsenThermostat,
-            npt = BerendsenBarostat,
-        )
-
         _init_params = {}
         if self.task == "md":
             suffix = self.ensemble
@@ -488,7 +491,7 @@ class AseDriverSetting(DriverSetting):
                 timestep=self.timestep,
                 temperature=self.temp,
                 pressure=self.press,
-                fix_com=self.fix_cm,
+                fix_com=self.fix_com,
             )
         else:
             suffix = self.task

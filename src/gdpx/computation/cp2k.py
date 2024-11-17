@@ -5,7 +5,7 @@
 import dataclasses
 import pathlib
 import traceback
-from typing import List
+from typing import Optional, List
 
 import numpy as np
 from ase import Atoms, units
@@ -245,6 +245,16 @@ controllers = dict(
     martyna_npt=MartynaBarostat,
 )
 
+default_controllers = dict(
+    spc=SinglePointController,
+    min=BFGSMinimiser,
+    nve=Verlet,
+    nvt=CSVRThermostat,
+    npt=MartynaBarostat,
+    # TODO: Make this a submodule!
+    freq=Controller,
+)
+
 
 @dataclasses.dataclass
 class Cp2kDriverSetting(DriverSetting):
@@ -259,20 +269,10 @@ class Cp2kDriverSetting(DriverSetting):
     controller: dict = dataclasses.field(default_factory=dict)
 
     #: Force tolerance.
-    fmax: float = 4.5e-4 * (units.Hartree / units.Bohr)
+    fmax: Optional[float] = 4.5e-4 * (units.Hartree / units.Bohr)
 
     def __post_init__(self):
         """"""
-        default_controllers = dict(
-            spc=SinglePointController,
-            min=BFGSMinimiser,
-            nve=Verlet,
-            nvt=CSVRThermostat,
-            npt=MartynaBarostat,
-            # TODO: Make this a submodule!
-            freq=Controller,
-        )
-
         pairs = []  # key-value pairs that avoid conflicts by same keys
 
         _init_params = {}
