@@ -112,7 +112,7 @@ def parse_thermo_data_by_pattern(
     # Convert matches to a dict.
     num_matches = len(matches)
     if num_matches > 0:
-        thermo_data = np.array(matches, dtype=np.float64)
+        thermo_data = np.array(matches, dtype=np.float64).T
         thermo_dict = {k: v for k, v in zip(name_columns, thermo_data)}
         thermo_dict["Step"] = np.array(thermo_dict["Step"], dtype=np.int64)
     else:
