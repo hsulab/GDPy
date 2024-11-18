@@ -41,6 +41,10 @@ from .dimer import DimerBuilder
 
 registers.builder.register("dimer")(DimerBuilder)
 
+from .trimer import TrimerBuilder
+
+registers.builder.register("trimer")(TrimerBuilder)
+
 from .species import MoleculeBuilder
 
 registers.builder.register("molecule")(MoleculeBuilder)
