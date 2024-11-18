@@ -11,6 +11,7 @@ from .. import config
 from ..core.register import registers
 
 from ..computation.lammps import Lammps
+from ..utils.logio import remove_extra_stream_handlers
 
 
 if __name__ == "__main__":

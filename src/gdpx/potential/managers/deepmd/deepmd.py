@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import os
 import copy
 import dataclasses
+import json
+import os
 import pathlib
 import subprocess
-from typing import Optional, Union, List, Tuple, Callable
-
-import json
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
 from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.io import read, write
 
-from .. import AbstractPotentialManager, AbstractTrainer
-from .. import DummyCalculator, CommitteeCalculator
-
+from .. import (
+    AbstractPotentialManager,
+    AbstractTrainer,
+    CommitteeCalculator,
+    DummyCalculator,
+    remove_extra_stream_handlers,
+)
 from .convert import convert_groups
 
 
@@ -91,7 +93,7 @@ class DeepmdDataloader:
     @staticmethod
     def from_directory(
         train_directory: Union[str, pathlib.Path],
-        valid_directory: Optional[Union[str, pathlib.Path]]=None,
+        valid_directory: Optional[Union[str, pathlib.Path]] = None,
     ) -> "DeepmdDataloader":
         """"""
         # - read trainset...
@@ -104,11 +106,13 @@ class DeepmdDataloader:
         else:
             validset_dirs = []
 
-        batchsize = 1 
-        batchsizes = [1]*len(trainset_dirs)
+        batchsize = 1
+        batchsizes = [1] * len(trainset_dirs)
         cum_batchsizes = sum(batchsizes)
 
-        return DeepmdDataloader(batchsize, batchsizes, cum_batchsizes, trainset_dirs, validset_dirs)
+        return DeepmdDataloader(
+            batchsize, batchsizes, cum_batchsizes, trainset_dirs, validset_dirs
+        )
 
     @property
     def systems(
@@ -364,8 +368,11 @@ class DeepmdTrainer(AbstractTrainer):
             self._print(f"accumulated number of batches: {cum_batchsizes}")
 
             dataset = DeepmdDataloader(
-                dataset.batchsize, # FIXME: xyz_dataset has this?
-                batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs
+                dataset.batchsize,  # FIXME: xyz_dataset has this?
+                batchsizes,
+                cum_batchsizes,
+                train_sys_dirs,
+                valid_sys_dirs,
             )
         else:
             ...
@@ -568,6 +575,7 @@ class DeepmdManager(AbstractPotentialManager):
             # return ase calculator
             try:
                 from .calculator import DP
+                remove_extra_stream_handlers()
             except:
                 raise ModuleNotFoundError(
                     "Please install deepmd-kit to use the ase interface."

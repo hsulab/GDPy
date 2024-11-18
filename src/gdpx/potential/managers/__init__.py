@@ -10,6 +10,8 @@ from ..trainer import AbstractTrainer
 from ..calculators.dummy import DummyCalculator
 from ..calculators.mixer import CommitteeCalculator
 
+from .. import remove_extra_stream_handlers
+
 
 # - basic potentials
 # -- MLIP

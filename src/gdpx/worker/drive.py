@@ -496,6 +496,7 @@ class DriverBasedWorker(AbstractWorker):
                             cache_wdirs = [a.info["wdir"] for a in cache_frames]
                             if set(wdir_names) == set(cache_wdirs):
                                 is_finished = True
+                            else:
                                 self._print(
                                     f"Found unfinished computation at cand{len(cache_wdirs)}"
                                 )
