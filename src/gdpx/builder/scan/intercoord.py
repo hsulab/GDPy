@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-import numpy as np
-
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
 @jax.jit
@@ -23,7 +22,11 @@ def compute_bond_angles(positions, trimer_indices):
     dvecs2 = trimer_positions[2] - trimer_positions[0]
     dnorms2 = jnp.linalg.norm(dvecs2, axis=1)
 
-    angles = jnp.arccos(jnp.sum(dvecs1 * dvecs2, axis=1) / dnorms1 / dnorms2)
+    # angles = jnp.arccos(jnp.sum(dvecs1 * dvecs2, axis=1) / dnorms1 / dnorms2)
+    angles = jnp.arctan2(
+        jnp.linalg.norm(jnp.cross(dvecs1, dvecs2), axis=-1),
+        jnp.sum(dvecs1 * dvecs2, axis=-1),
+    )
 
     return angles
 
