@@ -3,13 +3,18 @@
 
 
 import numpy as np
-import matplotlib as mpl
-mpl.use("Agg") #silent mode
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
     ...
+
+try:
+    USE_REPORTLAB = 1
+    from reportlab.platypus import SimpleDocTemplate, Image, Paragraph
+except:
+    USE_REPORTLAB = 0
+
 
 from ase.utils.forcecurve import fit_raw
 
@@ -55,7 +60,10 @@ class ReactionComparator(AbstractNode):
                 f"{i}".zfill(4)+"."
             )
 
-        self._report()
+        if USE_REPORTLAB: 
+            self._report()
+        else:
+            self._print("Please install `reportlab` to report comparison.")
 
         return
 
@@ -87,8 +95,6 @@ class ReactionComparator(AbstractNode):
     
     def _report(self):
         """"""
-        from reportlab.platypus import SimpleDocTemplate, Image, Paragraph
-
         story = []
 
         # - find figures

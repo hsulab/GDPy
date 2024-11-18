@@ -11,9 +11,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import PIL
 from ase.io import read, write
-from reportlab.lib.utils import ImageReader
-from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate,
+
+try:
+    USE_REPORTLAB=1
+    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate,
                                 Table)
+except:
+    USE_REPORTLAB=0
 
 from . import registers
 from .selector import AbstractSelector
@@ -118,7 +123,10 @@ class CompareSelector(AbstractSelector):
             # selected_indices = new_selected_indices
             # unique_groups = new_unique_groups
 
-            self.report(structures, unique_groups)
+            if USE_REPORTLAB:
+                self.report(structures, unique_groups)
+            else:
+                self._print("Please install `reportlab` to report comparison.")
 
         curr_markers = data.markers
         # NOTE: convert to np.array as there may have 2D markers
