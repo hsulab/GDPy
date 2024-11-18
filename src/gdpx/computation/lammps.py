@@ -452,10 +452,14 @@ class LmpDriver(AbstractDriver):
         """"""
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
-            checkpoints = list(self.directory.glob("restart.*"))
-            self._debug(f"checkpoints: {checkpoints}")
-            if not checkpoints:
-                verified = False
+            if self.setting.ckpt_period >= self.setting.steps:
+                # The computation may finish without saving any restart files.
+                verified = self.read_convergence_from_logfile()
+            else:
+                checkpoints = list(self.directory.glob("restart.*"))
+                self._debug(f"checkpoints: {checkpoints}")
+                if not checkpoints:
+                    verified = False
         else:
             ...
 
