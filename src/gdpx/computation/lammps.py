@@ -23,10 +23,10 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read, write
 from ase.io.lammpsdata import write_lammps_data
 
-from ..builder.constraints import parse_constraint_info, convert_indices
+from ..backend.lammps import parse_thermo_data
+from ..builder.constraints import convert_indices, parse_constraint_info
 from ..builder.group import create_a_group
 from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
-from ..backend.lammps import parse_thermo_data
 
 
 @dataclasses.dataclass(frozen=True)
@@ -239,9 +239,7 @@ class LmpDriverSetting(DriverSetting):
         )
 
         if self.ensemble == "nve":
-            lines = [
-                "fix {fix_id:>24s} {group} nve".format(**_init_md_params)
-            ]
+            lines = ["fix {fix_id:>24s} {group} nve".format(**_init_md_params)]
         elif self.ensemble == "nvt":
             _init_md_params.update(
                 Tstart=self.temp,
@@ -277,7 +275,7 @@ class LmpDriverSetting(DriverSetting):
                 Tstart=self.temp,
                 Tstop=self.tend if self.tend else self.temp,
                 Pstart=self.press,
-                Pstop=self.pend if self.pend else self.press,  
+                Pstop=self.pend if self.pend else self.press,
             )
             if self.controller:
                 baro_cls_name = self.controller["name"] + "_" + self.ensemble
@@ -301,7 +299,7 @@ class LmpDriverSetting(DriverSetting):
                 **_init_md_params
             )
             lines.append(com_line)
-  
+
         lines.append(f"timestep {_init_md_params['timestep']}")
 
         return lines
@@ -368,11 +366,14 @@ class LmpDriver(AbstractDriver):
         # TODO: We should better move this to potential_manager.
         try:
             from ..potential.managers.plumed.calculators.plumed2 import Plumed
+
             new_calc, new_params = calc, params
             if isinstance(calc, LinearCombinationCalculator):
                 ncalcs = len(calc.calcs)
                 assert ncalcs == 2, "Number of calculators should be 2."
-                if isinstance(calc.calcs[0], Lammps) and isinstance(calc.calcs[1], Plumed):
+                if isinstance(calc.calcs[0], Lammps) and isinstance(
+                    calc.calcs[1], Plumed
+                ):
                     new_calc = calc.calcs[0]
                     new_params = copy.deepcopy(params)
                     new_params["plumed"] = "".join(calc.calcs[1].input)
@@ -460,18 +461,27 @@ class LmpDriver(AbstractDriver):
             finish_steps = int(checkpoints[-1].name.split(".")[1])
             remain_steps = target_steps - finish_steps
             run_params.update(
-                read_restart=str(checkpoints[-1].resolve()),
-                steps=remain_steps
+                read_restart=str(checkpoints[-1].resolve()), steps=remain_steps
             )
             # shutil.move(
             #     checkpoints[-1].parent / "traj.dump", self.directory / "traj.dump"
             # )
             if self.setting.tend is not None:
-                curr_temperature = self.setting.temp+(self.setting.tend-self.setting.temp)/target_steps*finish_steps
+                curr_temperature = (
+                    self.setting.temp
+                    + (self.setting.tend - self.setting.temp)
+                    / target_steps
+                    * finish_steps
+                )
             else:
                 curr_temperature = self.setting.temp
             if self.setting.pend is not None:
-                curr_pressure = self.setting.press+(self.setting.pend-self.setting.press)/target_steps*finish_steps
+                curr_pressure = (
+                    self.setting.press
+                    + (self.setting.pend - self.setting.press)
+                    / target_steps
+                    * finish_steps
+                )
             else:
                 curr_pressure = self.setting.press
 
@@ -607,7 +617,9 @@ class LmpDriver(AbstractDriver):
         timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
         # - read thermo data
-        thermo_dict, end_info = parse_thermo_data(log_io.readlines(), print_func=print_func, debug_func=debug_func)
+        thermo_dict, end_info = parse_thermo_data(
+            log_io.readlines(), print_func=print_func, debug_func=debug_func
+        )
 
         # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
         #       if there were any error,
@@ -732,7 +744,7 @@ class LmpDriver(AbstractDriver):
             if end_line.startswith("Total wall time:"):
                 converged = True
             elif end_line.startswith("Last command: run"):
-                with open(self.directory/"EARLYSTOP", "w") as fopen:
+                with open(self.directory / "EARLYSTOP", "w") as fopen:
                     fopen.write("")
                 converged = True
             else:
@@ -897,8 +909,11 @@ class Lammps(FileIOCalculator):
         # read forces from dump file
         curr_wdir = pathlib.Path(self.directory)
         self.cached_traj_frames = LmpDriver._read_a_single_trajectory(
-            mdir=curr_wdir, wdir=curr_wdir, units=self.units, print_func=lambda _: "",
-            debug_func=lambda _: ""
+            mdir=curr_wdir,
+            wdir=curr_wdir,
+            units=self.units,
+            print_func=lambda _: "",
+            debug_func=lambda _: "",
         )
         converged_frame = self.cached_traj_frames[-1]
 
@@ -961,7 +976,9 @@ class Lammps(FileIOCalculator):
 
         # pair, MLIP specific settings
         if self.is_classic:
-            assert self.atom_style == "charge", "For now, classic potentials need charge information."
+            assert (
+                self.atom_style == "charge"
+            ), "For now, classic potentials need charge information."
             content += f"pair_style  {self.pair_style}\n"
             if isinstance(self.pair_coeff, str):
                 pair_coeff = [self.pair_coeff]
@@ -972,12 +989,16 @@ class Lammps(FileIOCalculator):
         else:
             potential = self.pair_style.strip().split()[0]
             if potential == "reax/c":
-                assert self.atom_style == "charge", "reax/c should have charge atom_style"
+                assert (
+                    self.atom_style == "charge"
+                ), "reax/c should have charge atom_style"
                 content += "pair_style  {}\n".format(self.pair_style)
                 content += "pair_coeff {} {}\n".format(
                     self.pair_coeff, " ".join(self.type_list)
                 )
-                content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+                content += (
+                    "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+                )
             elif potential == "eann":
                 pot_data = self.pair_style.strip().split()[1:]
                 endp = len(pot_data)
@@ -998,7 +1019,9 @@ class Lammps(FileIOCalculator):
                     pair_coeff = "double * *"
                 else:
                     pair_coeff = self.pair_coeff
-                content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
+                content += "pair_coeff	{} {}\n".format(
+                    pair_coeff, " ".join(self.type_list)
+                )
             elif potential == "deepmd":
                 content += "pair_style  {} out_freq {}\n".format(
                     self.pair_style, self.dump_period
@@ -1007,9 +1030,7 @@ class Lammps(FileIOCalculator):
                     self.pair_coeff, " ".join(self.type_list)
                 )
             elif potential == "nequip":
-                content += "pair_style  {}\n".format(
-                    self.pair_style
-                )
+                content += "pair_style  {}\n".format(self.pair_style)
                 content += "pair_coeff	{} {}\n".format(
                     self.pair_coeff, " ".join(self.type_list)
                 )
@@ -1060,16 +1081,12 @@ class Lammps(FileIOCalculator):
 
         # total energy is not stored in dump so we need read from log.lammps
         if self.atom_style == "atomic":
-            content += (
-                "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
-                    self.dump_period, ASELMPCONFIG.trajectory_filename
-                )
+            content += "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
+                self.dump_period, ASELMPCONFIG.trajectory_filename
             )
         elif self.atom_style == "charge":
-            content += (
-                "dump		1 all custom {} {} id type element q x y z fx fy fz vx vy vz\n".format(
-                    self.dump_period, ASELMPCONFIG.trajectory_filename
-                )
+            content += "dump		1 all custom {} {} id type element q x y z fx fy fz vx vy vz\n".format(
+                self.dump_period, ASELMPCONFIG.trajectory_filename
             )
         else:
             ...
@@ -1080,12 +1097,20 @@ class Lammps(FileIOCalculator):
         # add extra fix
         for i, fix_info in enumerate(self.extra_fix):
             if isinstance(fix_info, str):  # fix ID command
-                content += "{:<24s}  {:<24s}  {:<s}\n".format("fix", f"extra{i}", fix_info)
+                content += "{:<24s}  {:<24s}  {:<s}\n".format(
+                    "fix", f"extra{i}", fix_info
+                )
             else:  # fix ID group-ID command
                 group_indices = create_a_group(atoms, fix_info[0])
-                group_text = convert_indices(group_indices, index_convention="py") # py-index -> lmp-index text
-                content += "{:<24s}  {:<24s}  id  {:<s}  \n".format("group", f"extra_group_{i}", group_text)
-                content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format("fix", f"extra{i}", f"extra_group_{i}", fix_info[1])
+                group_text = convert_indices(
+                    group_indices, index_convention="py"
+                )  # py-index -> lmp-index text
+                content += "{:<24s}  {:<24s}  id  {:<s}  \n".format(
+                    "group", f"extra_group_{i}", group_text
+                )
+                content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format(
+                    "fix", f"extra{i}", f"extra_group_{i}", fix_info[1]
+                )
         content += "\n"
 
         # run type
@@ -1108,7 +1133,9 @@ class Lammps(FileIOCalculator):
             if self.plumed is not None:
                 # TODO: We should better move this to driver setting.
                 try:
-                    from ..potential.managers.plumed.calculators.plumed2 import update_stride_and_file
+                    from ..potential.managers.plumed.calculators.plumed2 import \
+                        update_stride_and_file
+
                     plumed_inp = update_stride_and_file(
                         self.plumed, wdir=str(self.directory), stride=self.dump_period
                     )
@@ -1116,7 +1143,9 @@ class Lammps(FileIOCalculator):
                         fopen.write("".join(plumed_inp))
                     content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
                 except:
-                    raise RuntimeError("Plumed Bias is included but cannot be imported.")
+                    raise RuntimeError(
+                        "Plumed Bias is included but cannot be imported."
+                    )
             content += f"run             {self.steps}\n"
         else:
             # TODO: NEB?
