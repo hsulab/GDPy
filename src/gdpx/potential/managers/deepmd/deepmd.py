@@ -215,6 +215,7 @@ class DeepmdDataloader:
         """"""
         params = {}
         params["name"] = self.name
+        params["batchsize"] = self.batchsize
         params["batchsizes"] = self.batchsizes
         params["cum_batchsizes"] = self.cum_batchsizes
         params["train_sys_dirs"] = self.train_sys_dirs
