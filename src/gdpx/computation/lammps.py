@@ -23,6 +23,7 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read, write
 from ase.io.lammpsdata import write_lammps_data
 
+from .. import config
 from ..backend.lammps import parse_thermo_data, parse_thermo_data_by_pattern
 from ..builder.constraints import convert_indices, parse_constraint_info
 from ..builder.group import create_a_group
@@ -529,8 +530,8 @@ class LmpDriver(AbstractDriver):
         mdir,
         units: str,
         archive_path: Optional[pathlib.Path] = None,
-        print_func=print,
-        debug_func=print,
+        print_func=config._print,
+        debug_func=config._debug,
         *args,
         **kwargs,
     ):
