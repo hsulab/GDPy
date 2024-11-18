@@ -71,6 +71,7 @@ class ScanAngleModifier(StructureModifier):
         # - compute pseudo inverse of the jacobian matrix
         self._debug(f"{targets =}")
         positions = copy.deepcopy(atoms.positions)
+        internals = compute_bond_angles(positions, trimers)
         for _ in range(self.MAX_ATTEMPTS_UPDATE):
             internals = compute_bond_angles(positions, trimers)
             self._debug(f"internals: {internals}")
@@ -84,7 +85,7 @@ class ScanAngleModifier(StructureModifier):
             )
         else:
             # warnings.warn("Iterative approximation is not converged.", UserWarning)
-            self._print("Iterative approximation is not converged.")
+            self._print(f"Iterative approximation is not converged from {internals} to {targets}.")
 
         # - update positions
         atoms.positions = positions

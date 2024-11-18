@@ -43,7 +43,7 @@ class DimerBuilder(StructureBuilder):
 
         dmin, dmax, intv = self.distances
         distances = np.arange(dmin, dmax + intv, intv)
-        self._print(f"{distances}")
+        self._print(f"{distances =}")
 
         frames = []
         for dis in distances:
