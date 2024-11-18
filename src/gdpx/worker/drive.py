@@ -486,15 +486,21 @@ class DriverBasedWorker(AbstractWorker):
                             self._print("NOT ALL wdirs exist.")
                         self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
                     else:
-                        cache_frames = read(
-                            self.directory / "_data" / f"{identifier}_cache.xyz", ":"
-                        )
-                        cache_wdirs = [a.info["wdir"] for a in cache_frames]
-                        if set(wdir_names) == set(cache_wdirs):
-                            is_finished = True
-                            self._print(
-                                f"Found unfinished computation at cand{len(cache_wdirs)}"
-                            )
+                        # We need first check if cache file exists,
+                        # sometimes due to unexpected errors (e.g. OOM)
+                        # no cache file will be written.
+                        is_finished = False
+                        cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
+                        if cache_fpath.exists():
+                            cache_frames = read(cache_fpath, ":")
+                            cache_wdirs = [a.info["wdir"] for a in cache_frames]
+                            if set(wdir_names) == set(cache_wdirs):
+                                is_finished = True
+                                self._print(
+                                    f"Found unfinished computation at cand{len(cache_wdirs)}"
+                                )
+                        else:
+                            ...
                     if is_finished:
                         # -- finished correctly
                         self._print(f"{job_name} is finished...")
