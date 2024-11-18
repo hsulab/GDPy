@@ -620,9 +620,12 @@ class DeepmdManager(AbstractPotentialManager):
                     pair_coeff=pair_coeff,
                     **calc_params,
                 )
-                # - update several params
+                # update several params
                 calc.units = "metal"
                 calc.atom_style = "atomic"
+                # set default deepmd neigbour setting
+                calc.neighbor = "2.0 bin"
+                calc.neigh_modify = "every 10 check yes"
 
         return calc
 
