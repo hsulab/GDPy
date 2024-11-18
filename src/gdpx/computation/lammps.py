@@ -23,7 +23,7 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read, write
 from ase.io.lammpsdata import write_lammps_data
 
-from ..backend.lammps import parse_thermo_data
+from ..backend.lammps import parse_thermo_data, parse_thermo_data_by_pattern
 from ..builder.constraints import convert_indices, parse_constraint_info
 from ..builder.group import create_a_group
 from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
@@ -617,7 +617,7 @@ class LmpDriver(AbstractDriver):
         timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
         # - read thermo data
-        thermo_dict, end_info = parse_thermo_data(
+        thermo_dict = parse_thermo_data_by_pattern(
             log_io.readlines(), print_func=print_func, debug_func=debug_func
         )
 

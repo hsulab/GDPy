@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-from .parser import parse_thermo_data
+from .parser import parse_thermo_data, parse_thermo_data_by_pattern
 
-__all__ = ["parse_thermo_data"]
+__all__ = ["parse_thermo_data", "parse_thermo_data_by_pattern"]
 
 
 if __name__ == "__main__":

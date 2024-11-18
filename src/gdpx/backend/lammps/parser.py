@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import Tuple
+import re
+from typing import List, Tuple
 
 import numpy as np
 
@@ -74,6 +75,50 @@ def parse_thermo_data(lines, print_func=print, debug_func=print) -> Tuple[dict, 
         thermo_dict[k] = thermo_data[i]
 
     return thermo_dict, end_info
+
+
+def parse_thermo_data_by_pattern(
+    lines: List[str], print_func=print, debug_func=print
+) -> dict:
+    """"""
+    # Find the first appearance of `Step`.
+    step_indices, step_lines = [], []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("Step"):
+            step_indices.append(i)
+            step_lines.append(line)
+
+    num_step_blocks = len(step_indices)
+    if num_step_blocks != 1:
+        raise RuntimeError(
+            "".join([i + " -> " + l for i, l in zip(step_indices, step_lines)])
+        )
+
+    name_columns = step_lines[0].strip().split()
+    num_properties = len(name_columns) - 1
+
+    step_index = step_indices[0]
+    content = "".join(lines[step_index:])
+
+    # The first column is `Step` an integer,
+    # and the rest properties should be all floats.
+    # Thus, the incomplete lines will not be matched.
+    pattern = re.compile(
+        r"^\s+(\d+)\s+" + r"([-+]?[0-9]*\.?[0-9]+\s+)" * num_properties + r"$",
+        flags=re.MULTILINE,
+    )
+    matches = pattern.findall("".join(content))
+
+    # Convert matches to a dict.
+    num_matches = len(matches)
+    if num_matches > 0:
+        thermo_data = np.array(matches, dtype=np.float64)
+        thermo_dict = {k: v for k, v in zip(name_columns, thermo_data)}
+        thermo_dict["Step"] = np.array(thermo_dict["Step"], dtype=np.int64)
+    else:
+        thermo_dict = {}
+
+    return thermo_dict
 
 
 if __name__ == "__main__":
