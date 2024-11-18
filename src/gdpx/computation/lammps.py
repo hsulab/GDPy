@@ -23,10 +23,10 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read, write
 from ase.io.lammpsdata import write_lammps_data
 
-from .. import config
 from ..builder.constraints import parse_constraint_info, convert_indices
 from ..builder.group import create_a_group
 from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
+from ..backend.lammps import parse_thermo_data
 
 
 @dataclasses.dataclass(frozen=True)
@@ -53,72 +53,6 @@ def parse_type_list(atoms):
     type_list.sort()  # by alphabet
 
     return type_list
-
-
-def parse_thermo_data(lines) -> dict:
-    """Read energy ... results from log.lammps file."""
-    # - parse input lines
-    start_idx, end_idx = None, None
-    for idx, line in enumerate(lines):
-        # - get the line index at the start of the thermo infomation
-        #   test with 29Oct2020 and 23Jun2022
-        if line.strip().startswith("Step"):
-            start_idx = idx
-        # - NOTE: find line index at the end
-        if line.strip().startswith("ERROR: "):  # Lost atoms
-            end_idx = idx
-        if line.strip().startswith("Loop time"):
-            end_idx = idx
-        if start_idx is not None and end_idx is not None:
-            break
-    else:
-        end_idx = idx
-    config._debug(f"INITIAL LAMMPS LOG INDEX: {start_idx} {end_idx}")
-
-    # - check valid lines
-    #   sometimes the line may not be complete
-    ncols = len(lines[start_idx].strip().split())
-    for i in range(end_idx, start_idx, -1):
-        curr_data = lines[i].strip().split()
-        curr_ncols = len(curr_data)
-        config._debug(f"  LAMMPS LINE: {lines[i].strip()}")
-        if curr_ncols == ncols:  # The Line has the full thermo info...
-            try:
-                step = int(curr_data[0])
-                end_idx = i + 1
-            except ValueError:
-                ...
-            finally:
-                end_info = lines[i].strip()
-                config._debug(f"  LAMMPS STEP: {end_info}")
-                break
-        else:
-            ...
-    else:
-        end_idx = None  # even not one single complete line
-    config._debug(f"FINAL   LAMMPS LOG INDEX: {start_idx} {end_idx}")
-
-    if start_idx is None or end_idx is None:
-        raise RuntimeError(f"ERROR   LAMMPS LOG INDEX {start_idx} {end_idx}.")
-
-    # -- parse index of PotEng
-    # TODO: save timestep info?
-    thermo_keywords = lines[start_idx].strip().split()
-    if "PotEng" not in thermo_keywords:
-        raise RuntimeError(f"Cant find PotEng in lammps output.")
-    thermo_data = []
-    for x in lines[start_idx + 1 : end_idx]:
-        x_data = x.strip().split()
-        if x_data[0].isdigit():  # There may have some extra warnings... such as restart
-            thermo_data.append(x_data)
-    # thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
-    thermo_data = np.array(thermo_data, dtype=float).transpose()
-    # config._debug(thermo_data)
-    thermo_dict = {}
-    for i, k in enumerate(thermo_keywords):
-        thermo_dict[k] = thermo_data[i]
-
-    return thermo_dict, end_info
 
 
 @dataclasses.dataclass
@@ -572,7 +506,7 @@ class LmpDriver(AbstractDriver):
         try:
             _ = atoms.get_forces()
         except Exception as e:
-            config._debug(traceback.format_exc())
+            self._debug(traceback.format_exc())
         finally:
             # restore some temporary parameters.
             ...
@@ -585,6 +519,8 @@ class LmpDriver(AbstractDriver):
         mdir,
         units: str,
         archive_path: Optional[pathlib.Path] = None,
+        print_func=print,
+        debug_func=print,
         *args,
         **kwargs,
     ):
@@ -671,7 +607,7 @@ class LmpDriver(AbstractDriver):
         timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
         # - read thermo data
-        thermo_dict, end_info = parse_thermo_data(log_io.readlines())
+        thermo_dict, end_info = parse_thermo_data(log_io.readlines(), print_func=print_func, debug_func=debug_func)
 
         # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
         #       if there were any error,
@@ -681,7 +617,7 @@ class LmpDriver(AbstractDriver):
         ]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
-        config._debug(
+        debug_func(
             f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}"
         )
 
@@ -728,7 +664,6 @@ class LmpDriver(AbstractDriver):
                 v = sorted(v, key=lambda x: x[0])
                 step_indices.append(v[-1][0])
             data = data.transpose()[1:, step_indices[:nframes]]
-            # config._print(data)
 
             for i, atoms in enumerate(curr_traj_frames):
                 for j, k in enumerate(dkeys):
@@ -962,7 +897,8 @@ class Lammps(FileIOCalculator):
         # read forces from dump file
         curr_wdir = pathlib.Path(self.directory)
         self.cached_traj_frames = LmpDriver._read_a_single_trajectory(
-            mdir=curr_wdir, wdir=curr_wdir, units=self.units
+            mdir=curr_wdir, wdir=curr_wdir, units=self.units, print_func=lambda _: "",
+            debug_func=lambda _: ""
         )
         converged_frame = self.cached_traj_frames[-1]
 
