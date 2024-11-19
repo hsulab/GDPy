@@ -14,8 +14,16 @@ from ase.io import read, write
 from ase.neighborlist import NeighborList, neighbor_list
 
 from ..data.array import AtomsNDArray
+from ..describer.interface import DescriberVariable
 from .selector import AbstractSelector
 from .cur import stat_str2val, boltz_selection, hist_selection
+
+
+IMPLEMENTED_PROPERTIES: List[str] = [
+    "atomic_energy", "energy", "forces",
+    "volume", "min_distance",
+    "max_devi_f"
+]
 
 
 def get_metric_func(metric_name: str):
@@ -46,6 +54,9 @@ class PropertyItem:
 
     #: Property name that can be found in atoms.info or atoms.arrays.
     name: str
+
+    #: Parameters for initialising a describer.
+    params: dict = dataclasses.field(default_factory=dict)
 
     #: metric config...
     metric: Union[str, List[str]] = None
@@ -293,34 +304,43 @@ class PropertySelector(AbstractSelector):
             property values: List[float] or 1d-np.array.
 
         """
-        prop_vals = []
-        for atoms in frames:
-            if prop_item.name == "atomic_energy":
-                # TODO: move this part to PropertyItem?
-                energy = atoms.get_potential_energy()
-                natoms = len(atoms)
-                atoms_property = energy / natoms
-            elif prop_item.name == "energy":
-                energy = atoms.get_potential_energy()
-                atoms_property = energy
-            elif prop_item.name == "forces":
-                forces = atoms.get_forces(apply_constraint=True)
-                atoms_property = forces
-            elif prop_item.name == "volume":
-                atoms_property = atoms.get_volume()
-            elif prop_item.name == "min_distance":
-                # TODO: Move to observables?
-                #       Check if pmax is a valid float?
-                atoms_property = compute_minimum_distance(atoms, prop_item.pmax)
-            else:
-                # -- any property stored in atoms.info
-                #    e.g. max_devi_f
-                atoms_property = atoms.info.get(prop_item.name, None)
-                if atoms_property is None:
-                    atoms_property = atoms.arrays.get(prop_item.name, None)
-                if atoms_property is None:
-                    raise KeyError(f"{prop_item.name} does not exist.")
-            prop_vals.append(atoms_property)
+        if prop_item.name in IMPLEMENTED_PROPERTIES:
+            prop_vals = []
+            for atoms in frames:
+                if prop_item.name == "atomic_energy":
+                    # TODO: move this part to PropertyItem?
+                    energy = atoms.get_potential_energy()
+                    natoms = len(atoms)
+                    atoms_property = energy / natoms
+                elif prop_item.name == "energy":
+                    energy = atoms.get_potential_energy()
+                    atoms_property = energy
+                elif prop_item.name == "forces":
+                    forces = atoms.get_forces(apply_constraint=True)
+                    atoms_property = forces
+                elif prop_item.name == "volume":
+                    atoms_property = atoms.get_volume()
+                elif prop_item.name == "min_distance":
+                    # TODO: Move to observables?
+                    #       Check if pmax is a valid float?
+                    atoms_property = compute_minimum_distance(atoms, prop_item.pmax)
+                else:
+                    # -- any property stored in atoms.info
+                    #    e.g. max_devi_f
+                    atoms_property = atoms.info.get(prop_item.name, None)
+                    if atoms_property is None:
+                        atoms_property = atoms.arrays.get(prop_item.name, None)
+                    if atoms_property is None:
+                        raise KeyError(f"{prop_item.name} does not exist.")
+                prop_vals.append(atoms_property)
+        else:  # Try use describer to get properties
+            desc_params = dict(
+                name=prop_item.name,
+                **prop_item.params
+            )
+            describer = DescriberVariable(**desc_params).value
+            prop_vals = describer.run(frames)
+
         prop_vals = prop_item._convert_raw_(prop_vals)
 
         return prop_vals
