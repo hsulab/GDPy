@@ -9,9 +9,11 @@ from .interface import DescriberVariable, describe
 registers.variable.register(DescriberVariable)
 registers.operation.register(describe)
 
-# ---
 from .spc import SpcDescriber
 registers.describer.register("spc")(SpcDescriber)
+
+from .coordinate import CoordinateDescriber
+registers.describer.register("coordinate")(CoordinateDescriber)
 
 from .coordination import CoordinationDescriber
 registers.describer.register("coordination")(CoordinationDescriber)
