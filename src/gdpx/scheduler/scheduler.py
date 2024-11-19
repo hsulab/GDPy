@@ -70,14 +70,18 @@ class AbstractScheduler(ABC):
     #: The tags that a job may have in the queue.
     running_status: List[str] = []
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, submit_timeout: float = 10.0, *args, **kwargs):
         """Init an abstract scheduler.
 
         Args:
+            submit_timeout: Timeout for running the submit command.
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
         """
+        # basic params
+        self.submit_timeout = submit_timeout
+
         # update params
         self.environs = kwargs.pop("environs", "")
         self.machine_prefix = kwargs.pop("machine_prefix", "")
@@ -174,7 +178,7 @@ class AbstractScheduler(ABC):
             stderr=subprocess.PIPE,
             encoding="utf-8",
         )
-        errorcode = proc.wait(timeout=10)  # 10 seconds
+        errorcode = proc.wait(timeout=self.submit_timeout)
         if errorcode:
             raise RuntimeError(f"Error in submitting job script {str(self.script)}")
 
