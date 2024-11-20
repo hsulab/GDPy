@@ -97,8 +97,18 @@ def main():
     parser_convert = subparsers.add_parser(
         "convert",
         help="convert dataset formats",
+        description=str(registers.dataloader),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_convert.add_argument("INPUT", help="path of the input dataset")
+    parser_convert.add_argument(
+        "-i", "--input_format", required=True,
+        help="the format of the input dataset"
+    )
+    parser_convert.add_argument(
+        "-o", "--output_format", required=True,
+        help="the format of the output dataset"
+    )
 
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -249,9 +259,9 @@ def main():
 
         run_session(args.SESSION, args.feed, args.timewait, args.directory)
     elif args.subcommand == "convert":
-        from gdpx.data import convert_dataset
+        from .cli.convert import convert_dataset
 
-        convert_dataset(args.INPUT)
+        convert_dataset(args.INPUT, args.input_format, args.output_format, curr_wdir)
     elif args.subcommand == "train":
         from gdpx.trainer import run_newtrainer
 
