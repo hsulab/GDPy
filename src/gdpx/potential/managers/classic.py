@@ -61,7 +61,8 @@ class ClassicManager(AbstractPotentialManager):
                 **calc_params
             )
             calc.type_charges = type_charges
-            calc.units = "metal"
+            units = model_params.get("units", "metal")
+            calc.units = units
             if calc.kspace_style is not None:
                 calc.atom_style = "charge"
             calc.is_classic = True
