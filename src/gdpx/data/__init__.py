@@ -11,6 +11,9 @@ registers.operation.register(correct)
 
 from .convert import convert_dataset
 
+from .dsformat.singlexyz import SingleXyzDataloader
+registers.dataloader.register("single_xyz")(SingleXyzDataloader)
+
 
 
 if __name__ == "__main__":
