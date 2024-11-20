@@ -316,6 +316,7 @@ class VaspDriverSetting(DriverSetting):
             #       since it properly treats the DOF and velocities
             suffix = self.ensemble
             _init_params.update(
+                timestep=self.timestep,
                 temperature=self.temp, temperature_end=self.temp,
                 pressure=self.press, pressure_end=self.pend
             )
