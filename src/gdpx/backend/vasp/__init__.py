@@ -5,9 +5,11 @@
 from .parser import (
     read_report, read_oszicar, read_outcar_scf
 )
+from .writer import write_vasp
 
 __all__ = [
-    "read_report", "read_oszicar", "read_outcar_scf"
+    "read_report", "read_oszicar", "read_outcar_scf",
+    "write_vasp"
 ]
 
 

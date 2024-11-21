@@ -18,7 +18,7 @@ from ase.calculators.vasp import Vasp
 from ase.io import read, write
 from ase.geometry import find_mic
 
-from ..backend.vasp import read_report, read_outcar_scf, read_oszicar
+from ..backend.vasp import read_report, read_outcar_scf, read_oszicar, write_vasp
 from ..data.extatoms import ScfErrAtoms
 from ..utils.cmdrun import run_ase_calculator
 from ..utils.strucopy import read_sort, resort_atoms_with_spc
@@ -222,22 +222,26 @@ class ParrinelloRahmanBarostat(MDController):
         smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, f"{self.name} needs positive SMASS."
 
-        friction = self.params.get("friction", None)  # fs^-1
+        friction = self.params.get("friction", 0.01)  # fs^-1
         friction *= 1e3  # array, ps^-1
         assert friction is not None
 
-        # FIXME: convert taut to pmass
-        pmass = self.params.get("Pdamp", 0.0)  # or smass?
+        # FIXME: convert taut to pmass [a.m.u.]
+        pmass = self.params.get("Pdamp", 1000.0)  # or smass?
         assert pmass >= 0, f"{self.name} needs positive PMASS."
 
-        friction_lattice = self.params.get("friction_lattice", None)  # fs^-1
+        friction_lattice = self.params.get("friction_lattice", 0.01)  # fs^-1
         friction_lattice *= 1e3  # real, ps^-1
         assert friction_lattice is not None
 
-        pmass = self.params.get("pmass", None)  # a.m.u
-        assert pmass > 0.0
+        isotropic = self.params.get("isotropic", False)  # Ang
+        # assert isotropic is not None
+        if isotropic:
+            raise RuntimeError("VASP does not fixed-shape NPT for now.")
 
         more_params = dict(
+            mdalgo=3,
+            isif=4 if isotropic else 3,
             smass=smass,
             langevin_gamma=friction,
             langevin_gamma_l=friction_lattice,
@@ -246,9 +250,8 @@ class ParrinelloRahmanBarostat(MDController):
             #               1 kBar = 1000 bar = 10^8 Pa
             pstress=1e-3 * self.pressure,  # vasp uses kB
         )
-        assert (
-            self.pressure_end is None
-        ), "VASP does not support NPT with changing pressure."
+        if self.pressure_end is not None:
+            raise RuntimeError("VASP does not support NPT with changing pressure.")
 
         self.conv_params.update(**more_params)
 
@@ -288,6 +291,9 @@ class VaspDriverSetting(DriverSetting):
 
     #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
+
+    #: Whether initialise velocities by VASP itself.
+    use_vasp_vinit: bool = True
 
     #: Whether fix com to the its initial position.
     fix_com: bool = False
@@ -430,30 +436,31 @@ class VaspDriver(AbstractDriver):
     ):
         """"""
         if ckpt_wdir is None:  # start from the scratch
-            # - merge params
+            # merge params
             run_params = self.setting.get_run_params(**kwargs)
             run_params.update(**self.setting.get_init_params())
             run_params["system"] = self.directory.name
 
-            # FIXME: Init velocities?
-            if self.setting.task == "md":
-                vasp_random_seed = [self.random_seed, 0, 0]
-                self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
-                self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
-                run_params["random_seed"] = vasp_random_seed
-                # TODO: use external velocities?
-            else:
-                ...
-
-            # - update some system-dependant params
+            # update some system-dependant params
             if "langevin_gamma" in run_params:
                 ntypes = len(set(atoms.get_chemical_symbols()))
                 run_params["langevin_gamma"] = [run_params["langevin_gamma"]] * ntypes
 
             # FIXME: LDA+U
 
-            # - constraint
+            # parse constraint
             self._preprocess_constraints(atoms, run_params)
+
+            # Check velocities before write_input, thus,
+            # we have veloties in atoms_sorted as well.
+            if self.setting.task == "md":
+                vasp_random_seed = [self.random_seed, 0, 0]
+                self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
+                run_params["random_seed"] = vasp_random_seed
+                self._prepare_velocities(
+                    atoms,
+                    self.setting.velocity_seed, self.setting.ignore_atoms_velocities
+                )
 
             self.calc.set(**run_params)
 
@@ -477,6 +484,22 @@ class VaspDriver(AbstractDriver):
             #       run the calculation
             atoms.calc = self.calc
             self.calc.write_input(atoms)
+
+            # Check velocities
+            if self.setting.task == "md":
+                if self.setting.use_vasp_vinit:  # type: ignore
+                    if not self.setting.ignore_atoms_velocities:
+                        raise RuntimeError("Cannot use atoms' velocties (ignore_atoms_velocities is false) when use_vasp_vinit is true.")
+                else:
+                    # use custom write_vasp to forward ase atoms' velocties to vasp
+                    write_vasp(
+                        self.directory / "POSCAR",
+                        self.calc.atoms_sorted,
+                        symbol_count=self.calc.symbol_count,
+                        # write_velocities=not self.setting.ignore_atoms_velocities,
+                        write_velocities=True,
+                    )
+
             if self.setting.task == "cmin":  # TODO: NPT simulation
                 # We need POSCAR in direct coordinates to deal with constraints
                 write(
