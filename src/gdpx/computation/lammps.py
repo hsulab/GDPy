@@ -977,9 +977,9 @@ class Lammps(FileIOCalculator):
 
         # pair, MLIP specific settings
         if self.is_classic:
-            assert (
-                self.atom_style == "charge"
-            ), "For now, classic potentials need charge information."
+            # assert (
+            #     self.atom_style == "charge"
+            # ), "For now, classic potentials need charge information."
             content += f"pair_style  {self.pair_style}\n"
             if isinstance(self.pair_coeff, str):
                 pair_coeff = [self.pair_coeff]
