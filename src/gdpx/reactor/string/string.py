@@ -263,12 +263,18 @@ class AbstractStringReactor(AbstractReactor):
             self._preprocess_constraints(fin_atoms, cons_text)
 
             # TODO: We only support one constraint (FixAtoms) for NEB now.
-            assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == 1
-            sorted_constrained_indices_ini = np.array(sorted(ini_atoms.constraints[0].index))
-            sorted_constrained_indices_fin = np.array(sorted(fin_atoms.constraints[0].index))
-            assert np.all(sorted_constrained_indices_ini == sorted_constrained_indices_fin), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
+            num_constraints = len(ini_atoms.constraints)
+            assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == num_constraints
+            if num_constraints == 0:
+                ...
+            elif num_constraints == 1:
+                sorted_constrained_indices_ini = np.array(sorted(ini_atoms.constraints[0].index))
+                sorted_constrained_indices_fin = np.array(sorted(fin_atoms.constraints[0].index))
+                assert np.all(sorted_constrained_indices_ini == sorted_constrained_indices_fin), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
+            else:
+                raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`.")
 
-            # - 
+            # get interpolation parameters
             use_mic = self.setting.interpolation.get("mic", True)
             idpp_params = self.setting.interpolation.get("idpp", {})
 
