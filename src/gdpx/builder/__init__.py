@@ -8,27 +8,8 @@ from .. import config
 from ..core.register import registers
 from ..utils.command import CustomTimer
 from ..utils.strconv import str2array
+from ..utils.atoms_tags import get_tags_per_species
 
-# - regions
-from .region import (
-    AutoRegion,
-    CubeRegion,
-    CylinderRegion,
-    IntersectRegion,
-    LatticeRegion,
-    SphereRegion,
-    SurfaceLatticeRegion,
-    SurfaceRegion,
-)
-
-registers.region.register(AutoRegion)
-registers.region.register(CubeRegion)
-registers.region.register(SphereRegion)
-registers.region.register(CylinderRegion)
-registers.region.register(LatticeRegion)
-registers.region.register(SurfaceLatticeRegion)  # BUG?
-registers.region.register(SurfaceRegion)  # BUG?
-registers.region.register(IntersectRegion)
 
 
 # - basic builders and modifiers

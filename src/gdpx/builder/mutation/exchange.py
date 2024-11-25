@@ -11,7 +11,8 @@ from ase import Atoms
 from ase.ga.offspring_creator import OffspringCreator
 
 from .. import registers
-from ..utils import get_tags_per_species, convert_string_to_atoms
+from ..utils import convert_string_to_atoms
+from .. import get_tags_per_species
 from ..utils import check_overlap_neighbour
 
 """Some mutations that exchange particles with external reservoirs."""

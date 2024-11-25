@@ -4,7 +4,6 @@
 
 import abc
 import copy
-import itertools
 
 from typing import NoReturn, List, Mapping
 
@@ -14,7 +13,7 @@ from ase import Atoms
 from ase import data
 
 from . import registers
-from .utils import get_tags_per_species
+from ..utils.atoms_tags import get_tags_per_species
 
 
 

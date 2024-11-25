@@ -164,6 +164,8 @@ ALL_MODULES = [
     ("gdpx.potential", ["managers"]),
     # -- dataloaders (datasets)
     ("gdpx.data", ["dataset"]),
+    # -- region
+    ("gdpx", ["region"]),
     # -- bias
     ("gdpx", ["bias"]),
     # -- builders
