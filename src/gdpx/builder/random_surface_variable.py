@@ -4,12 +4,12 @@
 
 import copy
 import itertools
+import time
 from typing import List, Optional
 
 import joblib
 import numpy as np
 import scipy as sp
-
 from ase import Atoms
 from ase.data import atomic_numbers
 
@@ -24,7 +24,7 @@ RANDOM_INTEGER_HIGH: int = 1_000_000_000_000
 
 
 def stratified_random_structures(
-    substrates,
+    substrate: Atoms,
     composition_space,
     region,
     molecular_distances,
@@ -36,35 +36,36 @@ def stratified_random_structures(
 ) -> List[List[Atoms]]:
     """"""
     # prepare inputs for parallel
-    batches = []
-    for _ in range(max_attempts):
-        prepared_substrates = [copy.deepcopy(a) for a in substrates]
-        num_prepared_substrates = len(prepared_substrates)
+    prepared_substrates = [copy.deepcopy(substrate) for _ in range(max_attempts)]
+    prepared_fragments = [
+        composition_space.get_fragments_from_one_composition(rng)
+        for _ in range(max_attempts)
+    ]
+    prepared_random_states = rng.integers(
+        low=0, high=RANDOM_INTEGER_HIGH, size=max_attempts
+    )
 
-        prepared_fragments = composition_space.get_fragments_from_one_composition(rng)
-
-        prepared_random_states = rng.integers(
-            low=0, high=RANDOM_INTEGER_HIGH, size=num_prepared_substrates
-        )
-        batches.append(
-            [prepared_substrates, prepared_fragments, prepared_random_states]
-        )
-
+    print(f"{n_jobs=}")
     backend = "loky"
+    # backend = "threading"
     ret = joblib.Parallel(n_jobs=n_jobs, backend=backend)(
-        joblib.delayed(batch_insert_fragments_at_once)(
-            substrates=curr_substrates,
-            fragments=curr_fragments,
+        joblib.delayed(insert_fragments_at_once)(
+            substrate=substrate,
+            fragments=fragments,
             region=region,
             molecular_distances=molecular_distances,
             covalent_ratio=covalent_ratio,
             bond_distance_dict=bond_distance_dict,
-            random_states=curr_random_states,
+            random_state=random_state,
         )
-        for curr_substrates, curr_fragments, curr_random_states in batches
+        for substrate, fragments, random_state in zip(
+            prepared_substrates, prepared_fragments, prepared_random_states
+        )
     )
 
-    return ret  # type: ignore
+    structures = [a for a in ret if a is not None]
+
+    return structures  # type: ignore
 
 
 class RandomSurfaceVariableModifier(StructureModifier):
@@ -132,60 +133,39 @@ class RandomSurfaceVariableModifier(StructureModifier):
         chemical_symbols = set(chemical_symbols)
         chemical_numbers = [atomic_numbers[s] for s in chemical_symbols]
 
+        # Generate structures
         # PERF: For easy random tasks, use stratified parallel run.
         #       try small_times_size first and increase it if not
         #       enough structures are generated.
-        num_attempts = 0
-        combined_frames = [[] for _ in range(num_substrates)]
-        num_frames = 0
-        for i in range(self.MAX_TIMES_SIZE):
-            curr_max_attempts = self.njobs * 2 ** int(
-                np.log(num_substrates * size - num_frames)
-            )
-            num_attempts += curr_max_attempts * num_substrates
-            # ret = self._irun(self.substrates, size=curr_max_attempts)
-            ret = stratified_random_structures(
-                self.substrates,
-                composition_space=self._compspec,
-                region=self.region,
-                molecular_distances=self.molecular_distances,
-                covalent_ratio=self.covalent_ratio,
-                bond_distance_dict=get_bond_distance_dict(chemical_numbers),
-                max_attempts=curr_max_attempts,
-                n_jobs=self.njobs,
-                rng=self.rng,
-            )
-
-            for batch_frames in ret:
-                for i, atoms in enumerate(batch_frames):
-                    if len(combined_frames[i]) < size:
-                        if atoms is not None:
-                            combined_frames[i].append(atoms)
-                    else:
-                        ...
-                combined_num_frames = [len(cf) for cf in combined_frames]
-                if np.all([cnf == size for cnf in combined_num_frames]):
+        frames = []
+        for substrate in self.substrates:
+            curr_frames = []
+            for i in range(self.MAX_TIMES_SIZE):
+                num_curr_frames = len(curr_frames)
+                if num_curr_frames == size:
                     break
-
-            combined_num_frames = [len(cf) for cf in combined_frames]
-            num_frames = np.sum(combined_num_frames)
-            self._print(
-                f"Need {size}*{num_substrates} structures and {num_frames} is created in {curr_max_attempts} attempts."
-            )
-            if np.all([cnf == size for cnf in combined_num_frames]):
-                break
-
-        if num_attempts >= RANDOM_INTEGER_HIGH:
-            self._print("The random structures may have duplicates.")
-
-        frames = list(itertools.chain(*combined_frames))
-        num_frames = len(frames)
-        self._print(f"{num_frames =}")
-
-        if num_frames != size * num_substrates:
-            raise RuntimeError(
-                f"Need {size}*{num_substrates} structures but only {num_frames} is created."
-            )
+                max_attempts = self.njobs * 2 ** int(np.log(size - num_curr_frames))
+                st = time.time()
+                batch_frames = stratified_random_structures(
+                    substrate,
+                    composition_space=self._compspec,
+                    region=self.region,
+                    molecular_distances=self.molecular_distances,
+                    covalent_ratio=self.covalent_ratio,
+                    bond_distance_dict=get_bond_distance_dict(chemical_numbers),
+                    max_attempts=max_attempts,
+                    n_jobs=self.njobs,
+                    rng=self.rng,
+                )
+                et = time.time()
+                self._print(
+                    f"stride-{i:>04d} generates {len(batch_frames)} structures with {max_attempts} attempts in {et-st:.2f} seconds."
+                )
+                for atoms in batch_frames:
+                    curr_frames.append(atoms)
+                    if len(curr_frames) == size:
+                        break
+            frames.extend(curr_frames)
 
         return frames
     

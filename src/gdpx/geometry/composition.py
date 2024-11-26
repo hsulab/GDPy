@@ -87,7 +87,7 @@ class CompositionSpace:
         num_compositions = len(self._compositions)
         idx = rng.choice(num_compositions, size=1, replace=False)[0]
         composition = self._compositions[idx]
-        print(f"{composition=}")
+        # print(f"{composition=}")
 
         fragments = list(
             itertools.chain(

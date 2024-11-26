@@ -40,6 +40,7 @@ def insert_fragments_at_once(
     covalent_ratio,
     bond_distance_dict,
     random_state,
+    max_attempts: int=5
 ) -> Optional[Atoms]:
     """"""
     # Initialise a random number generator
@@ -70,43 +71,50 @@ def insert_fragments_at_once(
 
     # Check inter-molecular distances
     min_molecular_distance, max_molecular_distance = molecular_distances
-    random_positions = region.get_random_positions(size=num_fragments, rng=rng)
-    if num_fragments > 1:
-        pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
-        raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
-        mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell, pbc=atoms.pbc)
-        if (
-            np.min(mic_dis) >= min_molecular_distance
-            and np.max(mic_dis) <= max_molecular_distance
-        ):
+
+    for _ in range(max_attempts):
+        candidate = None
+
+        random_positions = region.get_random_positions(size=num_fragments, rng=rng)
+        if num_fragments > 1:
+            pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
+            raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
+            mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell, pbc=atoms.pbc)
+            if (
+                np.min(mic_dis) >= min_molecular_distance
+                and np.max(mic_dis) <= max_molecular_distance
+            ):
+                is_molecule_valid = True
+            else:
+                is_molecule_valid = False
+        else:
             is_molecule_valid = True
-        else:
-            is_molecule_valid = False
+
+        if is_molecule_valid:
+            candidate = copy.deepcopy(atoms)
+            assert candidate is not None
+            for a, p in zip(fragments, random_positions):
+                # rotate and translate
+                a = copy.deepcopy(a)
+                a = translate_then_rotate(a, position=p, use_com=True, rng=rng)
+                a.set_tags(int(np.max(candidate.get_tags()) + 1))
+                candidate += a
+
+            if not check_atomic_distances(
+                candidate,
+                covalent_ratio=covalent_ratio,
+                bond_distance_dict=bond_distance_dict,
+                excluded_pairs=excluded_pairs,
+                allow_isolated=False,
+            ):
+                candidate = None
+
+        if candidate is not None:
+            break
     else:
-        is_molecule_valid = True
+        candidate = None # No atoms generated after max_attempts
 
-    if is_molecule_valid:
-        for a, p in zip(fragments, random_positions):
-            # rotate and translate
-            a = copy.deepcopy(a)
-            a = translate_then_rotate(a, position=p, use_com=True, rng=rng)
-            a.set_tags(int(np.max(atoms.get_tags()) + 1))
-            atoms += a
-
-        if not check_atomic_distances(
-            atoms,
-            covalent_ratio=covalent_ratio,
-            bond_distance_dict=bond_distance_dict,
-            excluded_pairs=excluded_pairs,
-            allow_isolated=False,
-        ):
-            atoms = None
-        else:
-            ...
-    else:
-        atoms = None
-
-    return atoms
+    return candidate
 
 def batch_insert_fragments_at_once(
     substrates: List[Atoms],
