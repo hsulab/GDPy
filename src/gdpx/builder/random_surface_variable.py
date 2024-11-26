@@ -79,6 +79,8 @@ class RandomSurfaceVariableModifier(StructureModifier):
         self,
         composition,
         region,
+        box=None,
+        pbc=True,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
         max_times_size: int=10,
@@ -91,6 +93,9 @@ class RandomSurfaceVariableModifier(StructureModifier):
         # Save init params
         self._init_params = dict(
             composition=composition,
+            region=region,
+            box=box,
+            pbc=pbc,
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
             max_times_size=max_times_size,
@@ -99,6 +104,21 @@ class RandomSurfaceVariableModifier(StructureModifier):
 
         # Check composition
         self._compspec = CompositionSpace(composition)
+
+        # Check box
+        try:
+            if box is not None:
+                box = np.array(box)
+                if box.size == 3:
+                    self.box = np.diag(box)
+                else:  # assume it is (3,3)
+                    self.box = np.reshape(box, (3,3))
+            else:
+                self.box = None
+        except:
+            raise RuntimeError(f"box must be a (3,) or (3,3) array but `{box}` is given.")
+
+        self.pbc = pbc
 
         # Check region
         self.region = RegionVariable(**region).value
@@ -128,7 +148,12 @@ class RandomSurfaceVariableModifier(StructureModifier):
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
-        num_substrates = len(self.substrates)
+        if self.substrates is not None:
+            ...
+        else:
+            if self.box is None:
+                raise RuntimeError(f"box must be set when substrates are not given.")
+            self.substrates = [Atoms("", cell=self.box, pbc=self.pbc)]
 
         # Infer chemical species may occur in structures
         chemical_symbols = self._compspec.get_chemical_symbols()
@@ -144,7 +169,8 @@ class RandomSurfaceVariableModifier(StructureModifier):
         #       try small_times_size first and increase it if not
         #       enough structures are generated.
         frames = []
-        for substrate in self.substrates:
+        for isub, substrate in enumerate(self.substrates):
+            self._print(f"generating structures based on substrate-{isub:>04d}.")
             curr_frames = []
             for i in range(self.MAX_TIMES_SIZE):
                 num_curr_frames = len(curr_frames)
@@ -177,7 +203,6 @@ class RandomSurfaceVariableModifier(StructureModifier):
             if num_curr_frames != size:
                 raise RuntimeError(f"Need {size} but only {num_curr_frames} are generated.")
             frames.extend(curr_frames)
-
 
         return frames
 
