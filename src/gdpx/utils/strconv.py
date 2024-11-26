@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 
 
-def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
+def str2list_int(inp: str, convention: str = "lmp", out_convention: str = "ase") -> List[int]:
     """Convert a string to a List of int.
 
     Args:
@@ -42,6 +42,13 @@ def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
     # remove duplicates
     # ret = sorted(list(set(ret)))
     ret = list(set(ret))
+
+    if out_convention == "lmp":
+        ret = [r+1 for r in ret]
+    elif out_convention == "ase":
+        ...
+    else:
+        ...
 
     return ret
 
