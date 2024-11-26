@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms
 from ase.geometry import find_mic
 
-from .spatial import check_atomic_distances
+from .spatial import check_atomic_distances, check_pair_distances
 
 
 def translate_then_rotate(atoms, position, use_com: bool, rng):
@@ -32,6 +32,87 @@ def translate_then_rotate(atoms, position, use_com: bool, rng):
     return atoms
 
 
+def insert_fragments_by_step(
+    substrate: Atoms,
+    fragments: List[Atoms],
+    region,
+    molecular_distances,
+    covalent_ratio,
+    bond_distance_dict,
+    random_state,
+    max_attempts: int = 5,
+) -> Optional[Atoms]:
+    """"""
+    # Initialise a random number generator
+    rng = np.random.Generator(np.random.PCG64(random_state))
+
+    # Overwrite tags for atoms in the substrate
+    atoms = substrate
+    # atoms.set_tags(max(atoms.get_tags()) + 1)
+    atoms.set_tags(0)
+
+    # Sort fragments by chemical formulae alphabetically
+    fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
+
+    chemical_numbers = list(
+        itertools.chain(*[a.get_atomic_numbers() for a in fragments])
+    )
+
+    # Check inter-molecular distances
+    min_molecular_distance, max_molecular_distance = molecular_distances
+    excluded_pairs = []
+
+    candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.get_pbc())
+    for frag in fragments:
+        # find intra-molecular pairs
+        beg = len(candidate)
+        end = beg + len(frag)
+        excluded_pairs.extend(itertools.permutations(range(beg, end), 2))
+        for _ in range(max_attempts):
+            pos = region.get_random_positions(size=1, rng=rng)[0]
+            frag = copy.deepcopy(frag)
+            frag = translate_then_rotate(frag, position=pos, use_com=True, rng=rng)
+            num_atoms = len(candidate)
+            if num_atoms > 0:
+                pairs = np.array(
+                    list(itertools.product(range(0, beg), range(beg, end)))
+                )
+                positions = np.vstack([candidate.get_positions(), frag.get_positions()])
+                raw_vectors = positions[pairs[:, 0]] - positions[pairs[:, 1]]
+                mic_vecs, mic_dis = find_mic(
+                    v=raw_vectors, cell=atoms.cell, pbc=atoms.pbc
+                )
+                if (
+                    np.min(mic_dis) >= min_molecular_distance
+                    and np.max(mic_dis) <= max_molecular_distance
+                ):
+                    # PERF: We resue distances from the find_mic
+                    #       instead of getting neighbour list.
+                    if check_pair_distances(
+                        pairs,
+                        mic_dis,
+                        chemical_numbers,
+                        covalent_ratio,
+                        bond_distance_dict,
+                        excluded_pairs=excluded_pairs
+                    ):
+                        candidate += frag
+                        break
+                else:
+                    continue
+            else:
+                candidate += frag
+                break
+        else:
+            candidate = None
+            break
+
+    if candidate is not None:
+        candidate = atoms + candidate
+
+    return candidate
+
+
 def insert_fragments_at_once(
     substrate: Atoms,
     fragments: List[Atoms],
@@ -40,7 +121,7 @@ def insert_fragments_at_once(
     covalent_ratio,
     bond_distance_dict,
     random_state,
-    max_attempts: int=5
+    max_attempts: int = 5,
 ) -> Optional[Atoms]:
     """"""
     # Initialise a random number generator
@@ -112,9 +193,10 @@ def insert_fragments_at_once(
         if candidate is not None:
             break
     else:
-        candidate = None # No atoms generated after max_attempts
+        candidate = None  # No atoms generated after max_attempts
 
     return candidate
+
 
 def batch_insert_fragments_at_once(
     substrates: List[Atoms],
@@ -140,7 +222,6 @@ def batch_insert_fragments_at_once(
         frames.append(new_atoms)
 
     return frames
-
 
 
 if __name__ == "__main__":

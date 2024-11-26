@@ -14,8 +14,8 @@ from ase import Atoms
 from ase.data import atomic_numbers
 
 from ..geometry.composition import CompositionSpace
-from ..geometry.insert import (batch_insert_fragments_at_once,
-                               insert_fragments_at_once)
+from ..geometry.insert import (insert_fragments_at_once,
+                               insert_fragments_by_step)
 from ..geometry.spatial import get_bond_distance_dict
 from ..nodes.region import RegionVariable
 from .builder import StructureModifier
@@ -30,26 +30,26 @@ def stratified_random_structures(
     molecular_distances,
     covalent_ratio,
     bond_distance_dict,
-    max_attempts: int,
+    outer_max_attempts: int,
+    inner_max_attempts: int,
     n_jobs,
     rng,
 ) -> List[List[Atoms]]:
     """"""
     # prepare inputs for parallel
-    prepared_substrates = [copy.deepcopy(substrate) for _ in range(max_attempts)]
+    prepared_substrates = [copy.deepcopy(substrate) for _ in range(outer_max_attempts)]
     prepared_fragments = [
         composition_space.get_fragments_from_one_composition(rng)
-        for _ in range(max_attempts)
+        for _ in range(outer_max_attempts)
     ]
     prepared_random_states = rng.integers(
-        low=0, high=RANDOM_INTEGER_HIGH, size=max_attempts
+        low=0, high=RANDOM_INTEGER_HIGH, size=outer_max_attempts
     )
 
-    print(f"{n_jobs=}")
     backend = "loky"
-    # backend = "threading"
     ret = joblib.Parallel(n_jobs=n_jobs, backend=backend)(
-        joblib.delayed(insert_fragments_at_once)(
+        # joblib.delayed(insert_fragments_at_once)(
+        joblib.delayed(insert_fragments_by_step)(
             substrate=substrate,
             fragments=fragments,
             region=region,
@@ -57,6 +57,7 @@ def stratified_random_structures(
             covalent_ratio=covalent_ratio,
             bond_distance_dict=bond_distance_dict,
             random_state=random_state,
+            max_attempts=inner_max_attempts
         )
         for substrate, fragments, random_state in zip(
             prepared_substrates, prepared_fragments, prepared_random_states
@@ -80,6 +81,7 @@ class RandomSurfaceVariableModifier(StructureModifier):
         region,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
+        max_times_size: int=10,
         *args,
         **kwargs,
     ):
@@ -91,13 +93,12 @@ class RandomSurfaceVariableModifier(StructureModifier):
             composition=composition,
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
+            max_times_size=max_times_size,
             **kwargs,
         )
 
         # Check composition
         self._compspec = CompositionSpace(composition)
-
-        self._print(f"{self._compspec._compositions =}")
 
         # Check region
         self.region = RegionVariable(**region).value
@@ -110,6 +111,9 @@ class RandomSurfaceVariableModifier(StructureModifier):
         if molecular_distances[1] is None:
             molecular_distances[1] = np.inf
         self.molecular_distances = molecular_distances
+
+        # Attempts
+        self.MAX_TIMES_SIZE = max_times_size
 
         # To compatible with GA engine
         self._substrate = None
@@ -133,6 +137,8 @@ class RandomSurfaceVariableModifier(StructureModifier):
         chemical_symbols = set(chemical_symbols)
         chemical_numbers = [atomic_numbers[s] for s in chemical_symbols]
 
+        bond_distance_dict = get_bond_distance_dict(chemical_numbers)
+
         # Generate structures
         # PERF: For easy random tasks, use stratified parallel run.
         #       try small_times_size first and increase it if not
@@ -152,8 +158,9 @@ class RandomSurfaceVariableModifier(StructureModifier):
                     region=self.region,
                     molecular_distances=self.molecular_distances,
                     covalent_ratio=self.covalent_ratio,
-                    bond_distance_dict=get_bond_distance_dict(chemical_numbers),
-                    max_attempts=max_attempts,
+                    bond_distance_dict=bond_distance_dict,
+                    outer_max_attempts=max_attempts,
+                    inner_max_attempts=100,
                     n_jobs=self.njobs,
                     rng=self.rng,
                 )
@@ -164,11 +171,16 @@ class RandomSurfaceVariableModifier(StructureModifier):
                 for atoms in batch_frames:
                     curr_frames.append(atoms)
                     if len(curr_frames) == size:
+                        self._print(f"stride-{i:>04d} has already obtained {size} structures.")
                         break
+            num_curr_frames = len(curr_frames)
+            if num_curr_frames != size:
+                raise RuntimeError(f"Need {size} but only {num_curr_frames} are generated.")
             frames.extend(curr_frames)
 
+
         return frames
-    
+
     def as_dict(self) -> dict:
         """"""
         params = copy.deepcopy(self._init_params)

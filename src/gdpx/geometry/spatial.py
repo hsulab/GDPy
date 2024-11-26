@@ -24,6 +24,24 @@ def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict:
     return bond_distance_dict
 
 
+def check_pair_distances(pairs, distances, chemical_numbers, covalent_ratio, bond_distance_dict, excluded_pairs):
+    """"""
+    cov_min, cov_max = covalent_ratio
+
+    is_valid = False
+    for p, d in zip(pairs, distances):
+        i, j = p
+        atomic_pair = (chemical_numbers[i], chemical_numbers[j])
+        if (i, j) not in excluded_pairs:
+            if d < bond_distance_dict[atomic_pair] * cov_min:
+                is_valid = False
+                break
+    else:
+        is_valid = True
+
+    return is_valid
+
+
 def check_atomic_distances(
     atoms: Atoms,
     covalent_ratio,
