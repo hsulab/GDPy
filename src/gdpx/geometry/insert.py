@@ -94,7 +94,7 @@ def insert_fragments_by_step(
                         chemical_numbers,
                         covalent_ratio,
                         bond_distance_dict,
-                        excluded_pairs=excluded_pairs
+                        excluded_pairs=excluded_pairs,
                     ):
                         candidate += frag
                         break
@@ -137,18 +137,17 @@ def insert_fragments_at_once(
     num_fragments = len(fragments)
 
     # Find intra-molecular pairs
-    excluded_pairs = list(itertools.permutations(range(len(atoms)), 2))
-
     end_indices = np.cumsum([len(a) for a in fragments])
     beg_indices = np.hstack([[0], end_indices[:-1]])
 
-    intra_bonds = itertools.chain(
-        *[
-            itertools.permutations(range(beg, end), 2)
-            for beg, end in zip(beg_indices, end_indices)
-        ]
+    excluded_pairs = list(
+        itertools.chain(
+            *[
+                itertools.permutations(range(beg, end), 2)
+                for beg, end in zip(beg_indices, end_indices)
+            ]
+        )
     )
-    excluded_pairs.extend(intra_bonds)
 
     # Check inter-molecular distances
     min_molecular_distance, max_molecular_distance = molecular_distances
@@ -172,22 +171,26 @@ def insert_fragments_at_once(
             is_molecule_valid = True
 
         if is_molecule_valid:
-            candidate = copy.deepcopy(atoms)
+            candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.pbc)
+            tag = 1
             assert candidate is not None
             for a, p in zip(fragments, random_positions):
                 # rotate and translate
                 a = copy.deepcopy(a)
                 a = translate_then_rotate(a, position=p, use_com=True, rng=rng)
-                a.set_tags(int(np.max(candidate.get_tags()) + 1))
-                candidate += a
+                a.set_tags(tag)
+                tag += 1
 
-            if not check_atomic_distances(
+            if check_atomic_distances(
                 candidate,
                 covalent_ratio=covalent_ratio,
                 bond_distance_dict=bond_distance_dict,
                 excluded_pairs=excluded_pairs,
-                allow_isolated=False,
+                allow_isolated=True,
             ):
+                candidate = atoms + candidate
+                break
+            else:
                 candidate = None
 
         if candidate is not None:
