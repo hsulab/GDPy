@@ -69,7 +69,7 @@ def stratified_random_structures(
     return structures  # type: ignore
 
 
-class RandomSurfaceVariableModifier(StructureModifier):
+class RandomStructureImprovedModifier(StructureModifier):
 
     name: str = "random_surface_variable"
 
