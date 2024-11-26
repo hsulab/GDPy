@@ -62,12 +62,16 @@ def insert_fragments_by_step(
     min_molecular_distance, max_molecular_distance = molecular_distances
     excluded_pairs = []
 
+    tag = 0
     candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.get_pbc())
     for frag in fragments:
         # find intra-molecular pairs
         beg = len(candidate)
         end = beg + len(frag)
         excluded_pairs.extend(itertools.permutations(range(beg, end), 2))
+        # assign tag
+        tag += 1
+        frag.set_tags(tag)
         for _ in range(max_attempts):
             pos = region.get_random_positions(size=1, rng=rng)[0]
             frag = copy.deepcopy(frag)
