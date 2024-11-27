@@ -10,24 +10,12 @@ import numpy as np
 from ase import Atoms
 from ase.ga.offspring_creator import OffspringCreator
 
-from .. import registers
-from ..utils import convert_string_to_atoms
-from .. import get_tags_per_species
-from ..utils import check_overlap_neighbour
+
+from gdpx.nodes.region import RegionVariable
+from gdpx.geometry.composition import convert_string_to_atoms
+
 
 """Some mutations that exchange particles with external reservoirs."""
-
-
-def rotate_molecule(molecule: Atoms, rng=np.random.default_rng()) -> Atoms:
-    """Rotate a molecule randomly."""
-    org_com = molecule.get_center_of_mass()
-    if len(molecule) > 1:
-        phi, theta, psi = 360 * rng.uniform(0, 1, 3)
-        molecule.euler_rotate(phi=phi, theta=0.5 * theta, psi=psi, center=org_com)
-    else:
-        ...
-
-    return molecule
 
 
 class ExchangeMutation(OffspringCreator):
@@ -43,28 +31,25 @@ class ExchangeMutation(OffspringCreator):
         nsel=1,
         covalent_ratio=[0.8, 2.0],
         num_muts=1,
-        rng=np.random.default_rng(),
-        *args,
-        **kwargs,
+        use_tags=True,
+        rng=np.random.default_rng()
     ):
         """"""
-        super().__init__(num_muts=num_muts, rng=rng, *args, **kwargs)
+        super().__init__(num_muts=num_muts, rng=rng)
         self.descriptor = "ExchangeMutation"
         self.min_inputs = 1
 
         self.species = species
 
-        region_params = copy.deepcopy(region)
-        region_method = region_params.pop("method", "auto")
-        self.region = registers.create(
-            "region", region_method, convert_name=True, **region_params
-        )
+        self.region = RegionVariable(**region).value
 
         self.anchors = anchors
 
         self.nsel = nsel
 
         self.covalent_ratio = covalent_ratio
+
+        self.use_tags = use_tags
 
         self._species_instances = []
         for s in self.species:

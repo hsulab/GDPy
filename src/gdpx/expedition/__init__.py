@@ -5,7 +5,6 @@
 from .. import config
 from ..builder.builder import StructureBuilder
 from ..builder.group import create_a_group, create_a_molecule_group
-from ..builder.utils import convert_string_to_atoms
 from ..utils.atoms_tags import get_tags_per_species
 from ..core.register import registers
 from ..data.array import AtomsNDArray
@@ -18,6 +17,7 @@ from ..worker.grid import GridDriverBasedWorker
 from ..worker.interface import ComputerVariable
 from ..worker.single import SingleWorker
 
+from ..geometry.composition import convert_string_to_atoms
 from ..geometry.bounce import bounce_one_atom
 
 

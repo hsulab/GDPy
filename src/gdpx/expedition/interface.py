@@ -15,6 +15,10 @@ from ..worker.explore import ExpeditionBasedWorker
 
 def register_expedition_methods():
     """"""
+    from .genetic_algorithm.mutation.exchange import ExchangeMutation
+
+    registers.builder.register("exchange_mutation")(ExchangeMutation)
+
     from .genetic_algorithm.engine import GeneticAlgorithmEngine
 
     registers.expedition.register("genetic_algorithm")(GeneticAlgorithmEngine)
