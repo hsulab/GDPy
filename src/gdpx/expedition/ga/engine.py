@@ -272,11 +272,6 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         This is useful for running optimisations with serial worker.
 
         """
-        # - outputs
-        assert self.worker is not None, "GA has not set its worker properly."
-        self.worker.directory = self.directory / self.CALC_DIRNAME
-        self.pop_manager._print = self._print
-
         # - search target
         self._print(f"===== Genetic Algorithm =====")
         target = self.prop_dict["target"]
@@ -284,6 +279,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         # - worker info
         self._print("===== register worker =====")
+        assert self.worker is not None, "GA has not set its worker properly."
+        self.worker.directory = self.directory / self.CALC_DIRNAME
+
+        # - outputs
+        self.pop_manager._print = self._print
 
         # - generator info
         self._print("===== register builder =====")
@@ -315,7 +315,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         self._register_operators()
 
         # - run
-        for i in range(1000):
+        for _ in range(1000):
             self._check_generation()
             if self.read_convergence():
                 self._print("reach maximum generation...")
@@ -669,16 +669,29 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             slab=self.da.get_slab(),
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=-1,  # We will determine `n_top` on-the-fly when crossover and mutation.
-            blmin=self.generator.blmin,
-            number_of_variable_cell_vectors=self.generator.number_of_variable_cell_vectors,
-            cell_bounds=self.generator.cell_bounds,
-            cellbounds=self.generator.cell_bounds,  #  StrainMutation uses cellbounds
-            test_dist_to_slab=self.generator.test_dist_to_slab,
-            use_tags=self.generator.use_tags,
             used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
             # rng = self.rng # TODO: ase operators need np.random
         )
 
+        # For compatibility,
+        for attr in ["blmin", "number_of_variable_cell_vectors", "cell_bounds", "test_dist_to_slab", "use_tags"]:
+            if hasattr(self.generator, attr):
+                specific_params.update(attr=getattr(self.generator, attr))
+            else:
+                ...
+
+        if hasattr(self.generator, "get_bond_distance_dict"):
+            bond_distance_dict = self.generator.get_bond_distance_dict()
+            specific_params.update(
+                blmin=bond_distance_dict,
+                bond_distance_dict=bond_distance_dict,
+            )
+
+        # StrainMutation uses cellbounds instead of cell_bounds
+        if "cell_bounds" in specific_params:
+            specific_params.update(cellbounds=specific_params["cell_bounds"])
+
+        # Get operators for each group
         groups = ["mobile", "custom"]
         for g in groups:
             g_op_dict = op_dict.get(g, None)
@@ -824,10 +837,11 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             atoms.info["key_value_pairs"]["target"] = energy
 
             # Reduce the cell in the bulk structure search.
+            # Check whether the cell is in the bound.
             from ase.build import niggli_reduce
             from ase.calculators.singlepoint import SinglePointCalculator
 
-            if self.generator.cell_bounds:
+            if hasattr(self.generator, "cell_bounds"):
                 stress = atoms.get_stress()
                 niggli_reduce(atoms)
                 calc = SinglePointCalculator(
