@@ -684,7 +684,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             "use_tags",
         ]:
             if hasattr(self.generator, attr):
-                specific_params.update(attr=getattr(self.generator, attr))
+                specific_params.update(
+                    **{attr: getattr(self.generator, attr)}
+                )
             else:
                 ...
 
@@ -757,6 +759,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             pairing = None
 
         # --- mutations
+        use_tags = specific_params.get("use_tags", False)
+
         mutation_list = op_dict.get("mutation", [])
         if mutation_list:
             mutations, probs = [], []
@@ -768,6 +772,12 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 mut = self._create_operator(
                     mut_params, specific_params, "builder", convert_name=False
                 )
+                # Check whether mutation accepts molecules
+                if use_tags:
+                    if hasattr(mut, "use_tags"):
+                        assert mut.use_tags, f"use_tags `{use_tags}` in mutation `{mut}` must be true."
+                    else:
+                        raise RuntimeError(f"Mutation `{mut}` cannot be used in a search with tags.")
                 mutations.append(mut)
 
             self._print("  --- mutations ---")

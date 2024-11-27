@@ -80,7 +80,8 @@ class RandomStructureImprovedModifier(StructureModifier):
         composition,
         region,
         box=None,
-        pbc=True,
+        pbc: bool=True,
+        use_tags: bool=True,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
         max_times_size: int=10,
@@ -136,6 +137,8 @@ class RandomStructureImprovedModifier(StructureModifier):
         self.MAX_TIMES_SIZE = max_times_size
 
         # To compatible with GA engine
+        self.use_tags = use_tags
+
         self._substrate = None
         if self.substrates is not None:
             self._substrate = self.substrates[0]
