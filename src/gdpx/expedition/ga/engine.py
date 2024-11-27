@@ -667,7 +667,8 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         specific_params = dict(
             slab=self.da.get_slab(),
-            n_top=len(self.da.get_atom_numbers_to_optimize()),
+            # n_top=len(self.da.get_atom_numbers_to_optimize()),
+            n_top=-1,  # We will determine `n_top` on-the-fly when crossover and mutation.
             blmin=self.generator.blmin,
             number_of_variable_cell_vectors=self.generator.number_of_variable_cell_vectors,
             cell_bounds=self.generator.cell_bounds,
@@ -763,7 +764,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         da = PrepareDB(
             db_file_name=self.db_path,
             simulation_cell=self.generator._substrate,
-            stoichiometry=self.generator.composition_atom_numbers,
+            # stoichiometry=self.generator.composition_atom_numbers,
         )
 
         starting_population = self.pop_manager._prepare_initial_population(
