@@ -71,7 +71,7 @@ def stratified_random_structures(
 
 class RandomStructureImprovedModifier(StructureModifier):
 
-    name: str = "random_surface_variable"
+    name: str = "random_structure_improved"
 
     MAX_TIMES_SIZE: int = 10
 
@@ -142,6 +142,26 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         return
 
+    def _infer_chemical_numbers_in_composition_space(self):
+        """Infer what chemical numbers may occur based on the composition space and the substrates.
+
+        This is normally used to determine the covalent bond distances.
+        """
+        chemical_symbols = self._compspec.get_chemical_symbols()
+        for substrate in self.substrates:
+            chemical_symbols.extend(substrate.get_chemical_symbols())
+        chemical_symbols = set(chemical_symbols)
+        chemical_numbers = [atomic_numbers[s] for s in chemical_symbols]
+
+        return chemical_numbers
+
+    def get_bond_distance_dict(self) -> dict:
+        """"""
+        chemical_numbers = self._infer_chemical_numbers_in_composition_space()
+        bond_distance_dict = get_bond_distance_dict(chemical_numbers)
+
+        return bond_distance_dict
+
     def run(
         self, substrates: Optional[List[Atoms]] = None, size: int = 1, *args, **kwargs
     ) -> List[Atoms]:
@@ -156,13 +176,7 @@ class RandomStructureImprovedModifier(StructureModifier):
             self.substrates = [Atoms("", cell=self.box, pbc=self.pbc)]
 
         # Infer chemical species may occur in structures
-        chemical_symbols = self._compspec.get_chemical_symbols()
-        for substrate in self.substrates:
-            chemical_symbols.extend(substrate.get_chemical_symbols())
-        chemical_symbols = set(chemical_symbols)
-        chemical_numbers = [atomic_numbers[s] for s in chemical_symbols]
-
-        bond_distance_dict = get_bond_distance_dict(chemical_numbers)
+        bond_distance_dict = self.get_bond_distance_dict()
 
         # Generate structures
         # PERF: For easy random tasks, use stratified parallel run.
