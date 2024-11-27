@@ -155,10 +155,10 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         return chemical_numbers
 
-    def get_bond_distance_dict(self) -> dict:
+    def get_bond_distance_dict(self, ratio: float=1.0) -> dict:
         """"""
         chemical_numbers = self._infer_chemical_numbers_in_composition_space()
-        bond_distance_dict = get_bond_distance_dict(chemical_numbers)
+        bond_distance_dict = get_bond_distance_dict(chemical_numbers, ratio=ratio)
 
         return bond_distance_dict
 

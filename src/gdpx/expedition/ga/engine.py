@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
 import collections
+import copy
 import inspect
 import itertools
 import pathlib
@@ -17,7 +17,7 @@ from ase.ga.data import DataConnection, PrepareDB
 from ase.ga.offspring_creator import OperationSelector
 from ase.io import read, write
 
-from .. import convert_indices, registers, get_tags_per_species
+from .. import convert_indices, get_tags_per_species, registers
 from ..expedition import AbstractExpedition
 from .population.manager import AbstractPopulationManager
 
@@ -220,7 +220,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
 
         # plot population evolution
         data = []
-        gen_num = get_generation_number(self.da) # equals finished generation plus one
+        gen_num = get_generation_number(self.da)  # equals finished generation plus one
         self._print(f"Genetic Algorithm Statistics with {gen_num-1} generations: ")
         for i in range(gen_num):
             current_candidates = [
@@ -228,7 +228,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
                 for atoms in all_relaxed_candidates
                 if atoms.info["key_value_pairs"]["generation"] == i
             ]
-            properties = np.array([a.info["key_value_pairs"]["target"] for a in current_candidates])
+            properties = np.array(
+                [a.info["key_value_pairs"]["target"] for a in current_candidates]
+            )
             stats = dict(
                 min=np.min(properties),
                 max=np.max(properties),
@@ -246,11 +248,7 @@ class GeneticAlgorithemEngine(AbstractExpedition):
         ax.set_title("Population Evolution")
         for i, properties in data:
             ax.scatter([i] * len(properties), properties, alpha=0.5)
-        ax.set(
-            xlabel="generation",
-            xticks=range(gen_num),
-            ylabel=target
-        )
+        ax.set(xlabel="generation", xticks=range(gen_num), ylabel=target)
         fig.savefig(results / "pop.png", bbox_inches="tight")
         plt.close()
 
@@ -543,7 +541,9 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             ]
             for cand in converged_candidates:
                 # update extra info
-                extra_info = dict(data={}, key_value_pairs={"generation": self.cur_gen, "extinct": 0})
+                extra_info = dict(
+                    data={}, key_value_pairs={"generation": self.cur_gen, "extinct": 0}
+                )
                 cand.info.update(extra_info)
                 # get tags
                 confid = cand.info["confid"]
@@ -669,19 +669,29 @@ class GeneticAlgorithemEngine(AbstractExpedition):
             slab=self.da.get_slab(),
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=-1,  # We will determine `n_top` on-the-fly when crossover and mutation.
-            used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
+            used_modes_file=self.directory
+            / self.CALC_DIRNAME
+            / "used_modes.json",  # SoftMutation
             # rng = self.rng # TODO: ase operators need np.random
         )
 
         # For compatibility,
-        for attr in ["blmin", "number_of_variable_cell_vectors", "cell_bounds", "test_dist_to_slab", "use_tags"]:
+        for attr in [
+            "blmin",
+            "number_of_variable_cell_vectors",
+            "cell_bounds",
+            "test_dist_to_slab",
+            "use_tags",
+        ]:
             if hasattr(self.generator, attr):
                 specific_params.update(attr=getattr(self.generator, attr))
             else:
                 ...
 
         if hasattr(self.generator, "get_bond_distance_dict"):
-            bond_distance_dict = self.generator.get_bond_distance_dict()
+            bond_distance_dict = self.generator.get_bond_distance_dict(
+                ratio=self.generator.covalent_ratio[0]
+            )
             specific_params.update(
                 blmin=bond_distance_dict,
                 bond_distance_dict=bond_distance_dict,
