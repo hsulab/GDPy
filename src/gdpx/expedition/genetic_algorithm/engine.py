@@ -94,7 +94,7 @@ def get_generation_number(da: DataConnection) -> int:
     return curr_gen
 
 
-class GeneticAlgorithemEngine(AbstractExpedition):
+class GeneticAlgorithmEngine(AbstractExpedition):
     """Genetic Algorithem Engine."""
 
     _directory = pathlib.Path.cwd()

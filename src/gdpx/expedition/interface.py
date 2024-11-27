@@ -15,9 +15,9 @@ from ..worker.explore import ExpeditionBasedWorker
 
 def register_expedition_methods():
     """"""
-    from .ga.engine import GeneticAlgorithemEngine
+    from .genetic_algorithm.engine import GeneticAlgorithmEngine
 
-    registers.expedition.register("genetic_algorithm")(GeneticAlgorithemEngine)
+    registers.expedition.register("genetic_algorithm")(GeneticAlgorithmEngine)
 
     from .monte_carlo.basin_hopping import BasinHopping
 
