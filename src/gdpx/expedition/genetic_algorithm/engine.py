@@ -175,9 +175,16 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             "formation_energy",
         ], f"Target `{target}` is not supported yet."
         if target == "formation_energy":
-            assert (
-                "chempot" in self.prop_dict
-            ), "The `chempot` is not provided in the property section."
+            if "chempot" not in self.prop_dict:
+                raise RuntimeError("The `chempot` is not provided in the property section.")
+            if hasattr(self.generator, "use_tags"):
+                if self.generator.use_tags:
+                    ...
+                else:
+                    self.generator.use_tags = True
+                    self._print(f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation.")
+            else:
+                raise RuntimeError(f"Builder `{self.generator.name}` does not have true `use_tags`.")
         else:
             ...
 
@@ -701,6 +708,11 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             specific_params.update(
                 blmin=bond_distance_dict,
                 bond_distance_dict=bond_distance_dict,
+            )
+        else:
+            specific_params.update(
+                blmin=self.generator.blmin,
+                bond_distance_dict=self.generator.blmin,
             )
 
         # StrainMutation uses cellbounds instead of cell_bounds

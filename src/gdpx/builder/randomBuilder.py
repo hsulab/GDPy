@@ -119,6 +119,7 @@ class RandomBuilder(StructureModifier):
         self.composition = composition
         self._parse_composition()
 
+        self.covalent_ratio = covalent_ratio
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
