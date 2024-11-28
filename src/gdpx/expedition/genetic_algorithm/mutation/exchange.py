@@ -6,14 +6,13 @@ import copy
 from typing import List
 
 import numpy as np
-
 from ase import Atoms
 from ase.ga.offspring_creator import OffspringCreator
 
-
-from gdpx.nodes.region import RegionVariable
 from gdpx.geometry.composition import convert_string_to_atoms
-
+from gdpx.geometry.exchange import insert_one_particle, remove_one_particle
+from gdpx.nodes.region import RegionVariable
+from gdpx.utils.atoms_tags import get_tags_per_species
 
 """Some mutations that exchange particles with external reservoirs."""
 
@@ -27,33 +26,39 @@ class ExchangeMutation(OffspringCreator):
         self,
         species,
         region,
+        bond_distance_dict,
+        covalent_ratio=[0.8, 2.0],
         anchors=None,
         nsel=1,
-        covalent_ratio=[0.8, 2.0],
         num_muts=1,
         use_tags=True,
-        rng=np.random.default_rng()
+        rng=np.random.default_rng(),
     ):
         """"""
-        super().__init__(num_muts=num_muts, rng=rng)
+        super().__init__(num_muts=num_muts)
         self.descriptor = "ExchangeMutation"
         self.min_inputs = 1
 
-        self.species = species
-
         self.region = RegionVariable(**region).value
+
+        self.bond_distance_dict = bond_distance_dict
+
+        self.covalent_ratio = covalent_ratio
+
+        self.rng = rng
 
         self.anchors = anchors
 
         self.nsel = nsel
 
-        self.covalent_ratio = covalent_ratio
-
         self.use_tags = use_tags
 
-        self._species_instances = []
-        for s in self.species:
-            self._species_instances.append(convert_string_to_atoms(s))
+        if isinstance(species, str):
+            self.species = [species]
+        else:  # assume it is a list of chemical formulae
+            self.species = species
+
+        self._species_instances = {s: convert_string_to_atoms(s) for s in self.species}
 
         return
 
@@ -85,7 +90,6 @@ class ExchangeMutation(OffspringCreator):
             v = identities.get(k, {})
             if len(v) > 0:
                 valid_identities[k] = v
-        # print(f"{valid_identities =}")
 
         species_to_exchange = str(self.rng.choice(self.species, replace=False))
         if len(valid_identities) == 0:
@@ -101,55 +105,24 @@ class ExchangeMutation(OffspringCreator):
 
         extra_info = ""
         if op == "insert":
-            mutant, extra_info = self._insert(
-                mutant, valid_identities, species_to_exchange
+            mutant, extra_info = insert_one_particle(
+                mutant,
+                self._species_instances[species_to_exchange],
+                region=self.region,
+                covalent_ratio=self.covalent_ratio,
+                bond_distance_dict=self.bond_distance_dict,
+                max_attempts=self.MAX_ATTEMPTS,
+                rng=self.rng,
             )
         elif op == "remove":
-            mutant, extra_info = self._remove(
-                mutant, valid_identities, species_to_exchange
+            mutant, extra_info = remove_one_particle(
+                mutant, valid_identities, species_to_exchange, rng=self.rng
             )
         else:
             ...  # Should not be here.
 
         return mutant, extra_info
-
-    def _insert(self, atoms: Atoms, identities: dict, species: str):
-        """"""
-        clean_adsorbate: Atoms = copy.deepcopy(
-            self._species_instances[self.species.index(species)]
-        )
-        ads_tag = int(np.max(atoms.get_tags()) + 17)
-        clean_adsorbate.set_tags(ads_tag)
-        num_atoms_adsorbate = len(clean_adsorbate)
-        mutant = copy.deepcopy(atoms) + clean_adsorbate
-
-        if self.anchors is None:
-            # place the adsorbate in a random location
-            for _ in range(self.MAX_ATTEMPTS):
-                adsorbate = copy.deepcopy(clean_adsorbate)
-                adsorbate = rotate_molecule(adsorbate, rng=self.rng)
-                old_com = adsorbate.get_center_of_mass()
-                ran_pos = self.region.get_random_positions(size=1, rng=self.rng)[0]
-                adsorbate.translate(ran_pos - old_com)
-                mutant.positions[-num_atoms_adsorbate:] = adsorbate.positions
-                if check_overlap_neighbour(mutant, self.covalent_ratio):
-                    break
-            else:
-                mutant = None  # Failed to insert.
-        else:
-            # TODO: add the adsorbate on one of the anchors
-            ...
-
-        return mutant, f"insert {species}"
-
-    def _remove(self, atoms: Atoms, identities: dict, species: str):
-        """"""
-        selected = self.rng.choice(range(len(identities[species])), replace=False)
-        selected_indices = identities[species][selected][1]
-        del atoms[selected_indices]
-
-        return atoms, f"remove {species} {selected_indices}"
-
+    
 
 if __name__ == "__main__":
     ...
