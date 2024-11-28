@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 import copy
+import collections
 import dataclasses
 import itertools
 from typing import NoReturn, Optional, Union, List, Mapping, Callable
@@ -19,11 +21,15 @@ from .selector import AbstractSelector
 from .cur import stat_str2val, boltz_selection, hist_selection
 
 
-IMPLEMENTED_PROPERTIES: List[str] = [
+IMPLEMENTED_SCALAR_PROPERTIES: List[str] = [
     "atomic_energy", "energy", "forces",
     "volume", "min_distance",
     "max_devi_f"
 ]
+IMPLEMENTED_STRING_PROPERTIES: List[str] = [
+    "chemical_formula",
+]
+IMPLEMENTED_PROPERTIES: List[str] = IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
 
 
 def get_metric_func(metric_name: str):
@@ -320,6 +326,8 @@ class PropertySelector(AbstractSelector):
                     atoms_property = forces
                 elif prop_item.name == "volume":
                     atoms_property = atoms.get_volume()
+                elif prop_item.name == "chemical_formula":
+                    atoms_property = atoms.get_chemical_formula()
                 elif prop_item.name == "min_distance":
                     # TODO: Move to observables?
                     #       Check if pmax is a valid float?
@@ -403,8 +411,17 @@ class PropertySelector(AbstractSelector):
         # -- each structure is represented by one float value
         #    get per structure values
         prop_vals = self._extract_property(frames, prop_item)
-        # -- give statistics of this property
-        self._statistics(prop_item, prop_vals)
+
+        # Give statistics of this property
+        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES:
+            self._statistics(prop_item, prop_vals)
+        elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
+            unique_types = sorted(list(set(prop_vals)))
+            counter = collections.Counter(prop_vals)
+            for unique_name in unique_types:
+                self._print(f"  {unique_name} -> {counter[unique_name]}")
+        else:
+            self._print(f"{prop_item.name} does not support statistics.")
 
         nframes = len(frames)
 
@@ -430,7 +447,13 @@ class PropertySelector(AbstractSelector):
                 curr_indices = sorted_numbers[:num_fixed]
             else:
                 curr_indices = sorted_numbers[-num_fixed:]
-            scores = [prop_vals[i] for i in curr_indices]
+            if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES:
+                scores = [prop_vals[i] for i in curr_indices]
+            elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
+                unique_types = sorted(list(set(prop_vals)))
+                scores = [unique_types.index(prop_vals[i]) for i in curr_indices]
+            else:
+                ...
         elif prop_item.sparsify == "hist":
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
