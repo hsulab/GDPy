@@ -70,7 +70,7 @@ registers.builder.register("random_surface")(SurfaceBuilder)
 
 from .random_structure import RandomStructureImprovedModifier
 
-registers.builder.register("random_structure_m2")(RandomStructureImprovedModifier)
+registers.builder.register("random_structure_improved")(RandomStructureImprovedModifier)
 
 from .cleave_surface import CleaveSurfaceModifier, AddVacuumModifier
 
