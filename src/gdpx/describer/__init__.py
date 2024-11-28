@@ -18,6 +18,9 @@ registers.describer.register("coordinate")(CoordinateDescriber)
 from .coordination import CoordinationDescriber
 registers.describer.register("coordination")(CoordinationDescriber)
 
+from .connectivity import ConnectivityDescriber
+registers.describer.register("connectivity")(ConnectivityDescriber)
+
 
 if __name__ == "__main__":
     ...
