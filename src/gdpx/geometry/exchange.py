@@ -96,9 +96,11 @@ def insert_one_particle(
     particle_tag = int(np.max(atoms.get_tags()) + 17)
     particle.set_tags(particle_tag)
 
+    # Avoid distance check in the substrate and the particle to insert
     num_atoms = len(atoms)
-    intra_bond_pairs = list(
-        itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2)
+    intra_bond_pairs = list(itertools.permutations(range(0, num_atoms), 2))
+    intra_bond_pairs.extend(
+        list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2))
     )
 
     candidate = None
