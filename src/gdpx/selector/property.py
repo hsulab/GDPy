@@ -24,7 +24,9 @@ from .cur import stat_str2val, boltz_selection, hist_selection
 IMPLEMENTED_SCALAR_PROPERTIES: List[str] = [
     "atomic_energy", "energy", "forces",
     "volume", "min_distance",
-    "max_devi_f"
+    "max_devi_f",
+    # from describer
+    "max_frc_err", "abs_ene_err"
 ]
 IMPLEMENTED_STRING_PROPERTIES: List[str] = [
     "chemical_formula",
