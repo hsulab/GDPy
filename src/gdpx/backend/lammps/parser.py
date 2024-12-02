@@ -105,7 +105,7 @@ def parse_thermo_data_by_pattern(
     # Thus, the incomplete lines will not be matched.
     pattern = re.compile(
         # r"^\s+(\d+)\s+" + r"([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?\s+)" * num_properties + r"$",
-        r"^\s+(\d+)\s+" + r"([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s+)" * num_properties + r"$",
+        r"^\s+(\d+)\s+" + r"([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*)" * num_properties + r"$",
         flags=re.MULTILINE,
     )  # Optional sign + Digits with optional decimal / a number starts with a dot + Optional scientific notation
     matches = pattern.findall("".join(content))
