@@ -334,7 +334,7 @@ class XyzDataloader(AbstractDataloader):
                 f"    ntrain: {ntrain} ntest: {ntest} ntotal: {num_frames}"
             )
             self._print(f"    batchsize: {new_batchsize} batches: {num_batches_train}")
-            assert ntrain > 0 and ntest > 0
+            assert ntrain > 0
 
             curr_train_frames = [frames[train_i] for train_i in train_index]
             curr_test_frames = [frames[test_i] for test_i in test_index]

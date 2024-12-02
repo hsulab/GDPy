@@ -403,10 +403,18 @@ class DeepmdTrainer(AbstractTrainer):
         ]
         train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
 
-        train_config["training"]["validation_data"]["systems"] = [
-            x for x in dataset.valid_sys_dirs
-        ]
-        train_config["training"]["validation_data"]["batch_size"] = dataset.batchsizes
+        # verify validation_data
+        validation_data, validation_batchsizes = [], []
+        for v_system, v_batchsize in zip(dataset.valid_sys_dirs, dataset.batchsizes):
+            if v_system != "None":  # None will be saved to a string before
+                validation_data.append(v_system)
+                validation_batchsizes.append(v_batchsize)
+        if validation_data:
+            train_config["training"]["validation_data"]["systems"] = validation_data
+            train_config["training"]["validation_data"]["batch_size"] = validation_batchsizes
+        else:
+            if "validation_data" in train_config["training"]:
+                train_config["training"].pop("validation_data", None)
 
         train_config["training"]["seed"] = self.rng.integers(0, 10000, dtype=int)
 
