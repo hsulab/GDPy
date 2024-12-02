@@ -83,26 +83,30 @@ def split_train_and_test_into_batches(num_frames: int, batchsize: int, train_rat
         else:
             new_batchsize = int(2 ** np.floor(np.log2(num_frames)))
         train_index = list(range(num_frames))
-        test_index = list(range(num_frames))
+        test_index = []
     else:
         if num_frames == 1 or batchsize == 1:
             new_batchsize = 1
             train_index = list(range(num_frames))
-            test_index = list(range(num_frames))
+            test_index = []
         else:
             new_batchsize = batchsize
             # - assure there is at least one batch for test
             #          and number of train frames is integer times of batchsize
-            ntrain = int(
-                np.floor(num_frames * train_ratio / new_batchsize)
-                * new_batchsize
-            )
-            if ntrain > 0:
-                train_index = rng.choice(num_frames, ntrain, replace=False)
-                test_index = [x for x in range(num_frames) if x not in train_index]
+            if (1. - train_ratio) > 1e-4:
+                ntrain = int(
+                    np.floor(num_frames * train_ratio / new_batchsize)
+                    * new_batchsize
+                )
+                if ntrain > 0:
+                    train_index = rng.choice(num_frames, ntrain, replace=False)
+                    test_index = [x for x in range(num_frames) if x not in train_index]
+                else:
+                    train_index = list(range(num_frames))
+                    test_index = list(range(num_frames))
             else:
                 train_index = list(range(num_frames))
-                test_index = list(range(num_frames))
+                test_index = []
 
     return new_batchsize, train_index, test_index
 
@@ -327,7 +331,7 @@ class XyzDataloader(AbstractDataloader):
             train_size.append(ntrain)
             test_size.append(ntest)
 
-            num_batches_train = int(ntrain/new_batchsize)
+            num_batches_train = int(np.ceil(ntrain/new_batchsize))
             accumulated_batches += num_batches_train
 
             self._print(
