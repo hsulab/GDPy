@@ -23,7 +23,7 @@ def clean_seed_structures(prev_frames: List[Atoms]) -> List[Atoms]:
     curr_frames = []
     energies, forces = [], []
     for i, prev_atoms in enumerate(prev_frames):
-        # - copy geometry
+        # copy geometry
         curr_atoms = Atoms(
             symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
             positions=copy.deepcopy(prev_atoms.get_positions()),
@@ -35,22 +35,22 @@ def clean_seed_structures(prev_frames: List[Atoms]) -> List[Atoms]:
         #    curr_atoms.set_momenta(prev_atoms.get_momenta())
         curr_frames.append(curr_atoms)
 
-        # - save properties
-        try:
-            ene = prev_atoms.get_potential_energy()
-            energies.append(ene)
-        except:
-            raise RuntimeError(f"Cannot get energy for seed structure {i}.")
+        # save properties
+        # try:
+        #     ene = prev_atoms.get_potential_energy()
+        #     energies.append(ene)
+        # except:
+        #     raise RuntimeError(f"Cannot get energy for seed structure {i}.")
+        #
+        # try:
+        #     frc = prev_atoms.get_forces()
+        #     forces.append(frc)
+        # except:
+        #     raise RuntimeError(f"Cannot get forces for seed structure {i}.")
 
-        try:
-            frc = prev_atoms.get_forces()
-            forces.append(frc)
-        except:
-            raise RuntimeError(f"Cannot get forces for seed structure {i}.")
-
-    for a, e, f in zip(curr_frames, energies, forces):
-        calc = SinglePointCalculator(a, energy=e, forces=f)
-        a.calc = calc
+    # for a, e, f in zip(curr_frames, energies, forces):
+    #     calc = SinglePointCalculator(a, energy=e, forces=f)
+    #     a.calc = calc
 
     return curr_frames
 
@@ -202,8 +202,8 @@ class AbstractPopulationManager:
         self._print("===== Prepare Initial Population =====")
         starting_population = []
 
-        # - try to read seed structures
-        # NOTE: seed structures would be re-optimised by the worker
+        # Try to read seed structures and them into database.
+        # The seed structures would be re-optimised by the worker.
         self._print("----- try to add seed structures -----")
         seed_frames = []
         if self.init_seed_file is not None:
@@ -227,15 +227,14 @@ class AbstractPopulationManager:
         else:
             seed_size = 0
 
-        # TODO: seed structures will be calculated again??
-        # TODO: check atom permutation
+        # TODO: check substrate consistency if any
+        # TODO: check atomic permutation by tags
+        # TODO: check geometric convergence if energy and forces are provided
         for i, atoms in enumerate(seed_frames):
-            # TODO: check atom order
             atoms.info["data"] = {}
             atoms.info["key_value_pairs"] = {}
             atoms.info["key_value_pairs"]["origin"] = "seed {}".format(i)
-            atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
-            # TODO: check geometric convergence
+            # atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
         self._print(f"number of seed structures: {len(seed_frames)}")
         starting_population.extend(seed_frames)
 

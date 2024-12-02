@@ -133,10 +133,17 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # -
         self.directory = directroy
 
-        # -
+        # Store initial parameters
         self.ga_dict = copy.deepcopy(ga_dict)
 
-        # - random consistency, generator and population
+        population_params = self.ga_dict.get("population", None)
+        if population_params is not None:
+            if "init" in population_params:
+                seed_file = population_params["init"].get("seed_file", None)
+                if seed_file is not None:
+                    self.ga_dict["population"]["init"]["seed_file"] = str(pathlib.Path(seed_file).resolve())
+
+        # Check random consistency, generator and population
         if random_seed is None:
             random_seed = np.random.randint(0, 1e8)
         self.random_seed = random_seed
@@ -825,11 +832,6 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             da.add_unrelaxed_candidate(a)
 
         # TODO: change this to the DB interface
-        self._print(
-            "save population size {0} into database...".format(
-                self.pop_manager.gen_size
-            )
-        )
         row = da.c.get(1)
         new_data = row["data"].copy()
         new_data["population_size"] = self.pop_manager.gen_size
