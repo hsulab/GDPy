@@ -58,6 +58,9 @@ class CompositionSpace:
             entries = []
             for k, v in composition.items():
                 entries.append(get_chemical_species_from_kwpairs(name=k, number=v))
+            # Sort species by name to make the composition order consistent
+            # Though we will sort fragments in insert
+            entries = sorted(entries, key=lambda e: e[0])
             _compositions = list(itertools.product(*entries, repeat=1))
         elif isinstance(composition, list):
             ...
@@ -87,7 +90,6 @@ class CompositionSpace:
         num_compositions = len(self._compositions)
         idx = rng.choice(num_compositions, size=1, replace=False)[0]
         composition = self._compositions[idx]
-        # print(f"{composition=}")
 
         fragments = list(
             itertools.chain(
