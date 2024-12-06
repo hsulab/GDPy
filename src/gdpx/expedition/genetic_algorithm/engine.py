@@ -22,11 +22,9 @@ from ..expedition import AbstractExpedition
 from .population.manager import AbstractPopulationManager
 
 # from ase.ga.population import Population
-from .population.population import Population
+from .population.population import Population, PopulationWithVariableComposition
 
 """
-TODO: search variational composition
-
 Workflow
     check current calculation
         |
@@ -443,12 +441,23 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             #    print(a.info)
 
             # TODO: random seed...
-            current_population = Population(
-                data_connection=self.da,
-                population_size=self.pop_manager.gen_size,
-                comparator=self.operators["mobile"]["comparing"],
-                rng=self.rng,
-            )
+            if self.pop_manager.name == "constant":
+                current_population = Population(
+                    data_connection=self.da,
+                    population_size=self.pop_manager.gen_size,
+                    comparator=self.operators["mobile"]["comparing"],
+                    rng=self.rng,
+                )
+            else:
+                assert self.pop_manager.name == "variable"
+                current_population = PopulationWithVariableComposition(
+                    data_connection=self.da,
+                    population_size=self.pop_manager.gen_size,
+                    comparator=self.operators["mobile"]["comparing"],
+                    rng=self.rng,
+                )
+                for tribe in current_population.tribes:
+                    self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")
 
             pop_confids = [a.info["confid"] for a in current_population.pop]
             self._print(f"number of structures in population: {len(pop_confids)}")

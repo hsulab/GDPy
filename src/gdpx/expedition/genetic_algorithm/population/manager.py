@@ -93,6 +93,12 @@ class AbstractPopulationManager:
         """"""
         self.rng = rng
 
+        # Get population name
+        name = params.get("name", "constant")
+        if name not in ["constant", "variable"]:
+            raise Exception("Population name must be `constant` or `variable`.")
+        self.name = name
+
         # - gen params
         gen_params = params.get("gen", dict(size=20, reproduce=20, random=0))
         self.gen_size = gen_params.get("size", None)
