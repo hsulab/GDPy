@@ -3,12 +3,13 @@
 
 from ase.ga.ofp_comparator import OFPComparator
 from ase.ga.particle_comparator import NNMatComparator
-from ase.ga.standard_comparators import InteratomicDistanceComparator
 
 from ..core.register import registers
 
 registers.comparator.register("OfpComparator")(OFPComparator)
 registers.comparator.register(NNMatComparator)
+
+from .inter_atomic_distance import InteratomicDistanceComparator
 registers.comparator.register(InteratomicDistanceComparator)
 
 from .cartesian import CartesianComparator
