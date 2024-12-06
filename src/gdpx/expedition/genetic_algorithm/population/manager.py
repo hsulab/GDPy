@@ -14,6 +14,8 @@ from ase.ga.data import DataConnection
 
 from .population import Population
 
+from gdpx.utils.atoms_tags import get_tags_per_species
+
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: List[str] = ["extinct", "origin"]
 
@@ -493,23 +495,31 @@ class AbstractPopulationManager:
         a3 = None
         for _ in range(self.MAX_REPROC_TRY):
             if num_structures_in_population >= 2:
-                # Get two parents.
                 if pairing.allow_variable_composition:
                     parents = population.get_two_candidates()
                     natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
                     self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
                 else:
-                    # TODO: If there is no two structures with the number of atoms?
                     for _ in range(100):
                         parents = population.get_two_candidates()
+                        # TODO: Move this check to population?
                         natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
                         if natoms_p0 == natoms_p1:
-                            self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
-                            break
+                            symbols_p0, symbols_p1 = parents[0].get_chemical_symbols(), parents[1].get_chemical_symbols()
+                            if symbols_p0 == symbols_p1:
+                                tags_dict = get_tags_per_species(parents[0])
+                                identities = " ".join([k+"_"+str(len(v)) for k, v in tags_dict.items()])
+                                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1} composition: {identities}")
+                                break
                     else:
-                        raise RuntimeError(
-                            "Different number of atoms in the two parents after 100 attempts."
+                        self._print(
+                            f"Cannot find two parents after 100 attempts from a population of {len(population.pop)}."
                         )
+                        self._print(f"Get one parent and perform parthenogenesis.")
+                        parent_0 = population.get_one_candidate()
+                        assert parent_0 is not None
+                        parents = [parent_0]
+                        natoms_p0 = len(parents[0])
             else:
                 # We only have one structure
                 parents = [copy.deepcopy(population.pop[0])]
