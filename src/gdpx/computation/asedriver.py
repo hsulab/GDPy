@@ -313,6 +313,8 @@ class MDController(Controller):
 
         self.timestep *= units.fs
         self.pressure *= (1e5 * units.Pascal)
+        if self.pressure_end is not None:
+            self.pressure_end *= (1e5 * units.Pascal)
 
         return
 
@@ -323,6 +325,9 @@ class Verlet(MDController):
     def __post_init__(self):
         """"""
         super().__post_init__()
+
+        if self.temperature_end is not None:
+            raise Exception("AseDriver verlet_nve does not `tend`.")
 
         from ase.md.verlet import VelocityVerlet
         driver_cls = functools.partial(
@@ -395,13 +400,16 @@ class LangevinThermostat(MDController):
 @dataclasses.dataclass
 class NoseHooverThermostat(MDController):
 
-    name: str = "nosehoover"
+    name: str = "nose_hoover"
 
     def __post_init__(
         self,
     ):
         """"""
         super().__post_init__()
+
+        if self.temperature_end is not None:
+            raise Exception("AseDriver nose_hoover_nvt does not `tend`.")
 
         qmass = self.params.get("nvt_q", 334.0)  # a.u.
         assert qmass is not None
@@ -465,6 +473,9 @@ class MonteCarloController(MDController):
     def __post_init__(self):
         """"""
         super().__post_init__()
+
+        if self.temperature_end is not None:
+            raise Exception("AseDriver monte_carlo_nvt does not `tend`.")
 
         maxstepsize = self.params.get("maxstepsizes", 0.2)  # Ang
         assert maxstepsize is not None
