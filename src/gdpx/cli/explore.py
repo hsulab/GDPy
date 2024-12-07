@@ -4,19 +4,20 @@
 
 import pathlib
 import time
-
-from typing import Optional
-
+from typing import Optional, Union
 
 from .. import config
-from ..scheduler.interface import SchedulerVariable
 from ..expedition.interface import ExpeditionVariable
-from ..worker.explore import ExpeditionBasedWorker
+from ..scheduler.interface import SchedulerVariable
 from ..utils.logio import remove_extra_stream_handlers
+from ..worker.explore import ExpeditionBasedWorker
 
 
 def run_expedition(
-    exp_params: dict, wait: Optional[float] = None, directory: str = "./", potter=None
+    exp_params: dict,
+    wait: Optional[float] = None,
+    directory: Union[str, pathlib.Path] = "./",
+    potter=None,
 ):
     """"""
     directory = pathlib.Path(directory)

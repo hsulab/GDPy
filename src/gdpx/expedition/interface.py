@@ -3,6 +3,8 @@
 
 
 import copy
+import pathlib
+from typing import Union
 
 import numpy as np
 
@@ -52,7 +54,7 @@ register_expedition_methods()
 @registers.variable.register
 class ExpeditionVariable(Variable):
 
-    def __init__(self, directory="./", **kwargs):
+    def __init__(self, directory: Union[str, pathlib.Path]="./", **kwargs):
         """"""
         random_seed = kwargs.get("random_seed", None)
         if random_seed is None:
