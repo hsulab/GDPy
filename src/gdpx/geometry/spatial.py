@@ -53,12 +53,32 @@ def check_pair_distances(
 
 def check_atomic_distances(
     atoms: Atoms,
-    covalent_ratio,
+    *,
+    covalent_ratio: list,
     bond_distance_dict: dict,
     excluded_pairs: list = [],
+    forbidden_pairs: list = [],
     allow_isolated: bool = False,
-):
-    """"""
+) -> bool:
+    """Check if inter-atomic distances are valid based on some criteria.
+
+    Note:
+        The `bond_distance_dict` should be like {(1,8): 0.90, (8,1): 0.90},
+        the `excluded_pairs` has the atomic indices like [(1,2), (2,1)], and
+        `forbidden_pairs` has the atomic-number pairs like [(8,8)].
+
+    Args:
+        atoms: The input structure.
+        covalent_ratio: Two-entry list with the minimum and the maximum ratio of the covalent bond.
+        bond_distance_dict: A dict with the normal covalent bond distance.
+        excluded_pairs: The atomic pairs not considered in check.
+        forbidden_pairs: The forbidden atomic pairs.
+        allow_isolated: Whether allow atoms no neighbours to exist.
+
+    Returns:
+        Whether the structure is valid.
+
+    """
     is_valid = False
 
     cov_min, cov_max = covalent_ratio
@@ -82,7 +102,7 @@ def check_atomic_distances(
     for _, v in itertools.groupby(
         zip(first_indices, second_indices, distances), key=lambda p: p[0]
     ):
-        found_isolated, found_too_close = True, False
+        found_isolated, found_too_close, found_forbidden = True, False, False
         for i, j, d in v:
             atomic_pair = (chemical_numbers[i], chemical_numbers[j])
             if (i, j) not in excluded_pairs:
@@ -91,6 +111,9 @@ def check_atomic_distances(
                     break
                 elif d < bond_distance_dict[atomic_pair] * cov_max:
                     found_isolated = False
+                    if atomic_pair in forbidden_pairs:
+                        found_forbidden = True
+                        break
                 else:
                     ...
         else:
@@ -102,6 +125,8 @@ def check_atomic_distances(
                 # move to check next atom
                 ...
         if found_too_close:
+            break
+        if found_forbidden:
             break
     else:
         is_valid = True
