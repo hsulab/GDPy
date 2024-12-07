@@ -74,6 +74,21 @@ def update_target_temperature(dyn: MolecularDynamics, dtemp: float) -> None:
 
     return
 
+def update_target_pressure(dyn: MolecularDynamics, dpres: float) -> None:
+    """Update barostat's target pressure at each step.
+
+    Args:
+        dyn: Dynamics object.
+        dpres: The delta pressure at each step.
+
+    """
+    pressure = dyn.get_pressure()/(1e5*units.Pascal)
+
+    target_pressure = pressure + dpres
+    dyn.pressure = target_pressure*1e5*units.Pascal
+
+    return
+
 
 def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
     """Read model deviation and add results to atoms.info if the file exists."""
@@ -286,6 +301,9 @@ class MDController(Controller):
 
     #: Pressure in bar.
     pressure: float = 1.0
+
+    #: Pressure in bar.
+    pressure_end: Optional[float] = None
 
     #: Whether fix center of mass.
     fix_com: bool = True
@@ -624,6 +642,16 @@ class AseDriver(AbstractDriver):
                     update_target_temperature,
                     dyn=driver,
                     dtemp=dtemp,
+                    interval=1
+                )
+            if self.setting.pend is not None:
+                dpres = (self.setting.pend - self.setting.press) / self.setting.steps
+                # ase-v3.23.0 hase a bug in berendsen_npt _process_pressure
+                driver.pressure = (self.setting.press+(start_step-1)*dpres)*1e5*units.Pascal
+                driver.attach(
+                    update_target_pressure,
+                    dyn=driver,
+                    dpres=dpres,
                     interval=1
                 )
 
