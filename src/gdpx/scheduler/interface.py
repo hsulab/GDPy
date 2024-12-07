@@ -5,6 +5,8 @@ import copy
 from gdpx.core.variable import Variable
 from gdpx.core.register import registers
 
+from .scheduler import AbstractScheduler
+
 
 @registers.variable.register
 class SchedulerVariable(Variable):
@@ -19,6 +21,12 @@ class SchedulerVariable(Variable):
         super().__init__(initial_value=scheduler, directory=directory)
 
         return
+    
+    @property
+    def value(self) -> AbstractScheduler:
+        """"""
+
+        return self._value  # type: ignore
 
 
 if __name__ == "__main__":

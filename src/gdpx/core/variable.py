@@ -27,12 +27,18 @@ class Variable:
 
     def __init__(self, initial_value=None, directory: Union[str, pathlib.Path] = "./"):
         """"""
-        self.value = initial_value
+        self._value = initial_value
         self.consumers = []
 
         self.directory = directory
 
         return
+
+    @property
+    def value(self):
+        """"""
+
+        return self._value
 
     @property
     def directory(self):
