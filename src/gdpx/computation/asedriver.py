@@ -53,6 +53,21 @@ def update_atoms_info(atoms: Atoms, dyn: Dynamics) -> None:
 
     return
 
+def update_target_temperature(dyn: MolecularDynamics, dtemp: float) -> None:
+    """Update thermostat's target temperature at each step."""
+    temperature = None
+    try:  # berendsen_nvt
+        temperature = dyn.get_temperature()
+    except:  # langevin
+        temperature = dyn.temp/units.kB
+    finally:
+        assert temperature is not None
+
+    target_temperature = temperature + dtemp
+    dyn.set_temperature(temperature_K=target_temperature)
+
+    return
+
 
 def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
     """Read model deviation and add results to atoms.info if the file exists."""
@@ -257,8 +272,11 @@ class MDController(Controller):
     #: Timestep in fs.
     timestep: float = 1.0
 
-    #: Temperature in Kelvin.
+    #: Temperature at beginning in Kelvin.
     temperature: float = 300.0
+
+    #: Temperature at end in Kelvin.
+    temperature_end: Optional[float] = None
 
     #: Pressure in bar.
     pressure: float = 1.0
@@ -552,7 +570,7 @@ class AseDriver(AbstractDriver):
 
         return self.directory/self.log_fname
     
-    def _create_dynamics(self, atoms: Atoms, *args, **kwargs) -> Tuple[Dynamics, dict]:
+    def _create_dynamics(self, atoms: Atoms, start_step: int=0, *args, **kwargs) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
         Respect `steps` and `fmax` as restart.
@@ -591,6 +609,19 @@ class AseDriver(AbstractDriver):
             driver = self.setting.driver_cls(
                 atoms=atoms, logfile=self.log_fpath, trajectory=None
             )
+
+            # check if the simulation is annealing
+            if self.setting.tend is not None:
+                dtemp = (self.setting.tend - self.setting.temp) / self.setting.steps
+                driver.set_temperature(temperature_K=self.setting.temp+(start_step-1)*dtemp)
+                driver.attach(
+                    update_target_temperature,
+                    dyn=driver,
+                    dtemp=dtemp,
+                    interval=1
+                )
+
+            # override rng
             if hasattr(driver, "rng"):
                 # Langevin needs this!
                 self._print(f"MD Driver uses rng: {self.rng.bit_generator.state}")
@@ -690,7 +721,7 @@ class AseDriver(AbstractDriver):
         atoms.calc = self.calc
 
         # - set dynamics
-        dynamics, run_params = self._create_dynamics(atoms, *args, **kwargs)
+        dynamics, run_params = self._create_dynamics(atoms, start_step=start_step, *args, **kwargs)
         dynamics.nsteps = start_step
         dynamics.max_steps = self.setting.steps
         if hasattr(dynamics, "rng") and rng_state is not None:
