@@ -223,8 +223,18 @@ def group_structures_by_chemical_symbols(
 
 def select_tribe_structures(
     tribes: List[Tuple[str, List[Atoms]]], min_size: int, rng: np.random.Generator
-) -> List[Atoms]:
-    """"""
+) -> Optional[List[Atoms]]:
+    """Select structures from a tribe based on number probability.
+
+    Args:
+        tribes: Severl tribes.
+        min_size: The minimum number of structures in the tribe will be considered.
+        rng: Random number generator.
+
+    Returns:
+        A List of Atoms or None if no tribe satisfies `min_size`.
+
+    """
     weights = []
     for tribe in tribes:
         size = len(tribe[1])
@@ -233,13 +243,18 @@ def select_tribe_structures(
         else:
             weights.append(0.0)
     weights = np.array(weights)
-    weights = weights / np.sum(weights)
 
-    tribe_indices = list(range(len(tribes)))
-    selected_tribe_index = rng.choice(tribe_indices, size=1, replace=False, p=weights)[
-        0
-    ]
-    tribe_structures = tribes[selected_tribe_index][1]
+    wsum = np.sum(weights)
+    if wsum > 0.:
+        weights = weights / np.sum(weights)
+
+        tribe_indices = list(range(len(tribes)))
+        selected_tribe_index = rng.choice(tribe_indices, size=1, replace=False, p=weights)[
+            0
+        ]
+        tribe_structures = tribes[selected_tribe_index][1]
+    else:
+        tribe_structures = None
 
     return tribe_structures
 
@@ -293,7 +308,10 @@ class PopulationWithVariableComposition(Population):
         tribe_structures = select_tribe_structures(
             self.tribes, min_size=2, rng=self.rng
         )
-        num_structures_in_tribe = len(tribe_structures)
+        if tribe_structures is not None:
+            num_structures_in_tribe = len(tribe_structures)
+        else:
+            return None
 
         # Pick two structures from the selected tribe
         fit = compute_population_fitness(tribe_structures, with_history=with_history)
@@ -332,16 +350,22 @@ class PopulationWithVariableComposition(Population):
         tribe_structures = select_tribe_structures(
             self.tribes, min_size=1, rng=self.rng
         )
-        num_structures_in_tribe = len(tribe_structures)
+        if tribe_structures is not None:
+            num_structures_in_tribe = len(tribe_structures)
+        else:
+            return None
 
-        fit = compute_population_fitness(tribe_structures, with_history=with_history)
-        fmax = max(fit)
-        nnf = True
-        while nnf:
-            t = self.rng.integers(num_structures_in_tribe)
-            if fit[t] > self.rng.random() * fmax:
-                c1 = self.pop[t]
-                nnf = False
+        if num_structures_in_tribe > 1:
+            fit = compute_population_fitness(tribe_structures, with_history=with_history)
+            fmax = max(fit)
+            nnf = True
+            while nnf:
+                t = self.rng.integers(num_structures_in_tribe)
+                if fit[t] > self.rng.random() * fmax:
+                    c1 = self.pop[t]
+                    nnf = False
+        else:
+            c1 = tribe_structures[0]
 
         if c1 is not None:
             c1 = copy.deepcopy(c1)

@@ -509,14 +509,15 @@ class AbstractPopulationManager:
                     for _ in range(100):
                         parents = population.get_two_candidates()
                         # TODO: Move this check to population?
-                        natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                        if natoms_p0 == natoms_p1:
-                            symbols_p0, symbols_p1 = parents[0].get_chemical_symbols(), parents[1].get_chemical_symbols()
-                            if symbols_p0 == symbols_p1:
-                                tags_dict = get_tags_per_species(parents[0])
-                                identities = " ".join([k+"_"+str(len(v)) for k, v in tags_dict.items()])
-                                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1} composition: {identities}")
-                                break
+                        if parents is not None:
+                            natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
+                            if natoms_p0 == natoms_p1:
+                                symbols_p0, symbols_p1 = parents[0].get_chemical_symbols(), parents[1].get_chemical_symbols()
+                                if symbols_p0 == symbols_p1:
+                                    tags_dict = get_tags_per_species(parents[0])
+                                    identities = " ".join([k+"_"+str(len(v)) for k, v in tags_dict.items()])
+                                    self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1} composition: {identities}")
+                                    break
                     else:
                         self._print(
                             f"Cannot find two parents after 100 attempts from a population of {len(population.pop)}."
