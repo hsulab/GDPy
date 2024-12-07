@@ -851,13 +851,13 @@ class AseDriver(AbstractDriver):
             should_ckpt_last = True
 
         if should_dump_last:
-            self._print("dump the last frame...")
+            self._debug("dump the last frame...")
             update_atoms_info(atoms, dynamics)
             save_trajectory(atoms, self.directory / self.xyz_fname)
             retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
 
         if should_ckpt_last:
-            self._print("ckpt the last frame...")
+            self._debug("ckpt the last frame...")
             save_checkpoint(
                 dynamics,
                 atoms,
