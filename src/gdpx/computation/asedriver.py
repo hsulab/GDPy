@@ -6,6 +6,7 @@ import copy
 import dataclasses
 import functools
 import io
+import json
 import pathlib
 import shutil
 import tarfile
@@ -13,23 +14,17 @@ import traceback
 import warnings
 from typing import List, Optional, Tuple
 
-import ase.constraints
 import numpy as np
-import yaml
 from ase import Atoms, units
 from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.filters import Filter
 from ase.io import read, write
 from ase.md.md import MolecularDynamics
-from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
-                                         Stationary, ZeroRotation)
 from ase.optimize.optimize import Dynamics
 
 from .. import config as GDPCONFIG
 from ..potential.calculators.mixer import EnhancedCalculator
 from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
-from .md.md_utils import force_temperature
 from .observer import create_an_observer
 
 
@@ -53,6 +48,7 @@ def update_atoms_info(atoms: Atoms, dyn: Dynamics) -> None:
 
     return
 
+
 def update_target_temperature(dyn: MolecularDynamics, dtemp: float) -> None:
     """Update thermostat's target temperature at each step.
 
@@ -65,7 +61,7 @@ def update_target_temperature(dyn: MolecularDynamics, dtemp: float) -> None:
     try:  # berendsen_nvt
         temperature = dyn.get_temperature()
     except:  # langevin
-        temperature = dyn.temp/units.kB
+        temperature = dyn.temp / units.kB
     finally:
         assert temperature is not None
 
@@ -73,6 +69,7 @@ def update_target_temperature(dyn: MolecularDynamics, dtemp: float) -> None:
     dyn.set_temperature(temperature_K=target_temperature)
 
     return
+
 
 def update_target_pressure(dyn: MolecularDynamics, dpres: float) -> None:
     """Update barostat's target pressure at each step.
@@ -82,10 +79,10 @@ def update_target_pressure(dyn: MolecularDynamics, dpres: float) -> None:
         dpres: The delta pressure at each step.
 
     """
-    pressure = dyn.get_pressure()/(1e5*units.Pascal)
+    pressure = dyn.get_pressure() / (1e5 * units.Pascal)
 
     target_pressure = pressure + dpres
-    dyn.pressure = target_pressure*1e5*units.Pascal
+    dyn.pressure = target_pressure * 1e5 * units.Pascal
 
     return
 
@@ -147,7 +144,7 @@ def save_trajectory(atoms, traj_fpath) -> None:
         # If a mixer calc is used and one of its calcs do not have stress,
         # the entire save_trajectory failed.
         # Maybe we should tell this function only cmin must have stress info.
-        ...  
+        ...
 
     spc = SinglePointCalculator(atoms_to_save, **results)
     atoms_to_save.calc = spc
@@ -197,8 +194,8 @@ def save_checkpoint(
 
         # For some optimisers and dynamics, they use random generator.
         if hasattr(dyn, "rng"):
-            with open(ckpt_wdir / "rng_state.yaml", "w") as fopen:
-                yaml.safe_dump(dyn.rng.bit_generator.state, fopen)
+            with open(ckpt_wdir / "rng_state.json", "w") as fopen:
+                json.dump(dyn.rng.bit_generator.state, fopen, indent=2)
 
         # For some mixed calculator, save information, for example, PLUMED...
         if hasattr(atoms.calc, "calcs"):
@@ -215,7 +212,7 @@ def save_checkpoint(
     else:
         # Do not save checkpoint at step 0.
         # Sometime it may be useful to save a ckpt at step 0 if
-        # an expensive potential is used. However, we normally 
+        # an expensive potential is used. However, we normally
         # use ase-backend for very quick potentials.
         ...
 
@@ -239,7 +236,7 @@ def monit_and_intervene(
 class BFGSMinimiser(Controller):
 
     name: str = "bfgs"
-    
+
     def __post_init__(self):
         """"""
         from ase.optimize import BFGS
@@ -250,6 +247,7 @@ class BFGSMinimiser(Controller):
         self.params.update(driver_cls=functools.partial(BFGS, maxstep=maxstep))
 
         return
+
 
 @dataclasses.dataclass
 class BFGSCellMinimiser(Controller):
@@ -268,14 +266,16 @@ class BFGSCellMinimiser(Controller):
 
         pressure = self.params.get("pressure", 1.0)  # bar
         assert pressure is not None
-        pressure *= 1e-4/160.21766208  # bar -> eV/Ang^3
+        pressure *= 1e-4 / 160.21766208  # bar -> eV/Ang^3
 
         # TODO: StrainFilter, FrechetCellFilter
         from ase.filters import UnitCellFilter as filter_cls
 
         def combine_filter_and_minimiser(atoms, **kwargs):
             """"""
-            new_filter_cls = functools.partial(filter_cls, hydrostatic_strain=isotropic, scalar_pressure=pressure)
+            new_filter_cls = functools.partial(
+                filter_cls, hydrostatic_strain=isotropic, scalar_pressure=pressure
+            )
 
             return min_cls(atoms=new_filter_cls(atoms), maxstep=maxstep, **kwargs)  # type: ignore
 
@@ -312,9 +312,9 @@ class MDController(Controller):
         """"""
 
         self.timestep *= units.fs
-        self.pressure *= (1e5 * units.Pascal)
+        self.pressure *= 1e5 * units.Pascal
         if self.pressure_end is not None:
-            self.pressure_end *= (1e5 * units.Pascal)
+            self.pressure_end *= 1e5 * units.Pascal
 
         return
 
@@ -330,10 +330,8 @@ class Verlet(MDController):
             raise Exception("AseDriver verlet_nve does not `tend`.")
 
         from ase.md.verlet import VelocityVerlet
-        driver_cls = functools.partial(
-            VelocityVerlet,
-            timestep=self.timestep
-        )
+
+        driver_cls = functools.partial(VelocityVerlet, timestep=self.timestep)
         self.params.update(driver_cls=driver_cls)
 
         return
@@ -360,7 +358,7 @@ class BerendsenThermostat(MDController):
             timestep=self.timestep,
             temperature=self.temperature,
             fixcm=self.fix_com,
-            taut=taut
+            taut=taut,
         )
         self.params.update(driver_cls=driver_cls)
 
@@ -381,16 +379,17 @@ class LangevinThermostat(MDController):
         # NOTE: The rng that generates friction normal distribution
         #       is set in `create_dynamics` by the driver's random_seed
         friction = self.params.get("friction", 0.01)  # fs^-1
-        friction *= 1./units.fs
+        friction *= 1.0 / units.fs
         assert friction is not None
 
         from ase.md.langevin import Langevin
+
         driver_cls = functools.partial(
             Langevin,
             timestep=self.timestep,
             temperature_K=self.temperature,
             fixcm=self.fix_com,
-            friction=friction
+            friction=friction,
         )
         self.params.update(driver_cls=driver_cls)
 
@@ -415,11 +414,12 @@ class NoseHooverThermostat(MDController):
         assert qmass is not None
 
         from .md.nosehoover import NoseHoover
+
         driver_cls = functools.partial(
             NoseHoover,
             timestep=self.timestep,
-            temperature=self.temperature*units.kB,
-            nvt_q=qmass
+            temperature=self.temperature * units.kB,
+            nvt_q=qmass,
         )
         self.params.update(driver_cls=driver_cls)
 
@@ -450,10 +450,11 @@ class BerendsenBarostat(MDController):
         compressibility *= compressibility / units.bar
 
         from ase.md.nptberendsen import NPTBerendsen
+
         driver_cls = functools.partial(
-            NPTBerendsen, 
+            NPTBerendsen,
             timestep=self.timestep,
-            temperature=self.temperature, 
+            temperature=self.temperature,
             pressure=self.pressure,
             fixcm=self.fix_com,
             taut=taut,
@@ -481,12 +482,13 @@ class MonteCarloController(MDController):
         assert maxstepsize is not None
 
         from .mc.tfmc import TimeStampedMonteCarlo
+
         driver_cls = functools.partial(
             TimeStampedMonteCarlo,
             timestep=self.timestep,
             temperature=self.temperature,
             fixcm=self.fix_com,
-            maxstepsize=maxstepsize
+            maxstepsize=maxstepsize,
         )
         self.params.update(driver_cls=driver_cls)
 
@@ -510,11 +512,11 @@ controllers = dict(
 )
 
 default_controllers = dict(
-    min = BFGSMinimiser,
-    cmin = BFGSCellMinimiser,
-    nve = Verlet,
-    nvt = BerendsenThermostat,
-    npt = BerendsenBarostat,
+    min=BFGSMinimiser,
+    cmin=BFGSCellMinimiser,
+    nve=Verlet,
+    nvt=BerendsenThermostat,
+    npt=BerendsenBarostat,
 )
 
 
@@ -603,9 +605,11 @@ class AseDriver(AbstractDriver):
     def log_fpath(self):
         """File path of the simulation log."""
 
-        return self.directory/self.log_fname
-    
-    def _create_dynamics(self, atoms: Atoms, start_step: int=0, *args, **kwargs) -> Tuple[Dynamics, dict]:
+        return self.directory / self.log_fname
+
+    def _create_dynamics(
+        self, atoms: Atoms, start_step: int = 0, *args, **kwargs
+    ) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
         Respect `steps` and `fmax` as restart.
@@ -629,8 +633,7 @@ class AseDriver(AbstractDriver):
         elif self.setting.task == "md":
             # velocity
             self._prepare_velocities(
-                atoms,
-                self.setting.velocity_seed, self.setting.ignore_atoms_velocities
+                atoms, self.setting.velocity_seed, self.setting.ignore_atoms_velocities
             )
 
             # other callbacks
@@ -648,22 +651,20 @@ class AseDriver(AbstractDriver):
             # check if the simulation is annealing
             if self.setting.tend is not None:
                 dtemp = (self.setting.tend - self.setting.temp) / self.setting.steps
-                driver.set_temperature(temperature_K=self.setting.temp+(start_step-1)*dtemp)
+                driver.set_temperature(
+                    temperature_K=self.setting.temp + (start_step - 1) * dtemp
+                )
                 driver.attach(
-                    update_target_temperature,
-                    dyn=driver,
-                    dtemp=dtemp,
-                    interval=1
+                    update_target_temperature, dyn=driver, dtemp=dtemp, interval=1
                 )
             if self.setting.pend is not None:
                 dpres = (self.setting.pend - self.setting.press) / self.setting.steps
                 # ase-v3.23.0 hase a bug in berendsen_npt _process_pressure
-                driver.pressure = (self.setting.press+(start_step-1)*dpres)*1e5*units.Pascal
+                driver.pressure = (
+                    (self.setting.press + (start_step - 1) * dpres) * 1e5 * units.Pascal
+                )
                 driver.attach(
-                    update_target_pressure,
-                    dyn=driver,
-                    dpres=dpres,
-                    interval=1
+                    update_target_pressure, dyn=driver, dpres=dpres, interval=1
                 )
 
             # override rng
@@ -707,10 +708,10 @@ class AseDriver(AbstractDriver):
         """"""
         atoms = read(ckpt_dir / "structures.xyz", ":")[-1]
 
-        rng_state_fpath = ckpt_dir / "rng_state.yaml"
+        rng_state_fpath = ckpt_dir / "rng_state.json"
         if rng_state_fpath.exists():
-            with open(ckpt_dir / "rng_state.yaml", "r") as fopen:
-                rng_state = yaml.safe_load(fopen)
+            with open(ckpt_dir / "rng_state.json", "r") as fopen:
+                rng_state = json.load(fopen)
         else:
             rng_state = None
 
@@ -737,8 +738,8 @@ class AseDriver(AbstractDriver):
             curr_params["init"] = self.setting.get_init_params()
             curr_params["run"] = self.setting.get_run_params()
 
-            with open(self.directory / "params.yaml", "w") as fopen:
-                yaml.safe_dump(curr_params, fopen, indent=2)
+            with open(self.directory / "params.json", "w") as fopen:
+                json.dump(curr_params, fopen, indent=2)
         else:  # restart ...
             ckpt_wdir = self._find_latest_checkpoint(prev_wdir)
             atoms, rng_state = self._load_checkpoint(ckpt_wdir)
@@ -766,7 +767,9 @@ class AseDriver(AbstractDriver):
         atoms.calc = self.calc
 
         # - set dynamics
-        dynamics, run_params = self._create_dynamics(atoms, start_step=start_step, *args, **kwargs)
+        dynamics, run_params = self._create_dynamics(
+            atoms, start_step=start_step, *args, **kwargs
+        )
         dynamics.nsteps = start_step
         dynamics.max_steps = self.setting.steps
         if hasattr(dynamics, "rng") and rng_state is not None:
