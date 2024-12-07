@@ -54,7 +54,13 @@ def update_atoms_info(atoms: Atoms, dyn: Dynamics) -> None:
     return
 
 def update_target_temperature(dyn: MolecularDynamics, dtemp: float) -> None:
-    """Update thermostat's target temperature at each step."""
+    """Update thermostat's target temperature at each step.
+
+    Args:
+        dyn: Dynamics object.
+        dtemp: The delta temperature at each step.
+
+    """
     temperature = None
     try:  # berendsen_nvt
         temperature = dyn.get_temperature()
