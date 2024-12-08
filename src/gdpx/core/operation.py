@@ -3,7 +3,7 @@
 
 import abc
 import pathlib
-from typing import Callable, Union
+from typing import Callable, Union, Any
 
 from .. import config
 
@@ -86,7 +86,7 @@ class Operation(abc.ABC):
             return False
 
     @abc.abstractmethod
-    def forward(self):
+    def forward(self, *args, **kwargs) -> Any:
         """"""
         # - set working directory and logger
         if not self.directory.exists():
