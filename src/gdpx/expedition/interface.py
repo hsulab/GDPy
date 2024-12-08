@@ -13,6 +13,7 @@ from ..core.register import registers
 from ..core.variable import Variable
 from ..scheduler.interface import SchedulerVariable
 from ..worker.explore import ExpeditionBasedWorker
+from .expedition import AbstractExpedition
 
 
 def register_expedition_methods():
@@ -54,11 +55,11 @@ register_expedition_methods()
 @registers.variable.register
 class ExpeditionVariable(Variable):
 
-    def __init__(self, directory: Union[str, pathlib.Path]="./", **kwargs):
+    def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
         random_seed = kwargs.get("random_seed", None)
         if random_seed is None:
-            random_seed = np.random.randint(0, 1e8)
+            random_seed = np.random.randint(0, 1e8)  # type: ignore
 
         method = kwargs.pop("method", None)
         if "builder" in kwargs:
@@ -72,6 +73,12 @@ class ExpeditionVariable(Variable):
         super().__init__(initial_value=expedition, directory=directory)
 
         return
+
+    @property
+    def value(self) -> AbstractExpedition:
+        """"""
+
+        return self._value  # type: ignore
 
     def _create_a_builder(self, builder: dict, random_seed: int):
         """"""
