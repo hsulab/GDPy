@@ -4,11 +4,33 @@
 import copy
 import pathlib
 import subprocess
-from typing import Optional, Union, List, Callable, Iterable
-
 from abc import ABC, abstractmethod
+from typing import Callable, Iterable, List, Optional, Union
 
 from .. import config
+
+
+def submit_job_script(
+    script_fpath: pathlib.Path, submit_command: str, submit_timeout: float
+) -> str:
+    """Submit job script."""
+    command = f"{submit_command} {script_fpath.name}"
+    proc = subprocess.Popen(
+        command,
+        shell=True,
+        cwd=script_fpath.parent,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+    )
+    errorcode = proc.wait(timeout=submit_timeout)
+    if errorcode:
+        raise RuntimeError(f"Error in submitting job script {str(script_fpath)}")
+
+    output = "".join(proc.stdout.readlines())  # type: ignore
+    job_id = output.strip().split()[-1]
+
+    return job_id
 
 
 class AbstractScheduler(ABC):
@@ -62,7 +84,7 @@ class AbstractScheduler(ABC):
     environs: Union[str, List[str]] = ""
 
     #: Machine-related prefix added before executable (e.g. mpirun).
-    machine_prefix : str = ""
+    machine_prefix: str = ""
 
     #: Custom commands for a job.
     user_commands: str = ""
@@ -166,24 +188,28 @@ class AbstractScheduler(ABC):
 
         return
 
-    def submit(self) -> str:
+    def submit(self, func_to_execute: Optional[Callable] = None) -> str:
         """Submit job using specific scheduler command and return job id."""
-        assert isinstance(self.script, pathlib.Path)
-        command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
-        proc = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=self.script.parent,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-        )
-        errorcode = proc.wait(timeout=self.submit_timeout)
-        if errorcode:
-            raise RuntimeError(f"Error in submitting job script {str(self.script)}")
-
-        output = "".join(proc.stdout.readlines())  # type: ignore
-        job_id = output.strip().split()[-1]
+        if func_to_execute is None:  # compatible mode
+            assert isinstance(self.script, pathlib.Path)
+            self.write()
+            job_id = submit_job_script(
+                self.script,
+                submit_command=self.SUBMIT_COMMAND,
+                submit_timeout=self.submit_timeout,
+            )
+        else:
+            job_id = "local"
+            if self.name == "local":
+                func_to_execute()
+            else:
+                assert isinstance(self.script, pathlib.Path)
+                self.write()
+                job_id = submit_job_script(
+                    self.script,
+                    submit_command=self.SUBMIT_COMMAND,
+                    submit_timeout=self.submit_timeout,
+                )
 
         return job_id
 

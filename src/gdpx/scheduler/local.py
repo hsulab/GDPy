@@ -16,11 +16,6 @@ class LocalScheduler(AbstractScheduler):
         self._job_name = job_name_
         return
 
-    def submit(self) -> NoReturn:
-        """No submit is performed."""
-
-        return
-
     def is_finished(self) -> bool:
         """Check if the job were finished.
 
