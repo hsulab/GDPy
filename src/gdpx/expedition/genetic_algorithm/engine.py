@@ -92,6 +92,61 @@ def get_generation_number(da: DataConnection) -> int:
     return curr_gen
 
 
+class GeneticAlgorithmBroadcaster:
+    """Broadcast genetic_algorithm_engine by parameters."""
+
+    def __init__(self, builder, params, worker=None, random_seed=None):
+        """"""
+        new_params_list = self._broadcast_parameters(params)
+
+        input_params_list = []
+        for new_params in new_params_list:
+            input_params = dict(
+                builder=copy.deepcopy(builder),
+                worker=copy.deepcopy(worker),
+                params=new_params,
+                random_seed=copy.deepcopy(random_seed)
+            )
+            input_params_list.append(input_params)
+        self.input_params_list = input_params_list
+        
+        return
+
+    def __iter__(self):
+        """"""
+        for input_params in self.input_params_list:
+            engine = GeneticAlgorithmEngine(**input_params)
+            yield engine
+
+    def _broadcast_parameters(self, params):
+        """Broadcast input parameters that can form several engines.
+
+        Note:
+            Currently, we only support `chempot` in formation_energy optimisation.
+
+        """
+        new_params_list = []
+
+        property_setting = params.get("property", dict(target="energy"))
+        target = property_setting.get("target", "energy")
+        if target == "formation_energy":
+            chempot = []
+            for k, v in property_setting.get("chempot").items():
+                if isinstance(v, list):
+                    chempot.append([(k, v_i) for v_i in v])
+                else:  # This must be a number.
+                    chempot.append([(k, v)])
+            broadcasted_chempots = list(itertools.product(*chempot))
+            for chempot in broadcasted_chempots:
+                new_params = copy.deepcopy(params)
+                new_params["property"]["chempot"] = {k: v for k, v in chempot}
+                new_params_list.append(new_params)
+        else:
+            ...
+
+        return new_params_list
+
+
 class GeneticAlgorithmEngine(AbstractExpedition):
     """Genetic Algorithem Engine."""
 
@@ -139,16 +194,18 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             if "init" in population_params:
                 seed_file = population_params["init"].get("seed_file", None)
                 if seed_file is not None:
-                    self.ga_dict["population"]["init"]["seed_file"] = str(pathlib.Path(seed_file).resolve())
+                    self.ga_dict["population"]["init"]["seed_file"] = str(
+                        pathlib.Path(seed_file).resolve()
+                    )
 
         # Check random consistency, generator and population
         if random_seed is None:
-            random_seed = np.random.randint(0, 1e8)
+            random_seed = np.random.randint(0, 1e8)  # type: ignore
         self.random_seed = random_seed
         self._print(f"GA RANDOM SEED {random_seed}")
         self.rng = np.random.Generator(np.random.PCG64(seed=random_seed))
 
-        # - check system type
+        # Check builder for random structure generation
         if isinstance(builder, dict):
             # -- generator will reset np.random by the given random_seed
             builder_params = copy.deepcopy(builder)
@@ -159,9 +216,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 "builder", builder_method, convert_name=False, **builder_params
             )
         else:
+            # NOTE: randomBuilder uses deprecated np.random
+            #       if multi engines are running at the same time
+            #       the builders will intervine each other on random!!!
             prev_seed = builder.random_seed
             self.generator = builder
             np.random.seed(random_seed)
+            if (self.generator, "rng"):
+                self.generator.rng = self.rng
         self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {random_seed}")
 
         # - worker info
@@ -181,15 +243,21 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         ], f"Target `{target}` is not supported yet."
         if target == "formation_energy":
             if "chempot" not in self.prop_dict:
-                raise RuntimeError("The `chempot` is not provided in the property section.")
+                raise RuntimeError(
+                    "The `chempot` is not provided in the property section."
+                )
             if hasattr(self.generator, "use_tags"):
                 if self.generator.use_tags:
                     ...
                 else:
                     self.generator.use_tags = True
-                    self._print(f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation.")
+                    self._print(
+                        f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation."
+                    )
             else:
-                raise RuntimeError(f"Builder `{self.generator.name}` does not have true `use_tags`.")
+                raise RuntimeError(
+                    f"Builder `{self.generator.name}` does not have true `use_tags`."
+                )
         else:
             ...
 
@@ -707,15 +775,11 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             "use_tags",
         ]:
             if hasattr(self.generator, attr):
-                specific_params.update(
-                    **{attr: getattr(self.generator, attr)}
-                )
+                specific_params.update(**{attr: getattr(self.generator, attr)})
             else:
                 ...
 
-        specific_params.update(
-            covalent_ratio=self.generator.covalent_ratio
-        )
+        specific_params.update(covalent_ratio=self.generator.covalent_ratio)
 
         if hasattr(self.generator, "get_bond_distance_dict"):
             bond_distance_dict = self.generator.get_bond_distance_dict(
@@ -807,9 +871,13 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 # Check whether mutation accepts molecules
                 if use_tags:
                     if hasattr(mut, "use_tags"):
-                        assert mut.use_tags, f"use_tags `{use_tags}` in mutation `{mut}` must be true."
+                        assert (
+                            mut.use_tags
+                        ), f"use_tags `{use_tags}` in mutation `{mut}` must be true."
                     else:
-                        raise RuntimeError(f"Mutation `{mut}` cannot be used in a search with tags.")
+                        raise RuntimeError(
+                            f"Mutation `{mut}` cannot be used in a search with tags."
+                        )
                 mutations.append(mut)
 
             self._print("  --- mutations ---")
