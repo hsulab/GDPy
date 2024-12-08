@@ -23,13 +23,13 @@ def parse_worker(inp_worker: dict, *args, **kwargs):
             "variable", "computer", convert_name=True, **worker_params
         ).value[0]
     elif isinstance(inp_worker, list):  # assume it is from a computervariable
-        worker = worker[0]
+        worker = inp_worker[0]
     elif isinstance(inp_worker, ComputerVariable):
-        worker = worker.value[0]
-    elif isinstance(inp_worker, DriverBasedWorker) or isinstance(worker, SingleWorker):
-        worker = worker
+        worker = inp_worker.value[0]
+    elif isinstance(inp_worker, DriverBasedWorker) or isinstance(inp_worker, SingleWorker):
+        worker = inp_worker
     else:
-        raise RuntimeError(f"Unknown worker type {worker}")
+        raise RuntimeError(f"Unknown worker type {inp_worker}.")
 
     return worker
 

@@ -4,7 +4,7 @@
 
 import copy
 import pathlib
-from typing import Union
+from typing import Union, Iterable
 
 import numpy as np
 
@@ -22,9 +22,9 @@ def register_expedition_methods():
 
     registers.builder.register("exchange_mutation")(ExchangeMutation)
 
-    from .genetic_algorithm.engine import GeneticAlgorithmEngine
+    from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
 
-    registers.expedition.register("genetic_algorithm")(GeneticAlgorithmEngine)
+    registers.expedition.register("genetic_algorithm")(GeneticAlgorithmBroadcaster)
 
     from .monte_carlo.basin_hopping import BasinHopping
 
@@ -63,12 +63,14 @@ class ExpeditionVariable(Variable):
 
         method = kwargs.pop("method", None)
         if "builder" in kwargs:
-            builder = self._create_a_builder(kwargs["builder"], random_seed)
+            builder = self._canonicalise_builder(kwargs["builder"], random_seed)
             kwargs["builder"] = builder
 
         expedition = registers.create(
             "expedition", method, convert_name=False, **kwargs
         )
+        if isinstance(expedition, Iterable):
+            expedition = list(expedition)  # A List of expeditions
 
         super().__init__(initial_value=expedition, directory=directory)
 
@@ -80,9 +82,8 @@ class ExpeditionVariable(Variable):
 
         return self._value  # type: ignore
 
-    def _create_a_builder(self, builder: dict, random_seed: int):
-        """"""
-        # - builder
+    def _canonicalise_builder(self, builder: dict, random_seed: int):
+        """Canonicalise the builder and set random seed."""
         if isinstance(builder, dict):
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
@@ -134,13 +135,17 @@ class explore(Operation):
         """
         super().forward()
 
-        expeditions = [expedition]
-        nexpeditions = len(expeditions)
+        if isinstance(expedition, list):
+            expeditions = expedition
+        else:
+            expeditions = [expedition]
+
+        num_expeditions = len(expeditions)
         if self._active:
             curr_iter = int(self.directory.parent.name.split(".")[-1])
             if curr_iter > 0:
                 self._print("    >>> Update seed_file...")
-                for i in range(nexpeditions):
+                for i in range(num_expeditions):
                     prev_wdir = (
                         self.directory.parent.parent
                         / f"iter.{str(curr_iter-1).zfill(4)}"
@@ -149,27 +154,24 @@ class explore(Operation):
                     if hasattr(expedition, "update_active_params"):
                         expedition.update_active_params(prev_wdir)
 
-        # -
-        if hasattr(expedition, "register_worker"):
-            expedition.register_worker(dyn_worker)
+        self._print(f"{dyn_worker=}")
+        for expedition in expeditions:
+            if hasattr(expedition, "register_worker"):
+                expedition.register_worker(dyn_worker)
 
-        # - run expedition with a worker
-        worker = ExpeditionBasedWorker(expedition, scheduler)
+        worker = ExpeditionBasedWorker(expeditions, scheduler)
         worker.directory = self.directory
         worker.wait_time = self.wait_time
 
         worker.run()
         worker.inspect(resubmit=True)
 
-        basic_workers = []
         if worker.get_number_of_running_jobs() == 0:
             basic_workers = worker.retrieve(include_retrieved=True)
             self._debug(f"basic_workers: {basic_workers}")
-            # for w in basic_workers:
-            #     print(w.directory)
             self.status = "finished"
         else:
-            ...
+            basic_workers = []
 
         return basic_workers
 

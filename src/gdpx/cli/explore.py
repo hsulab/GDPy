@@ -3,8 +3,7 @@
 
 
 import pathlib
-import time
-from typing import Optional, Union
+from typing import Optional, Union, Iterable
 
 from .. import config
 from ..expedition.interface import ExpeditionVariable
@@ -32,9 +31,13 @@ def run_expedition(
     scheduler = SchedulerVariable(**scheduler_params).value
 
     expedition = ExpeditionVariable(directory=directory, **exp_params).value
-    expedition.directory = directory
-    if hasattr(expedition, "register_worker"):
-        expedition.register_worker(exp_params["worker"])
+    if isinstance(expedition, Iterable):
+        for expd in expedition:
+            if hasattr(expd, "register_worker"):
+                expd.register_worker(exp_params["worker"])
+    else:
+        if hasattr(expedition, "register_worker"):
+            expedition.register_worker(exp_params["worker"])
 
     remove_extra_stream_handlers()
 
