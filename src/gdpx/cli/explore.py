@@ -38,28 +38,15 @@ def run_expedition(
 
     remove_extra_stream_handlers()
 
-    if scheduler.name == "local":
-        if wait is not None:
-            for i in range(1000):
-                expedition.run()
-                if expedition.read_convergence():
-                    break
-                time.sleep(wait)
-                config._print(f"wait {wait} seconds...")
-            else:
-                ...
-        else:
-            expedition.run()
-    else:  # submit to queue
-        worker = ExpeditionBasedWorker(
-            expedition=expedition, scheduler=scheduler, directory=directory
-        )
-        worker.run()
-        worker.inspect(resubmit=True)
-        if worker.get_number_of_running_jobs() == 0:
-            config._print("Expedition finished...")
-        else:
-            ...
+    worker = ExpeditionBasedWorker(
+        expedition=expedition, scheduler=scheduler, directory=directory
+    )
+    worker.run()
+    worker.inspect(resubmit=True)
+    if worker.get_number_of_running_jobs() == 0:
+        config._print("Expedition finished...")
+    else:
+        ...
 
     return
 

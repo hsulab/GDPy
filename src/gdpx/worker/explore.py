@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import functools
+import json
 import pathlib
+import time
 import uuid
 import warnings
-import yaml
+from typing import Optional
 
 from tinydb import Query, TinyDB
 
-from .worker import AbstractWorker
 from ..scheduler.scheduler import AbstractScheduler
+from .worker import AbstractWorker
 
 """Worker that manages expeditions.
 
@@ -17,6 +21,35 @@ Since an expedition is made up of several basic workers, this worker is a monito
 tracks its progress.
 
 """
+
+
+def run_expedition_in_commandline(
+    wdir, expedition, timewait: Optional[float] = None, print_func=print
+) -> None:
+    """"""
+    expedition.directory = wdir
+    if timewait is not None:
+        for _ in range(1000):
+            expedition.run()
+            if expedition.read_convergence():
+                break
+            time.sleep(timewait)
+            print_func(f"wait {timewait} seconds...")
+        else:
+            ...
+    else:
+        expedition.run()
+
+    return
+
+
+def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
+    """"""
+    exp_params = expedition.as_dict()
+    with open(inp_fpath, "w") as fopen:
+        json.dump(exp_params, fopen, indent=2)
+
+    return
 
 
 class ExpeditionBasedWorker(AbstractWorker):
@@ -53,7 +86,7 @@ class ExpeditionBasedWorker(AbstractWorker):
         expedition = self.expedition
         scheduler = self.scheduler
 
-        # - read metadata from file or database
+        # Read metadata from file or database
         with TinyDB(
             self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
         ) as database:
@@ -62,6 +95,7 @@ class ExpeditionBasedWorker(AbstractWorker):
 
         size = 1
         for i in range(size):
+            # Get exp-id
             uid = str(uuid.uuid1())
             batch_name = f"{self.EXP_INDEX}-{i}"
             job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
@@ -71,25 +105,28 @@ class ExpeditionBasedWorker(AbstractWorker):
                 continue
             wdir.mkdir(parents=True, exist_ok=True)
 
-            if self.scheduler.name == "local":
-                expedition.directory = wdir
-                expedition.run()
-            else:
-                inp_fpath = (wdir / f"exp-{uid}.yaml").absolute()
-                exp_params = expedition.as_dict()
-                with open(inp_fpath, "w") as fopen:
-                    yaml.safe_dump(exp_params, fopen)
+            # Save input file
+            metadata_dpath = wdir / "_data"
+            metadata_dpath.mkdir(parents=True, exist_ok=True)
+            inp_fpath = (metadata_dpath / f"exp-{uid}.json").resolve()
+            save_expedition_input_parameters(inp_fpath, expedition)
 
-                scheduler.job_name = job_name
-                scheduler.script = wdir / f"{self._script_name}-{uid}"
-                scheduler.user_commands = "gdp explore {} --wait {}".format(
-                    str(inp_fpath), self.wait_time
-                )
-                scheduler.write()
-                if self._submit:
-                    self._print(f"{wdir.name}: {scheduler.submit()}")
-                else:
-                    self._print(f"{wdir.name} waits to submit.")
+            # Submit expedition to queue
+            exp_func = functools.partial(
+                run_expedition_in_commandline,
+                wdir=wdir,
+                expedition=expedition,
+                timewait=None,
+                print_func=self._print,
+            )
+
+            scheduler.job_name = job_name
+            scheduler.script = wdir / f"{self._script_name}-{uid}"
+            scheduler.user_commands = "gdp explore {} --wait {}".format(
+                str(inp_fpath.relative_to(wdir.resolve())), self.wait_time
+            )
+            job_status = scheduler.submit(func_to_execute=exp_func)
+            self._print(f"{wdir.name}: {job_status}")
 
             # - update database
             with TinyDB(
