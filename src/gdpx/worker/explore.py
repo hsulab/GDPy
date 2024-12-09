@@ -77,6 +77,9 @@ class ExpeditionBasedWorker(AbstractWorker):
         self.batchsize = batchsize
         self.wait_time = 60
 
+        if self.batchsize != 1:
+            raise Exception("Currently, expedition worker only supports batchsize of 1.")
+
         return
 
     def run(self, builder=None, *args, **kwargs) -> None:
@@ -114,6 +117,7 @@ class ExpeditionBasedWorker(AbstractWorker):
             self._print(f"{expedition=}")
 
             # Save input file
+            # TODO: move input files to a centrilised metadata folder
             metadata_dpath = wdir / "_data"
             metadata_dpath.mkdir(parents=True, exist_ok=True)
             inp_fpath = (metadata_dpath / f"exp-{uid}.json").resolve()
@@ -130,13 +134,13 @@ class ExpeditionBasedWorker(AbstractWorker):
 
             self.scheduler.job_name = job_name
             self.scheduler.script = wdir / f"{self._script_name}-{uid}"
-            self.scheduler.user_commands = "gdp explore {} --wait {}".format(
-                str(inp_fpath.relative_to(wdir.resolve())), self.wait_time
-            )
+            relative_inp_fpath = str(inp_fpath.relative_to(wdir.resolve()))
+            batch_index_str = ",".join([str(i)])
+            self.scheduler.user_commands = f"gdp explore {relative_inp_fpath} --wait {self.wait_time} --spawn {batch_index_str}"
             job_status = self.scheduler.submit(func_to_execute=exp_func)
             self._print(f"{wdir.name}: {job_status}")
 
-            # - update database
+            # Update database
             with TinyDB(
                 self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
             ) as database:

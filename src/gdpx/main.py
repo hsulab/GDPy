@@ -160,6 +160,11 @@ def main():
         "CONFIG", help="json/yaml file that stores parameters for a task"
     )
     parser_explore.add_argument(
+        "--spawn",
+        default=None,
+        help="The batch indices spawned by a host worker.",
+    )
+    parser_explore.add_argument(
         "--wait", default=None, type=float, help="wait time after each run"
     )
 
@@ -291,9 +296,8 @@ def main():
         )
     elif args.subcommand == "explore":
         from .cli.explore import run_expedition
-
         params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory, workers[0])
+        run_expedition(params, args.wait, args.directory, workers[0], spawn=args.spawn)
     elif args.subcommand == "valid":
         from gdpx.validator import run_validation
 
