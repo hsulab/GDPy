@@ -418,7 +418,7 @@ class DeepmdTrainer(AbstractTrainer):
 
         train_config["training"]["seed"] = self.rng.integers(0, 10000, dtype=int)
 
-        # --- calc numb_steps
+        # Determine `numb_steps`
         min_freq_unit = 100.0
         save_freq = int(
             np.ceil(dataset.cum_batchsizes * self.print_epochs / min_freq_unit)
@@ -432,13 +432,28 @@ class DeepmdTrainer(AbstractTrainer):
         train_config["training"]["disp_freq"] = save_freq
 
         numb_steps = dataset.cum_batchsizes * self.train_epochs
-        n_checkpoints = int(
+        num_checkpoints = int(
             np.ceil(dataset.cum_batchsizes * self.train_epochs / save_freq)
         )
-        numb_steps = n_checkpoints * save_freq
-        train_config["training"]["numb_steps"] = numb_steps
+        numb_steps = num_checkpoints * save_freq
 
-        # - write
+        # Check if the training steps are too small, which happens in the early stage of 
+        # active learning, and increase it to the default `training_batches`.
+        # We observed the model accuracy increases nonlinearly with the dataset size, 
+        # which means we need a 'minimum' training steps even for an extremely small dataset 
+        # may have few tens of structures.
+        if self.train_batches is None:
+            train_config["training"]["numb_steps"] = numb_steps
+        else:
+            if numb_steps < self.train_batches:
+                num_chekpoints = int(np.ceil(self.train_epochs/self.print_epochs))
+                new_save_freq = int(np.ceil(self.train_batches/num_chekpoints/min_freq_unit)*min_freq_unit)
+                new_numb_steps = new_save_freq*num_chekpoints
+                train_config["training"]["save_freq"] = new_save_freq
+                train_config["training"]["disp_freq"] = new_save_freq
+                train_config["training"]["numb_steps"] = new_numb_steps
+
+        # Write training parameters to deepmd input json
         with open(self.directory / f"{self.name}.json", "w") as fopen:
             json.dump(train_config, fopen, indent=2)
 

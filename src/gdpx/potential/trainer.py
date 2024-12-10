@@ -47,15 +47,22 @@ class AbstractTrainer(AbstractNode):
         config: dict,
         type_list: Optional[List[str]] = None,
         train_epochs: int = 200,
+        train_batches: int = 200000,
         print_epochs: int = 5,
         directory=".",
         command: str="train",
-        freeze_command: str="freeze",
+        freeze_command: Optional[str]="freeze",
         random_seed: Optional[Union[int, dict]] = None,
         *args,
         **kwargs,
     ) -> None:
-        """"""
+        """Potential Trainer.
+
+        Args:
+            train_epochs: Number of training epochs.
+            train_bacthes: Number of training batches.
+
+        """
         super().__init__(directory=directory, random_seed=random_seed)
         self.command = command
         if freeze_command is None:
@@ -67,6 +74,7 @@ class AbstractTrainer(AbstractNode):
         self.config = config  # train model parameters
 
         self.train_epochs = train_epochs
+        self.train_batches = train_batches
         self.print_epochs = print_epochs
 
         return
