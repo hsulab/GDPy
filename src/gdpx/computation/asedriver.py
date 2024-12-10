@@ -76,7 +76,7 @@ def update_target_pressure(dyn: MolecularDynamics, dpres: float) -> None:
 
     Args:
         dyn: Dynamics object.
-        dpres: The delta pressure at each step.
+        dpres: The delta pressure [bar] at each step.
 
     """
     pressure = dyn.get_pressure() / (1e5 * units.Pascal)
@@ -266,7 +266,7 @@ class BFGSCellMinimiser(Controller):
 
         pressure = self.params.get("pressure", 1.0)  # bar
         assert pressure is not None
-        pressure *= 1e-4 / 160.21766208  # bar -> eV/Ang^3
+        pressure *= 1e5*units.Pascal  # bar -> eV/Ang^3
 
         # TODO: StrainFilter, FrechetCellFilter
         from ase.filters import UnitCellFilter as filter_cls
@@ -454,8 +454,8 @@ class BerendsenBarostat(MDController):
         driver_cls = functools.partial(
             NPTBerendsen,
             timestep=self.timestep,
-            temperature=self.temperature,
-            pressure=self.pressure,
+            temperature=self.temperature,  # K
+            pressure_au=self.pressure,  # eV/Ang^3
             fixcm=self.fix_com,
             taut=taut,
             taup=taup,
@@ -660,6 +660,7 @@ class AseDriver(AbstractDriver):
             if self.setting.pend is not None:
                 dpres = (self.setting.pend - self.setting.press) / self.setting.steps
                 # ase-v3.23.0 hase a bug in berendsen_npt _process_pressure
+                # our input pressure is in bar and the one used by ase is eV/Ang^3
                 driver.pressure = (
                     (self.setting.press + (start_step - 1) * dpres) * 1e5 * units.Pascal
                 )
