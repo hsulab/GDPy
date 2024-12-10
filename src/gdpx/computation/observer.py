@@ -239,16 +239,15 @@ class VolumeObserver(Observer):
 
         return
     
-    def run(self, atoms: Atoms, step: int=0):
+    def run(self, atoms: Atoms):
         """"""
         should_stop = False
-        if step >= self.patience:
-            v = atoms.get_volume()
-            v = v/len(atoms) if self.use_atomic else v
-            if self.vmin is not None and v < self.vmin:
-                should_stop = True
-            if self.vmax is not None and v > self.vmax:
-                should_stop = True
+        v = atoms.get_volume()
+        v = v/len(atoms) if self.use_atomic else v
+        if self.vmin is not None and v < self.vmin:
+            should_stop = True
+        if self.vmax is not None and v > self.vmax:
+            should_stop = True
 
         return should_stop
 
