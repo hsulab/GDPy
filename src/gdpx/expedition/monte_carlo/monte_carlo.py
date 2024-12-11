@@ -152,6 +152,8 @@ class MonteCarlo(AbstractExpedition):
         self.atoms.info["confid"] = 0
         self.atoms.info["step"] = -1  # NOTE: remove step info
 
+        write(self.directory / "mc_attempts.xyz", self.atoms)
+
         # TODO: whether init driver?
         self.worker.wdir_name = step_wdir.name
         _ = self.worker.run([self.atoms])
@@ -343,6 +345,7 @@ class MonteCarlo(AbstractExpedition):
             # --- add info
             curr_atoms.info["confid"] = int(f"{i}")
             curr_atoms.info["step"] = -1  # NOTE: remove step info from driver
+            write(self.directory / "mc_attempts.xyz", curr_atoms, append=True)
         else:
             self._print("FAILED to run operation...")
 
@@ -376,7 +379,6 @@ class MonteCarlo(AbstractExpedition):
                 else:
                     self._print("failure...")
 
-                # FIXME: Save unaccepted structures as well?
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
                 # -- check earlystopping
@@ -505,9 +507,12 @@ class MonteCarlo(AbstractExpedition):
         self.atoms = read(ckpt_wdir / "structure.xyz")
         self.energy_stored = self.atoms.get_potential_energy()
 
-        # -- reset mctraj
+        # Reset mctraj
         mctraj = read(self.directory / self.TRAJ_NAME, f":{step+1}")
         write(self.directory / self.TRAJ_NAME, mctraj)
+
+        mctraj_attempts = read(self.directory / "mc_attempts.xyz", f":{step+1}")
+        write(self.directory / "mc_attempts.xyz", mctraj_attempts)
 
         return
 
