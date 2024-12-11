@@ -5,9 +5,7 @@ import copy
 from typing import List
 
 import numpy as np
-
-from ase import Atoms
-from ase import data, units
+from ase import Atoms, data, units
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from .move import MoveOperator
@@ -49,13 +47,15 @@ class SwapOperator(MoveOperator):
 
     def run(self, atoms: Atoms, rng=np.random) -> Atoms:
         """"""
-        super().run(atoms)
+        # We only need check region without other in move_operator.
+        self._check_region(atoms)
+        self._extra_info = "-"
 
-        # - basic
+        # Basic
         curr_atoms = atoms
         cell = curr_atoms.get_cell(complete=True)
 
-        # -- neighbour list
+        # Build neighbour list
         nl = NeighborList(
             self.covalent_max * np.array(natural_cutoffs(curr_atoms)),
             skin=0.0,
@@ -63,7 +63,7 @@ class SwapOperator(MoveOperator):
             bothways=True,
         )
 
-        # - swap the species
+        # Swap the species
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             # -- swap
             curr_atoms = atoms.copy()
@@ -110,9 +110,11 @@ class SwapOperator(MoveOperator):
             idx_pick.extend(second_pick)
             if not self.check_overlap_neighbour(nl, curr_atoms, cell, idx_pick):
                 self._print(f"succeed to random after {i+1} attempts...")
+                self._extra_info = f"S_{first_species.get_chemical_formula()}_{first_pick}^{second_species.get_chemical_formula()}_{second_pick}"
                 break
         else:
             curr_atoms = None
+            self._extra_info = f"Swap_Failed"
 
         return curr_atoms
 
