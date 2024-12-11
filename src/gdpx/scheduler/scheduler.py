@@ -192,7 +192,10 @@ class AbstractScheduler(ABC):
         """Submit job using specific scheduler command and return job id."""
         if func_to_execute is None:  # compatible mode
             assert isinstance(self.script, pathlib.Path)
-            self.write()
+            if not self.script.exists():
+                self.write()
+            else:
+                ...
             job_id = submit_job_script(
                 self.script,
                 submit_command=self.SUBMIT_COMMAND,
@@ -204,7 +207,10 @@ class AbstractScheduler(ABC):
                 func_to_execute()
             else:
                 assert isinstance(self.script, pathlib.Path)
-                self.write()
+                if not self.script.exists():
+                    self.write()
+                else:
+                    ...
                 job_id = submit_job_script(
                     self.script,
                     submit_command=self.SUBMIT_COMMAND,
