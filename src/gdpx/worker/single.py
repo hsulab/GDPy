@@ -325,6 +325,27 @@ class SingleWorker(AbstractWorker):
         #    np.savetxt(shape_dir / "markers.dat", np.array(markers, dtype=np.int32), fmt="%8d")
 
         return results
+
+    def rewind_to_step(self, step: int):
+        """Remove previous computation folders.
+
+        This is used in some expeditions (e.g. MC) as they may restart from 
+        a checkpoint and the unchecked computation folders will be removed.
+
+        """
+        def test_func(wdir_names, step: int) -> bool:
+            """"""
+            cand_index = int(pathlib.Path(wdir_names[0]).name[4:])
+
+            return cand_index > step
+
+        with TinyDB(self.directory/f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+            doc_data = database.search(Query().wdir_names.test(test_func, step))  # type: ignore
+            doc_ids = [doc.doc_id for doc in doc_data]
+            if doc_ids:
+                database.remove(doc_ids=doc_ids)
+
+        return
     
     def as_dict(self) -> dict:
         """"""

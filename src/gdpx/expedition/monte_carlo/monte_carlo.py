@@ -3,22 +3,18 @@
 
 
 import copy
-import logging
-import os
-import pathlib
+from os import remove
 import pickle
-import re
 import shutil
-import tarfile
-from typing import List, NoReturn
+from typing import List 
 
 import numpy as np
-from ase import Atoms, data, units
+from ase import Atoms, data 
 from ase.formula import Formula
 from ase.ga.utilities import closest_distances_generator
 from ase.io import read, write
 
-from .. import DriverBasedWorker, SingleWorker, dict2str, registers
+from .. import DriverBasedWorker, SingleWorker, dict2str, convert_indices
 from ..expedition import AbstractExpedition
 from .operators import (load_operator, parse_operators, save_operator,
                         select_operator)
@@ -197,7 +193,7 @@ class MonteCarlo(AbstractExpedition):
             else:
                 ...
         type_list = list(set(type_list + self.atoms.get_chemical_symbols()))
-        self._print(f"{type_list =}")
+        self._print(f"possible atomic types in simulation: {' '.join(type_list)}")
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
 
         for op in self.operators:
@@ -266,11 +262,10 @@ class MonteCarlo(AbstractExpedition):
         return
 
     def _run(self, *args, **kwargs):
-        # - start!!!
+        """"""
         converged = self.read_convergence()
         if not converged:
-            # - init structure
-            # --
+            # Check if we start from scratch or restart from a checkpoint
             step_converged = False
             if not self._verify_checkpoint():
                 step_converged = self._init_structure()
@@ -284,7 +279,7 @@ class MonteCarlo(AbstractExpedition):
             else:
                 self.start_step += 1
 
-            # - run mc steps
+            # Run mc steps
             curr_step = self.start_step  # start_step
             while True:
                 # -- check exit-loop conditions
@@ -463,16 +458,23 @@ class MonteCarlo(AbstractExpedition):
         return
 
     def _load_checkpoint(self):
-        """Load the current Monet Carlo state."""
-        # - Find the latest checkpoint
+        """Load the current Monet Carlo checkpoint.
+
+        We first infer the starting step from the checkpoint, then load saved
+        operators, random state, and the structure, and finally reset the output 
+        files (mc.xyz, mc_attempts.xyz, and opstat.txt) to the starting step.
+        Also, the computation folders beyond the checkpoint step will be removed.
+
+        """
+        # Find the latest checkpoint
         ckpt_wdir = sorted(
             self.directory.glob("checkpoint.*"),
             key=lambda x: int(str(x.name).split(".")[-1]),
         )[-1]
         step = int(ckpt_wdir.name.split(".")[-1])
-        self._print(f"LOAD CHECKPOINT STEP {step}.")
+        self._print(f"===== LOAD CHECKPOINT STEP {step} =====")
 
-        # -- load operators
+        # Load states of operators
         op_files = sorted(
             ckpt_wdir.glob("op-*.ckpt"),
             key=lambda x: int(str(x.name).split(".")[0][3:]),
@@ -486,33 +488,66 @@ class MonteCarlo(AbstractExpedition):
 
         self._attach_bond_length_minimum_list()
 
-        # -- add print function to operators
+        # Add print functions to operators
         for op in self.operators:
             op._print = self._print
             op._debug = self._debug
 
-        self._print("===== Saved MonteCarlo Operators (Modifiers) =====\n")
+        self._print("<<<<< Saved MonteCarlo Operators (Modifiers) >>>>>")
         for op in self.operators:
             for x in str(op).split("\n"):
                 self._print(x)
         self._print(f"normalised probabilities {self.op_probs}\n")
 
-        # -- load random state
+        # Load random state
+        self._print("Load random state.")
         with open(ckpt_wdir / "rng.ckpt", "rb") as fopen:
             rng_state = pickle.load(fopen)
         self.rng.bit_generator.state = rng_state
 
-        # -- load structure
+        # Load structure
+        self._print("Load structure.")
         self.start_step = step
         self.atoms = read(ckpt_wdir / "structure.xyz")
         self.energy_stored = self.atoms.get_potential_energy()
 
         # Reset mctraj
+        self._print("Reset `mc.xyz` and `mc_attempts.xyz`.")
         mctraj = read(self.directory / self.TRAJ_NAME, f":{step+1}")
         write(self.directory / self.TRAJ_NAME, mctraj)
 
         mctraj_attempts = read(self.directory / "mc_attempts.xyz", f":{step+1}")
         write(self.directory / "mc_attempts.xyz", mctraj_attempts)
+
+        # Reset opstat.txt
+        self._print("Reset `opstat.txt`.")
+        # We do not have the info for cand0 but have one comment line
+        # so the final number of lines equal step+1
+        with open(self.directory/self.INFO_NAME, "r") as fopen:
+            opstat_lines = fopen.readlines()
+        with open(self.directory/self.INFO_NAME, "w") as fopen:
+            fopen.write("".join(opstat_lines[:step+1]))
+
+        # Rewind single_worker record
+        assert isinstance(self.worker, SingleWorker)
+        self.worker.rewind_to_step(step=step)
+        self._print(f"Rewind worker record to step {step}.")
+
+        # Remove previous computation folders
+        # We check wdirs reversely and stop when the index is smaller than start_step
+        cand_wdirs = sorted(
+            self.directory.glob("cand*"),
+            key=lambda x: int(x.name[4:]),
+        )
+        removed_cand_indices = []
+        for cand_wdir in cand_wdirs[::-1]:
+            cand_index = int(cand_wdir.name[4:])
+            if cand_index > self.start_step:
+                shutil.rmtree(cand_wdir)
+                removed_cand_indices.append(cand_index)
+            else:
+                break
+        self._print(f"Remove previous computation folders {convert_indices(removed_cand_indices)}.")
 
         return
 
