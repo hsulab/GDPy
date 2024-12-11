@@ -14,6 +14,7 @@ import warnings
 from typing import List, NoReturn, Tuple, Union, Optional
 
 import numpy as np
+import omegaconf
 import yaml
 from ase import Atoms
 from ase.io import read, write
@@ -420,8 +421,13 @@ class DriverBasedWorker(AbstractWorker):
                     self.directory / "_data" / f"worker-{identifier}.json"
                 )
                 if not worker_input_fpath.exists():
+                    # TODO: We make sure the dict is python primitive since they may be 
+                    #       from session nodes,
+                    #       or we should convert it in operations?
+                    worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
+                    worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
                     with open(worker_input_fpath, "w") as fopen:
-                        json.dump(self.as_dict(), fopen, indent=2)
+                        json.dump(worker_input_dict, fopen, indent=2)
 
         return
 
