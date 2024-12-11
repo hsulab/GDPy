@@ -566,7 +566,7 @@ class DeepmdManager(AbstractPotentialManager):
         """
         calc_params = copy.deepcopy(calc_params)
 
-        # - some shared params
+        # Some shared params
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", pathlib.Path.cwd())
 
@@ -620,6 +620,11 @@ class DeepmdManager(AbstractPotentialManager):
                 ...
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
+            # We only the executable path of lammps and 
+            # the rest of command will be completed by itself.
+            # The `lmp` will be `lmp -in in.lammps 2>&1 > lmp.out`.
+            if command is None:
+                command = "lmp"
 
             if models:
                 if len(models) == 1:
