@@ -2,14 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import Optional, List
+from typing import List, Optional
 
 import numpy as np
-
 from ase import Atoms
 
-from .builder import StructureModifier 
-from .utils import str2list_int, check_overlap_neighbour
+from .builder import StructureModifier
+from .utils import check_overlap_neighbour, str2list_int
 
 
 class PerturbatorBuilder(StructureModifier):
@@ -31,16 +30,25 @@ class PerturbatorBuilder(StructureModifier):
     """
 
     def __init__(
-            self, eps: Optional[float]=None, ceps: Optional[float]=None, 
-            group: Optional[str]=None,
-            covalent_ratio=[0.8, 2.0],
-            max_times_size: int = 5, *args, **kwargs
-        ):
+        self,
+        eps: Optional[float] = None,
+        ceps: Optional[float] = None,
+        isotropic: bool = True,
+        group: Optional[str] = None,
+        covalent_ratio=[0.8, 2.0],
+        max_times_size: int = 5,
+        *args,
+        **kwargs,
+    ):
         """Initialise a perturbator.
 
         Args:
-            eps: Drift on atomic positions. Unit Ang.
-            ceps: Drift on lattice constants. Unit Ang.
+            eps: The drift on atomic positions in [Ang].
+            ceps: The amplitude to scale the cell.
+            isotropic:
+                Whether random cell isotropically, if true,
+                all lattice vectors are scaled at a same ratio.
+            group: Apply position drift on part of atoms.
 
         """
         super().__init__(*args, **kwargs)
@@ -57,19 +65,22 @@ class PerturbatorBuilder(StructureModifier):
 
         self.eps = eps
         self.ceps = ceps
+        self.isotropic = isotropic
 
-        # - apply perturbation on a group of atoms, default is all
+        # Apply perturbation on a group of atoms, default is all
         self.group = group
         if self.group is not None:
             self.group = str2list_int(self.group, convention="lmp")
 
-        # - distance check
+        # Distance check
         self.covalent_ratio = covalent_ratio
         self.MAX_TIMES_SIZE = max_times_size
 
         return
-    
-    def run(self, substrates: Optional[List[Atoms]]=None, size:int=1, *args, **kwargs) -> List[Atoms]:
+
+    def run(
+        self, substrates: Optional[List[Atoms]] = None, size: int = 1, *args, **kwargs
+    ) -> List[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
@@ -79,11 +90,11 @@ class PerturbatorBuilder(StructureModifier):
             frames.extend(curr_frames)
 
         return frames
-    
+
     def _irun(self, substrate: Atoms, size: int):
         """"""
         frames = []
-        for i in range(size*self.MAX_TIMES_SIZE):
+        for _ in range(size * self.MAX_TIMES_SIZE):
             nframes = len(frames)
             if nframes < size:
                 atoms = copy.deepcopy(substrate)
@@ -92,12 +103,16 @@ class PerturbatorBuilder(StructureModifier):
                     pos_drift = self.rng.random((natoms, 3))
                     if self.group is not None:
                         pos_drift_ = np.zeros((natoms, 3))
-                        pos_drift_[self.group] = pos_drift[self.group]
+                        pos_drift_[self.group] = pos_drift[self.group]  # type: ignore
                         pos_drift = pos_drift_
-                    atoms.positions += pos_drift*self.eps
+                    atoms.positions += pos_drift * self.eps
                 if all(atoms.pbc) and self.ceps is not None:
-                    lat_drift = self.rng.random((3, 3))
-                    atoms.cell += lat_drift*self.ceps
+                    if not self.isotropic:
+                        lat_drift = self.rng.random((3, 3))*2-1
+                    else:
+                        lat_drift = self.rng.random(size=1)[0]*2-1
+                    new_cell = atoms.get_cell(complete=True)*(1+self.ceps*lat_drift)
+                    atoms.set_cell(new_cell, scale_atoms=True, apply_constraint=False)
                 if check_overlap_neighbour(atoms, self.covalent_ratio):
                     frames.append(atoms)
             else:
