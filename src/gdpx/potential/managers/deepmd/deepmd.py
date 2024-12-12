@@ -442,16 +442,14 @@ class DeepmdTrainer(AbstractTrainer):
         # We observed the model accuracy increases nonlinearly with the dataset size, 
         # which means we need a 'minimum' training steps even for an extremely small dataset 
         # may have few tens of structures.
-        if self.train_batches is None:
-            train_config["training"]["numb_steps"] = numb_steps
-        else:
-            if numb_steps < self.train_batches:
-                num_chekpoints = int(np.ceil(self.train_epochs/self.print_epochs))
-                new_save_freq = int(np.ceil(self.train_batches/num_chekpoints/min_freq_unit)*min_freq_unit)
-                new_numb_steps = new_save_freq*num_chekpoints
-                train_config["training"]["save_freq"] = new_save_freq
-                train_config["training"]["disp_freq"] = new_save_freq
-                train_config["training"]["numb_steps"] = new_numb_steps
+        train_config["training"]["numb_steps"] = numb_steps
+        if self.train_batches is not None and numb_steps < self.train_batches:
+            num_chekpoints = int(np.ceil(self.train_epochs/self.print_epochs))
+            new_save_freq = int(np.ceil(self.train_batches/num_chekpoints/min_freq_unit)*min_freq_unit)
+            new_numb_steps = new_save_freq*num_chekpoints
+            train_config["training"]["save_freq"] = new_save_freq
+            train_config["training"]["disp_freq"] = new_save_freq
+            train_config["training"]["numb_steps"] = new_numb_steps
 
         # Write training parameters to deepmd input json
         with open(self.directory / f"{self.name}.json", "w") as fopen:
