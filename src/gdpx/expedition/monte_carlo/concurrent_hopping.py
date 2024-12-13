@@ -17,7 +17,7 @@ from ase.io import write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
 
-from .. import DriverBasedWorker
+from .. import DriverBasedWorker, registers
 from ..expedition import AbstractExpedition, canonicalise_builder
 from .operators import parse_operators, select_operator
 
@@ -81,9 +81,12 @@ class ConcurrentPopulation:
         initial_size: int,
         generation_size: int,
         random_offspring_generator: dict,
+        comparator: Optional[dict]=None,
         population_size: Optional[int] = None,
         mcsteps: int = 5,
         database_fname: str = "mydb.db",
+        print_func=print,
+        debug_func=print,
     ) -> None:
         """"""
         # Name of attached databse
@@ -96,9 +99,19 @@ class ConcurrentPopulation:
         self._gen_size = generation_size
 
         if population_size is not None:
-            self._pop_size = self._gen_size
+            self._pop_size = population_size
         else:
             self._pop_size = self._gen_size
+
+        if self.ini_size < self.pop_size:
+            raise RuntimeError(
+                f"`initial_size`({self.ini_size}) must be greater than `population_size`({self.pop_size})."
+            )
+
+        if self.pop_size < self.gen_size:
+            raise RuntimeError(
+                f"`population_size`({self.pop_size}) must be greater than or equal `generation_size`({self.gen_size})."
+            )
 
         # The number of MC steps
         self._mcsteps = mcsteps
@@ -107,6 +120,19 @@ class ConcurrentPopulation:
         self.random_offspring_generator = canonicalise_builder(
             random_offspring_generator
         )
+
+        # Comparator adds history information for atoms in the population
+        if comparator is None:
+            from ase.ga.standard_comparators import AtomsComparator
+
+            self.comparator = AtomsComparator()
+        else:
+            name = comparator.pop("name", "interatomic_distance")
+            self.comparator = registers.create("comparator", name, **comparator)
+
+        # Print and debug
+        self._print = print_func
+        self._debug = debug_func
 
         return
 
@@ -134,7 +160,9 @@ class ConcurrentPopulation:
 
         return self._mcsteps
 
-    def get_current_population(self, database: "GlobalOptimisationDatabase"):
+    def get_current_population(
+        self, database: "GlobalOptimisationDatabase"
+    ) -> List[Atoms]:
         """"""
         all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=False)
         # The candidates have already been sorted by raw_score,
@@ -143,18 +171,72 @@ class ConcurrentPopulation:
             key=lambda cand: cand.info["key_value_pairs"]["raw_score"], reverse=True
         )
 
+        # We may not have enough structures for the population
+        # as some of them may look like.
         # TODO: Cache candidates?
         selected_candidates = []
         for candidate in all_relaxed_candidates:
-            # TODO: Use comparator?
-            selected_candidates.append(candidate)
+            for s_cand in selected_candidates:
+                if self.comparator.looks_like(candidate, s_cand):
+                    break
+            else:
+                selected_candidates.append(candidate)
             num_candidates = len(selected_candidates)
             if num_candidates == self.pop_size:
                 break
         else:
             ...  # Not enough candidates to select
 
+        def count_looks_like(a, all_cand, comp):
+            """Utility method for counting occurrences."""
+            n = 0
+            for b in all_cand:
+                if a.info["confid"] == b.info["confid"]:
+                    continue
+                if comp.looks_like(a, b):
+                    n += 1
+            return n
+
+        for s_cand in selected_candidates:
+            s_cand.info["looks_like"] = count_looks_like(
+                s_cand, selected_candidates, self.comparator
+            )
+
         # TODO: Check history?
+        for s_cand in selected_candidates:
+            s_cand.info["npaired"] = 0
+
+        num_selected = len(selected_candidates)
+        self._print(f"population: [{num_selected}/{self.pop_size}]")
+        for i, s_cand in enumerate(selected_candidates):
+            self._debug(f"cand{i:>4d} {s_cand.info['looks_like']=}")
+
+        return selected_candidates
+
+    def get_current_generation(
+        self,
+        database: "GlobalOptimisationDatabase",
+        rng: np.random.Generator,
+        with_history: bool = True,
+    ) -> List[Atoms]:
+        """"""
+        popultion = self.get_current_population(database)
+        num_structures_in_population = len(popultion)
+
+        if num_structures_in_population <= self.gen_size:
+            selected_candidates = popultion
+        else:
+            fit = compute_population_fitness(popultion, with_history=with_history)
+            fit = np.array(fit)
+            weights = fit / np.sum(fit)
+            cand_indices = list(range(num_structures_in_population))
+            selected_indices = rng.choice(
+                cand_indices, p=weights, replace=True
+            )  # TODO: allow same candidate?
+            selected_candidates = [popultion[i] for i in selected_indices]
+
+        num_selected = len(selected_candidates)
+        self._print(f"generation: [{num_selected}/{self.gen_size}]")
 
         return selected_candidates
 
@@ -389,6 +471,7 @@ class ConcurrentHopping(AbstractExpedition):
 
     def run(self):
         """"""
+        self._print(f"===== Concurrent Hopping =====")
         # Make sure we have everything for the expedition
         assert self.worker is not None
 
@@ -397,6 +480,10 @@ class ConcurrentHopping(AbstractExpedition):
         database = GlobalOptimisationDatabase(database_fpath=database_fpath)
 
         # Update print and debug functions
+        self.population._print = self._print
+        self.population._debug = self._debug
+        self._print(f"comparator: {self.population.comparator}")
+
         for op in self.operators:
             op._print = self._print
             op._debug = self._debug
@@ -460,7 +547,9 @@ class ConcurrentHopping(AbstractExpedition):
             # We save all mc trajectories in a centralised folder
             (gen_wdir / "mctrajs").mkdir(parents=True, exist_ok=True)
             # Try to generate new structures
-            candidates = self.population.get_current_population(database=database)
+            candidates = self.population.get_current_generation(
+                database=database, rng=self.rng, with_history=True
+            )
             candidates_confids = [a.info["confid"] for a in candidates]
             self._print(f"{candidates_confids=}")
 
@@ -521,7 +610,6 @@ class ConcurrentHopping(AbstractExpedition):
                 database_fpath = self.directory / self.population.database_fname
                 database = GlobalOptimisationDatabase(database_fpath)
             gen_num, gen_state = self.get_generation_info(database=database)
-            self._print(f"{gen_num=}  {gen_state=}  in convergence.")
         else:
             assert gen_state is not None
         if (
