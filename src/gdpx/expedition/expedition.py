@@ -34,15 +34,29 @@ def parse_worker(inp_worker: dict, *args, **kwargs):
     return worker
 
 
+def canonicalise_builder(builder: dict):
+    """"""
+    if isinstance(builder, dict):
+        builder_params = copy.deepcopy(builder)
+        builder_method = builder_params.pop("method")
+        builder = registers.create(
+            "builder", builder_method, convert_name=False, **builder_params
+        )
+    else:  # Assume it is already a StructureBuilder
+        builder = builder
+
+    return builder
+
+
 class AbstractExpedition(AbstractNode):
 
     #: Name of the expedition.
     name: str = "expedition"
 
     @abc.abstractmethod
-    def read_convergence(self):
+    def read_convergence(self) -> bool:
 
-        return
+        ...
 
     @abc.abstractmethod
     def get_workers(self):
