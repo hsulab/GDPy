@@ -385,10 +385,17 @@ class Cp2kDriver(AbstractDriver):
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
         if ckpt_wdir is None:  # start from the scratch
+            # Check if there is `cp2k.out` from a previous failed calculation.
+            # If there are outputs from multiple calculations, the parser for 
+            # spc will fail as it needs read `- Atoms:`.
+            if (self.directory/"cp2k.out").exists():
+                (self.directory/"cp2k.out").unlink()
+                self._print("The previous `cp2k.out` is removed.")
+            # Get all parameters
             run_params = self.setting.get_run_params(**kwargs)
             run_params.update(**self.setting.get_init_params())
 
-            # - update input template
+            # Update input template
             # GLOBAL section is automatically created...
             # FORCE_EVAL.(METHOD, POISSON)
             inp = self.calc.parameters.inp  # string
@@ -398,7 +405,7 @@ class Cp2kDriver(AbstractDriver):
             for k, v in run_params["run_pairs"]:
                 sec.add_keyword(k, v)
 
-            # -- check constraint
+            # Ceck constraint
             cons_text = run_params.pop("constraint", None)
             mobile_indices, frozen_indices = parse_constraint_info(
                 atoms, cons_text, ret_text=False

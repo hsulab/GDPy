@@ -89,7 +89,7 @@ def read_cp2k_spc(wdir, prefix: str = "cp2k"):
             if num_atoms < 0:
                 num_atoms = int(line.strip().split()[-1])
             else:
-                raise RuntimeError()
+                raise RuntimeError(f"Failed to read `- Atoms:` in {str(wdir)}.")
         # coordinates
         if check_input_structure_section(line):
             is_coord = True
