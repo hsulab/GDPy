@@ -17,7 +17,7 @@ from ase.io import write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
 
-from .. import DriverBasedWorker, registers
+from .. import DriverBasedWorker, get_tags_per_species, registers
 from ..expedition import AbstractExpedition, canonicalise_builder
 from .operators import parse_operators, select_operator
 
@@ -81,7 +81,7 @@ class ConcurrentPopulation:
         initial_size: int,
         generation_size: int,
         random_offspring_generator: dict,
-        comparator: Optional[dict]=None,
+        comparator: Optional[dict] = None,
         population_size: Optional[int] = None,
         mcsteps: int = 5,
         database_fname: str = "mydb.db",
@@ -402,10 +402,74 @@ def run_monte_carlo_steps(
     return atoms
 
 
+def evaluate_candidate(
+    atoms: Atoms, target_property: str, chempot: Optional[dict] = None
+) -> None:
+    """Evaluate the candidate's fitness.
+
+    The fitness is stored in atoms.info['raw_score'].
+    The candidate is better with a larger raw_score.
+
+    The supported properties are
+
+        1. energy (potential energy)
+        2. enthalpy (potential energy plus pressure correction)
+        3. formation_energy (grand canonical)
+        4. reaction_energy (TODO)
+
+    Args:
+        atoms: The candidate with calculated properties.
+
+    Returns:
+        None.
+
+    """
+    assert (
+        atoms.info["key_value_pairs"].get("raw_score", None) is None
+    ), "candidate already has raw_score before evaluation"
+
+    # evaluate based on target property
+    target = target_property
+    if target == "energy":
+        energy = atoms.get_potential_energy()
+        forces = atoms.get_forces()  # TODO: Make sure we have forces?
+        atoms.info["key_value_pairs"]["raw_score"] = -energy
+        atoms.info["key_value_pairs"]["target"] = energy
+        # TODO: Check bulk structure?
+    elif target == "formation_energy":
+        chempot_dict = chempot
+        assert chempot is not None, "`chempot` must not be None for `formation_energy`."
+        identity_stats = atoms.info.get("identity_stats", None)
+        assert (
+            identity_stats is not None
+        ), "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+
+        energy = atoms.get_potential_energy()
+
+        formation_energy = energy - np.sum(
+            [chempot_dict[k] * v for k, v in identity_stats.items()]
+        )
+        atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
+        atoms.info["key_value_pairs"]["target"] = formation_energy
+    elif target == "reaction_energy":
+        ...  # TODO: ...
+    else:
+        raise RuntimeError(f"Unknown target {target}...")
+
+    return
+
+
 def canonical_candidates_from_worker_results(
-    results: list, gen_num: int, extinct: int = 0, use_tags: bool = False
+    results: list,
+    gen_num: int,
+    extinct: int = 0,
+    use_tags: bool = False,
+    property: dict = {},
 ):
     """"""
+    target_property = property.get("target", "energy")
+    chempot = property.get("chempot", None)
+
     relaxed_candidates = [t[-1] for t in results]
     for candidate in relaxed_candidates:
         extra_info = dict(
@@ -413,11 +477,27 @@ def canonical_candidates_from_worker_results(
         )
         candidate.info.update(extra_info)
         if use_tags:
-            # TODO: add molecular information?
-            ...
-        # add raw score TODO: add more targets?
-        energy = candidate.get_potential_energy()
-        candidate.info["key_value_pairs"]["raw_score"] = -energy
+            # The worker respects tags in atom, thus, we do not need
+            # get tags from the database.
+            # rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
+            # rows = sorted(
+            #     [row for row in rows if row.formula], key=lambda row: row.mtime
+            # )
+            # if len(rows) > 0:
+            #     previous_atoms = rows[-1].toatoms(
+            #         add_additional_information=True
+            #     )
+            #     previous_tags = previous_atoms.get_tags()
+            # else:
+            #     raise RuntimeError(f"Cannot find tags for candidate {confid}")
+            # cand.set_tags(previous_tags)
+            identities = get_tags_per_species(candidate)
+            identity_stats = {}
+            for k, v in identities.items():
+                identity_stats[k] = len(v)
+            candidate.info["identity_stats"] = identity_stats
+        # add raw score
+        evaluate_candidate(candidate, target_property=target_property, chempot=chempot)
 
     return relaxed_candidates
 
@@ -429,6 +509,7 @@ class ConcurrentHopping(AbstractExpedition):
         operators,
         population: dict,
         convergence: dict,
+        property: dict,
         builder=None,
         *args,
         **kwargs,
@@ -448,6 +529,8 @@ class ConcurrentHopping(AbstractExpedition):
             operators=operators,
             population=population,
             builder=builder,
+            convergence=convergence,
+            property=property,
         )
 
         # population
@@ -463,6 +546,9 @@ class ConcurrentHopping(AbstractExpedition):
 
         # Some convergence criteria
         self.convergence = convergence
+
+        # The target optimised property
+        self.property = property
 
         # Worker should be lazy initialised before run
         self.worker = None
@@ -583,7 +669,11 @@ class ConcurrentHopping(AbstractExpedition):
         if self.worker.get_number_of_running_jobs() == 0:
             results = self.worker.retrieve(use_archive=False)  # TODO: use_archive?
             explored_candidates = canonical_candidates_from_worker_results(
-                results, gen_num=gen_num, extinct=0, use_tags=False
+                results,
+                gen_num=gen_num,
+                extinct=0,
+                use_tags=True,
+                property=self.property,
             )
             for candidate in explored_candidates:
                 database.add_relaxed_step(candidate)
@@ -685,13 +775,15 @@ class ConcurrentHopping(AbstractExpedition):
             else:
                 candidates_by_generations[k] = list(v)
 
-        target = "energy"
+        target = self.property.get("target", "energy")
         maximum_generation_number = max(candidates_by_generations.keys()) + 1
 
         data = []
         for i in range(maximum_generation_number):
             candidates = candidates_by_generations[i]
-            properties = np.array([a.get_potential_energy() for a in candidates])
+            properties = np.array(
+                [a.info["key_value_pairs"]["target"] for a in candidates]
+            )
             stats = dict(
                 min=np.min(properties),
                 max=np.max(properties),
