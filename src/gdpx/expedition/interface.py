@@ -88,15 +88,18 @@ class ExpeditionVariable(Variable):
 
     def _canonicalise_builder(self, builder: dict, random_seed: int):
         """Canonicalise the builder and set random seed."""
-        if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
-            builder_method = builder_params.pop("method")
-            builder = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
-        else:  # variable
-            builder = builder.value
-            np.random.seed(random_seed)
+        if builder is not None:
+            if isinstance(builder, dict):
+                builder_params = copy.deepcopy(builder)
+                builder_method = builder_params.pop("method")
+                builder = registers.create(
+                    "builder", builder_method, convert_name=False, **builder_params
+                )
+            else:  # variable
+                builder = builder.value
+                np.random.seed(random_seed)
+        else:
+            builder = None
 
         return builder
 
