@@ -13,7 +13,7 @@ import numpy as np
 from ase import Atoms
 from ase.data import atomic_numbers
 from ase.formula import Formula
-from ase.io import read, write
+from ase.io import write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
 
@@ -82,6 +82,7 @@ class ConcurrentPopulation:
         generation_size: int,
         random_offspring_generator: dict,
         population_size: Optional[int] = None,
+        mcsteps: int = 5,
         database_fname: str = "mydb.db",
     ) -> None:
         """"""
@@ -98,6 +99,9 @@ class ConcurrentPopulation:
             self._pop_size = self._gen_size
         else:
             self._pop_size = self._gen_size
+
+        # The number of MC steps
+        self._mcsteps = mcsteps
 
         # This can be `None` as it may be lazy-initialised by builder externally.
         self.random_offspring_generator = canonicalise_builder(
@@ -123,6 +127,12 @@ class ConcurrentPopulation:
         """The number of structures in the population."""
 
         return self._pop_size
+
+    @property
+    def mcsteps(self):
+        """The number of MC steps."""
+
+        return self._mcsteps
 
     def get_current_population(self, database: "GlobalOptimisationDatabase"):
         """"""
@@ -463,7 +473,7 @@ class ConcurrentHopping(AbstractExpedition):
                     driver=self.worker.driver,
                     operators=self.operators,
                     probabilities=self.op_probs,
-                    mcsteps=5,
+                    mcsteps=self.population.mcsteps,
                     rng=self.rng,
                 )
                 database.add_unrelaxed_candidate(atoms_after_mc)
