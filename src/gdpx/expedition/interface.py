@@ -34,6 +34,10 @@ def register_expedition_methods():
 
     registers.expedition.register("hybrid_monte_carlo")(HybridMonteCarlo)
 
+    from .monte_carlo.concurrent_hopping import ConcurrentHopping
+
+    registers.expedition.register("concurrent_hopping")(ConcurrentHopping)
+
     from .monte_carlo.monte_carlo import MonteCarlo
 
     registers.expedition.register("monte_carlo")(MonteCarlo)
