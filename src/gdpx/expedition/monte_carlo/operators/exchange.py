@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-import itertools
-from typing import NoReturn, List
-import yaml
+from typing import Optional
 
 import numpy as np
-
-from ase import Atoms
-from ase import data, units
+from ase import Atoms, units
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.neighborlist import NeighborList, natural_cutoffs
 
@@ -111,33 +108,23 @@ class ExchangeOperator(BasicExchangeOperator):
     name: str = "exchange"
 
     #: The current suboperation (insert or remove).
-    _curr_operation: str = None  # insert or remove
+    _curr_operation: Optional[str] = None  # insert or remove
 
     #: The current tags dict.
-    _curr_tags_dict: dict = None
+    _curr_tags_dict: Optional[dict] = None
 
     #: The current accpetable volume.
-    _curr_volume: float = None
+    _curr_volume: Optional[float] = None
 
     def __init__(
         self,
-        region: dict,
         reservoir: dict,
-        temperature: float = 300.0,
-        pressure: float = 1.0,
-        covalent_ratio=[0.8, 2.0],
-        use_rotation: bool = True,
         use_bias: bool = True,
         *args,
         **kwargs,
     ):
         """"""
         super().__init__(
-            region=region,
-            temperature=temperature,
-            pressure=pressure,
-            covalent_ratio=covalent_ratio,
-            use_rotation=use_rotation,
             *args,
             **kwargs,
         )
@@ -149,46 +136,55 @@ class ExchangeOperator(BasicExchangeOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng=np.random) -> Atoms:
+    def run(
+        self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()
+    ) -> Optional[Atoms]:
         """"""
+        # Check species in the region
         super().run(atoms)
         self._extra_info = "-"
 
-        # -- compute acceptable volume
+        # Compute acceptable volume for biased exchange
         if self.use_bias:
-            # --- determine on-the-fly
+            # Determine the exchange volume on-the-fly
             acc_volume = self.region.get_empty_volume(atoms)
         else:
-            # --- get normal region
+            # Get the volume of the normal region
             acc_volume = self.region.get_volume()
         self._curr_volume = acc_volume
 
-        # - choose a species to exchange
+        # Choose a species to exchange
         # valid_species = [k for k, v in tag_dict.items() if len(v) > 0]
-        nparticles = len(self._curr_tags_dict.get(self.species, []))
+        assert isinstance(self._curr_tags_dict, dict)
+        num_particles = len(self._curr_tags_dict.get(self.species, []))
 
-        # - choose insert or remove
-        if nparticles > 0:
+        # Choose insert or remove
+        if num_particles > 0:
             rn_ex = rng.uniform()
             if rn_ex < 0.5:
                 self._print("...insert...")
                 self._curr_operation = "insert"
-                curr_atoms = self._insert(atoms, self.species, rng)
+                new_atoms = self._insert(atoms, self.species, rng)
                 self._extra_info = f"Insert_{self.species}"
             else:
                 self._print("...remove...")
                 self._curr_operation = "remove"
-                curr_atoms = self._remove(atoms, self.species, rng)
+                new_atoms = self._remove(atoms, self.species, rng)
                 self._extra_info = f"Remove_{self.species}"
         else:
             self._print("...insert...")
             self._curr_operation = "insert"
-            curr_atoms = self._insert(atoms, self.species, rng)
+            new_atoms = self._insert(atoms, self.species, rng)
             self._extra_info = f"Insert_{self.species}"
 
-        return curr_atoms
+        return new_atoms
 
-    def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
+    def metropolis(
+        self,
+        prev_ene: float,
+        curr_ene: float,
+        rng: np.random.Generator = np.random.default_rng(),
+    ) -> bool:
         """"""
         # - acceptance ratio
         kBT_eV = units.kB * self.temperature
@@ -206,15 +202,16 @@ class ExchangeOperator(BasicExchangeOperator):
             hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10
         ) ** 3  # thermal de broglie wavelength
 
-        # - compute coefficient
-        # -- determine number of exchangeable particles
-        # print("miaow: ", self._curr_tags_dict)
+        # Compute coefficient
+        # Determine number of exchangeable particles
+        assert isinstance(self._curr_tags_dict, dict)
         if self.species not in self._curr_tags_dict:
             self._curr_tags_dict[self.species] = []
         nexatoms = len(self._curr_tags_dict[self.species])
 
-        # -- compute composed coefficient
+        # Compute composed coefficient
         if self._curr_operation == "insert":
+            assert isinstance(self._curr_volume, float)
             coef = self._curr_volume / (nexatoms + 1) / cubic_wavelength
             ene_diff = curr_ene - self.mu - prev_ene
         elif self._curr_operation == "remove":
