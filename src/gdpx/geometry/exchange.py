@@ -26,7 +26,7 @@ def sort_tags_by_species(atoms: Atoms) -> Atoms:
         num_instances = len(v)
         if num_instances == 1 and v[0][0] == 0:
             substrate = k
-            num_atoms_in_substrate = len(v[0][1])
+            num_atoms_in_substrate = len(v[0][1])  # type: ignore
             break
     else:
         raise RuntimeError(f"Cannot find substrate with tag 0 in `{atoms}`.")
@@ -37,7 +37,7 @@ def sort_tags_by_species(atoms: Atoms) -> Atoms:
     current_tag = 1
     valid_keys = sorted([k for k in tags_dict.keys() if k != substrate])
     for species in valid_keys:
-        for k, v in tags_dict[species]:
+        for k, v in tags_dict[species]:  # type: ignore
             new_indices.extend(v)
             new_tags.extend([current_tag] * len(v))
             current_tag += 1
@@ -88,12 +88,16 @@ def insert_one_particle(
     region,
     covalent_ratio,
     bond_distance_dict,
+    particle_tag: Optional[int] = None,
     sort_tags: bool = True,
     max_attempts: int = 100,
     rng: np.random.Generator = np.random.default_rng(),
 ) -> Tuple[Optional[Atoms], str]:
     """"""
-    particle_tag = int(np.max(atoms.get_tags()) + 17)
+    # Set the tag for the inserted particle,
+    # which should not be used in atoms.
+    if particle_tag is None:
+        particle_tag = int(np.max(atoms.get_tags()) + 17)
     particle.set_tags(particle_tag)
 
     # Avoid distance check in the substrate and the particle to insert
@@ -103,8 +107,9 @@ def insert_one_particle(
         list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2))
     )
 
-    candidate = None
-    for i_attempt in range(max_attempts):
+    num_attempts, candidate = 0, None
+    for iattempt in range(max_attempts):
+        print(f"{iattempt=}")
         position = region.get_random_positions(size=1, rng=rng)[0]
         new_particle = copy.deepcopy(particle)
         new_particle = translate_then_rotate(
@@ -118,9 +123,12 @@ def insert_one_particle(
             excluded_pairs=intra_bond_pairs,
             allow_isolated=False,
         ):
+            num_attempts = iattempt + 1
             break
+        else:
+            candidate = None
     else:
-        ...
+        num_attempts = max_attempts
 
     chemical_formula = particle.get_chemical_formula()
     state = "success"
@@ -130,7 +138,7 @@ def insert_one_particle(
     else:
         state = "failure"
 
-    return candidate, f"insert_{chemical_formula}_{state}"
+    return candidate, f"insert_{chemical_formula}_{state}_{num_attempts}"
 
 
 if __name__ == "__main__":
