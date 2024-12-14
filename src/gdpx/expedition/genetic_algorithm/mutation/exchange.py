@@ -36,7 +36,7 @@ class ExchangeMutation(OffspringCreator):
     ):
         """"""
         super().__init__(num_muts=num_muts)
-        self.descriptor = "ExchangeMutation"
+        self.descriptor = "ExMut"
         self.min_inputs = 1
 
         self.region = RegionVariable(**region).value

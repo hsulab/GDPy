@@ -779,12 +779,11 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             else:
                 ...
 
-        specific_params.update(covalent_ratio=self.generator.covalent_ratio)
+        # We may not overwrite operators' covalent_ratio setting.
+        # specific_params.update(covalent_ratio=self.generator.covalent_ratio)
 
         if hasattr(self.generator, "get_bond_distance_dict"):
-            bond_distance_dict = self.generator.get_bond_distance_dict(
-                ratio=self.generator.covalent_ratio[0]
-            )
+            bond_distance_dict = self.generator.get_bond_distance_dict()
             specific_params.update(
                 blmin=bond_distance_dict,
                 bond_distance_dict=bond_distance_dict,
