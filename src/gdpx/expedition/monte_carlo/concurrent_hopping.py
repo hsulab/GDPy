@@ -204,12 +204,12 @@ class ConcurrentPopulation:
 
         # TODO: Check history?
         for s_cand in selected_candidates:
-            s_cand.info["npaired"] = 0
+            s_cand.info["n_paired"] = 0
 
         num_selected = len(selected_candidates)
         self._print(f"population: [{num_selected}/{self.pop_size}]")
         for i, s_cand in enumerate(selected_candidates):
-            self._debug(f"cand{i:>4d} {s_cand.info['looks_like']=}")
+            self._debug(f"cand{i:>4d} looks_like->{s_cand.info['looks_like']:>04d} n_paired->{s_cand.info['n_paired']:>04d}")
 
         return selected_candidates
 
@@ -231,7 +231,7 @@ class ConcurrentPopulation:
             weights = fit / np.sum(fit)
             cand_indices = list(range(num_structures_in_population))
             selected_indices = rng.choice(
-                cand_indices, p=weights, replace=True
+                cand_indices, size=self.gen_size, p=weights, replace=True
             )  # TODO: allow same candidate?
             selected_candidates = [popultion[i] for i in selected_indices]
 
