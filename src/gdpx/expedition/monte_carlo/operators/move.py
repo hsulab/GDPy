@@ -23,20 +23,18 @@ class MoveOperator(AbstractOperator):
     def __init__(
         self,
         particles: List[str],
-        temperature: float = 300.0,
-        pressure: float = 1.0,
-        covalent_ratio=[0.8, 2.0],
         max_disp: float = 2.0,
-        use_rotation: bool = True,
         *args,
         **kwargs,
-    ):
-        """"""
+    ) -> None:
+        """Initialise a MC move operator.
+        
+        Args:
+            particles: The particles that can move.
+            max_disp: The maximum displacement in [Ang].
+
+        """
         super().__init__(
-            temperature=temperature,
-            pressure=pressure,
-            covalent_ratio=covalent_ratio,
-            use_rotation=use_rotation,
             *args,
             **kwargs,
         )
@@ -52,6 +50,9 @@ class MoveOperator(AbstractOperator):
         # Check species in the region
         super().run(atoms)
         self._extra_info = "-"
+
+        # We need covalent bond distanes for neighbour check
+        assert hasattr(self, "bond_distance_dict")
 
         # BUG: If there is no species in the system...
         species_indices = self._select_species(atoms, self.particles, rng=rng)
@@ -74,34 +75,40 @@ class MoveOperator(AbstractOperator):
         self._extra_info = f"Move_{species.get_chemical_formula()}_{species_indices}"
 
         # TODO: Deal with pbc for molecules
-        org_com = np.mean(species.positions, axis=0)
+        org_cop = np.mean(species.positions, axis=0)
         org_positions = species.positions.copy()
 
-        # Move the species
+        # Move the species and use neighbour list to check atomic distances
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             rvec = get_a_random_direction(rng)
-            ran_pos = org_com + rvec * self.max_disp
+            ran_pos = org_cop + rvec * self.max_disp
             species_ = copy.deepcopy(species)
             species_ = translate_then_rotate(
-                species_, position=ran_pos, use_com=True, rng=rng
+                species_, position=ran_pos, use_com=False, rng=rng
             )
             new_atoms.positions[species_indices] = species_.positions.copy()
-            # use neighbour list
-            if check_atomic_distances_by_neighbour_list(new_atoms, neighlist=nl, atomic_indices=species_indices, covalent_ratio=[self.covalent_min, self.covalent_max], bond_distance_dict=self.bond_distance_dict, allow_isolated=False):
+            if check_atomic_distances_by_neighbour_list(
+                new_atoms,
+                neighlist=nl,
+                atomic_indices=species_indices,
+                covalent_ratio=[self.covalent_min, self.covalent_max],
+                bond_distance_dict=self.bond_distance_dict,  # type: ignore
+                allow_isolated=False,
+            ):
                 self._print(f"succeed to random after {i+1} attempts...")
-                self._print(f"original position: {org_com}")
-                self._print(f"random position: {ran_pos}")
-                self._print(
-                    f"actual position: {np.average(new_atoms.positions[species_indices], axis=0)}"
-                )
+                self._print("before pos: " + ("{:>12.4f} " * 3).format(*org_cop))
+                self._print("random pos: " + ("{:>12.4f} " * 3).format(*ran_pos))
+                new_cop = np.average(new_atoms.positions[species_indices], axis=0)
+                self._print("actual pos: " + ("{:>12.4f} " * 3).format(*new_cop))
                 break
+            # Move failed and fallback to the original positions
             new_atoms.positions[species_indices] = org_positions
         else:
             new_atoms = None
 
         return new_atoms
 
-    def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator=np.random.default_rng()) -> bool:
         """"""
         # - acceptance ratio
         kBT_eV = units.kB * self.temperature

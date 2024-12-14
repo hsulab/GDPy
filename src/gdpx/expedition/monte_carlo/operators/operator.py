@@ -78,7 +78,7 @@ class AbstractOperator(abc.ABC):
 
         return
 
-    def _check_region(self, atoms: Atoms, *args, **kwargs):
+    def _check_region(self, atoms: Atoms) -> None:
         """Set _curr_tags_dict."""
         if self.region.__class__.__name__ == "AutoRegion":
             self.region._curr_atoms = atoms
@@ -108,7 +108,7 @@ class AbstractOperator(abc.ABC):
         return
 
     def _select_species(
-        self, atoms: Atoms, particles: Optional[List[str]] = None, rng=np.random
+        self, atoms: Atoms, particles: Optional[List[str]] = None, rng=np.random.default_rng()
     ) -> List[int]:
         """"""
         # - pick a particle (atom/molecule)
@@ -221,7 +221,7 @@ class AbstractOperator(abc.ABC):
         return any([s == "invalid" for s in status_])
 
     @abc.abstractmethod
-    def run(self, atoms: Atoms, rng=np.random) -> Atoms:
+    def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """Modify the input atoms.
 
         Returns:
@@ -234,7 +234,7 @@ class AbstractOperator(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator=np.random.default_rng()) -> bool:
         """Monte Carlo."""
 
         ...
