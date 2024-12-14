@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-from typing import List
+from typing import List, Optional
 
 import numpy as np
-from ase import Atoms, data, units
+from ase import Atoms
 from ase.neighborlist import NeighborList, natural_cutoffs
+
+from gdpx.geometry.particle import translate_then_rotate
+from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
 from .move import MoveOperator
 
@@ -18,46 +22,39 @@ class SwapOperator(MoveOperator):
     def __init__(
         self,
         particles: List[str],
-        region: dict = {},
-        temperature: float = 300,
-        pressure: float = 1,
-        covalent_ratio=[0.8, 2.0],
-        use_rotation: bool = True,
         *args,
         **kwargs,
     ):
         """"""
         super().__init__(
             particles=particles,
-            region=region,
-            temperature=temperature,
-            pressure=pressure,
-            covalent_ratio=covalent_ratio,
-            use_rotation=use_rotation,
             *args,
             **kwargs,
         )
 
-        # NOTE: Prohibit swapping the same type of particles.
-        assert (
-            len(set(self.particles)) == 2
-        ), f"f{self.__class__.__name__} needs two types of particles."
+        # Prohibit swapping the same type of particles.
+        if len(set(self.particles)) != 2:
+            raise Exception(
+                f"{self.__class__.__name__} needs two different types of particles."
+            )
 
         return
 
-    def run(self, atoms: Atoms, rng=np.random) -> Atoms:
+    def run(
+        self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()
+    ) -> Optional[Atoms]:
         """"""
         # We only need check region without other in move_operator.
         self._check_region(atoms)
         self._extra_info = "-"
 
-        # Basic
-        curr_atoms = atoms
-        cell = curr_atoms.get_cell(complete=True)
+        # We need covalent bond distanes for neighbour check
+        assert hasattr(self, "bond_distance_dict")
 
         # Build neighbour list
+        new_atoms = copy.deepcopy(atoms)
         nl = NeighborList(
-            self.covalent_max * np.array(natural_cutoffs(curr_atoms)),
+            self.covalent_max * np.array(natural_cutoffs(new_atoms)),
             skin=0.0,
             self_interaction=False,
             bothways=True,
@@ -65,58 +62,81 @@ class SwapOperator(MoveOperator):
 
         # Swap the species
         for i in range(self.MAX_RANDOM_ATTEMPTS):
-            # -- swap
-            curr_atoms = atoms.copy()
+            # Get a new copy
+            new_atoms = copy.deepcopy(atoms)
 
-            # -- pick an atom
-            #   either index of an atom or tag of an moiety
-            first_pick = self._select_species(curr_atoms, [self.particles[0]], rng=rng)
-            second_pick = self._select_species(curr_atoms, [self.particles[1]], rng=rng)
-            self._print(f"first: {first_pick} second: {second_pick}")
+            # Pick an atom either index of an atom or tag of an moiety
+            pick_one = self._select_species(new_atoms, [self.particles[0]], rng=rng)
+            pick_two = self._select_species(new_atoms, [self.particles[1]], rng=rng)
+            self._print(f"1->{pick_one} 2->{pick_two}")
 
-            # -- find tag atoms
-            first_species = curr_atoms[first_pick]  # default copy
-            second_species = curr_atoms[second_pick]
-            # TODO: deal with pbc
-            first_cop = np.average(copy.deepcopy(first_species.get_positions()), axis=0)
-            second_cop = np.average(
-                copy.deepcopy(second_species.get_positions()), axis=0
+            # Find particles by picked tags before swap
+            particle_one = new_atoms[pick_one]  # default copy
+            assert isinstance(particle_one, Atoms)
+            particle_two = new_atoms[pick_two]
+            assert isinstance(particle_two, Atoms)
+
+            # TODO: Deal with pbc for molecules
+            cop_one = copy.deepcopy(np.average(particle_one.get_positions(), axis=0))
+            cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
+
+            self._print(
+                f"before: {particle_one.get_chemical_formula():>24s} "
+                + ("{:>12.4f}" * 3).format(*cop_one)
+            )
+            self._print(
+                f"before: {particle_two.get_chemical_formula():>24s} "
+                + ("{:>12.4f}" * 3).format(*cop_two)
             )
 
-            self._print(f"origin: {first_species.symbols} {first_cop}")
-            self._print(f"origin: {second_species.symbols} {second_cop}")
-
-            # -- rotate and swap
-            first_species = self._rotate_species(first_species, rng=rng)
-            second_species = self._rotate_species(second_species, rng=rng)
-
-            curr_atoms.positions[first_pick] += second_cop - first_cop
-            curr_atoms.positions[second_pick] += first_cop - second_cop
-
-            first_species = curr_atoms[first_pick]
-            second_species = curr_atoms[second_pick]
-            # TODO: deal with pbc
-            first_cop = np.average(copy.deepcopy(first_species.get_positions()), axis=0)
-            second_cop = np.average(
-                copy.deepcopy(second_species.get_positions()), axis=0
+            # Swap two positions with rotatation
+            particle_one_ = translate_then_rotate(
+                particle_one, position=cop_one, use_com=False, rng=rng
+            )
+            particle_two_ = translate_then_rotate(
+                particle_two, position=cop_two, use_com=False, rng=rng
             )
 
-            self._print(f"swapped: {first_species.symbols} {first_cop}")
-            self._print(f"swapped: {second_species.symbols} {second_cop}")
+            new_atoms.positions[pick_one] = particle_two_.positions
+            new_atoms.positions[pick_two] = particle_one_.positions
 
-            # -- use neighbour list
-            idx_pick = []
-            idx_pick.extend(first_pick)
-            idx_pick.extend(second_pick)
-            if not self.check_overlap_neighbour(nl, curr_atoms, cell, idx_pick):
+            # Find particles by picked tags after swap
+            particle_one = new_atoms[pick_one]  # default copy
+            assert isinstance(particle_one, Atoms)
+            particle_two = new_atoms[pick_two]
+            assert isinstance(particle_two, Atoms)
+
+            # TODO: Deal with pbc for molecules
+            cop_one = copy.deepcopy(np.average(particle_one.get_positions(), axis=0))
+            cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
+
+            self._print(
+                f"actual: {particle_one.get_chemical_formula():>24s} "
+                + ("{:>12.4f}" * 3).format(*cop_one)
+            )
+            self._print(
+                f"actual: {particle_two.get_chemical_formula():>24s} "
+                + ("{:>12.4f}" * 3).format(*cop_two)
+            )
+
+            # Use neighbour list
+            atomic_indices = [*pick_one, *pick_two]
+            if check_atomic_distances_by_neighbour_list(
+                new_atoms,
+                neighlist=nl,
+                atomic_indices=atomic_indices,
+                covalent_ratio=[self.covalent_min, self.covalent_max],
+                bond_distance_dict=self.bond_distance_dict,  # type: ignore
+                allow_isolated=False,
+            ):
                 self._print(f"succeed to random after {i+1} attempts...")
-                self._extra_info = f"S_{first_species.get_chemical_formula()}_{first_pick}^{second_species.get_chemical_formula()}_{second_pick}"
+                self._extra_info = f"S_{particle_one.get_chemical_formula()}_{pick_one}^{particle_two.get_chemical_formula()}_{pick_two}"
                 break
         else:
-            curr_atoms = None
+            new_atoms = None
             self._extra_info = f"Swap_Failed"
 
-        return curr_atoms
+        return new_atoms
 
     def as_dict(self) -> dict:
         """"""
