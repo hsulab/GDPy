@@ -61,12 +61,9 @@ class BasicExchangeOperator(AbstractOperator):
         nlist = self.nlist_prototype(  # type: ignore
             self.covalent_max * np.array([covalent_radii[c] for c in chemicl_numbers])
         )
-        num_atoms = len(new_atoms)
-        atomic_indices = list(range(num_atoms, num_atoms + len(adpart)))
         check_distance_func = functools.partial(
             check_atomic_distances_by_neighbour_list,
             neighlist=nlist,
-            atomic_indices=atomic_indices,
         )
 
         # Insert the particle
@@ -78,8 +75,7 @@ class BasicExchangeOperator(AbstractOperator):
             bond_distance_dict=self.bond_distance_dict,  # type: ignore
             particle_tag=adpart_tag,
             sort_tags=False,
-            # max_attempts=self.MAX_RANDOM_ATTEMPTS,
-            max_attempts=100,
+            max_attempts=self.MAX_RANDOM_ATTEMPTS,
             check_distance_func=check_distance_func,
             rng=rng,
         )
