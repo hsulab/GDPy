@@ -6,7 +6,7 @@ import numpy as np
 from ase import Atoms
 
 
-def translate_then_rotate(atoms: Atoms, position, use_com: bool, rng):
+def translate_then_rotate(atoms: Atoms, position, use_com: bool, rng: np.random.Generator):
     """"""
     num_atoms = len(atoms)
     if not use_com:
