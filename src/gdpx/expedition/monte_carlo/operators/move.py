@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+import copy
 from typing import List, Optional
 
 import numpy as np
-
-from ase import Atoms
-from ase import data, units
+from ase import Atoms, units
 from ase.neighborlist import NeighborList, natural_cutoffs
+
+from gdpx.geometry.bounce import get_a_random_direction
+from gdpx.geometry.particle import translate_then_rotate
 
 from .operator import AbstractOperator
 
@@ -43,64 +46,60 @@ class MoveOperator(AbstractOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng=np.random) -> Atoms:
+    def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check species in the region
         super().run(atoms)
         self._extra_info = "-"
 
         # BUG: If there is no species in the system...
         species_indices = self._select_species(atoms, self.particles, rng=rng)
 
-        # - basic
-        curr_atoms = atoms.copy()  # TODO: use clean atoms?
-        cell = curr_atoms.get_cell(complete=True)
+        # Get some basic stuff
+        new_atoms = copy.deepcopy(atoms)
+        cell = new_atoms.get_cell(complete=True)
 
-        # - neighbour list
+        # Initialise the neighbour list
         nl = NeighborList(
-            self.covalent_max * np.array(natural_cutoffs(curr_atoms)),
+            self.covalent_max * np.array(natural_cutoffs(new_atoms)),
             skin=0.0,
             self_interaction=False,
             bothways=True,
         )
 
-        # - find tag atoms
+        # Find tag atoms
         # record original position of species_indices
-        species = curr_atoms[species_indices]
+        species = new_atoms[species_indices]
+        assert isinstance(species, Atoms)
         self._extra_info = f"Move_{species.get_chemical_formula()}_{species_indices}"
 
-        # org_pos = new_atoms[species_indices].position.copy() # original position
-        # TODO: deal with pbc, especially for move step
+        # TODO: Deal with pbc for molecules
         org_com = np.mean(species.positions, axis=0)
         org_positions = species.positions.copy()
 
-        # - move the atom
+        # Move the species
         for i in range(self.MAX_RANDOM_ATTEMPTS):
-            rsq = 1.1
-            while rsq > 1.0:
-                rvec = 2 * rng.uniform(size=3) - 1.0
-                rsq = np.linalg.norm(rvec)
+            rvec = get_a_random_direction(rng)
             ran_pos = org_com + rvec * self.max_disp
-            # -- make a copy and rotate
-            species_ = self._rotate_species(species, rng=rng)
-            curr_cop = np.average(species_.positions, axis=0)
-            # -- translate
-            new_vec = ran_pos - curr_cop
-            species_.translate(new_vec)
-            curr_atoms.positions[species_indices] = species_.positions.copy()
+            species_ = copy.deepcopy(species)
+            species_ = translate_then_rotate(
+                species_, position=ran_pos, use_com=True, rng=rng
+            )
+            new_atoms.positions[species_indices] = species_.positions.copy()
             # use neighbour list
-            if not self.check_overlap_neighbour(nl, curr_atoms, cell, species_indices):
+            if not self.check_overlap_neighbour(nl, new_atoms, cell, species_indices):
                 self._print(f"succeed to random after {i+1} attempts...")
                 self._print(f"original position: {org_com}")
                 self._print(f"random position: {ran_pos}")
                 self._print(
-                    f"actual position: {np.average(curr_atoms.positions[species_indices], axis=0)}"
+                    f"actual position: {np.average(new_atoms.positions[species_indices], axis=0)}"
                 )
                 break
-            curr_atoms.positions[species_indices] = org_positions
+            new_atoms.positions[species_indices] = org_positions
         else:
-            curr_atoms = None
+            new_atoms = None
 
-        return curr_atoms
+        return new_atoms
 
     def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
         """"""
