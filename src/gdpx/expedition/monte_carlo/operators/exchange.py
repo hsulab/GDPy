@@ -90,17 +90,19 @@ class BasicExchangeOperator(AbstractOperator):
 
         return atoms
 
-    def _remove(self, atoms_, species: str, rng=np.random.Generator(np.random.PCG64())):
+    def _remove(self, atoms: Atoms, species: str, rng: np.random.Generator=np.random.default_rng()) -> Atoms:
         """"""
-        atoms = atoms_.copy()
+        # We cannot use deepcopy here as ase does not delete some arrays,
+        # for example, the forces.
+        new_atoms = atoms.copy()
 
-        # - pick a random atom/molecule
-        species_indices = self._select_species(atoms, [species], rng)
+        # Pick one random particle
+        species_indices = self._select_species(new_atoms, [species], rng)
 
-        # - remove then
-        del atoms[species_indices]
+        # Remove then
+        del new_atoms[species_indices]
 
-        return atoms
+        return new_atoms
 
 
 class ExchangeOperator(BasicExchangeOperator):
