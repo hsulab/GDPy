@@ -108,6 +108,11 @@ def insert_one_particle(
         list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2))
     )
 
+    # We only check bond distances form by atoms in the particle,
+    # since the existing atoms may not statisfy our distance criteria.
+    atomic_indices = list(range(num_atoms, num_atoms + len(particle)))
+
+    # Try inserting
     num_attempts = 0
     candidate = atoms + particle
     for iattempt in range(max_attempts):
@@ -122,6 +127,7 @@ def insert_one_particle(
             candidate,
             covalent_ratio=covalent_ratio,
             bond_distance_dict=bond_distance_dict,
+            atomic_indices=atomic_indices,
             excluded_pairs=intra_bond_pairs,
             allow_isolated=False,
         ):

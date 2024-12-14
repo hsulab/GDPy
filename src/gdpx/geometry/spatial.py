@@ -3,13 +3,12 @@
 
 
 import itertools
-from typing import List
+from typing import List, Optional
 
 import numpy as np
-
 from ase import Atoms
 from ase.data import covalent_radii
-from ase.neighborlist import neighbor_list, NeighborList
+from ase.neighborlist import NeighborList, neighbor_list
 
 
 def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict:
@@ -59,6 +58,7 @@ def check_atomic_distances(
     *,
     covalent_ratio: list,
     bond_distance_dict: dict,
+    atomic_indices: Optional[List[int]] = None,
     excluded_pairs: list = [],
     forbidden_pairs: list = [],
     allow_isolated: bool = False,
@@ -74,9 +74,10 @@ def check_atomic_distances(
         atoms: The input structure.
         covalent_ratio: Two-entry list with the minimum and the maximum ratio of the covalent bond.
         bond_distance_dict: A dict with the normal covalent bond distance.
-        excluded_pairs: The atomic pairs not considered in check.
+        atomic_indices: The indices of atomic centres to check.
+        excluded_pairs: The atomic pairs not considered in too_close and forbidden.
         forbidden_pairs: The forbidden atomic pairs.
-        allow_isolated: Whether allow atoms no neighbours to exist.
+        allow_isolated: Whether allow atoms without neighbours to exist.
 
     Returns:
         Whether the structure is valid.
@@ -85,40 +86,56 @@ def check_atomic_distances(
     is_valid = False
 
     cov_min, cov_max = covalent_ratio
-    cutoff = max(bond_distance_dict.values()) * cov_max
+
+    chemical_numbers = atoms.get_atomic_numbers()
+    cutoff = np.array([covalent_radii[c] for c in chemical_numbers]) * cov_max
 
     first_indices, second_indices, distances = neighbor_list(
         "ijd", atoms, cutoff, self_interaction=False
     )
 
+    num_atoms = len(atoms)
+    if atomic_indices is None:
+        atomic_indices = list(range(num_atoms))
+
     # check there are at least one neighbour pair
-    num_first_indices = len(set(first_indices))
-    if num_first_indices != len(atoms):
-        # This situation includes no pairs
-        # or some atoms have no neighbours even with a larger cutoff
-        if allow_isolated:
-            is_valid = True
+    found_isolated = False
+    if not allow_isolated:
+        centres_with_neighbours = set(first_indices)
+        for c_i in range(num_atoms):
+            if c_i not in centres_with_neighbours and c_i in atomic_indices:
+                found_isolated = True
+                break
+        else:
+            ...
+    if found_isolated:
         return is_valid
 
     # first_indices has been sorted so we can just groupby
-    chemical_numbers = atoms.get_atomic_numbers()
-    for _, v in itertools.groupby(
+    for c_i, v in itertools.groupby(
         zip(first_indices, second_indices, distances), key=lambda p: p[0]
     ):
+        if c_i not in atomic_indices:
+            continue
         found_isolated, found_too_close, found_forbidden = True, False, False
         for i, j, d in v:
             atomic_pair = (chemical_numbers[i], chemical_numbers[j])
-            if (i, j) not in excluded_pairs:
-                if d < bond_distance_dict[atomic_pair] * cov_min:
-                    found_too_close = True
-                    break
-                elif d < bond_distance_dict[atomic_pair] * cov_max:
-                    found_isolated = False
-                    if atomic_pair in forbidden_pairs:
-                        found_forbidden = True
+            dmin = bond_distance_dict[atomic_pair] * cov_min
+            dmax = bond_distance_dict[atomic_pair] * cov_max
+            # We only check too_close and forbidden for pairs not excluded.
+            # The excluded pairs are used to determine isolation.
+            if d <= dmax:
+                found_isolated = False
+                if (i, j) not in excluded_pairs:
+                    if d <= dmin:
+                        found_too_close = True
                         break
-                else:
-                    ...
+                    else:  # dmin < d <= dmax
+                        if atomic_pair in forbidden_pairs:
+                            found_forbidden = True
+                            break
+            else:
+                ...
         else:
             # Not too close and we need check isolated
             if found_isolated and not allow_isolated:
@@ -177,10 +194,10 @@ def check_atomic_distances_by_neighbour_list(
                     - (atoms.positions[ni] + np.dot(offset, cell))
                 )
                 atomic_pair = (chemical_numbers[idx_pick], chemical_numbers[ni])
-                if distance < bond_distance_dict[atomic_pair] * cov_min:
+                if distance <= bond_distance_dict[atomic_pair] * cov_min:
                     found_too_close = True
                     break
-                elif distance < bond_distance_dict[atomic_pair] * cov_max:
+                elif distance <= bond_distance_dict[atomic_pair] * cov_max:
                     found_isolated = False
                 else:
                     ...
@@ -196,7 +213,7 @@ def check_atomic_distances_by_neighbour_list(
             break
     else:
         is_valid = True
-        
+
     return is_valid
 
 
