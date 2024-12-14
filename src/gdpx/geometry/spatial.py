@@ -3,10 +3,13 @@
 
 
 import itertools
+from typing import List
+
+import numpy as np
 
 from ase import Atoms
 from ase.data import covalent_radii
-from ase.neighborlist import neighbor_list
+from ase.neighborlist import neighbor_list, NeighborList
 
 
 def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict:
@@ -131,6 +134,68 @@ def check_atomic_distances(
     else:
         is_valid = True
 
+    return is_valid
+
+
+def check_atomic_distances_by_neighbour_list(
+    atoms: Atoms,
+    *,
+    neighlist: NeighborList,
+    atomic_indices: List[int],
+    covalent_ratio: list,
+    bond_distance_dict: dict,
+    allow_isolated: bool = False,
+):
+    """Check atomic distances based on a pre-computed neighbour list.
+
+    Args:
+        neighlist: This must be bothways and no self-interactions.
+
+    """
+    # Some basic stuff
+    cell = atoms.get_cell(complete=True)
+
+    # Get covalent bond distance ratio
+    cov_min, cov_max = covalent_ratio
+
+    # Get chemical numbers here since some operators may change the symbol
+    chemical_numbers = atoms.get_atomic_numbers()
+
+    # Check neighbour list
+    neighlist.update(atoms)
+
+    # Check atomic distances
+    is_valid = False
+    for _, idx_pick in enumerate(atomic_indices):
+        indices, offsets = neighlist.get_neighbors(idx_pick)
+        found_too_close, found_isolated = False, True
+        for ni, offset in zip(indices, offsets):
+            if ni not in atomic_indices:  # Skip intra-molecular check
+                distance = np.linalg.norm(
+                    atoms.positions[idx_pick]
+                    - (atoms.positions[ni] + np.dot(offset, cell))
+                )
+                atomic_pair = (chemical_numbers[idx_pick], chemical_numbers[ni])
+                if distance < bond_distance_dict[atomic_pair] * cov_min:
+                    found_too_close = True
+                    break
+                elif distance < bond_distance_dict[atomic_pair] * cov_max:
+                    found_isolated = False
+                else:
+                    ...
+        else:
+            # Not too close and we need check isolated
+            if found_isolated and not allow_isolated:
+                break
+            else:
+                # both good for too_close or isolated
+                # move to check next atom
+                ...
+        if found_too_close:
+            break
+    else:
+        is_valid = True
+        
     return is_valid
 
 
