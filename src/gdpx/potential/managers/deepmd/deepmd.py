@@ -245,8 +245,9 @@ class DeepmdTrainer(AbstractTrainer):
         train_epochs: int = 200,
         print_epochs: int = 5,
         directory=".",
-        command="dp",
-        freeze_command="dp",
+        command: str="dp",
+        train_options: str="",
+        freeze_command: str="dp",
         random_seed=1112,
         *args,
         **kwargs,
@@ -271,6 +272,8 @@ class DeepmdTrainer(AbstractTrainer):
         else:
             self._type_list = type_list
 
+        self.train_options = train_options
+
         return
 
     def _resolve_train_command(self, init_model=None):
@@ -278,7 +281,7 @@ class DeepmdTrainer(AbstractTrainer):
         train_command = self.command
 
         # - add options
-        command = "{} train {}.json ".format(train_command, self.name)
+        command = "{} train {}.json {}".format(train_command, self.name, self.train_options)
         if init_model is not None:
             init_model_path = pathlib.Path(init_model).resolve()
             if init_model_path.name.endswith(".pb"):
@@ -530,6 +533,13 @@ class DeepmdTrainer(AbstractTrainer):
             ...
 
         return converged
+
+    def as_dict(self) -> dict:
+        """"""
+        trainer_params = super().as_dict()
+        trainer_params["train_options"] = self.train_options
+
+        return trainer_params
 
 
 class DeepmdManager(AbstractPotentialManager):
