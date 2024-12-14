@@ -11,6 +11,7 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.bounce import get_a_random_direction
 from gdpx.geometry.particle import translate_then_rotate
+from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
 from .operator import AbstractOperator
 
@@ -57,7 +58,6 @@ class MoveOperator(AbstractOperator):
 
         # Get some basic stuff
         new_atoms = copy.deepcopy(atoms)
-        cell = new_atoms.get_cell(complete=True)
 
         # Initialise the neighbour list
         nl = NeighborList(
@@ -87,7 +87,7 @@ class MoveOperator(AbstractOperator):
             )
             new_atoms.positions[species_indices] = species_.positions.copy()
             # use neighbour list
-            if not self.check_overlap_neighbour(nl, new_atoms, cell, species_indices):
+            if check_atomic_distances_by_neighbour_list(new_atoms, neighlist=nl, atomic_indices=species_indices, covalent_ratio=[self.covalent_min, self.covalent_max], bond_distance_dict=self.bond_distance_dict, allow_isolated=False):
                 self._print(f"succeed to random after {i+1} attempts...")
                 self._print(f"original position: {org_com}")
                 self._print(f"random position: {ran_pos}")

@@ -201,6 +201,10 @@ class MonteCarlo(AbstractExpedition):
                 atom_numbers=unique_atomic_numbers,
                 ratio_of_covalent_radii=op.covalent_min,
             )
+            op.bond_distance_dict = closest_distances_generator(
+                atom_numbers=unique_atomic_numbers,
+                ratio_of_covalent_radii=1.0,
+            )
 
         return
 
