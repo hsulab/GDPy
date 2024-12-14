@@ -39,35 +39,38 @@ class BounceOperator(AbstractOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng) -> Atoms:
+    def run(self, atoms: Atoms, rng: np.random.Generator=np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check species in the region
         super().run(atoms)
         self._extra_info = "-"
 
         # BUG: If there is no species in the system...
         species_indices = self._select_species(atoms, self.particles, rng=rng)
-
         assert len(species_indices) == 1
 
+        species = atoms[species_indices]
+        assert isinstance(species, Atoms)
         self._extra_info = (
-            f"Bounce({self.direction})_{atoms[species_indices].get_chemical_formula()}_{species_indices}"
+            f"Bounce({self.direction})_{species.get_chemical_formula()}_{species_indices}"
         )
 
         # get neighbour list
-        curr_atoms = copy.deepcopy(atoms)
+        new_atoms = copy.deepcopy(atoms)
         nlist = self.nlist_prototype(
-            self.covalent_max * np.array(natural_cutoffs(curr_atoms))
+            self.covalent_max * np.array(natural_cutoffs(new_atoms))
         )
 
         # bounce one atom
         atom_index = species_indices[0]
         new_atoms = bounce_one_atom(
-            curr_atoms,
+            new_atoms,
             atom_index,
             biased_direction=self.direction,
             max_disp=self.max_disp,
             nlist=nlist,
-            bond_min_dict=self.blmin,
+            covalent_ratio=[self.covalent_min, self.covalent_max],
+            bond_distance_dict=self.bond_distance_dict,  # type: ignore
             rng=rng,
             print_func=self._print,
         )

@@ -3,27 +3,15 @@
 
 
 import copy
-from typing import List
+from typing import List, Callable
 
 import numpy as np
+
 from ase import Atoms
-from ase.data import covalent_radii
-from ase.io import read, write
-from ase.neighborlist import NeighborList, natural_cutoffs
+from ase.neighborlist import NeighborList
 
 
-def get_bond_distance_dict(atomic_numbers: List[int], ratio: float):
-    """"""
-    bond_distance_dict = dict()
-
-    for i in atomic_numbers:
-        for j in atomic_numbers:
-            bond_distance_dict[(i, j)] = (covalent_radii[i] + covalent_radii[j]) * ratio
-
-    return bond_distance_dict
-
-
-def get_a_random_direction(rng):
+def get_a_random_direction(rng: np.random.Generator):
     """"""
     rvec, rsq = np.zeros(3), 1.1
     while rsq > 1.0:
@@ -33,7 +21,7 @@ def get_a_random_direction(rng):
     return rvec
 
 
-def get_a_biased_direction(direction: str, rng):
+def get_a_biased_direction(direction: str, rng: np.random.Generator):
     """"""
     # vec = np.array([-1.0, +1.0, +1.0]) / np.linalg.norm([-1.0, +1.0, +1.0])
     vec = get_a_random_direction(rng)
@@ -64,12 +52,13 @@ def get_a_biased_direction(direction: str, rng):
 def bounce_one_atom(
     atoms: Atoms,
     atom_index: int,
-    biased_direction,
-    max_disp,
-    nlist,
-    bond_min_dict,
-    rng,
-    print_func=print,
+    biased_direction: str,
+    max_disp: float,
+    nlist: NeighborList,
+    covalent_ratio: list,
+    bond_distance_dict: dict,
+    rng: np.random.Generator,
+    print_func: Callable=print,
 ):
     """"""
     # new_atoms = copy.deepcopy(atoms)
@@ -78,7 +67,7 @@ def bounce_one_atom(
     disp_vec = get_a_biased_direction(biased_direction, rng)
     print_func(f"{disp_vec =}")
 
-    new_atoms[atom_index].position += disp_vec * max_disp
+    new_atoms[atom_index].position += disp_vec * max_disp  # type: ignore
 
     # repel neighbours
     nlist.update(new_atoms)
@@ -95,21 +84,21 @@ def bounce_one_atom(
         dis = np.linalg.norm(vec)
         # print(neigh_index, neigh_offset, vec, dis)
         atomic_numbers = new_atoms.get_atomic_numbers()
-        min_dis = bond_min_dict[
+        min_dis = bond_distance_dict[
             (atomic_numbers[atom_index], atomic_numbers[neigh_index])
-        ]
+        ]*covalent_ratio[0]  # cov_min
         if dis < min_dis:
             repelled.append(
                 (
                     neigh_index,
-                    new_atoms[atom_index].position
+                    new_atoms[atom_index].position  # type: ignore
                     + min_dis * -vec / np.linalg.norm(vec),
                 )
             )
 
     for neigh_index, neigh_position in repelled:
         # print(f"{neigh_index = }  {neigh_position = }")
-        new_atoms[neigh_index].position = neigh_position
+        new_atoms[neigh_index].position = neigh_position  # type: ignore
 
     return new_atoms
 
