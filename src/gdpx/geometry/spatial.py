@@ -144,6 +144,7 @@ def check_atomic_distances_by_neighbour_list(
     atomic_indices: List[int],
     covalent_ratio: list,
     bond_distance_dict: dict,
+    excluded_pairs: list = [],
     allow_isolated: bool = False,
 ):
     """Check atomic distances based on a pre-computed neighbour list.

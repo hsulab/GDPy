@@ -2,13 +2,17 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
+import functools
 from typing import Optional
 
 import numpy as np
 from ase import Atoms, units
+from ase.data import covalent_radii
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
-from ase.neighborlist import NeighborList, natural_cutoffs
+from ase.neighborlist import NeighborList
+
+from gdpx.geometry.exchange import insert_one_particle
+from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
 from .. import convert_string_to_atoms
 from .operator import AbstractOperator
@@ -20,77 +24,83 @@ class BasicExchangeOperator(AbstractOperator):
 
     MAX_RANDOM_TAG: int = 100000
 
-    def _insert(self, atoms_, species: str, rng=np.random.Generator(np.random.PCG64())):
+    def _insert(
+        self,
+        atoms: Atoms,
+        species: str,
+        rng: np.random.Generator = np.random.default_rng(),
+    ):
         """"""
-        atoms = atoms_.copy()
+        # We need covalent bond distanes for neighbour check
+        assert hasattr(self, "bond_distance_dict")
 
-        # - prepare particle to add
+        # We cannot use deepcopy here as ase does not delete some arrays,
+        # for example, the forces.
+        new_atoms = atoms.copy()
+
+        # Prepare particle to add
         adpart = convert_string_to_atoms(species)
 
-        # - add velocity in case the mixed MC/MD is performed
+        # Add velocity in case the mixed MC/MD is performed
         MaxwellBoltzmannDistribution(adpart, temperature_K=self.temperature, rng=rng)
 
-        # - add tag
+        # Choose a tag for the particle
         used_tags = set(atoms.get_tags().tolist())
         adpart_tag = 0
         while adpart_tag in used_tags:
-            # NOTE: np.random only has randint
             adpart_tag = rng.integers(self.MIN_RANDOM_TAG, self.MAX_RANDOM_TAG)
         adpart_tag = int(adpart_tag)
         self._print(
             f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}"
         )
-        # NOTE: ase accepts int or list as tags
-        adpart.set_tags(adpart_tag)
 
-        # - add particle
-        atoms.extend(adpart)
-
-        # - find species indices
-        #   NOTE: adpart is always added to the end
-        species_indices = [i for i, t in enumerate(atoms.get_tags()) if t == adpart_tag]
-
-        # - blmin is initialised by MC
-        cell = atoms.get_cell(complete=True)
-
-        # - neighbour list
-        nl = NeighborList(
-            self.covalent_max * np.array(natural_cutoffs(atoms)),
-            skin=0.0,
-            self_interaction=False,
-            bothways=True,
+        # Use neighbour list
+        chemicl_numbers = np.hstack(
+            [new_atoms.get_atomic_numbers(), adpart.get_atomic_numbers()]
+        )
+        nlist = self.nlist_prototype(  # type: ignore
+            self.covalent_max * np.array([covalent_radii[c] for c in chemicl_numbers])
+        )
+        num_atoms = len(new_atoms)
+        atomic_indices = list(range(num_atoms, num_atoms + len(adpart)))
+        check_distance_func = functools.partial(
+            check_atomic_distances_by_neighbour_list,
+            neighlist=nlist,
+            atomic_indices=atomic_indices,
         )
 
-        # - get a random position
-        species = atoms[species_indices]
-        org_com = np.mean(species.positions, axis=0)
-        org_positions = species.positions.copy()
+        # Insert the particle
+        new_atoms, info = insert_one_particle(
+            atoms=new_atoms,
+            particle=adpart,
+            region=self.region,
+            covalent_ratio=[self.covalent_min, self.covalent_max],
+            bond_distance_dict=self.bond_distance_dict,  # type: ignore
+            particle_tag=adpart_tag,
+            sort_tags=False,
+            # max_attempts=self.MAX_RANDOM_ATTEMPTS,
+            max_attempts=100,
+            check_distance_func=check_distance_func,
+            rng=rng,
+        )
 
-        for i in range(self.MAX_RANDOM_ATTEMPTS):
-            # - make a copy
-            species_ = self._rotate_species(species, rng=rng)
-            curr_cop = np.average(species_.positions, axis=0)
-            ran_pos = self.region.get_random_positions(size=1, rng=rng)[0]
-            new_vec = ran_pos - curr_cop
-            species_.translate(new_vec)
-            atoms.positions[species_indices] = copy.deepcopy(species_.positions)
-            if not self.check_overlap_neighbour(nl, atoms, cell, species_indices):
-                self._print(f"succeed to insert after {i+1} attempts...")
-                self._print(f"original position: {org_com}")
-                self._print(f"random position: {ran_pos}")
-                self._print(
-                    f"actual position: {np.average(atoms.positions[species_indices], axis=0)}"
-                )
-                break
-            atoms.positions[species_indices] = org_positions
+        _, _, state, num_attempts = info.split("_")
+        if state == "success":
+            self._print(f"succeed to insert after {num_attempts} attempts...")
+            self._extra_info = f"Insert_{species}_{adpart_tag}"  # type: ignore
+        elif state == "failure":
+            self._print(f"failed to insert after {num_attempts} attempts...")
         else:
-            # -- remove adpart since the insertion fails
-            del atoms[species_indices]
-            atoms = None
+            raise Exception("This should not happen.")
 
-        return atoms
+        return new_atoms
 
-    def _remove(self, atoms: Atoms, species: str, rng: np.random.Generator=np.random.default_rng()) -> Atoms:
+    def _remove(
+        self,
+        atoms: Atoms,
+        species: str,
+        rng: np.random.Generator = np.random.default_rng(),
+    ) -> Atoms:
         """"""
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
@@ -99,8 +109,15 @@ class BasicExchangeOperator(AbstractOperator):
         # Pick one random particle
         species_indices = self._select_species(new_atoms, [species], rng)
 
+        # The tags for atoms in the species should be the same,
+        # we need check this?
+        particle_tag = new_atoms.get_tags()[species_indices][0]
+
         # Remove then
         del new_atoms[species_indices]
+
+        # Update info
+        self._extra_info = f"Remove_{self.species}_{particle_tag}"  # type: ignore
 
         return new_atoms
 
@@ -136,6 +153,10 @@ class ExchangeOperator(BasicExchangeOperator):
 
         self.use_bias = use_bias
 
+        self.nlist_prototype = functools.partial(
+            NeighborList, skin=0.0, self_interaction=False, bothways=True
+        )
+
         return
 
     def run(
@@ -167,17 +188,14 @@ class ExchangeOperator(BasicExchangeOperator):
                 self._print("...insert...")
                 self._curr_operation = "insert"
                 new_atoms = self._insert(atoms, self.species, rng)
-                self._extra_info = f"Insert_{self.species}"
             else:
                 self._print("...remove...")
                 self._curr_operation = "remove"
                 new_atoms = self._remove(atoms, self.species, rng)
-                self._extra_info = f"Remove_{self.species}"
         else:
             self._print("...insert...")
             self._curr_operation = "insert"
             new_atoms = self._insert(atoms, self.species, rng)
-            self._extra_info = f"Insert_{self.species}"
 
         return new_atoms
 
