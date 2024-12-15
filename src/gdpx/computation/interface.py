@@ -614,6 +614,75 @@ class compute_chain(Operation):
         return output
 
 
+
+def extract_results_from_worker_chain(workers, use_archive: bool=True, print_func=print, debug_func=print):
+    """"""
+    new_results = []
+    for i, worker in enumerate(workers):
+        print_func(f"{worker.directory=}")
+        curr_results = worker.retrieve(include_retrieved=True, use_archive=use_archive)
+        # TODO: inhomogeneous trajectories?
+        if i == 0:
+            for res in curr_results:
+                new_results.append(res)
+        else:  # i > 0:
+            num_candidates = len(new_results)
+            for j in range(num_candidates):
+                new_results[j].extend(curr_results[j][1:])
+    output = AtomsNDArray(new_results)
+
+    return output
+
+
+@registers.operation.register
+class extract_chain(Operation):
+
+    def __init__(self, compute, merge_workers: bool=False, directory="./") -> None:
+        """"""
+        super().__init__(input_nodes=[compute], directory=directory)
+
+        self.merge_workers = merge_workers
+
+        return
+
+    def forward(self, computers) -> AtomsNDArray:
+        """"""
+        super().forward()
+
+        cache_fpath = self.directory/"extracted"/"cache.h5"
+        cache_fpath.parent.mkdir(parents=True, exist_ok=True)
+        if not cache_fpath.exists():
+            results = []
+            for icomp, computer in enumerate(computers):
+                workers = computer.value
+                for iwork, worker in enumerate(workers):
+                    worker.directory = computer.directory/f"chainstep.{iwork:>02d}"
+                comp_results = extract_results_from_worker_chain(
+                    workers=workers, 
+                    use_archive=True,
+                    print_func=self._print,
+                    debug_func=self._debug
+                )
+                self._print(f"{icomp=} {comp_results=}")
+                results.append(comp_results.tolist())
+
+            if not self.merge_workers:
+                # BUG: If the input is a list of AtomsNDArray,
+                #      the converted shape is a bit strange.
+                output = AtomsNDArray(results)
+            else:
+                output = AtomsNDArray(list(itertools.chain(*results)))
+            # TODO: Check if dump succeeds, exit when failed.
+            output.save_file(cache_fpath)
+            self._print(f"{output=}")
+        else:
+            output = AtomsNDArray.from_file(cache_fpath)
+            self._print(f"{output=}")
+        self.status = "finished"
+
+        return output
+
+
 @registers.operation.register
 class extract_cache(Operation):
     """Extract results from finished (cache) calculation wdirs.

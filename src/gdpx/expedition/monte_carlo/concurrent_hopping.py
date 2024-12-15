@@ -819,9 +819,25 @@ class ConcurrentHopping(AbstractExpedition):
         return
 
     def get_workers(self):
-        """"""
+        """Get all workers used by this expedition.
 
-        raise NotImplementedError()
+        This should always be called after the convergence is confirmed.
+
+        Note:
+            We do not have MC trajectories for now.
+            
+        """
+        gen_wdirs = (self.directory/"tmp_folder").glob("gen*")
+        gen_wdirs = sorted(gen_wdirs, key=lambda p: int(p.name[3:]))
+        self._print(f"{gen_wdirs=}")
+
+        workers = []
+        for gen_wdir in gen_wdirs:
+            gen_worker = copy.deepcopy(self.worker)
+            gen_worker.directory = gen_wdir
+            workers.append(gen_worker)
+
+        return workers
 
     def as_dict(self) -> dict:
         """"""
