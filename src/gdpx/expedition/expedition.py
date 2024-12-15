@@ -33,6 +33,8 @@ def parse_worker(inp_worker: dict, *args, **kwargs):
 
     return worker
 
+canonicalise_worker = parse_worker
+
 
 def canonicalise_builder(builder: dict):
     """"""

@@ -13,12 +13,13 @@ import numpy as np
 from ase import Atoms
 from ase.data import atomic_numbers
 from ase.formula import Formula
-from ase.io import write
+from ase.io import read, write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
+from gdpx.cli.compute import run_worker, convert_input_to_computer
 
 from .. import DriverBasedWorker, get_tags_per_species, registers
-from ..expedition import AbstractExpedition, canonicalise_builder
+from ..expedition import AbstractExpedition, canonicalise_builder, canonicalise_worker
 from .operators import parse_operators, select_operator
 
 GenerationState = enum.Enum(
@@ -85,7 +86,6 @@ class ConcurrentPopulation:
         random_offspring_generator: dict,
         comparator: Optional[dict] = None,
         population_size: Optional[int] = None,
-        mcsteps: int = 5,
         database_fname: str = "mydb.db",
         print_func=print,
         debug_func=print,
@@ -114,9 +114,6 @@ class ConcurrentPopulation:
             raise RuntimeError(
                 f"`population_size`({self.pop_size}) must be greater than or equal `generation_size`({self.gen_size})."
             )
-
-        # The number of MC steps
-        self._mcsteps = mcsteps
 
         # This can be `None` as it may be lazy-initialised by builder externally.
         self.random_offspring_generator = canonicalise_builder(
@@ -155,12 +152,6 @@ class ConcurrentPopulation:
         """The number of structures in the population."""
 
         return self._pop_size
-
-    @property
-    def mcsteps(self):
-        """The number of MC steps."""
-
-        return self._mcsteps
 
     def get_current_population(
         self, database: "GlobalOptimisationDatabase"
@@ -362,6 +353,7 @@ class GlobalOptimisationDatabase:
 
 def run_monte_carlo_steps(
     atoms: Atoms,
+    identifier: int,
     driver,
     operators,
     probabilities,
@@ -370,12 +362,12 @@ def run_monte_carlo_steps(
 ) -> Atoms:
     """"""
     mctraj_fpath = (
-        driver.directory.parent / "mctrajs" / f"mc-{driver.directory.name[4:][:-3]}.xyz"
+        driver.directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
     )
-    # TODO: check tags?
     energy_before = atoms.get_potential_energy()
+    atoms.info["mcstep"] = 0
     write(mctraj_fpath, atoms, append=False)
-    for istep in range(mcsteps):
+    for istep in range(1, mcsteps+1):
         op = select_operator(operators, probabilities, rng=rng)  # type: ignore
         op._print(f"----- MCSTEP.{istep:>04d} -----")
         new_atoms = op.run(atoms, rng=rng)
@@ -385,7 +377,6 @@ def run_monte_carlo_steps(
             ...  # try again?
 
         if new_atoms is not None:
-            # TODO: use tags?
             _ = driver.run(new_atoms, read_ckpt=True)
             relaxed_atoms = driver.read_trajectory()[-1]
             energy_after = relaxed_atoms.get_potential_energy()
@@ -394,6 +385,7 @@ def run_monte_carlo_steps(
             op._print(f"mcstep.{istep:>04d} {success=}")
             if success:
                 atoms = relaxed_atoms
+                atoms.info["mcstep"] = istep
                 energy_before = energy_after
                 write(mctraj_fpath, atoms, append=True)
             else:
@@ -402,6 +394,7 @@ def run_monte_carlo_steps(
             shutil.rmtree(driver.directory)
         else:
             step_state = "MCOPFAILED"
+    atoms.info.pop("mcstep")
 
     return atoms
 
@@ -464,7 +457,7 @@ def evaluate_candidate(
 
 
 def canonical_candidates_from_worker_results(
-    results: list,
+    relaxed_candidates: List[Atoms],
     gen_num: int,
     extinct: int = 0,
     use_tags: bool = False,
@@ -474,7 +467,6 @@ def canonical_candidates_from_worker_results(
     target_property = property.get("target", "energy")
     chempot = property.get("chempot", None)
 
-    relaxed_candidates = [t[-1] for t in results]
     for candidate in relaxed_candidates:
         extra_info = dict(
             data={}, key_value_pairs={"generation": gen_num, "extinct": extinct}
@@ -510,11 +502,12 @@ class ConcurrentHopping(AbstractExpedition):
 
     def __init__(
         self,
-        operators,
+        monte_carlo,
         population: dict,
         convergence: dict,
         property: dict,
         builder=None,
+        worker=None,
         *args,
         **kwargs,
     ) -> None:
@@ -531,9 +524,10 @@ class ConcurrentHopping(AbstractExpedition):
         # Store initial parameters
         self._init_params = copy.deepcopy(
             dict(
-                operators=operators,
+                monte_carlo=monte_carlo,
                 population=population,
                 builder=builder,
+                worker=worker,
                 convergence=convergence,
                 property=property,
             )
@@ -548,7 +542,11 @@ class ConcurrentHopping(AbstractExpedition):
             self._print("Overwrite random_offspring_generator externally.")
 
         # Parse operators
+        self.mcsteps = monte_carlo.get("mcsteps")
+        operators = monte_carlo.get("operators")
         self.operators, self.op_probs = parse_operators(operators)
+        mcworker = monte_carlo.get("mcworker")
+        self.mcworker = canonicalise_worker(mcworker)
 
         # Some convergence criteria
         self.convergence = convergence
@@ -557,7 +555,12 @@ class ConcurrentHopping(AbstractExpedition):
         self.property = property
 
         # Worker should be lazy initialised before run
-        self.worker = None
+        self.worker = convert_input_to_computer(worker)
+
+        return
+
+    def register_worker(self, worker: dict, *args, **kwargs) -> None:  # type: ignore
+        """Overwrite this function as we need computer in this expedition."""
 
         return
 
@@ -565,7 +568,7 @@ class ConcurrentHopping(AbstractExpedition):
         """"""
         self._print(f"===== Concurrent Hopping =====")
         # Make sure we have everything for the expedition
-        assert self.worker is not None
+        # assert isinstance(self.worker, DriverBasedWorker)
 
         # Try to connect to a database
         database_fpath = self.directory / self.population.database_fname
@@ -607,10 +610,11 @@ class ConcurrentHopping(AbstractExpedition):
                 database=database, gen_num=gen_num, gen_state=gen_state
             )
             if not converged:
-                finished = self._irun(
+                is_finished = self._irun(
                     database=database, gen_num=gen_num, gen_state=gen_state
                 )
-                if not finished:
+                if not is_finished:
+                    self._print("Wait generation to finish.")
                     break  # Wait for the step to finish.
             else:
                 self.report(database)
@@ -634,8 +638,6 @@ class ConcurrentHopping(AbstractExpedition):
         gen_wdir = self.directory / "tmp_folder" / f"gen{gen_num}"
         gen_wdir.mkdir(parents=True, exist_ok=True)
 
-        assert isinstance(self.worker, DriverBasedWorker)
-
         # Run the initial population
         if gen_num == 0:
             # The first generation (gen-0)
@@ -657,14 +659,15 @@ class ConcurrentHopping(AbstractExpedition):
 
             for icand, candidate in enumerate(candidates):
                 self._print(f">>>>> cand{icand} confid {candidate.info['confid']}")
-                self.worker.driver.directory = gen_wdir / f"mc_{icand}"
+                self.mcworker.driver.directory = gen_wdir / f"mc_{icand}"
                 atoms = copy.deepcopy(candidate)
                 atoms_after_mc = run_monte_carlo_steps(
                     atoms,
-                    driver=self.worker.driver,
+                    identifier=icand,
+                    driver=self.mcworker.driver,
                     operators=self.operators,
                     probabilities=self.op_probs,
-                    mcsteps=self.population.mcsteps,
+                    mcsteps=self.mcsteps,
                     rng=self.rng,
                 )
                 database.add_unrelaxed_candidate(atoms_after_mc)
@@ -676,16 +679,11 @@ class ConcurrentHopping(AbstractExpedition):
         candidates_confids = [a.info["confid"] for a in candidates_to_explore]
         self._print(f"{candidates_confids=}")
 
-        self.worker.directory = gen_wdir
-        self.worker.run(candidates_to_explore)
-
-        # Try to retrieve results
-        finished = False
-        self.worker.inspect(resubmit=True)
-        if self.worker.get_number_of_running_jobs() == 0:
-            results = self.worker.retrieve(use_archive=False)  # TODO: use_archive?
+        is_finished = run_worker(candidates_to_explore, self.worker, directory=gen_wdir)  # type: ignore
+        if is_finished:
+            relaxed_candidates = read(gen_wdir/"results"/"end_frames.xyz", ":")
             explored_candidates = canonical_candidates_from_worker_results(
-                results,
+                relaxed_candidates,  # type: ignore
                 gen_num=gen_num,
                 extinct=0,
                 use_tags=True,
@@ -693,11 +691,8 @@ class ConcurrentHopping(AbstractExpedition):
             )
             for candidate in explored_candidates:
                 database.add_relaxed_step(candidate)
-            finished = True
-        else:
-            ...
-
-        return finished
+        
+        return is_finished
 
     def read_convergence(
         self,
