@@ -281,13 +281,13 @@ class DeepmdTrainer(AbstractTrainer):
         train_command = self.command
 
         # - add options
-        command = "{} train {}.json {}".format(train_command, self.name, self.train_options)
+        command = "{} train {}.json {} ".format(train_command, self.name, self.train_options)
         if init_model is not None:
             init_model_path = pathlib.Path(init_model).resolve()
             if init_model_path.name.endswith(".pb"):
-                command += "--init-frz-model {}".format(str(init_model_path))
+                command += " --init-frz-model {}".format(str(init_model_path))
             elif init_model_path.name.endswith("model.ckpt"):
-                command += "--init-model {}".format(str(init_model_path))
+                command += " --init-model {}".format(str(init_model_path))
             else:
                 raise RuntimeError(f"Unknown init_model {str(init_model_path)}.")
         command += " 2>&1 > {}.out".format(self.name)
