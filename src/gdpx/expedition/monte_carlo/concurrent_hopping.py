@@ -40,6 +40,8 @@ def infer_unique_atomic_numbers(
                 type_list.extend(list(Formula(p).count().keys()))
         elif hasattr(op, "species"):
             type_list.extend(list(Formula(op.species).count().keys()))
+        elif hasattr(op, "reservoir"):
+            type_list.extend(list(Formula(op.reservoir["species"]).count().keys()))
         else:
             ...
     if custom_atomic_types is not None:
@@ -209,7 +211,9 @@ class ConcurrentPopulation:
         num_selected = len(selected_candidates)
         self._print(f"population: [{num_selected}/{self.pop_size}]")
         for i, s_cand in enumerate(selected_candidates):
-            self._debug(f"cand{i:>4d} looks_like->{s_cand.info['looks_like']:>04d} n_paired->{s_cand.info['n_paired']:>04d}")
+            self._debug(
+                f"cand{i:>4d} looks_like->{s_cand.info['looks_like']:>04d} n_paired->{s_cand.info['n_paired']:>04d}"
+            )
 
         return selected_candidates
 
@@ -576,13 +580,23 @@ class ConcurrentHopping(AbstractExpedition):
 
         # Register minimum covalent bond distance used by operators
         # TODO: Maker a better interface?
+        bond_distance_dict = {}
+        if hasattr(
+            self.population.random_offspring_generator, "get_bond_distance_dict"
+        ):
+            bond_distance_dict.update(
+                self.population.random_offspring_generator.get_bond_distance_dict()  # type: ignore
+            )
         unique_atomic_numbers = infer_unique_atomic_numbers(
             operators=self.operators, custom_atomic_types=None, substrates=None
         )
-        for op in self.operators:
-            op.blmin = get_bond_distance_dict(
-                unique_atomic_numbers=unique_atomic_numbers, ratio=op.covalent_min
+        bond_distance_dict.update(
+            get_bond_distance_dict(
+                unique_atomic_numbers=unique_atomic_numbers, ratio=1.0
             )
+        )
+        for op in self.operators:
+            op.bond_distance_dict = bond_distance_dict
 
         # Run generations
         for _ in range(1000):
