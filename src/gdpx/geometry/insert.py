@@ -28,10 +28,10 @@ def insert_fragments_by_step(
     # Initialise a random number generator
     rng = np.random.Generator(np.random.PCG64(random_state))
 
-    # Overwrite tags for atoms in the substrate
+    # Assign tags for atoms in the substrate
     atoms = substrate
-    # atoms.set_tags(max(atoms.get_tags()) + 1)
-    atoms.set_tags(0)
+    tags = atoms.get_tags()
+    start_tag = int(tags.max())
 
     # Sort fragments by chemical formulae alphabetically
     fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
@@ -44,7 +44,7 @@ def insert_fragments_by_step(
     min_molecular_distance, max_molecular_distance = molecular_distances
     excluded_pairs = []
 
-    tag = 0
+    tag = start_tag
     candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.get_pbc())
     for frag in fragments:
         # find intra-molecular pairs
@@ -113,10 +113,10 @@ def insert_fragments_at_once(
     # Initialise a random number generator
     rng = np.random.Generator(np.random.PCG64(random_state))
 
-    # Overwrite tags for atoms in the substrate
+    # Assign tags for atoms in the substrate
     atoms = substrate
-    # atoms.set_tags(max(atoms.get_tags()) + 1)
-    atoms.set_tags(0)
+    tags = atoms.get_tags()
+    start_tag = int(tags.max())
 
     # Sort fragments by chemical formulae alphabetically
     fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
@@ -158,14 +158,14 @@ def insert_fragments_at_once(
 
         if is_molecule_valid:
             candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.pbc)
-            tag = 1
+            tag = start_tag
             assert candidate is not None
             for a, p in zip(fragments, random_positions):
                 # rotate and translate
                 a = copy.deepcopy(a)
                 a = translate_then_rotate(a, position=p, use_com=True, rng=rng)
-                a.set_tags(tag)
                 tag += 1
+                a.set_tags(tag)
 
             if check_atomic_distances(
                 candidate,
