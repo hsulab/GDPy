@@ -451,7 +451,7 @@ def evaluate_candidate(
         energy = atoms.get_potential_energy()
 
         formation_energy = energy - np.sum(
-            [chempot_dict[k] * v for k, v in identity_stats.items()]
+            [chempot_dict[k] * v for k, v in identity_stats.items()]  # type: ignore
         )
         atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
         atoms.info["key_value_pairs"]["target"] = formation_energy
@@ -529,12 +529,14 @@ class ConcurrentHopping(AbstractExpedition):
         super().__init__(*args, **kwargs)
 
         # Store initial parameters
-        self._init_params = dict(
-            operators=operators,
-            population=population,
-            builder=builder,
-            convergence=convergence,
-            property=property,
+        self._init_params = copy.deepcopy(
+            dict(
+                operators=operators,
+                population=population,
+                builder=builder,
+                convergence=convergence,
+                property=property,
+            )
         )
 
         # population
