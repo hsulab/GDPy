@@ -10,7 +10,7 @@ import numpy as np
 
 from ..core.operation import Operation
 from ..core.register import registers
-from ..core.variable import Variable
+from ..core.variable import Variable, DummyVariable
 from ..scheduler.interface import SchedulerVariable
 from ..worker.explore import ExpeditionBasedWorker
 from .expedition import AbstractExpedition
@@ -113,7 +113,7 @@ class explore(Operation):
     def __init__(
         self,
         expedition,
-        worker,
+        worker=DummyVariable(),
         scheduler=None,
         wait_time=60,
         active: bool = False,
