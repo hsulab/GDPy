@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 
 
+import enum
 import logging
 import pathlib
 from typing import List, Optional, Union
 
+from ase import Atoms
 from ase.io import read, write
 
 from .. import config
@@ -19,6 +21,9 @@ from ..worker.interface import ComputerVariable, ReactorVariable, ComputerChainV
 from .build import create_builder
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
+
+
+CompState = enum.Enum("CompState", ("QUEUED", "FINISHED"))
 
 
 def convert_input_to_computer(config):
@@ -62,6 +67,8 @@ def convert_config_to_computer(config):
         params = config
     else:  # assume it is json or yaml
         params = parse_input_file(input_fpath=config)
+
+    assert isinstance(params, dict)
 
     # NOTE: compatibility
     potter_params = params.pop("potter", None)
@@ -118,7 +125,7 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
     worker.inspect(resubmit=True, batch=batch)
 
     # check results
-    is_finished = False
+    comp_state = CompState.QUEUED
     if not spawn and worker.get_number_of_running_jobs() == 0:
         res_dir = directory / "results"
         if not res_dir.exists():
@@ -128,14 +135,14 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
                 end_frames = [traj[-1] for traj in ret]
                 write(res_dir / "end_frames.xyz", end_frames)
                 config._print(f"{directory.name} has already been retrieved.")
-                is_finished = True
+                comp_state = CompState.FINISHED
             else:
                 config._print(f"Reactor results cannot be retreived for now.")
         else:
             config._print(f"{directory.name} has already been retrieved.")
-            is_finished = True
+            comp_state = CompState.FINISHED
 
-    return is_finished
+    return comp_state
 
 
 def run_worker(
@@ -147,7 +154,7 @@ def run_worker(
     archive: bool = False,
     directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
 ):
-    """"""
+    """This computation is performed either by Computer or ComputerChain."""
     # some imported packages change `logging.basicConfig`
     # and accidently add a StreamHandler to logging.root
     # so remove it...
@@ -157,44 +164,60 @@ def run_worker(
         ):
             logging.root.removeHandler(h)
 
-    # set working directory
+    # Set working directory
     directory = pathlib.Path(directory)
     if not directory.exists():
         directory.mkdir()
 
-    # read structures
-    frames = []
-    for i, s in enumerate(structure):
-        builder = create_builder(s)
-        builder.directory = directory / "init" / f"s{i}"
-        frames.extend(builder.run())
+    # Read structures
+    if isinstance(structure[0], str):
+        frames = []
+        for i, s in enumerate(structure):
+            builder = create_builder(s)
+            builder.directory = directory / "init" / f"s{i}"
+            frames.extend(builder.run())
+    else:
+        assert isinstance(structure[0], Atoms)
+        frames = structure
 
-    # find input frames
+    # Find input frames
+    comp_states = []
     if isinstance(computer, ComputerVariable) or isinstance(computer, ReactorVariable):
         workers: List[DriverBasedWorker] = computer.value
         num_workers = len(workers)
         if num_workers == 1:
-            run_one_worker(frames, workers[0], directory, batch, spawn, archive)
+            comp_state = run_one_worker(frames, workers[0], directory, batch, spawn, archive)
+            comp_states.append(comp_state)
         else:
             for i, w in enumerate(workers):
-                run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
+                comp_state = run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
+                comp_states.append(comp_state)
     elif isinstance(computer, ComputerChainVariable):
         workers: List[DriverBasedWorker] = computer.value
+        num_workers = len(workers)
         curr_frames = frames
         for i, worker in enumerate(workers):
             config._print(f"<- ComputerChainStep.{str(i).zfill(2)} ->")
             chainstep_directory = directory/f"chainstep.{str(i).zfill(2)}"
-            is_finished = run_one_worker(curr_frames, worker, chainstep_directory, batch, spawn, archive)
-            if is_finished:
+            comp_state = run_one_worker(curr_frames, worker, chainstep_directory, batch, spawn, archive)
+            if comp_state == CompState.FINISHED:
                 config._print("chainstep is finished.")
                 curr_frames = read(chainstep_directory/"results"/"end_frames.xyz", ":")
+                # link to the results from the last chainstep
+                if i+1 == num_workers:
+                    (directory/"results").symlink_to((chainstep_directory/"results").relative_to(directory))
             else:
                 config._print("chainstep is not finished.")
                 break
     else:
         raise RuntimeError(f"Unknown computer `{computer}`.")
 
-    return
+    # Check computation states
+    is_finished = False
+    if all([comp_state == CompState.FINISHED for comp_state in comp_states]):
+        is_finished = True
+
+    return is_finished
 
 
 def convert_config_to_grid_components(grid_params: dict):

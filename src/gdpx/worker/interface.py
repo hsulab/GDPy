@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import itertools
 import pathlib
@@ -79,6 +80,12 @@ class ComputerChainVariable(Variable):
         value = self._canonicalise_input_nodes([computers])
         super().__init__(value)
 
+        self._init_params = copy.deepcopy(
+            dict(
+                computers=[c.as_dict() for c in value]
+            )
+        )
+
         return
     
     def _canonicalise_input_nodes(self, input_nodes):
@@ -108,6 +115,11 @@ class ComputerChainVariable(Variable):
             value.append(computer.value[0])
 
         return value
+    
+    def as_dict(self) -> dict:
+        """"""
+
+        return self._init_params
 
 
 @registers.variable.register
@@ -129,6 +141,23 @@ class ComputerVariable(Variable):
         directory=pathlib.Path.cwd(),
     ):
         """"""
+        # Save input parameters
+        self._init_params = copy.deepcopy(
+            dict(
+                potter = potter,
+                driver = driver,
+                scheduler = scheduler,
+                use_grid = use_grid,
+                estimate_uncertainty = estimate_uncertainty,
+                switch_backend = switch_backend,
+                batchsize = batchsize,
+                share_wdir = share_wdir,
+                use_single = use_single,
+                retain_info = retain_info,
+            )
+        )
+
+        # Canonicalise components
         self.potter = broadcast_and_adjust_potter(
             potter,
             estimate_uncertainty=estimate_uncertainty,
@@ -259,6 +288,11 @@ class ComputerVariable(Variable):
             workers = [worker]
 
         return workers
+
+    def as_dict(self) -> dict:
+        """"""
+
+        return self._init_params
 
 
 @registers.variable.register
