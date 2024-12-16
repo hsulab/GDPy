@@ -81,9 +81,7 @@ class ComputerChainVariable(Variable):
         super().__init__(value)
 
         self._init_params = copy.deepcopy(
-            dict(
-                computers=[c.as_dict() for c in value]
-            )
+            [c.as_dict() for c in value]
         )
 
         return
