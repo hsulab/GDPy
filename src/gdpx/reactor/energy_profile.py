@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import dataclasses
 import pathlib
-from typing import List
+from typing import List, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 from scipy.interpolate import BPoly, CubicSpline
 
 plt.style.use("presentation")
@@ -53,6 +53,9 @@ class ThermoStructure:
 
     frequency: str = ""
 
+    # Pressure in [bar].
+    pressure: Optional[float] = None
+
     energy_shift: float = 0.
 
     def __post_init__(self):
@@ -65,8 +68,11 @@ class ThermoStructure:
 
         return
 
-    def compute_free_energies(self, temperature, pressure):
+    def compute_free_energy(self, temperature):
         """
+        Note:
+            Pressure should be provided as the gas molecules may have different
+            partial pressures.
 
         Args:
             temperature: K
@@ -81,6 +87,8 @@ class ThermoStructure:
                     temperature=temperature
                 )
             else:  # dict
+                if self.pressure is None:
+                    raise Exception("Molecule free energy correction must have pressure.")
                 freq_wdir = self.frequency["wdir"]
                 vib_energies = read_vibrations(freq_wdir)
 
@@ -95,7 +103,7 @@ class ThermoStructure:
                     spin=spin,
                 )
                 free_energy_correction = thermo.get_gibbs_energy(
-                    temperature=temperature, pressure=pressure * 1e5
+                    temperature=temperature, pressure=self.pressure * 1e5
                 )
         else:
             free_energy_correction = 0.0
@@ -281,8 +289,8 @@ class EnergyDiagram:
         label="reaction pathway",
         start=0.0,
         end=None,
-        shift: float = 0.0,
         cshift: float = 0,
+        ylim = None,
         color="k",
         add_text: bool = True,
         add_ticks: bool = False,
@@ -367,21 +375,24 @@ class EnergyDiagram:
                 apexes.append(grp[1])
 
         energies = np.array(energies)
-        ene_min, ene_max = np.min(energies+shift), np.max(energies+shift)
-        ylow = (ene_min//0.5)*0.5
-        if -1e8 <= ylow < 1e-8:
-            ylow -= 0.5
-        yhigh = (ene_max//0.5+1)*0.5
-        if (yhigh-ene_max-0.5) < 0:
-            yhigh += 0.5
-        ylimit = yhigh-ylow
+        if ylim is None:
+            ene_min, ene_max = np.min(energies+cshift), np.max(energies+cshift)
+            ylow = (ene_min//0.5)*0.5
+            if -1e8 <= ylow < 1e-8:
+                ylow -= 0.5
+            yhigh = (ene_max//0.5+1)*0.5
+            if (yhigh-ene_max-0.5) < 0:
+                yhigh += 0.5
+        else:
+            ylow, yhigh = ylim
+        ylimit = yhigh - ylow
         ax.set_ylim([ylow, yhigh])
 
         mediates = set(mediates)
         lines = []
         for i in mediates:
             pos = coordinates[i]
-            ene = energies[i] + shift
+            ene = energies[i]
             l = ax.plot(
                 [pos - eps, pos + eps], [ene + cshift, ene + cshift], color=color
             )
@@ -393,8 +404,10 @@ class EnergyDiagram:
                 transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                 horizontalalignment="center",
                 verticalalignment="bottom",
+                fontsize="x-large"
             )
 
+        # Add points for transition states
         ax.scatter(
             [x + start for x in apexes],
             [energies[i] + cshift for i in apexes],
@@ -404,7 +417,7 @@ class EnergyDiagram:
         )
         for i in apexes:
             pos = coordinates[i]
-            ene = energies[i] + shift
+            ene = energies[i]
             ax.text(
                 pos,
                 (ene + cshift - ylow)/ylimit+0.02,
@@ -413,6 +426,7 @@ class EnergyDiagram:
                 color="r",
                 horizontalalignment="center",
                 verticalalignment="bottom",
+                fontsize="x-large"
             )
 
         if add_text:
@@ -420,7 +434,7 @@ class EnergyDiagram:
                 pos = coordinates[i]
                 ax.text(
                     pos,
-                    energies[i] + shift + cshift - 0.02,
+                    energies[i] + cshift - 0.02,
                     names[i],
                     horizontalalignment="center",
                     verticalalignment="top",
@@ -430,9 +444,9 @@ class EnergyDiagram:
         if add_ticks:
             maxlen = max([len(n) for n in names])
             if maxlen <= 6:
-                ax.set_xticks(coordinates, names, rotation=15, fontsize=24)
+                ax.set_xticks(coordinates, names, rotation=15, fontsize="x-large")
             else:
-                ax.set_xticks(coordinates, names, rotation=15, fontsize=18)
+                ax.set_xticks(coordinates, names, rotation=15, fontsize="large")
 
         # custom_lines = [matplotlib.lines.Line2D([0], [0], color=color, lw=4)]
         # ax.legend(custom_lines, [label])
