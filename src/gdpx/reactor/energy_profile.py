@@ -444,9 +444,9 @@ class EnergyDiagram:
         if add_ticks:
             maxlen = max([len(n) for n in names])
             if maxlen <= 6:
-                ax.set_xticks(coordinates, names, rotation=15, fontsize="x-large")
+                ax.set_xticks(coordinates, names, rotation=-15, fontsize="x-large")
             else:
-                ax.set_xticks(coordinates, names, rotation=15, fontsize="large")
+                ax.set_xticks(coordinates, names, rotation=-15, fontsize="large")
 
         # custom_lines = [matplotlib.lines.Line2D([0], [0], color=color, lw=4)]
         # ax.legend(custom_lines, [label])
