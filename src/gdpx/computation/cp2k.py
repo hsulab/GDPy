@@ -44,6 +44,31 @@ class SinglePointController(Controller):
 
         return
 
+@dataclasses.dataclass
+class FrequencyController(Controller):
+
+    #: Controller name.
+    name: str = "frequency"
+
+    #: Save checkpoint every.
+    ckpt_period: int = 100
+
+    #: The finite difference.
+    maxstep: float = 0.01
+
+    def __post_init__(self):
+        """"""
+        self.conv_params = [
+            ("GLOBAL", "RUN_TYPE VIBRATIONAL_ANALYSIS"),
+            ("VIBRATIONAL_ANALYSIS", f"DX {self.maxstep}"),
+            ("VIBRATIONAL_ANALYSIS", "NPROC_REP 16"),
+            # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "INITIAL_GUESS ATOMIC"),
+            # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_NORM 1.0E-5"),
+            # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_MAX_VAL 1.0E-6"),
+        ]
+
+        return
+
 
 @dataclasses.dataclass
 class MotionController(Controller):
@@ -243,6 +268,8 @@ controllers = dict(
     csvr_nvt=CSVRThermostat,
     nose_hoover_nvt=NoseHooverThermostat,
     martyna_npt=MartynaBarostat,
+    # - freq
+    finite_difference_freq=FrequencyController,
 )
 
 default_controllers = dict(
@@ -252,7 +279,7 @@ default_controllers = dict(
     nvt=CSVRThermostat,
     npt=MartynaBarostat,
     # TODO: Make this a submodule!
-    freq=Controller,
+    freq=FrequencyController,
 )
 
 
@@ -289,17 +316,6 @@ class Cp2kDriverSetting(DriverSetting):
                 pressure=self.press,
             )
         elif self.task == "freq":
-            # TODO: Make this a submodule!
-            pairs.extend(
-                [
-                    ("GLOBAL", "RUN_TYPE VIBRATIONAL_ANALYSIS"),
-                    ("VIBRATIONAL_ANALYSIS", "DX 0.01"),
-                    ("VIBRATIONAL_ANALYSIS", "NPROC_REP 16"),
-                    # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "INITIAL_GUESS ATOMIC"),
-                    # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_NORM 1.0E-5"),
-                    # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_MAX_VAL 1.0E-6"),
-                ]
-            )
             suffix = "freq"
         else:
             suffix = self.task
