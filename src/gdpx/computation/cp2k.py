@@ -159,8 +159,13 @@ class MDController(MotionController):
         more_params = [
             ("GLOBAL", "RUN_TYPE MD"),
             ("MOTION/MD", f"TIMESTEP {self.timestep}"),
+            ("MOTION/MD", f"TEMPERATURE {self.temperature}"),
             ("MOTION/PRINT/RESTART_HISTORY/EACH", f"MD {self.ckpt_period}"),
         ]
+
+        # TODO: Check remove_rotation and remove_translation,
+        #       CP2K initialise velocities without net translation,
+        #       and the ANGVEL_ZERO seems not to work with pbc systems.
 
         self.conv_params.extend(more_params)
 
@@ -199,6 +204,7 @@ class NoseHooverThermostat(MDController):
 
         more_params = [
             ("MOTION/MD", "ENSEMBLE NVT"),
+            ("MOTION/MD/THERMOSTAT", f"TYPE NOSE"),
             ("MOTION/MD/THERMOSTAT/NOSE", f"TIMECON {taut}"),
         ]
 
@@ -221,6 +227,7 @@ class CSVRThermostat(MDController):
 
         more_params = [
             ("MOTION/MD", "ENSEMBLE NVT"),
+            ("MOTION/MD/THERMOSTAT", f"TYPE CSVR"),
             ("MOTION/MD/THERMOSTAT/CSVR", f"TIMECON {taut}"),
         ]
 
@@ -247,6 +254,7 @@ class MartynaBarostat(MDController):
 
         more_params = [
             ("MOTION/MD", "ENSEMBLE NPT_I" if isotropic else "ENSEMBLE NPT_F"),
+            ("MOTION/MD/THERMOSTAT", f"TYPE NOSE"),
             ("MOTION/MD/THERMOSTAT/NOSE", f"TIMECON {taut}"),
             ("MOTION/MD/BAROSTAT", f"PRESSURE {self.pressure}"),
             ("MOTION/MD/BAROSTAT", f"TIMECON {taup}"),
