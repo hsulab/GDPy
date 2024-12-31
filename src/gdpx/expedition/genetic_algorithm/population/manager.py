@@ -83,9 +83,6 @@ class AbstractPopulationManager:
 
     _print = print
 
-    #: Reproduction and mutation.
-    MAX_REPROC_TRY: int = 1
-
     #: Maximum attempts to generate new structures.
     MAX_ATTEMPTS_MULTIPLIER: int = 10
 
@@ -316,7 +313,9 @@ class AbstractPopulationManager:
                         f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
                     )
                 else:
-                    ...  # Reproduction failed.
+                    self._print(
+                        f"  reproduction failed"
+                    )
                 if len(paired_structures) == self.gen_rep_size:
                     break
             else:
@@ -498,125 +497,119 @@ class AbstractPopulationManager:
         if not (num_structures_in_population > 0):
             raise RuntimeError("Not enough structures in the current population. Some errors must have occurred before.")
 
-        a3 = None
-        for _ in range(self.MAX_REPROC_TRY):
-            if num_structures_in_population >= 2:
-                if pairing.allow_variable_composition:
+        if num_structures_in_population >= 2:
+            if pairing.allow_variable_composition:
+                parents = population.get_two_candidates()
+                natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
+                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
+            else:
+                for _ in range(100):
                     parents = population.get_two_candidates()
-                    natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                    self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
+                    # TODO: Move this check to population?
+                    if parents is not None:
+                        natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
+                        if natoms_p0 == natoms_p1:
+                            symbols_p0, symbols_p1 = parents[0].get_chemical_symbols(), parents[1].get_chemical_symbols()
+                            if symbols_p0 == symbols_p1:
+                                tags_dict = get_tags_per_species(parents[0])
+                                identities = " ".join([k+"_"+str(len(v)) for k, v in tags_dict.items()])
+                                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1} composition: {identities}")
+                                break
                 else:
-                    for _ in range(100):
-                        parents = population.get_two_candidates()
-                        # TODO: Move this check to population?
-                        if parents is not None:
-                            natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                            if natoms_p0 == natoms_p1:
-                                symbols_p0, symbols_p1 = parents[0].get_chemical_symbols(), parents[1].get_chemical_symbols()
-                                if symbols_p0 == symbols_p1:
-                                    tags_dict = get_tags_per_species(parents[0])
-                                    identities = " ".join([k+"_"+str(len(v)) for k, v in tags_dict.items()])
-                                    self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1} composition: {identities}")
-                                    break
-                    else:
-                        self._print(
-                            f"Cannot find two parents after 100 attempts from a population of {len(population.pop)}."
-                        )
-                        self._print(f"Get one parent and perform parthenogenesis.")
-                        parent_0 = population.get_one_candidate()
-                        assert parent_0 is not None
-                        parents = [parent_0]
-                        natoms_p0 = len(parents[0])
+                    self._print(
+                        f"Cannot find two parents after 100 attempts from a population of {len(population.pop)}."
+                    )
+                    self._print(f"Get one parent and perform parthenogenesis.")
+                    parent_0 = population.get_one_candidate()
+                    assert parent_0 is not None
+                    parents = [parent_0]
+                    natoms_p0 = len(parents[0])
+        else:
+            # We only have one structure
+            parents = [copy.deepcopy(population.pop[0])]
+            natoms_p0 = len(parents[0])
+
+        # We need adjust n_top of some operators for comptability.
+        curr_ntop = natoms_p0 - num_atoms_substrate
+        if hasattr(pairing, "n_top"):
+            prev_ntop = pairing.n_top
+            self._print(f"  pairing  {prev_ntop =} -> {curr_ntop =}")
+            pairing.n_top = curr_ntop
+            assert natoms_p0 == pairing.n_top + num_atoms_substrate
+        else:
+            prev_ntop = curr_ntop
+
+        # Perform the crossover and the mutations.
+        a3 = None
+        if len(parents) == 2:
+            # This also adds key_value_pairs to a.info
+            is_parthenogenesis = False
+            a3, desc = pairing.get_new_individual(
+                parents
+            )  
+        else:  # Not enough structures in the current population
+            # TODO: Better refactor codes here to separate
+            #       amphigenesis and parthenogenesis
+            is_parthenogenesis = True
+            a3, desc = parents[0], f"pairing: {parents[0].info['confid']} {parents[0].info['confid']}"
+            a3.info["data"] = dict(parents=[parents[0].info['confid'], parents[0].info['confid']])
+            a3.info["key_value_pairs"]["origin"] = "Parthenogenesis"
+
+        chem_form = a3.get_chemical_formula() if a3 is not None else None
+        self._print(f"  {is_parthenogenesis=}  {chem_form=}")
+
+        # adjust mutation n_tops
+        for mutation in mutations.oplist:
+            if hasattr(mutation, "n_top"):
+                self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
+                mutation.n_top = curr_ntop
+                assert natoms_p0 == mutation.n_top + num_atoms_substrate
+
+        if a3 is not None:
+            # We need update curr_ntop as a variable crossover may be performed.
+            curr_ntop = len(a3) - num_atoms_substrate
+
+            a3.info["key_value_pairs"]["generation"] = curr_gen
+            database.add_unrelaxed_candidate(
+                a3,
+                description=desc,  # here, desc is used to add "pairing": 1 to database
+            )  # if mutation happens, it will not be relaxed
+            self._print(f"  confid= {a3.info['confid']} ")
+
+            # mutate atoms in the mobile group
+            # a3 may be changed from a valid offspring to None due to parthenogenesis
+            curr_prob = self.rng.random()
+            if curr_prob < self.pmut or is_parthenogenesis:
+                a3_mut, mut_desc = mutations.get_new_individual([a3])
+                if a3_mut is not None:
+                    database.add_unrelaxed_step(a3_mut, mut_desc)
+                    a3 = a3_mut
+                    self._print(f"  mobile: {desc}  {mut_desc}")
+                else:
+                    self._print(f"  mobile: {desc}")  # Mutate failed.
+                    if is_parthenogenesis:
+                        self._print("  single-parent reproduction-mutation failed.")
+                        a3 = None  # single-parent reproduction must mustate
             else:
-                # We only have one structure
-                parents = [copy.deepcopy(population.pop[0])]
-                natoms_p0 = len(parents[0])
+                self._print(f"  mobile: {desc}")  # No mutation is applied.
 
-            # We need adjust n_top of some operators for comptability.
-            curr_ntop = natoms_p0 - num_atoms_substrate
-            if hasattr(pairing, "n_top"):
-                prev_ntop = pairing.n_top
-                self._print(f"  pairing  {prev_ntop =} -> {curr_ntop =}")
-                pairing.n_top = curr_ntop
-                assert natoms_p0 == pairing.n_top + num_atoms_substrate
-            else:
-                prev_ntop = curr_ntop
-
-            # Perform the crossover and the mutations.
-            if len(parents) == 2:
-                # This also adds key_value_pairs to a.info
-                is_parthenogenesis = False
-                a3, desc = pairing.get_new_individual(
-                    parents
-                )  
-            else:  # Not enough structures in the current population
-                # TODO: Better refactor codes here to separate
-                #       amphigenesis and parthenogenesis
-                is_parthenogenesis = True
-                a3, desc = parents[0], f"pairing: {parents[0].info['confid']} {parents[0].info['confid']}"
-                a3.info["data"] = dict(parents=[parents[0].info['confid'], parents[0].info['confid']])
-                a3.info["key_value_pairs"]["origin"] = "Parthenogenesis"
-
-            # adjust mutation n_tops
-            for mutation in mutations.oplist:
-                if hasattr(mutation, "n_top"):
-                    self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
-                    mutation.n_top = curr_ntop
-                    assert natoms_p0 == mutation.n_top + num_atoms_substrate
-
-            if a3 is not None:
-                # We need update curr_ntop as a variable crossover may be performed.
-                curr_ntop = len(a3) - num_atoms_substrate
-
-                a3.info["key_value_pairs"]["generation"] = curr_gen
-                database.add_unrelaxed_candidate(
-                    a3,
-                    description=desc,  # here, desc is used to add "pairing": 1 to database
-                )  # if mutation happens, it will not be relaxed
-                self._print(f"  confid= {a3.info['confid']} ")
-
-                # mutate atoms in the mobile group
+            # mutate atoms in the custom group
+            if custom_mutations is not None:
                 curr_prob = self.rng.random()
-                if curr_prob < self.pmut or is_parthenogenesis:
-                    a3_mut, mut_desc = mutations.get_new_individual([a3])
-                    if a3_mut is not None:
-                        database.add_unrelaxed_step(a3_mut, mut_desc)
-                        a3 = a3_mut
-                        self._print(f"  mobile: {desc}  {mut_desc}")
-                    else:
-                        self._print(f"  mobile: {desc}")  # Mutate failed.
-                        if is_parthenogenesis:
-                            self._print("  single-parent reproduction-mutation failed.")
-                            a3 = None
-                            continue  # single-parent reproduction must mustate
-                else:
-                    self._print(f"  mobile: {desc}")  # No mutation is applied.
-
-                # mutate atoms in the custom group
-                if custom_mutations is not None:
-                    curr_prob = self.rng.random()
-                    if curr_prob < self.pmut_custom:
-                        a3_bmut, bmut_desc = custom_mutations.get_new_individual([a3])
-                        if a3_bmut is not None:
-                            database.add_unrelaxed_step(a3_bmut, bmut_desc)
-                            a3 = a3_bmut
-                            self._print(f"  custom: {bmut_desc}")
-                        else:
-                            ...
+                if curr_prob < self.pmut_custom:
+                    a3_bmut, bmut_desc = custom_mutations.get_new_individual([a3])
+                    if a3_bmut is not None:
+                        database.add_unrelaxed_step(a3_bmut, bmut_desc)
+                        a3 = a3_bmut
+                        self._print(f"  custom: {bmut_desc}")
                     else:
                         ...
                 else:
                     ...
-
-                # a3 may be changed from a valid offspring to None due to parthenogenesis
-                if a3 is not None:
-                    break
             else:
-                ...  # Reproduce failed.
+                ...
         else:
-            self._print(
-                f"  cannot reproduce offspring a3 after {self.MAX_REPROC_TRY} attempts"
-            )
+            ...  # Reproduce failed.
 
         # restorre n_top, custom mutations should not have n_top...
         if hasattr(pairing, "n_top"):

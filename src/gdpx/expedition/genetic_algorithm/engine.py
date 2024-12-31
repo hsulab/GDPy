@@ -782,10 +782,20 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # We may not overwrite operators' covalent_ratio setting.
         # specific_params.update(covalent_ratio=self.generator.covalent_ratio)
 
+        # The operators from ase (should be deprecated) use blmin and can only
+        # check too_close since cov_max is not given while
+        # the newly implemented operators by us use bond_distance_dict and 
+        # can check too_close and too_far based on covalent_ratio.
+        # Also, the new random structure generator (random_surface_improved) uses
+        # bond_distance_dict and covalent_ratio.
+        # Thus, be careful when using random structure generator and operator in a 
+        # mixed way, either old generator with new operator or vice versa,
+        # leading inconsistency in bond distance check.
         if hasattr(self.generator, "get_bond_distance_dict"):
+            blmin = self.generator.get_bond_distance_dict(ratio=self.generator.covalent_ratio[0])
             bond_distance_dict = self.generator.get_bond_distance_dict()
             specific_params.update(
-                blmin=bond_distance_dict,
+                blmin=blmin,
                 bond_distance_dict=bond_distance_dict,
             )
         else:
