@@ -3,7 +3,7 @@
 
 
 import copy
-from typing import List, Optional, Tuple
+from typing import Optional 
 
 import numpy as np
 from ase import Atoms
@@ -16,7 +16,7 @@ def pick_one_particle(
     atoms: Atoms,
     identity_list: list,
     rng: np.random.Generator = np.random.default_rng(),
-) -> Tuple[Atoms, int, List[int]]:
+) -> tuple[Atoms, int, list[int]]:
     """"""
     num_entries = len(identity_list)
     picked = rng.choice(num_entries, size=1)[0]
@@ -28,7 +28,7 @@ def pick_one_particle(
 
 
 def debug_swapped_positions(
-    atoms: Atoms, pick_one: List[int], pick_two: List[int], prefix: str = "actual"
+    atoms: Atoms, pick_one: list[int], pick_two: list[int], prefix: str = "actual"
 ) -> None:
     """"""
     particle_one = atoms[pick_one]  # default copy
@@ -57,16 +57,31 @@ def swap_particles_by_step(
     num_swaps: int,
     bond_distance_dict: dict,
     covalent_ratio: list = [0.8, 2.0],
+    intra_bond_pairs: list[tuple[int, int]]=[],
     max_attempts: Optional[int] = None,
     rng: np.random.Generator = np.random.default_rng(),
-) -> Tuple[Optional[Atoms], str]:
-    """"""
+) -> tuple[Optional[Atoms], str]:
+    """Swap particles several times.
+
+    Args:
+        atoms: The input structure.
+        identities: The dict with particles.
+        num_swaps: The number of swaps.
+        bond_distance_dict: The common distance for covalent bonds.
+        covalent_ratio: The minimum and maxmimum ratios for covalent bond distances.
+        intra_bond_pairs: The bonds ignored by distance check.
+        max_attempts: The maxmimum attempts to swap.
+        rng: The random number generator.
+        
+    Returns:
+        The updated structure and information about swap successes and attempts.
+
+    """
+    # Set the maximum attempts to swap
     if max_attempts is None:
         max_attempts = num_swaps * 10
 
-    # TODO: Ignore what bond pairs?
-    intra_bond_pairs = []
-
+    # Get particle types and try to swap
     particle_types = list(identities.keys())
     num_particle_types = len(particle_types)
 
