@@ -96,35 +96,33 @@ class AbstractPopulationManager:
             raise Exception("Population name must be `constant` or `variable`.")
         self.name = name
 
-        # - gen params
-        gen_params = params.get("gen", dict(size=20, reproduce=20, random=0))
-        self.gen_size = gen_params.get("size", None)
-        assert isinstance(
-            self.gen_size, int
-        ), "size of generaton needs to be an integer."
-
-        self.gen_ran_size = gen_params.get("random", 0)
-        self.gen_ran_max_try = gen_params.get(
-            "max_random_try", self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER
-        )
-
-        self.gen_rep_size = gen_params.get("reprod", self.gen_size - self.gen_ran_size)
-        self.gen_rep_max_try = gen_params.get(
-            "max_reprod_try", self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER
-        )
-
-        self.gen_mut_size = gen_params.get(
-            "mutate", self.gen_size - self.gen_ran_size - self.gen_rep_size
-        )
-
-        # - init params
+        # Get structure origins for the initial generation
+        # TODO: Support mutations for seed structures?
         init_params = params.get("init", dict(size=20, seed_file=None))
         self.init_size = init_params.get("size", None)
         self.init_seed_file: Optional[Union[str, pathlib.Path, List[Atoms]]] = (
             init_params.get("seed_file", None)
         )
 
-        # - check if params were valid
+        # Get number of structures from different origins in one generation
+        gen_params = params.get("gen", dict(size=20))
+        self.gen_size = gen_params.get("size", None)
+        if not isinstance(self.gen_size, int):
+            raise Exception(f"The generaton size needs to be an integer instead of `{self.gen_size}`.")
+
+        self.gen_ran_size = gen_params.get("random", 0)
+        self.gen_ran_max_try = gen_params.get(
+            "max_random_try", self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER
+        )
+
+        self.gen_mut_size = gen_params.get("mutate", 0)
+
+        self.gen_rep_size = gen_params.get("reprod", self.gen_size - self.gen_ran_size - self.gen_mut_size)
+        self.gen_rep_max_try = gen_params.get(
+            "max_reprod_try", self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER
+        )
+
+        # Check all numbers are valid
         assert (
             self.gen_rep_size + self.gen_ran_size + self.gen_mut_size
         ) == self.gen_size, "In each generation, the sum of each component does not equal the total size."
@@ -138,7 +136,7 @@ class AbstractPopulationManager:
             self.gen_mut_size <= self.gen_size
         ), "In each generation, the mutate size should not be larger than the total size."
 
-        # - mutation
+        # Mutation probabilities
         self.pmut = params.get("pmut", 0.5)
         self.pmut_custom = params.get("params", 0.5)
 
