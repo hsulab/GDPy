@@ -3,12 +3,11 @@
 
 
 import itertools
-from typing import List, Mapping
 
 from ase import Atoms
 
 
-def get_tags_per_species(atoms: Atoms) -> Mapping[str, Mapping[int, List[int]]]:
+def get_tags_per_species(atoms: Atoms) -> dict[str, list[tuple[int, list[int]]]]:
     """Get tags per species.
 
     Args:
@@ -26,23 +25,21 @@ def get_tags_per_species(atoms: Atoms) -> Mapping[str, Mapping[int, List[int]]]:
             >>> tags = [0, 0, 0, 1, 1, 2, 2]
             >>> atoms.set_tags(tags)
             >>> get_tags_per_species(atoms)
-            >>> {'Pt3': {0: [0,1,2]}, 'CO': {1: [3,4], 2: [5,6]}}
+            >>> {'Pt3': [(0, [0,1,2])], 'CO': [(1, [3,4]), (2, [5,6])]}
 
     """
+    # Get tags which is all zero for default
+    tags = atoms.get_tags()
 
-    tags = atoms.get_tags()  # default is all zero
-
-    tags_dict = {}  # species -> tag list
+    # Group atoms by tags
+    tags_dict = {}
     for key, group in itertools.groupby(enumerate(tags), key=lambda x: x[1]):
-        cur_indices = [x[0] for x in group]
-        # print(key, " :", cur_indices)
-        cur_atoms = atoms[cur_indices]
-        formula = cur_atoms.get_chemical_formula()
-        # print(formula)
-        # print(key)
+        atomic_indices = [x[0] for x in group]
+        entity = atoms[atomic_indices]  # This gives an Atoms object
+        formula = entity.get_chemical_formula()  # type: ignore
         if formula not in tags_dict:
             tags_dict[formula] = []
-        tags_dict[formula].append([key, cur_indices])
+        tags_dict[formula].append((key, atomic_indices))
 
     return tags_dict
 
