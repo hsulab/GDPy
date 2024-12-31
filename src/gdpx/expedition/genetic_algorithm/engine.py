@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import collections
 import copy
 import inspect
@@ -234,7 +235,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             ga_dict["population"], rng=self.rng
         )
 
-        # sanity check on target property
+        # Sanity check on target property
         self.prop_dict = ga_dict.get("property", dict(target="energy"))
         target = self.prop_dict.get("target", None)
         assert target in [
@@ -260,6 +261,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 )
         else:
             ...
+        self.target = target
 
         # --- convergence ---
         self.conv_dict = ga_dict["convergence"]
@@ -296,8 +298,6 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         all_relaxed_candidates = self.da.get_all_relaxed_candidates()
         write(results / "all_candidates.xyz", all_relaxed_candidates)
 
-        target = self.prop_dict["target"]
-
         # plot population evolution
         data = []
         gen_num = get_generation_number(self.da)  # equals finished generation plus one
@@ -328,7 +328,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         ax.set_title("Population Evolution")
         for i, properties in data:
             ax.scatter([i] * len(properties), properties, alpha=0.5)
-        ax.set(xlabel="generation", xticks=range(gen_num), ylabel=target)
+        ax.set(xlabel="generation", xticks=range(gen_num), ylabel=self.target)
         fig.savefig(results / "pop.png", bbox_inches="tight")
         plt.close()
 
@@ -350,10 +350,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         This is useful for running optimisations with serial worker.
 
         """
-        # - search target
+        # Search target
         self._print(f"===== Genetic Algorithm =====")
-        target = self.prop_dict["target"]
-        self._print(f"Target of Global Optimisation is {target}")
+        self._print(f"Target of Global Optimisation is {self.target}")
 
         # - worker info
         self._print("===== register worker =====")
@@ -380,13 +379,17 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             ...
 
         # NOTE: check database existence and generation number to determine restart
+        self._print("===== register database =====")
         self._debug(f"database path: {str(self.db_path)}")
         if not self.db_path.exists():
-            self._print("----- create a new database -----")
+            self._print("create a new database...")
             self._create_initial_population()
         else:
             self._print("restart the database...")
             self.da = DataConnection(self.db_path)
+
+        num_atoms_substrate = self.da.get_param("num_atoms_substrate")
+        self._print(f"{num_atoms_substrate=}")
 
         # --- mutation and comparassion operators
         self._print("===== register operators =====")
@@ -902,13 +905,32 @@ class GeneticAlgorithmEngine(AbstractExpedition):
     def _create_initial_population(
         self,
     ):
-        # create the database to store information in
+        # For all targets, we must have tags to infer num_atoms_substrate.
+        # Thus, we can have a crystal substrate and include part of its atoms
+        # for further crossover and mutation.
+        substrate = self.generator._substrate
+        num_atoms = len(substrate)
+
+        tags = substrate.get_tags()
+        if tags.shape[0] == 0:
+            num_atoms_substrate = num_atoms
+        else:
+            substrate_atomic_indices = [i for i in range(num_atoms) if tags[i] == 0]
+            if sorted(substrate_atomic_indices) == list(range(min(substrate_atomic_indices), max(substrate_atomic_indices) + 1)):
+                ...
+            else:
+                raise Exception("The atoms (tag == 0) in the substrate must be consecutive.")
+            num_atoms_substrate = len(substrate_atomic_indices)
+
+        canonicalised_substrate = substrate[:num_atoms_substrate]
+
+        # Create the database to store information in
         da = PrepareDB(
             db_file_name=self.db_path,
-            simulation_cell=self.generator._substrate,
-            # stoichiometry=self.generator.composition_atom_numbers,
+            simulation_cell=canonicalised_substrate,
         )
 
+        # Generate structures for the initial population
         starting_population = self.pop_manager._prepare_initial_population(
             generator=self.generator
         )
@@ -917,11 +939,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         for a in starting_population:
             da.add_unrelaxed_candidate(a)
 
+        # Save some global information in the database
         # TODO: change this to the DB interface
         row = da.c.get(1)
         new_data = row["data"].copy()
         new_data["population_size"] = self.pop_manager.gen_size
         new_data["initial_population_size"] = self.pop_manager.init_size
+        new_data["num_atoms_substrate"] = num_atoms_substrate
+
         da.c.update(1, data=new_data)
 
         self.da = DataConnection(self.db_path)
@@ -953,8 +978,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         ), "candidate already has raw_score before evaluation"
 
         # evaluate based on target property
-        target = self.prop_dict["target"]
-        if target == "energy":
+        if self.target == "energy":
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
@@ -976,7 +1000,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     atoms.info["key_value_pairs"]["raw_score"] = -energy
                 else:
                     atoms.info["key_value_pairs"]["raw_score"] = -1e8
-        elif target == "formation_energy":
+        elif self.target == "formation_energy":
             identity_stats = atoms.info.get("identity_stats", None)
             assert (
                 identity_stats is not None
@@ -990,7 +1014,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             )
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
             atoms.info["key_value_pairs"]["target"] = formation_energy
-        elif target == "reaction_energy":
+        elif self.target == "reaction_energy":
             ...  # TODO: ...
         else:
             raise RuntimeError(f"Unknown target {target}...")

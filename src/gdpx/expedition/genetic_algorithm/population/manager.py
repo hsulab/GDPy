@@ -294,10 +294,9 @@ class AbstractPopulationManager:
         current_candidates = []
 
         # We need adjust n_top for the variable composition search.
-        slab = database.get_slab()
-        num_atoms_substrate = len(slab)
+        num_atoms_substrate = database.get_param("num_atoms_substrate")
 
-        # - reproduction and then mutation
+        # Produce structures by reproduction plus mutation
         rest_rep_size = self.gen_rep_size - num_paired
         paired_structures = []
         paired_structures.extend(candidate_groups.get("paired", []))
@@ -326,7 +325,7 @@ class AbstractPopulationManager:
             ...
         current_candidates.extend(paired_structures)
 
-        # - random
+        # Produce random structures
         if len(paired_structures) < self.gen_rep_size:
             self._print("There is not enough reproduced (paired) structures.")
             self._print(
@@ -383,7 +382,7 @@ class AbstractPopulationManager:
             ...
         current_candidates.extend(random_structures)
 
-        # - mutate
+        # Produce mutated structures
         if len(current_candidates) < (self.gen_rep_size + self.gen_ran_size):
             self._print("There is not enough reproduced+random structures.")
             self._print(
