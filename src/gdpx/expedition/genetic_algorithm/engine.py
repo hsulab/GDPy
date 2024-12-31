@@ -7,11 +7,8 @@ import copy
 import inspect
 import itertools
 import pathlib
-import time
-import warnings
-from typing import Callable, List
 
-import ase.formula
+import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
 from ase.ga.data import DataConnection, PrepareDB
@@ -21,8 +18,6 @@ from ase.io import read, write
 from .. import convert_indices, get_tags_per_species, registers
 from ..expedition import AbstractExpedition
 from .population.manager import AbstractPopulationManager
-
-# from ase.ga.population import Population
 from .population.population import Population, PopulationWithVariableComposition
 
 """
@@ -66,8 +61,8 @@ def get_generation_number(da: DataConnection) -> int:
         The generation number.
 
     """
-    init_pop_size: int = da.get_param("initial_population_size")
-    pop_size: int = da.get_param("population_size")
+    init_pop_size: int = da.get_param("initial_population_size")  # type: ignore
+    pop_size: int = da.get_param("population_size")  # type: ignore
 
     all_candidates = list(da.c.select(relaxed=1))
     counter = collections.Counter([c.generation for c in all_candidates])
@@ -93,6 +88,19 @@ def get_generation_number(da: DataConnection) -> int:
     return curr_gen
 
 
+def plot_evolution_figure(rdir, data, gen_num, target):
+    """"""
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 9))
+    ax.set_title("Population Evolution")  # type: ignore
+    for i, properties in data:
+        ax.scatter([i] * len(properties), properties, alpha=0.5)  # type: ignore
+    ax.set(xlabel="generation", xticks=range(gen_num), ylabel=target)  # type: ignore
+    fig.savefig(rdir / "pop.png", bbox_inches="tight")
+    plt.close()
+
+    return
+
+
 class GeneticAlgorithmBroadcaster:
     """Broadcast genetic_algorithm_engine by parameters."""
 
@@ -106,11 +114,11 @@ class GeneticAlgorithmBroadcaster:
                 builder=copy.deepcopy(builder),
                 worker=copy.deepcopy(worker),
                 params=new_params,
-                random_seed=copy.deepcopy(random_seed)
+                random_seed=copy.deepcopy(random_seed),
             )
             input_params_list.append(input_params)
         self.input_params_list = input_params_list
-        
+
         return
 
     def __iter__(self):
@@ -322,15 +330,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             )
             data.append([i, properties])
 
-        import matplotlib.pyplot as plt
-
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
-        ax.set_title("Population Evolution")
-        for i, properties in data:
-            ax.scatter([i] * len(properties), properties, alpha=0.5)
-        ax.set(xlabel="generation", xticks=range(gen_num), ylabel=self.target)
-        fig.savefig(results / "pop.png", bbox_inches="tight")
-        plt.close()
+        plot_evolution_figure(results, data, gen_num, self.target)
 
         return
 
@@ -354,7 +354,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         self._print(f"===== Genetic Algorithm =====")
         self._print(f"Target of Global Optimisation is {self.target}")
 
-        # - worker info
+        # Check worker
         self._print("===== register worker =====")
         assert self.worker is not None, "GA has not set its worker properly."
         self.worker.directory = self.directory / self.CALC_DIRNAME
@@ -787,15 +787,17 @@ class GeneticAlgorithmEngine(AbstractExpedition):
 
         # The operators from ase (should be deprecated) use blmin and can only
         # check too_close since cov_max is not given while
-        # the newly implemented operators by us use bond_distance_dict and 
+        # the newly implemented operators by us use bond_distance_dict and
         # can check too_close and too_far based on covalent_ratio.
         # Also, the new random structure generator (random_surface_improved) uses
         # bond_distance_dict and covalent_ratio.
-        # Thus, be careful when using random structure generator and operator in a 
+        # Thus, be careful when using random structure generator and operator in a
         # mixed way, either old generator with new operator or vice versa,
         # leading inconsistency in bond distance check.
         if hasattr(self.generator, "get_bond_distance_dict"):
-            blmin = self.generator.get_bond_distance_dict(ratio=self.generator.covalent_ratio[0])
+            blmin = self.generator.get_bond_distance_dict(
+                ratio=self.generator.covalent_ratio[0]
+            )
             bond_distance_dict = self.generator.get_bond_distance_dict()
             specific_params.update(
                 blmin=blmin,
@@ -916,10 +918,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             num_atoms_substrate = num_atoms
         else:
             substrate_atomic_indices = [i for i in range(num_atoms) if tags[i] == 0]
-            if sorted(substrate_atomic_indices) == list(range(min(substrate_atomic_indices), max(substrate_atomic_indices) + 1)):
+            if sorted(substrate_atomic_indices) == list(
+                range(min(substrate_atomic_indices), max(substrate_atomic_indices) + 1)
+            ):
                 ...
             else:
-                raise Exception("The atoms (tag == 0) in the substrate must be consecutive.")
+                raise Exception(
+                    "The atoms (tag == 0) in the substrate must be consecutive."
+                )
             num_atoms_substrate = len(substrate_atomic_indices)
 
         canonicalised_substrate = substrate[:num_atoms_substrate]
@@ -1017,7 +1023,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         elif self.target == "reaction_energy":
             ...  # TODO: ...
         else:
-            raise RuntimeError(f"Unknown target {target}...")
+            raise RuntimeError(f"Unknown target {self.target}...")
 
         return
 
