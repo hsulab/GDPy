@@ -37,8 +37,8 @@ def debug_swapped_positions(
     assert isinstance(particle_two, Atoms)
 
     # TODO: Deal with pbc for molecules
-    cop_one = copy.deepcopy(np.average(particle_one.get_positions(), axis=0))
-    cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
+    cop_one = np.average(particle_one.get_positions(), axis=0)
+    cop_two = np.average(particle_two.get_positions(), axis=0)
     print(
         f"{prefix}: {particle_one.get_chemical_formula():>24s} "
         + ("{:>12.4f}" * 3).format(*cop_one)
@@ -73,8 +73,7 @@ def swap_particles_by_step(
     records = []
     candidate, num_success = atoms, 0
     for _ in range(max_attempts):
-        # TODO: The copy is expensive for large structures. We should improve this!
-        candidate_for_restore = copy.deepcopy(candidate)
+        # Pick two different particles
         type_one, type_two = rng.choice(num_particle_types, size=2, replace=False)
         particle_one, tag_one, pick_one = pick_one_particle(
             candidate, identity_list=identities[particle_types[type_one]], rng=rng
@@ -82,23 +81,23 @@ def swap_particles_by_step(
         particle_two, tag_two, pick_two = pick_one_particle(
             candidate, identity_list=identities[particle_types[type_two]], rng=rng
         )
+
+        # Add pair to records and check them to avoid duplicate swaps
         tag_pair = (tag_one, tag_two) if tag_one <= tag_two else (tag_two, tag_one)
         if tag_pair in records:
             continue
         else:
             records.append(tag_pair)
 
+        # Find particles before swap
+        # debug_swapped_positions(candidate, pick_one, pick_two, prefix="origin")
+
+        pos_one_for_restore = copy.deepcopy(particle_one.get_positions())
+        pos_two_for_restore = copy.deepcopy(particle_two.get_positions())
+
         # TODO: Deal with pbc for molecules
-        cop_one = copy.deepcopy(np.average(particle_one.get_positions(), axis=0))
-        cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
-        print(
-            f"before: {particle_one.get_chemical_formula():>24s} "
-            + ("{:>12.4f}" * 3).format(*cop_one)
-        )
-        print(
-            f"before: {particle_two.get_chemical_formula():>24s} "
-            + ("{:>12.4f}" * 3).format(*cop_two)
-        )
+        cop_one = np.average(pos_one_for_restore, axis=0)
+        cop_two = np.average(pos_two_for_restore, axis=0)
 
         # Swap two positions with rotatation
         particle_one_ = translate_then_rotate(
@@ -112,7 +111,7 @@ def swap_particles_by_step(
         candidate.positions[pick_two] = particle_one_.positions
 
         # Find particles by picked tags after swap
-        debug_swapped_positions(candidate, pick_one, pick_two, prefix="actual")
+        # debug_swapped_positions(candidate, pick_one, pick_two, prefix="actual")
 
         # Check if the new structure is valid
         atomic_indices = [*pick_one, *pick_two]
@@ -127,7 +126,9 @@ def swap_particles_by_step(
             num_success += 1
         else:
             # Restore the structure from the last step
-            candidate = candidate_for_restore
+            candidate.positions[pick_one] = pos_one_for_restore
+            candidate.positions[pick_two] = pos_two_for_restore
+            # debug_swapped_positions(candidate, pick_one, pick_two, prefix="before")
 
         if num_success == num_swaps:
             break
