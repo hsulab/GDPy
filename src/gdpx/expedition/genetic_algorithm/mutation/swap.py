@@ -3,7 +3,7 @@
 
 
 import copy
-from typing import List
+import itertools
 
 import numpy as np
 from ase import Atoms
@@ -42,7 +42,7 @@ class SwapMutation(OffspringCreator):
 
         return
 
-    def get_new_individual(self, parents: List[Atoms]):
+    def get_new_individual(self, parents: list[Atoms]):
         """"""
         f = parents[0]
 
@@ -64,6 +64,7 @@ class SwapMutation(OffspringCreator):
         """"""
         mutant = copy.deepcopy(atoms)
 
+        # Find valid particles to swap
         identities = get_tags_per_species(mutant)
         valid_identities = {}
         for k, v in identities.items():
@@ -76,14 +77,36 @@ class SwapMutation(OffspringCreator):
         num_particle_types = len(valid_identities.keys())
 
         if num_particle_types > 1:
+            # Ignore bond pairs in the substrate if any 
+            # and those in particles if they are molcules
+            atomic_indices_groups = []
+            for identity_list in identities.values():
+                # add groups with more than one atoms, 
+                # which include both the substrate and molecules
+                for v in identity_list:
+                    if len(v[1]) > 1:
+                        atomic_indices_groups.append(v[1])
+            
+            intra_bond_pairs = []
+            for atomic_indices in atomic_indices_groups:
+                intra_bond_pairs.extend(
+                    list(itertools.permutations(atomic_indices, 2))
+                )
+
+            # Compute number of swaps and make sure we have at least one swap
             num_particle_avg = np.average([len(v) for v in valid_identities.values()])
             num_swaps = int(num_particle_avg*self.swap_ratio)
+            if num_swaps == 0:
+                num_swaps = 1
+
+            # Perform swap
             mutant, extra_info = swap_particles_by_step(
                 mutant,
                 identities=valid_identities,
                 num_swaps=num_swaps,
                 bond_distance_dict=self.bond_distance_dict,
                 covalent_ratio=self.covalent_ratio,
+                intra_bond_pairs=intra_bond_pairs,
                 rng=self.rng,
             )
         else:
