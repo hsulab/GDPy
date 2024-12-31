@@ -18,14 +18,20 @@ from .expedition import AbstractExpedition
 
 def register_expedition_methods():
     """"""
+    # Evolutionary Methods
     from .genetic_algorithm.mutation.exchange import ExchangeMutation
 
     registers.builder.register("exchange_mutation")(ExchangeMutation)
+
+    from .genetic_algorithm.mutation.swap import SwapMutation
+
+    registers.builder.register("swap_mutation")(SwapMutation)
 
     from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
 
     registers.expedition.register("genetic_algorithm")(GeneticAlgorithmBroadcaster)
 
+    # Monte Carlo Based Methods
     from .monte_carlo.basin_hopping import BasinHopping
 
     registers.expedition.register("basin_hopping")(BasinHopping)
@@ -42,6 +48,7 @@ def register_expedition_methods():
 
     registers.expedition.register("monte_carlo")(MonteCarlo)
 
+    # Other Methods
     from .simulated_annealing.simulated_annealing import SimulatedAnnealing
 
     registers.expedition.register("simulated_annealing")(SimulatedAnnealing)

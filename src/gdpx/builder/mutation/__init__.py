@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 from ase.ga.standardmutations import RattleMutation, PermutationMutation, MirrorMutation
 from ase.ga.particle_mutations import (
     RandomMutation, RandomPermutation, COM2surfPermutation, Poor2richPermutation, 
@@ -11,19 +12,18 @@ from ase.ga.soft_mutation import SoftMutation, BondElectroNegativityModel
 
 from gdpx.core.register import registers
 
-# - standard
+# Standard
 registers.builder.register("rattle")(RattleMutation)
-registers.builder.register("permutation")(PermutationMutation)
 registers.builder.register("mirror")(MirrorMutation)
 
 from .buffer import RattleBufferMutation
 registers.builder.register("rattle_buffer")(RattleBufferMutation)
 
-# - bulk
+# Bulk
 registers.builder.register("strain")(StrainMutation)
 registers.builder.register("soft")(SoftMutation)
 
-# - cluster
+# Cluster
 #registers.builder.register("random")(RandomMutation)
 
 
