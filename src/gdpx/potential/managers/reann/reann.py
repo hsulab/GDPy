@@ -7,18 +7,20 @@ import itertools
 import pathlib
 import re
 import shutil
-
-from typing import Union, List
+from typing import Optional, Union
 
 import omegaconf
-
 from ase import Atoms
 
-from .. import AbstractTrainer, AbstractPotentialManager, DummyCalculator
-from .. import CommitteeCalculator
+from .. import (
+    AbstractPotentialManager,
+    AbstractTrainer,
+    CommitteeCalculator,
+    DummyCalculator,
+)
 
 
-def parse_reann_input_config(para: Union[str, pathlib.Path]) -> List[str]:
+def parse_reann_input_config(para: Union[str, pathlib.Path]) -> list[str]:
     """Parse `para/input_density` and return the `atomtype`.
 
     Args:
@@ -133,22 +135,23 @@ def load_reann_input_para(para: Union[str, pathlib.Path]) -> dict:
 
     return params
 
+
 def dump_reann_input_para(config_params: dict, para: Union[str, pathlib.Path]):
     """"""
-    with open(para/"input_density", "w") as fopen:
+    with open(para / "input_density", "w") as fopen:
         content = ""
         for k, v in config_params["density"].items():
             if isinstance(v, str) and (v != "True" or v != "False"):
-                content += "{}=\"{}\"\n".format(k, str(v))
+                content += '{}="{}"\n'.format(k, str(v))
             else:
                 content += f"{k}={str(v)}\n"
         fopen.write(content)
 
-    with open(para/"input_nn", "w") as fopen:
+    with open(para / "input_nn", "w") as fopen:
         content = ""
         for k, v in config_params["nn"].items():
             if isinstance(v, str) and (v != "True" and v != "False"):
-                content += "{}=\"{}\"\n".format(k, str(v))
+                content += '{}="{}"\n'.format(k, str(v))
             else:
                 content += f"{k}={str(v)}\n"
         fopen.write(content)
@@ -185,7 +188,7 @@ def _atoms2reannconfig(atoms: Atoms, point: int) -> str:
 
 
 def convert_structures_to_reannconfig(
-    structures: List[Atoms], fpath: Union[str, pathlib.Path]
+    structures: list[Atoms], fpath: Union[str, pathlib.Path]
 ) -> None:
     """"""
     content = ""
@@ -203,7 +206,13 @@ class ReannDataloader:
 
     name: str = "reann"
 
-    def __init__(self, batchsize: int, directory: Union[str, pathlib.Path]="./", *args, **kwargs) -> None:
+    def __init__(
+        self,
+        batchsize: int,
+        directory: Union[str, pathlib.Path] = "./",
+        *args,
+        **kwargs,
+    ) -> None:
         """"""
         self.batchsize = batchsize
         self.directory = pathlib.Path(directory).resolve()
@@ -232,31 +241,33 @@ class ReannTrainer(AbstractTrainer):
     def __init__(
         self,
         config: Union[str, pathlib.Path],
-        type_list: List[str] = None,
+        type_list: Optional[list[str]] = None,
         train_epochs: int = 200,
         print_epochs: int = 5,
         directory=".",
         command="train",
         freeze_command="freeze",
-        random_seed: Union[int, dict] = None,
+        random_seed: Optional[Union[int, dict]] = None,
         *args,
         **kwargs,
     ) -> None:
         super().__init__(
-            config,
-            type_list,
-            train_epochs,
-            print_epochs,
-            directory,
-            command,
-            freeze_command,
-            random_seed,
+            config=config,
+            type_list=type_list,
+            train_epochs=train_epochs,
+            print_epochs=print_epochs,
+            directory=directory,
+            command=command,
+            freeze_command=freeze_command,
+            random_seed=random_seed,
             *args,
             **kwargs,
         )
 
         # self.config = pathlib.Path(self.config).resolve()
-        if isinstance(config, dict) or isinstance(config, omegaconf.dictconfig.DictConfig):
+        if isinstance(config, dict) or isinstance(
+            config, omegaconf.dictconfig.DictConfig
+        ):
             self.config = config
         elif isinstance(config, str) or isinstance(config, pathlib.Path):
             self.config = load_reann_input_para(config)
@@ -271,7 +282,7 @@ class ReannTrainer(AbstractTrainer):
     def frozen_name(self):
         """"""
         return f"PES.pt"
-    
+
     @property
     def ckpt_name(self) -> str:
         """"""
@@ -287,38 +298,39 @@ class ReannTrainer(AbstractTrainer):
         """"""
 
         return self.freeze_command
-    
+
     def get_checkpoint(self):
         """"""
 
-        return pathlib.Path(self.directory/self.ckpt_name).resolve()
-    
+        return pathlib.Path(self.directory / self.ckpt_name).resolve()
+
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart"""
+
         def _train_from_the_scratch(dataset, init_model) -> str:
             # NOTE: `para/input*` will be overwritten by current self.config
             command = self._train_from_the_scratch(dataset, init_model)
             if init_model is not None:
                 self._print(f"{self.name} init training from model {init_model}.")
-                (self.directory/self.ckpt_name).unlink(missing_ok=True)
-                shutil.copyfile(init_model, self.directory/self.ckpt_name)
-                prev_config = load_reann_input_para(self.directory/"para")
+                (self.directory / self.ckpt_name).unlink(missing_ok=True)
+                shutil.copyfile(init_model, self.directory / self.ckpt_name)
+                prev_config = load_reann_input_para(self.directory / "para")
                 prev_config["nn"]["table_init"] = 1
-                _ = dump_reann_input_para(prev_config, self.directory/"para")
+                _ = dump_reann_input_para(prev_config, self.directory / "para")
             else:
                 ...
-            
+
             return command
 
         if not self.directory.exists():
             command = _train_from_the_scratch(dataset, init_model)
         else:
-            ckpt_info = self.directory/self.ckpt_name
+            ckpt_info = self.directory / self.ckpt_name
             if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
                 # -
-                log_path = self.directory/"nn.err"
+                log_path = self.directory / "nn.err"
                 if log_path.exists():
-                    with open(self.directory/"nn.err", "r") as fopen:
+                    with open(self.directory / "nn.err", "r") as fopen:
                         lines = fopen.readlines()
                     epoch_lines = [l for l in lines if l.strip().startswith("Epoch")]
                     try:
@@ -327,14 +339,16 @@ class ReannTrainer(AbstractTrainer):
                     except:
                         end_epoch = 0
                         self._print(f"The endline of `nn.err` is strange.")
-                    # - 
-                    prev_config = load_reann_input_para(self.directory/"para")
+                    # -
+                    prev_config = load_reann_input_para(self.directory / "para")
                     prev_config["nn"]["table_init"] = 1
                     prev_config["nn"]["Epoch"] = prev_config["nn"]["Epoch"] - end_epoch
                     prev_config["nn"]["patience_epoch"] = 0
                     assert prev_config["nn"]["Epoch"] >= 0
-                    _ = dump_reann_input_para(prev_config, self.directory/"para")
-                    self._print(f"{self.name} restarts training from epoch {end_epoch}.")
+                    _ = dump_reann_input_para(prev_config, self.directory / "para")
+                    self._print(
+                        f"{self.name} restarts training from epoch {end_epoch}."
+                    )
                     command = self._resolve_train_command()
                 else:
                     # NOTE: This is a new training but init from a previous model.
@@ -398,7 +412,7 @@ class ReannTrainer(AbstractTrainer):
         config_params["nn"]["batchsize_val"] = dataset.batchsize
         config_params["nn"]["folder"] = str(dataset.directory.resolve()) + "/"
 
-        dump_reann_input_para(config_params, self.directory/"para")
+        dump_reann_input_para(config_params, self.directory / "para")
 
         return
 
@@ -472,6 +486,7 @@ class ReannManager(AbstractPotentialManager):
         if self.calc_backend == "ase":
             try:
                 import torch
+
                 from .calculators.reann import REANN
 
                 device = torch.device(
