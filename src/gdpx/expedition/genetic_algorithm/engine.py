@@ -138,7 +138,10 @@ class GeneticAlgorithmBroadcaster:
 
         property_setting = params.get("property", dict(target="energy"))
         target = property_setting.get("target", "energy")
-        if target == "formation_energy":
+        if target == "energy":
+            new_params = copy.deepcopy(params)
+            new_params_list.append(new_params)
+        elif target == "formation_energy":
             chempot = []
             for k, v in property_setting.get("chempot").items():
                 if isinstance(v, list):
