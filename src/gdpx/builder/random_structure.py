@@ -11,6 +11,8 @@ import numpy as np
 from ase import Atoms
 from ase.data import atomic_numbers
 
+from gdpx.utils.atoms_tags import reassign_tags_by_species
+
 from ..geometry.composition import CompositionSpace
 from ..geometry.insert import insert_fragments_by_step
 from ..geometry.spatial import get_bond_distance_dict
@@ -80,6 +82,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
         max_times_size: int=10,
+        sort_by_tags: bool=True,
         *args,
         **kwargs,
     ):
@@ -141,6 +144,9 @@ class RandomStructureImprovedModifier(StructureModifier):
             self._substrate = self.substrates[0]
         else:
             self._substrate = Atoms("", cell=self.box, pbc=self.pbc)
+
+        # Whether we should have a consistent tags
+        self.sort_by_tags = sort_by_tags
 
         return
 
@@ -219,6 +225,13 @@ class RandomStructureImprovedModifier(StructureModifier):
             if num_curr_frames != size:
                 raise RuntimeError(f"Need {size} but only {num_curr_frames} are generated.")
             frames.extend(curr_frames)
+
+        # Sort atoms in each structure by tags?
+        if self.sort_by_tags:
+            new_frames = []
+            for atoms in frames:
+                new_atoms = reassign_tags_by_species(atoms)
+                new_frames.append(new_atoms)
 
         return frames
 
