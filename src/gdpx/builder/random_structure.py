@@ -3,19 +3,16 @@
 
 
 import copy
-import itertools
 import time
 from typing import List, Optional
 
 import joblib
 import numpy as np
-import scipy as sp
 from ase import Atoms
 from ase.data import atomic_numbers
 
 from ..geometry.composition import CompositionSpace
-from ..geometry.insert import (insert_fragments_at_once,
-                               insert_fragments_by_step)
+from ..geometry.insert import insert_fragments_by_step
 from ..geometry.spatial import get_bond_distance_dict
 from ..nodes.region import RegionVariable
 from .builder import StructureModifier
@@ -72,8 +69,6 @@ def stratified_random_structures(
 class RandomStructureImprovedModifier(StructureModifier):
 
     name: str = "random_structure_improved"
-
-    MAX_TIMES_SIZE: int = 10
 
     def __init__(
         self,
@@ -134,14 +129,18 @@ class RandomStructureImprovedModifier(StructureModifier):
         self.molecular_distances = molecular_distances
 
         # Attempts
-        self.MAX_TIMES_SIZE = max_times_size
+        self.max_times_size = max_times_size
 
         # To compatible with GA engine
         self.use_tags = use_tags
+        if not self.use_tags:
+            raise Exception("`random_structure_improved` must have use_tags to be True.")
 
         self._substrate = None
         if self.substrates is not None:
             self._substrate = self.substrates[0]
+        else:
+            self._substrate = Atoms("", cell=self.box, pbc=self.pbc)
 
         return
 
@@ -189,7 +188,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         for isub, substrate in enumerate(self.substrates):
             self._print(f"generating structures based on substrate-{isub:>04d}.")
             curr_frames = []
-            for i in range(self.MAX_TIMES_SIZE):
+            for i in range(self.max_times_size):
                 num_curr_frames = len(curr_frames)
                 if num_curr_frames == size:
                     break
