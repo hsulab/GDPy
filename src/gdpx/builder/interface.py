@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
-from typing import List, Union
+from typing import Union
 
 import omegaconf
 from ase import Atoms
@@ -18,10 +19,9 @@ from ..data.array import AtomsNDArray
 class BuilderVariable(Variable):
     """Build structures from the scratch."""
 
-    def __init__(self, directory: Union[str, pathlib.Path] = "./", *args, **kwargs):
+    def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
-        # - create a validator
-        method = kwargs.get("method", "direct")
+        method = kwargs.pop("method", "direct")
         builder = registers.create("builder", method, convert_name=False, **kwargs)
 
         super().__init__(initial_value=builder, directory=directory)
@@ -158,7 +158,7 @@ class build(Operation):
 
         return
 
-    def forward(self, builder) -> List[Atoms]:
+    def forward(self, builder) -> list[Atoms]:
         """"""
         super().forward()
 
@@ -246,7 +246,7 @@ class modify(Operation):
 
         return substrates, modifier
 
-    def forward(self, substrates: List[Atoms], modifier) -> List[Atoms]:
+    def forward(self, substrates: list[Atoms], modifier) -> list[Atoms]:
         """Modify inputs structures.
 
         A modifier only accepts one structure each time.
