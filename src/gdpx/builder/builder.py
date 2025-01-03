@@ -1,30 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 import pathlib
-from typing import List
 
 from ase import Atoms
 from ase.io import read
 
-from .. import config
 from ..core.node import AbstractNode
 from ..data.array import AtomsNDArray
 from ..utils.command import dict2str
-
-
-"""
-"""
 
 
 class StructureBuilder(AbstractNode):
 
     name = "builder"
 
-    def __init__(
-        self, use_tags=False, directory="./", random_seed=None, *args, **kwargs
-    ):
+    def __init__(self, use_tags: bool = False, directory="./", random_seed=None):
         """"""
         super().__init__(directory=directory, random_seed=random_seed)
 
@@ -33,14 +26,14 @@ class StructureBuilder(AbstractNode):
         return
 
     @abc.abstractmethod
-    def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
+    def run(self, substrates=None, *args, **kwargs) -> list[Atoms]:
         """Generate structures based on rules."""
         if self.__class__.__name__ != "ComposedModifier":
             self._print(f"-->{self.__class__.__name__}")
             self._print(f"RANDOM_SEED : {self.random_seed}")
             rng_state = self.rng.bit_generator.state
-            for l in dict2str(rng_state).split("\n"):
-                config._print(l)
+            for l in dict2str(rng_state).split("\n"):  # type: ignore
+                self._print(l)
         else:
             ...
 
@@ -67,12 +60,12 @@ class StructureModifier(StructureBuilder):
         else:
             ...
 
-        self.substrates = self._load_substrates(substrates)
+        self.substrates = self._canonicalise_substrates(substrates)
 
         return
 
-    def _load_substrates(self, inp_sub) -> List[Atoms]:
-        """"""
+    def _canonicalise_substrates(self, inp_sub) -> list[Atoms]:
+        """Convert input substrates to a list of Atoms."""
         substrates = None
         if isinstance(inp_sub, Atoms):
             substrates = [inp_sub]
@@ -87,14 +80,15 @@ class StructureModifier(StructureBuilder):
             else:
                 ...
 
-        return substrates
+        return substrates  # type: ignore
 
-    def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
-        """"""
+    @abc.abstractmethod
+    def run(self, substrates=None, *args, **kwargs) -> list[Atoms]:
+        """Generate structures based on rules."""
         super().run(*args, **kwargs)
 
-        # - load substrates at run
-        substrates_at_run = self._load_substrates(substrates)
+        # Load substrates at run time
+        substrates_at_run = self._canonicalise_substrates(substrates)
         if substrates_at_run is not None:
             self.substrates = substrates_at_run
 

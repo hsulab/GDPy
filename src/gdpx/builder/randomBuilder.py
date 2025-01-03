@@ -155,9 +155,9 @@ class RandomBuilder(StructureModifier):
 
         return
 
-    def _load_substrates(self, inp_sub) -> List[Atoms]:
+    def _canonicalise_substrates(self, inp_sub) -> List[Atoms]:
         """"""
-        substrates = super()._load_substrates(inp_sub)
+        substrates = super()._canonicalise_substrates(inp_sub)
         if substrates is not None:
             assert len(substrates) == 1, "RandomBuilder only supports one substrate."
 
