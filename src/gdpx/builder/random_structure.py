@@ -232,6 +232,7 @@ class RandomStructureImprovedModifier(StructureModifier):
             for atoms in frames:
                 new_atoms = reassign_tags_by_species(atoms)
                 new_frames.append(new_atoms)
+            frames = new_frames
 
         return frames
 
