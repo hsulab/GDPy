@@ -60,8 +60,10 @@ class StructureModifier(StructureBuilder):
 
         # TODO: substrates should also be a Builder Object
         # TODO: if substrates is a ChemiclFormula?
+        self._input_substrates = None
         if isinstance(substrates, str) or isinstance(substrates, pathlib.Path):
-            substrates = pathlib.Path(substrates).absolute()
+            substrates = pathlib.Path(substrates).resolve()
+            self._input_substrates = str(substrates)
         else:
             ...
 

@@ -101,6 +101,10 @@ class RandomStructureImprovedModifier(StructureModifier):
             **kwargs,
         )
 
+        # Overwrite substrates if it is a file path
+        if self._input_substrates is not None:
+            self._init_params["substrates"] = self._input_substrates
+
         # Check composition
         self._compspec = CompositionSpace(composition)
 
