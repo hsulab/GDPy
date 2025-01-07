@@ -117,7 +117,7 @@ class AbstractSelector(BaseComponent):
     #: Output data format (frames or trajectories).
     _out_fmt: str = "stru"
 
-    def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
+    def __init__(self, axis=None, directory="./", random_seed=None, **kwargs) -> None:
         """Create a selector.
 
         Args:
@@ -126,7 +126,7 @@ class AbstractSelector(BaseComponent):
             **kwargs: Arbitrary keyword arguments.
 
         """
-        super().__init__(directory=directory, *args, **kwargs)
+        super().__init__(directory=directory, random_seed=random_seed)
 
         self.axis = axis
 
