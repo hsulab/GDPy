@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import logging
+
 import argparse
+import logging
 import pathlib
 
 import numpy as np
 
-# global settings
 from . import config
-from .core.register import registers, import_all_modules_for_register
-from .utils.command import parse_input_file, dict2str
+from .core.register import import_all_modules_for_register, registers
+from .utils.command import dict2str, parse_input_file
 
 
 def main():
@@ -102,12 +100,10 @@ def main():
     )
     parser_convert.add_argument("INPUT", help="path of the input dataset")
     parser_convert.add_argument(
-        "-i", "--input_format", required=True,
-        help="the format of the input dataset"
+        "-i", "--input_format", required=True, help="the format of the input dataset"
     )
     parser_convert.add_argument(
-        "-o", "--output_format", required=True,
-        help="the format of the output dataset"
+        "-o", "--output_format", required=True, help="the format of the output dataset"
     )
 
     # - automatic training
@@ -185,13 +181,10 @@ def main():
         "describe",
         help="compute descriptors for given structures",
         description=str(registers.describer),
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_describe.add_argument("CONFIG", help="describer configuration")
-    parser_describe.add_argument(
-        "-s", "--structures", required=True,
-        help="structures"
-    )
+    parser_describe.add_argument("-s", "--structures", required=True, help="structures")
 
     # --- validation
     parser_validation = subparsers.add_parser(
@@ -282,10 +275,12 @@ def main():
         run_selection(args.CONFIG, args.structure, args.directory)
     elif args.subcommand == "describe":
         from .cli.describe import describe_structures
+
         desc_config = parse_input_file(args.CONFIG)
         describe_structures(desc_config, args.structures, args.directory)
     elif args.subcommand == "compute":
         from .cli.compute import run_computation
+
         run_computation(
             args.STRUCTURE,
             computer,
@@ -296,6 +291,7 @@ def main():
         )
     elif args.subcommand == "explore":
         from .cli.explore import run_expedition
+
         params = parse_input_file(args.CONFIG)
         run_expedition(params, args.wait, args.directory, workers[0], spawn=args.spawn)
     elif args.subcommand == "valid":
