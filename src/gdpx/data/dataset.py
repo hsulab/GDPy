@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import itertools
 import pathlib
 import traceback
-from typing import Optional, Union, List, Tuple
-import warnings
+from typing import Optional, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.formula import Formula
-from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.formula import Formula
+from ase.io import read
+
+from gdpx.core.component import BaseComponent
 
 from ..core.register import registers
-from ..core.variable import Variable
-from ..core.node import AbstractNode
-
-from .utils import is_a_valid_system_name, get_composition_from_system_tree
-
+from .utils import get_composition_from_system_tree, is_a_valid_system_name
 
 #: How to map keys in structures.
-DEFAULT_PROP_MAP_KEYS: List[Tuple[str,str]] = [("energy", "energy"), ("forces", "forces")]
+DEFAULT_PROP_MAP_KEYS: list[tuple[str, str]] = [
+    ("energy", "energy"),
+    ("forces", "forces"),
+]
 
 
 def map_atoms_data(atoms: Atoms, prop_map_keys) -> None:
@@ -72,7 +72,9 @@ def traverse_xyzdirs(wdir):
     return data_dirs
 
 
-def split_train_and_test_into_batches(num_frames: int, batchsize: int, train_ratio: float, rng):
+def split_train_and_test_into_batches(
+    num_frames: int, batchsize: int, train_ratio: float, rng
+):
     """"""
     # TODO: adjust batchsize of train and test separately
     if num_frames <= batchsize:
@@ -93,10 +95,9 @@ def split_train_and_test_into_batches(num_frames: int, batchsize: int, train_rat
             new_batchsize = batchsize
             # - assure there is at least one batch for test
             #          and number of train frames is integer times of batchsize
-            if (1. - train_ratio) > 1e-4:
+            if (1.0 - train_ratio) > 1e-4:
                 ntrain = int(
-                    np.floor(num_frames * train_ratio / new_batchsize)
-                    * new_batchsize
+                    np.floor(num_frames * train_ratio / new_batchsize) * new_batchsize
                 )
                 if ntrain > 0:
                     train_index = rng.choice(num_frames, ntrain, replace=False)
@@ -120,7 +121,7 @@ def parse_batchsize_setting(batchsize: Union[int, str], num_atoms: int) -> int:
         if method == "n_structures":
             new_batchsize = int(number)
         elif method == "n_atoms":
-            new_batchsize = int(2 ** np.floor(np.log2(int(number)/num_atoms)))
+            new_batchsize = int(2 ** np.floor(np.log2(int(number) / num_atoms)))
             if new_batchsize < 1:
                 new_batchsize = 1
         else:
@@ -131,7 +132,7 @@ def parse_batchsize_setting(batchsize: Union[int, str], num_atoms: int) -> int:
     return new_batchsize
 
 
-class AbstractDataloader(AbstractNode): ...
+class AbstractDataloader(BaseComponent): ...
 
 
 @registers.dataloader.register
@@ -153,9 +154,7 @@ class XyzDataloader(AbstractDataloader):
         batchsize: Union[int, str] = 32,
         train_ratio: float = 0.9,
         random_seed: Optional[int] = None,
-        prop_keys: List[Tuple[str,str]] = DEFAULT_PROP_MAP_KEYS,
-        *args,
-        **kwargs,
+        prop_keys: list[tuple[str, str]] = DEFAULT_PROP_MAP_KEYS,
     ) -> None:
         """"""
         super().__init__(directory=dataset_path, random_seed=random_seed)
@@ -167,7 +166,7 @@ class XyzDataloader(AbstractDataloader):
 
         return
 
-    def load(self) -> List[pathlib.Path]:
+    def load(self) -> list[pathlib.Path]:
         """Load dataset.
 
         All directories that have xyz files in `self.directory`.
@@ -181,7 +180,7 @@ class XyzDataloader(AbstractDataloader):
 
         return data_dirs
 
-    def load_frames(self, *args, **kwargs):
+    def load_frames(self):
         """"""
         data_dirs = traverse_xyzdirs(self.directory)
         data_dirs = sorted(data_dirs)
@@ -238,7 +237,7 @@ class XyzDataloader(AbstractDataloader):
             d_tree = d.parts
             num_parts = len(d_tree)
             part_index = None
-            for ipart in range(num_parts-1, -1, -1):
+            for ipart in range(num_parts - 1, -1, -1):
                 if is_a_valid_system_name(d_tree[ipart]):
                     part_index = ipart
                     break
@@ -247,7 +246,7 @@ class XyzDataloader(AbstractDataloader):
             else:
                 ...
             if part_index is not None:
-                system_paths.append(pathlib.Path(*d_tree[:part_index+1]))
+                system_paths.append(pathlib.Path(*d_tree[: part_index + 1]))
             else:
                 raise RuntimeError(f"No system folder found in `{str(d)}`")
 
@@ -270,7 +269,7 @@ class XyzDataloader(AbstractDataloader):
         if isinstance(batchsizes, int) or isinstance(batchsizes, str):
             batchsizes = [batchsizes] * nsystems
         else:
-            ... # assume self.batchsize is a list
+            ...  # assume self.batchsize is a list
         assert (
             len(batchsizes) == nsystems
         ), "Number of systems and batchsizes are inconsistent."
@@ -281,7 +280,7 @@ class XyzDataloader(AbstractDataloader):
         train_frames, test_frames = [], []
         adjusted_batchsizes = []  # auto-adjust batchsize based on nframes
         accumulated_batches = 0
-        for i, (curr_system_group, curr_batchsize) in enumerate(
+        for _, (curr_system_group, curr_batchsize) in enumerate(
             zip(system_groups, batchsizes)
         ):
             curr_system = pathlib.Path(curr_system_group[0])
@@ -290,7 +289,7 @@ class XyzDataloader(AbstractDataloader):
             set_names.append(set_name)
             try:
                 composition = get_composition_from_system_tree(set_tree)
-            except Exception as e:
+            except Exception:
                 self._print(traceback.format_exc())
                 self._print(f"{set_name =}")
                 raise RuntimeError()
@@ -298,7 +297,7 @@ class XyzDataloader(AbstractDataloader):
             # convert batchsize to an integer
             try:
                 num_atoms = sum(Formula(composition).count().values())
-            except Exception as e:
+            except Exception:
                 self._print(traceback.format_exc())
                 self._print(f"{composition =}")
                 raise RuntimeError()
@@ -326,17 +325,15 @@ class XyzDataloader(AbstractDataloader):
             )
 
             adjusted_batchsizes.append(new_batchsize)
-            
+
             ntrain, ntest = len(train_index), len(test_index)
             train_size.append(ntrain)
             test_size.append(ntest)
 
-            num_batches_train = int(np.ceil(ntrain/new_batchsize))
+            num_batches_train = int(np.ceil(ntrain / new_batchsize))
             accumulated_batches += num_batches_train
 
-            self._print(
-                f"    ntrain: {ntrain} ntest: {ntest} ntotal: {num_frames}"
-            )
+            self._print(f"    ntrain: {ntrain} ntest: {ntest} ntotal: {num_frames}")
             self._print(f"    batchsize: {new_batchsize} batches: {num_batches_train}")
             assert ntrain > 0
 
@@ -359,7 +356,9 @@ class XyzDataloader(AbstractDataloader):
         ), "inconsistent train_size and test_size"
         train_size = sum(train_size)
         test_size = sum(test_size)
-        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size} nbatches: {accumulated_batches}")
+        self._print(
+            f"Total Dataset -> ntrain: {train_size} ntest: {test_size} nbatches: {accumulated_batches}"
+        )
 
         # - map keys
         should_map_keys = False
@@ -381,38 +380,6 @@ class XyzDataloader(AbstractDataloader):
                     map_atoms_data(a, self.prop_keys)
 
         return set_names, train_frames, test_frames, adjusted_batchsizes
-
-    def transfer(self, frames: List[Atoms]):
-        """Add structures into the dataset."""
-        # - check chemical symbols
-        system_dict = {}  # {formula: [indices]}
-
-        formulae = [a.get_chemical_formula() for a in frames]
-        for k, v in itertools.groupby(enumerate(formulae), key=lambda x: x[1]):
-            system_dict[k] = [x[0] for x in v]
-
-        # - transfer data
-        for formula, curr_indices in system_dict.items():
-            # -- TODO: check system type
-            system_type = self.system  # currently, use user input one
-            # -- name = description+formula+system_type
-            dirname = "-".join([self.directory.parent.name, formula, system_type])
-            target_subdir = self.target_dir / dirname
-            target_subdir.mkdir(parents=True, exist_ok=True)
-
-            # -- save frames
-            curr_frames = [frames[i] for i in curr_indices]
-            curr_nframes = len(curr_frames)
-
-            strname = self.version + ".xyz"
-            target_destination = self.target_dir / dirname / strname
-            if not target_destination.exists():
-                write(target_destination, curr_frames)
-                self._print(f"nframes {curr_nframes} -> {target_destination.name}")
-            else:
-                warnings.warn(f"{target_destination} exists.", UserWarning)
-
-        return
 
     def as_dict(self):
         """"""
