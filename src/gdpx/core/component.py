@@ -11,7 +11,7 @@ import omegaconf
 
 from . import config
 
-"""Every working component is represented by a node.
+"""The base component provides the directory and the random number generator for each working component.
 """
 
 
@@ -60,7 +60,7 @@ class BaseComponent(abc.ABC):
 
     @property
     def directory(self) -> pathlib.Path:
-        """Working directory.
+        """The resolved path for the working directory.
 
         Note:
             When setting directory, some additional files are re-directed.
@@ -75,7 +75,7 @@ class BaseComponent(abc.ABC):
     @directory.setter
     def directory(self, directory: Union[str, pathlib.Path]) -> None:
         """"""
-        self._directory = pathlib.Path(directory)
+        self._directory = pathlib.Path(directory).resolve()
 
         return
 
@@ -102,10 +102,6 @@ class BaseComponent(abc.ABC):
             raise Exception(f"Unknown random seed `{seed}` type `{type(seed)}`")
 
         return
-
-
-# For backward compatibility
-AbstractNode = BaseComponent
 
 
 if __name__ == "__main__":
