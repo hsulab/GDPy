@@ -1,41 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
-import logging
 import pathlib
-from typing import NoReturn, Union, Callable
+from typing import Optional, Union
 
-from gdpx import config
+from gdpx.core.component import BaseComponent
 
 
-class AbstractValidator(abc.ABC):
+class AbstractValidator(BaseComponent):
 
-    _print: Callable = config._print
-    _debug: Callable = config._debug
-
-    _directory = pathlib.Path.cwd()
-
-    def __init__(self, directory: Union[str,pathlib.Path]="./", *args, **kwargs):
-        """
-        """
-        self.directory = directory
-
-        self.njobs = config.NJOBS
-
-        return
-    
-    @property
-    def directory(self):
-        """"""
-
-        return self._directory
-
-    @directory.setter
-    def directory(self, directory_):
-        """"""
-        directory_ = pathlib.Path(directory_)
-        self._directory = directory_
+    def __init__(
+        self,
+        directory: Union[str, pathlib.Path] = "./",
+        random_seed: Optional[Union[int, dict]] = None,
+    ) -> None:
+        """ """
+        super().__init__(directory=directory, random_seed=random_seed)
 
         return
 
@@ -50,3 +32,4 @@ class AbstractValidator(abc.ABC):
 
 if __name__ == "__main__":
     ...
+
