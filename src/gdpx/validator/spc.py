@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import itertools
 import re
 from typing import List, Optional
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
 
 try:
     plt.style.use("presentation")
-except Exception as e:
+except Exception:
     ...
 
-
-from ..utils.command import convert_indices
 from ..utils.comparision import get_properties, plot_distribution, plot_parity
 from ..worker.drive import DriverBasedWorker
 from .validator import AbstractValidator
@@ -85,7 +82,7 @@ class SinglepointValidator(AbstractValidator):
                         group_names[subset].append(prefix)
                         group_structures[subset].extend(frames)
             for k, v in group_names.items():
-                with open(self.directory/f"subset-{k}.txt", "w") as fopen:
+                with open(self.directory / f"subset-{k}.txt", "w") as fopen:
                     fopen.write("\n".join(["/".join(x) for x in v]))
             for k in self.subsets:
                 num_systems = len(group_names[k])
