@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import re
-from typing import Any, Optional, List
+from typing import Optional
 
 from ase import Atoms
-from ase.io import read, write
+from ase.io import read
 
-from ..core.node import AbstractNode
+from gdpx.core.component import BaseComponent
 
 
-class DataSystem(AbstractNode):
+class DataSystem(BaseComponent):
 
     """This contains a fixed-composition system.
     """
 
-    prefix: str = None
+    prefix: Optional[str] = None
 
-    _images: Optional[List[Atoms]] = None
+    _images: Optional[list[Atoms]] = None
 
-    _tags: Optional[List[str]] = None
+    _tags: Optional[list[str]] = None
 
-    def __init__(self, directory="./", pattern: str="*.xyz", *args, **kwargs) -> None:
+    def __init__(self, directory="./", pattern: str="*.xyz") -> None:
         """"""
-        super().__init__(directory=directory, *args, **kwargs)
+        super().__init__(directory=directory)
 
         self.pattern = pattern
         self._process_dataset()
@@ -56,7 +57,7 @@ class DataSystem(AbstractNode):
 
         return
     
-    def get_matched_indices(self, pattern=r".*") -> List[Atoms]:
+    def get_matched_indices(self, pattern=r".*") -> list[Atoms]:
         """Get structures with given criteria.
 
         Args:
