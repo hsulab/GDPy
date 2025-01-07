@@ -4,20 +4,27 @@
 
 import abc
 import pathlib
+from typing import Optional, Union
 
 from ase import Atoms
 from ase.io import read
 
-from ..core.node import AbstractNode
+from gdpx.core.component import BaseComponent
+
 from ..data.array import AtomsNDArray
 from ..utils.command import dict2str
 
 
-class StructureBuilder(AbstractNode):
+class StructureBuilder(BaseComponent):
 
     name = "builder"
 
-    def __init__(self, use_tags: bool = False, directory="./", random_seed=None):
+    def __init__(
+        self,
+        use_tags: bool = False,
+        directory="./",
+        random_seed: Optional[Union[int, dict]] = None,
+    ):
         """"""
         super().__init__(directory=directory, random_seed=random_seed)
 
