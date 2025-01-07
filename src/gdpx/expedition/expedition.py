@@ -5,16 +5,13 @@
 import abc
 import copy
 import logging
-import pathlib
 
-from . import config
-from . import registers
-from . import ComputerVariable, DriverBasedWorker, SingleWorker
+from gdpx.core.component import BaseComponent
 
-from ..core.node import AbstractNode
+from . import ComputerVariable, DriverBasedWorker, SingleWorker, registers
 
 
-def parse_worker(inp_worker: dict, *args, **kwargs):
+def parse_worker(inp_worker: dict):
     """Parse DriverBasedWorker for this expedition."""
     worker = None
     if isinstance(inp_worker, dict):
@@ -26,12 +23,15 @@ def parse_worker(inp_worker: dict, *args, **kwargs):
         worker = inp_worker[0]
     elif isinstance(inp_worker, ComputerVariable):
         worker = inp_worker.value[0]
-    elif isinstance(inp_worker, DriverBasedWorker) or isinstance(inp_worker, SingleWorker):
+    elif isinstance(inp_worker, DriverBasedWorker) or isinstance(
+        inp_worker, SingleWorker
+    ):
         worker = inp_worker
     else:
         raise RuntimeError(f"Unknown worker type {inp_worker}.")
 
     return worker
+
 
 canonicalise_worker = parse_worker
 
@@ -50,15 +50,13 @@ def canonicalise_builder(builder: dict):
     return builder
 
 
-class AbstractExpedition(AbstractNode):
+class AbstractExpedition(BaseComponent):
 
     #: Name of the expedition.
     name: str = "expedition"
 
     @abc.abstractmethod
-    def read_convergence(self) -> bool:
-
-        ...
+    def read_convergence(self) -> bool: ...
 
     @abc.abstractmethod
     def get_workers(self):
