@@ -4,26 +4,24 @@
 
 import dataclasses
 import io
-import os
 import pathlib
 import re
 import shutil
 import tarfile
 import traceback
-from typing import List, Optional, Tuple, Union
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.vasp import Vasp
-from ase.io import read, write
 from ase.geometry import find_mic
+from ase.io import read, write
 
-from ..backend.vasp import read_report, read_outcar_scf, read_oszicar, write_vasp
+from ..backend.vasp import read_oszicar, read_outcar_scf, read_report, write_vasp
 from ..data.extatoms import ScfErrAtoms
 from ..utils.cmdrun import run_ase_calculator
 from ..utils.strucopy import read_sort, resort_atoms_with_spc
 from .driver import AbstractDriver, Controller, DriverSetting
-
 
 """Driver for VASP."""
 #: Ase-vasp resort fname.
@@ -323,8 +321,10 @@ class VaspDriverSetting(DriverSetting):
             suffix = self.ensemble
             _init_params.update(
                 timestep=self.timestep,
-                temperature=self.temp, temperature_end=self.temp,
-                pressure=self.press, pressure_end=self.pend
+                temperature=self.temp,
+                temperature_end=self.temp,
+                pressure=self.press,
+                pressure_end=self.pend,
             )
         elif self.task == "freq":
             # ibrion, nfree, potim
@@ -356,7 +356,7 @@ class VaspDriverSetting(DriverSetting):
 
         # emax is prioritised
         if emax_ is not None:
-            ediffg = emax_ 
+            ediffg = emax_
         else:
             if fmax_ is not None:
                 ediffg = -1.0 * fmax_
@@ -377,26 +377,8 @@ class VaspDriver(AbstractDriver):
 
     name = "vasp"
 
-    # - defaults
     default_task = "min"
     supported_tasks = ["min", "cmin", "md", "freq"]
-
-    # - system depandant params
-    syswise_keys: List[str] = ["system", "kpts", "kspacing"]
-
-    # - file names would be copied when continuing a calculation
-    saved_fnames = [
-        "ase-sort.dat",
-        "INCAR",
-        "POSCAR",
-        "KPOINTS",
-        "POTCAR",
-        "OSZICAR",
-        "OUTCAR",
-        "CONTCAR",
-        "vasprun.xml",
-        "REPORT",
-    ]
 
     #: Class for setting.
     setting_cls: type[DriverSetting] = VaspDriverSetting
@@ -430,11 +412,14 @@ class VaspDriver(AbstractDriver):
         self,
         atoms: Atoms,
         ckpt_wdir=None,
-        cache_traj: Optional[List[Atoms]] = None,
+        cache_traj: Optional[list[Atoms]] = None,
         *args,
         **kwargs,
     ):
         """"""
+        assert isinstance(
+            self.calc, Vasp
+        ), "VaspDriver should use ase.calculators.vasp.Vasp."
         if ckpt_wdir is None:  # start from the scratch
             # merge params
             run_params = self.setting.get_run_params(**kwargs)
@@ -459,7 +444,8 @@ class VaspDriver(AbstractDriver):
                 run_params["random_seed"] = vasp_random_seed
                 self._prepare_velocities(
                     atoms,
-                    self.setting.velocity_seed, self.setting.ignore_atoms_velocities
+                    self.setting.velocity_seed,
+                    self.setting.ignore_atoms_velocities,
                 )
 
             self.calc.set(**run_params)
@@ -489,7 +475,9 @@ class VaspDriver(AbstractDriver):
             if self.setting.task == "md":
                 if self.setting.use_vasp_vinit:  # type: ignore
                     if not self.setting.ignore_atoms_velocities:
-                        raise RuntimeError("Cannot use atoms' velocties (ignore_atoms_velocities is false) when use_vasp_vinit is true.")
+                        raise RuntimeError(
+                            "Cannot use atoms' velocties (ignore_atoms_velocities is false) when use_vasp_vinit is true."
+                        )
                 else:
                     # use custom write_vasp to forward ase atoms' velocties to vasp
                     write_vasp(
@@ -525,7 +513,9 @@ class VaspDriver(AbstractDriver):
                 elif self.setting.task == "md":
                     steps = target_steps + dump_period - nframes * dump_period - 1
                 else:
-                    ...
+                    raise Exception(
+                        f"Task {self.setting.task} does not support updating `steps`."
+                    )
                 assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
                 self.calc.set(nsw=steps)
             # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
@@ -567,7 +557,7 @@ class VaspDriver(AbstractDriver):
         """Read vasp output files to get a list of Atoms.
 
         The positions, energy, free_energy, and forces are read from `vasprun.xml`.
-        If necessary, the total and atomic magnetic moments are read from `OUTCAR` 
+        If necessary, the total and atomic magnetic moments are read from `OUTCAR`
         as they are not stored in `vasprun.xml`.
 
         """
@@ -578,8 +568,8 @@ class VaspDriver(AbstractDriver):
             if vasprun.exists() and vasprun.stat().st_size != 0:
                 try:  # Sometimes there are some outputs in vasprun but not a complete structure.
                     frames = read(vasprun, ":")
-                    oszicar_fobj = open(wdir/"OSZICAR", "r")
-                    outcar_fobj = open(wdir/"OUTCAR", "r")
+                    oszicar_fobj = open(wdir / "OSZICAR", "r")
+                    outcar_fobj = open(wdir / "OUTCAR", "r")
                 except:
                     frames = []
             else:
@@ -626,16 +616,20 @@ class VaspDriver(AbstractDriver):
         if outcar_fobj is not None:
             outcar_lines = outcar_fobj.readlines()
             vasp_params_from_outcar = read_outcar_scf(outcar_lines)
-            assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
+            assert (
+                "ispin" in vasp_params_from_outcar
+            ), "OUTCAR must have ISPIN information."
             if vasp_params_from_outcar["ispin"] == 2:
                 outcar_fobj.seek(0)
                 outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
                 num_outcar_frames = len(outcar_frames)
-                assert num_frames == num_outcar_frames, f"vasprun {num_frames} != outcar {num_outcar_frames}"
+                assert (
+                    num_frames == num_outcar_frames
+                ), f"vasprun {num_frames} != outcar {num_outcar_frames}"
                 for i in range(num_frames):
                     frames[i].calc.results.update(
                         magmom=outcar_frames[i].calc.results["magmom"],
-                        magmoms=outcar_frames[i].calc.results["magmoms"]
+                        magmoms=outcar_frames[i].calc.results["magmoms"],
                     )
             outcar_fobj.close()
         else:
@@ -644,9 +638,13 @@ class VaspDriver(AbstractDriver):
 
         # read oszicar and outcar to check scf convergence
         if oszicar_fobj is not None:
-            assert "nelm" in vasp_params_from_outcar, "OUTCAR must have NELM information."
+            assert (
+                "nelm" in vasp_params_from_outcar
+            ), "OUTCAR must have NELM information."
             nelm = vasp_params_from_outcar["nelm"]
-            assert "ediff" in vasp_params_from_outcar, "OUTCAR must have EDIFF information."
+            assert (
+                "ediff" in vasp_params_from_outcar
+            ), "OUTCAR must have EDIFF information."
             ediff = vasp_params_from_outcar["ediff"]
             oszicar_lines = oszicar_fobj.readlines()
             scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
@@ -691,7 +689,7 @@ class VaspDriver(AbstractDriver):
 
     def read_trajectory(
         self, add_step_info=True, archive_path=None, *args, **kwargs
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Read trajectory in the current working directory.
 
         If the calculation failed, an empty atoms with errof info would be returned.

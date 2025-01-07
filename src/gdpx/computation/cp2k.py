@@ -382,11 +382,6 @@ class Cp2kDriver(AbstractDriver):
     default_task = "spc"
     supported_tasks = ["spc", "min", "md", "freq"]
 
-    # saved_fnames = [
-    #    "cp2k.inp", "cp2k.out", "cp2k-1.cell", "cp2k-pos-1.xyz", "cp2k-frc-1.xyz",
-    #    "cp2k-BFGS.Hessian"
-    # ]
-
     #: Class for setting.
     setting_cls: type[DriverSetting] = Cp2kDriverSetting
 

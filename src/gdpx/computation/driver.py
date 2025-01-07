@@ -321,10 +321,6 @@ class AbstractDriver(BaseComponent):
             curr_wdir.mkdir()
             for x in self.directory.iterdir():
                 if not re.match(r"[0-9]{4}\.run", x.name):
-                    # if x.name in self.saved_fnames:
-                    #    shutil.move(x, curr_wdir)
-                    # else:
-                    #    x.unlink()
                     shutil.move(x, curr_wdir)  # save everything...
                 else:
                     ...

@@ -342,13 +342,6 @@ class LmpDriver(AbstractDriver):
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    #: A list of output files would be saved when restart.
-    saved_fnames: list[str] = [
-        ASELMPCONFIG.log_filename,
-        ASELMPCONFIG.trajectory_filename,
-        ASELMPCONFIG.deviation_filename,
-    ]
-
     #: Class for setting.
     setting_cls: type[DriverSetting] = LmpDriverSetting
 
