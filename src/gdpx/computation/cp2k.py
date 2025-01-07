@@ -5,7 +5,7 @@
 import dataclasses
 import pathlib
 import traceback
-from typing import Optional, List
+from typing import Optional
 
 import numpy as np
 from ase import Atoms, units
@@ -16,7 +16,7 @@ from ..backend.cp2k import (
     read_cp2k_convergence,
     read_cp2k_outputs,
     read_cp2k_spc,
-    read_cp2k_spc_convergence
+    read_cp2k_spc_convergence,
 )
 from ..builder.constraints import parse_constraint_info
 from ..data.extatoms import ScfErrAtoms
@@ -43,6 +43,7 @@ class SinglePointController(Controller):
         ]
 
         return
+
 
 @dataclasses.dataclass
 class FrequencyController(Controller):
@@ -390,7 +391,7 @@ class Cp2kDriver(AbstractDriver):
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
             if self.setting.task == "spc":
-                verified = read_cp2k_spc_convergence(self.directory/"cp2k.out")
+                verified = read_cp2k_spc_convergence(self.directory / "cp2k.out")
             else:
                 checkpoints = list(self.directory.glob("*.restart"))
                 self._debug(f"checkpoints: {checkpoints}")
@@ -403,12 +404,13 @@ class Cp2kDriver(AbstractDriver):
 
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
+        assert isinstance(self.calc, Cp2kFileIO), "Cp2kDriver must use Cp2kFileIO."
         if ckpt_wdir is None:  # start from the scratch
             # Check if there is `cp2k.out` from a previous failed calculation.
-            # If there are outputs from multiple calculations, the parser for 
+            # If there are outputs from multiple calculations, the parser for
             # spc will fail as it needs read `- Atoms:`.
-            if (self.directory/"cp2k.out").exists():
-                (self.directory/"cp2k.out").unlink()
+            if (self.directory / "cp2k.out").exists():
+                (self.directory / "cp2k.out").unlink()
                 self._print("The previous `cp2k.out` is removed.")
             # Get all parameters
             run_params = self.setting.get_run_params(**kwargs)
@@ -507,11 +509,8 @@ class Cp2kDriver(AbstractDriver):
 
         return frames
 
-    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, *args, **kwargs) -> list[Atoms]:
         """"""
-        super().read_trajectory(*args, **kwargs)
-
-        # read backups
         if self.setting.task in ["spc"]:
             atoms = read_cp2k_spc(self.directory, prefix="cp2k")
             scf_convergence = read_cp2k_convergence(
