@@ -13,10 +13,10 @@ from ..utils.atoms_tags import get_tags_per_species
 
 
 # - basic builders and modifiers
-from .direct import DirectBuilder, ReadBuilder
+from .direct import DirectBuilder, ReadStruBuilder
 
 registers.builder.register("direct")(DirectBuilder)
-registers.builder.register("reader")(ReadBuilder)
+registers.builder.register("read_stru")(ReadStruBuilder)
 
 from .dimer import DimerBuilder
 

@@ -115,7 +115,9 @@ def read_xsd2(fd) -> Atoms:
         return atoms
 
 
-class ReadBuilder(StructureBuilder):
+class ReadStruBuilder(StructureBuilder):
+
+    name: str = "read_stru"
 
     def __init__(
         self,
@@ -125,22 +127,17 @@ class ReadBuilder(StructureBuilder):
         use_tags=False,
         directory="./",
         random_seed=None,
-        *args,
-        **kwargs,
     ):
         """"""
         super().__init__(
             use_tags=use_tags,
             directory=directory,
             random_seed=random_seed,
-            *args,
-            **kwargs,
         )
 
         self.fname = pathlib.Path(fname)
         self.index = index
         self.format = format
-        # self.kwargs = kwargs
 
         return
 
@@ -155,7 +152,7 @@ class ReadBuilder(StructureBuilder):
     def as_dict(self) -> dict:
         """"""
         params = {}
-        params["method"] = "reader"
+        params["method"] = "read_stru"
         params["fname"] = str(self.fname.resolve())
         params["index"] = self.index
         params["format"] = self.format
