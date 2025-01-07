@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import dataclasses
 import io
@@ -8,26 +9,25 @@ import itertools
 import os
 import pathlib
 import pickle
-import shutil
 import tarfile
 import traceback
-from typing import Dict, List, Mapping, NoReturn, Optional, Tuple
+from typing import Optional
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.calculators.calculator import FileIOCalculator, all_changes
 from ase.calculators.lammps import Prism, unitconvert
 from ase.calculators.mixing import LinearCombinationCalculator
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_masses, atomic_numbers
-from ase.io import read, write
+from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
 from .. import config
-from ..backend.lammps import parse_thermo_data, parse_thermo_data_by_pattern
+from ..backend.lammps import parse_thermo_data_by_pattern
 from ..builder.constraints import convert_indices, parse_constraint_info
 from ..builder.group import create_a_group
-from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
+from .driver import AbstractDriver, Controller, DriverSetting
 
 
 @dataclasses.dataclass(frozen=True)
@@ -173,7 +173,7 @@ class LmpDriverSetting(DriverSetting):
     neigh_modify: Optional[str] = None
 
     #: More custom LAMMPS fixes.
-    extra_fix: List[str] = dataclasses.field(default_factory=list)
+    extra_fix: list[str] = dataclasses.field(default_factory=list)
 
     #: PLUMED setting.
     plumed: Optional[str] = None
@@ -200,7 +200,7 @@ class LmpDriverSetting(DriverSetting):
 
         return
 
-    def get_minimisation_inputs(self, random_seed, group: str = "mobile") -> List[str]:
+    def get_minimisation_inputs(self, random_seed, group: str = "mobile") -> list[str]:
         """"""
         """Convert parameters into lammps input lines."""
         MIN_FIX_ID: str = "controller"
@@ -230,7 +230,7 @@ class LmpDriverSetting(DriverSetting):
 
     def get_molecular_dynamics_inputs(
         self, random_seed, group: str = "mobile"
-    ) -> List[str]:
+    ) -> list[str]:
         """Convert parameters into lammps input lines."""
         MD_FIX_ID: str = "controller"
         _init_md_params = dict(
@@ -339,32 +339,36 @@ class LmpDriver(AbstractDriver):
 
     name = "lammps"
 
-    special_keywords = {}
-
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    #: List of output files would be saved when restart.
-    saved_fnames: List[str] = [
+    #: A list of output files would be saved when restart.
+    saved_fnames: list[str] = [
         ASELMPCONFIG.log_filename,
         ASELMPCONFIG.trajectory_filename,
         ASELMPCONFIG.deviation_filename,
     ]
 
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = LmpDriverSetting
+
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
-        calc, params = self._check_plumed(calc=calc, params=params)
+        calc, params = self._canonicalise_calculator(calc=calc, params=params)
+        params.update(units=calc.units)
 
         super().__init__(calc, params, directory=directory, *args, **kwargs)
 
-        params.update(units=calc.units)
-        self.setting = LmpDriverSetting(**params)
-
         return
 
-    def _check_plumed(self, calc, params: dict):
-        """"""
+    def _canonicalise_calculator(self, calc, params: dict):
+        """Canonicalise the calculator and its parameters.
+
+        We check whether the calculator is a pure LAMMPS or a combination of LAMMPS and PLUMED.
+
+        """
         # TODO: We should better move this to potential_manager.
+        units = "metal"
         try:
             from ..potential.managers.plumed.calculators.plumed2 import Plumed
 
@@ -378,9 +382,12 @@ class LmpDriver(AbstractDriver):
                     new_calc = calc.calcs[0]
                     new_params = copy.deepcopy(params)
                     new_params["plumed"] = "".join(calc.calcs[1].input)
+                    units = calc.calcs[0].units
         except ImportError:
             new_calc = calc
             new_params = params
+            units = calc.units
+        new_params.update(units=units)
 
         return new_calc, new_params
 
@@ -719,7 +726,7 @@ class LmpDriver(AbstractDriver):
         archive_path: pathlib.Path = None,
         *args,
         **kwargs,
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Read trajectory in the current working directory."""
         if type_list is not None:
             self.calc.type_list = type_list
@@ -762,7 +769,7 @@ class Lammps(FileIOCalculator):
     name: str = "Lammps"
 
     #: Implemented properties.
-    implemented_properties: List[str] = ["energy", "forces", "stress"]
+    implemented_properties: list[str] = ["energy", "forces", "stress"]
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters: dict = dict(
@@ -797,10 +804,10 @@ class Lammps(FileIOCalculator):
     )
 
     #: Symbol to integer.
-    type_list: Optional[List[str]] = None
+    type_list: Optional[list[str]] = None
 
     #: Cached trajectory of the previous simulation.
-    cached_traj_frames: Optional[List[Atoms]] = None
+    cached_traj_frames: Optional[list[Atoms]] = None
 
     def __init__(self, command="lmp", label=name, **kwargs):
         """"""
@@ -1134,8 +1141,9 @@ class Lammps(FileIOCalculator):
             if self.plumed is not None:
                 # TODO: We should better move this to driver setting.
                 try:
-                    from ..potential.managers.plumed.calculators.plumed2 import \
-                        update_stride_and_file
+                    from ..potential.managers.plumed.calculators.plumed2 import (
+                        update_stride_and_file,
+                    )
 
                     plumed_inp = update_stride_and_file(
                         self.plumed, wdir=str(self.directory), stride=self.dump_period
