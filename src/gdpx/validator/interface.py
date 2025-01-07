@@ -17,11 +17,11 @@ class ValidatorVariable(Variable):
 
     def __init__(self, directory="./", **kwargs):
         """"""
-        # - create a validator
-        method = kwargs.get("method", "minima")
+        # Instantiate a validator
+        method = kwargs.pop("method", "minima")
         validator = registers.create("validator", method, convert_name=False, **kwargs)
 
-        # - save
+        # Save the instance
         super().__init__(initial_value=validator, directory=directory)
 
         return
