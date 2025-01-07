@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
-from typing import NoReturn
 
 import omegaconf
 
-from ..core.variable import Variable, DummyVariable
 from ..core.operation import Operation
 from ..core.register import registers
-
+from ..core.variable import DummyVariable, Variable
 from ..data.array import AtomsNDArray
 from ..data.dataset import AbstractDataloader
-from ..worker.drive import DriverBasedWorker
 from .validator import AbstractValidator
+
 
 @registers.variable.register
 class ValidatorVariable(Variable):
@@ -28,10 +25,10 @@ class ValidatorVariable(Variable):
         super().__init__(initial_value=validator, directory=directory)
 
         return
-    
+
+
 @registers.operation.register
 class validate(Operation):
-
     """The operation to validate properties by potentials.
 
     The reference properties should be stored and accessed through `structures`.
@@ -39,8 +36,14 @@ class validate(Operation):
     """
 
     def __init__(
-        self, structures, validator, worker=DummyVariable(), 
-        run_params: dict={}, directory="./", *args, **kwargs
+        self,
+        structures,
+        validator,
+        worker=DummyVariable(),
+        run_params: dict = {},
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """Init a validate operation.
 
@@ -48,7 +51,7 @@ class validate(Operation):
             structures: A node that forwards structures.
             validator: A validator.
             worker: A worker to run calculations.
-        
+
         """
         super().__init__(
             input_nodes=[structures, validator, worker], directory=directory
@@ -57,35 +60,37 @@ class validate(Operation):
         self.run_params = run_params
 
         return
-    
+
     def _preprocess_input_nodes(self, input_nodes):
         """Preprocess valid input nodes.
 
-        Some arguments accept basic python objects such list or dict, which are 
+        Some arguments accept basic python objects such list or dict, which are
         not necessary to be a Variable or an Operation.
 
         """
         structures, validator, worker = input_nodes
 
-        if isinstance(validator, dict) or isinstance(validator, omegaconf.dictconfig.DictConfig):
-            validator = ValidatorVariable(self.directory/"validator", **validator)
+        if isinstance(validator, dict) or isinstance(
+            validator, omegaconf.dictconfig.DictConfig
+        ):
+            validator = ValidatorVariable(self.directory / "validator", **validator)
             self._print(validator)
 
         return structures, validator, worker
-    
+
     def _convert_dataset(self, structures):
-        """Validator can accept various formats of input structures. 
+        """Validator can accept various formats of input structures.
 
         We convert all formats into one.
-        
+
         """
-        # NOTE: In an active session, the dataset is dynamic, thus, 
+        # NOTE: In an active session, the dataset is dynamic, thus,
         #       we need load the dataset before run...
         #       Validator accepts dict(reference=[], prediction=[])
         dataset_ = {}
-        if hasattr(structures, "items"): # check if the input is a dict-like object
+        if hasattr(structures, "items"):  # check if the input is a dict-like object
             stru_dict = structures
-        else: # assume it is just an AtomsNDArray
+        else:  # assume it is just an AtomsNDArray
             stru_dict = {}
             stru_dict["reference"] = structures
 
@@ -105,7 +110,7 @@ class validate(Operation):
         dataset = dataset_
 
         return dataset
-    
+
     def forward(self, structures, validator: AbstractValidator, workers):
         """Run a validator on input dataset.
 
@@ -118,7 +123,9 @@ class validate(Operation):
         # - create a worker
         if workers is not None:
             num_workers = len(workers)
-            assert num_workers == 1, f"Validator only accepts one worker but {num_workers} were given."
+            assert (
+                num_workers == 1
+            ), f"Validator only accepts one worker but {num_workers} were given."
             worker = workers[0]
             worker.directory = self.directory
         else:
@@ -137,12 +144,14 @@ class validate(Operation):
 
         self.status = status
 
-        return # TODO: forward a reference-prediction pair?
-    
+        return  # TODO: forward a reference-prediction pair?
+
     def report_convergence(self, *args, **kwargs) -> bool:
         """"""
         input_nodes = self.input_nodes
-        assert hasattr(input_nodes[1], "output"), f"Operation {self.directory.name} cannot report convergence without forwarding."
+        assert hasattr(
+            input_nodes[1], "output"
+        ), f"Operation {self.directory.name} cannot report convergence without forwarding."
         validator = input_nodes[1].output
 
         self._print(f"{validator.__class__.__name__} Convergence")
