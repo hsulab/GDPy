@@ -2,18 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
-import abc
-
 import numpy as np
 
-from ..core.node import AbstractNode
+from ase import Atoms
+
+from gdpx.core.component import BaseComponent
 
 
-class AbstractComparator(AbstractNode):
+class AbstractComparator(BaseComponent):
 
-    ...
-
-    def compare_composition(self, a1, a2):
+    def compare_composition(self, a1: Atoms, a2: Atoms) -> bool:
         """"""
         # TODO: compare PBC?
         is_similar = False
@@ -31,6 +29,11 @@ class AbstractComparator(AbstractNode):
 
         return is_similar
 
+    def looks_like(self, a1: Atoms, a2: Atoms) -> bool:
+        """"""
+
+        raise NotImplementedError()
+
     def __call__(self, a1, a2) -> bool:
         """"""
 
@@ -39,3 +42,4 @@ class AbstractComparator(AbstractNode):
 
 if __name__ == "__main__":
     ...
+
