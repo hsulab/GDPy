@@ -7,10 +7,9 @@ import copy
 import os
 import pathlib
 import subprocess
+from typing import List, Optional, Union
 
-from typing import Union, Callable, Optional, List
-
-from ..core.node import AbstractNode
+from gdpx.core.component import BaseComponent
 
 
 class TrainingFailed(RuntimeError):
@@ -25,7 +24,7 @@ class FreezingFailed(RuntimeError):
     ...
 
 
-class AbstractTrainer(AbstractNode):
+class AbstractTrainer(BaseComponent):
 
     #: Name of this trainer.
     name: str = "trainer"
@@ -49,12 +48,10 @@ class AbstractTrainer(AbstractNode):
         train_epochs: int = 200,
         train_batches: int = 200000,
         print_epochs: int = 5,
-        directory=".",
-        command: str="train",
-        freeze_command: Optional[str]="freeze",
+        directory: Union[str, pathlib.Path] = ".",
+        command: str = "train",
+        freeze_command: Optional[str] = "freeze",
         random_seed: Optional[Union[int, dict]] = None,
-        *args,
-        **kwargs,
     ) -> None:
         """Potential Trainer.
 
@@ -76,19 +73,6 @@ class AbstractTrainer(AbstractNode):
         self.train_epochs = train_epochs
         self.train_batches = train_batches
         self.print_epochs = print_epochs
-
-        return
-
-    @property
-    def directory(self):
-        """Directory should always be absolute."""
-
-        return self._directory
-
-    @directory.setter
-    def directory(self, directory: Union[str, pathlib.Path]):
-        """"""
-        self._directory = pathlib.Path(directory).resolve()
 
         return
 
@@ -129,6 +113,11 @@ class AbstractTrainer(AbstractNode):
         self.write_input(dataset)
 
         return command
+
+    def _train_from_the_restart(self, dataset, init_model):
+        """Train from the restart."""
+
+        raise NotImplementedError()
 
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
