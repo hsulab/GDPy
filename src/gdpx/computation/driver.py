@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 import copy
 import dataclasses
@@ -9,7 +10,7 @@ import re
 import shutil
 import tarfile
 import warnings
-from typing import Callable, List, NoReturn, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -21,8 +22,9 @@ from ase.md.velocitydistribution import (
     ZeroRotation,
 )
 
+from gdpx.core.component import BaseComponent
+
 from ..builder.constraints import convert_indices, parse_constraint_info
-from ..core.node import AbstractNode
 from .md.md_utils import force_temperature
 
 # Key name for earlystopping in atoms.info.
@@ -59,7 +61,7 @@ class DriverSetting:
     check_trajectory_convergence: bool = False
 
     #: Some observers
-    observers: Optional[List[dict]] = None
+    observers: Optional[list[dict]] = None
 
     #: Random seed for velocity initialisation.
     velocity_seed: Optional[int] = None
@@ -115,15 +117,6 @@ class DriverSetting:
     #: Parameters that are used to update
     _internals: dict = dataclasses.field(default_factory=dict)
 
-    def update(self, **kwargs):
-        """"""
-        for k, v in kwargs.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-        self.__post_init__()
-
-        return
-
     def get_init_params(self):
         """"""
 
@@ -136,7 +129,7 @@ class DriverSetting:
         )
 
 
-class AbstractDriver(AbstractNode):
+class AbstractDriver(BaseComponent):
 
     #: Driver's name.
     name: str = "abstract"
@@ -150,11 +143,8 @@ class AbstractDriver(AbstractNode):
     #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
     accept_bad_structure: bool = False
 
-    #: Driver setting.
-    setting: DriverSetting = None
-
     #: List of output files would be removed when restart.
-    removed_fnames: List[str] = []
+    removed_fnames: list[str] = []
 
     #: Parameters for PotentialManager.
     pot_params: Optional[dict] = None
@@ -182,7 +172,7 @@ class AbstractDriver(AbstractNode):
         self.calc = calc
         self.calc.reset()
 
-        self.cache_traj: Optional[List[Atoms]] = None
+        self.cache_traj: Optional[list[Atoms]] = None
 
         self.ignore_convergence = ignore_convergence
 
@@ -193,15 +183,17 @@ class AbstractDriver(AbstractNode):
         else:
             # We need init self.setting in subclass's init
             ...
+        
+        assert isinstance(self.setting, DriverSetting)
 
         return
 
-    @AbstractNode.directory.setter
-    def directory(self, directory_):
+    @BaseComponent.directory.setter
+    def directory(self, directory: Union[str, pathlib.Path]):
         """"""
-        self._directory = pathlib.Path(directory_)
         # NOTE: directory is set before self.calc is defined...
         #       ASE uses str path, so to avoid inconsistency here
+        self._directory = pathlib.Path(directory).resolve()
         if hasattr(self, "calc"):
             self.calc.directory = str(self.directory)
 
@@ -247,6 +239,8 @@ class AbstractDriver(AbstractNode):
         if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
             prev_command = self.calc.command
             self.calc.command = self.setting.machine_prefix + " " + prev_command
+        else:
+            prev_command = ""
 
         self._run_step(atoms, system_changed, read_ckpt, *args, **kwargs)
 
@@ -261,7 +255,7 @@ class AbstractDriver(AbstractNode):
     def _run_step(self, atoms, system_changed, read_ckpt, *args, **kwargs):
         """"""
         # run dynamics
-        self.cache_traj: Optional[List[Atoms]] = None
+        self.cache_traj: Optional[list[Atoms]] = None
         if not self._verify_checkpoint():
             # If there is no valid checkpoint, just run the simulation from the scratch
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
@@ -404,7 +398,7 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def read_convergence_from_trajectory(self, frames: List[Atoms], *args, **kwargs):
+    def read_convergence_from_trajectory(self, frames: list[Atoms], *args, **kwargs):
         """"""
         converged = False
 
@@ -515,14 +509,19 @@ class AbstractDriver(AbstractNode):
         return converged
 
     @abc.abstractmethod
-    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
 
-        return
+        ...
+
+    def _read_a_single_trajectory(self, *args, **kwargs) -> list[Atoms]:
+        """"""
+
+        raise NotImplementedError()
 
     def _aggregate_trajectories(
         self, check_energy: bool = False, archive_path=None, *args, **kwargs
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """"""
         prev_wdirs = []
         if archive_path is None:
