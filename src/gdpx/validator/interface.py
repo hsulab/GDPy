@@ -4,27 +4,14 @@
 
 import omegaconf
 
+from gdpx.nodes.validator import ValidatorVariable
+
 from ..core.operation import Operation
 from ..core.register import registers
-from ..core.variable import DummyVariable, Variable
+from ..core.variable import DummyVariable
 from ..data.array import AtomsNDArray
 from ..data.dataset import AbstractDataloader
 from .validator import AbstractValidator
-
-
-@registers.variable.register
-class ValidatorVariable(Variable):
-
-    def __init__(self, directory="./", **kwargs):
-        """"""
-        # Instantiate a validator
-        method = kwargs.pop("method", "minima")
-        validator = registers.create("validator", method, convert_name=False, **kwargs)
-
-        # Save the instance
-        super().__init__(initial_value=validator, directory=directory)
-
-        return
 
 
 @registers.operation.register
