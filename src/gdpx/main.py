@@ -187,13 +187,13 @@ def main():
     parser_describe.add_argument("-s", "--structures", required=True, help="structures")
 
     # --- validation
-    parser_validation = subparsers.add_parser(
-        "valid",
+    parser_validate = subparsers.add_parser(
+        "validate",
         help="validate properties with trained models",
         description=str(registers.validator),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser_validation.add_argument("CONFIG", help="validation configuration file")
+    parser_validate.add_argument("CONFIG", help="validation configuration file")
 
     # === execute
     args = parser.parse_args()
@@ -294,8 +294,8 @@ def main():
 
         params = parse_input_file(args.CONFIG)
         run_expedition(params, args.wait, args.directory, workers[0], spawn=args.spawn)
-    elif args.subcommand == "valid":
-        from gdpx.validator import run_validation
+    elif args.subcommand == "validate":
+        from .cli.validate import run_validation
 
         params = parse_input_file(args.CONFIG)
         run_validation(params, args.directory, workers[0])
