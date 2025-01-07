@@ -3,23 +3,23 @@
 
 
 import pathlib
-from typing import Union, List
+from typing import Union, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib as mpl
-mpl.use("Agg") #silent mode
-from matplotlib import pyplot as plt
+
 try:
     plt.style.use("presentation")
-except Exception as e:
+except Exception:
     ...
 
 from ase import Atoms
-from ase.constraints import FixAtoms, constrained_indices
+from ase.constraints import FixAtoms
 
-from ..core.node import AbstractNode
-from ..utils.comparision import get_properties, plot_parity, plot_distribution
+from gdpx.core.component import BaseComponent
+
 from ..builder.constraints import parse_constraint_info
+from ..utils.comparision import get_properties, plot_distribution, plot_parity
 
 
 def set_constraint(atoms, cons_text):
@@ -34,10 +34,14 @@ def set_constraint(atoms, cons_text):
     return atoms
 
 
-class SinglePointComparator(AbstractNode):
+class SinglePointComparator(BaseComponent):
 
-    def __init__(self, directory: Union[str, pathlib.Path] = "./", random_seed: int = None, *args, **kwargs):
-        super().__init__(directory, random_seed, *args, **kwargs)
+    def __init__(
+        self,
+        directory: Union[str, pathlib.Path] = "./",
+        random_seed: Optional[Union[int,dict]] = None,
+    ):
+        super().__init__(directory=directory, random_seed=random_seed)
 
         return
 
@@ -50,18 +54,20 @@ class SinglePointComparator(AbstractNode):
         reference = reference.get_marked_structures()
         prediction = prediction.get_marked_structures()
 
-        #for a in reference:
+        # for a in reference:
         #    print(constrained_indices(a, only_include=FixAtoms))
         #    break
 
-        assert len(reference) == len(prediction), "Number of structures are inconsistent."
+        assert len(reference) == len(
+            prediction
+        ), "Number of structures are inconsistent."
 
         nframes, rmse_ret = self._plot_comparison("spc", reference, prediction)
         self.write_data([["spc", nframes, rmse_ret]])
 
         return
 
-    def write_data(self, data, fname: str="rmse.dat"):
+    def write_data(self, data, fname: str = "rmse.dat"):
         """"""
         # - check data file
         keys = ["ene", "frc"]
@@ -69,14 +75,14 @@ class SinglePointComparator(AbstractNode):
             for k in rmse_ret.keys():
                 if k not in keys:
                     keys.append(k)
-        content_fmt = "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  "*len(keys) + "\n"
+        content_fmt = "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  " * len(keys) + "\n"
 
-        header_fmt = "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  "*len(keys) + "\n"
+        header_fmt = "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  " * len(keys) + "\n"
         header_data = ["#prefix", "nframes"]
         for k in keys:
             header_data.extend([f"{k}_rmse", f"{k}_std"])
         header = header_fmt.format(*header_data)
-        
+
         content = header
         for prefix, nframes, rmse_ret in data:
             cur_data = [prefix, nframes]
@@ -87,27 +93,32 @@ class SinglePointComparator(AbstractNode):
                 else:
                     cur_data.extend([v["rmse"], v["std"]])
             content += content_fmt.format(*cur_data)
-        
-        with open(self.directory/fname, "w") as fopen:
+
+        with open(self.directory / fname, "w") as fopen:
             fopen.write(content)
         self._print(content)
 
         return
 
-    def _plot_comparison(self, prefix, ref_frames: List[Atoms], pred_frames: List[Atoms]):
+    def _plot_comparison(
+        self, prefix, ref_frames: list[Atoms], pred_frames: list[Atoms]
+    ):
         """"""
-        if not (self.directory/prefix).exists():
-            (self.directory/prefix).mkdir(parents=True)
+        if not (self.directory / prefix).exists():
+            (self.directory / prefix).mkdir(parents=True)
 
         nframes = len(ref_frames)
-        ref_symbols, ref_energies, ref_forces = get_properties(ref_frames, apply_constraint=True)
+        ref_symbols, ref_energies, ref_forces = get_properties(
+            ref_frames, apply_constraint=True
+        )
         ref_natoms = [len(a) for a in ref_frames]
-        pred_symbols, pred_energies, pred_forces = get_properties(pred_frames, apply_constraint=True)
-        
+        pred_symbols, pred_energies, pred_forces = get_properties(
+            pred_frames, apply_constraint=True
+        )
+
         # - figure
         fig, axarr = plt.subplots(
-            nrows=1, ncols=2,
-            gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
+            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
         )
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
@@ -122,15 +133,14 @@ class SinglePointComparator(AbstractNode):
             axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
         )
 
-        #if (self.directory/f"{prefix}.png").exists():
+        # if (self.directory/f"{prefix}.png").exists():
         #    warnings.warn(f"Figure file {prefix} exists.", UserWarning)
-        plt.savefig(self.directory/prefix/"rmse.png")
+        plt.savefig(self.directory / prefix / "rmse.png")
         plt.close()
 
         # plot distributions
         fig, axarr = plt.subplots(
-            nrows=1, ncols=2,
-            gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
+            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
         )
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
@@ -142,7 +152,7 @@ class SinglePointComparator(AbstractNode):
             axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
         )
 
-        plt.savefig(self.directory/prefix/"dist.png")
+        plt.savefig(self.directory / prefix / "dist.png")
         plt.close()
 
         # - save results to data file
@@ -159,3 +169,4 @@ class SinglePointComparator(AbstractNode):
 
 if __name__ == "__main__":
     ...
+
