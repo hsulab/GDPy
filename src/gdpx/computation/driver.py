@@ -183,7 +183,7 @@ class AbstractDriver(BaseComponent):
         else:
             # We need init self.setting in subclass's init
             ...
-        
+
         assert isinstance(self.setting, DriverSetting)
 
         return
