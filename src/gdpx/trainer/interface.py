@@ -6,32 +6,17 @@ import copy
 import pathlib
 import re
 
-import yaml
 import omegaconf
+import yaml
 
-from ..core.variable import Variable, DummyVariable
 from ..core.operation import Operation
 from ..core.register import registers
-
+from ..core.variable import DummyVariable, Variable
 from ..potential.manager import AbstractPotentialManager
 from ..potential.trainer import AbstractTrainer
-from ..worker.train import TrainerBasedWorker
 from ..scheduler.interface import SchedulerVariable
 from ..scheduler.scheduler import AbstractScheduler
-
-
-@registers.variable.register
-class TrainerVariable(Variable):
-
-    def __init__(self, directory="./", **kwargs):
-        """"""
-        # print("trainer keys: ", kwargs.keys())
-        name = kwargs.get("name", None)
-        trainer = registers.create("trainer", name, convert_name=True, **kwargs)
-
-        super().__init__(initial_value=trainer, directory=directory)
-
-        return
+from ..worker.train import TrainerBasedWorker
 
 
 @registers.operation.register

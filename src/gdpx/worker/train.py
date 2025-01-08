@@ -67,7 +67,7 @@ class TrainerBasedWorker(AbstractWorker):
         trainer_params["trainer"] = trainer.as_dict()
 
         # extra params
-        trainer_params["trainer"]["share_dataset"] = use_shared_dataset
+        trainer_params["share_dataset"] = use_shared_dataset
 
         # TODO: we set a random seed for each trainer
         #       as a committee will be trained

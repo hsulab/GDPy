@@ -261,9 +261,9 @@ def main():
 
         convert_dataset(args.INPUT, args.input_format, args.output_format, curr_wdir)
     elif args.subcommand == "train":
-        from gdpx.trainer import run_newtrainer
+        from .cli.train import run_trainer
 
-        run_newtrainer(args.CONFIG, args.directory)
+        run_trainer(args.CONFIG, args.directory)
     elif args.subcommand == "build":
         build_config = parse_input_file(args.CONFIG)
         from .cli.build import build_structures
