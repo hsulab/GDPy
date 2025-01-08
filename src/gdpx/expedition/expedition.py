@@ -7,34 +7,12 @@ import copy
 import logging
 
 from gdpx.core.component import BaseComponent
+from gdpx.nodes.computer import canonicalise_worker
 
-from . import ComputerVariable, DriverBasedWorker, SingleWorker, registers
+from . import registers
 
-
-def parse_worker(inp_worker: dict):
-    """Parse DriverBasedWorker for this expedition."""
-    worker = None
-    if isinstance(inp_worker, dict):
-        worker_params = copy.deepcopy(inp_worker)
-        worker = registers.create(
-            "variable", "computer", convert_name=True, **worker_params
-        ).value[0]
-    elif isinstance(inp_worker, list):  # assume it is from a computervariable
-        worker = inp_worker[0]
-    elif isinstance(inp_worker, ComputerVariable):
-        worker = inp_worker.value[0]
-    elif isinstance(inp_worker, DriverBasedWorker) or isinstance(
-        inp_worker, SingleWorker
-    ):
-        worker = inp_worker
-    else:
-        raise RuntimeError(f"Unknown worker type {inp_worker}.")
-
-    return worker
-
-
-canonicalise_worker = parse_worker
-
+# For backward compatibility
+parse_worker = canonicalise_worker
 
 def canonicalise_builder(builder: dict):
     """"""
