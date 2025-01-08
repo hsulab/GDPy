@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-from typing import List
+import pathlib
+from typing import Any, Optional
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
-from ase.geometry import find_mic
-
-import ase.optimize
-from ase.constraints import FixAtoms
-from ase.constraints import UnitCellFilter
-
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.geometry import find_mic
+from ase.io import read, write
 
-from gdpx.validator.validator import AbstractValidator
+from gdpx.builder.builder import StructureBuilder
+from gdpx.validator.validator import BaseValidator
 from gdpx.worker.drive import DriverBasedWorker
-from gdpx.builder.constraints import set_constraint
-from ..data.array import AtomsNDArray
 
 """Validate minima and relative energies...
 """
@@ -39,7 +34,54 @@ def make_clean_atoms(atoms_, results=None):
     return atoms
 
 
-class MinimaValidator(AbstractValidator):
+def compare_structures(v_frames: list[Atoms], p_frames: list[Atoms]):
+    """"""
+    # number of atoms
+    v_natoms = np.array([len(a) for a in v_frames])
+    p_natoms = np.array([len(a) for a in p_frames])
+    assert np.allclose(v_natoms, p_natoms), "Number of atoms are not consistent."
+
+    # total energies
+    v_ene = np.array([a.get_potential_energy() for a in v_frames])
+    p_ene = np.array([a.get_potential_energy() for a in p_frames])
+
+    # maximum forces TODO: constraints?
+    v_maxfrc = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in v_frames])
+    p_maxfrc = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in p_frames])
+
+    # displacement
+    disp = [] # displacements
+    for ref_atoms, pre_atoms in zip(v_frames, p_frames):
+        vector = pre_atoms.get_positions() - ref_atoms.get_positions()
+        _, vlen = find_mic(vector, pre_atoms.get_cell())
+        disp.append(np.linalg.norm(vlen))
+
+    results = dict(
+        natoms = v_natoms,
+        ene = (v_ene, p_ene),
+        maxfrc = (v_maxfrc, p_maxfrc),
+        disp = disp
+    )
+
+    return results
+
+
+def summarise_validation(natoms, ene, maxfrc, disp) -> str:
+    """"""
+    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 6 + "\n"
+
+    content = "# Name     N_a  " + ("{:>12s}  "*6).format("E_v", "E_p", "E_d", "E_d/N_a", "Fmax_v", "Fmax_p", "Disp") + "\n"
+
+    num_structures = len(natoms)
+    for i in range(num_structures):
+        ene_diff = ene[0][i] - ene[1][i]
+        data = [ene[0][i], ene[1][i], ene_diff, ene_diff/natoms[i], maxfrc[0][i], maxfrc[1][i], disp[i]]
+        content += line_format.format(i, natoms[i], *data)
+
+    return content
+
+
+class MinimaValidator(BaseValidator):
 
     """Run minimisation on various configurations and compare relative energy.
 
@@ -49,6 +91,8 @@ class MinimaValidator(AbstractValidator):
 
     """
 
+    name: str = "minima"
+
     def __init__(self, ene_shift=[], *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
@@ -56,106 +100,64 @@ class MinimaValidator(AbstractValidator):
         self.ene_shift = ene_shift
 
         return
-    
-    def _process_data(self, data) -> List[Atoms]:
-        """"""
-        data = AtomsNDArray(data)
 
-        # We need a List of Atoms (ndim=1).
-        if data.ndim == 1:
-            data = data.tolist()
-        #elif data.ndim == 2: # assume it is from extract_cache...
-        #    data = data.tolist()
-        #elif data.ndim == 3: # assume it is from a compute node...
-        #    data_ = []
-        #    for d in data[:]: # TODO: add squeeze method?
-        #        data_.extend(d)
-        #    data = data
+    def run(self, structures: Optional[Any]=None, worker: Optional[DriverBasedWorker]=None, *args, **kwargs):
+        """"""
+        super().run()
+
+        if worker is not None:
+            v_worker = worker
+            self._print("Use the worker at run time.")
         else:
-            raise RuntimeError(f"Invalid shape {data.shape}.")
+            v_worker = self.worker
+        assert v_worker is not None, "Worker must be provided either init or run time."
+        v_worker.directory = self.directory / "_run"
 
-        return data
+        if structures is not None:
+            v_structures = structures
+            self._print("Use the structures at run time.")
+        else:
+            v_structures = self.structures
+        self._print(f"{v_structures=}")
+        assert v_structures is not None, "Structures must be provided either init or run time."
 
-    def run(self, dataset: dict, worker: DriverBasedWorker, *args, **kwargs):
+        if isinstance(v_structures, StructureBuilder):
+            v_structures = v_structures.run()
+
+        is_finished = False
+
+        end_frames = self._irun(v_structures, v_worker)
+        if end_frames is not None:
+            results = compare_structures(v_structures, end_frames)
+            if not pathlib.Path(self.directory / "v.dat").exists():
+                content = summarise_validation(**results)
+                with open(self.directory / "v.dat", "w") as fopen:
+                    fopen.write(content)
+        else:
+            is_finished = False 
+
+        return is_finished
+
+
+    def _irun(self, frames: list[Atoms], worker: DriverBasedWorker) -> Optional[list[Atoms]]:
         """"""
-        # TODO: assume dataset is a dict of frames
-        pre_dataset = {}
-        for k, curr_data in dataset.items():
-            curr_frames = self._process_data(curr_data)
-            nframes = len(curr_frames)
+        assert isinstance(worker, DriverBasedWorker), "Worker must be a DriverBasedWorker."
 
-            cached_pred_fpath = self.directory/k/ "pred.xyz"
-            if not cached_pred_fpath.exists():
-                worker.directory = self.directory/k
-                worker.batchsize = nframes
+        cache_fpath = self.directory / "pred.xyz"
+        if cache_fpath.exists():
+            end_frames = read(cache_fpath, ":")
+            return end_frames
 
-                worker.run(curr_frames)
-                worker.inspect(resubmit=True)
-                if worker.get_number_of_running_jobs() == 0:
-                    # -- get end frames
-                    trajectories = worker.retrieve(
-                        include_retrieved=True,
-                    )
-                    pred_frames = [t[-1] for t in trajectories]
-                else:
-                    # TODO: ...
-                    ...
-                write(cached_pred_fpath, pred_frames)
-            else:
-                pred_frames = read(cached_pred_fpath, ":")
-            
-            pre_dataset[k] = pred_frames
-        
-        # -
-        keys = list(dataset.keys())
-        for key in keys:
-            self._print(f"group {key}")
-            # - restore constraints
-            cons_text = worker.driver.as_dict()["constraint"]
-            for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
-                set_constraint(ref_atoms, cons_text, ignore_attached_constraints=True)
-                set_constraint(pre_atoms, cons_text, ignore_attached_constraints=True)
-        
-            # - compare ...
-            ref_energies = np.array([a.get_potential_energy() for a in dataset[key]])
-            pre_energies = np.array([a.get_potential_energy() for a in pre_dataset[key]])
+        _ = worker.run(frames)
+        _ = worker.inspect(resubmit=True)
+        if worker.get_number_of_running_jobs() == 0:
+            trajectories = worker.retrieve(include_retrieved=True)
+            end_frames = [t[-1] for t in trajectories]
+            write(cache_fpath, end_frames)
+        else:
+            end_frames = None
 
-            ref_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in dataset[key]])
-            pre_maxforces = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in pre_dataset[key]])
-
-            # - compute shifts if any
-            if key == "composites":
-                if self.ene_shift:
-                    ref_ene_shift = np.sum([x*dataset[y][0].get_potential_energy() for x, y in self.ene_shift])
-                    pre_ene_shift = np.sum([x*pre_dataset[y][0].get_potential_energy() for x, y in self.ene_shift])
-            else:
-                ref_ene_shift = 0.
-                pre_ene_shift = 0.
-
-            ref_rel_energies = ref_energies - ref_ene_shift
-            pre_rel_energies = pre_energies - pre_ene_shift
-
-            # -- disp
-            disps = [] # displacements
-            for ref_atoms, pre_atoms in zip(dataset[key], pre_dataset[key]):
-                vector = pre_atoms.get_positions() - ref_atoms.get_positions()
-                vmin, vlen = find_mic(vector, pre_atoms.get_cell())
-                disps.append(np.linalg.norm(vlen))
-
-            content = ("{:<24s}  "+"{:<12s}  "*7+"\n").format("Name", "RefEne", "NewEne", "RefMaxF", "NewMaxF", "Drmse", "RefRelEne", "NewRelEne")
-            for i, (ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene) in enumerate(
-                zip(ref_energies, pre_energies, ref_maxforces, pre_maxforces, disps, ref_rel_energies, pre_rel_energies)
-            ):
-                content += ("{:<24s}  "+"{:<12.4f}  "*7+"\n").format(
-                    str(i), ref_ene, new_ene, ref_maxfrc, new_maxfrc, dis, ref_rel_ene, pre_rel_ene
-                )
-
-            with open(self.directory/f"abs-{key}.dat", "w") as fopen:
-                fopen.write(content)
-        
-            self._print(content)
-
-        return
+        return end_frames  # type: ignore
 
 
 if __name__ == "__main__":
