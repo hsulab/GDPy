@@ -10,7 +10,8 @@ import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
-from ..builder.interface import BuilderVariable, build
+from gdpx.nodes.builder import BuilderVariable, build
+
 from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import Variable

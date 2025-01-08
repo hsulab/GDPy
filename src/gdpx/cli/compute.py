@@ -10,8 +10,9 @@ from typing import List, Optional, Union
 from ase import Atoms
 from ase.io import read, write
 
+from gdpx.nodes.builder import BuilderVariable
+
 from .. import config
-from ..builder.interface import BuilderVariable
 from ..reactor.reactor import AbstractReactor
 from ..scheduler.interface import SchedulerVariable
 from ..utils.command import parse_input_file

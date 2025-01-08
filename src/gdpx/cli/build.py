@@ -7,8 +7,9 @@ from typing import Union
 
 from ase.io import read, write
 
+from gdpx.nodes.builder import BuilderVariable
+
 from ..builder.builder import StructureBuilder
-from ..builder.interface import BuilderVariable
 
 
 def create_builder(config: Union[str, dict]) -> StructureBuilder:
