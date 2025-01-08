@@ -12,25 +12,6 @@ from gdpx.nodes.builder import BuilderVariable
 from ..builder.builder import StructureBuilder
 
 
-def create_builder(config: Union[str, dict]) -> StructureBuilder:
-    """"""
-    supported_configtypes = ["json", "yaml"]
-    if isinstance(config, (str, pathlib.Path)):
-        params = str(config)
-        suffix = params[-4:]
-        if suffix in supported_configtypes:
-            from gdpx.utils.command import parse_input_file
-
-            params = parse_input_file(config)
-        else:  # assume it is an ASE readable structure file
-            # FIXME: separate reading structures from a file or a direct python object
-            params = dict(method="direct", frames=params)
-
-    builder: StructureBuilder = BuilderVariable(**params).value
-
-    return builder
-
-
 def build_structures(
     config: dict, substrates=None, size: int = 1, directory: str = "./"
 ):

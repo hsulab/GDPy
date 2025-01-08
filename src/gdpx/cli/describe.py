@@ -5,9 +5,10 @@
 import pathlib
 from typing import Union
 
+from gdpx.nodes.builder import canonicalise_builder
+
 from ..data.array import AtomsNDArray
 from ..describer.interface import DescriberVariable
-from .build import create_builder
 
 
 def describe_structures(config: dict, structures, directory: Union[str,pathlib.Path]="./"):
@@ -18,7 +19,7 @@ def describe_structures(config: dict, structures, directory: Union[str,pathlib.P
     describer.directory = directory
 
     # TODO: convert to a bundle of atoms?
-    builder = create_builder(structures)
+    builder = canonicalise_builder(structures)
     frames = builder.run()  # -> List[Atoms]
     data = AtomsNDArray(frames)
 

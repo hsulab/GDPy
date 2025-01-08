@@ -5,10 +5,11 @@
 import pathlib
 from typing import Union
 
+from gdpx.nodes.builder import canonicalise_builder
+
 from ..data.array import AtomsNDArray
 from ..selector.interface import SelectorVariable
 from ..selector.selector import AbstractSelector
-from .build import create_builder
 
 
 def run_selection(
@@ -30,11 +31,11 @@ def run_selection(
 
     params = parse_input_file(param_file)
 
-    selector: AbstractSelector = SelectorVariable(directory=directory, **params).value
+    selector: AbstractSelector = SelectorVariable(directory=directory, **params).value  # type: ignore
     selector.directory = directory
 
     # - read structures
-    builder = create_builder(structure)
+    builder = canonicalise_builder(structure)
     frames = builder.run()  # -> List[Atoms]
 
     # TODO: convert to a bundle of atoms?
@@ -43,7 +44,7 @@ def run_selection(
     # -
     selected_frames = selector.select(data)
 
-    from ase.io import read, write
+    from ase.io import write
 
     write(directory / "selected_frames.xyz", selected_frames)
 

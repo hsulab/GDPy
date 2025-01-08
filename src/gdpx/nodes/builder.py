@@ -9,6 +9,8 @@ import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
+from gdpx.builder.builder import StructureBuilder
+
 from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import Variable
@@ -264,6 +266,36 @@ class modify(Operation):
         self.status = "finished"
 
         return frames
+
+
+def canonicalise_builder(config: Union[str, pathlib.Path, dict]) -> StructureBuilder:
+    """"""
+    # Check if it is a structure file path, a configuration file path or just a pure string
+    supported_configtypes = [".json", ".yaml"]
+    if isinstance(config, str):
+        config = pathlib.Path(config)
+        if config.suffix in supported_configtypes:
+            from gdpx.utils.command import parse_input_file
+
+            config = parse_input_file(config)
+        else:
+            if config.exists():  # a structure filepath
+                ...
+            else:
+                config = config.name
+
+    if isinstance(config, str):
+        raise NotImplementedError(f"Cannot convert `{config}` to builder.")
+    elif isinstance(config, pathlib.Path):
+        config = dict(method="direct", frames=str(config))
+    elif isinstance(config, dict):
+        ...
+    else:
+        raise Exception(f"Unknown config `{config}` with type `{type(config)}`.")
+
+    builder: StructureBuilder = BuilderVariable(**config).value  # type: ignore
+
+    return builder
 
 
 if __name__ == "__main__":

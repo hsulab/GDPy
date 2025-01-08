@@ -10,7 +10,7 @@ from typing import List, Optional, Union
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.nodes.builder import BuilderVariable
+from gdpx.nodes.builder import BuilderVariable, canonicalise_builder
 
 from .. import config
 from ..reactor.reactor import AbstractReactor
@@ -18,8 +18,8 @@ from ..scheduler.interface import SchedulerVariable
 from ..utils.command import parse_input_file
 from ..worker.drive import DriverBasedWorker
 from ..worker.grid import GridDriverBasedWorker
-from ..worker.interface import ComputerVariable, ReactorVariable, ComputerChainVariable
-from .build import create_builder
+from ..worker.interface import (ComputerChainVariable, ComputerVariable,
+                                ReactorVariable)
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -138,7 +138,7 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
                 config._print(f"{directory.name} has already been retrieved.")
                 comp_state = CompState.FINISHED
             else:
-                config._print(f"Reactor results cannot be retreived for now.")
+                config._print("Reactor results cannot be retreived for now.")
         else:
             config._print(f"{directory.name} has already been retrieved.")
             comp_state = CompState.FINISHED
@@ -174,7 +174,7 @@ def run_worker(
     if isinstance(structure[0], str):
         frames = []
         for i, s in enumerate(structure):
-            builder = create_builder(s)
+            builder = canonicalise_builder(s)
             builder.directory = directory / "init" / f"s{i}"
             frames.extend(builder.run())
     else:
