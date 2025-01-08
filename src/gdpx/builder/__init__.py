@@ -82,9 +82,9 @@ from .repeat import RepeatModifier
 registers.builder.register("repeat")(RepeatModifier)
 
 # - extra modifiers
-from .zoom import ZoomModifier
+from .deform import DeformModifier
 
-registers.builder.register("zoom")(ZoomModifier)
+registers.builder.register("deform")(DeformModifier)
 
 from .scale import ScaleModifier
 

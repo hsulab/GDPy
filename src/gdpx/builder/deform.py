@@ -1,55 +1,54 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-from typing import List
+from typing import Optional
 
 import numpy as np
 
 from ase import Atoms
-from ase.io import read, write
 
 from .builder import StructureModifier
 
 
-class ZoomModifier(StructureModifier):
+class DeformModifier(StructureModifier):
 
-    """Extend or compress bulk.
+    """Expand or compress bulk.
     """
 
-    def __init__(self, coefs: List[float]=None, substrates=None, *args, **kwargs):
+    name: str = "deform"
+
+    def __init__(self, ratio: Optional[list[float]]=None, substrates=None, *args, **kwargs):
         """"""
         super().__init__(substrates=substrates, *args, **kwargs)
-        if coefs is None:
-            coefs = np.arange(0.6, 1.8, 0.05)
-        self.coefs = coefs
+        self.ratio = np.arange(0.6, 1.2, 0.05) if ratio is None else ratio
 
         return
-    
-    def run(self, substrates=None, size: int=1, *args, **kwargs) -> List[Atoms]:
+
+    def run(self, substrates=None, size: int=1, *args, **kwargs) -> list[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
         frames = []
         for substrate in self.substrates:
-            curr_frames = self._irun(substrate=substrate, size=size, *args, **kwargs)
+            curr_frames = self._irun(substrate=substrate)
             frames.extend(curr_frames)
 
         return frames
-    
-    def _irun(self, substrate: Atoms, size: int, *args, **kwargs) -> List[Atoms]:
+
+    def _irun(self, substrate: Atoms) -> list[Atoms]:
         """"""
-        volume = substrate.get_volume()
         cell = copy.deepcopy(substrate.get_cell(complete=True))
 
         frames = []
-        for i in self.coefs:
+        for i in self.ratio:
             atoms = copy.deepcopy(substrate)
             atoms.set_cell(cell*(i)**(1/3.), scale_atoms=True)
             frames.append(atoms)
 
         return frames
-    
+
 
 if __name__ == "__main__":
     ...
