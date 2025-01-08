@@ -184,7 +184,7 @@ def convert_indices(indices: Union[str, List[int]], index_convention="lmp"):
 def parse_input_file(
     input_fpath: Union[str, Path],
     write_json: bool = False,  # write readin dict to check if alright
-):
+) -> dict:
     """"""
     input_dict = None
 
