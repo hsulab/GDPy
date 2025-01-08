@@ -129,7 +129,7 @@ class registers:
         raise RuntimeError("Registries is not intended to be instantiated")
 
     @staticmethod
-    def get(mod_name: str, cls_name: str, convert_name: bool = True, *args, **kwargs):
+    def get(mod_name: str, cls_name: str, convert_name: bool = True):
         """Acquire the target class from modules."""
         # - convert the cls_name by the internal convention
         if convert_name:
@@ -150,7 +150,7 @@ class registers:
         mode_name: str, cls_name: str, convert_name: bool = True, *args, **kwargs
     ):
         """"""
-        target_cls = registers.get(mode_name, cls_name, convert_name, *args, **kwargs)
+        target_cls = registers.get(mode_name, cls_name, convert_name)
         instance = target_cls(*args, **kwargs)
 
         return instance
@@ -185,6 +185,8 @@ ALL_MODULES = [
     # -- reactors
     # -- validators
     ("gdpx", ["validator"]),
+    # - nodes (variables),
+    ("gdpx.nodes", ["region", "trainer", "validator"]),
     # - session operations + variables.
     ("gdpx.builder", ["interface"]),
     ("gdpx.computation", ["interface"]),
@@ -243,7 +245,7 @@ def show_failed_modules_in_rows_with_reasons(names, reasons):
 
     return lines
 
-def import_all_modules_for_register(custom_module_paths=None) -> str:
+def import_all_modules_for_register(custom_module_paths=None) -> None:
     """Import all modules for register."""
     modules = []
     for base_dir, submodules in ALL_MODULES:
