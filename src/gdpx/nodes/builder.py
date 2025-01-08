@@ -3,7 +3,7 @@
 
 
 import pathlib
-from typing import Union
+from typing import Any, Union, Optional
 
 import omegaconf
 from ase import Atoms
@@ -268,7 +268,7 @@ class modify(Operation):
         return frames
 
 
-def canonicalise_builder(config: Union[str, pathlib.Path, dict]) -> StructureBuilder:
+def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:
     """"""
     # Check if it is a structure file path, a configuration file path or just a pure string
     supported_configtypes = [".json", ".yaml"]
@@ -290,10 +290,15 @@ def canonicalise_builder(config: Union[str, pathlib.Path, dict]) -> StructureBui
         config = dict(method="direct", frames=str(config))
     elif isinstance(config, dict):
         ...
+    elif isinstance(config, type(None)):
+        ...
     else:
         raise Exception(f"Unknown config `{config}` with type `{type(config)}`.")
 
-    builder: StructureBuilder = BuilderVariable(**config).value  # type: ignore
+    if config is not None:
+        builder = BuilderVariable(**config).value  # type: ignore
+    else:
+        builder = None
 
     return builder
 
