@@ -28,6 +28,7 @@ class ExchangeMutation(OffspringCreator):
         region,
         bond_distance_dict,
         covalent_ratio=[0.8, 2.0],
+        num_min_max = None,
         anchors=None,
         nsel=1,
         num_muts=1,
@@ -60,6 +61,19 @@ class ExchangeMutation(OffspringCreator):
 
         self._species_instances = {s: convert_string_to_atoms(s) for s in self.species}
 
+        num_species = len(self.species)
+        if num_min_max is None:
+            self.num_min_max = [(0, np.inf)] * num_species
+        else:
+            if isinstance(num_min_max, list):
+                if isinstance(num_min_max[0], list):
+                    self.num_min_max = num_min_max
+                    assert len(num_min_max) == num_species
+                else:
+                    self.num_min_max = [num_min_max] * num_species
+            else:
+                raise Exception(f"num_min_max `{num_min_max}` must be a list of tuples.")
+
         return
 
     def get_new_individual(self, parents: List[Atoms]):
@@ -91,18 +105,27 @@ class ExchangeMutation(OffspringCreator):
             if len(v) > 0:
                 valid_identities[k] = v
 
+        # Check if the number of the selected species is within the tolerance
         species_to_exchange = str(self.rng.choice(self.species, replace=False))
-        if len(valid_identities) == 0:
-            op = "insert"
-        else:
-            op = self.rng.choice(["insert", "remove"], 1, replace=False)[0]
-            if op == "remove":
-                species_to_exchange = str(
-                    self.rng.choice(list(valid_identities.keys()), replace=False)
-                )
-            else:
-                ...
+        num_species_to_exchange = len(valid_identities.get(species_to_exchange, []))
+        num_min_max = self.num_min_max[self.species.index(species_to_exchange)]
 
+        if num_species_to_exchange <= num_min_max[0]:
+            op = "insert"
+        elif num_min_max[0] < num_species_to_exchange <= num_min_max[1]:
+            op = self.rng.choice(["insert", "remove"], 1, replace=False)[0]
+        else:
+            op = "remove"
+
+        # We should only remove species existing in the system
+        if op == "remove":
+            species_to_exchange = str(
+                self.rng.choice(list(valid_identities.keys()), replace=False)
+            )
+        else:
+            ...
+
+        # Run the exchange
         extra_info = ""
         if op == "insert":
             mutant, extra_info = insert_one_particle(
