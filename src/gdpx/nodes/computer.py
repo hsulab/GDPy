@@ -28,7 +28,7 @@ def canonicalise_worker(inp_worker: Optional[Any]) -> Optional[DriverBasedWorker
     ):
         worker = inp_worker
     else:
-        if inp_worker is not None:
+        if inp_worker is None:
             worker = None
         else:
             raise RuntimeError(f"Unknown worker type {inp_worker}.")
