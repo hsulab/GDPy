@@ -11,8 +11,8 @@ from ase import Atoms
 from ase.io import read, write
 from ase.ga.offspring_creator import CombinationMutation, OffspringCreator
 
-from ..group import create_a_group
-from ..utils import check_overlap_neighbour
+# from ..group import create_a_group
+# from ..utils import check_overlap_neighbour
 
 
 """Some mutations for buffer atoms in the surface structure search."""

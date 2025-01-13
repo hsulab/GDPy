@@ -16,9 +16,20 @@ from ..worker.explore import ExpeditionBasedWorker
 from .expedition import AbstractExpedition
 
 
-def register_expedition_methods():
+def register_genetic_algorithm_components():
     """"""
-    # Evolutionary Methods
+    # ASE built-in mutations
+    from ase.ga.standardmutations import RattleMutation, MirrorMutation
+
+    registers.builder.register("rattle")(RattleMutation)
+    registers.builder.register("mirror")(MirrorMutation)
+
+    from ase.ga.standardmutations import StrainMutation
+    from ase.ga.soft_mutation import SoftMutation
+    registers.builder.register("strain")(StrainMutation)
+    registers.builder.register("soft")(SoftMutation)
+
+    # Custom mutations
     from .genetic_algorithm.mutation.exchange import ExchangeMutation
 
     registers.builder.register("exchange_mutation")(ExchangeMutation)
@@ -27,9 +38,28 @@ def register_expedition_methods():
 
     registers.builder.register("swap_mutation")(SwapMutation)
 
+    from .genetic_algorithm.mutation.rattle import RattleBufferMutation
+    registers.builder.register("rattle_buffer")(RattleBufferMutation)
+
+    # ASE built-in crossovers
+    from ase.ga.particle_crossovers import CutSpliceCrossover
+    from ase.ga.cutandsplicepairing import CutAndSplicePairing
+    
+    registers.builder.register("cut_and_splice")(CutAndSplicePairing)
+    registers.builder.register("cut_and_splice_cluster")(CutSpliceCrossover)
+
+    # Genetic workflow
     from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
 
     registers.expedition.register("genetic_algorithm")(GeneticAlgorithmBroadcaster)
+
+    return
+
+
+def register_expedition_methods():
+    """"""
+    # Evolutionary Methods
+    register_genetic_algorithm_components()
 
     # Monte Carlo Based Methods
     from .monte_carlo.basin_hopping import BasinHopping

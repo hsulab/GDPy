@@ -170,8 +170,6 @@ ALL_MODULES = [
     ("gdpx", ["bias"]),
     # -- builders
     ("gdpx", ["builder"]),
-    # -- genetic-algorithm-related
-    ("gdpx.builder", ["crossover", "mutation"]),
     # -- colvar
     ("gdpx", ["colvar"]),
     # -- selectors
