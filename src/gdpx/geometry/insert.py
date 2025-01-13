@@ -31,7 +31,11 @@ def insert_fragments_by_step(
     # Assign tags for atoms in the substrate
     atoms = substrate
     tags = atoms.get_tags()
-    start_tag = int(tags.max())
+    if tags.shape[0] == 0:
+        # Start from 1 as 0 is reserved for the substrate
+        start_tag = 1
+    else:
+        start_tag = int(tags.max())
 
     # Sort fragments by chemical formulae alphabetically
     fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
@@ -116,7 +120,11 @@ def insert_fragments_at_once(
     # Assign tags for atoms in the substrate
     atoms = substrate
     tags = atoms.get_tags()
-    start_tag = int(tags.max())
+    if tags.shape[0] == 0:
+        # Start from 1 as 0 is reserved for the substrate
+        start_tag = 1
+    else:
+        start_tag = int(tags.max())
 
     # Sort fragments by chemical formulae alphabetically
     fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
