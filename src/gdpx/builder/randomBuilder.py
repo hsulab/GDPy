@@ -49,9 +49,6 @@ class RandomBuilder(StructureModifier):
     #: Number of attempts to create a random candidate.
     MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
 
-    #: Whether use tags to distinguish molecules.
-    use_tags: bool = False
-
     #: Atom numbers of composition to insert.
     composition_atom_numbers: Optional[list[int]] = None
 
@@ -71,6 +68,7 @@ class RandomBuilder(StructureModifier):
         cell_volume: Optional[float] = None,
         cell_bounds: Optional[dict] = None,
         cell_splits: Optional[dict] = None,
+        use_tags: bool = True,
         *args,
         **kwargs,
     ):
@@ -79,6 +77,7 @@ class RandomBuilder(StructureModifier):
         Args:
             max_times_size: Number of attempts to create a number of candidates.
                 If 10 structures are to create, run will try 5*10=50 times.
+            use_tags: Whether use tags to distinguish molecules.
 
         """
         super().__init__(substrates=substrates, *args, **kwargs)
@@ -155,6 +154,13 @@ class RandomBuilder(StructureModifier):
 
         self.number_of_variable_cell_vectors = 0  # number_of_variable_cell_vectors
 
+        # The built-in cut_and_splice will reinit tags from 0 if use_tags is false,
+        # here, use_tags is set true no matter what type of system is explored to 
+        # retain tags information.
+        self.use_tags = use_tags
+        if not self.use_tags:
+            raise Exception("`random_builder` must have use_tags to be True.")
+
         return
 
     def _canonicalise_substrates(self, inp_sub) -> list[Atoms]:
@@ -216,6 +222,16 @@ class RandomBuilder(StructureModifier):
                     )
             else:
                 ...
+
+        # Make tags start with 1 if no substrate is used
+        num_atoms_in_substrate = len(self._substrate)
+        if num_atoms_in_substrate == 0:
+            for atoms in frames:
+                prev_tags = atoms.get_tags()
+                atoms.set_tags(prev_tags + 1)
+
+        for atoms in frames:
+            print(atoms.get_tags())
 
         return frames
 
