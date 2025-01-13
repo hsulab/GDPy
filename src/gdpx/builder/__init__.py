@@ -42,10 +42,6 @@ from .packer import PackerBuilder
 
 registers.builder.register("pack")(PackerBuilder)
 
-from .insert import InsertModifier
-
-registers.builder.register("insert")(InsertModifier)
-
 from ..graph.comparison import (
     get_unique_environments_based_on_bonds,
     paragroup_unique_chem_envs,
