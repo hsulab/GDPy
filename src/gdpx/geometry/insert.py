@@ -22,9 +22,15 @@ def insert_fragments_by_step(
     covalent_ratio,
     bond_distance_dict,
     random_state,
+    test_dist_to_substrate: bool=True,
     max_attempts: int = 5,
 ) -> Optional[Atoms]:
-    """"""
+    """Insert fragments by step.
+
+    Note:
+        The substrate must be a deepcopy as the below code may change the original object.
+
+    """
     # Initialise a random number generator
     rng = np.random.Generator(np.random.PCG64(random_state))
 
@@ -49,9 +55,14 @@ def insert_fragments_by_step(
     excluded_pairs = []
 
     tag = start_tag
-    candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.get_pbc())
+    if test_dist_to_substrate:
+        candidate = atoms
+        chemical_numbers = candidate.get_atomic_numbers().tolist() + chemical_numbers
+    else:
+        candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.get_pbc())
+
     for frag in fragments:
-        # find intra-molecular pairs
+        # find intra-molecular pairs that will be ignored in distance check
         beg = len(candidate)
         end = beg + len(frag)
         excluded_pairs.extend(itertools.permutations(range(beg, end), 2))
@@ -97,7 +108,8 @@ def insert_fragments_by_step(
             candidate = None
             break
 
-    if candidate is not None:
+    # Add substrate if we do not include it in the distance check
+    if candidate is not None and not test_dist_to_substrate:
         candidate = atoms + candidate
 
     return candidate
