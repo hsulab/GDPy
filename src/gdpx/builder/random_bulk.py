@@ -213,9 +213,6 @@ class RandomBulkBuilder(StructureModifier):
                 prev_tags = atoms.get_tags()
                 atoms.set_tags(prev_tags + 1)
 
-        for atoms in frames:
-            print(atoms.get_tags())
-
         return frames
 
     def _update_settings(self, substarte: Optional[Atoms] = None):
