@@ -39,9 +39,10 @@ from .surface_energy import SurfaceEnergyValidator
 
 registers.validator.register("surface_energy")(SurfaceEnergyValidator)
 
-from .diffusion_coefficient import DiffusionCoefficientValidator
+from .mean_squared_displacement import MeanSquaredDisplacementValidator
 
-registers.validator.register("diffusion_coefficient")(DiffusionCoefficientValidator)
+registers.validator.register("mean_squared_displacement")(MeanSquaredDisplacementValidator)
+registers.validator.register("diffusion_coefficient")(MeanSquaredDisplacementValidator)
 
 from .rank import RankValidator
 

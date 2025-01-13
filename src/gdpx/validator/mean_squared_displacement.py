@@ -107,7 +107,7 @@ def compute_msd(
     return lagtimes, timeseries
 
 
-class DiffusionCoefficientValidator(AbstractValidator):
+class MeanSquaredDisplacementValidator(AbstractValidator):
 
     """Estimate the diffusion coefficient.
 
