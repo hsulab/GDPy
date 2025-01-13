@@ -1,28 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 from typing import List, Optional
 
 import numpy as np
 from ase import Atoms
 
+from gdpx.geometry.spatial import check_atomic_distances, get_bond_distance_dict
 from gdpx.utils.strconv import str2list_int
 
 from .builder import StructureModifier
-from .utils import check_overlap_neighbour
 
 
 class PerturbatorBuilder(StructureModifier):
 
     name = "perturbater"
-
-    #: Number of attempts to create a random candidate.
-    MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
-
-    #: Number of attempts to create a number of candidates.
-    #       if 10 structures are to create, run will try 5*10=50 times.
-    MAX_TIMES_SIZE: int = 5
 
     """Perturb positions of input structures.
 
@@ -51,6 +45,8 @@ class PerturbatorBuilder(StructureModifier):
                 Whether random cell isotropically, if true,
                 all lattice vectors are scaled at a same ratio.
             group: Apply position drift on part of atoms.
+            max_times_size: Number of attempts to create a number of candidates.
+                If 10 structures are to create, run will try 5*10=50 times.
 
         """
         super().__init__(*args, **kwargs)
@@ -76,7 +72,7 @@ class PerturbatorBuilder(StructureModifier):
 
         # Distance check
         self.covalent_ratio = covalent_ratio
-        self.MAX_TIMES_SIZE = max_times_size
+        self.max_times_size = max_times_size
 
         return
 
@@ -96,7 +92,7 @@ class PerturbatorBuilder(StructureModifier):
     def _irun(self, substrate: Atoms, size: int):
         """"""
         frames = []
-        for _ in range(size * self.MAX_TIMES_SIZE):
+        for _ in range(size * self.max_times_size):
             nframes = len(frames)
             if nframes < size:
                 atoms = copy.deepcopy(substrate)
@@ -110,12 +106,19 @@ class PerturbatorBuilder(StructureModifier):
                     atoms.positions += pos_drift * self.eps
                 if all(atoms.pbc) and self.ceps is not None:
                     if not self.isotropic:
-                        lat_drift = self.rng.random((3, 3))*2-1
+                        lat_drift = self.rng.random((3, 3)) * 2 - 1
                     else:
-                        lat_drift = self.rng.random(size=1)[0]*2-1
-                    new_cell = atoms.get_cell(complete=True)*(1+self.ceps*lat_drift)
+                        lat_drift = self.rng.random(size=1)[0] * 2 - 1
+                    new_cell = atoms.get_cell(complete=True) * (
+                        1 + self.ceps * lat_drift
+                    )
                     atoms.set_cell(new_cell, scale_atoms=True, apply_constraint=False)
-                if check_overlap_neighbour(atoms, self.covalent_ratio):
+                # TODO: If group is used, determine atomic_indices and excluded_pairs?
+                if check_atomic_distances(
+                    atoms,
+                    covalent_ratio=self.covalent_ratio,
+                    bond_distance_dict=get_bond_distance_dict(set(atoms.get_atomic_numbers())),
+                ):
                     frames.append(atoms)
             else:
                 break

@@ -2,55 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 from typing import List, Tuple
 
-import ase
 import numpy as np
 from ase import Atoms, units
-from ase.build import molecule
-from ase.collections import g2
 from ase.ga.utilities import closest_distances_generator
 from ase.io import read, write
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.core.operation import Operation
 from gdpx.data.array import AtomsNDArray
-
-
-def rotate_a_molecule(atoms, use_com: bool, rng):
-    """"""
-    atoms = copy.deepcopy(atoms)
-    num_atoms = len(atoms)
-    if not use_com:
-        center = np.mean(atoms.positions, axis=0)
-    else:
-        center = atoms.get_center_of_mass()
-
-    if num_atoms > 1:
-        phi, theta, psi = 360 * rng.uniform(0, 1, 3)
-        atoms.euler_rotate(phi=phi, theta=0.5 * theta, psi=psi, center=center)
-
-    return atoms
-
-
-def convert_string_to_atoms(species: str):
-    """Convert a string to an Atoms object.
-
-    Args:
-        species: Species' name can be a chemical symbol or a chemical formula.
-
-    """
-    # - build adsorbate
-    atoms = None
-    if species in ase.data.chemical_symbols:
-        atoms = Atoms(species, positions=[[0.0, 0.0, 0.0]])
-    elif species in g2.names:
-        atoms = molecule(species)
-    else:
-        raise ValueError(f"Fail to create species {species}")
-
-    return atoms
 
 
 def compute_molecule_number_from_density(
@@ -70,52 +31,6 @@ def compute_molecule_number_from_density(
     number = (density / molecular_mass) * volume * units._Nav * 1e-24
 
     return int(number)
-
-
-def check_overlap_neighbour(
-    atoms: Atoms, covalent_ratio, custom_dmin_dict={}, excluded_pairs=[]
-):
-    """use neighbour list to check newly added atom is neither too close or too
-    far from other atoms
-    """
-    atomic_numbers = atoms.get_atomic_numbers()
-    cell = atoms.get_cell(complete=True)
-    natoms = len(atoms)
-
-    cov_min, cov_max = covalent_ratio
-    dmin_dict = closest_distances_generator(set(atomic_numbers), cov_min)
-    # print(f"{dmin_dict =}")
-    # print(f"{custom_dmin_dict}")
-    for k, v in custom_dmin_dict.items():
-        dmin_dict[k] = v
-    # print(f"{dmin_dict =}")
-    nl = NeighborList(
-        cov_max * np.array(natural_cutoffs(atoms)),
-        skin=0.0,
-        self_interaction=False,
-        bothways=True,
-    )
-    nl.update(atoms)
-
-    is_valid = True
-    for i in range(natoms):
-        nei_indices, nei_offsets = nl.get_neighbors(i)
-        if len(nei_indices) > 0:
-            for j, offset in zip(nei_indices, nei_offsets):
-                distance = np.linalg.norm(
-                    atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell))
-                )
-                if (i, j) not in excluded_pairs:
-                    atomic_pair = (atomic_numbers[i], atomic_numbers[j])
-                    if distance < dmin_dict[atomic_pair]:
-                        is_valid = False
-                        break
-        else:
-            # Find isolated atom which is not allowed...
-            is_valid = False
-            break
-
-    return is_valid
 
 
 def convert_composition_to_list(composition: dict, region) -> List[Tuple[Atoms, int]]:
