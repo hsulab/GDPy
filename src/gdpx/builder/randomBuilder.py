@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import pathlib
 import warnings
@@ -49,10 +50,6 @@ class RandomBuilder(StructureModifier):
     #: Number of attempts to create a random candidate.
     MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
 
-    #: Number of attempts to create a number of candidates.
-    #       if 10 structures are to create, run will try 5*10=50 times.
-    MAX_TIMES_SIZE: int = 5
-
     #: Whether use tags to distinguish molecules.
     use_tags: bool = False
 
@@ -69,10 +66,22 @@ class RandomBuilder(StructureModifier):
         region: dict = {},
         cell=None,
         covalent_ratio=[0.8, 2.0],
-        max_times_size: int = 5,
+        max_times_size: int = 10,
+        test_too_far: bool = True,
+        test_dist_to_slab: bool = True,
+        cell_volume: Optional[float] = None,
+        cell_bounds: Optional[dict] = None,
+        cell_splits: Optional[dict] = None,
         *args,
         **kwargs,
     ):
+        """Generate random structures with an ASE built-in method.
+
+        Args:
+            max_times_size: Number of attempts to create a number of candidates.
+                If 10 structures are to create, run will try 5*10=50 times.
+
+        """
         super().__init__(substrates=substrates, *args, **kwargs)
 
         # TODO: substrates should also be a Builder Object
@@ -82,33 +91,32 @@ class RandomBuilder(StructureModifier):
         else:
             ...
 
-        self._state_params = dict(
+        _state_params = dict(
             composition=composition,
             substrates=substrates,
             region=region,
             cell=cell,
             covalent_ratio=covalent_ratio,
             max_times_size=max_times_size,
-            test_too_far=kwargs.get("test_too_far", True),  # test_too_far
-            test_dist_to_slab=kwargs.get(
-                "test_dist_to_slab", True
-            ),  # test_dist_to_slab
-            cell_volume=kwargs.get("cell_volume", None),
-            cell_bounds=kwargs.get("cell_bounds", None),
-            cell_splits=kwargs.get("cell_splits", None),
+            test_too_far=test_too_far,
+            test_dist_to_slab=test_dist_to_slab,
+            cell_volume=cell_volume,
+            cell_bounds=cell_bounds,
+            cell_splits=cell_splits,
             random_seed=self.random_seed,
         )
+        self._state_params = copy.deepcopy(_state_params)
 
-        # - set random seed for generators due to compatibility
+        # Set random seed for generators due to compatibility
         if isinstance(self.random_seed, int):
             np.random.seed(self.random_seed)
         elif isinstance(self.random_seed, dict):
             np.random.set_state(self.random_seed)
         else:
-            ...
+            raise Exception(f"Invalid random seed `{self.random_seed}`.")
 
-        # -
-        self.MAX_TIMES_SIZE = max_times_size
+        # The number of attempts to generate structures
+        self.max_times_size = max_times_size
 
         # - create region
         region = copy.deepcopy(region)
@@ -140,15 +148,13 @@ class RandomBuilder(StructureModifier):
         self.cell = cell
 
         # - read from kwargs
-        self.test_too_far = kwargs.get("test_too_far", True)  # test_too_far
-        self.test_dist_to_slab = kwargs.get(
-            "test_dist_to_slab", True
-        )  # test_dist_to_slab
+        self.test_too_far = test_too_far
+        self.test_dist_to_slab = test_dist_to_slab
 
-        self.cell_volume = kwargs.get("cell_volume", None)
-        self.cell_bounds = kwargs.get("cell_bounds", {})
+        self.cell_volume = cell_volume
+        self.cell_bounds = cell_bounds
 
-        self.cell_splits = kwargs.get("cell_splits", None)
+        self.cell_splits = cell_splits
         self._converted_cell_splits = None
 
         self.number_of_variable_cell_vectors = 0  # number_of_variable_cell_vectors
@@ -188,7 +194,7 @@ class RandomBuilder(StructureModifier):
 
         # - run over
         frames = []
-        for i in range(size * self.MAX_TIMES_SIZE):
+        for i in range(size * self.max_times_size):
             nframes = len(frames)
             if nframes < size:
                 atoms = generator.get_new_candidate(
