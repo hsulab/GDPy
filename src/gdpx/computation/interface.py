@@ -13,6 +13,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from .. import config
+from ..computation.observer import create_an_observer
 from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import Variable
@@ -26,7 +27,6 @@ from ..worker.drive import (
     QueueDriverBasedWorker,
 )
 from ..worker.interface import ComputerVariable
-from ..computation.observer import create_an_observer
 
 # --- variable ---
 
@@ -61,7 +61,7 @@ class DriverVariable(Variable):
 
     def _broadcast_drivers(self, params: dict) -> List[dict]:
         """Broadcast parameters if there were any parameter is a list."""
-        # find longest params
+        # Find parameters with list values
         params_, plengths = {}, []
         for k, v in params.items():
             if isinstance(v, list):
@@ -76,23 +76,23 @@ class DriverVariable(Variable):
                 n = 1
             params_[k] = v
             plengths.append((k, n))
-        plengths = sorted(plengths, key=lambda x: x[1])
-        # check only has one list params
-        assert sum([p[1] > 1 for p in plengths]) <= 1, "only accept one param as list."
+
+        # Get parameter names with more than one value
+        keys_to_broadcast = sorted([k for k, n in plengths if n > 1])
+
+        values_to_broadcast = list(
+            itertools.product(*[params_[k] for k in keys_to_broadcast])
+        )
+
         params = params_
 
-        # convert to dataclass
+        # Broadcast parameters
         params_list = []
-        maxname, maxlength = plengths[-1]
-        for i in range(maxlength):
-            curr_params = {}
-            for k, n in plengths:
-                if n > 1:
-                    v = params[k][i]
-                else:
-                    v = params[k]
-                curr_params[k] = v
-            params_list.append(curr_params)
+
+        for values in values_to_broadcast:
+            new_params = copy.deepcopy(params)
+            new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
+            params_list.append(new_params)
 
         return params_list
 
@@ -474,14 +474,23 @@ class compute(Operation):
         return output
 
 
-class ChainStepEarlystop(Exception):
+class ChainStepEarlystop(Exception): ...
 
-    ...
 
 @registers.operation.register
 class compute_chain(Operation):
 
-    def __init__(self, structures, worker, *, observers = None, batchsize: Optional[int]=None, use_archive: bool=True, extract_data: bool=True, directory: Union[str, pathlib.Path]="./"):
+    def __init__(
+        self,
+        structures,
+        worker,
+        *,
+        observers=None,
+        batchsize: Optional[int] = None,
+        use_archive: bool = True,
+        extract_data: bool = True,
+        directory: Union[str, pathlib.Path] = "./",
+    ):
         """"""
         super().__init__(input_nodes=[structures, worker], directory=directory)
 
@@ -495,7 +504,7 @@ class compute_chain(Operation):
         self.extract_data = extract_data
 
         return
-    
+
     def forward(self, structures, workers):
         """"""
         super().forward()
@@ -514,7 +523,6 @@ class compute_chain(Operation):
         if num_workers == 1:
             workers[0].directory = self.directory
 
-
         def run_one_step(worker, structures) -> bool:
             """"""
             _ = worker.run(structures)
@@ -528,25 +536,26 @@ class compute_chain(Operation):
 
             return is_finished
 
-
         is_finished, is_earlystopped = False, False
 
         curr_structures = structures
         for istep, worker in enumerate(workers):
             self._print(f"<- ComputerChainStep.{str(istep).zfill(2)} ->")
-            flag_fpath = worker.directory/f"FINISHED.{str(istep).zfill(2)}"
-            stop_fpath = worker.directory/f"EARLYSTOP.{str(istep).zfill(2)}"
+            flag_fpath = worker.directory / f"FINISHED.{str(istep).zfill(2)}"
+            stop_fpath = worker.directory / f"EARLYSTOP.{str(istep).zfill(2)}"
             if not flag_fpath.exists():
                 is_step_finished = run_one_step(worker, curr_structures)
                 if is_step_finished:
                     config._print("chainstep is finished.")
-                    results = worker.retrieve(include_retrieved=True, use_archive=self.use_archive)
-                    (worker.directory/"extracted").mkdir(exist_ok=True)
+                    results = worker.retrieve(
+                        include_retrieved=True, use_archive=self.use_archive
+                    )
+                    (worker.directory / "extracted").mkdir(exist_ok=True)
                     AtomsNDArray(results).save_file(
-                        worker.directory/"extracted"/"results.h5"
+                        worker.directory / "extracted" / "results.h5"
                     )
                     curr_structures = [res[-1] for res in results]
-                    write(worker.directory/"end_frames.xyz", curr_structures)
+                    write(worker.directory / "end_frames.xyz", curr_structures)
                     with open(flag_fpath, "w") as fopen:
                         fopen.write(
                             f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}."
@@ -556,7 +565,9 @@ class compute_chain(Operation):
                         for i, observer in enumerate(self.observers):
                             for j, atoms in enumerate(curr_structures):
                                 if observer.run(atoms):
-                                    raise ChainStepEarlystop(f"{observer.__class__.__name__} stops at candidate {j}")
+                                    raise ChainStepEarlystop(
+                                        f"{observer.__class__.__name__} stops at candidate {j}"
+                                    )
                     except ChainStepEarlystop as e:
                         self._print(str(e))
                         is_finished, is_earlystopped = True, True
@@ -568,7 +579,7 @@ class compute_chain(Operation):
                 else:
                     break
             else:
-                curr_structures = read(worker.directory/"end_frames.xyz", ":")
+                curr_structures = read(worker.directory / "end_frames.xyz", ":")
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
                 self._print(content)
@@ -587,7 +598,7 @@ class compute_chain(Operation):
                 new_results = []
                 for i, worker in enumerate(workers):
                     curr_results = AtomsNDArray.from_file(
-                        worker.directory/"extracted"/"results.h5"
+                        worker.directory / "extracted" / "results.h5"
                     )
                     # TODO: inhomogeneous trajectories?
                     if i == 0:
@@ -598,8 +609,10 @@ class compute_chain(Operation):
                         for j in range(num_candidates):
                             new_results[j].extend(curr_results[j][1:])
                     if is_earlystopped:
-                        if (worker.directory/f"EARLYSTOP.{str(i).zfill(2)}").exists():
-                            with open(worker.directory/f"EARLYSTOP.{str(i).zfill(2)}", "r") as fopen:
+                        if (worker.directory / f"EARLYSTOP.{str(i).zfill(2)}").exists():
+                            with open(
+                                worker.directory / f"EARLYSTOP.{str(i).zfill(2)}", "r"
+                            ) as fopen:
                                 content = fopen.readlines()
                             self._print(content)
                             break
@@ -614,8 +627,9 @@ class compute_chain(Operation):
         return output
 
 
-
-def extract_results_from_worker_chain(workers, use_archive: bool=True, print_func=print, debug_func=print):
+def extract_results_from_worker_chain(
+    workers, use_archive: bool = True, print_func=print, debug_func=print
+):
     """"""
     new_results = []
     for i, worker in enumerate(workers):
@@ -637,7 +651,7 @@ def extract_results_from_worker_chain(workers, use_archive: bool=True, print_fun
 @registers.operation.register
 class extract_chain(Operation):
 
-    def __init__(self, compute, merge_workers: bool=False, directory="./") -> None:
+    def __init__(self, compute, merge_workers: bool = False, directory="./") -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
 
@@ -649,19 +663,19 @@ class extract_chain(Operation):
         """"""
         super().forward()
 
-        cache_fpath = self.directory/"extracted"/"cache.h5"
+        cache_fpath = self.directory / "extracted" / "cache.h5"
         cache_fpath.parent.mkdir(parents=True, exist_ok=True)
         if not cache_fpath.exists():
             results = []
             for icomp, computer in enumerate(computers):
                 workers = computer.value
                 for iwork, worker in enumerate(workers):
-                    worker.directory = computer.directory/f"chainstep.{iwork:>02d}"
+                    worker.directory = computer.directory / f"chainstep.{iwork:>02d}"
                 comp_results = extract_results_from_worker_chain(
-                    workers=workers, 
+                    workers=workers,
                     use_archive=True,
                     print_func=self._print,
-                    debug_func=self._debug
+                    debug_func=self._debug,
                 )
                 self._print(f"{icomp=} {comp_results=}")
                 results.append(comp_results.tolist())
