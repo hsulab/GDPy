@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import itertools
-from typing import NoReturn, Union, List, Mapping
 
 import numpy as np
-
+import numpy.typing
 from ase import Atoms
-from ase.io import read, write
-
 from dscribe.descriptors import SOAP
 
-from .selector import AbstractSelector
 from .cur import cur_selection, fps_selection
-
+from .selector import AbstractSelector
 
 """Selector using descriptors.
 """
@@ -43,9 +40,9 @@ class DescriptorSelector(AbstractSelector):
         verbose=False,
     )
 
-    def __init__(self, directory="./", *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """"""
-        super().__init__(directory=directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # - check params
         criteria_method = self.sparsify["method"]
@@ -58,7 +55,7 @@ class DescriptorSelector(AbstractSelector):
 
         return
 
-    def _compute_descripter(self, frames: List[Atoms]) -> np.array:
+    def _compute_descripter(self, frames: list[Atoms]) -> numpy.typing.NDArray:
         """Calculate vector-based descriptors.
 
         Each structure is represented by a vector.
@@ -137,7 +134,7 @@ class DescriptorSelector(AbstractSelector):
 
         return
 
-    def _select_structures(self, frames: List[Atoms]):
+    def _select_structures(self, frames: list[Atoms]):
         """"""
         nframes = len(frames)
         num_fixed = self._parse_selection_number(nframes)
@@ -183,12 +180,12 @@ class DescriptorSelector(AbstractSelector):
     def _plot_results(self, features, groups: dict, others: dict, *args, **kwargs):
         """"""
         # - plot selection
-        from sklearn.decomposition import PCA
         import matplotlib.pyplot as plt
+        from sklearn.decomposition import PCA
 
         try:
             plt.style.use("presentation")
-        except Exception as e:
+        except Exception:
             ...
 
         if features.shape[0] > 1:

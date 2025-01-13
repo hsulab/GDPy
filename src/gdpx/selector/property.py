@@ -2,36 +2,31 @@
 # -*- coding: utf-8 -*-
 
 
-import abc
-import copy
 import collections
 import dataclasses
 import itertools
-from typing import NoReturn, Optional, Union, List, Mapping, Callable
+from typing import Callable, Optional, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
-from ase.neighborlist import NeighborList, neighbor_list
+from ase.neighborlist import neighbor_list
 
 from ..data.array import AtomsNDArray
 from ..describer.interface import DescriberVariable
+from .cur import boltz_selection, hist_selection, stat_str2val
 from .selector import AbstractSelector
-from .cur import stat_str2val, boltz_selection, hist_selection
 
-
-IMPLEMENTED_SCALAR_PROPERTIES: List[str] = [
+IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy", "energy", "forces",
     "volume", "min_distance",
     "max_devi_f",
     # from describer
     "max_frc_err", "abs_ene_err"
 ]
-IMPLEMENTED_STRING_PROPERTIES: List[str] = [
+IMPLEMENTED_STRING_PROPERTIES: list[str] = [
     "chemical_formula",
 ]
-IMPLEMENTED_PROPERTIES: List[str] = IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
+IMPLEMENTED_PROPERTIES: list[str] = IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
 
 
 def get_metric_func(metric_name: str):
@@ -67,10 +62,10 @@ class PropertyItem:
     params: dict = dataclasses.field(default_factory=dict)
 
     #: metric config...
-    metric: Union[str, List[str]] = None
+    metric: Optional[Union[str, list[str]]] = None
 
     #: List of functions, min, max, average and ...
-    _metric: List[Callable] = dataclasses.field(init=False, default_factory=list)
+    _metric: list[Callable] = dataclasses.field(init=False, default_factory=list)
 
     #: Apply group selection.
     group: Optional[str] = None
@@ -82,7 +77,7 @@ class PropertyItem:
     reverse: bool = False
 
     #: Property range to filter, which should be two strings or two numbers or mixed.
-    range: List[float] = dataclasses.field(default_factory=lambda: [None, None])
+    range: list[float] = dataclasses.field(default_factory=lambda: [None, None])
 
     #: Property minimum.
     pmin: float = dataclasses.field(init=False, default=-np.inf)
@@ -184,9 +179,9 @@ class PropertySelector(AbstractSelector):
         number=[4, 0.2],
     )
 
-    def __init__(self, directory="./", *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         """"""
-        super().__init__(directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         assert self.mode in ["stru", "traj"], f"Unknown selection mode {self.mode}."
 
@@ -208,6 +203,7 @@ class PropertySelector(AbstractSelector):
             self._print(str(prop_item))
 
             # - group markers
+            print(f"{prop_item.name=} -> {self.axis=}")
             if self.axis is None:
                 marker_groups = dict(all=data.markers)
             else:
@@ -305,11 +301,11 @@ class PropertySelector(AbstractSelector):
 
         return selected_markers
 
-    def _extract_property(self, frames: List[Atoms], prop_item: PropertyItem):
+    def _extract_property(self, frames: list[Atoms], prop_item: PropertyItem):
         """Extract property values from frames.
 
         Returns:
-            property values: List[float] or 1d-np.array.
+            property values: list[float] or 1d-np.array.
 
         """
         if prop_item.name in IMPLEMENTED_PROPERTIES:
@@ -408,7 +404,7 @@ class PropertySelector(AbstractSelector):
 
         return
 
-    def _sparsify(self, prop_item: PropertyItem, frames: List[Atoms]):
+    def _sparsify(self, prop_item: PropertyItem, frames: list[Atoms]):
         """"""
         # -- each structure is represented by one float value
         #    get per structure values

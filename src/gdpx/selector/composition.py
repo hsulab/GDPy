@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
-from pathlib import Path
-from typing import Union, List, NoReturn
-
-import numpy as np
-
-from ase import Atoms
-from ase.io import read, write
 
 from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
@@ -22,10 +14,10 @@ class ComposedSelector(AbstractSelector):
     default_parameters = dict(selectors=[])
 
     def __init__(
-        self, selectors: List[AbstractSelector], directory="./", *args, **kwargs
+        self, selectors: list[AbstractSelector], *args, **kwargs
     ):
         """"""
-        super().__init__(directory=directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.selectors = selectors
 

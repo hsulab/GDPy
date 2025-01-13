@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-from typing import List, NoReturn
+from typing import Optional
 
-import numpy as np
 import networkx as nx
-
-from joblib import delayed, Parallel
-
+import numpy as np
 from ase import Atoms
+from joblib import Parallel, delayed
 
 from ..builder.group import create_an_intersect_group
-from ..graph.creator import StruGraphCreator
 from ..graph.comparison import paragroup_unique_chem_envs
+from ..graph.creator import StruGraphCreator
 from ..utils.command import CustomTimer
-
 from .selector import AbstractSelector
 
 
 def single_create_structure_graph(
-    atoms: Atoms, graph_params: dict, group_commands: List[str] = None
-) -> List[nx.Graph]:
+    atoms: Atoms, graph_params: dict, group_commands: Optional[list[str]] = None
+) -> list[nx.Graph]:
     """Create structure graph and get selected chemical environments.
 
     Find atoms with selected chemical symbols or in the defined region.
@@ -58,9 +56,9 @@ class GraphSelector(AbstractSelector):
         neigh_params=dict(covalent_ratio=1.1, skin=0.0),
     )
 
-    def __init__(self, directory="./", *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """"""
-        super().__init__(directory=directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # -- check params
         if self.group_commands is None:
@@ -68,7 +66,7 @@ class GraphSelector(AbstractSelector):
 
         return
 
-    def _select_indices(self, frames: List[Atoms], *args, **kwargs) -> List[int]:
+    def _select_indices(self, frames: list[Atoms], *args, **kwargs) -> list[int]:
         """"""
         nframes = len(frames)
 
@@ -115,7 +113,7 @@ class GraphSelector(AbstractSelector):
 
         return selected_indices
 
-    def _write_results(self, frames, selected_indices, *args, **kwargs) -> NoReturn:
+    def _write_results(self, frames, selected_indices, *args, **kwargs) -> None:
         """Write selection results into file that can be used for restart."""
         data = []
         for s in selected_indices:

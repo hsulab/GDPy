@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import itertools
 
+import itertools
 from typing import Optional
 
 import numpy as np
@@ -19,11 +19,9 @@ class RandomSelector(AbstractSelector):
 
     """"""
 
-    def __init__(
-        self, directory="./", axis: Optional[int] = None, *args, **kwargs
-    ) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         """"""
-        super().__init__(directory, axis, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         return
 

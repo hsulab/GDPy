@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import itertools
 
 import numpy as np
@@ -18,7 +19,7 @@ def convert_string_to_indices(indstr: str, length: int, convention="py"):
         """"""
         try:
             x = int(x)
-        except:  # == ""
+        except Exception:  # == ""
             x = None
 
         return x
@@ -63,8 +64,9 @@ class LocateSelector(AbstractSelector):
         indices=":"  # can be single integer, string or a List of integers
     )
 
-    def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
-        super().__init__(directory, axis, *args, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        """"""
+        super().__init__(*args, **kwargs)
 
         return
 

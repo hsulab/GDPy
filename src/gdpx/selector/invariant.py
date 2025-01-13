@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
-from typing import List
-from pathlib import Path
-
-import numpy as np
 
 from ase import Atoms
 
@@ -25,7 +20,7 @@ class InvariantSelector(AbstractSelector):
 
         return
 
-    def _mark_structures(self, frames: List[Atoms], *args, **kwargs) -> None:
+    def _mark_structures(self, frames: list[Atoms], *args, **kwargs) -> None:
         """Return selected indices."""
 
         return

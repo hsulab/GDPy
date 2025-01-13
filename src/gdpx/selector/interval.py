@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import itertools
-from typing import Union, List
 
 import numpy as np
-
-from ase import Atoms
 
 from ..data.array import AtomsNDArray
 from .selector import AbstractSelector
@@ -25,9 +23,9 @@ class IntervalSelector(AbstractSelector):
     """This is a number-unaware selector.
     """
 
-    def __init__(self, directory="./", *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         """"""
-        super().__init__(directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         return
 
