@@ -9,7 +9,7 @@ from typing import Optional
 
 import ase
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.data import covalent_radii
 from ase.ga.startgenerator import StartGenerator
 from ase.ga.utilities import (  # get system composition (both substrate and top)
@@ -22,26 +22,7 @@ from gdpx.nodes.region import RegionVariable
 
 from .builder import StructureModifier
 from .species import build_species
-
-""" Generate structures randomly
-"""
-
-
-def compute_molecule_number_from_density(molecular_mass, volume, density) -> int:
-    """Compute the number of molecules in the region with a given density.
-
-    Args:
-        moleculer_mass: unit in g/mol.
-        volume: unit in Ang^3.
-        density: unit in g/cm^3.
-
-    Returns:
-        Number of molecules in the region.
-
-    """
-    number = (density / molecular_mass) * volume * units._Nav * 1e-24
-
-    return int(number)
+from .utils import compute_molecule_number_from_density
 
 
 class RandomBulkBuilder(StructureModifier):

@@ -96,7 +96,7 @@ def convert_string_to_atoms(species: str):
     return atoms
 
 
-def compute_molecule_number_from_density(molecular_mass, volume, density) -> int:
+def compute_molecule_number_from_density(molecular_mass: float, volume: float, density: float) -> int:
     """Compute the number of molecules in the region with a given density.
 
     Args:
