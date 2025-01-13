@@ -2,13 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import List, Tuple
-
 import numpy as np
 from ase import Atoms, units
-from ase.ga.utilities import closest_distances_generator
 from ase.io import read, write
-from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.core.operation import Operation
 from gdpx.data.array import AtomsNDArray
@@ -33,42 +29,6 @@ def compute_molecule_number_from_density(
     return int(number)
 
 
-def convert_composition_to_list(composition: dict, region) -> List[Tuple[Atoms, int]]:
-    """"""
-    # - define the composition of the atoms to optimise
-    blocks = []
-    for k, v in composition.items():
-        k = convert_string_to_atoms(k)
-        if isinstance(v, int):  # number
-            v = v
-        else:  # string command
-            data = v.split()
-            if data[0] == "density":
-                v = compute_molecule_number_from_density(
-                    np.sum(k.get_masses()), region.get_volume(), density=float(data[1])
-                )
-            else:
-                raise RuntimeError(f"Unrecognised composition {k:v}.")
-        blocks.append((k, v))
-
-    # - check if there is any molecule
-    for k, v in blocks:
-        if len(k) > 1:
-            use_tags = True
-            break
-    else:
-        use_tags = False
-
-    # atom_numbers = [] # atomic number of inserted atoms
-    # for species, num in composition_blocks:
-    #    numbers = []
-    #    for s, n in ase.formula.Formula(species.get_chemical_formula()).count().items():
-    #        numbers.extend([ase.data.atomic_numbers[s]]*n)
-    #    atom_numbers.extend(numbers*num)
-
-    return blocks
-
-
 class remove_vacuum(Operation):
 
     cache: str = "cache_frames.xyz"
@@ -82,11 +42,11 @@ class remove_vacuum(Operation):
 
         return
 
-    def forward(self, structures) -> List[Atoms]:
+    def forward(self, structures) -> list[Atoms]:
         """Remove some vaccum of structures.
 
         Args:
-            structures: List[Atoms] or AtomsNDArray.
+            structures: A list of Atoms or AtomsNDArray.
 
         """
         super().forward()
@@ -123,11 +83,11 @@ class reset_cell(Operation):
 
         return
 
-    def forward(self, structures) -> List[Atoms]:
+    def forward(self, structures) -> list[Atoms]:
         """Remove some vaccum of structures.
 
         Args:
-            structures: List[Atoms] or AtomsNDArray.
+            structures: A list of Atoms or AtomsNDArray.
 
         """
         super().forward()
