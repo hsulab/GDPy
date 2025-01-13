@@ -44,7 +44,9 @@ def compute_molecule_number_from_density(molecular_mass, volume, density) -> int
     return int(number)
 
 
-class RandomBuilder(StructureModifier):
+class RandomBulkBuilder(StructureModifier):
+
+    name: str = "random_bulk"
 
     #: Number of attempts to create a random candidate.
     MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
@@ -155,7 +157,7 @@ class RandomBuilder(StructureModifier):
         self.number_of_variable_cell_vectors = 0  # number_of_variable_cell_vectors
 
         # The built-in cut_and_splice will reinit tags from 0 if use_tags is false,
-        # here, use_tags is set true no matter what type of system is explored to 
+        # here, use_tags is set true no matter what type of system is explored to
         # retain tags information.
         self.use_tags = use_tags
         if not self.use_tags:
@@ -237,8 +239,53 @@ class RandomBuilder(StructureModifier):
 
     def _update_settings(self, substarte: Optional[Atoms] = None):
         """"""
+        # ignore substrate
+        self._substrate = Atoms("", pbc=True)
 
-        raise NotImplementedError()
+        unique_atom_types = set(self.composition_atom_numbers)
+        self.blmin = self._build_tolerance(unique_atom_types)
+
+        # check number_of_variable_cell_vectors
+        if self.cell is None:
+            self.cell = []
+        number_of_variable_cell_vectors = 3 - len(self.cell)
+        box_to_place_in = None
+        if number_of_variable_cell_vectors > 0:
+            box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
+            if len(self.cell) > 0:
+                box_to_place_in[1][number_of_variable_cell_vectors:] = self.cell
+        self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
+        self.box_to_place_in = box_to_place_in
+
+        # check volume
+        if self.cell_volume is None:
+            radii = [
+                covalent_radii[x] * self.covalent_max
+                for x in self.composition_atom_numbers
+            ]
+            self.cell_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
+
+        # cell bounds
+        if isinstance(self.cell_bounds, dict):
+            cell_bounds = {}
+            angles = ["a", "b", "c"]
+            for k in angles:
+                cell_bounds[k] = self.cell_bounds.get(k, [15, 165])
+            lengths = ["phi", "chi", "psi"]
+            for k in lengths:
+                cell_bounds[k] = self.cell_bounds.get(k, [2, 60])
+            self.cell_bounds = CellBounds(cell_bounds)
+        else:
+            assert isinstance(self.cell_bounds, CellBounds)
+
+        # cell splits
+        if self.cell_splits is not None:
+            splits_ = {}
+            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
+                splits_[tuple(r)] = p
+            self._converted_cell_splits = splits_
+
+        return
 
     def _create_generator(self, substrates: Optional[list[Atoms]] = None):
         """"""
@@ -358,61 +405,6 @@ class RandomBuilder(StructureModifier):
 
         return content
 
-
-class BulkBuilder(RandomBuilder):
-
-    name: str = "random_bulk"
-
-    def _update_settings(self, substarte: Optional[Atoms] = None):
-        """"""
-        # ignore substrate
-        self._substrate = Atoms("", pbc=True)
-
-        unique_atom_types = set(self.composition_atom_numbers)
-        self.blmin = self._build_tolerance(unique_atom_types)
-
-        # check number_of_variable_cell_vectors
-        if self.cell is None:
-            self.cell = []
-        number_of_variable_cell_vectors = 3 - len(self.cell)
-        box_to_place_in = None
-        if number_of_variable_cell_vectors > 0:
-            box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
-            if len(self.cell) > 0:
-                box_to_place_in[1][number_of_variable_cell_vectors:] = self.cell
-        self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
-        self.box_to_place_in = box_to_place_in
-
-        # check volume
-        if self.cell_volume is None:
-            radii = [
-                covalent_radii[x] * self.covalent_max
-                for x in self.composition_atom_numbers
-            ]
-            self.cell_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
-
-        # cell bounds
-        if isinstance(self.cell_bounds, dict):
-            cell_bounds = {}
-            angles = ["a", "b", "c"]
-            for k in angles:
-                cell_bounds[k] = self.cell_bounds.get(k, [15, 165])
-            lengths = ["phi", "chi", "psi"]
-            for k in lengths:
-                cell_bounds[k] = self.cell_bounds.get(k, [2, 60])
-            self.cell_bounds = CellBounds(cell_bounds)
-        else:
-            assert isinstance(self.cell_bounds, CellBounds)
-
-        # cell splits
-        if self.cell_splits is not None:
-            splits_ = {}
-            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
-                splits_[tuple(r)] = p
-            self._converted_cell_splits = splits_
-
-        return
-
     def as_dict(self) -> dict:
         """"""
         params = copy.deepcopy(self._state_params)
@@ -421,136 +413,26 @@ class BulkBuilder(RandomBuilder):
         return params
 
 
-class ClusterBuilder(RandomBuilder):
+class RandomClusterBuilder(StructureModifier):
 
     name: str = "random_cluster"
 
-    def __init__(
-        self,
-        composition: dict[str, int],
-        substrates=None,
-        region: dict = {},
-        cell=None,
-        covalent_ratio=[0.8, 2.0],
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, *args, **kwargs):
         """"""
-        super().__init__(
-            composition, substrates, region, cell, covalent_ratio, *args, **kwargs
-        )
+        super().__init__(*args, **kwargs)
 
-        self.pbc = kwargs.get("pbc", False)
-
-        return
-
-    def _update_settings(self, substarte: Optional[Atoms] = None):
-        """"""
-        # - ignore substrate
-        if self.cell is None:  # None or []
-            self.cell = np.array(
-                [19.0, 0.0, 0.0, 0.0, 20.0, 0.0, 0.0, 0.0, 21.0]
-            ).reshape(3, 3)
-        else:
-            self.cell = np.reshape(self.cell, (-1, 3))
-        self._substrate = Atoms(cell=self.cell, pbc=self.pbc)
-
-        if self.region.__class__.__name__ == "AutoRegion":
-            from .region import LatticeRegion
-
-            self.region = LatticeRegion(origin=np.zeros(3), cell=self.cell.flatten())
-
-        unique_atom_types = set(self.composition_atom_numbers)
-        self.blmin = self._build_tolerance(unique_atom_types)
-
-        # - ignore lattice parameters
-        self.cell_volume = None
-        self.cell_bounds = None
-
-        self.box_to_place_in = [self.region._origin, self.region._cell]
-
-        # cell splits
-        if self.cell_splits is not None:
-            splits_ = {}
-            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
-                splits_[tuple(r)] = p
-            self._converted_cell_splits = splits_
-
-        return
-
-    def as_dict(self) -> dict:
-        """"""
-        params = copy.deepcopy(self._state_params)
-        params["method"] = self.name
-        params["pbc"] = self.pbc
-
-        return params
+        raise Exception("Use `random_structure_improved` instead.")
 
 
-class SurfaceBuilder(RandomBuilder):
+class RandomSurfaceBuilder(StructureModifier):
 
     name: str = "random_surface"
 
-    def __init__(
-        self,
-        region: dict,
-        composition: dict[str, int],
-        cell=[],
-        covalent_ratio=[1.0, 2.0],
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, *args, **kwargs):
         """"""
-        super().__init__(
-            region=region,
-            composition=composition,
-            cell=cell,
-            covalent_ratio=covalent_ratio,
-            *args,
-            **kwargs,
-        )
+        super().__init__(*args, **kwargs)
 
-        # - check region
-        assert (
-            self.region.__class__.__name__ == "LatticeRegion"
-        ), f"{self.__class__.__name__} needs a LatticeRegion."
-
-        return
-
-    def _update_settings(self, substarte: Optional[Atoms] = None):
-        """"""
-        # - use init substrate
-        if substarte is not None:
-            self._substrate = substarte
-
-        # define the closest distance two atoms of a given species can be to each other
-        unique_atom_types = get_all_atom_types(
-            self._substrate, self.composition_atom_numbers
-        )
-        self.blmin = self._build_tolerance(unique_atom_types)
-
-        # - ignore lattice parameters
-        self.cell_volume = None
-        self.cell_bounds = None
-
-        self.box_to_place_in = [self.region._origin, self.region._cell]
-
-        # cell splits
-        self._print(f"{self.cell_splits =}")
-        if self.cell_splits is not None:
-            splits_ = {}
-            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
-                splits_[tuple(r)] = p
-            self._converted_cell_splits = splits_
-
-        return
-
-    def as_dict(self) -> dict:
-        """"""
-        params = copy.deepcopy(self._state_params)
-        params["method"] = self.name
-
-        return params
+        raise Exception("Use `random_structure_improved` instead.")
 
 
 if __name__ == "__main__":

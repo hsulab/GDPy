@@ -62,11 +62,11 @@ registers.builder.register("graph_remove")(GraphRemoveModifier)
 registers.builder.register("graph_exchange")(GraphExchangeModifier)
 
 # --
-from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
+from .random_bulk import RandomBulkBuilder, RandomClusterBuilder, RandomSurfaceBuilder
 
-registers.builder.register("random_bulk")(BulkBuilder)
-registers.builder.register("random_cluster")(ClusterBuilder)
-registers.builder.register("random_surface")(SurfaceBuilder)
+registers.builder.register("random_bulk")(RandomBulkBuilder)
+registers.builder.register("random_cluster")(RandomClusterBuilder)
+registers.builder.register("random_surface")(RandomSurfaceBuilder)
 
 from .random_structure import RandomStructureImprovedModifier
 
