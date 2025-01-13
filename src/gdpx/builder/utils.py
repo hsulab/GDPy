@@ -3,62 +3,19 @@
 
 
 import copy
-import itertools
-from typing import Union, List, Tuple, Mapping
-
-import numpy as np
+from typing import List, Tuple
 
 import ase
+import numpy as np
 from ase import Atoms, units
 from ase.build import molecule
 from ase.collections import g2
+from ase.ga.utilities import closest_distances_generator
 from ase.io import read, write
 from ase.neighborlist import NeighborList, natural_cutoffs
-from ase.ga.utilities import closest_distances_generator
 
-from ..core.operation import Operation
-from ..data.array import AtomsNDArray
-
-"""Some extra operations.
-"""
-
-
-def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
-    """Convert a string to a List of int.
-
-    Args:
-        inp: A string contains numbers and colons.
-        convention: The input convention either `lmp` or `ase`.
-                    lmp index starts from 1 and includes the last.
-
-    Examples:
-        >>> str2list_int("1:2 4:6", "lmp")
-        >>> [0, 1, 3, 4, 5]
-        >>> str2list_int("1:2 4:6", "ase")
-        >>> [1, 4, 5]
-
-    Returns:
-        A List of integers.
-
-    """
-    ret = []
-    for x in inp.strip().split():
-        curr_range = list(map(int, x.split(":")))
-        if len(curr_range) == 1:
-            start, end = curr_range[0], curr_range[0]
-        else:
-            start, end = curr_range
-        if convention == "lmp":
-            ret.extend([i - 1 for i in list(range(start, end + 1))])
-        elif convention == "ase":
-            ret.extend(list(range(start, end)))
-        else:
-            ...
-
-    # remove duplicates
-    ret = sorted(list(set(ret)))
-
-    return ret
+from gdpx.core.operation import Operation
+from gdpx.data.array import AtomsNDArray
 
 
 def rotate_a_molecule(atoms, use_com: bool, rng):
@@ -96,7 +53,9 @@ def convert_string_to_atoms(species: str):
     return atoms
 
 
-def compute_molecule_number_from_density(molecular_mass: float, volume: float, density: float) -> int:
+def compute_molecule_number_from_density(
+    molecular_mass: float, volume: float, density: float
+) -> int:
     """Compute the number of molecules in the region with a given density.
 
     Args:

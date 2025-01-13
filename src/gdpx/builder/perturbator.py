@@ -7,8 +7,10 @@ from typing import List, Optional
 import numpy as np
 from ase import Atoms
 
+from gdpx.utils.strconv import str2list_int
+
 from .builder import StructureModifier
-from .utils import check_overlap_neighbour, str2list_int
+from .utils import check_overlap_neighbour
 
 
 class PerturbatorBuilder(StructureModifier):
