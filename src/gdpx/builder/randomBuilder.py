@@ -5,8 +5,7 @@
 import copy
 import pathlib
 import warnings
-from pathlib import Path
-from typing import List, Mapping, Optional
+from typing import Optional
 
 import ase
 import numpy as np
@@ -18,11 +17,11 @@ from ase.ga.utilities import (  # get system composition (both substrate and top
     closest_distances_generator,
     get_all_atom_types,
 )
-from ase.io import read, write
 
-from gdpx.builder.builder import StructureBuilder, StructureModifier
-from gdpx.builder.species import build_species
-from gdpx.core.register import registers
+from gdpx.nodes.region import RegionVariable
+
+from .builder import StructureModifier
+from .species import build_species
 
 """ Generate structures randomly
 """
@@ -54,14 +53,14 @@ class RandomBuilder(StructureModifier):
     use_tags: bool = False
 
     #: Atom numbers of composition to insert.
-    composition_atom_numbers: List[int] = None
+    composition_atom_numbers: Optional[list[int]] = None
 
     #: Composition to insert.
-    composition_blocks: Mapping[str, int] = None
+    composition_blocks: Optional[dict[str, int]] = None
 
     def __init__(
         self,
-        composition: Mapping[str, int],
+        composition: dict[str, int],
         substrates=None,
         region: dict = {},
         cell=None,
@@ -118,10 +117,8 @@ class RandomBuilder(StructureModifier):
         # The number of attempts to generate structures
         self.max_times_size = max_times_size
 
-        # - create region
-        region = copy.deepcopy(region)
-        shape = region.pop("method", "auto")
-        self.region = registers.create("region", shape, convert_name=True, **region)
+        # Create a region
+        self.region = RegionVariable(**region)
 
         # - parse composition
         self.composition = composition
@@ -131,7 +128,7 @@ class RandomBuilder(StructureModifier):
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
-        # - add substrate
+        # Canonicalise substrates
         self._substrate = None
         if self.substrates is not None:
             self._substrate = self.substrates[0]
@@ -144,10 +141,9 @@ class RandomBuilder(StructureModifier):
             unique_atom_types = set(self.composition_atom_numbers)
             self.blmin = self._build_tolerance(unique_atom_types)
 
-        # - check cell
+        # Some box-related settings
         self.cell = cell
 
-        # - read from kwargs
         self.test_too_far = test_too_far
         self.test_dist_to_slab = test_dist_to_slab
 
@@ -161,7 +157,7 @@ class RandomBuilder(StructureModifier):
 
         return
 
-    def _canonicalise_substrates(self, inp_sub) -> List[Atoms]:
+    def _canonicalise_substrates(self, inp_sub) -> list[Atoms]:
         """"""
         substrates = super()._canonicalise_substrates(inp_sub)
         if substrates is not None:
@@ -171,12 +167,12 @@ class RandomBuilder(StructureModifier):
 
     def run(
         self,
-        substrates: List[Atoms] = None,
+        substrates: Optional[list[Atoms]] = None,
         size: int = 1,
         soft_error: bool = False,
         *args,
         **kwargs,
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Modify input structures.
 
         Args:
@@ -189,32 +185,34 @@ class RandomBuilder(StructureModifier):
         """
         super().run(substrates=substrates, *args, **kwargs)
 
-        # - create generator
+        # Instantiate the ase generator
         generator = self._create_generator(self.substrates)
 
-        # - run over
-        frames = []
+        # Generate structures
+        frames, num_frames, num_attempts = [], 0, 0
         for i in range(size * self.max_times_size):
-            nframes = len(frames)
-            if nframes < size:
+            num_frames = len(frames)
+            if num_frames < size:
                 atoms = generator.get_new_candidate(
                     maxiter=self.MAX_ATTEMPTS_PER_CANDIDATE
                 )
                 if atoms is not None:
                     frames.append(atoms)
-                    nframes += 1
+                    num_frames += 1
             else:
+                num_attempts = i
                 break
         else:
+            num_attempts = size * self.max_times_size
             if size > 0:
                 if soft_error:
                     warnings.warn(
-                        f"Failed to create {size} structures, only {nframes} are created.",
+                        f"Failed to create {size} structures after {num_attempts} attempts, only {num_frames} are created.",
                         UserWarning,
                     )
                 else:
                     raise RuntimeError(
-                        f"Failed to create {size} structures, only {nframes} are created."
+                        f"Failed to create {size} structures after {num_attempts}, only {num_frames} are created."
                     )
             else:
                 ...
@@ -226,7 +224,7 @@ class RandomBuilder(StructureModifier):
 
         raise NotImplementedError()
 
-    def _create_generator(self, substrates: Optional[List[Atoms]] = None):
+    def _create_generator(self, substrates: Optional[list[Atoms]] = None):
         """"""
         if substrates is not None:
             self._update_settings(substrates[0])
@@ -287,7 +285,7 @@ class RandomBuilder(StructureModifier):
 
         return
 
-    def _build_tolerance(self, unique_atom_types: List[int]):
+    def _build_tolerance(self, unique_atom_types: list[int]):
         """"""
         blmin = closest_distances_generator(
             atom_numbers=unique_atom_types,
@@ -413,7 +411,7 @@ class ClusterBuilder(RandomBuilder):
 
     def __init__(
         self,
-        composition: Mapping[str, int],
+        composition: dict[str, int],
         substrates=None,
         region: dict = {},
         cell=None,
@@ -430,7 +428,7 @@ class ClusterBuilder(RandomBuilder):
 
         return
 
-    def _update_settings(self, substarte: Atoms = None):
+    def _update_settings(self, substarte: Optional[Atoms] = None):
         """"""
         # - ignore substrate
         if self.cell is None:  # None or []
@@ -480,7 +478,7 @@ class SurfaceBuilder(RandomBuilder):
     def __init__(
         self,
         region: dict,
-        composition: Mapping[str, int],
+        composition: dict[str, int],
         cell=[],
         covalent_ratio=[1.0, 2.0],
         *args,
@@ -503,7 +501,7 @@ class SurfaceBuilder(RandomBuilder):
 
         return
 
-    def _update_settings(self, substarte: Atoms = None):
+    def _update_settings(self, substarte: Optional[Atoms] = None):
         """"""
         # - use init substrate
         if substarte is not None:
