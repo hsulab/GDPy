@@ -264,7 +264,7 @@ class BFGSCellMinimiser(Controller):
         isotropic = self.params.get("isotropic", False)  # Ang
         assert isotropic is not None
 
-        pressure = self.params.get("pressure", 1.0)  # bar
+        pressure = self.params.get("pressure", 0.0)  # bar
         assert pressure is not None
         pressure *= 1e5*units.Pascal  # bar -> eV/Ang^3
 
