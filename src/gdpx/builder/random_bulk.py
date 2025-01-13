@@ -158,7 +158,6 @@ class RandomBulkBuilder(StructureModifier):
         self,
         substrates: Optional[list[Atoms]] = None,
         size: int = 1,
-        soft_error: bool = False,
         *args,
         **kwargs,
     ) -> list[Atoms]:
@@ -193,18 +192,9 @@ class RandomBulkBuilder(StructureModifier):
                 break
         else:
             num_attempts = size * self.max_times_size
-            if size > 0:
-                if soft_error:
-                    warnings.warn(
-                        f"Failed to create {size} structures after {num_attempts} attempts, only {num_frames} are created.",
-                        UserWarning,
-                    )
-                else:
-                    raise RuntimeError(
-                        f"Failed to create {size} structures after {num_attempts}, only {num_frames} are created."
-                    )
-            else:
-                ...
+            self._print(
+                f"Failed to create {size} structures after {num_attempts} attempts, only {num_frames} are created."
+            )
 
         # Make tags start with 1 if no substrate is used
         num_atoms_in_substrate = len(self._substrate)

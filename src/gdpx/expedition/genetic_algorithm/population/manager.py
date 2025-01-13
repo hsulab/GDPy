@@ -342,7 +342,7 @@ class AbstractPopulationManager:
             # random finished but not enough, mutation already starts...
             for i in range(gen_ran_max_try):
                 self._print(f"Random attempt {i} ->")
-                frames = generator.run(size=1, soft_error=True)
+                frames = generator.run(size=1)
                 if frames:
                     atoms = frames[0]
                     atoms.info["key_value_pairs"] = {
