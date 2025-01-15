@@ -4,15 +4,14 @@
 
 import itertools
 import operator
-from typing import List
 
 import numpy as np
 
 
-def str2list_int(
+def string_to_integers(
     inp: str, convention: str = "lmp", out_convention: str = "ase"
-) -> List[int]:
-    """Convert a string to a List of int.
+) -> list[int]:
+    """Convert a string to a list of int.
 
     Args:
         inp: A string contains numbers and colons.
@@ -20,13 +19,13 @@ def str2list_int(
                     lmp index starts from 1 and includes the last.
 
     Examples:
-        >>> str2list_int("1:2 4:6", "lmp")
+        >>> string_to_integers("1:2 4:6", "lmp")
         >>> [0, 1, 3, 4, 5]
-        >>> str2list_int("1:2 4:6", "ase")
+        >>> string_to_integers("1:2 4:6", "ase")
         >>> [1, 4, 5]
 
     Returns:
-        A List of integers.
+        A list of integers.
 
     """
     ret = []

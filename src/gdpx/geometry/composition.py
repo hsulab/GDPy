@@ -12,7 +12,7 @@ from ase.build import molecule
 from ase.collections import g2
 from ase.formula import Formula
 
-from ..utils.strconv import str2list_int
+from gdpx.utils.strconv import string_to_integers
 
 
 def convert_string_to_atoms(species: str) -> Atoms:
@@ -40,7 +40,7 @@ def get_chemical_species_from_kwpairs(name: str, number: Union[int, str]):
     if isinstance(number, int):
         species = [(name, number)]
     elif isinstance(number, str):
-        numbers = str2list_int(number, convention="lmp", out_convention="lmp")
+        numbers = string_to_integers(number, convention="lmp", out_convention="lmp")
         for num in numbers:
             species.append((name, num))
     else:

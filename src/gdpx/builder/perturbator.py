@@ -9,7 +9,7 @@ import numpy as np
 from ase import Atoms
 
 from gdpx.geometry.spatial import check_atomic_distances, get_bond_distance_dict
-from gdpx.utils.strconv import str2list_int
+from gdpx.utils.strconv import string_to_integers
 
 from .builder import StructureModifier
 
@@ -68,7 +68,7 @@ class PerturbatorBuilder(StructureModifier):
         # Apply perturbation on a group of atoms, default is all
         self.group = group
         if self.group is not None:
-            self.group = str2list_int(self.group, convention="lmp")
+            self.group = string_to_integers(self.group, convention="lmp")
 
         # Distance check
         self.covalent_ratio = covalent_ratio

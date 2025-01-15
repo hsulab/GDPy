@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms
 
 from gdpx.core.register import registers
-from gdpx.utils.strconv import str2list_int
+from gdpx.utils.strconv import string_to_integers
 
 
 def get_indices_by_index(atoms: Atoms, inp: str) -> set[int]:
@@ -29,7 +29,7 @@ def get_indices_by_index(atoms: Atoms, inp: str) -> set[int]:
 
 def get_indices_by_id(atoms: Atoms, inp: str) -> set[int]:
     """""" ""
-    group_indices = str2list_int(inp)
+    group_indices = string_to_integers(inp, convention="lmp")
 
     num_atoms = len(atoms)
     for i in range(num_atoms):
@@ -55,7 +55,7 @@ def get_indices_by_symbol(atoms: Atoms, inp: str) -> set[int]:
 
 def get_indices_by_tag(atoms: Atoms, inp: str) -> set[int]:
     """"""
-    tag_indices = str2list_int(inp, convention="lmp", out_convention="lmp")
+    tag_indices = string_to_integers(inp, convention="lmp", out_convention="lmp")
 
     tags = atoms.get_tags()
     group_indices = [i for (i, t) in enumerate(tags) if t in tag_indices]

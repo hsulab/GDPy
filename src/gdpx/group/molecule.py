@@ -7,7 +7,7 @@ from typing import Union
 
 from ase import Atoms
 
-from gdpx.utils.strconv import str2list_int
+from gdpx.utils.strconv import string_to_integers
 
 from ..core.register import registers
 
