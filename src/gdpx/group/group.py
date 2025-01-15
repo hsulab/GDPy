@@ -2,197 +2,133 @@
 # -*- coding: utf-8 -*-
 
 
-import abc
-from itertools import groupby
-from typing import Union
+import ast
+import functools
+import re
 
 from ase import Atoms
 
+from gdpx.core.register import registers
 from gdpx.utils.strconv import str2list_int
 
-from ..core.register import registers
 
-# from gdpx.graph.creator import find_molecules
-
-
-"""Utilities to create a group of atoms.
-
-This module tries to mimic the behaviour of LAMMPS group command.
-
-"""
-
-
-class AbstractAtomicGroup(abc.ABC):
-
-    def __init__(self) -> None:
-        """"""
-        ...
-
-    @abc.abstractmethod
-    def get_group_indices(self, atoms: Atoms) -> list[int]:
-        """"""
-
-        return
-
-
-class SymbolGroup(AbstractAtomicGroup):
-
-    def __init__(self, symbols: str) -> None:
-        """"""
-        super().__init__()
-
-        self.symbols = symbols.strip().split()
-
-        return
-
-    def get_group_indices(self, atoms: Atoms) -> list[int]:
-        """"""
-        super().get_group_indices(atoms)
-
-        group_indices = []
-        for i, a in enumerate(atoms):
-            if a.symbol in self.symbols:
-                group_indices.append(i)
-
-        return
-
-
-def create_a_molecule_group(
-    atoms: Atoms, group_command: str, use_tags=True
-) -> list[list[int]]:
-    """Find molecules in the structure."""
-    args = group_command.strip().split()
-    # assert args[0] in ["tag", "molecule"], f"{args[0]} is not implemented."
-
-    if args[0] in ["tags", "molecule"]:
-        groups = []
-        if args[0] == "tag":
-            if "tags" in atoms.arrays:
-                # --- find molecuels based on tags
-                natoms = len(atoms)
-                tags = atoms.get_tags()  # copied already
-                for k, g in groupby(range(natoms), key=lambda x: tags[x]):
-                    atomic_indices = list(g)
-                    # symbols = [atoms[i].symbol for i in atomic_indices]
-                    # formula = Formula.from_list(symbols).format("hill")
-                    if str(k) in args[1:]:
-                        groups.append(atomic_indices)
-            else:
-                raise RuntimeError("Cant find tags in atoms.")
-
-        # if args[0] == "molecule":
-        #    target_molecule = args[1]
-        #    molecules = [target_molecule]
-        #    # --- find molecules with graph connectivity
-        #    #raise RuntimeError("No tags in atoms.")
-        #    valid_symbols = []
-        #    for m in molecules:
-        #        valid_symbols.extend(list(Formula(m).count().keys()))
-        #    valid_symbols = set(valid_symbols)
-        #    atomic_indices = create_a_group(atoms, "symbol {}".format(" ".join(valid_symbols)))
-        #    fragments = find_molecules(atoms, atomic_indices)
-        #    if target_molecule in fragments:
-        #        groups = fragments[target_molecule]
-        #    else:
-        #        raise RuntimeError(f"Cant find molecule {target_molecule} in atoms.")
-    else:
-        # NOTE: use atomic group that equals one molecule
-        groups = [create_a_group(atoms, group_command)]
-
-    return groups
-
-
-def create_a_group(atoms: Atoms, group_command: Union[str, list[int]]) -> list[int]:
+def get_indices_by_index(atoms: Atoms, inp: str) -> set[int]:
     """"""
-    if isinstance(group_command, str):
-        if "&&" in group_command:
-            group_commands_ = [c.strip() for c in group_command.split("&&")]
-            group_indices = create_an_intersect_group(atoms, group_commands_)
-        else:  # assume there is only one command
-            group_indices = create_a_group_by_a_command(atoms, group_command)
-    else:  # indices fro compatibility
-        assert isinstance(group_command, list), "group command is not a list of int."
-        group_indices = create_a_group_by_a_command(atoms, group_command)
+    group_indices = [int(i) for i in inp.strip().split()]
 
-    return group_indices
+    num_atoms = len(atoms)
+    for i in range(num_atoms):
+        if i < 0:
+            raise Exception(f"Invalid atomic index: {i+1} by {inp}.")
+        if i >= num_atoms:
+            raise Exception(f"Invalid atomic index: {i+1} by {inp}.")
+
+    return set(group_indices)
 
 
-def create_a_group_by_a_command(
-    atoms: Atoms, group_command: Union[str, list[int]]
-) -> list[int]:
-    """Create a group of atoms from a structure based on rules.
+def get_indices_by_id(atoms: Atoms, inp: str) -> set[int]:
+    """""" ""
+    group_indices = str2list_int(inp)
 
-    Args:
-        atoms: Input structure.
-        group_command: Command that defines the group.
+    num_atoms = len(atoms)
+    for i in range(num_atoms):
+        if i < 0:
+            raise Exception(f"Invalid atomic index: {i+1} by {inp}.")
+        if i >= num_atoms:
+            raise Exception(f"Invalid atomic index: {i+1} by {inp}.")
 
-    Returns:
-        List of atomic indices subject to the group command.
+    return set(group_indices)
 
-    """
-    # print(group_command)
-    if isinstance(group_command, str):
-        args = group_command.strip().split()
-        assert args[0] in [
-            "index",
-            "id",
-            "region",
-            "symbol",
-            "tag",
-        ], f"{args[0]} is not implemented."
-        nargs = len(args)
-    else:  # indices
-        assert isinstance(group_command, list), "group command is not a list of int."
-        args = ["index"]
-        args.extend(group_command)
+
+def get_indices_by_symbol(atoms: Atoms, inp: str) -> set[int]:
+    """"""
+    symbols = inp.strip().split()
 
     group_indices = []
+    for i, a in enumerate(atoms):
+        if a.symbol in symbols:  # type: ignore
+            group_indices.append(i)
 
-    # - (direct) index
-    if args[0] == "index":
-        group_indices = args[1:]
-
-    # - id (atom index)
-    if args[0] == "id":
-        # NOTE: input file should follow lammps convention
-        #       i.e. the index starts from 1
-        group_indices = str2list_int(" ".join(args[1:]))
-
-    # - region
-    if args[0] == "region":
-        region_cls = registers.get("region", args[1], convert_name=True)
-        region = region_cls.from_str(" ".join(args[1:]))
-        group_indices = region.get_contained_indices(atoms)
-
-    # - symbol
-    if args[0] == "symbol":
-        selected_symbols = args[1:]
-        for i, a in enumerate(atoms):
-            if a.symbol in selected_symbols:
-                group_indices.append(i)
-
-    # - tag
-    if args[0] == "tag":
-        tag_indices = [int(i) for i in args[1:]]
-        tags = atoms.get_tags()
-        group_indices = [i for (i, t) in enumerate(tags) if t in tag_indices]
-
-    return group_indices
+    return set(group_indices)
 
 
-def create_an_intersect_group(atoms, group_commands: list[str]) -> list[int]:
-    """Create an intersect group of atoms based on commands."""
-    # - init group from the first command
-    group_indices = create_a_group_by_a_command(atoms, group_commands[0])
+def get_indices_by_tag(atoms: Atoms, inp: str) -> set[int]:
+    """"""
+    tag_indices = str2list_int(inp, convention="lmp", out_convention="lmp")
 
-    # - intersect by other commands if have any
-    for group_command in group_commands[1:]:
-        cur_indices = create_a_group_by_a_command(atoms, group_command)
-        # TODO: use data type set?
-        temp_indices = [i for i in cur_indices if i in group_indices]
-        group_indices = temp_indices
+    tags = atoms.get_tags()
+    group_indices = [i for (i, t) in enumerate(tags) if t in tag_indices]
 
-    return group_indices
+    return set(group_indices)
+
+
+def get_indices_by_region(atoms: Atoms, inp: str) -> set[int]:
+    """"""
+    name, *args = inp.strip().split()
+
+    region_cls = registers.get("region", name, convert_name=True)
+    region = region_cls.from_str(" ".join(args))
+    group_indices = region.get_contained_indices(atoms)
+
+    return set(group_indices)
+
+
+SUPPORTED_GROUP_FUNCTIONS = dict(
+    index=get_indices_by_index,
+    id=get_indices_by_id,
+    tag=get_indices_by_tag,
+    symbol=get_indices_by_symbol,
+    region=get_indices_by_region,
+)
+
+
+def preprocess_group_expression(grp_expr: str):
+    """"""
+    pattern = re.compile(r"`.*?`")
+
+    new_grp_str, grp_funcs = grp_expr, {}
+    for match in pattern.finditer(grp_expr):
+        data = match.group().strip("`").split()  # remove delimiters ``
+        k, v = data[0], " ".join(data[1:])
+        new_grp_str = new_grp_str.replace(match.group(), k)
+        if k not in SUPPORTED_GROUP_FUNCTIONS:
+            raise Exception(f"Unsupported group function: {k}")
+        grp_funcs[k] = functools.partial(SUPPORTED_GROUP_FUNCTIONS[k], inp=v)
+
+    return new_grp_str, grp_funcs
+
+
+def evaluate_group_expression(atoms: Atoms, grp_expr: str) -> list[int]:
+    """
+    Evaluate a logical expression string with and, or, not, and parentheses.
+    """
+
+    def _eval(node):
+        if isinstance(node, ast.BoolOp):
+            if isinstance(node.op, ast.And):
+                result = _eval(node.values[0])
+                for value in node.values[1:]:
+                    result = result.intersection(_eval(value))
+                return result
+            elif isinstance(node.op, ast.Or):
+                result = _eval(node.values[0])
+                for value in node.values[1:]:
+                    result = result.union(_eval(value))
+                return result
+        elif isinstance(node, ast.Name):
+            return grp_funcs[node.id](atoms)
+        elif isinstance(node, ast.Expr):
+            return _eval(node.value)
+        else:
+            raise TypeError(f"Unsupported type: `{type(node)}`")
+
+    # Parse the expression into an AST
+    grp_expr, grp_funcs = preprocess_group_expression(grp_expr)
+    tree = ast.parse(grp_expr, mode="eval")
+
+    group_indices = _eval(tree)
+
+    return list(group_indices)  # type: ignore
 
 
 if __name__ == "__main__":
