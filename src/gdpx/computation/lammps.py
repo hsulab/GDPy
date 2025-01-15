@@ -23,10 +23,11 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
+from gdpx.group.group import create_a_group
+
 from .. import config
 from ..backend.lammps import parse_thermo_data_by_pattern
 from ..builder.constraints import convert_indices, parse_constraint_info
-from ..builder.group import create_a_group
 from .driver import AbstractDriver, Controller, DriverSetting
 
 

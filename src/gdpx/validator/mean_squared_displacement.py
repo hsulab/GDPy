@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
-from typing import Optional, Union, List
+from typing import Optional, Union
 
 import numpy as np
 from joblib import Parallel, delayed
 
 from ase import Atoms
 
-import matplotlib as mpl
-mpl.use("Agg") #silent mode
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
-    #print("Used default matplotlib style.")
     ...
 
-from ..utils.command import CustomTimer
+from gdpx.group.group import create_a_group
+
 from .validator import AbstractValidator
 from .utils import wrap_traj
-from ..builder.group import create_a_group
 from ..data.array import AtomsNDArray
 
 
@@ -138,7 +136,7 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
 
         return
 
-    def _process_data(self, data) -> List[List[Atoms]]:
+    def _process_data(self, data) -> list[list[Atoms]]:
         """"""
         data = AtomsNDArray(data)
         self._debug(f"data: {data}")
@@ -205,8 +203,6 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
         )
 
         return
-    
-
 
 
 if __name__ == "__main__":

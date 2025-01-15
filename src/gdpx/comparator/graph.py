@@ -2,17 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
-import pathlib
-from typing import List, Optional, Union
+from typing import Optional
 
 import networkx as nx
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
 from ase.neighborlist import NeighborList, natural_cutoffs
 from joblib import Parallel, delayed
 
-from ..builder.group import create_a_group
+from gdpx.group.group import create_a_group
+
 from ..utils.command import CustomTimer
 from .comparator import AbstractComparator
 
@@ -100,7 +99,7 @@ class GraphComparator(AbstractComparator):
 
         return graph
 
-    def prepare_data(self, frames: List[Atoms]):
+    def prepare_data(self, frames: list[Atoms]):
         """"""
         with CustomTimer(name="graph", func=self._debug):
             graphs = Parallel(n_jobs=self.njobs)(

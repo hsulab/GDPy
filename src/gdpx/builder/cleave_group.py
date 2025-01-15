@@ -2,14 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import List
-
 from ase import Atoms
 
-from .builder import StructureModifier
-from .group import create_a_group
+from gdpx.group.group import create_a_group
 
-""""""
+from .builder import StructureModifier
 
 
 class CleaveGroupModifier(StructureModifier):
@@ -24,12 +21,12 @@ class CleaveGroupModifier(StructureModifier):
 
         return
     
-    def run(self, substrates=None, *args, **kwargs) -> List[Atoms]:
+    def run(self, substrates=None, *args, **kwargs) -> list[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
         frames = []
-        for atoms in substrates:
+        for atoms in self.substrates:
             ainds = create_a_group(atoms, self.group)
             frames.append(atoms[ainds])
 

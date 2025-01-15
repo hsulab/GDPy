@@ -5,19 +5,20 @@ import copy
 from typing import Callable, List, Tuple
 
 import networkx as nx
-
+from ase import Atoms
+from ase.io import write
 from joblib import Parallel, delayed
 
-from ase import Atoms
-from ase.io import read, write
+from gdpx.group.group import create_a_group
 
-from .. import CustomTimer
-from .. import StruGraphCreator, extract_chem_envs
-from .. import unpack_node_name
-from .. import get_unique_environments_based_on_bonds
-
-from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
-from ..group import create_a_group
+from .. import (
+    CustomTimer,
+    StruGraphCreator,
+    extract_chem_envs,
+    get_unique_environments_based_on_bonds,
+    unpack_node_name,
+)
+from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
 
 def single_remove_adsorbate(
@@ -132,8 +133,12 @@ class GraphRemoveModifier(GraphModifier):
         with CustomTimer(name="remove-adsorbate", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
                 delayed(single_remove_adsorbate)(
-                    self.species, graph_params, self.target_group, a,
-                    print_func=self._print, debug_func=self._debug
+                    self.species,
+                    graph_params,
+                    self.target_group,
+                    a,
+                    print_func=self._print,
+                    debug_func=self._debug,
                 )
                 for idx, a in enumerate(substrates)
             )

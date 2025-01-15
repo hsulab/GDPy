@@ -2,27 +2,26 @@
 # -*- coding: utf-8 -*-
 
 
-import itertools
-
 import numpy as np
-
 from ase.geometry import find_mic
 
-from .comparator import AbstractComparator
+from gdpx.group.group import create_a_group
 
-from ..builder.group import create_a_group
+from .comparator import AbstractComparator
 
 
 class CartesianComparator(AbstractComparator):
 
-    dtol_avg: float = 0.1 # displacement tolerance tolerance, Ang
-    dtol_std: float = 0.02 # displacement tolerance tolerance, Ang
+    dtol_avg: float = 0.1  # displacement tolerance tolerance, Ang
+    dtol_std: float = 0.02  # displacement tolerance tolerance, Ang
 
     mic: bool = True
 
     group: str = None
 
-    def __init__(self, dtol_avg=0.1, dtol_std=0.02, mic=True, group=None, *args, **kwargs):
+    def __init__(
+        self, dtol_avg=0.1, dtol_std=0.02, mic=True, group=None, *args, **kwargs
+    ):
         """"""
         super().__init__(*args, **kwargs)
 
@@ -33,7 +32,7 @@ class CartesianComparator(AbstractComparator):
         self.group = group
 
         return
-    
+
     def looks_like(self, a1, a2) -> bool:
         """"""
         is_similar = False
@@ -48,13 +47,13 @@ class CartesianComparator(AbstractComparator):
                     if g1 == g2:
                         ainds = g1
                 else:
-                    ainds = range(na1) # atomic indices
+                    ainds = range(na1)  # atomic indices
                 if ainds is not None:
                     self._print(f"{len(ainds)}")
                     pos1, pos2 = a1.positions[ainds, :], a2.positions[ainds, :]
                     # TODO: consider permutations?
-                    #perms = itertools.permutations(range(len(ainds)))
-                    #for p in perms:
+                    # perms = itertools.permutations(range(len(ainds)))
+                    # for p in perms:
                     #    self._print(p)
                     #    if self.mic:
                     #        vectors, distances = find_mic(pos1 - pos2[p, :], c1, pbc=True)
@@ -62,7 +61,7 @@ class CartesianComparator(AbstractComparator):
                     #        vectors = pos1 - pos2[p, :]
                     #    disps = np.linalg.norm(vectors, axis=1)
                     #    self._print(disps)
-                    #    davg = np.average(disps) 
+                    #    davg = np.average(disps)
                     #    dstd = np.sqrt(np.var(disps))
                     #    self._print(f"davg: {davg} dstd: {dstd}")
                     if self.mic:
@@ -70,7 +69,7 @@ class CartesianComparator(AbstractComparator):
                     else:
                         vectors = pos1 - pos2
                     disps = np.linalg.norm(vectors, axis=1)
-                    davg = np.average(disps) 
+                    davg = np.average(disps)
                     dstd = np.sqrt(np.var(disps))
                     if davg <= self.dtol_avg:
                         is_similar = True
@@ -79,8 +78,9 @@ class CartesianComparator(AbstractComparator):
         else:
             ...
 
-        return  is_similar
+        return is_similar
 
 
 if __name__ == "__main__":
     ...
+

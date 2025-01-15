@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-from typing import Callable, Tuple, List
+from typing import Callable, List, Tuple
 
 import networkx as nx
-
+from ase import Atoms
+from ase.io import write
 from joblib import Parallel, delayed
 
-from ase import Atoms
-from ase.io import read, write
+from gdpx.group.group import create_a_group
 
-from .. import CustomTimer
-from .. import StruGraphCreator, extract_chem_envs
-from .. import get_unique_environments_based_on_bonds
-from .. import unpack_node_name
-
-from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
-from ..group import create_a_group
+from .. import (
+    CustomTimer,
+    StruGraphCreator,
+    extract_chem_envs,
+    get_unique_environments_based_on_bonds,
+    unpack_node_name,
+)
+from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
 
 def single_exchange_adsorbate(

@@ -2,17 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
-import numpy as np
+from gdpx.group.group import create_a_group
 
 from .describer import AbstractDescriber
-from ..builder.group import create_a_group
 
-
-COMPONENT_MAP = dict(
-    x = 0,
-    y = 1,
-    z = 2,
-)
+COMPONENT_MAP = dict(x=0, y=1, z=2)
 
 
 class CoordinateDescriber(AbstractDescriber):
@@ -30,7 +24,7 @@ class CoordinateDescriber(AbstractDescriber):
         self.component = component
 
         return
-    
+
     def run(self, structures):
         """"""
         component = COMPONENT_MAP[self.component]
@@ -46,4 +40,3 @@ class CoordinateDescriber(AbstractDescriber):
 
 if __name__ == "__main__":
     ...
-  

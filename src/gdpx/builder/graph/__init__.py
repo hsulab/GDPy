@@ -7,7 +7,7 @@ from .remove import GraphRemoveModifier
 from .exchange import GraphExchangeModifier
 
 
-__all__ = [GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier]
+__all__ = ["GraphInsertModifier", "GraphRemoveModifier", "GraphExchangeModifier"]
 
 
 if __name__ == "__main__":

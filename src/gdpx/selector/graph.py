@@ -10,7 +10,8 @@ import numpy as np
 from ase import Atoms
 from joblib import Parallel, delayed
 
-from ..builder.group import create_an_intersect_group
+from gdpx.group.group import create_an_intersect_group
+
 from ..graph.comparison import paragroup_unique_chem_envs
 from ..graph.creator import StruGraphCreator
 from ..utils.command import CustomTimer
