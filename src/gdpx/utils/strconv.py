@@ -39,16 +39,17 @@ def str2list_int(inp: str, convention: str = "lmp", out_convention: str = "ase")
         else:
             ...
 
-    # remove duplicates
-    # ret = sorted(list(set(ret)))
-    ret = list(set(ret))
-
     if out_convention == "lmp":
         ret = [r+1 for r in ret]
     elif out_convention == "ase":
         ...
     else:
         ...
+
+    # Remove duplicates after the final conversion,
+    # otherwise, "0:2" in lmp convention will be [1, 2, -1] 
+    # due to the set sort positive then negative.
+    ret = list(set(ret))
 
     return ret
 
