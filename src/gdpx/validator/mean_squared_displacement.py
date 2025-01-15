@@ -16,7 +16,7 @@ try:
 except Exception as e:
     ...
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from .validator import AbstractValidator
 from .utils import wrap_traj
@@ -177,7 +177,7 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
 
         """
         mdtrajs = self._process_data(data)
-        group_indices = create_a_group(mdtrajs[0][0], self.group)
+        group_indices = evaluate_group_expression(mdtrajs[0][0], self.group)
         self._debug(f"group_indices: {group_indices}")
 
         cache_msd = self.directory/f"{prefix}msd.npy"

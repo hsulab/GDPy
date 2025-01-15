@@ -9,7 +9,7 @@ from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from .. import (
     CustomTimer,
@@ -45,7 +45,7 @@ def single_create_structure_graph(
     natoms = len(atoms)
     group_indices = list(range(natoms))
     for command in target_group:
-        curr_indices = create_a_group(atoms, command)
+        curr_indices = evaluate_group_expression(atoms, command)
         group_indices = [i for i in group_indices if i in curr_indices]
     # config._print(f"{group_indices = }")
 

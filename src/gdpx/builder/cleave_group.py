@@ -4,7 +4,7 @@
 
 from ase import Atoms
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from .builder import StructureModifier
 
@@ -27,7 +27,7 @@ class CleaveGroupModifier(StructureModifier):
 
         frames = []
         for atoms in self.substrates:
-            ainds = create_a_group(atoms, self.group)
+            ainds = evaluate_group_expression(atoms, self.group)
             frames.append(atoms[ainds])
 
         return frames

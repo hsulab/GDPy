@@ -23,7 +23,7 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from .. import config
 from ..backend.lammps import parse_thermo_data_by_pattern
@@ -1103,7 +1103,7 @@ class Lammps(FileIOCalculator):
                     "fix", f"extra{i}", fix_info
                 )
             else:  # fix ID group-ID command
-                group_indices = create_a_group(atoms, fix_info[0])
+                group_indices = evaluate_group_expression(atoms, fix_info[0])
                 group_text = convert_indices(
                     group_indices, index_convention="py"
                 )  # py-index -> lmp-index text

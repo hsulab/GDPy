@@ -18,7 +18,7 @@ try:
 except Exception as e:
     ...
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
@@ -76,7 +76,7 @@ def _icalc_local_lindemann_index(
     # FIXME: Use unwrapped positions when under PBC?
     frames = wrap_traj(frames)  # align structures
 
-    group_indices = create_a_group(frames[0], group)
+    group_indices = evaluate_group_expression(frames[0], group)
     num_atoms = len(group_indices)
 
     if recenter_com:

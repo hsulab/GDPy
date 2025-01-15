@@ -10,7 +10,7 @@ from ase.neighborlist import NeighborList
 from joblib import Parallel, delayed
 from scipy.spatial import distance_matrix
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from ..utils.command import CustomTimer
 from .comparator import AbstractComparator
@@ -128,8 +128,8 @@ class CoordinationComparator(AbstractComparator):
         nl.update(atoms)
         coordination = []
         for group_a, group_b, r_cut, nn, mm in pair_info:
-            indices_a = create_a_group(atoms, group_a)
-            indices_b = create_a_group(atoms, group_b)
+            indices_a = evaluate_group_expression(atoms, group_a)
+            indices_b = evaluate_group_expression(atoms, group_b)
             # print(f"{indices_a =}  {len(indices_a) =}")
             # print(f"{indices_b =}  {len(indices_b) =}")
             # curr_coordination = compute_coorditaion_number(

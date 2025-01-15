@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.group.group import create_a_group, create_a_molecule_group
-
 from .. import config
 from ..builder.builder import StructureBuilder
 from ..utils.atoms_tags import get_tags_per_species

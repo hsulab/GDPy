@@ -5,7 +5,7 @@
 import numpy as np
 from ase.geometry import find_mic
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from .comparator import AbstractComparator
 
@@ -42,8 +42,8 @@ class CartesianComparator(AbstractComparator):
             if np.allclose(c1, c2):
                 ainds = None
                 if self.group is not None:
-                    g1 = create_a_group(a1, self.group)
-                    g2 = create_a_group(a2, self.group)
+                    g1 = evaluate_group_expression(a1, self.group)
+                    g2 = evaluate_group_expression(a2, self.group)
                     if g1 == g2:
                         ainds = g1
                 else:

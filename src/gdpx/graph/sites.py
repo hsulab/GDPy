@@ -12,7 +12,7 @@ import scipy as sp
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gdpx.group.group import create_an_intersect_group
+from gdpx.group import evaluate_group_expression
 
 from .comparison import bond_match, get_unique_environments_based_on_bonds
 from .creator import StruGraphCreator
@@ -635,7 +635,7 @@ class SiteFinder(StruGraphCreator):
                 "id {}".format(" ".join([str(i) for i in range(1, natoms + 1)]))
             ],  # start from 1
         )
-        valid_indices = create_an_intersect_group(atoms, group_commands)
+        valid_indices = evaluate_group_expression(atoms, group_commands)
 
         # -- Site indices must be in the surface indices
         valid_indices = [i for i in valid_indices if i in surface_mask]

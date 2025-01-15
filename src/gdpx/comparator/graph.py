@@ -10,7 +10,7 @@ from ase import Atoms
 from ase.neighborlist import NeighborList, natural_cutoffs
 from joblib import Parallel, delayed
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from ..utils.command import CustomTimer
 from .comparator import AbstractComparator
@@ -94,7 +94,7 @@ class GraphComparator(AbstractComparator):
     @staticmethod
     def _process_single_structure(atoms, group):
         """"""
-        group_indices = create_a_group(atoms, group)
+        group_indices = evaluate_group_expression(atoms, group)
         graph = create_a_graph(atoms, group_indices)
 
         return graph
@@ -124,8 +124,8 @@ class GraphComparator(AbstractComparator):
             # -
             ainds = None
             if self.group is not None:
-                g1 = create_a_group(a1, self.group)
-                g2 = create_a_group(a2, self.group)
+                g1 = evaluate_group_expression(a1, self.group)
+                g2 = evaluate_group_expression(a2, self.group)
                 if g1 == g2:  # can be []
                     ainds = g1
                 else:

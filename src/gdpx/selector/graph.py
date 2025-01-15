@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms
 from joblib import Parallel, delayed
 
-from gdpx.group.group import create_an_intersect_group
+from gdpx.group import evaluate_group_expression
 
 from ..graph.comparison import paragroup_unique_chem_envs
 from ..graph.creator import StruGraphCreator
@@ -37,7 +37,7 @@ def single_create_structure_graph(
     stru_creator = StruGraphCreator(**graph_params)
 
     # - find atoms whose environments need to extract
-    ads_indices = create_an_intersect_group(atoms, group_commands)
+    ads_indices = evaluate_group_expression(atoms, group_commands)
 
     _ = stru_creator.generate_graph(atoms, ads_indices_=ads_indices)
 

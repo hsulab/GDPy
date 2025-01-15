@@ -1,35 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
+
 import dataclasses
 import itertools
 import json
-import pathlib
-import pickle
-import time
-from typing import List, Mapping, NoReturn, Union
+from typing import Mapping, Union
 
-import numpy as np
 from ase import Atoms
 from ase.formula import Formula
 from ase.geometry import find_mic
-from ase.io import read, write
+from ase.io import write
+
+from gdpx.group import evaluate_group_expression
 
 from .. import (
     AtomsNDArray,
     GridDriverBasedWorker,
     MolecularAdsorbate,
-    create_a_group,
-    create_a_molecule_group,
     create_mixer,
     find_molecules,
-    str2array,
 )
 from ..expedition import AbstractExpedition
 
 
-def convert_index_to_formula(atoms, group_indices: List[List[int]]):
+def convert_index_to_formula(atoms, group_indices: list[list[int]]):
     """"""
     formulae = []
     for g in group_indices:
@@ -41,8 +36,8 @@ def convert_index_to_formula(atoms, group_indices: List[List[int]]):
 
 
 def find_target_fragments(
-    atoms, target_commands: List[str]
-) -> Mapping[str, List[List[int]]]:
+    atoms, target_commands: list[str]
+) -> Mapping[str, list[list[int]]]:
     """Find target fragments in the structure to react.
 
     This is a wrapper for group commands as there are several ways to defind
@@ -55,12 +50,13 @@ def find_target_fragments(
 
     ngroups = len(target_commands)
     if ngroups == 1:
-        atomic_indices = create_a_group(atoms, target_commands[0])
+        atomic_indices = evaluate_group_expression(atoms, target_commands[0])
         fragments = find_molecules(atoms, atomic_indices)
     else:
-        assert ngroups >= 2, "Need at least 2 groups..."
-        for group_command in target_commands:
-            fragments[group_command] = create_a_molecule_group(atoms, group_command)
+        # assert ngroups >= 2, "Need at least 2 groups..."
+        # for group_command in target_commands:
+        #     fragments[group_command] = create_a_molecule_group(atoms, group_command)
+        raise NotImplementedError("Fail to detect molecules.")
 
     return fragments
 
@@ -92,7 +88,7 @@ class ReactionSpace:
     def get_reactive_indices(self, atoms: Atoms):
         """"""
 
-        return create_a_group(atoms, group_command=self.group)
+        return evaluate_group_expression(atoms, self.group)
 
     def is_reaction_possible(self, atoms, molecules) -> bool:
         """"""
@@ -141,7 +137,7 @@ class AFIRSearch(AbstractExpedition):
         return
 
     def _spawn_computers(
-        self, pair: List[List[int]], gamma_factors: List[float], *args, **kwargs
+        self, pair: list[list[int]], gamma_factors: list[float], *args, **kwargs
     ):
         """Spawn AFIR computers."""
         # if hasattr(self.worker.potter, "remove_loaded_models"):

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.group.group import create_a_group
+from gdpx.group import evaluate_group_expression
 
 from .describer import AbstractDescriber
 
@@ -31,7 +31,7 @@ class CoordinateDescriber(AbstractDescriber):
 
         coordinates = []
         for atoms in structures:
-            group_indices = create_a_group(atoms, self.group)
+            group_indices = evaluate_group_expression(atoms, self.group)
             group_coordinates = atoms.positions[group_indices, component].flatten()
             coordinates.append(group_coordinates)
 
