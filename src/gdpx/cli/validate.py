@@ -23,7 +23,6 @@ def run_validation(config: dict, directory: Union[str, pathlib.Path], potter):
         validator = canonicalise_validator(task)
         validators.append(validator)
     num_validators = len(validators)
-    print(f"{num_validators=}")
 
     # run the validations sequentially
     for i, validator in enumerate(validators):
