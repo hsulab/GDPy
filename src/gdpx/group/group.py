@@ -6,6 +6,7 @@ import ast
 import functools
 import re
 
+import numpy as np
 from ase import Atoms
 
 from gdpx.core.register import registers
@@ -62,12 +63,59 @@ def get_indices_by_tag(atoms: Atoms, inp: str) -> set[int]:
     return set(group_indices)
 
 
+def get_indices_by_pos(atoms: Atoms, inp: str) -> set[int]:
+    """Get indices by fractional coordinates along the z-axis.
+
+    Note:
+        The fractional coordinates are wrapped to [-0.1, 0.9) by default.
+
+    Args:
+        atoms: The ASE atoms object.
+        inp: The group expression.
+
+    Examples:
+        >>> get_indices_by_pos(atoms, "zbot 16")  # The bottom 16 atoms.
+        >>> get_indices_by_pos(atoms, "zbot 16 0.0 1.0")  # The frac is wrapped to [0.0, 1.0).
+
+    Returns:
+        The integer indices.
+
+    """
+    number, *args = inp.strip().split()
+    number = int(number)
+    if len(args) == 2:
+        fz_min, fz_max = float(args[0]), float(args[1])
+    else:
+        fz_min, fz_max = -0.1, 0.9
+
+    atomic_indices = list(range(len(atoms)))
+    if atoms.pbc[2]:
+        z_frac_coords = atoms.get_scaled_positions()[:, 2]
+        wrapped_coordinates = []
+        for z in z_frac_coords:
+            z_ = np.modf(z)[0]
+            if z_ < fz_min:
+                z_ += 1.0
+            elif z >= fz_max:
+                z_ -= 1.0
+            wrapped_coordinates.append(z_)
+        group_indices = sorted(
+            atomic_indices, key=lambda x: wrapped_coordinates[x]
+        )[:number]
+    else:
+        group_indices = sorted(
+            atomic_indices, key=lambda x: atoms.positions[x][2]
+        )[:number]
+
+    return set(group_indices)
+
+
 def get_indices_by_region(atoms: Atoms, inp: str) -> set[int]:
     """"""
     name, *args = inp.strip().split()
 
     region_cls = registers.get("region", name, convert_name=True)
-    region = region_cls.from_str(" ".join(args))
+    region = region_cls.from_str(inp)  # The string should be "{name} {*args}"
     group_indices = region.get_contained_indices(atoms)
 
     return set(group_indices)
@@ -78,22 +126,25 @@ SUPPORTED_GROUP_FUNCTIONS = dict(
     id=get_indices_by_id,
     tag=get_indices_by_tag,
     symbol=get_indices_by_symbol,
+    zbot=get_indices_by_pos,
     region=get_indices_by_region,
 )
 
 
-def preprocess_group_expression(grp_expr: str):
+def preprocess_group_expression(grp_expr: str) -> tuple[str, list[functools.partial]]:
     """"""
     pattern = re.compile(r"`.*?`")
 
-    new_grp_str, grp_funcs = grp_expr, {}
-    for match in pattern.finditer(grp_expr):
+    new_grp_str, grp_funcs = grp_expr, []
+    for i, match in enumerate(pattern.finditer(grp_expr)):
         data = match.group().strip("`").split()  # remove delimiters ``
         k, v = data[0], " ".join(data[1:])
-        new_grp_str = new_grp_str.replace(match.group(), k)
+        new_grp_str = new_grp_str.replace(match.group(), k + "_" + str(i))
         if k not in SUPPORTED_GROUP_FUNCTIONS:
             raise Exception(f"Unsupported group function: {k}")
-        grp_funcs[k] = functools.partial(SUPPORTED_GROUP_FUNCTIONS[k], inp=v)
+        grp_funcs.append(
+            functools.partial(SUPPORTED_GROUP_FUNCTIONS[k], inp=v)
+        )
 
     return new_grp_str, grp_funcs
 
@@ -116,11 +167,11 @@ def evaluate_group_expression(atoms: Atoms, grp_expr: str) -> list[int]:
                     result = result.union(_eval(value))
                 return result
         elif isinstance(node, ast.Name):
-            return grp_funcs[node.id](atoms)
-        elif isinstance(node, ast.Expr):
-            return _eval(node.value)
+            return grp_funcs[int(node.id.split("_")[1])](atoms)
+        elif isinstance(node, ast.Expression):
+            return _eval(node.body)
         else:
-            raise TypeError(f"Unsupported type: `{type(node)}`")
+            raise TypeError(f"Unsupported type: {node} of {type(node)}")
 
     # Parse the expression into an AST
     grp_expr, grp_funcs = preprocess_group_expression(grp_expr)
