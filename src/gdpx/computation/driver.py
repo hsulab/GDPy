@@ -23,12 +23,36 @@ from ase.md.velocitydistribution import (
 )
 
 from gdpx.core.component import BaseComponent
+from gdpx.group import evaluate_constraint_expression
+from gdpx.utils.strconv import integers_to_string
 
-from ..builder.constraints import convert_indices, parse_constraint_info
 from .md.md_utils import force_temperature
 
 # Key name for earlystopping in atoms.info.
 EARLYSTOP_KEY: str = "earlystop"
+
+
+def check_constraint_consistency(
+    cons_expr: str, beg_atoms: Atoms, end_atoms: Atoms
+) -> bool:
+    """"""
+    is_consistent = True
+
+    _, beg_frozen_indices = evaluate_constraint_expression(
+        beg_atoms, cons_expr
+    )
+    if beg_frozen_indices:
+        _, end_frozen_indices = evaluate_constraint_expression(
+            end_atoms, cons_expr
+        )
+        if integers_to_string(
+            end_frozen_indices, inp_convention="ase"
+        ) != integers_to_string(beg_frozen_indices, inp_convention="ase"):
+            is_consistent = False
+        end_atoms._del_constraints()
+        end_atoms.set_constraint(FixAtoms(indices=beg_frozen_indices))
+
+    return is_consistent
 
 
 @dataclasses.dataclass
@@ -167,7 +191,9 @@ class AbstractDriver(BaseComponent):
             directory: Working directory.
 
         """
-        super().__init__(directory=directory, random_seed=random_seed, *args, **kwargs)
+        super().__init__(
+            directory=directory, random_seed=random_seed, *args, **kwargs
+        )
 
         self.calc = calc
         self.calc.reset()
@@ -222,7 +248,9 @@ class AbstractDriver(BaseComponent):
         # set driver's atoms to the current one
         if isinstance(self.atoms, Atoms):
             warnings.warn("Driver has attached atoms object.", RuntimeWarning)
-            system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
+            system_changes = compare_atoms(
+                atoms1=self.atoms, atoms2=atoms, tol=1e-15
+            )
             self._debug(f"system_changes: {system_changes}")
             self._debug(f"atoms to compare: {self.atoms} {atoms}")
             if len(system_changes) > 0:
@@ -236,9 +264,13 @@ class AbstractDriver(BaseComponent):
         prev_params = copy.deepcopy(self.calc.parameters)
 
         # run step
-        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
+        if hasattr(
+            self.calc, "command"
+        ):  # CommitteeCalculator has no command.
             prev_command = self.calc.command
-            self.calc.command = self.setting.machine_prefix + " " + prev_command
+            self.calc.command = (
+                self.setting.machine_prefix + " " + prev_command
+            )
         else:
             prev_command = ""
 
@@ -258,13 +290,17 @@ class AbstractDriver(BaseComponent):
         self.cache_traj: Optional[list[Atoms]] = None
         if not self._verify_checkpoint():
             # If there is no valid checkpoint, just run the simulation from the scratch
-            self._debug(f"... start from the scratch @ {self.directory.name} ...")
+            self._debug(
+                f"... start from the scratch @ {self.directory.name} ..."
+            )
             self.directory.mkdir(parents=True, exist_ok=True)
             self._irun(atoms, *args, **kwargs)
         else:
             # If there is any valid checkpoint...
             if not system_changed:
-                self._debug(f"... system not changed @ {self.directory.name} ...")
+                self._debug(
+                    f"... system not changed @ {self.directory.name} ..."
+                )
                 converged = self.read_convergence()
                 self._debug(f"... convergence {converged} ...")
                 if not converged:
@@ -284,7 +320,9 @@ class AbstractDriver(BaseComponent):
                 else:
                     self._debug(f"... converged @ {self.directory.name} ...")
             else:
-                self._debug(f"... start after clean up @ {self.directory.name} ...")
+                self._debug(
+                    f"... start after clean up @ {self.directory.name} ..."
+                )
                 self._irun(atoms, *args, **kwargs)
 
         return
@@ -344,24 +382,21 @@ class AbstractDriver(BaseComponent):
         If have cons in kwargs overwrite current cons stored in atoms.
 
         """
-        # - check constraint
-        cons_text = run_params.pop("constraint", None)
-        if cons_text is not None:  # FIXME: check cons_text in parse_?
-            atoms._del_constraints()
-            mobile_indices, frozen_indices = parse_constraint_info(
-                atoms, cons_text, ignore_ase_constraints=True, ret_text=False
-            )
-            if frozen_indices:
-                atoms.set_constraint(FixAtoms(indices=frozen_indices))
-            else:
-                ...
+        cons_expr = run_params.pop("constraint", None)
+        atoms._del_constraints()
+        _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
+        if frozen_indices:
+            atoms.set_constraint(FixAtoms(indices=frozen_indices))
         else:
             ...
 
         return
 
     def _prepare_velocities(
-        self, atoms: Atoms, velocity_seed: Optional[int], ignore_atoms_velocities: bool
+        self,
+        atoms: Atoms,
+        velocity_seed: Optional[int],
+        ignore_atoms_velocities: bool,
     ):
         """"""
         # - velocity
@@ -394,7 +429,9 @@ class AbstractDriver(BaseComponent):
 
         return
 
-    def read_convergence_from_trajectory(self, frames: list[Atoms], *args, **kwargs):
+    def read_convergence_from_trajectory(
+        self, frames: list[Atoms], *args, **kwargs
+    ):
         """"""
         converged = False
 
@@ -408,31 +445,25 @@ class AbstractDriver(BaseComponent):
             if self.setting.task == "min" or self.setting.task == "cmin":
                 # NOTE: check geometric convergence (forces)...
                 #       some drivers does not store constraints in trajectories
-                # NOTE: Sometimes constraint changes if `lowest` is used.
-                frozen_indices = None
-                run_params = self.setting.get_run_params()
-                cons_text = run_params.pop("constraint", None)
-                mobile_indices, beg_frozen_indices = parse_constraint_info(
-                    frames[0], cons_text, ret_text=False
+                cons_expr = self.setting.get_run_params().get(
+                    "constraint", None
                 )
-                if beg_frozen_indices:
-                    frozen_indices = beg_frozen_indices
-                end_atoms = frames[-1]
-                if frozen_indices:
-                    mobile_indices, end_frozen_indices = parse_constraint_info(
-                        end_atoms, cons_text, ret_text=False
+                if cons_expr is not None:
+                    is_constraint_consistent = check_constraint_consistency(
+                        cons_expr, frames[0], frames[-1]
                     )
-                    if convert_indices(end_frozen_indices) != convert_indices(
-                        beg_frozen_indices
-                    ):
+                    if not is_constraint_consistent:
                         self._print(
-                            "Constraint changes after calculation, which may be from `lowest`. Most times it is fine."
+                            f"Constraint changes after calculation due to {cons_expr}. Most times it is fine."
                         )
-                    end_atoms._del_constraints()
-                    end_atoms.set_constraint(FixAtoms(indices=frozen_indices))
                 # TODO: Different codes have different definition for the max force
-                maxfrc = np.max(np.fabs(end_atoms.get_forces(apply_constraint=True)))
-                if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
+                maxfrc = np.max(
+                    np.fabs(frames[-1].get_forces(apply_constraint=True))
+                )
+                if (
+                    maxfrc <= self.setting.fmax
+                    or step + 1 >= self.setting.steps
+                ):
                     converged = True
                 self._debug(
                     f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
@@ -477,7 +508,9 @@ class AbstractDriver(BaseComponent):
         else:
             # - check whether the driver is coverged
             if self.cache_traj is None:
-                traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
+                traj_frames = (
+                    self.read_trajectory()
+                )  # NOTE: DEAL WITH EMPTY FILE ERROR
             else:
                 traj_frames = self.cache_traj
 
@@ -521,7 +554,9 @@ class AbstractDriver(BaseComponent):
         """"""
         prev_wdirs = []
         if archive_path is None:
-            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+            prev_wdirs = sorted(
+                self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run")
+            )
         else:
             pattern = self.directory.name + "/" + r"[0-9][0-9][0-9][0-9][.]run"
             with tarfile.open(archive_path, "r:gz") as tar:
@@ -529,7 +564,8 @@ class AbstractDriver(BaseComponent):
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
             prev_wdirs = [
-                self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)
+                self.directory / pathlib.Path(p).name
+                for p in sorted(prev_wdirs)
             ]
         self._debug(f"prev_wdirs@{self.directory.name}: {prev_wdirs}")
 
@@ -557,7 +593,9 @@ class AbstractDriver(BaseComponent):
                 curr_beg_frame = traj_list[i][0]
                 curr_beg_step = curr_beg_frame.info["step"]
                 prev_steps = [a.info["step"] for a in traj_list[i - 1]]
-                prev_traj = traj_list[i - 1][: prev_steps.index(curr_beg_step) + 1]
+                prev_traj = traj_list[i - 1][
+                    : prev_steps.index(curr_beg_step) + 1
+                ]
                 prev_end_frame = prev_traj[-1]
                 assert np.allclose(
                     prev_end_frame.positions, curr_beg_frame.positions

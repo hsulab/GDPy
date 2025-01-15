@@ -9,19 +9,19 @@ import itertools
 import pathlib
 import re
 import shutil
-from typing import Optional, Union, List
+from typing import List, Optional, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
-from ase.geometry import find_mic
 from ase.constraints import FixAtoms
-from ase.mep import interpolate, idpp_interpolate
+from ase.geometry import find_mic
+from ase.io import read, write
+from ase.mep import idpp_interpolate, interpolate
 
-from .. import parse_constraint_info
+from gdpx.group import evaluate_constraint_expression
+
 from ..reactor import AbstractReactor
-from ..utils import plot_bands, plot_mep, compute_rxn_coords
+from ..utils import compute_rxn_coords, plot_bands, plot_mep
 
 
 @dataclasses.dataclass
@@ -124,13 +124,19 @@ class AbstractStringReactor(AbstractReactor):
         # backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
 
-        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
+        if hasattr(
+            self.calc, "command"
+        ):  # CommitteeCalculator has no command.
             prev_command = self.calc.command
-            self.calc.command = self.setting.machine_prefix + " " + prev_command
+            self.calc.command = (
+                self.setting.machine_prefix + " " + prev_command
+            )
 
         # -
         if not self._verify_checkpoint():
-            self._debug(f"... start from the scratch @ {self.directory.name} ...")
+            self._debug(
+                f"... start from the scratch @ {self.directory.name} ..."
+            )
             self.directory.mkdir(parents=True, exist_ok=True)
             self._irun([ini_atoms, fin_atoms], *args, **kwargs)
         else:
@@ -158,7 +164,10 @@ class AbstractStringReactor(AbstractReactor):
             if band_frames:
                 # FIXME: make below a function
                 plot_mep(self.directory, band_frames[-1])
-                write(self.directory / "temptraj.xyz", itertools.chain(*band_frames))
+                write(
+                    self.directory / "temptraj.xyz",
+                    itertools.chain(*band_frames),
+                )
 
                 curr_band = band_frames[-1]
 
@@ -167,7 +176,9 @@ class AbstractStringReactor(AbstractReactor):
                 energies = [a.get_potential_energy() for a in curr_band]
                 imax = 1 + np.argsort(energies[1:-1])[-1]
                 # NOTE: maxforce in cp2k is norm(atomic_forces)
-                maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
+                maxfrc = np.max(
+                    curr_band[imax].get_forces(apply_constraint=True)
+                )
 
                 self._print(
                     f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
@@ -178,7 +189,9 @@ class AbstractStringReactor(AbstractReactor):
                     + f"dE: {energies[-1]-energies[0]:<8.4f}"
                 )
             else:
-                self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
+                self._debug(
+                    f"... CANNOT read bands @ {self.directory.name} ..."
+                )
                 ...
         else:
             self._debug(f"... 2. unconverged @ {self.directory.name} ...")
@@ -224,12 +237,10 @@ class AbstractStringReactor(AbstractReactor):
 
         return curr_wdir
 
-    def _preprocess_constraints(self, atoms, cons_text: str) -> None:
+    def _preprocess_constraints(self, atoms, cons_expr: str) -> None:
         """"""
         atoms._del_constraints()
-        mobile_indices, frozen_indices = parse_constraint_info(
-            atoms, cons_text, ignore_ase_constraints=True, ret_text=False
-        )
+        _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
         if frozen_indices:
             atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
@@ -264,15 +275,28 @@ class AbstractStringReactor(AbstractReactor):
 
             # TODO: We only support one constraint (FixAtoms) for NEB now.
             num_constraints = len(ini_atoms.constraints)
-            assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == num_constraints
+            assert (
+                len(ini_atoms.constraints)
+                == len(fin_atoms.constraints)
+                == num_constraints
+            )
             if num_constraints == 0:
                 ...
             elif num_constraints == 1:
-                sorted_constrained_indices_ini = np.array(sorted(ini_atoms.constraints[0].index))
-                sorted_constrained_indices_fin = np.array(sorted(fin_atoms.constraints[0].index))
-                assert np.all(sorted_constrained_indices_ini == sorted_constrained_indices_fin), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
+                sorted_constrained_indices_ini = np.array(
+                    sorted(ini_atoms.constraints[0].index)
+                )
+                sorted_constrained_indices_fin = np.array(
+                    sorted(fin_atoms.constraints[0].index)
+                )
+                assert np.all(
+                    sorted_constrained_indices_ini
+                    == sorted_constrained_indices_fin
+                ), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
             else:
-                raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`.")
+                raise RuntimeError(
+                    f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`."
+                )
 
             # get interpolation parameters
             use_mic = self.setting.interpolation.get("mic", True)
@@ -305,8 +329,11 @@ class AbstractStringReactor(AbstractReactor):
             if idpp_params:
                 # FIXME: make idpp a manager?
                 idpp_interpolate(
-                    images=images, traj=str(self.directory/"idpp_images.traj"),
-                    log=str(self.directory/"idpp.log"), mic=use_mic, **idpp_params
+                    images=images,
+                    traj=str(self.directory / "idpp_images.traj"),
+                    log=str(self.directory / "idpp.log"),
+                    mic=use_mic,
+                    **idpp_params,
                 )
         else:
             self._print("Use a pre-defined pathway.")
@@ -327,14 +354,19 @@ class AbstractStringReactor(AbstractReactor):
 
         cache_nebtraj = self.directory / self.traj_name
         if cache_nebtraj.exists() and cache_nebtraj.stat().st_size != 0:
-            traj_list.append(self._read_a_single_trajectory(wdir=self.directory))
+            traj_list.append(
+                self._read_a_single_trajectory(wdir=self.directory)
+            )
 
         # - concatenate
         traj_frames, ntrajs = [], len(traj_list)
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
-                prev_end_band, curr_beg_band = traj_list[i - 1][-1], traj_list[i][0]
+                prev_end_band, curr_beg_band = (
+                    traj_list[i - 1][-1],
+                    traj_list[i][0],
+                )
                 for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
                     assert np.allclose(
                         a.positions, b.positions
@@ -348,7 +380,7 @@ class AbstractStringReactor(AbstractReactor):
             plot_mep(self.directory, traj_frames[-1])
 
             curr_band = traj_frames[-1]
-            write(self.directory/"last_band.xyz", curr_band)
+            write(self.directory / "last_band.xyz", curr_band)
 
             rxn_coords = compute_rxn_coords(curr_band)
 

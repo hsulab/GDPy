@@ -2,38 +2,31 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
-import itertools
 import dataclasses
 import os
-import pathlib
-import shutil
 import traceback
 
-from typing import Union, List
-
 import numpy as np
-
-from ase import Atoms
-from ase import units
-from ase.io import read, write
-from ase.calculators.cp2k import parse_input, InputSection
+from ase import Atoms, units
+from ase.calculators.cp2k import InputSection, parse_input
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.neb import NEB
+from ase.io import read, write
+
+from gdpx.group import evaluate_constraint_expression
 
 from .string import AbstractStringReactor, StringReactorSetting
-from .. import parse_constraint_info
 
 
 def run_cp2k(name, command, directory):
-    """Run vasp from the command. 
-    
-    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run 
+    """Run vasp from the command.
+
+    ASE Vasp does not treat restart of a MD simulation well. Therefore, we run
     directly from the command if INCAR aready exists.
-    
+
     """
     import subprocess
-    from ase.calculators.calculator import EnvironmentError, CalculationFailed
+
+    from ase.calculators.calculator import CalculationFailed, EnvironmentError
 
     try:
         proc = subprocess.Popen(command, shell=True, cwd=directory)
@@ -49,9 +42,10 @@ def run_cp2k(name, command, directory):
 
     if errorcode:
         path = os.path.abspath(directory)
-        msg = ('Calculator "{}" failed with command "{}" failed in '
-               '{} with error code {}'.format(name, command,
-                                              path, errorcode))
+        msg = (
+            'Calculator "{}" failed with command "{}" failed in '
+            "{} with error code {}".format(name, command, path, errorcode)
+        )
         raise CalculationFailed(msg)
 
     return
@@ -75,14 +69,20 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 ("MOTION/BAND", "BAND_TYPE CI-NEB"),
                 ("MOTION/BAND", f"NPROC_REP {self.ntasks_per_image}"),
                 ("MOTION/BAND", f"NUMBER_OF_REPLICA {self.nimages}"),
-                ("MOTION/BAND", f"K_SPRING {self.k/(units.Hartree/units.Bohr**2)}"),
+                (
+                    "MOTION/BAND",
+                    f"K_SPRING {self.k/(units.Hartree/units.Bohr**2)}",
+                ),
                 ("MOTION/BAND", "ROTATE_FRAMES F"),
                 ("MOTION/BAND", "ALIGN_FRAMES F"),
                 ("MOTION/BAND/CI_NEB", "NSTEPS_IT 2"),
                 ("MOTION/BAND/OPTIMIZE_BAND", "OPT_TYPE DIIS"),
                 ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "NO_LS T"),
                 ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "N_DIIS 3"),
-                ("MOTION/PRINT/RESTART_HISTORY/EACH", f"BAND {self.ckpt_period}"),
+                (
+                    "MOTION/PRINT/RESTART_HISTORY/EACH",
+                    f"BAND {self.ckpt_period}",
+                ),
             ]
         )
 
@@ -96,7 +96,7 @@ class Cp2kStringReactorSetting(StringReactorSetting):
         self._internals["pairs"] = pairs
 
         return
-    
+
     def get_run_params(self, *args, **kwargs):
         """"""
         # - convergence criteria
@@ -113,17 +113,29 @@ class Cp2kStringReactorSetting(StringReactorSetting):
         if fmax_ is not None:
             run_pairs.extend(
                 [
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}"),
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"MAX_DR {rmax_/(units.Bohr)}"),
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_FORCE {frms_/(units.Hartree/units.Bohr)}"),
-                    ("MOTION/BAND/CONVERGENCE_CONTROL", f"RMS_DR {rrms_/(units.Bohr)}"),
+                    (
+                        "MOTION/BAND/CONVERGENCE_CONTROL",
+                        f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}",
+                    ),
+                    (
+                        "MOTION/BAND/CONVERGENCE_CONTROL",
+                        f"MAX_DR {rmax_/(units.Bohr)}",
+                    ),
+                    (
+                        "MOTION/BAND/CONVERGENCE_CONTROL",
+                        f"RMS_FORCE {frms_/(units.Hartree/units.Bohr)}",
+                    ),
+                    (
+                        "MOTION/BAND/CONVERGENCE_CONTROL",
+                        f"RMS_DR {rrms_/(units.Bohr)}",
+                    ),
                 ]
             )
 
         # - add constraint
         run_params = dict(
-            constraint = kwargs.get("constraint", self.constraint),
-            run_pairs = run_pairs
+            constraint=kwargs.get("constraint", self.constraint),
+            run_pairs=run_pairs,
         )
 
         return run_params
@@ -135,7 +147,15 @@ class Cp2kStringReactor(AbstractStringReactor):
 
     traj_name: str = "cp2k.out"
 
-    def __init__(self, calc=None, params={}, ignore_convergence=False, directory="./", *args, **kwargs) -> None:
+    def __init__(
+        self,
+        calc=None,
+        params={},
+        ignore_convergence=False,
+        directory="./",
+        *args,
+        **kwargs,
+    ) -> None:
         """"""
         self.calc = calc
         if self.calc is not None:
@@ -150,10 +170,10 @@ class Cp2kStringReactor(AbstractStringReactor):
         self._debug(self.setting)
 
         return
-    
+
     def _verify_checkpoint(self):
-        """Check if the current directory has any valid outputs or 
-            it just created the input files.
+        """Check if the current directory has any valid outputs or
+        it just created the input files.
 
         """
         verified = super()._verify_checkpoint()
@@ -166,51 +186,56 @@ class Cp2kStringReactor(AbstractStringReactor):
             ...
 
         return verified
-    
-    def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
+
+    def _irun(self, structures: list[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
         run_params = self.setting.get_run_params(**kwargs)
         run_params.update(**self.setting.get_init_params())
 
-        if ckpt_wdir is None: # start from the scratch
+        if ckpt_wdir is None:  # start from the scratch
             images = self._align_structures(structures, run_params)
-            write(self.directory/"images.xyz", images)
-            atoms = images[0] # use the initial state
+            write(self.directory / "images.xyz", images)
+            atoms = images[0]  # use the initial state
 
             # - update input template
             # GLOBAL section is automatically created...
             # FORCE_EVAL.(METHOD, POISSON)
-            inp = self.calc.parameters.inp # string
+            inp = self.calc.parameters.inp  # string
             sec = parse_input(inp)
-            for (k, v) in run_params["pairs"]:
+            for k, v in run_params["pairs"]:
                 sec.add_keyword(k, v)
-            for (k, v) in run_params["run_pairs"]:
+            for k, v in run_params["run_pairs"]:
                 sec.add_keyword(k, v)
 
             # -- check constraint
-            cons_text = run_params.pop("constraint", None)
-            mobile_indices, frozen_indices = parse_constraint_info(
-                atoms, cons_text=cons_text, ignore_ase_constraints=True, ret_text=False
+            cons_expr = run_params.pop("constraint", None)
+            _, frozen_indices = evaluate_constraint_expression(
+                atoms,
+                cons_expr,
             )
             if frozen_indices:
-                #atoms._del_constraints()
-                #atoms.set_constraint(FixAtoms(indices=frozen_indices))
+                # atoms._del_constraints()
+                # atoms.set_constraint(FixAtoms(indices=frozen_indices))
                 frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
-                    "MOTION/CONSTRAINT/FIXED_ATOMS", 
-                    "LIST {}".format(" ".join([str(i+1) for i in frozen_indices]))
+                    "MOTION/CONSTRAINT/FIXED_ATOMS",
+                    "LIST {}".format(
+                        " ".join([str(i + 1) for i in frozen_indices])
+                    ),
                 )
-        
+
             # -- add replica information
             band_section = sec.get_subsection("MOTION/BAND")
             for replica in images:
                 cur_rep = InputSection(name="REPLICA")
                 for pos in replica.positions:
-                    cur_rep.add_keyword("COORD", ("{:.18e} "*3).format(*pos), unique=False)
+                    cur_rep.add_keyword(
+                        "COORD", ("{:.18e} " * 3).format(*pos), unique=False
+                    )
                 band_section.subsections.append(cur_rep)
-        else: # start from a checkpoint
-            atoms  = read(ckpt_wdir/"images.xyz", "0")
-            with open(ckpt_wdir/"cp2k.inp", "r") as fopen:
+        else:  # start from a checkpoint
+            atoms = read(ckpt_wdir / "images.xyz", "0")
+            with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
                 inp = "".join(fopen.readlines())
             sec = parse_input(inp)
 
@@ -226,24 +251,34 @@ class Cp2kStringReactor(AbstractStringReactor):
                     subsection.keywords = new_subkeywords
 
                 return
-            
+
             remove_keyword(
-                sec, 
-                keywords=[ # avoid conflicts
-                    "GLOBAL/PROJECT", "GLOBAL/PRINT_LEVEL", "FORCE_EVAL/METHOD", 
-                    "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME", "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
-                    "FORCE_EVAL/SUBSYS/CELL/PERIODIC", 
-                    "FORCE_EVAL/SUBSYS/CELL/A", "FORCE_EVAL/SUBSYS/CELL/B", "FORCE_EVAL/SUBSYS/CELL/C"
-                ]
+                sec,
+                keywords=[  # avoid conflicts
+                    "GLOBAL/PROJECT",
+                    "GLOBAL/PRINT_LEVEL",
+                    "FORCE_EVAL/METHOD",
+                    "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME",
+                    "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
+                    "FORCE_EVAL/SUBSYS/CELL/PERIODIC",
+                    "FORCE_EVAL/SUBSYS/CELL/A",
+                    "FORCE_EVAL/SUBSYS/CELL/B",
+                    "FORCE_EVAL/SUBSYS/CELL/C",
+                ],
             )
 
-            sec.add_keyword("EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir/"cp2k-1.restart"))
+            sec.add_keyword(
+                "EXT_RESTART/RESTART_FILE_NAME",
+                str(ckpt_wdir / "cp2k-1.restart"),
+            )
             sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
 
             # - copy wavefunctions...
             restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
             for wfn in restart_wfns:
-                (self.directory/wfn.name).symlink_to(wfn, target_is_directory=False)
+                (self.directory / wfn.name).symlink_to(
+                    wfn, target_is_directory=False
+                )
 
         # update input
         self.calc.parameters.inp = "\n".join(sec.write())
@@ -261,21 +296,21 @@ class Cp2kStringReactor(AbstractStringReactor):
             self._debug(traceback.print_exc())
 
         return
-    
+
     def read_convergence(self, *args, **kwargs):
         """"""
         converged = super().read_convergence(*args, **kwargs)
 
-        with open(self.directory/"cp2k.out", "r") as fopen:
+        with open(self.directory / "cp2k.out", "r") as fopen:
             lines = fopen.readlines()
-        
+
         for line in lines:
             if "PROGRAM ENDED AT" in line:
                 converged = True
                 break
 
         return converged
-    
+
     def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """
 
@@ -284,12 +319,12 @@ class Cp2kStringReactor(AbstractStringReactor):
         """
         self._debug(f"***** read_trajectory *****")
         self._debug(f"{str(wdir)}")
-        cell = None # TODO: if no pbc?
+        cell = None  # TODO: if no pbc?
         natoms = None
         nimages = None
         temp_forces, temp_energies = [], []
         energies, forces = [], []
-        with open(wdir/"cp2k.out", "r") as fopen:
+        with open(wdir / "cp2k.out", "r") as fopen:
             while True:
                 line = fopen.readline()
                 if not line:
@@ -370,7 +405,7 @@ class Cp2kStringReactor(AbstractStringReactor):
                     # NEB|    ATOM                            X                Y                Z
                     curr_data = []
                     found_replica_forces = False
-                    for i in range((natoms+3)*nimages):
+                    for i in range((natoms + 3) * nimages):
                         line = fopen.readline()
                         if line:
                             curr_data.append(line)
@@ -381,38 +416,51 @@ class Cp2kStringReactor(AbstractStringReactor):
                         found_replica_forces = True
                     if found_replica_forces:
                         curr_energies = [
-                            float(curr_data[i].strip().split()[-1]) for i in range(1, len(curr_data), natoms+3)
+                            float(curr_data[i].strip().split()[-1])
+                            for i in range(1, len(curr_data), natoms + 3)
                         ]
                         temp_energies.append(curr_energies)
                         curr_forces = []
                         for ir in range(nimages):
                             curr_forces.append(
-                                [curr_data[i].strip().split()[2:] for i in range((natoms+3)*ir+3, (natoms+3)*ir+3+natoms)]
+                                [
+                                    curr_data[i].strip().split()[2:]
+                                    for i in range(
+                                        (natoms + 3) * ir + 3,
+                                        (natoms + 3) * ir + 3 + natoms,
+                                    )
+                                ]
                             )
                         temp_forces.append(curr_forces)
                     else:
                         break
                 if "BAND TOTAL ENERGY" in line:
-                    if temp_energies and temp_forces: # if the step completed...
-                        #print("temp_energies: ", len(temp_energies))
-                        #print("temp_forces: ", np.array(temp_forces, dtype=np.float64).shape)
+                    if (
+                        temp_energies and temp_forces
+                    ):  # if the step completed...
+                        # print("temp_energies: ", len(temp_energies))
+                        # print("temp_forces: ", np.array(temp_forces, dtype=np.float64).shape)
                         energies.append(temp_energies[-1])
                         forces.extend(temp_forces[-1])
                         temp_forces, temp_energies = [], []
 
         # - truncate to the last complete band
-        frames = [] # shape (nbands, nimages)
+        frames = []  # shape (nbands, nimages)
         if forces:
             forces = np.array(forces, dtype=np.float64)
             shape = forces.shape
             self._debug(f"forces: {shape}")
-            nbands = int(shape[0]/nimages)
-            forces = forces[:nbands*nimages]
+            nbands = int(shape[0] / nimages)
+            forces = forces[: nbands * nimages]
             self._debug(f"truncated forces: {forces.shape} nbands: {nbands}")
-            forces = np.reshape(forces, (nbands, nimages, natoms, -1)) # shape (nbands, nimages, natoms, 3)
-            forces *= units.Hartree/units.Bohr
+            forces = np.reshape(
+                forces, (nbands, nimages, natoms, -1)
+            )  # shape (nbands, nimages, natoms, 3)
+            forces *= units.Hartree / units.Bohr
 
-            energies = np.array(energies)[:nbands*nimages].reshape(nbands, nimages)
+            energies = np.array(energies)[: nbands * nimages].reshape(
+                nbands, nimages
+            )
             energies *= units.Hartree
             self._debug(f"energies: {energies.shape} nbands: {nbands}")
 
@@ -420,16 +468,22 @@ class Cp2kStringReactor(AbstractStringReactor):
             self._debug(f"cell: {cell}")
 
             # - read positions
-            frames_ = [] # shape (nimages, nbands)
+            frames_ = []  # shape (nimages, nbands)
             if nimages < 10:
                 for i in range(nimages):
-                    curr_xyzfile = wdir/f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
-                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
+                    curr_xyzfile = wdir / f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
+                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[
+                        :nbands
+                    ]
                     frames_.append(curr_frames)
             else:
                 for i in range(nimages):
-                    curr_xyzfile = wdir/f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
-                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
+                    curr_xyzfile = (
+                        wdir / f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
+                    )
+                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[
+                        :nbands
+                    ]
                     frames_.append(curr_frames)
             for j in range(nbands):
                 curr_band = []
@@ -442,15 +496,17 @@ class Cp2kStringReactor(AbstractStringReactor):
                     atoms.set_cell(cell)
                     atoms.pbc = True
                     spc = SinglePointCalculator(
-                        atoms, energy=energies[i, j], free_energy=energies[i, j],
-                        forces=forces[i, j].copy()
+                        atoms,
+                        energy=energies[i, j],
+                        free_energy=energies[i, j],
+                        forces=forces[i, j].copy(),
                     )
                     atoms.calc = spc
         else:
             ...
 
         return frames
-    
+
 
 if __name__ == "__main__":
     ...

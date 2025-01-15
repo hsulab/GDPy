@@ -224,7 +224,9 @@ class AseStringReactor(AbstractStringReactor):
             neb,
             logfile=self.directory / "neb.log",
             trajectory=None,
+            maxstep=0.10
         )
+        self._print(f"{dynamics=}  {dynamics.maxstep=}")
         dynamics.attach(
             update_atoms_info,
             interval=self.setting.dump_period,

@@ -23,11 +23,14 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
-from gdpx.group import evaluate_group_expression
+from gdpx.group import (
+    evaluate_constraint_expression,
+    evaluate_group_expression,
+)
+from gdpx.utils.strconv import integers_to_string
 
 from .. import config
 from ..backend.lammps import parse_thermo_data_by_pattern
-from ..builder.constraints import convert_indices, parse_constraint_info
 from .driver import AbstractDriver, Controller, DriverSetting
 
 
@@ -66,7 +69,9 @@ class FireMinimizer(Controller):
         """"""
         self.conv_params = dict(
             min_style="fire",
-            min_modify=self.params.get("min_modify", "integrator verlet tmax 4"),
+            min_modify=self.params.get(
+                "min_modify", "integrator verlet tmax 4"
+            ),
         )
 
         return
@@ -85,7 +90,9 @@ class LangevinThermostat(Controller):
         friction_seed = self.params.get("friction_seed", None)
 
         self.conv_params = dict(
-            damp=unitconvert.convert(1.0 / friction, "time", "real", self.units)
+            damp=unitconvert.convert(
+                1.0 / friction, "time", "real", self.units
+            )
         )
         if friction_seed is not None:
             self.conv_params.update(seed=friction_seed)
@@ -201,7 +208,9 @@ class LmpDriverSetting(DriverSetting):
 
         return
 
-    def get_minimisation_inputs(self, random_seed, group: str = "mobile") -> list[str]:
+    def get_minimisation_inputs(
+        self, random_seed, group: str = "mobile"
+    ) -> list[str]:
         """"""
         """Convert parameters into lammps input lines."""
         MIN_FIX_ID: str = "controller"
@@ -219,8 +228,10 @@ class LmpDriverSetting(DriverSetting):
         _init_min_params.update(**minimiser.conv_params)
 
         if minimiser.name == "fire":
-            min_line = "min_style  {min_style}\nmin_modify {min_modify}".format(
-                **_init_min_params
+            min_line = (
+                "min_style  {min_style}\nmin_modify {min_modify}".format(
+                    **_init_min_params
+                )
             )
         else:
             raise RuntimeError(f"Unknown minimiser {minimiser}.")
@@ -237,7 +248,9 @@ class LmpDriverSetting(DriverSetting):
         _init_md_params = dict(
             fix_id=MD_FIX_ID,
             group=group,
-            timestep=unitconvert.convert(self.timestep, "time", "real", self.units),
+            timestep=unitconvert.convert(
+                self.timestep, "time", "real", self.units
+            ),
         )
 
         if self.ensemble == "nve":
@@ -452,7 +465,10 @@ class LmpDriver(AbstractDriver):
 
         prev_temperature, prev_pressure = self.setting.temp, self.setting.press
         if ckpt_wdir is None:  # start from the scratch
-            curr_temperature, curr_pressure = self.setting.temp, self.setting.press
+            curr_temperature, curr_pressure = (
+                self.setting.temp,
+                self.setting.press,
+            )
         else:
             checkpoints = sorted(
                 list(ckpt_wdir.glob("restart.*")),
@@ -572,7 +588,9 @@ class LmpDriver(AbstractDriver):
                                 tar.extractfile(tarinfo.name).read().decode()
                             )
                         elif tarinfo.name == prism_tarname:
-                            prism_io = io.BytesIO(tar.extractfile(tarinfo.name).read())
+                            prism_io = io.BytesIO(
+                                tar.extractfile(tarinfo.name).read()
+                            )
                         elif tarinfo.name == log_tarname:
                             log_io = io.StringIO(
                                 tar.extractfile(tarinfo.name).read().decode()
@@ -653,7 +671,9 @@ class LmpDriver(AbstractDriver):
         for pot_eng, atoms in zip(curr_energies, curr_traj_frames):
             forces = atoms.get_forces()
             # NOTE: forces have already been converted in ase read, so velocities are
-            sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
+            sp_calc = SinglePointCalculator(
+                atoms, energy=pot_eng, forces=forces
+            )
             atoms.calc = sp_calc
 
         # - check model_devi.out
@@ -661,7 +681,11 @@ class LmpDriver(AbstractDriver):
         if devi_io is not None:
             lines = devi_io.readlines()
             if "#" in lines[0]:  # the first file
-                dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
+                dkeys = (
+                    ("".join([x for x in lines[0] if x != "#"]))
+                    .strip()
+                    .split()
+                )
                 dkeys = [x.strip() for x in dkeys][1:]
             else:
                 ...
@@ -674,7 +698,9 @@ class LmpDriver(AbstractDriver):
             #       Thus, we only take the last occurance of the deviation in each step.
             step_indices = []
             steps = data[:, 0].astype(np.int32).tolist()
-            for k, v in itertools.groupby(enumerate(steps), key=lambda x: x[1]):
+            for k, v in itertools.groupby(
+                enumerate(steps), key=lambda x: x[1]
+            ):
                 v = sorted(v, key=lambda x: x[0])
                 step_indices.append(v[-1][0])
             data = data.transpose()[1:, step_indices[:nframes]]
@@ -826,7 +852,9 @@ class Lammps(FileIOCalculator):
             return self.parameters[key]
         return object.__getattribute__(self, key)
 
-    def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
+    def calculate(
+        self, atoms=None, properties=["energy"], system_changes=all_changes
+    ):
         """Run calculation."""
         # TODO: should use user-custom type_list from potential manager
         #       move this part to driver?
@@ -851,7 +879,9 @@ class Lammps(FileIOCalculator):
         prism_file = os.path.join(self.directory, ASELMPCONFIG.prism_filename)
         with open(prism_file, "wb") as fopen:
             pickle.dump(prismobj, fopen)
-        stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
+        stru_data = os.path.join(
+            self.directory, ASELMPCONFIG.inputstructure_filename
+        )
         write_lammps_data(
             stru_data,
             atoms,
@@ -938,7 +968,9 @@ class Lammps(FileIOCalculator):
 
         # - mpi settings
         if self.processors is not None:
-            content += "processors {}\n".format(self.processors)  # if 2D simulation
+            content += "processors {}\n".format(
+                self.processors
+            )  # if 2D simulation
 
         # - simulation box
         pbc = atoms.get_pbc()
@@ -954,7 +986,9 @@ class Lammps(FileIOCalculator):
         if self.newton:
             content += "newton {}\n".format(self.newton)
         if self.read_restart is None:
-            content += "read_data	    %s\n" % ASELMPCONFIG.inputstructure_filename
+            content += (
+                "read_data	    %s\n" % ASELMPCONFIG.inputstructure_filename
+            )
         else:
             content += f"read_restart    {self.read_restart}\n"
 
@@ -998,9 +1032,7 @@ class Lammps(FileIOCalculator):
                 content += "pair_coeff {} {}\n".format(
                     self.pair_coeff, " ".join(self.type_list)
                 )
-                content += (
-                    "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-                )
+                content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
             elif potential == "eann":
                 pot_data = self.pair_style.strip().split()[1:]
                 endp = len(pot_data)
@@ -1057,22 +1089,28 @@ class Lammps(FileIOCalculator):
         content += "\n"
 
         # - constraint
-        mobile_text, frozen_text = parse_constraint_info(atoms, self.constraint)
-        if mobile_text:  # NOTE: sometimes all atoms are fixed
-            content += "group mobile id %s\n" % mobile_text
+        mobile_indices, frozen_indices = evaluate_constraint_expression(
+            atoms, self.constraint
+        )
+        if mobile_indices:  # Sometimes all atoms are fixed.
+            mobile_text = integers_to_string(
+                mobile_indices, inp_convention="ase"
+            )
+            content += f"group mobile id {mobile_text}\n"
             content += "\n"
-        if frozen_text:  # not empty string
+        if frozen_indices:  # Sometimes no atoms are fixed.
+            frozen_text = integers_to_string(
+                frozen_indices, inp_convention="ase"
+            )
             # content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
-            content += "group frozen id %s\n" % frozen_text
+            content += f"group frozen id {frozen_text}\n"
             content += "fix cons frozen setforce 0.0 0.0 0.0\n"
         content += "\n"
 
         # - outputs
         # TODO: use more flexible notations
         if self.task == "min":
-            content += (
-                "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
-            )
+            content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
         elif self.task == "md":
             content += "compute mobileTemp mobile temp\n"
             content += "thermo_style    custom step c_mobileTemp pe ke etotal press vol lx ly lz xy xz yz\n"
@@ -1093,7 +1131,9 @@ class Lammps(FileIOCalculator):
         else:
             ...
         assert self.type_list is not None
-        content += f"dump_modify 1 element {' '.join(self.type_list)} flush yes\n"
+        content += (
+            f"dump_modify 1 element {' '.join(self.type_list)} flush yes\n"
+        )
         content += "\n"
 
         # add extra fix
@@ -1104,9 +1144,9 @@ class Lammps(FileIOCalculator):
                 )
             else:  # fix ID group-ID command
                 group_indices = evaluate_group_expression(atoms, fix_info[0])
-                group_text = convert_indices(
-                    group_indices, index_convention="py"
-                )  # py-index -> lmp-index text
+                group_text = integers_to_string(
+                    group_indices, inp_convention="ase"
+                )  # ase-index-list -> lmp-index-text
                 content += "{:<24s}  {:<24s}  id  {:<s}  \n".format(
                     "group", f"extra_group_{i}", group_text
                 )
@@ -1140,9 +1180,13 @@ class Lammps(FileIOCalculator):
                     )
 
                     plumed_inp = update_stride_and_file(
-                        self.plumed, wdir=str(self.directory), stride=self.dump_period
+                        self.plumed,
+                        wdir=str(self.directory),
+                        stride=self.dump_period,
                     )
-                    with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
+                    with open(
+                        os.path.join(self.directory, "plumed.inp"), "w"
+                    ) as fopen:
                         fopen.write("".join(plumed_inp))
                     content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
                 except:

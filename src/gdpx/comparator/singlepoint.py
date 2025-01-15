@@ -3,7 +3,7 @@
 
 
 import pathlib
-from typing import Union, Optional
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,17 +17,15 @@ from ase import Atoms
 from ase.constraints import FixAtoms
 
 from gdpx.core.component import BaseComponent
+from gdpx.group import evaluate_constraint_expression
 
-from ..builder.constraints import parse_constraint_info
 from ..utils.comparision import get_properties, plot_distribution, plot_parity
 
 
 def set_constraint(atoms, cons_text):
     """"""
     atoms._del_constraints()
-    mobile_indices, frozen_indices = parse_constraint_info(
-        atoms, cons_text, ignore_ase_constraints=True, ret_text=False
-    )
+    _, frozen_indices = evaluate_constraint_expression(atoms, cons_text)
     if frozen_indices:
         atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
@@ -39,7 +37,7 @@ class SinglePointComparator(BaseComponent):
     def __init__(
         self,
         directory: Union[str, pathlib.Path] = "./",
-        random_seed: Optional[Union[int,dict]] = None,
+        random_seed: Optional[Union[int, dict]] = None,
     ):
         super().__init__(directory=directory, random_seed=random_seed)
 
@@ -75,9 +73,13 @@ class SinglePointComparator(BaseComponent):
             for k in rmse_ret.keys():
                 if k not in keys:
                     keys.append(k)
-        content_fmt = "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  " * len(keys) + "\n"
+        content_fmt = (
+            "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  " * len(keys) + "\n"
+        )
 
-        header_fmt = "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  " * len(keys) + "\n"
+        header_fmt = (
+            "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  " * len(keys) + "\n"
+        )
         header_data = ["#prefix", "nframes"]
         for k in keys:
             header_data.extend([f"{k}_rmse", f"{k}_std"])
@@ -125,12 +127,20 @@ class SinglePointComparator(BaseComponent):
 
         # -- energies
         ene_rmse = plot_parity(
-            axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms
+            axarr[0],
+            ref_energies,
+            pred_energies,
+            x_name="ene",
+            weights=ref_natoms,
         )
 
         # -- forces
         frc_rmse = plot_parity(
-            axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
+            axarr[1],
+            ref_forces,
+            pred_forces,
+            x_name="frc",
+            x_types=ref_symbols,
         )
 
         # if (self.directory/f"{prefix}.png").exists():
@@ -146,10 +156,18 @@ class SinglePointComparator(BaseComponent):
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
         plot_distribution(
-            axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms
+            axarr[0],
+            ref_energies,
+            pred_energies,
+            x_name="ene",
+            weights=ref_natoms,
         )
         plot_distribution(
-            axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
+            axarr[1],
+            ref_forces,
+            pred_forces,
+            x_name="frc",
+            x_types=ref_symbols,
         )
 
         plt.savefig(self.directory / prefix / "dist.png")
@@ -169,4 +187,3 @@ class SinglePointComparator(BaseComponent):
 
 if __name__ == "__main__":
     ...
-

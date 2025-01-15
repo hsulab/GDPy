@@ -11,6 +11,8 @@ import numpy as np
 from ase import Atoms, units
 from ase.calculators.cp2k import parse_input
 
+from gdpx.group import evaluate_constraint_expression
+
 from ..backend.cp2k import (
     Cp2kFileIO,
     read_cp2k_convergence,
@@ -18,7 +20,6 @@ from ..backend.cp2k import (
     read_cp2k_spc,
     read_cp2k_spc_convergence,
 )
-from ..builder.constraints import parse_constraint_info
 from ..data.extatoms import ScfErrAtoms
 from .driver import AbstractDriver, Controller, DriverSetting
 
@@ -106,7 +107,10 @@ class BFGSMinimiser(MotionController):
             ("GLOBAL", "RUN_TYPE GEO_OPT"),
             ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
             ("MOTION/GEO_OPT", "OPTIMIZER BFGS"),
-            ("MOTION/PRINT/RESTART_HISTORY/EACH", f"GEO_OPT {self.ckpt_period}"),
+            (
+                "MOTION/PRINT/RESTART_HISTORY/EACH",
+                f"GEO_OPT {self.ckpt_period}",
+            ),
         ]
 
         self.conv_params.extend(more_params)
@@ -127,7 +131,10 @@ class CGMinimiser(MotionController):
             ("GLOBAL", "RUN_TYPE GEO_OPT"),
             ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
             ("MOTION/GEO_OPT", "OPTIMIZER CG"),
-            ("MOTION/PRINT/RESTART_HISTORY/EACH", f"GEO_OPT {self.ckpt_period}"),
+            (
+                "MOTION/PRINT/RESTART_HISTORY/EACH",
+                f"GEO_OPT {self.ckpt_period}",
+            ),
         ]
 
         self.conv_params.extend(more_params)
@@ -361,7 +368,10 @@ class Cp2kDriverSetting(DriverSetting):
             )
             if fmax_ is not None:
                 run_pairs.append(
-                    ("MOTION/GEO_OPT", f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}")
+                    (
+                        "MOTION/GEO_OPT",
+                        f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}",
+                    )
                 )
         if self.task == "md":
             run_pairs.append(
@@ -370,7 +380,8 @@ class Cp2kDriverSetting(DriverSetting):
 
         # - add constraint
         run_params = dict(
-            constraint=kwargs.get("constraint", self.constraint), run_pairs=run_pairs
+            constraint=kwargs.get("constraint", self.constraint),
+            run_pairs=run_pairs,
         )
 
         return run_params
@@ -391,7 +402,9 @@ class Cp2kDriver(AbstractDriver):
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
             if self.setting.task == "spc":
-                verified = read_cp2k_spc_convergence(self.directory / "cp2k.out")
+                verified = read_cp2k_spc_convergence(
+                    self.directory / "cp2k.out"
+                )
             else:
                 checkpoints = list(self.directory.glob("*.restart"))
                 self._debug(f"checkpoints: {checkpoints}")
@@ -404,7 +417,9 @@ class Cp2kDriver(AbstractDriver):
 
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
-        assert isinstance(self.calc, Cp2kFileIO), "Cp2kDriver must use Cp2kFileIO."
+        assert isinstance(
+            self.calc, Cp2kFileIO
+        ), "Cp2kDriver must use Cp2kFileIO."
         if ckpt_wdir is None:  # start from the scratch
             # Check if there is `cp2k.out` from a previous failed calculation.
             # If there are outputs from multiple calculations, the parser for
@@ -427,9 +442,9 @@ class Cp2kDriver(AbstractDriver):
                 sec.add_keyword(k, v)
 
             # Ceck constraint
-            cons_text = run_params.pop("constraint", None)
-            mobile_indices, frozen_indices = parse_constraint_info(
-                atoms, cons_text, ret_text=False
+            cons_expr = run_params.pop("constraint", None)
+            _, frozen_indices = evaluate_constraint_expression(
+                atoms, cons_expr
             )
             # if self.setting.task == "freq" and mobile_indices:
             #     mobile_indices = sorted(mobile_indices)
@@ -447,7 +462,9 @@ class Cp2kDriver(AbstractDriver):
                 frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
                     "MOTION/CONSTRAINT/FIXED_ATOMS",
-                    "LIST {}".format(" ".join([str(i + 1) for i in frozen_indices])),
+                    "LIST {}".format(
+                        " ".join([str(i + 1) for i in frozen_indices])
+                    ),
                 )
         else:
             with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
@@ -483,14 +500,17 @@ class Cp2kDriver(AbstractDriver):
             )
 
             sec.add_keyword(
-                "EXT_RESTART/RESTART_FILE_NAME", str(ckpt_wdir / "cp2k-1.restart")
+                "EXT_RESTART/RESTART_FILE_NAME",
+                str(ckpt_wdir / "cp2k-1.restart"),
             )
             sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
 
             # - copy wavefunctions...
             restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
             for wfn in restart_wfns:
-                (self.directory / wfn.name).symlink_to(wfn, target_is_directory=False)
+                (self.directory / wfn.name).symlink_to(
+                    wfn, target_is_directory=False
+                )
 
         self.calc.parameters.inp = "\n".join(sec.write())
 
@@ -521,7 +541,9 @@ class Cp2kDriver(AbstractDriver):
                 self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
             traj_frames = [atoms]
         elif self.setting.task in ["min", "cmin", "md"]:
-            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
+            prev_wdirs = sorted(
+                self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run")
+            )
             self._debug(f"prev_wdirs: {prev_wdirs}")
 
             traj_list = []
@@ -531,7 +553,9 @@ class Cp2kDriver(AbstractDriver):
 
             cp2ktraj = self.directory / "cp2k-pos-1.xyz"
             if cp2ktraj.exists() and cp2ktraj.stat().st_size != 0:
-                traj_list.append(read_cp2k_outputs(self.directory, prefix=self.name))
+                traj_list.append(
+                    read_cp2k_outputs(self.directory, prefix=self.name)
+                )
 
             # -- concatenate
             traj_frames, ntrajs = [], len(traj_list)
@@ -539,7 +563,8 @@ class Cp2kDriver(AbstractDriver):
                 traj_frames.extend(traj_list[0])
                 for i in range(1, ntrajs):
                     assert np.allclose(
-                        traj_list[i - 1][-1].positions, traj_list[i][0].positions
+                        traj_list[i - 1][-1].positions,
+                        traj_list[i][0].positions,
                     ), f"Traj {i-1} and traj {i} are not consecutive."
                     traj_frames.extend(traj_list[i][1:])
             else:
