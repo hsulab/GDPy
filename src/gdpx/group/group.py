@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 from typing import Union, List, Mapping
 from itertools import groupby
@@ -19,6 +20,7 @@ from .constraints import convert_indices
 This module tries to mimic the behaviour of LAMMPS group command.
 
 """
+
 
 class AbstractAtomicGroup(abc.ABC):
 
