@@ -60,7 +60,7 @@ def str2list_int(
 
 def integers_to_string(
     indices: list[int],
-    inp_convention: str = "lmp",
+    inp_convention: str = "ase",
     out_convention: str = "lmp",
 ) -> str:
     """Convert a list of integers to a string.
