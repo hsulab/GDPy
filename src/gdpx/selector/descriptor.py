@@ -150,6 +150,7 @@ class DescriptorSelector(AbstractSelector):
                 scores, selected_indices = [np.NaN], [0]
             else:
                 scores, selected_indices = self._sparsify(features, num_fixed)
+                scores = scores[selected_indices]
         else:
             features, scores, selected_indices = None, [], []
 
