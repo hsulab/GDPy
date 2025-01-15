@@ -186,7 +186,6 @@ ALL_MODULES = [
     # - nodes (variables),
     ("gdpx.nodes", ["region", "trainer", "validator"]),
     # - session operations + variables.
-    ("gdpx.builder", ["interface"]),
     ("gdpx.computation", ["interface"]),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),
