@@ -19,12 +19,12 @@ except Exception as e:
     ...
 
 from gdpx.group import evaluate_group_expression
+from gdpx.geometry.align import wrap_traj
 
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
 from ..utils.strconv import str2array
-from .utils import wrap_traj
-from .validator import AbstractValidator
+from .validator import BaseValidator
 
 
 def jpcc2020_func(T, Tm, x1, x2, x3, x4):
@@ -90,7 +90,8 @@ def _icalc_local_lindemann_index(
 
     with CustomTimer("Lindemann Index"):
         distances = Parallel(n_jobs=n_jobs)(
-            delayed(get_distance_matrix)(atoms, group_indices) for atoms in frames
+            delayed(get_distance_matrix)(atoms, group_indices)
+            for atoms in frames
         )
     distances = np.array(distances)
 
@@ -108,7 +109,7 @@ def _icalc_local_lindemann_index(
     return q
 
 
-class MeltingPointValidator(AbstractValidator):
+class MeltingPointValidator(BaseValidator):
     """Estimate the melting point from a series of MD simulations.
 
     For nanoparticles, the lindeman index is used. MD simulations with various
@@ -148,11 +149,16 @@ class MeltingPointValidator(AbstractValidator):
         elif isinstance(temperatures, str):
             temperatures = str2array(temperatures)
         else:
-            raise TypeError(f"Unknown {temperatures} of type {type(temperatures)}.")
+            raise TypeError(
+                f"Unknown {temperatures} of type {type(temperatures)}."
+            )
 
         self.temperatures = temperatures
 
-        assert fitting in ["sigmoid", "jpcc2020"], "Unsupported fitting function."
+        assert fitting in [
+            "sigmoid",
+            "jpcc2020",
+        ], "Unsupported fitting function."
         self.fitting = fitting
 
         return
@@ -231,7 +237,9 @@ class MeltingPointValidator(AbstractValidator):
             np.savetxt(
                 cached_data_path,
                 qmat.T,
-                header=("{:>11s}" + "{:>12s}" * (len(qnames) - 1)).format(*qnames),
+                header=("{:>11s}" + "{:>12s}" * (len(qnames) - 1)).format(
+                    *qnames
+                ),
                 fmt="%12.4f",
             )
         else:

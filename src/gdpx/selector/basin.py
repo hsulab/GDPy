@@ -13,8 +13,9 @@ try:
 except Exception as e:
     ...
 
+from gdpx.geometry.align import wrap_traj
+
 from .selector import AbstractSelector
-from ..utils.geometry import wrap_traj
 
 
 class BasinSelector(AbstractSelector):

@@ -5,51 +5,65 @@
 import pathlib
 from typing import Optional, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
+from ase import Atoms
 from joblib import Parallel, delayed
 
-from ase import Atoms
-
-import matplotlib.pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
     ...
 
+from gdpx.geometry.align import wrap_traj
 from gdpx.group import evaluate_group_expression
 
-from .validator import AbstractValidator
-from .utils import wrap_traj
 from ..data.array import AtomsNDArray
+from .validator import BaseValidator
 
 
-def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, prefix="", print_func=print):
+def plot_msd(
+    wdir,
+    names,
+    lagtimes,
+    timeseries,
+    start_step=20,
+    end_step=60,
+    prefix="",
+    print_func=print,
+):
     """"""
     # - get self-diffusivity
     from scipy.stats import linregress
 
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
     fig.suptitle("MSD")
 
-    #ax.set_title("$51Å\times 44Å$")
+    # ax.set_title("$51Å\times 44Å$")
     if names is None:
         names = [str(i) for i in range(len(lagtimes))]
 
     for name, x, y in zip(names, lagtimes, timeseries):
         # show mean_squared_displacement
-        p1, = ax.plot(x, y, label=f"{name}")
+        (p1,) = ax.plot(x, y, label=f"{name}")
 
         # compute diffusion coefficient
         if not (start_step < 0 or start_step >= end_step):
             linear_model = linregress(
                 x[start_step:end_step], y[start_step:end_step]
             )
-            ax.plot(x[[start_step, end_step]], y[[start_step, end_step]], marker="o", markerfacecolor="w", color=p1.get_color())
+            ax.plot(
+                x[[start_step, end_step]],
+                y[[start_step, end_step]],
+                marker="o",
+                markerfacecolor="w",
+                color=p1.get_color(),
+            )
 
             slope = linear_model.slope
             error = linear_model.rvalue
             # dim_fac is 3 as we computed a 3D msd with 'xyz'
-            D = slope * 1/(2*3)
+            D = slope * 1 / (2 * 3)
             ax.text(np.median(x), np.median(y), f"$D={D:>.2e}$")
             print_func(f"system {name} diffusion_coefficient: {D} [Ang^2/ps]")
         else:
@@ -60,15 +74,14 @@ def plot_msd(wdir, names, lagtimes, timeseries, start_step=20, end_step=60, pref
 
     ax.legend(fontsize=12)
 
-    fig.savefig(wdir/ f"{prefix}msd.png", bbox_inches="tight")
+    fig.savefig(wdir / f"{prefix}msd.png", bbox_inches="tight")
 
     return
 
 
 def compute_msd(
-        frames, group_indices, lagmax, start, end, 
-        timeintv: float, prefix=""
-    ):
+    frames, group_indices, lagmax, start, end, timeintv: float, prefix=""
+):
     """Compute MSD ...
 
     Args:
@@ -78,15 +91,15 @@ def compute_msd(
     # -
     frames = wrap_traj(frames)
     frames = frames[start:end:]
-    #print("nframes: ", len(frames))
+    # print("nframes: ", len(frames))
 
     positions = []
     for atoms in frames:
-        positions.append(atoms.get_positions()[group_indices,:])
+        positions.append(atoms.get_positions()[group_indices, :])
     positions = np.array(positions)
 
     nframes, natoms, _ = positions.shape
-    #print("shape: ", positions.shape)
+    # print("shape: ", positions.shape)
 
     # -
     msds_by_particle = np.zeros((lagmax, natoms))
@@ -94,19 +107,18 @@ def compute_msd(
     lagtimes = np.arange(1, lagmax)
     for lag in lagtimes:
         disp = positions[:-lag, :, :] - positions[lag:, :, :]
-        #print("disp: ", disp.shape)
+        # print("disp: ", disp.shape)
         sqdist = np.square(disp).sum(axis=-1)
         msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
     timeseries = msds_by_particle.mean(axis=1)
 
-    timeintv = timeintv / 1000. # fs to ps
-    lagtimes = np.arange(lagmax)*timeintv
+    timeintv = timeintv / 1000.0  # fs to ps
+    lagtimes = np.arange(lagmax) * timeintv
 
     return lagtimes, timeseries
 
 
-class MeanSquaredDisplacementValidator(AbstractValidator):
-
+class MeanSquaredDisplacementValidator(BaseValidator):
     """Estimate the diffusion coefficient.
 
     Compute a windowed MSD where the MSD is averaged over all possible lag-times
@@ -115,10 +127,18 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
     """
 
     def __init__(
-            self, group, timeintv: float, lagmax: int, start: Optional[int]=None, end: Optional[int]=None, 
-            d_start: int = -1, d_end: int = 20,
-            directory: Union[str, pathlib.Path] = "./", *args, **kwargs
-        ):
+        self,
+        group,
+        timeintv: float,
+        lagmax: int,
+        start: Optional[int] = None,
+        end: Optional[int] = None,
+        d_start: int = -1,
+        d_end: int = 20,
+        directory: Union[str, pathlib.Path] = "./",
+        *args,
+        **kwargs,
+    ):
         """"""
         super().__init__(directory, *args, **kwargs)
 
@@ -126,7 +146,7 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
 
         self.start = start
         self.end = end
-        
+
         self.lagmax = lagmax
         self.timeintv = timeintv
 
@@ -143,13 +163,13 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
 
         if data.ndim == 1:
             data = [data.tolist()]
-        elif data.ndim == 2: # assume it is from minimisations...
+        elif data.ndim == 2:  # assume it is from minimisations...
             data = data.tolist()
         else:
             raise RuntimeError(f"Invalid shape {data.shape}.")
 
         return data
-    
+
     def run(self, dataset: dict, worker=None, *args, **kwargs):
         """"""
         super().run()
@@ -157,7 +177,7 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
         # - find some optional parameters
         labels = kwargs.get("labels", None)
 
-        # - 
+        # -
         self._print("process reference ->")
         reference = dataset.get("reference")
         if reference is not None:
@@ -169,7 +189,7 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
             self._irun(prediction, "pre-", labels)
 
         return
-    
+
     def _irun(self, data, prefix="", labels=None):
         """Test the first trajectory.
 
@@ -180,15 +200,21 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
         group_indices = evaluate_group_expression(mdtrajs[0][0], self.group)
         self._debug(f"group_indices: {group_indices}")
 
-        cache_msd = self.directory/f"{prefix}msd.npy"
+        cache_msd = self.directory / f"{prefix}msd.npy"
         if not cache_msd.exists():
             data = Parallel(n_jobs=self.njobs)(
                 delayed(compute_msd)(
-                    [a for a in frames if a is not None], # AtomsNDArray may have None...
-                    group_indices, lagmax=self.lagmax, 
-                    start=self.start, end=self.end, timeintv=self.timeintv, 
-                    prefix=prefix
-                ) for frames in mdtrajs
+                    [
+                        a for a in frames if a is not None
+                    ],  # AtomsNDArray may have None...
+                    group_indices,
+                    lagmax=self.lagmax,
+                    start=self.start,
+                    end=self.end,
+                    timeintv=self.timeintv,
+                    prefix=prefix,
+                )
+                for frames in mdtrajs
             )
             np.save(cache_msd, data)
         else:
@@ -197,9 +223,14 @@ class MeanSquaredDisplacementValidator(AbstractValidator):
         lagtimes = [x[0] for x in data]
         timeseries = [x[1] for x in data]
         plot_msd(
-            self.directory, names=labels, lagtimes=lagtimes, timeseries=timeseries, 
-            start_step=self.d_start, end_step=self.d_end, prefix=prefix,
-            print_func=self._print
+            self.directory,
+            names=labels,
+            lagtimes=lagtimes,
+            timeseries=timeseries,
+            start_step=self.d_start,
+            end_step=self.d_end,
+            prefix=prefix,
+            print_func=self._print,
         )
 
         return
