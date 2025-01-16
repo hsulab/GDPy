@@ -17,16 +17,22 @@ from .cur import boltz_selection, hist_selection, stat_str2val
 from .selector import AbstractSelector
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
-    "atomic_energy", "energy", "forces",
-    "volume", "min_distance",
+    "atomic_energy",
+    "energy",
+    "forces",
+    "volume",
+    "min_distance",
     "max_devi_f",
     # from describer
-    "max_frc_err", "abs_ene_err"
+    "max_frc_err",
+    "abs_ene_err",
 ]
 IMPLEMENTED_STRING_PROPERTIES: list[str] = [
     "chemical_formula",
 ]
-IMPLEMENTED_PROPERTIES: list[str] = IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
+IMPLEMENTED_PROPERTIES: list[str] = (
+    IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
+)
 
 
 def get_metric_func(metric_name: str):
@@ -52,6 +58,21 @@ def compute_minimum_distance(atoms: Atoms, cutoff: float):
     return np.min(d)
 
 
+def get_aligned_chemical_formula(
+    atoms: Atoms, symbol_list: list[str], padding_width: int = 4
+):
+    """"""
+    chemical_symbols = atoms.get_chemical_symbols()
+    counter = collections.Counter(chemical_symbols)
+
+    chemical_formula = ""
+    for s in symbol_list:
+        n = counter.get(s, 0)
+        chemical_formula += f"{s}{n:>0{padding_width}d}"
+
+    return chemical_formula
+
+
 @dataclasses.dataclass
 class PropertyItem:
 
@@ -65,7 +86,9 @@ class PropertyItem:
     metric: Optional[Union[str, list[str]]] = None
 
     #: List of functions, min, max, average and ...
-    _metric: list[Callable] = dataclasses.field(init=False, default_factory=list)
+    _metric: list[Callable] = dataclasses.field(
+        init=False, default_factory=list
+    )
 
     #: Apply group selection.
     group: Optional[str] = None
@@ -77,7 +100,9 @@ class PropertyItem:
     reverse: bool = False
 
     #: Property range to filter, which should be two strings or two numbers or mixed.
-    range: list[float] = dataclasses.field(default_factory=lambda: [None, None])
+    range: list[Optional[float]] = dataclasses.field(
+        default_factory=lambda: [None, None]
+    )
 
     #: Property minimum.
     pmin: float = dataclasses.field(init=False, default=-np.inf)
@@ -125,7 +150,9 @@ class PropertyItem:
                 elif metric_name == "min":
                     metric_func = np.min
                 else:
-                    raise NotImplementedError(f"Unknown metric function {metric_name}.")
+                    raise NotImplementedError(
+                        f"Unknown metric function {metric_name}."
+                    )
                 self._metric.append(metric_func)
         else:
             self._metric = []
@@ -183,7 +210,10 @@ class PropertySelector(AbstractSelector):
         """"""
         super().__init__(*args, **kwargs)
 
-        assert self.mode in ["stru", "traj"], f"Unknown selection mode {self.mode}."
+        assert self.mode in [
+            "stru",
+            "traj",
+        ], f"Unknown selection mode {self.mode}."
 
         # - convert properties
         prop_items = []
@@ -203,12 +233,13 @@ class PropertySelector(AbstractSelector):
             self._print(str(prop_item))
 
             # - group markers
-            print(f"{prop_item.name=} -> {self.axis=}")
             if self.axis is None:
                 marker_groups = dict(all=data.markers)
             else:
                 marker_groups = {}
-                for k, v in itertools.groupby(data.markers, key=lambda x: x[self.axis]):
+                for k, v in itertools.groupby(
+                    data.markers, key=lambda x: x[self.axis]
+                ):
                     if k in marker_groups:
                         marker_groups[k].extend(list(v))
                     else:
@@ -231,7 +262,9 @@ class PropertySelector(AbstractSelector):
 
         return
 
-    def _mark_group_represent(self, data, prop_item: PropertyItem, marker_groups):
+    def _mark_group_represent(
+        self, data, prop_item: PropertyItem, marker_groups
+    ):
         """Mark a group of structures based on a representative structure's property."""
 
         metric_func = get_metric_func(prop_item.group)
@@ -247,7 +280,9 @@ class PropertySelector(AbstractSelector):
                 metric_val = metric_func(curr_values)
                 # FIXME: how to find index if structures with same properties?
                 rep_frame = curr_frames[curr_values.index(metric_val)]
-                rep_groups.append((grp_name, rep_counter, rep_frame, metric_val))
+                rep_groups.append(
+                    (grp_name, rep_counter, rep_frame, metric_val)
+                )
                 rep_counter += 1
             else:
                 ...
@@ -265,7 +300,9 @@ class PropertySelector(AbstractSelector):
                 curr_selected_markers = marker_groups[grp_name]
                 selected_markers.extend(curr_selected_markers)
                 curr_score = scores[selected_indices.index(rep_index)]
-                curr_selected_frames = data.get_marked_structures(curr_selected_markers)
+                curr_selected_frames = data.get_marked_structures(
+                    curr_selected_markers
+                )
                 for a in curr_selected_frames:
                     a.info["score"] = curr_score
                 num_curr_frames = len(curr_selected_frames)
@@ -278,7 +315,9 @@ class PropertySelector(AbstractSelector):
 
         return selected_markers
 
-    def _mark_group_separate(self, data, prop_item: PropertyItem, marker_groups):
+    def _mark_group_separate(
+        self, data, prop_item: PropertyItem, marker_groups
+    ):
         """Mark a group of structures based on a structure's own property."""
         selected_markers = []
         for grp_name, curr_markers in marker_groups.items():
@@ -287,9 +326,13 @@ class PropertySelector(AbstractSelector):
 
             # --
             if curr_nframes > 0:
-                scores, selected_indices = self._sparsify(prop_item, curr_frames)
+                scores, selected_indices = self._sparsify(
+                    prop_item, curr_frames
+                )
                 self._print(f"number of structures: {len(selected_indices)}")
-                curr_selected_markers = [curr_markers[i] for i in selected_indices]
+                curr_selected_markers = [
+                    curr_markers[i] for i in selected_indices
+                ]
                 selected_markers.extend(curr_selected_markers)
 
                 # - add score to atoms
@@ -325,11 +368,17 @@ class PropertySelector(AbstractSelector):
                 elif prop_item.name == "volume":
                     atoms_property = atoms.get_volume()
                 elif prop_item.name == "chemical_formula":
-                    atoms_property = atoms.get_chemical_formula()
+                    atoms_property = get_aligned_chemical_formula(
+                        atoms,
+                        prop_item.params["type_list"],
+                        prop_item.params["padding_width"],
+                    )
                 elif prop_item.name == "min_distance":
                     # TODO: Move to observables?
                     #       Check if pmax is a valid float?
-                    atoms_property = compute_minimum_distance(atoms, prop_item.pmax)
+                    atoms_property = compute_minimum_distance(
+                        atoms, prop_item.pmax
+                    )
                 else:
                     # -- any property stored in atoms.info
                     #    e.g. max_devi_f
@@ -340,10 +389,7 @@ class PropertySelector(AbstractSelector):
                         raise KeyError(f"{prop_item.name} does not exist.")
                 prop_vals.append(atoms_property)
         else:  # Try use describer to get properties
-            desc_params = dict(
-                name=prop_item.name,
-                **prop_item.params
-            )
+            desc_params = dict(name=prop_item.name, **prop_item.params)
             describer = DescriberVariable(**desc_params).value
             prop_vals = describer.run(frames)
 
@@ -376,18 +422,26 @@ class PropertySelector(AbstractSelector):
         # if hist_min == -np.inf:
         #    hist_min = pmin
 
-        bins = np.linspace(hist_min, hist_max, prop_item.nbins, endpoint=False).tolist()
+        bins = np.linspace(
+            hist_min, hist_max, prop_item.nbins, endpoint=False
+        ).tolist()
         bins.append(hist_max)
-        hist, bin_edges = np.histogram(prop_vals, bins=bins, range=[hist_min, hist_max])
+        hist, bin_edges = np.histogram(
+            prop_vals, bins=bins, range=[hist_min, hist_max]
+        )
 
         # - output
         content = f"# Property {prop_item.name}\n"
         content += "# min {:<12.4f} max {:<12.4f}\n".format(pmin, pmax)
         content += "# avg {:<12.4f} std {:<12.4f}\n".format(pavg, pstd)
-        content += "# histogram of {} points in the range (npoints: {})\n".format(
-            np.sum(hist), npoints
+        content += (
+            "# histogram of {} points in the range (npoints: {})\n".format(
+                np.sum(hist), npoints
+            )
         )
-        content += f"# min {prop_item.pmin:<12.4f} max {prop_item.pmax:<12.4f}\n"
+        content += (
+            f"# min {prop_item.pmin:<12.4f} max {prop_item.pmax:<12.4f}\n"
+        )
         for x, y in zip(hist, bin_edges[:-1]):
             content += "{:>12.4f}  {:>12d}\n".format(y, x)
         content += "{:>12.4f}  {:>12s}\n".format(bin_edges[-1], "-")
@@ -433,7 +487,10 @@ class PropertySelector(AbstractSelector):
                         curr_indices.append(i)
             else:
                 for i in range(nframes):
-                    if prop_item.pmin > prop_vals[i] and prop_vals[i] > prop_item.pmax:
+                    if (
+                        prop_item.pmin > prop_vals[i]
+                        and prop_vals[i] > prop_item.pmax
+                    ):
                         curr_indices.append(i)
             scores = [prop_vals[i] for i in curr_indices]
         elif prop_item.sparsify == "sort":
@@ -449,7 +506,9 @@ class PropertySelector(AbstractSelector):
                 scores = [prop_vals[i] for i in curr_indices]
             elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
                 unique_types = sorted(list(set(prop_vals)))
-                scores = [unique_types.index(prop_vals[i]) for i in curr_indices]
+                scores = [
+                    unique_types.index(prop_vals[i]) for i in curr_indices
+                ]
             else:
                 ...
         elif prop_item.sparsify == "hist":
