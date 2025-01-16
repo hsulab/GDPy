@@ -72,12 +72,12 @@ class BaseValidator(BaseComponent):
         return
 
     @abc.abstractmethod
-    def run(self, *args, **kwargs):
+    def run(self, *args, **kwargs) -> bool:
         """"""
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
-        return
+        ...
 
 
 # For backwards compatibility
