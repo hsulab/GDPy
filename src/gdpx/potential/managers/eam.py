@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import os
+
 import pathlib
-from typing import NoReturn
 
 from . import AbstractPotentialManager, DummyCalculator
 
@@ -13,9 +12,7 @@ class EamManager(AbstractPotentialManager):
     name = "eam"
 
     implemented_backends = ["lammps"]
-    valid_combinations = (
-        ("lammps", "lammps")
-    )
+    valid_combinations = ("lammps", "lammps")
 
     """See LAMMPS documentation for calculator parameters.
     """
@@ -25,7 +22,7 @@ class EamManager(AbstractPotentialManager):
         super().__init__()
 
         return
-    
+
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
@@ -40,7 +37,7 @@ class EamManager(AbstractPotentialManager):
         type_map = {}
         for i, a in enumerate(type_list):
             type_map[a] = i
-        
+
         # --- model files
         model_ = calc_params.get("model", [])
         if not isinstance(model_, list):
@@ -52,28 +49,32 @@ class EamManager(AbstractPotentialManager):
             if not m.exists():
                 raise FileNotFoundError(f"Cant find model file {str(m)}")
             models.append(str(m))
-        
+
         if self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
+
             if models:
                 pair_style = "eam"
                 pair_coeff = calc_params.pop("pair_coeff", "* *")
                 pair_coeff += " {} ".format(models[0])
 
                 pair_style_name = pair_style.split()[0]
-                assert pair_style_name == "eam", "Incorrect pair_style for lammps eam..."
+                assert (
+                    pair_style_name == "eam"
+                ), "Incorrect pair_style for lammps eam..."
 
                 calc = Lammps(
-                    command=command, directory=directory, 
-                    pair_style=pair_style, pair_coeff=pair_coeff,
-                    **calc_params
+                    command=command,
+                    directory=directory,
+                    pair_style=pair_style,
+                    pair_coeff=pair_coeff,
+                    **calc_params,
                 )
                 # - update several params
-                calc.units = "metal"
-                calc.atom_style = "atomic"
+                calc.set(units="metal", atom_style="atomic")
         else:
             ...
-        
+
         self.calc = calc
 
         return
@@ -81,3 +82,4 @@ class EamManager(AbstractPotentialManager):
 
 if __name__ == "__main__":
     ...
+

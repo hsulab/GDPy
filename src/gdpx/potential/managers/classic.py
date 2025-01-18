@@ -4,8 +4,8 @@
 
 import pathlib
 
-from . import AbstractPotentialManager, DummyCalculator
 from .. import Lammps
+from . import AbstractPotentialManager, DummyCalculator
 
 
 class ClassicManager(AbstractPotentialManager):
@@ -13,10 +13,7 @@ class ClassicManager(AbstractPotentialManager):
     name = "classic"
 
     implemented_backends = ["lammps"]
-    valid_combinations = (
-        ("lammps", "lammps"),
-    )
-
+    valid_combinations = (("lammps", "lammps"),)
 
     def register_calculator(self, calc_params, *args, **kwargs):
         """"""
@@ -28,7 +25,7 @@ class ClassicManager(AbstractPotentialManager):
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", pathlib.Path.cwd())
 
-        # TODO: No matter what user input, 
+        # TODO: No matter what user input,
         #       the type_list is sorted alphabetically.
         type_list = calc_params.pop("type_list", [])
         assert type_list == sorted(type_list)
@@ -47,25 +44,29 @@ class ClassicManager(AbstractPotentialManager):
 
         if self.calc_backend == "lammps":
             pair_style = model_params.get("type")
-            pair_coeff =[]
+            pair_coeff = []
             for k, v in model_params["pair"].items():
-                coeff = " ".join([str(type_list.index(s)+1) for s in k.split("-")]) + "  " + v
+                coeff = (
+                    " ".join([str(type_list.index(s) + 1) for s in k.split("-")])
+                    + "  "
+                    + v
+                )
                 pair_coeff.append(coeff)
             pair_modify = model_params.get("modify", None)
             calc = Lammps(
-                command=command, directory=directory,
+                command=command,
+                directory=directory,
                 pair_style=pair_style,
                 pair_coeff=pair_coeff,
                 pair_modify=pair_modify,
                 kspace_style=model_params.get("coul"),
-                **calc_params
+                **calc_params,
             )
-            units = model_params.get("units", "metal")
-            calc.units = units
+            extra_params = dict(is_classic=True)
+            extra_params.update(units=model_params.get("units", "metal"))
             if calc.kspace_style is not None:
-                calc.atom_style = "charge"
-                calc.type_charges = type_charges
-            calc.is_classic = True
+                extra_params.update(atom_style="charge", type_charges=type_charges)
+            calc.set(**extra_params)
         else:
             ...
 
@@ -76,4 +77,3 @@ class ClassicManager(AbstractPotentialManager):
 
 if __name__ == "__main__":
     ...
-  

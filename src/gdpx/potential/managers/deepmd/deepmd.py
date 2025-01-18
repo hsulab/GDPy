@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import copy
 import dataclasses
 import json
 import os
 import pathlib
 import subprocess
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read, write
+from ase.io import write
 
 from .. import (
     AbstractPotentialManager,
@@ -32,7 +33,7 @@ class DeepmdSystem:
     name: str
 
     #: Frames.
-    frames: List[Atoms]
+    frames: list[Atoms]
 
     #: Number of train_and_split.
     train_and_split: Tuple[int, int]
@@ -69,7 +70,7 @@ class DeepmdDataloader:
     name: str = "deepmd"
 
     #:
-    _systems: List[DeepmdSystem] = []
+    _systems: list[DeepmdSystem] = []
 
     def __init__(
         self,
@@ -165,8 +166,8 @@ class DeepmdDataloader:
 
     @staticmethod
     def set2frames(
-        set_dir: pathlib.Path, chemical_symbols: List[str], pbc: List[int]
-    ) -> List[Atoms]:
+        set_dir: pathlib.Path, chemical_symbols: list[str], pbc: list[int]
+    ) -> list[Atoms]:
         """Convert set into frames."""
         boxes = np.load(set_dir / "box.npy")
         nframes = boxes.shape[0]
@@ -241,13 +242,13 @@ class DeepmdTrainer(AbstractTrainer):
     def __init__(
         self,
         config: dict,
-        type_list: Optional[List[str]] = None,
+        type_list: Optional[list[str]] = None,
         train_epochs: int = 200,
         print_epochs: int = 5,
         directory=".",
-        command: str="dp",
-        train_options: str="",
-        freeze_command: str="dp",
+        command: str = "dp",
+        train_options: str = "",
+        freeze_command: str = "dp",
         random_seed=1112,
         *args,
         **kwargs,
@@ -281,7 +282,9 @@ class DeepmdTrainer(AbstractTrainer):
         train_command = self.command
 
         # - add options
-        command = "{} train {}.json {} ".format(train_command, self.name, self.train_options)
+        command = "{} train {}.json {} ".format(
+            train_command, self.name, self.train_options
+        )
         if init_model is not None:
             init_model_path = pathlib.Path(init_model).resolve()
             if init_model_path.name.endswith(".pb"):
@@ -414,7 +417,9 @@ class DeepmdTrainer(AbstractTrainer):
                 validation_batchsizes.append(v_batchsize)
         if validation_data:
             train_config["training"]["validation_data"]["systems"] = validation_data
-            train_config["training"]["validation_data"]["batch_size"] = validation_batchsizes
+            train_config["training"]["validation_data"][
+                "batch_size"
+            ] = validation_batchsizes
         else:
             if "validation_data" in train_config["training"]:
                 train_config["training"].pop("validation_data", None)
@@ -440,16 +445,19 @@ class DeepmdTrainer(AbstractTrainer):
         )
         numb_steps = num_checkpoints * save_freq
 
-        # Check if the training steps are too small, which happens in the early stage of 
+        # Check if the training steps are too small, which happens in the early stage of
         # active learning, and increase it to the default `training_batches`.
-        # We observed the model accuracy increases nonlinearly with the dataset size, 
-        # which means we need a 'minimum' training steps even for an extremely small dataset 
+        # We observed the model accuracy increases nonlinearly with the dataset size,
+        # which means we need a 'minimum' training steps even for an extremely small dataset
         # may have few tens of structures.
         train_config["training"]["numb_steps"] = numb_steps
         if self.train_batches is not None and numb_steps < self.train_batches:
-            num_chekpoints = int(np.ceil(self.train_epochs/self.print_epochs))
-            new_save_freq = int(np.ceil(self.train_batches/num_chekpoints/min_freq_unit)*min_freq_unit)
-            new_numb_steps = new_save_freq*num_chekpoints
+            num_chekpoints = int(np.ceil(self.train_epochs / self.print_epochs))
+            new_save_freq = int(
+                np.ceil(self.train_batches / num_chekpoints / min_freq_unit)
+                * min_freq_unit
+            )
+            new_numb_steps = new_save_freq * num_chekpoints
             train_config["training"]["save_freq"] = new_save_freq
             train_config["training"]["disp_freq"] = new_save_freq
             train_config["training"]["numb_steps"] = new_numb_steps
@@ -606,6 +614,7 @@ class DeepmdManager(AbstractPotentialManager):
             # return ase calculator
             try:
                 from .calculator import DP
+
                 remove_extra_stream_handlers()
             except:
                 raise ModuleNotFoundError(
@@ -628,7 +637,8 @@ class DeepmdManager(AbstractPotentialManager):
                 ...
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
-            # We only the executable path of lammps and 
+
+            # We only the executable path of lammps and
             # the rest of command will be completed by itself.
             # The `lmp` will be `lmp -in in.lammps 2>&1 > lmp.out`.
             if command is None:
@@ -656,12 +666,15 @@ class DeepmdManager(AbstractPotentialManager):
                     pair_coeff=pair_coeff,
                     **calc_params,
                 )
-                # update several params
-                calc.units = "metal"
-                calc.atom_style = "atomic"
-                # set default deepmd neigbour setting
-                calc.neighbor = "2.0 bin"
-                calc.neigh_modify = "every 10 check yes"
+                # Update several extra parameters,
+                # we must use set method, otherwise, __getattribute__ is used
+                # instead of __getattr__.
+                calc.set(
+                    units="metal",
+                    atom_style="atomic",
+                    neighbor="2.0 bin",
+                    neigh_modify="every 10 check yes",
+                )
 
         return calc
 
