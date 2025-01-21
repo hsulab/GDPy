@@ -175,10 +175,10 @@ class LmpDriverSetting(DriverSetting):
     fmax: Optional[float] = 0.05
 
     #: Neighbor list.
-    neighbor: str = "0.0 bin"
+    neighbor: str = "2.0 bin"
 
     #: Neighbor list setting.
-    neigh_modify: Optional[str] = None
+    neigh_modify: Optional[str] = "every 10 check yes"
 
     #: More custom LAMMPS fixes.
     extra_fix: list[str] = dataclasses.field(default_factory=list)
