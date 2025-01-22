@@ -198,6 +198,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         """
         mdtrajs = self._process_data(data)
         group_indices = evaluate_group_expression(mdtrajs[0][0], self.group)
+        self._print(f"num_atoms in the group: {len(group_indices)}")
         self._debug(f"group_indices: {group_indices}")
 
         cache_msd = self.directory / f"{prefix}msd.npy"
