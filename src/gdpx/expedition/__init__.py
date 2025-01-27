@@ -9,7 +9,7 @@ from ..core.register import registers
 from ..data.array import AtomsNDArray
 from ..graph.molecule import MolecularAdsorbate, find_molecules
 from ..potential.interface import create_mixer
-from ..utils.command import convert_indices, dict2str
+from ..utils.command import dict2str
 from ..utils.strconv import str2array
 from ..worker.drive import DriverBasedWorker
 from ..worker.grid import GridDriverBasedWorker

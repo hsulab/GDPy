@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import time
-import subprocess
-from pathlib import Path
-from itertools import groupby
-from operator import itemgetter
-
-from typing import Any, Union, List
 
 import json
+import subprocess
+import time
+from pathlib import Path
+from typing import Any, Union
+
 import yaml
 
 
@@ -49,7 +47,11 @@ class CustomTimer:
             ret = func(*args, **kwargs)
             et = time.time()
             content = (
-                "*** " + self.name + " time: " + "{:>8.4f}".format(et - st) + " ***"
+                "*** "
+                + self.name
+                + " time: "
+                + "{:>8.4f}".format(et - st)
+                + " ***"
             )
             self._print(content)
 
@@ -77,20 +79,6 @@ class CustomTimer:
         self._print(content)
 
         return
-
-
-def check_path(target_dir: Union[str, Path]) -> bool:
-    """check path existence, if so skip the following
-    TODO: add output option
-    make this into a context?
-    """
-    target_dir = Path(target_dir)
-    if not target_dir.exists():
-        target_dir.mkdir(parents=True)
-    else:
-        print(f"  {target_dir.name} exists, so next...")
-
-    return
 
 
 def find_backups(dpath, fname, prefix="bak"):
@@ -129,56 +117,6 @@ def run_command(directory, command, comment="", timeout=None):
         raise RuntimeError("Error in %s at %s." % (comment, directory))
 
     return msg
-
-
-def convert_indices(indices: Union[str, List[int]], index_convention="lmp"):
-    """parse indices for reading xyz by ase, get start for counting
-    constrained indices followed by lammps convention
-    "2:4 3:8"
-    convert [1,2,3,6,7,8] to "1:3 6:8"
-    lammps convention starts from 1 and includes end
-    ---
-    input can be either py or lmp
-    output for indices is in py since it can be used to access atoms
-    output for text is in lmp since it can be used in lammps or sth
-    """
-    ret = []
-    if isinstance(indices, str):
-        # string to List[int]
-        for x in indices.strip().split():
-            cur_range = list(map(int, x.split(":")))
-            if len(cur_range) == 1:
-                start, end = cur_range[0], cur_range[0]
-            else:
-                start, end = cur_range
-            if index_convention == "lmp":
-                ret.extend([i - 1 for i in list(range(start, end + 1))])
-            elif index_convention == "py":
-                ret.extend(list(range(start, end)))
-            else:
-                pass
-    elif isinstance(indices, list):
-        # List[int] to string
-        indices = sorted(indices)
-        if index_convention == "lmp":
-            pass
-        elif index_convention == "py":
-            indices = [i + 1 for i in indices]
-        ret = []
-        # ranges = []
-        for k, g in groupby(enumerate(indices), lambda x: x[0] - x[1]):
-            group = map(itemgetter(1), g)
-            group = list(map(int, group))
-            # ranges.append((group[0],group[-1]))
-            if group[0] == group[-1]:
-                ret.append(str(group[0]))
-            else:
-                ret.append("{}:{}".format(group[0], group[-1]))
-        ret = " ".join(ret)
-    else:
-        pass
-
-    return ret
 
 
 def parse_input_file(
