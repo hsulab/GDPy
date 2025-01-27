@@ -3,7 +3,7 @@
 
 
 import copy
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from ase import Atoms, units
@@ -22,7 +22,7 @@ class MoveOperator(AbstractOperator):
 
     def __init__(
         self,
-        particles: List[str],
+        particles: list[str],
         max_disp: float = 2.0,
         *args,
         **kwargs,
