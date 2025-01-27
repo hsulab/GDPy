@@ -15,10 +15,15 @@ from ase.ga.data import DataConnection, PrepareDB
 from ase.ga.offspring_creator import OperationSelector
 from ase.io import read, write
 
-from .. import convert_indices, get_tags_per_species, registers
+from gdpx.utils.strconv import integers_to_string
+
+from .. import get_tags_per_species, registers
 from ..expedition import AbstractExpedition
 from .population.manager import AbstractPopulationManager
-from .population.population import Population, PopulationWithVariableComposition
+from .population.population import (
+    Population,
+    PopulationWithVariableComposition,
+)
 
 """
 Workflow
@@ -236,7 +241,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             np.random.seed(random_seed)
             if (self.generator, "rng"):
                 self.generator.rng = self.rng
-        self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {random_seed}")
+        self._print(
+            f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {random_seed}"
+        )
 
         # - worker info
         self.worker = None
@@ -316,8 +323,12 @@ class GeneticAlgorithmEngine(AbstractExpedition):
 
         # plot population evolution
         data = []
-        gen_num = get_generation_number(self.da)  # equals finished generation plus one
-        self._print(f"Genetic Algorithm Statistics with {gen_num-1} generations: ")
+        gen_num = get_generation_number(
+            self.da
+        )  # equals finished generation plus one
+        self._print(
+            f"Genetic Algorithm Statistics with {gen_num-1} generations: "
+        )
         for i in range(gen_num):
             current_candidates = [
                 atoms
@@ -325,7 +336,10 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 if atoms.info["key_value_pairs"]["generation"] == i
             ]
             properties = np.array(
-                [a.info["key_value_pairs"]["target"] for a in current_candidates]
+                [
+                    a.info["key_value_pairs"]["target"]
+                    for a in current_candidates
+                ]
             )
             stats = dict(
                 min=np.min(properties),
@@ -443,12 +457,12 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         self.num_relaxed_gen = len(self.relaxed_confids)
 
         # check if this is the begin or the end of the current generation
-        self.beg_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (
-            self.num_relaxed_gen == 0
-        )
-        self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (
-            self.num_relaxed_gen != 0
-        )
+        self.beg_of_gen = (
+            self.num_relaxed_gen == self.num_unrelaxed_gen
+        ) and (self.num_relaxed_gen == 0)
+        self.end_of_gen = (
+            self.num_relaxed_gen == self.num_unrelaxed_gen
+        ) and (self.num_relaxed_gen != 0)
 
         return
 
@@ -461,12 +475,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # - generation
         self._print("===== Generation Info =====")
         self._print(f"current generation number: {self.cur_gen}")
-        self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
-        self._print(convert_indices(sorted(self.relaxed_confids)))
+        self._print(
+            f"number of relaxed in current generation: {self.num_relaxed_gen}"
+        )
+        self._print(integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
         self._print(
             f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}"
         )
-        self._print(convert_indices(sorted(self.unrelaxed_confids)))
+        self._print(integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
         self._print(f"end of current generation: {self.end_of_gen}")
 
         # - population
@@ -481,7 +497,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             self.pop_manager.gen_mut_size,
             self.pop_manager.gen_size,
         )
-        content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
+        content += (
+            "Note: Reproduced structure has a chance (pmut) to mutate.\n"
+        )
         for l in content.split("\n"):
             self._print(l)
 
@@ -495,9 +513,13 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 # calculate structures from init population
                 atoms = self.da.get_an_unrelaxed_candidate()
                 frames_to_work.append(atoms)
-                self.da.mark_as_queued(atoms)  # this marks relaxation is in the queue
+                self.da.mark_as_queued(
+                    atoms
+                )  # this marks relaxation is in the queue
             confids = [a.info["confid"] for a in frames_to_work]
-            self._print(f"start to run structure {convert_indices(confids)}")
+            self._print(
+                f"start to run structure {integers_to_string(confids, inp_convention='lmp')}"
+            )
             # NOTE: provide unified interface to mlp and dft
             if frames_to_work:
                 self.worker.directory = (
@@ -539,8 +561,12 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")
 
             pop_confids = [a.info["confid"] for a in current_population.pop]
-            self._print(f"number of structures in population: {len(pop_confids)}")
-            self._print(f"confids in population: {convert_indices(pop_confids)}")
+            self._print(
+                f"number of structures in population: {len(pop_confids)}"
+            )
+            self._print(
+                f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}"
+            )
 
             self.pop_manager._update_generation_settings(
                 current_population,
@@ -551,12 +577,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             # ----
             current_candidates = []
             if self.beg_of_gen:  # (num_relaxed == num_unrelaxed == 0)
-                current_candidates = self.pop_manager._prepare_current_population(
-                    database=self.da,
-                    curr_gen=self.cur_gen,
-                    population=current_population,
-                    generator=self.generator,
-                    operators=self.operators,
+                current_candidates = (
+                    self.pop_manager._prepare_current_population(
+                        database=self.da,
+                        curr_gen=self.cur_gen,
+                        population=current_population,
+                        generator=self.generator,
+                        operators=self.operators,
+                    )
                 )
             else:
                 self._print("Current generation has not finished...")
@@ -566,31 +594,35 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 if self.num_relaxed_gen == 0 and (
                     self.num_unrelaxed_gen < self.pop_manager.gen_size
                 ):
-                    current_candidates = self.pop_manager._prepare_current_population(
-                        database=self.da,
-                        curr_gen=self.cur_gen,
-                        population=current_population,
-                        generator=self.generator,
-                        operators=self.operators,
-                        candidate_groups=candidate_groups,
-                        num_paired=num_paired,
-                        num_mutated=num_mutated,
-                        num_random=num_random,
+                    current_candidates = (
+                        self.pop_manager._prepare_current_population(
+                            database=self.da,
+                            curr_gen=self.cur_gen,
+                            population=current_population,
+                            generator=self.generator,
+                            operators=self.operators,
+                            candidate_groups=candidate_groups,
+                            num_paired=num_paired,
+                            num_mutated=num_mutated,
+                            num_random=num_random,
+                        )
                     )
                 elif self.num_relaxed_gen == 0 and (
                     self.num_unrelaxed_gen == self.pop_manager.gen_size
                 ):
                     # no relaxed, and finished creation, num_relaxed == gen_size?
-                    current_candidates = self.pop_manager._prepare_current_population(
-                        database=self.da,
-                        curr_gen=self.cur_gen,
-                        population=current_population,
-                        generator=self.generator,
-                        operators=self.operators,
-                        candidate_groups=candidate_groups,
-                        num_paired=num_paired,
-                        num_mutated=num_mutated,
-                        num_random=num_random,
+                    current_candidates = (
+                        self.pop_manager._prepare_current_population(
+                            database=self.da,
+                            curr_gen=self.cur_gen,
+                            population=current_population,
+                            generator=self.generator,
+                            operators=self.operators,
+                            candidate_groups=candidate_groups,
+                            num_paired=num_paired,
+                            num_mutated=num_mutated,
+                            num_random=num_random,
+                        )
                     )
                 else:
                     ...
@@ -607,11 +639,15 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             for ia, a in enumerate(current_candidates):
                 parents = "none"
                 if "parents" in a.info["data"]:
-                    parents = " ".join([str(x) for x in a.info["data"]["parents"]])
+                    parents = " ".join(
+                        [str(x) for x in a.info["data"]["parents"]]
+                    )
                 self._print(
                     f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
                 )
-            if not (self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}").exists():
+            if not (
+                self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
+            ).exists():
                 frames_to_work = []
                 for atoms in current_candidates:
                     frames_to_work.append(atoms)
@@ -620,9 +656,13 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     )  # this marks relaxation is in the queue
                 if frames_to_work:
                     confids = [a.info["confid"] for a in frames_to_work]
-                    self._print(f"start to run structure {convert_indices(confids)}")
+                    self._print(
+                        f"start to run structure {integers_to_string(confids, inp_convention='lmp')}"
+                    )
                     self.worker.directory = (
-                        self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
+                        self.directory
+                        / self.CALC_DIRNAME
+                        / f"gen{self.cur_gen}"
                     )
                     _ = self.worker.run(frames_to_work)  # retrieve later
             else:
@@ -639,12 +679,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("===== Retrieve Relaxed Population =====")
             converged_candidates = [
-                t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)
+                t[-1]
+                for t in self.worker.retrieve(use_archive=self.use_archive)
             ]
             for cand in converged_candidates:
                 # update extra info
                 extra_info = dict(
-                    data={}, key_value_pairs={"generation": self.cur_gen, "extinct": 0}
+                    data={},
+                    key_value_pairs={"generation": self.cur_gen, "extinct": 0},
                 )
                 cand.info.update(extra_info)
                 # get tags
@@ -652,7 +694,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 if self.generator.use_tags:
                     rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
                     rows = sorted(
-                        [row for row in rows if row.formula], key=lambda row: row.mtime
+                        [row for row in rows if row.formula],
+                        key=lambda row: row.mtime,
                     )
                     if len(rows) > 0:
                         previous_atoms = rows[-1].toatoms(
@@ -660,7 +703,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                         )
                         previous_tags = previous_atoms.get_tags()
                     else:
-                        raise RuntimeError(f"Cannot find tags for candidate {confid}")
+                        raise RuntimeError(
+                            f"Cannot find tags for candidate {confid}"
+                        )
                     cand.set_tags(previous_tags)
                     identities = get_tags_per_species(cand)
                     identity_stats = {}
@@ -677,7 +722,10 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                 )
                 if "identity_stats" in cand.info:
                     identity_info = "  " + " ".join(
-                        [f"{k}: {v}" for k, v in cand.info["identity_stats"].items()]
+                        [
+                            f"{k}: {v}"
+                            for k, v in cand.info["identity_stats"].items()
+                        ]
                     )
                     self._print(identity_info)
                 self.da.add_relaxed_step(
@@ -720,13 +768,19 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             self.da = DataConnection(self.db_path)
             self._check_generation()
         max_gen = self.conv_dict["generation"]
-        if self.cur_gen > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
+        if self.cur_gen > max_gen and (
+            self.num_relaxed_gen == self.num_unrelaxed_gen
+        ):
             return True
         else:
             return False
 
     def _create_operator(
-        self, op_params: dict, specific_params: dict, mod_name: str, convert_name=False
+        self,
+        op_params: dict,
+        specific_params: dict,
+        mod_name: str,
+        convert_name=False,
     ):
         """Create operators such as comparator, crossover, and mutation.
 
@@ -859,7 +913,10 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         crossover_params = op_dict.get("crossover", None)
         if crossover_params is not None:
             pairing = self._create_operator(
-                crossover_params, specific_params, "builder", convert_name=False
+                crossover_params,
+                specific_params,
+                "builder",
+                convert_name=False,
             )
             # For some ase-builtin operators, we manually set allow_variable_composition to False
             # by default. For others, we can set it through the input file.
@@ -905,7 +962,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             self._print("  --- mutations ---")
             # self._print(f"mutation probability: {self.pmut}")
             for mut, prob in zip(mutations, probs):
-                self._print(f"  Use mutation {mut.descriptor} with prob {prob}.")
+                self._print(
+                    f"  Use mutation {mut.descriptor} with prob {prob}."
+                )
             mutations = OperationSelector(probs, mutations, rng=np.random)
         else:
             mutations = None
@@ -925,9 +984,14 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         if tags.shape[0] == 0:
             num_atoms_substrate = num_atoms
         else:
-            substrate_atomic_indices = [i for i in range(num_atoms) if tags[i] == 0]
+            substrate_atomic_indices = [
+                i for i in range(num_atoms) if tags[i] == 0
+            ]
             if sorted(substrate_atomic_indices) == list(
-                range(min(substrate_atomic_indices), max(substrate_atomic_indices) + 1)
+                range(
+                    min(substrate_atomic_indices),
+                    max(substrate_atomic_indices) + 1,
+                )
             ):
                 ...
             else:
@@ -1010,7 +1074,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     atoms, energy=energy, forces=forces, stress=stress
                 )
                 atoms.calc = calc
-                if self.generator.cell_bounds.is_within_bounds(atoms.get_cell()):
+                if self.generator.cell_bounds.is_within_bounds(
+                    atoms.get_cell()
+                ):
                     atoms.info["key_value_pairs"]["raw_score"] = -energy
                 else:
                     atoms.info["key_value_pairs"]["raw_score"] = -1e8
