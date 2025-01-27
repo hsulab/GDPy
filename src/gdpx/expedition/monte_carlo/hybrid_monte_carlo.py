@@ -143,7 +143,9 @@ class HybridMonteCarlo(MonteCarlo):
 
         return
 
-    def _irun_dynamics(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
+    def _irun_dynamics(
+        self, step: int, name: str, worker: SingleWorker
+    ) -> MCStepState:
         """"""
         self._print(f"===== MC Step {step} {name.upper()} =====")
         worker.wdir_name = f"{self.WDIR_PREFIX}{step}"
