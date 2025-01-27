@@ -15,7 +15,7 @@ from gdpx.group import evaluate_group_expression
 from ..graph.comparison import paragroup_unique_chem_envs
 from ..graph.creator import StruGraphCreator
 from ..utils.command import CustomTimer
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
 def single_create_structure_graph(
@@ -46,7 +46,7 @@ def single_create_structure_graph(
     return chem_envs
 
 
-class GraphSelector(AbstractSelector):
+class GraphSelector(BaseSelector):
 
     name = "graph"
 

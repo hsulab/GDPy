@@ -3,10 +3,10 @@
 
 
 from ..data.array import AtomsNDArray
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class ComposedSelector(AbstractSelector):
+class ComposedSelector(BaseSelector):
     """Perform several selections consecutively."""
 
     name = "composed"
@@ -14,7 +14,7 @@ class ComposedSelector(AbstractSelector):
     default_parameters = dict(selectors=[])
 
     def __init__(
-        self, selectors: list[AbstractSelector], *args, **kwargs
+        self, selectors: list[BaseSelector], *args, **kwargs
     ):
         """"""
         super().__init__(*args, **kwargs)

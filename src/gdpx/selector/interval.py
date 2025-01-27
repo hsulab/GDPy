@@ -7,10 +7,10 @@ import itertools
 import numpy as np
 
 from ..data.array import AtomsNDArray
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class IntervalSelector(AbstractSelector):
+class IntervalSelector(BaseSelector):
 
     name = "interval"
 

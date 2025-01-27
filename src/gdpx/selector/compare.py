@@ -21,10 +21,10 @@ except:
     USE_REPORTLAB=0
 
 from . import registers
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class CompareSelector(AbstractSelector):
+class CompareSelector(BaseSelector):
 
     name: str = "compare"
 

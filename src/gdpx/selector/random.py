@@ -8,10 +8,10 @@ from typing import Optional
 import numpy as np
 
 from ..data.array import AtomsNDArray
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class RandomSelector(AbstractSelector):
+class RandomSelector(BaseSelector):
 
     name = "random"
 

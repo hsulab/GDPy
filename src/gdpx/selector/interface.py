@@ -17,7 +17,7 @@ from ..core.register import registers
 from ..core.variable import Variable
 from ..data.array import AtomsNDArray
 from .composition import ComposedSelector
-from .selector import AbstractSelector, load_cache
+from .selector import BaseSelector, load_cache
 
 
 @registers.variable.register
@@ -116,7 +116,7 @@ class select(Operation):
         return structures, selector
 
     def forward(
-        self, structures: AtomsNDArray, selector: AbstractSelector
+        self, structures: AtomsNDArray, selector: BaseSelector
     ) -> AtomsNDArray:
         """"""
         super().forward()

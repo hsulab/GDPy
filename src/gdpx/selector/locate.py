@@ -7,7 +7,7 @@ import itertools
 import numpy as np
 
 from ..data.array import AtomsNDArray
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
 def convert_string_to_indices(indstr: str, length: int, convention="py"):
@@ -56,7 +56,7 @@ def convert_string_to_indices(indstr: str, length: int, convention="py"):
     return selected_indices
 
 
-class LocateSelector(AbstractSelector):
+class LocateSelector(BaseSelector):
 
     name = "locate"
 

@@ -14,7 +14,7 @@ from ase.neighborlist import neighbor_list
 from ..data.array import AtomsNDArray
 from ..describer.interface import DescriberVariable
 from .cur import boltz_selection, hist_selection, stat_str2val
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy",
@@ -190,7 +190,7 @@ class PropertyItem:
     #    return content
 
 
-class PropertySelector(AbstractSelector):
+class PropertySelector(BaseSelector):
     """Select structures based on structural properties.
 
     Each structure (trajectory) is represented by a float property.

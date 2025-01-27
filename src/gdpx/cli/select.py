@@ -9,7 +9,7 @@ from gdpx.nodes.builder import canonicalise_builder
 
 from ..data.array import AtomsNDArray
 from ..selector.interface import SelectorVariable
-from ..selector.selector import AbstractSelector
+from ..selector.selector import BaseSelector
 
 
 def run_selection(
@@ -31,7 +31,7 @@ def run_selection(
 
     params = parse_input_file(param_file)
 
-    selector: AbstractSelector = SelectorVariable(directory=directory, **params).value  # type: ignore
+    selector: BaseSelector = SelectorVariable(directory=directory, **params).value  # type: ignore
     selector.directory = directory
 
     # - read structures

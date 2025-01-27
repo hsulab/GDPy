@@ -11,13 +11,13 @@ from ase import Atoms
 from dscribe.descriptors import SOAP
 
 from .cur import cur_selection, fps_selection
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 """Selector using descriptors.
 """
 
 
-class DescriptorSelector(AbstractSelector):
+class DescriptorSelector(BaseSelector):
     """Selector using descriptors."""
 
     name = "dscribe"

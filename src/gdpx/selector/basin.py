@@ -15,10 +15,10 @@ except Exception as e:
 
 from gdpx.geometry.align import wrap_traj
 
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class BasinSelector(AbstractSelector):
+class BasinSelector(BaseSelector):
 
     name: str = "basin"
 

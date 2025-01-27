@@ -4,10 +4,10 @@
 
 from ase import Atoms
 
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class InvariantSelector(AbstractSelector):
+class InvariantSelector(BaseSelector):
     """Perform an invariant selection."""
 
     name = "invariant"

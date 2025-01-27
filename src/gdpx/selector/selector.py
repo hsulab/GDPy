@@ -16,7 +16,7 @@ from gdpx.core.component import BaseComponent
 from ..data.array import AtomsNDArray
 from ..worker.drive import DriverBasedWorker
 
-"""Define an AbstractSelector that is the base class of any selector.
+"""Define an BaseSelector that is the base class of any selector.
 """
 
 
@@ -93,7 +93,7 @@ def group_markers(new_markers_unsorted):
     return raw_markers
 
 
-class AbstractSelector(BaseComponent):
+class BaseSelector(BaseComponent):
     """The base class of any selector."""
 
     #: Selector name.
