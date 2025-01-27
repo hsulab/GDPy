@@ -14,8 +14,9 @@ from ase.formula import Formula
 from ase.io import read, write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
+from gdpx.utils.strconv import integers_to_string
 
-from .. import DriverBasedWorker, SingleWorker, convert_indices, dict2str
+from .. import DriverBasedWorker, SingleWorker, dict2str
 from ..expedition import AbstractExpedition
 from .operators import (
     load_operator,
@@ -572,7 +573,7 @@ class MonteCarlo(AbstractExpedition):
             else:
                 break
         self._print(
-            f"Remove previous computation folders {convert_indices(removed_cand_indices)}."
+            f"Remove previous computation folders {integers_to_string(removed_cand_indices)}."
         )
 
         return
