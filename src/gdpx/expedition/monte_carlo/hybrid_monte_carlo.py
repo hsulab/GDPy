@@ -4,15 +4,14 @@
 
 import functools
 
-from ase.io import read, write
+from ase.io import write
 
-from .. import DriverBasedWorker, SingleWorker, dict2str, registers
+from .. import DriverBasedWorker, SingleWorker, dict2str
 from ..expedition import parse_worker
-from .monte_carlo import MonteCarlo
+from .monte_carlo import MCStepState, MonteCarlo
 from .operators import select_operator
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
-EARLYSTOP_STATE_NAME = "EARLYSTOPPED"
 
 
 class HybridMonteCarlo(MonteCarlo):
@@ -35,38 +34,52 @@ class HybridMonteCarlo(MonteCarlo):
         procedure_steps = []
         for subprocedure in self.procedure:
             if isinstance(subprocedure, list):
-                assert len(subprocedure) == 2 and subprocedure[0] == "monte_carlo", ""
+                assert (
+                    len(subprocedure) == 2 and subprocedure[0] == "monte_carlo"
+                ), ""
                 worker_name = subprocedure[1].split("_")[1]
                 worker_params = self.extra_workers.get(worker_name, None)
                 if worker_params is not None:
                     subworker = parse_worker(worker_params)
                     if isinstance(subworker, DriverBasedWorker):
-                        self._print("Convert a DriverBasedWorker to a SingleWorker.")
+                        self._print(
+                            "Convert a DriverBasedWorker to a SingleWorker."
+                        )
                         subworker = SingleWorker.from_a_worker(subworker)
                     assert isinstance(
                         subworker, SingleWorker
                     ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
                     subworker.directory = self.directory / "mc"
-                    subproc_func = functools.partial(self._irun_metropolis, worker=subworker)
+                    subproc_func = functools.partial(
+                        self._irun_metropolis, worker=subworker
+                    )
                     procedure_steps.append(("mc", subproc_func))
                 else:
-                    raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
+                    raise RuntimeError(
+                        f"Unknown subprocedure with worker {subprocedure}."
+                    )
             elif subprocedure.startswith("worker"):
                 worker_name = subprocedure.split("_")[1]
                 worker_params = self.extra_workers.get(worker_name, None)
                 if worker_params is not None:
                     subworker = parse_worker(worker_params)
                     if isinstance(subworker, DriverBasedWorker):
-                        self._print("Convert a DriverBasedWorker to a SingleWorker.")
+                        self._print(
+                            "Convert a DriverBasedWorker to a SingleWorker."
+                        )
                         subworker = SingleWorker.from_a_worker(subworker)
                     assert isinstance(
                         subworker, SingleWorker
                     ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
                     subworker.directory = self.directory / worker_name
-                    subproc_func = functools.partial(self._irun_dynamics, worker=subworker)
+                    subproc_func = functools.partial(
+                        self._irun_dynamics, worker=subworker
+                    )
                     procedure_steps.append((worker_name, subproc_func))
                 else:
-                    raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
+                    raise RuntimeError(
+                        f"Unknown subprocedure with worker {subprocedure}."
+                    )
             else:
                 raise RuntimeError(f"Unknown subprocedure {subprocedure}.")
 
@@ -97,36 +110,40 @@ class HybridMonteCarlo(MonteCarlo):
                     self._print("Monte Carlo reaches the earlystopping.")
                     break
 
-                step_state = "UNFINISHED"
+                step_state = MCStepState.UNFINISHED
                 for subproc_name, subproc_func in procedure_steps:
-                    step_state = subproc_func(name=subproc_name, step=curr_step)
-                    if step_state == "UNFINISHED":
+                    step_state = subproc_func(
+                        name=subproc_name, step=curr_step
+                    )
+                    if step_state == MCStepState.UNFINISHED:
                         self._print("Wait MC step to finish.")
                         break
-                    elif step_state == "FINISHED":
+                    elif step_state == MCStepState.FINISHED:
                         # post worker compute with MC
                         ...
-                    elif step_state == "FAILED":
+                    elif step_state == MCStepState.FAILED:
                         self._print(f"RETRY STEP {curr_step}.")
                         break
-                    elif step_state == EARLYSTOP_STATE_NAME:
+                    elif step_state == MCStepState.EARLYSTOPPED:
                         # We need a file flag to indicate the simutlation is finshed
                         # when read_convergence is called.
-                        with open(self.directory / MC_EARLYSTOP_FNAME, "w") as fopen:
+                        with open(
+                            self.directory / MC_EARLYSTOP_FNAME, "w"
+                        ) as fopen:
                             fopen.write(f"{step_state =}")
                         break
                     else:
                         ...
                 else:
                     curr_step += 1
-                if step_state != "FINISHED":
+                if step_state != MCStepState.FINISHED:
                     break
         else:
             self._print("Monte Carlo is converged.")
 
         return
 
-    def _irun_dynamics(self, step: int, name: str, worker: SingleWorker):
+    def _irun_dynamics(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
         """"""
         self._print(f"===== MC Step {step} {name.upper()} =====")
         worker.wdir_name = f"{self.WDIR_PREFIX}{step}"
@@ -148,11 +165,13 @@ class HybridMonteCarlo(MonteCarlo):
 
             step_state = self._check_earlystop(self.atoms)
         else:
-            step_state = "UNFINISHED"
+            step_state = MCStepState.UNFINISHED
 
         return step_state
 
-    def _irun_metropolis(self, step: int, name: str, worker: SingleWorker) -> str:
+    def _irun_metropolis(
+        self, step: int, name: str, worker: SingleWorker
+    ) -> MCStepState:
         """Run a single MC step.
 
         Each step has three status as FINISHED, UNFINISHED, and FAILED.
@@ -218,10 +237,10 @@ class HybridMonteCarlo(MonteCarlo):
                 step_state = self._check_earlystop(self.atoms)
 
             else:
-                step_state = "UNFINISHED"
+                step_state = MCStepState.UNFINISHED
         else:
             # save the previous structure as the current operation gives no structure.
-            step_state = "FAILED"
+            step_state = MCStepState.FAILED
 
         return step_state
 
