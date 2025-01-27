@@ -3,27 +3,34 @@
 
 
 import copy
-from os import remove
+import enum
 import pickle
 import shutil
-from typing import List 
+from typing import List
 
 import numpy as np
-from ase import Atoms, data 
+from ase import Atoms, data
 from ase.formula import Formula
 from ase.ga.utilities import closest_distances_generator
 from ase.io import read, write
 
-from .. import DriverBasedWorker, SingleWorker, dict2str, convert_indices
+from .. import DriverBasedWorker, SingleWorker, convert_indices, dict2str
 from ..expedition import AbstractExpedition
-from .operators import (load_operator, parse_operators, save_operator,
-                        select_operator)
+from .operators import (
+    load_operator,
+    parse_operators,
+    save_operator,
+    select_operator,
+)
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
-EARLYSTOP_STATE_NAME = "EARLYSTOPPED"
+
+MCStepState = enum.Enum(
+    "MCStepState", ("UNFINISHED", "FINISHED", "FAILED", "EARLYSTOPPED")
+)
 
 
 def convert_blmin_to_str(blmin: dict) -> str:
@@ -132,7 +139,8 @@ class MonteCarlo(AbstractExpedition):
                 symbols = self.atoms.get_chemical_symbols()
                 type_list = sorted(list(set(symbols)))
                 new_tags = [
-                    type_list.index(s) * 10000 + i for i, s in enumerate(symbols)
+                    type_list.index(s) * 10000 + i
+                    for i, s in enumerate(symbols)
                 ]
                 self.atoms.set_tags(new_tags)
                 self._print("set default tags by chemical symbols...")
@@ -171,7 +179,12 @@ class MonteCarlo(AbstractExpedition):
             with open(self.directory / self.INFO_NAME, "w") as fopen:
                 fopen.write(
                     "{:<24s}  {:<24s}  {:<12s}  {:<12s}  {:<24s}  {:<24s}  \n".format(
-                        "#Operator", "Info", "natoms", "Success", "prev_ene", "curr_ene"
+                        "#Operator",
+                        "Info",
+                        "natoms",
+                        "Success",
+                        "prev_ene",
+                        "curr_ene",
                     )
                 )
             step_converged = True
@@ -193,7 +206,9 @@ class MonteCarlo(AbstractExpedition):
             else:
                 ...
         type_list = list(set(type_list + self.atoms.get_chemical_symbols()))
-        self._print(f"possible atomic types in simulation: {' '.join(type_list)}")
+        self._print(
+            f"possible atomic types in simulation: {' '.join(type_list)}"
+        )
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
 
         for op in self.operators:
@@ -296,64 +311,66 @@ class MonteCarlo(AbstractExpedition):
                 # -- run step
                 step_state = self._irun(curr_step)
                 # -- state-specific
-                if step_state == "UNFINISHED":
+                if step_state == MCStepState.UNFINISHED:
                     self._print("Wait MC step to finish.")
                     break
-                elif step_state == "FINISHED":
+                elif step_state == MCStepState.FINISHED:
                     # -- save checkpoint
                     self._save_checkpoint(step=curr_step)
                     # -- clean up
                     if (
-                        (self.directory / f"{self.WDIR_PREFIX}{curr_step}").exists()
+                        (
+                            self.directory / f"{self.WDIR_PREFIX}{curr_step}"
+                        ).exists()
                     ) and (curr_step % self.dump_period != 0):
-                        shutil.rmtree(self.directory / f"{self.WDIR_PREFIX}{curr_step}")
+                        shutil.rmtree(
+                            self.directory / f"{self.WDIR_PREFIX}{curr_step}"
+                        )
                     curr_step += 1
-                elif step_state == "FAILED":
+                elif step_state == MCStepState.FAILED:
                     self._print(f"RETRY STEP {curr_step}.")
-                elif step_state == EARLYSTOP_STATE_NAME:
+                elif step_state == MCStepState.EARLYSTOPPED:
                     # We need a file flag to indicate the simutlation is finshed
                     # when read_convergence is called.
-                    with open(self.directory / MC_EARLYSTOP_FNAME, "w") as fopen:
+                    with open(
+                        self.directory / MC_EARLYSTOP_FNAME, "w"
+                    ) as fopen:
                         fopen.write(f"{step_state =}")
                 else:
-                    ...  # This should not happen.
+                    raise Exception(f"{step_state} should not happen.")
         else:
             self._print("Monte Carlo is converged.")
 
         return
 
-    def _irun(self, i: int) -> str:
-        """Run a single MC step.
-
-        Each step has three status as FINISHED, UNFINISHED, and FAILED.
-
-        """
-        self._print(f"===== MC Step {i} =====")
+    def _irun(self, istep: int) -> MCStepState:
+        """Run a single MC step."""
+        self._print(f"===== MC Step {istep} =====")
         self._print(f"RANDOM_SEED:  {self.random_seed}")
         for l in dict2str(self.rng.bit_generator.state).split("\n"):
             self._print(l)
 
-        step_wdir = self.directory / f"{self.WDIR_PREFIX}{i}"
+        step_wdir = self.directory / f"{self.WDIR_PREFIX}{istep}"
         self.worker.wdir_name = step_wdir.name
 
-        # - operate atoms
+        # Operate atoms
         curr_op = select_operator(self.operators, self.op_probs, self.rng)
         self._print(f"operator {curr_op.__class__.__name__}")
         curr_atoms = curr_op.run(self.atoms, self.rng)
         if curr_atoms:  # is not None
             # --- add info
-            curr_atoms.info["confid"] = int(f"{i}")
+            curr_atoms.info["confid"] = int(f"{istep}")
             curr_atoms.info["step"] = -1  # NOTE: remove step info from driver
             write(self.directory / "mc_attempts.xyz", curr_atoms, append=True)
         else:
             self._print("FAILED to run operation...")
 
-        # - run postprocess
+        # Run postprocess
         if curr_atoms is not None:
             # - TODO: save some info not stored by driver
             curr_tags = curr_atoms.get_tags()
 
-            # - run postprocess (spc, min or md)
+            # Run postprocess (spc, min or md)
             _ = self.worker.run([curr_atoms], read_ckpt=True)
             self.worker.inspect(resubmit=True)
             if self.worker.get_number_of_running_jobs() == 0:
@@ -380,7 +397,7 @@ class MonteCarlo(AbstractExpedition):
 
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
-                # -- check earlystopping
+                # Check earlystopping,
                 # We earlystop the simulation at the end of each step and use
                 # the MC-updated atoms, which may be unaccepted (failure) and
                 # further lead the inconsistency in the final saved structure.
@@ -389,14 +406,14 @@ class MonteCarlo(AbstractExpedition):
                 step_state = self._check_earlystop(self.atoms)
 
             else:
-                step_state = "UNFINISHED"
+                step_state = MCStepState.UNFINISHED
         else:
-            # save the previous structure as the current operation gives no structure.
-            step_state = "FAILED"
+            # Save the previous structure as the current operation gives no structure.
+            step_state = MCStepState.FAILED
 
         return step_state
 
-    def _check_earlystop(self, atoms: Atoms) -> str:
+    def _check_earlystop(self, atoms: Atoms) -> MCStepState:
         """Check whether earlystopping should be done to avoid unphysical structures.
 
         Returns:
@@ -411,19 +428,19 @@ class MonteCarlo(AbstractExpedition):
                 ae_min, ae_max = es_dict["range"]
                 energy_per_atom = atoms.get_potential_energy() / len(atoms)
                 if ae_min <= energy_per_atom < ae_max:
-                    es_state = "FINISHED"
+                    es_state = MCStepState.FINISHED
                 else:
-                    es_state = EARLYSTOP_STATE_NAME
+                    es_state = MCStepState.EARLYSTOPPED
                     self._print("MC earlystops by `energy_per_atom`.")
             else:
                 raise NotImplementedError(f"Unknown earlystop: {es_dict =}.")
         else:
-            es_state = "FINISHED"
+            es_state = MCStepState.FINISHED
 
         # check atoms earlystop convergence only works with ase driver
         earlystop = atoms.info.get("earlystop", False)
         if earlystop:
-            es_state = EARLYSTOP_STATE_NAME
+            es_state = MCStepState.EARLYSTOPPED
             self._print("MC earlystops by `driver observer`.")
 
         return es_state
@@ -465,7 +482,7 @@ class MonteCarlo(AbstractExpedition):
         """Load the current Monet Carlo checkpoint.
 
         We first infer the starting step from the checkpoint, then load saved
-        operators, random state, and the structure, and finally reset the output 
+        operators, random state, and the structure, and finally reset the output
         files (mc.xyz, mc_attempts.xyz, and opstat.txt) to the starting step.
         Also, the computation folders beyond the checkpoint step will be removed.
 
@@ -520,17 +537,19 @@ class MonteCarlo(AbstractExpedition):
         mctraj = read(self.directory / self.TRAJ_NAME, f":{step+1}")
         write(self.directory / self.TRAJ_NAME, mctraj)
 
-        mctraj_attempts = read(self.directory / "mc_attempts.xyz", f":{step+1}")
+        mctraj_attempts = read(
+            self.directory / "mc_attempts.xyz", f":{step+1}"
+        )
         write(self.directory / "mc_attempts.xyz", mctraj_attempts)
 
         # Reset opstat.txt
         self._print("Reset `opstat.txt`.")
         # We do not have the info for cand0 but have one comment line
         # so the final number of lines equal step+1
-        with open(self.directory/self.INFO_NAME, "r") as fopen:
+        with open(self.directory / self.INFO_NAME, "r") as fopen:
             opstat_lines = fopen.readlines()
-        with open(self.directory/self.INFO_NAME, "w") as fopen:
-            fopen.write("".join(opstat_lines[:step+1]))
+        with open(self.directory / self.INFO_NAME, "w") as fopen:
+            fopen.write("".join(opstat_lines[: step + 1]))
 
         # Rewind single_worker record
         assert isinstance(self.worker, SingleWorker)
@@ -551,7 +570,9 @@ class MonteCarlo(AbstractExpedition):
                 removed_cand_indices.append(cand_index)
             else:
                 break
-        self._print(f"Remove previous computation folders {convert_indices(removed_cand_indices)}.")
+        self._print(
+            f"Remove previous computation folders {convert_indices(removed_cand_indices)}."
+        )
 
         return
 
