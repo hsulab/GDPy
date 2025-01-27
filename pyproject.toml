@@ -41,3 +41,16 @@ include = [
 exclude = [
   "**/tests",
 ]
+
+[tool.black]
+line-length = 79
+
+[tool.ruff]
+include = [
+  "src"
+]
+exclude = [
+  "**/tests",
+]
+line-length = 79
+
