@@ -11,8 +11,9 @@ from typing import List
 import numpy as np
 from ase import Atoms, data
 from ase.formula import Formula
-from ase.ga.utilities import closest_distances_generator
 from ase.io import read, write
+
+from gdpx.geometry.spatial import get_bond_distance_dict
 
 from .. import DriverBasedWorker, SingleWorker, convert_indices, dict2str
 from ..expedition import AbstractExpedition
@@ -212,13 +213,13 @@ class MonteCarlo(AbstractExpedition):
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
 
         for op in self.operators:
-            op.blmin = closest_distances_generator(
-                atom_numbers=unique_atomic_numbers,
-                ratio_of_covalent_radii=op.covalent_min,
+            op.blmin = get_bond_distance_dict(
+                unique_atomic_numbers=unique_atomic_numbers,
+                ratio=op.covalent_min,
             )
-            op.bond_distance_dict = closest_distances_generator(
-                atom_numbers=unique_atomic_numbers,
-                ratio_of_covalent_radii=1.0,
+            op.bond_distance_dict = get_bond_distance_dict(
+                unique_atomic_numbers=unique_atomic_numbers,
+                ratio=1.0,
             )
 
         return
