@@ -6,7 +6,6 @@ import copy
 import enum
 import pickle
 import shutil
-from typing import List
 
 import numpy as np
 from ase import Atoms, data
@@ -79,7 +78,7 @@ class MonteCarlo(AbstractExpedition):
     def __init__(
         self,
         builder: dict,
-        operators: List[dict],
+        operators: list[dict],
         convergence: dict,
         random_seed=None,
         dump_period: int = 1,
