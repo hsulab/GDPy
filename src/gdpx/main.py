@@ -119,7 +119,7 @@ def main():
     parser_compute = subparsers.add_parser(
         "compute",
         help="compute structures with basic methods (MD, MIN, and ...)",
-        description=str(registers.manager),
+        description=str(registers.manager).lower(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_compute.add_argument(

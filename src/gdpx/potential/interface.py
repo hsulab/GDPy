@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
-from ..core.variable import Variable, DummyVariable
-from ..core.operation import Operation
 from ..core.register import registers
-
+from ..core.variable import Variable
 from ..potential.managers.mixer import MixerManager
 
 
@@ -14,16 +12,11 @@ class PotterVariable(Variable):
 
     def __init__(self, directory="./", **kwargs):
         """"""
-        # manager = PotentialRegister()
         name = kwargs.get("name", None)
-        # potter = manager.create_potential(pot_name=name)
-        # potter.register_calculator(kwargs.get("params", {}))
-        # potter.version = kwargs.get("version", "unknown")
-
         potter = registers.create(
             "manager",
             name,
-            convert_name=True,
+            convert_name=False,
             # **kwargs.get("params", {})
         )
         potter.register_calculator(kwargs.get("params", {}))

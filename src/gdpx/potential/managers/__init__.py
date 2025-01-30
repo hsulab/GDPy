@@ -16,36 +16,36 @@ from .. import remove_extra_stream_handlers
 # - basic potentials
 # -- MLIP
 from .deepmd import DeepmdManager, DeepmdTrainer, DeepmdDataloader
-registers.manager.register(DeepmdManager)
+registers.manager.register("deepmd")(DeepmdManager)
 registers.trainer.register(DeepmdTrainer)
 registers.dataloader.register(DeepmdDataloader)
 
 try:
     from .deepmd import DeepmdJaxManager, DeepmdJaxTrainer
-    registers.manager.register(DeepmdJaxManager)
+    registers.manager.register("deepmd-jax")(DeepmdJaxManager)
     registers.trainer.register(DeepmdJaxTrainer)
 except ImportError as e:
     config._print(f"Potential `deepmd_jax` import failed: {e}")
 
 from .reann.beann import BeannManager, BeannTrainer
-registers.manager.register(BeannManager)
+registers.manager.register("beann")(BeannManager)
 registers.trainer.register(BeannTrainer)
 
 from .reann.reann import ReannManager, ReannTrainer, ReannDataloader
-registers.manager.register(ReannManager)
+registers.manager.register("reann")(ReannManager)
 registers.trainer.register(ReannTrainer)
 registers.dataloader.register(ReannDataloader)
 
 from .lasp import LaspManager
-registers.manager.register(LaspManager)
+registers.manager.register("lasp")(LaspManager)
 
 from .mace import MaceManager, MaceTrainer, MaceDataloader
-registers.manager.register(MaceManager)
+registers.manager.register("mace")(MaceManager)
 registers.trainer.register(MaceTrainer)
 registers.dataloader.register(MaceDataloader)
 
 from .nequip import NequipManager, NequipTrainer
-registers.manager.register(NequipManager)
+registers.manager.register("nequip")(NequipManager)
 registers.trainer.register(NequipTrainer)
 
 #try:
@@ -57,65 +57,65 @@ registers.trainer.register(NequipTrainer)
 # -- reference potentials
 # --- DFT
 from .cp2k import Cp2kManager
-registers.manager.register(Cp2kManager)
+registers.manager.register("cp2k")(Cp2kManager)
 
 from .espresso import EspressoManager
-registers.manager.register(EspressoManager)
+registers.manager.register("espresso")(EspressoManager)
 
 from .vasp import VaspManager
-registers.manager.register(VaspManager)
+registers.manager.register("vasp")(VaspManager)
 
 # --- FFs
 from .asepot import AsePotManager
-registers.manager.register("AseManager")(AsePotManager)
+registers.manager.register("ase")(AsePotManager)
 
 from .classic import ClassicManager
-registers.manager.register(ClassicManager)
+registers.manager.register("classic")(ClassicManager)
 
 from .eam import EamManager
-registers.manager.register(EamManager)
+registers.manager.register("eam")(EamManager)
 
 from .emt import EmtManager
-registers.manager.register(EmtManager)
+registers.manager.register("emt")(EmtManager)
 
 from .reax import ReaxManager
-registers.manager.register(ReaxManager)
+registers.manager.register("reax")(ReaxManager)
 
 # - advanced potentials
 from .grid import GridManager
-registers.manager.register(GridManager)
+registers.manager.register("grid")(GridManager)
 
 from .mixer import MixerManager
-registers.manager.register(MixerManager)
+registers.manager.register("mixer")(MixerManager)
 
 # - optional potentials
 try:
     from .abacus import AbacusManager
-    registers.manager.register(AbacusManager)
+    registers.manager.register("abacus")(AbacusManager)
 except ImportError as e:
     config._print(f"Potential {'abacus'} import failed: {e}")
 
 try:
     from .xtb import XtbManager
-    registers.manager.register(XtbManager)
+    registers.manager.register("xtb")(XtbManager)
 except ImportError as e:
     warnings.warn("Module {} import failed: {}".format("xtb", e), UserWarning)
 
 try:
     from .dftd3 import Dftd3Manager
-    registers.manager.register(Dftd3Manager)
+    registers.manager.register("dftd3")(Dftd3Manager)
 except ImportError as e:
     config._print(f"Potential {'dftd3'} import failed: {e}")
 
 try:
     from .bias import BiasManager
-    registers.manager.register(BiasManager)
+    registers.manager.register("bias")(BiasManager)
 except ImportError as e:
     config._print(f"Potential {'bias'} import failed: {e}")
 
 try:
     from .plumed.plumed import PlumedManager
-    registers.manager.register(PlumedManager)
+    registers.manager.register("plumed")(PlumedManager)
 except ImportError as e:
     config._print(f"Potential {'plumed'} import failed: {e}")
 
