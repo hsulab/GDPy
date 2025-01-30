@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import abc
 import copy
-from typing import Optional, Union, Tuple, List, NoReturn
 
 import numpy as np
 
 from ase.calculators.calculator import Calculator
 
 from .. import config
-from ..core.register import registers
 from ..computation import register_drivers
+from ..core.register import registers
 from .calculators.dummy import DummyCalculator
-
 
 """The abstract base class of any potential manager.
 
 """
 
 
-class AbstractPotentialManager(abc.ABC):
+class BasePotentialManager(abc.ABC):
     """
     Create various potential instances
     """
@@ -29,13 +28,13 @@ class AbstractPotentialManager(abc.ABC):
     name: str = "potential"
 
     #: Supported calculator backends.
-    implemented_backends: List[str] = []
+    implemented_backends: list[str] = []
 
     #: Supported combinations of calculator backend and driver/engine.
     valid_combinations: tuple = ()
 
     def __init__(self):
-        """ """
+        """"""
         #: Attached calculator.
         self._calc: Calculator = DummyCalculator()
 
@@ -117,6 +116,7 @@ class AbstractPotentialManager(abc.ABC):
         ignore_convergence = merged_params.pop("ignore_convergence", False)
 
         # TODO: make PotentialManager a Node as well???
+        assert isinstance(config.GRNG, np.random.Generator)
         random_seed = merged_params.pop(
             "random_seed", int(config.GRNG.integers(0, 1e8))
         )
@@ -175,10 +175,14 @@ class AbstractPotentialManager(abc.ABC):
 
         # - construct driver params
         inp_params = dict(
-            calc=self.calc, params=merged_params, ignore_convergence=ignore_convergence
+            calc=self.calc,
+            params=merged_params,
+            ignore_convergence=ignore_convergence,
         )
 
-        driver = registers.create("reactor", reaction, convert_name=False, **inp_params)
+        driver = registers.create(
+            "reactor", reaction, convert_name=False, **inp_params
+        )
         driver.pot_params = self.as_dict()
 
         return driver
@@ -190,6 +194,10 @@ class AbstractPotentialManager(abc.ABC):
         params["params"] = copy.deepcopy(self.calc_params)
 
         return params
+
+
+# For compatibility,
+AbstractPotentialManager = BasePotentialManager
 
 
 if __name__ == "__main__":
