@@ -4,7 +4,7 @@
 
 from .. import config
 from .. import registers
-from ..manager import AbstractPotentialManager
+from ..manager import AbstractPotentialManager, BasePotentialManager
 from ..trainer import AbstractTrainer
 
 from ..calculators.dummy import DummyCalculator
@@ -53,6 +53,9 @@ registers.trainer.register(NequipTrainer)
 #    registers.manager.register(SchnetManager)
 #except ImportError as e:
 #    warnings.warn("Module {} import failed: {}".format("schnet", e), UserWarning)
+
+from .mattersim import MatterSimManager
+registers.manager.register("mattersim")(MatterSimManager)
 
 # -- reference potentials
 # --- DFT
