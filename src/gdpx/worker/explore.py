@@ -92,6 +92,7 @@ class ExpeditionBasedWorker(AbstractWorker):
         ) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
+        queued_uuids = [q["uid"] for q in queued_jobs]
 
         # Check if input expeditions are consistent with those in the database
         if isinstance(self.expedition, list):
@@ -102,14 +103,17 @@ class ExpeditionBasedWorker(AbstractWorker):
         # Submit jobs
         num_expeditions = len(expeditions)
         for i in range(num_expeditions):
-            # Get exp-id
-            uid = str(uuid.uuid1())
+            # Check if the job is already submitted and get a new uuid if not
             batch_name = f"{self.EXP_INDEX}-{i}"
-            job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
-            wdir = self.directory / (self.EXP_INDEX + "-" + f"{i}")
             if batch_name in queued_names:
+                uid = queued_uuids[i]
+                job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
                 self._print(f"{job_name} at {self.directory.name} was submitted.")
                 continue
+            else:
+                uid = str(uuid.uuid1())
+                job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
+            wdir = self.directory / (self.EXP_INDEX + "-" + f"{i}")
             wdir.mkdir(parents=True, exist_ok=True)
 
             # Get expedition
