@@ -7,6 +7,7 @@ import functools
 import itertools
 import numbers
 import operator
+import pathlib
 from typing import Mapping, Optional, Union
 
 import h5py
@@ -238,7 +239,9 @@ class AtomsNDArray:
 
         return
 
-    def get_marked_structures(self, markers: Optional[numpy.typing.NDArray]=None) -> list[Atoms]:
+    def get_marked_structures(
+        self, markers: Optional[numpy.typing.NDArray] = None
+    ) -> list[Atoms]:
         """Get structures according to markers.
 
         If custom markers is None, `self._markers` will be used instead.
@@ -265,7 +268,7 @@ class AtomsNDArray:
         return _reshape_data(data_1d, self.shape)
 
     @classmethod
-    def from_file(cls, target):
+    def from_file(cls, target: Union[str, pathlib.Path]):
         """"""
         with h5py.File(target, "r") as fopen:
             grp = fopen.require_group("images")
@@ -446,24 +449,24 @@ class AtomsNDArray:
 
     #    return
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Union[Atoms, list[Atoms]]:
         """"""
         if isinstance(key, numbers.Integral) or isinstance(key, slice):
             key = [key] + [slice(None) for _ in range(len(self._shape) - 1)]
         elif not isinstance(key, tuple):
             raise IndexError("Index must be an integer, a slice or a tuple.")
-        assert len(key) <= len(self._shape), "Out of dimension."
-        # BUG: <=?
-        # print(f"key: {key}")
+        if len(key) > len(self._shape):
+            raise Exception(f"{key} is out of dimension of {self._shape}.")
 
         # - get indices for each dimension
         indices, tshape = [], []
         for dim, i in enumerate(key):
             size = self._shape[dim]
             if isinstance(i, numbers.Integral):
+                i = int(i)
                 if i < -size or i >= size:
                     raise IndexError(
-                        f"index {i} is out of bounds for axis {dim} with size {size}."
+                        f"Index {i} is out of bounds for axis {dim} with size {size}."
                     )
                     # IndexError: index 1 is out of bounds for axis 0 with size 1
                 if i < 0:
@@ -480,17 +483,12 @@ class AtomsNDArray:
                     f"Index must be an integer or a slice for dimension {dim}."
                 )
             indices.append(curr_indices)
-        # print(f"tshape: {tshape}")
 
-        # - convert indices
-        products = list(itertools.product(*indices))
+        # Convert indices
+        products = np.array(list(itertools.product(*indices)))
         global_indices = [_map_idx(x, self._shape) for x in products]
-        # print(global_indices)
-        # print(self._data)
-        # print(f"nframes: {len(self._data)}")
-        # print(self._ind_map)
 
-        # - get data
+        # Get atoms
         ret_data = []
         for x in global_indices:
             if x in self._ind_map:
@@ -498,13 +496,13 @@ class AtomsNDArray:
             else:
                 ret_data.append(None)
         if tshape:
-            ret = _reshape_data(ret_data, tshape)
+            ret = _reshape_data(ret_data, tuple(tshape))
         else:  # tshape is empty, means this is a single atoms
             ret = ret_data[0]
 
-        return ret  # TODO: should this also be an array?
+        return ret
 
-    def __len__(self):
+    def __len__(self) -> int:
         """"""
         return len(self._data)
 
