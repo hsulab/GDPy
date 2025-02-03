@@ -96,15 +96,9 @@ class PropertyItem:
     reverse: bool = False
 
     #: Property range to filter, which should be two strings or two numbers or mixed.
-    range: list[Optional[float]] = dataclasses.field(
+    range: list[Optional[Union[float, str]]] = dataclasses.field(
         default_factory=lambda: [None, None]
     )
-
-    #: Property minimum.
-    pmin: float = dataclasses.field(init=False, default=-np.inf)
-
-    #: Property maximum.
-    pmax: float = dataclasses.field(init=False, default=np.inf)
 
     #: Number of bins for histogram-based sparsification.
     nbins: int = 20
@@ -119,18 +113,16 @@ class PropertyItem:
 
     def __post_init__(self):
         """"""
-        # - bound
+        # Check lower and upper limits
         bounds_ = self.range
         if bounds_[0] is None:
             bounds_[0] = "min"
         if bounds_[1] is None:
             bounds_[1] = "max"
 
-        # NOTE: assert range when property values are available
-        # assert bounds_[0] < bounds_[1], f"{self.name} has invalid bounds..."
-        self.pmin, self.pmax = bounds_
+        self._pmin, self._pmax = bounds_
 
-        # - metric
+        # Map meteric functions
         if self.metric is not None:
             if isinstance(self.metric, str):
                 metric_config = [self.metric]
@@ -153,7 +145,7 @@ class PropertyItem:
         else:
             self._metric_functions = []
 
-        # - sparsify
+        # Check sparsification method
         assert self.sparsify in [
             "filter",
             "sort",
@@ -168,7 +160,7 @@ class PropertyItem:
         if len(self._metric_functions) > 0:
             converts_ = []
             for raw_ in raws_:
-                convert_ = raw_  # NOTE: copy?
+                convert_ = raw_
                 for metric_func in self._metric_functions:
                     convert_ = metric_func(convert_)
                 converts_.append(convert_)
@@ -176,14 +168,6 @@ class PropertyItem:
             converts_ = raws_
 
         return converts_
-
-    # def __repr__(self) -> str:
-    #    """"""
-    #    content = f"{self.name}:\n"
-    #    content += f"  range: {self.pmin} - {self.pmax}\n"
-    #    content += f"  sparsify: {self.sparsify}\n"
-
-    #    return content
 
 
 class PropertySelector(BaseSelector):
@@ -359,7 +343,7 @@ class PropertySelector(BaseSelector):
                     # TODO: Move to observables?
                     #       Check if pmax is a valid float?
                     atoms_property = compute_minimum_distance(
-                        atoms, prop_item.pmax
+                        atoms, prop_item._pmax
                     )
                 else:
                     # -- any property stored in atoms.info
@@ -389,12 +373,12 @@ class PropertySelector(BaseSelector):
         pstd = stat_str2val("svar", prop_vals)
 
         # Update pmin and pmax for hist based on input values
-        prop_item.pmin = stat_str2val(prop_item.pmin, prop_vals)
-        prop_item.pmax = stat_str2val(prop_item.pmax, prop_vals)
-        if prop_item.pmax < prop_item.pmin:
-            prop_item.pmax = prop_item.pmin
+        prop_item._pmin = stat_str2val(prop_item._pmin, prop_vals)
+        prop_item._pmax = stat_str2val(prop_item._pmax, prop_vals)
+        if prop_item._pmax < prop_item._pmin:
+            prop_item._pmax = prop_item._pmin
 
-        hist_max, hist_min = prop_item.pmax, prop_item.pmin
+        hist_max, hist_min = prop_item._pmax, prop_item._pmin
 
         bins = np.linspace(
             hist_min, hist_max, prop_item.nbins, endpoint=False
@@ -410,7 +394,7 @@ class PropertySelector(BaseSelector):
         content += f"# avg {pavg:<12.4f} std {pstd:<12.4f}\n"
         content += f"# histogram of {np.sum(hist)} points in the range (npoints: {len(prop_vals)})\n"
         content += (
-            f"# min {prop_item.pmin:<12.4f} max {prop_item.pmax:<12.4f}\n"
+            f"# min {prop_item._pmin:<12.4f} max {prop_item._pmax:<12.4f}\n"
         )
         for x, y in zip(hist, bin_edges[:-1]):
             content += f"{y:>12.4f}  {x:>12d}\n"
@@ -453,13 +437,13 @@ class PropertySelector(BaseSelector):
             # TODO: possibly use np.where to replace this code
             if not prop_item.reverse:
                 for i in range(nframes):
-                    if prop_item.pmin <= prop_vals[i] <= prop_item.pmax:
+                    if prop_item._pmin <= prop_vals[i] <= prop_item._pmax:
                         curr_indices.append(i)
             else:
                 for i in range(nframes):
                     if (
-                        prop_item.pmin > prop_vals[i]
-                        and prop_vals[i] > prop_item.pmax
+                        prop_item._pmin > prop_vals[i]
+                        and prop_vals[i] > prop_item._pmax
                     ):
                         curr_indices.append(i)
             scores = [prop_vals[i] for i in curr_indices]
@@ -486,8 +470,8 @@ class PropertySelector(BaseSelector):
             prev_indices = list(range(nframes))
             scores, curr_indices = hist_selection(
                 prop_item.nbins,
-                prop_item.pmin,
-                prop_item.pmax,
+                prop_item._pmin,
+                prop_item._pmax,
                 [prop_vals[i] for i in prev_indices],
                 prev_indices,
                 num_fixed,
