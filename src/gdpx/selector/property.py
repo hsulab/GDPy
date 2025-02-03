@@ -4,17 +4,18 @@
 
 import collections
 import dataclasses
-import itertools
 from typing import Callable, Optional, Union
 
 import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
 
-from ..data.array import AtomsNDArray
+from gdpx.data.array import AtomsNDArray
+
 from ..describer.interface import DescriberVariable
 from .cur import boltz_selection, hist_selection, stat_str2val
 from .selector import BaseSelector
+from .utils import group_structures_by_axis
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy",
@@ -218,26 +219,18 @@ class PropertySelector(BaseSelector):
 
         return
 
-    def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
-        """Return selected indices."""
-        # - get property values
-        #   NOTE: properties should be pre-computed...
+    def _mark_structures(self, data: AtomsNDArray) -> None:
+        """Return selected indices.
+
+        The properties should be pre-computed by other modules.
+
+        """
 
         for prop_item in self._prop_items:
             self._print(str(prop_item))
 
-            # - group markers
-            if self.axis is None:
-                marker_groups = dict(all=data.markers)
-            else:
-                marker_groups = {}
-                for k, v in itertools.groupby(
-                    data.markers, key=lambda x: x[self.axis]
-                ):
-                    if k in marker_groups:
-                        marker_groups[k].extend(list(v))
-                    else:
-                        marker_groups[k] = list(v)
+            # Group markers by certain criteria (axis for now)
+            marker_groups = group_structures_by_axis(data, self.axis)
             self._debug(f"marker_groups: {marker_groups}")
 
             if prop_item.group is None:
