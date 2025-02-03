@@ -438,17 +438,6 @@ class AtomsNDArray:
 
         return
 
-    # @classmethod
-    # def squeeze(cls, axis=0):
-    #    """Squeeze TODO: treat markers and map properly."""
-
-    #    return cls()
-
-    # def take(self, indices, axis=None):
-    #    """"""
-
-    #    return
-
     def __getitem__(self, key) -> Union[Atoms, list[Atoms]]:
         """"""
         if isinstance(key, numbers.Integral) or isinstance(key, slice):
