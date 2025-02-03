@@ -3,7 +3,6 @@
 
 
 import copy
-from typing import Union
 
 import numpy as np
 import numpy.typing
@@ -14,7 +13,6 @@ from scipy.spatial.distance import cdist
 """
 
 
-# - CUR decomposition
 def descriptor_svd(at_descs, num: int, do_vectors="vh"):
     """Perfrom a sparse SVD."""
 
@@ -81,7 +79,6 @@ def cur_selection(
     return c_scores, selected
 
 
-# - FPS (Farthest Point Sampling)
 def fps_selection(
     features,
     num: int,
@@ -125,7 +122,6 @@ def fps_selection(
     return scores, selected_indices
 
 
-# - boltz (Boltzmann Selection)
 def boltz_selection(
     boltz: float,
     props: list[float],

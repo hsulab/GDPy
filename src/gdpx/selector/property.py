@@ -13,8 +13,8 @@ from ase.neighborlist import neighbor_list
 from gdpx.data.array import AtomsNDArray
 
 from ..describer.interface import DescriberVariable
-from .sparsification import boltz_selection, hist_selection
 from .selector import BaseSelector
+from .sparsification import boltz_selection, hist_selection
 from .utils import group_structures_by_axis, stat_str2val
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
@@ -105,11 +105,6 @@ class PropertyItem:
 
     #: Boltzmann temperature (eV).
     kBT: Optional[float] = None
-
-    # expression
-    # weight
-
-    # worker_config: dataclasses.InitVar[str] = None
 
     def __post_init__(self):
         """"""
