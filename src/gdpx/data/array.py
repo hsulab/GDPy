@@ -359,53 +359,44 @@ class AtomsNDArray:
         return
 
     def _convert_images(self, grp, images: list[Atoms]):
-        """Convert data...
-
-        NOTE:
-            support variable number of atoms...
-
-        """
-        # - save structures
+        """Convert Atoms objects to HDF5 datasets."""
+        # Get data
         nimages = len(images)
         natoms_list = np.array([len(a) for a in images], dtype=np.int32)
         boxes = np.array(
             [a.get_cell(complete=True) for a in images], dtype=np.float64
         ).reshape(-1, 9)
         pbcs = np.array([a.get_pbc() for a in images], dtype=np.int8)
-        # atomic_numbers = np.array(
-        #    [a.get_atomic_numbers() for a in images], dtype=np.int8
-        # )
-        # positions = np.array([a.get_positions() for a in images], dtype=np.float64)
         atomic_numbers = np.zeros((nimages, max(natoms_list)), dtype=np.int32)
         positions = np.zeros((nimages, max(natoms_list), 3), dtype=np.float64)
         for i, a in enumerate(images):
             atomic_numbers[i, : natoms_list[i]] = a.get_atomic_numbers()
             positions[i, : natoms_list[i], :] = a.get_positions()
 
-        # -- sys props
-        natoms_dset = grp.create_dataset(
+        # Save structures to datasets
+        _ = grp.create_dataset(
             "natoms", data=natoms_list, dtype="i8"
         )
-        box_dset = grp.create_dataset("box", data=boxes, dtype="f8")
-        pbc_dset = grp.create_dataset("pbc", data=pbcs, dtype="i8")
-        atype_dset = grp.create_dataset(
+        _ = grp.create_dataset("box", data=boxes, dtype="f8")
+        _ = grp.create_dataset("pbc", data=pbcs, dtype="i8")
+        _ = grp.create_dataset(
             "atype", data=atomic_numbers, dtype="i8"
         )
-        pos_dset = grp.create_dataset("positions", data=positions, dtype="f8")
+        _ = grp.create_dataset("positions", data=positions, dtype="f8")
 
-        # - add some info
-        #   confid, step
-        #   max_devi_e, min_devi_e, avg_devi_e
-        #   max_devi_v, min_devi_v, avg_devi_v
-        #   max_devi_f, min_devi_f, avg_devi_f
+        # Add some information
+        # confid, step
+        # max_devi_e, min_devi_e, avg_devi_e
+        # max_devi_v, min_devi_v, avg_devi_v
+        # max_devi_f, min_devi_f, avg_devi_f
         for name, dtype in zip(RETAINED_INFO_NAMES, RETAIEND_INFO_DTYPES):
             data = [a.info.get(name, np.nan) for a in images]
             if not np.all(np.isnan(data)):
                 _ = grp.create_dataset(name, data=data, dtype=dtype)
 
-        # -- calc props
+        # Save calculated properties,
+        # energy and forces have apply_constraint True.
         # TODO: without calc properties?
-        # NOTE: energy and forces have apply_constraint True...
         energies = np.array(
             [a.get_potential_energy() for a in images], dtype=np.float64
         )
@@ -417,7 +408,6 @@ class AtomsNDArray:
                 free_energy = energies[i]
             free_energies.append(free_energy)
 
-        # forces = np.array([a.get_forces() for a in images], dtype=np.float64)
         forces = np.zeros((nimages, max(natoms_list), 3), dtype=np.float64)
         momenta = np.empty((nimages, max(natoms_list), 3), dtype=np.float64)
         momenta.fill(np.nan)
@@ -428,13 +418,12 @@ class AtomsNDArray:
             else:
                 ...
 
-        # save properties to dataset
-        ene_dset = grp.create_dataset("energy", data=energies, dtype="f8")
-        fen_dset = grp.create_dataset(
+        _ = grp.create_dataset("energy", data=energies, dtype="f8")
+        _ = grp.create_dataset(
             "free_energy", data=free_energies, dtype="f8"
         )
-        frc_dset = grp.create_dataset("forces", data=forces, dtype="f8")
-        mom_dset = grp.create_dataset("momenta", data=momenta, dtype="f8")
+        _ = grp.create_dataset("forces", data=forces, dtype="f8")
+        _ = grp.create_dataset("momenta", data=momenta, dtype="f8")
 
         return
 
