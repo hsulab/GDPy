@@ -12,19 +12,14 @@ import numpy as np
 from ase import Atoms
 
 from gdpx.core.component import BaseComponent
-
-from ..data.array import AtomsNDArray
-from ..worker.drive import DriverBasedWorker
-
-"""Define an BaseSelector that is the base class of any selector.
-"""
+from gdpx.data.array import AtomsNDArray
 
 
 def save_cache(fpath, data, random_seed: Optional[int] = None):
     """"""
-    header = ("#{:>11s}  {:>8s}  {:>8s}  {:>8s}  " + "{:>12s}" * 4 + "\n").format(
-        *"index confid step natoms ene aene maxfrc score".split()
-    )
+    header = (
+        "#{:>11s}  {:>8s}  {:>8s}  {:>8s}  " + "{:>12s}" * 4 + "\n"
+    ).format(*"index confid step natoms ene aene maxfrc score".split())
     footer = f"random_seed {random_seed}"
 
     content = header
@@ -87,7 +82,8 @@ def group_markers(new_markers_unsorted):
 
     # traj markers are sorted when set
     raw_markers = [
-        [x[0], sorted(x[1])] for x in sorted(raw_markers_unsorted, key=lambda x: x[0])
+        [x[0], sorted(x[1])]
+        for x in sorted(raw_markers_unsorted, key=lambda x: x[0])
     ]
 
     return raw_markers
@@ -103,25 +99,22 @@ class BaseSelector(BaseComponent):
     axis: Optional[int] = None
 
     #: Default parameters.
-    default_parameters: dict = dict(number=[4, 0.2], verbose=False)  # number & ratio
-
-    #: A worker for potential computations.
-    worker: Optional[DriverBasedWorker] = None
-
-    #: Distinguish structures when using ComposedSelector.
-    prefix: str = "selection"
+    default_parameters: dict = dict(
+        number=[4, 0.2], verbose=False
+    )  # number & ratio
 
     #: Output file name.
     _fname: str = "info.txt"
 
-    #: Output data format (frames or trajectories).
-    _out_fmt: str = "stru"
-
-    def __init__(self, axis=None, directory="./", random_seed=None, **kwargs) -> None:
-        """Create a selector.
+    def __init__(
+        self, axis: Optional[int]=None, directory="./", random_seed=None, **kwargs
+    ) -> None:
+        """Initialise a selector.
 
         Args:
+            axis: Target axis to select.
             directory: Working directory.
+            random_seed: Random seed.
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
@@ -132,7 +125,7 @@ class BaseSelector(BaseComponent):
 
         self.fname = self.name + "-info.txt"
 
-        # - update parameters from kwargs
+        # Update parameters from kwargs
         self.parameters = copy.deepcopy(self.default_parameters)
         for k in self.parameters:
             if k in kwargs.keys():
@@ -172,12 +165,6 @@ class BaseSelector(BaseComponent):
         """"""
         self._fname = fname_
         self.info_fpath = self._directory / self._fname
-        return
-
-    def attach_worker(self, worker=None) -> None:
-        """Attach a worker to this node."""
-        self.worker = worker
-
         return
 
     def select(self, inp_dat: AtomsNDArray) -> list[Atoms]:
@@ -223,7 +210,9 @@ class BaseSelector(BaseComponent):
             frames.markers = raw_markers
 
         out_nframes = len(frames.markers)
-        self._print(f"{self.name} nstructures {inp_nframes} -> nselected {out_nframes}")
+        self._print(
+            f"{self.name} nstructures {inp_nframes} -> nselected {out_nframes}"
+        )
 
         # - add history
         #   get_marked_structures return reference to Atoms objects
@@ -290,24 +279,21 @@ class BaseSelector(BaseComponent):
             except:
                 ene, ae = np.NaN, np.NaN
             try:
-                maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
+                maxforce = np.max(
+                    np.fabs(atoms.get_forces(apply_constraint=True))
+                )
             except:
                 maxforce = np.NaN
             score = atoms.info.get("score", np.nan)
             # - add info
             ind_str = ",".join([str(x) for x in ind])
-            data.append([f"{ind_str}", confid, step, natoms, ene, ae, maxforce, score])
+            data.append(
+                [f"{ind_str}", confid, step, natoms, ene, ae, maxforce, score]
+            )
 
         if data:
             save_cache(self.info_fpath, data, self.random_seed)
         else:
-            # np.savetxt(
-            #    self.info_fpath, [[np.NaN]*8],
-            #    header="{:>11s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
-            #        *"index confid step natoms ene aene maxfrc score".split()
-            #    ),
-            #    footer=f"random_seed {self.random_seed}"
-            # )
             content = "{:>11s}  {:>8s}  {:>8s}  {:>8s}  {:>12s}  {:>12s}  {:>12s}  {:>12s}".format(
                 *"index confid step natoms ene aene maxfrc score".split()
             )

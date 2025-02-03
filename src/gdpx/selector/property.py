@@ -200,7 +200,6 @@ class PropertySelector(BaseSelector):
     name = "property"
 
     default_parameters = dict(
-        mode="stru",
         properties=[],
         worker=None,  # compute properties on-the-fly
         number=[4, 0.2],
@@ -210,12 +209,7 @@ class PropertySelector(BaseSelector):
         """"""
         super().__init__(*args, **kwargs)
 
-        assert self.mode in [
-            "stru",
-            "traj",
-        ], f"Unknown selection mode {self.mode}."
-
-        # - convert properties
+        # Convert input dicts into properties
         prop_items = []
         for name, params in self.properties.items():
             prop_item = PropertyItem(name=name, **params)
