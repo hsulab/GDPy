@@ -92,11 +92,11 @@ class DescriptorSelector(BaseSelector):
 
         """
         # - group markers
-        if self.axis is None:
+        if self.group_by is None:
             marker_groups = dict(all=data.markers)
         else:
             marker_groups = {}
-            for k, v in itertools.groupby(data.markers, key=lambda x: x[self.axis]):
+            for k, v in itertools.groupby(data.markers, key=lambda x: x[self.group_by]):
                 if k in marker_groups:
                     marker_groups[k].extend(list(v))
                 else:

@@ -74,7 +74,7 @@ class LocateSelector(BaseSelector):
         """"""
         super()._mark_structures(data, *args, **kwargs)
 
-        axis = self.axis
+        axis = self.group_by
         if axis < 0:
             axis = data.ndim + axis
         indices = self.indices

@@ -27,7 +27,7 @@ class RandomSelector(BaseSelector):
 
     def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
         """"""
-        marker_groups = self.group_structures_by_axis(data, self.axis)
+        marker_groups = self.group_structures_by_axis(data, self.group_by)
 
         selected_markers = []
         for grp_name, markers in marker_groups.items():

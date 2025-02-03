@@ -36,10 +36,10 @@ class BasinSelector(BaseSelector):
 
         print(f"data: {data}")
 
-        if self.axis is None:
+        if self.group_by is None:
             axis = 0
         else:
-            axis = self.axis
+            axis = self.group_by
 
         if data.ndim >= 1:
             # assume a single trajectory

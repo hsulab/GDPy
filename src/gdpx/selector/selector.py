@@ -96,7 +96,7 @@ class BaseSelector(BaseComponent):
     name: str = "base"
 
     #: Target axis to select.
-    axis: Optional[int] = None
+    group_by: Optional[int] = None
 
     #: Default parameters.
     default_parameters: dict = dict(
@@ -107,7 +107,7 @@ class BaseSelector(BaseComponent):
     _fname: str = "info.txt"
 
     def __init__(
-        self, axis: Optional[int]=None, directory="./", random_seed=None, **kwargs
+        self, group_by: Optional[int]=None, directory="./", random_seed=None, **kwargs
     ) -> None:
         """Initialise a selector.
 
@@ -121,7 +121,7 @@ class BaseSelector(BaseComponent):
         """
         super().__init__(directory=directory, random_seed=random_seed)
 
-        self.axis = axis
+        self.group_by = group_by
 
         self.fname = self.name + "-info.txt"
 

@@ -46,8 +46,8 @@ class IntervalSelector(BaseSelector):
         #    ...
 
         # - group markers
-        if self.axis is not None:
-            axis = self.axis
+        if self.group_by is not None:
+            axis = self.group_by
             ndim = len(data.shape)
             if axis < -ndim or axis > ndim:
                 raise IndexError(f"axis {axis} is out of dimension {ndim}.")
