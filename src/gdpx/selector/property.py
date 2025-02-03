@@ -87,8 +87,8 @@ class PropertyItem:
     #: The metric functions applied to the property values.
     metric: Optional[Union[str, list[str]]] = None
 
-    #: Apply group selection.
-    group: Optional[str] = None
+    #: Group-based selection by a representative structure's property.
+    represent_by: Optional[str] = None
 
     #: Sparsifiction method.
     sparsify: dict = dataclasses.field(default_factory=dict)
@@ -160,7 +160,7 @@ class PropertySelector(BaseSelector):
         name="property",
         params={},
         metric=None,
-        group=None,
+        represent_by=None,
         sparsify={},
         number=[4, 0.2],
     )
@@ -188,13 +188,16 @@ class PropertySelector(BaseSelector):
         num_groups = len(marker_groups)
         self._print(f"number of groups: {num_groups}")
 
-        self._print(f"{self._property.group=}")
         if num_groups > 1:
-            if self._property.group is None:
+            if self._property.represent_by is None:
                 selected_markers = self._mark_group_separate(
                     data, self._property, marker_groups
                 )
             else:
+                self._print(
+                    "Group-based selection is enabled "
+                    + f"using representative structure by {self._property.represent_by}."
+                )
                 selected_markers = self._mark_group_represent(
                     data, self._property, marker_groups
                 )
@@ -212,8 +215,10 @@ class PropertySelector(BaseSelector):
     ):
         """Mark a group of structures based on a representative structure's property."""
 
-        assert prop_item.group is not None
-        metric_func = get_metric_func(prop_item.group)
+        assert (
+            prop_item.represent_by is not None
+        ), "No representative method is provided."
+        metric_func = get_metric_func(prop_item.represent_by)
 
         rep_groups = []  # data for representative groups
         for grp_name, curr_markers in marker_groups.items():
@@ -235,7 +240,9 @@ class PropertySelector(BaseSelector):
                     break
             else:
                 rep_frame = None
-            assert rep_frame is not None, f"Cannot find representative frame with metric value {metric_val}."
+            assert (
+                rep_frame is not None
+            ), f"Cannot find representative frame with metric value {metric_val}."
             rep_groups.append((grp_name, rep_frame))
 
         rep_frames = [x[1] for x in rep_groups]
@@ -243,7 +250,6 @@ class PropertySelector(BaseSelector):
         selected_markers = []
         scores, selected_indices = self._sparsify(prop_item, rep_frames)
         self._print(f"number of groups selected: {len(selected_indices)}")
-        self._print(f"selected_indices: {selected_indices}")
 
         _counter = 0
         for s_i in selected_indices:
