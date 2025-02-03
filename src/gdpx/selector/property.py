@@ -384,79 +384,44 @@ class PropertySelector(BaseSelector):
 
     def _sparsify(self, prop_item: PropertyItem, frames: list[Atoms]):
         """"""
-        # -- each structure is represented by one float value
-        #    get per structure values
+        # Each structure is represented by one float/string value
         prop_vals = self._extract_property(frames, prop_item)
 
-        # Give statistics of this property
+        # Show statistics of this property
         if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(
             prop_item._sparsify, ScalarSparsification
         ):
+            prop_type = "scalar"
             self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
         elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
+            prop_type = "string"
             unique_types = sorted(list(set(prop_vals)))
             counter = collections.Counter(prop_vals)
             for unique_name in unique_types:
                 self._print(f"  {unique_name} -> {counter[unique_name]}")
         else:
+            prop_type = None
             self._print(f"{prop_item.name} does not support statistics.")
 
-        nframes = len(frames)
+        if prop_type is None:
+            raise Exception(f"Unknown property type {prop_item.name}.")
 
+        # Run sparsification
         sparsify = prop_item._sparsify
-        sparsify_method = sparsify.method
 
-        curr_indices, scores = [], []
-        if sparsify_method == "filter":
-            sparsify_params = sparsify.get_sparsify_params()
-            sparsify_params.update(
-                props=[prop_vals[i] for i in range(nframes)]
-            )
-            scores, curr_indices = sparsify.run(**sparsify_params)
-        elif sparsify_method == "sort":
-            if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES:
-                prop_type = "scalar"
-            elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
-                prop_type = "string"
-            else:
-                raise Exception(f"Unknown property type {prop_item.name}.")
-            extra_params = dict(
-                prop_type=prop_type,
-                props=[prop_vals[i] for i in range(nframes)],
-                num_selected=self._parse_selection_number(nframes),
-                rng=self.rng,
-            )
-            sparsify_params = sparsify.get_sparsify_params()
-            for k, v in extra_params.items():
-                if k in sparsify_params:
-                    sparsify_params[k] = v
-            scores, curr_indices = sparsify.run(**sparsify_params)
-        elif sparsify_method == "hist":
-            extra_params = dict(
-                props=[prop_vals[i] for i in range(nframes)],
-                num_selected=self._parse_selection_number(nframes),
-                rng=self.rng,
-            )
-            sparsify_params = sparsify.get_sparsify_params()
-            for k, v in extra_params.items():
-                if k in sparsify_params:
-                    sparsify_params[k] = v
-            scores, curr_indices = sparsify.run(**sparsify_params)
-        elif sparsify_method == "boltz":
-            extra_params = dict(
-                props=[prop_vals[i] for i in range(nframes)],
-                num_selected=self._parse_selection_number(nframes),
-                rng=self.rng,
-            )
-            sparsify_params = sparsify.get_sparsify_params()
-            for k, v in extra_params.items():
-                if k in sparsify_params:
-                    sparsify_params[k] = v
-            scores, curr_indices = sparsify.run(**sparsify_params)
-        else:
-            ...  # The method has already been checked in PropertyItem.
+        sparsify_params = sparsify.get_sparsify_params()
+        extra_params = dict(
+            prop_type=prop_type,
+            props=prop_vals,
+            num_selected=self._parse_selection_number(len(frames)),
+            rng=self.rng,
+        )
+        for k, v in extra_params.items():
+            if k in sparsify_params:
+                sparsify_params[k] = v  # type: ignore
+        scores, selected_indices = sparsify.run(**sparsify_params)
 
-        return scores, curr_indices
+        return scores, selected_indices
 
 
 if __name__ == "__main__":

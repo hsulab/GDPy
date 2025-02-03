@@ -378,6 +378,7 @@ class FilterSparsify(ScalarSparsification):
     def get_sparsify_params(self):
         """"""
         params = dict(
+            props=None,
             pmin=self._pmin,
             pmax=self._pmax,
             reverse=self.reverse,
