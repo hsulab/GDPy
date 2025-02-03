@@ -421,7 +421,7 @@ class PropertySelector(BaseSelector):
             for unique_name in unique_types:
                 self._print(f"  {unique_name} -> {counter[unique_name]}")
         else:
-            prop_type = None
+            prop_type = "scalar"  # TODO: More property types?
             self._print(f"{prop_item.name} does not support statistics.")
 
         if prop_type is None:
