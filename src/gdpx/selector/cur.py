@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-import itertools
-from typing import List
+from typing import Union
 
 import numpy as np
 import numpy.typing
@@ -14,13 +14,12 @@ from scipy.spatial.distance import cdist
 """
 
 
-# -
-def stat_str2val(stat: str, values: List[float]) -> float:
+def stat_str2val(stat: Union[str,float], values: list[float]) -> float:
     """Convert a statistic string to a specific value.
 
     Args:
         stat: Statistics name.
-        values: A List of scalar values.
+        values: A list of scalar values.
 
     Return:
         The statistics value.
@@ -33,8 +32,8 @@ def stat_str2val(stat: str, values: List[float]) -> float:
             v = np.max(values)
         elif stat == "mean" or stat == "avg":  # Compatibilty.
             v = np.mean(values)
-        elif stat == "svar":
-            v = np.sqrt(np.var(values - np.average(values)))
+        elif stat == "std":
+            v = np.std(values)
         elif stat == "median":
             v = np.median(values)
         elif stat.startswith("percentile"):
@@ -50,7 +49,7 @@ def stat_str2val(stat: str, values: List[float]) -> float:
         else:  # assume it is a regular number or a numpy scalar
             v = stat
 
-    return v
+    return float(v)
 
 
 # - CUR decomposition
@@ -69,7 +68,11 @@ def descriptor_svd(at_descs, num: int, do_vectors="vh"):
 
 
 def cur_selection(
-    features, num: int, zeta: float = 2, strategy: str = "descent", rng=np.random
+    features,
+    num: int,
+    zeta: float = 2,
+    strategy: str = "descent",
+    rng=np.random,
 ):
     """Performa a CUR selection.
 
@@ -141,7 +144,8 @@ def fps_selection(
     selected_features.append(features[start_index])
 
     distances = np.min(
-        cdist(features, selected_features, metric=metric, **metric_params), axis=1
+        cdist(features, selected_features, metric=metric, **metric_params),
+        axis=1,
     )  # shape (npoints,nselected) -> (npoints,)
 
     while np.max(distances) > min_distance or len(selected_indices) < num:
@@ -150,7 +154,8 @@ def fps_selection(
         if len(selected_indices) >= num:
             break
         distances = np.minimum(
-            distances, cdist([features[i]], features, metric=metric, **metric_params)[0]
+            distances,
+            cdist([features[i]], features, metric=metric, **metric_params)[0],
         )  # shape (npoints,)
 
     scores = distances
@@ -161,10 +166,10 @@ def fps_selection(
 # - boltz (Boltzmann Selection)
 def boltz_selection(
     boltz: float,
-    props: List[float],
-    input_indices: List[int],
+    props: list[float],
+    input_indices: list[int],
     num_minima: int,
-    rng=np.random,
+    rng: np.random.Generator,
 ):
     """Selected indices based on Boltzmann distribution.
 
@@ -228,9 +233,9 @@ def hist_selection(
     pmin: float,
     pmax: float,
     props: numpy.typing.NDArray,
-    input_indices: List[int],
+    input_indices: list[int],
     num_minima: int,
-    rng=np.random,
+    rng: np.random.Generator,
 ):
     """Histogram-Based Selection.
 

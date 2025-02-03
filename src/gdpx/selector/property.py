@@ -373,6 +373,7 @@ class PropertySelector(BaseSelector):
         pstd = stat_str2val("svar", prop_vals)
 
         # Update pmin and pmax for hist based on input values
+        assert prop_item._pmin is not None and prop_item._pmax is not None
         prop_item._pmin = stat_str2val(prop_item._pmin, prop_vals)
         prop_item._pmax = stat_str2val(prop_item._pmax, prop_vals)
         if prop_item._pmax < prop_item._pmin:
