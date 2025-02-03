@@ -309,9 +309,8 @@ class PropertySelector(BaseSelector):
                     )
                 elif prop_item.name == "min_distance":
                     # TODO: Move to observables?
-                    #       Check if pmax is a valid float?
                     atoms_property = compute_minimum_distance(
-                        atoms, prop_item._pmax
+                        atoms, prop_item.params["cutoff"]
                     )
                 else:
                     # -- any property stored in atoms.info
