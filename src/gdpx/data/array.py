@@ -40,18 +40,8 @@ RETAINED_CALC_PROPS: list[str] = ["energy", "free_energy", "forces"]
 RETAINED_ATOMIC_CALC_PROPS: list[str] = ["forces"]
 
 
-def _flat_data(items):
+def _reshape_data(data: list[Optional[Atoms]], shape: tuple[int, ...]) -> list:
     """"""
-    # if not isinstance(ret, Atoms):
-    if isinstance(items, list) and not isinstance(items[0], Atoms):
-        items = _flat_data(list(itertools.chain(*items)))
-
-    return items
-
-
-def _reshape_data(data, shape):
-    """"""
-    data = data  # NOTE: A PURE LIST
     for i, tsize in enumerate(shape[::-1][:-1]):
         npoints = len(data)
         length = int(npoints / tsize)
@@ -63,16 +53,27 @@ def _reshape_data(data, shape):
     return data
 
 
-def _map_idx(loc, shape):
-    """"""
+def _map_idx(loc: numpy.typing.NDArray, shape: tuple[int, ...]) -> int:
+    """Map a location to an integer index based on the shape.
+
+    Examples:
+        >>> _map_idx([1, 3], (4, 8))
+        11
+
+    """
     i = 0
     for dim, j in enumerate(loc):
         i += j * functools.reduce(operator.mul, ([1] + list(shape[dim + 1 :])))
+
     return i
 
 
-def _process_data(data_nd: list):
-    """"""
+def _process_data(
+    data_nd: list,
+) -> tuple[
+    tuple[int, ...], list[Atoms], numpy.typing.NDArray, Mapping[int, int]
+]:
+    """Process a nested list of Atoms."""
     sizes = [[len(data_nd)]]
 
     def _flat_inhomo_data(items: list) -> list:
@@ -126,13 +127,6 @@ def _process_data(data_nd: list):
 
 
 class AtomsNDArray:
-
-    #: Atoms data.
-    _data: Optional[list[Atoms]] = None
-
-    #:
-    _ind_map: Optional[Mapping[int, int]] = None
-
     """Define an atoms array object.
 
     This definition gives correct interval selection.
@@ -144,7 +138,13 @@ class AtomsNDArray:
         data: Optional[Union[list, "AtomsNDArray"]] = None,
         markers: Optional[numpy.typing.NDArray] = None,
     ) -> None:
-        """Initialise an AtomsArray from a nested list."""
+        """Initialise an AtomsArray from a nested list.
+
+        If the input data is an AtomsNDArray, the input markers will be overwritten by
+        its current markers.
+
+        """
+        # Make the input data a list.
         if data is None:
             data = []
         if isinstance(data, list):
@@ -166,6 +166,7 @@ class AtomsNDArray:
         self._shape, self._data, self._markers, self._ind_map = _process_data(
             data
         )
+
         self._init_markers = copy.deepcopy(self._markers)
 
         # Update markers with the custom input.
@@ -175,7 +176,7 @@ class AtomsNDArray:
         return
 
     @property
-    def shape(self):
+    def shape(self) -> tuple[int, ...]:
         """"""
 
         return self._shape
@@ -206,7 +207,7 @@ class AtomsNDArray:
         return self._markers
 
     @markers.setter
-    def markers(self, new_markers):
+    def markers(self, new_markers: Union[list, numpy.typing.NDArray]):
         """Set new markers.
 
         Args:
@@ -226,18 +227,18 @@ class AtomsNDArray:
         return
 
     @property
-    def init_markers(self) -> np.ndarray:
+    def init_markers(self) -> numpy.typing.NDArray:
         """"""
 
         return self._init_markers
 
-    def reset_markers(self):
+    def reset_markers(self) -> None:
         """"""
         self._markers = copy.deepcopy(self.init_markers)
 
         return
 
-    def get_marked_structures(self, markers=None):
+    def get_marked_structures(self, markers: Optional[numpy.typing.NDArray]=None) -> list[Atoms]:
         """Get structures according to markers.
 
         If custom markers is None, `self._markers` will be used instead.
@@ -255,7 +256,7 @@ class AtomsNDArray:
 
         return structures
 
-    def tolist(self):
+    def tolist(self) -> list:
         """"""
         data_1d = np.full(self.shape, None).flatten().tolist()
         for k, v in self._ind_map.items():
