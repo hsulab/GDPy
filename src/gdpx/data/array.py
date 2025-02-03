@@ -288,7 +288,7 @@ class AtomsNDArray:
     @classmethod
     def _from_hd5grp(cls, grp):
         """Reconstruct an atoms_array from data stored in HDF5 group `images`."""
-        # - rebuild structures
+        # Make clean atoms objects
         natoms_list = grp["natoms"]
 
         images = []
@@ -304,14 +304,14 @@ class AtomsNDArray:
             images.append(atoms)
         nimages = len(images)
 
-        # -- add info
+        # Add atoms.info
         for name in RETAINED_INFO_NAMES:
             data = grp.get(name, default=None)
             if data is not None:
                 for atoms, v in zip(images, data):
                     atoms.info[name] = v
 
-        # add some extra properties (momenta, charges, ...)
+        # Add some extra properties (momenta, charges, ...)
         data = grp.get("momenta", default=None)
         if data is not None:
             for i, v in enumerate(data):
@@ -319,7 +319,7 @@ class AtomsNDArray:
                 if not np.all(np.isnan(a_v)):
                     images[i].set_momenta(a_v)
 
-        # -- add calc
+        # Add calculated properties
         results = [{} for _ in range(nimages)]  # list[Mapping[str,data]]
         for name in RETAINED_CALC_PROPS:
             data = grp.get(name, default=None)
