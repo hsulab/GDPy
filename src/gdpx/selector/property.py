@@ -159,6 +159,8 @@ class PropertySelector(BaseSelector):
     default_parameters = dict(
         name="property",
         params={},
+        metric=None,
+        group=None,
         sparsify={},
         number=[4, 0.2],
     )
@@ -186,6 +188,7 @@ class PropertySelector(BaseSelector):
         num_groups = len(marker_groups)
         self._print(f"number of groups: {num_groups}")
 
+        self._print(f"{self._property.group=}")
         if num_groups > 1:
             if self._property.group is None:
                 selected_markers = self._mark_group_separate(
@@ -209,49 +212,43 @@ class PropertySelector(BaseSelector):
     ):
         """Mark a group of structures based on a representative structure's property."""
 
+        assert prop_item.group is not None
         metric_func = get_metric_func(prop_item.group)
 
-        rep_counter = 0
         rep_groups = []  # data for representative groups
         for grp_name, curr_markers in marker_groups.items():
             curr_frames = data.get_marked_structures(curr_markers)
             curr_nframes = len(curr_frames)
 
-            if curr_nframes > 0:
-                curr_values = self._extract_property(curr_frames, prop_item)
-                metric_val = metric_func(curr_values)
-                # FIXME: how to find index if structures with same properties?
-                rep_frame = curr_frames[curr_values.index(metric_val)]
-                rep_groups.append(
-                    (grp_name, rep_counter, rep_frame, metric_val)
-                )
-                rep_counter += 1
-            else:
-                ...
-        rep_groups = sorted(rep_groups, key=lambda x: x[3])
+            assert (
+                curr_nframes > 0
+            ), f"No structures is found in group {grp_name}."
 
-        rep_frames = [x[2] for x in rep_groups]
+            curr_values = self._extract_property(curr_frames, prop_item)
+            metric_val = metric_func(curr_values)
+            # FIXME: how to find index if structures with same properties?
+            rep_frame = curr_frames[curr_values.index(metric_val)]
+            rep_groups.append((grp_name, rep_frame))
+
+        rep_frames = [x[1] for x in rep_groups]
 
         selected_markers = []
         scores, selected_indices = self._sparsify(prop_item, rep_frames)
-        self._print(f"number of groups: {len(selected_indices)}")
+        self._print(f"number of groups selected: {len(selected_indices)}")
 
         _counter = 0
-        for grp_name, rep_index, _, _ in rep_groups:
-            if rep_index in selected_indices:
-                curr_selected_markers = marker_groups[grp_name]
-                selected_markers.extend(curr_selected_markers)
-                curr_score = scores[selected_indices.index(rep_index)]
-                curr_selected_frames = data.get_marked_structures(
-                    curr_selected_markers
-                )
-                for a in curr_selected_frames:
-                    a.info["score"] = curr_score
-                num_curr_frames = len(curr_selected_frames)
-                self._debug(f"group: {grp_name} -> {num_curr_frames}")
-                _counter += num_curr_frames
-            else:
-                ...
+        for s_i in selected_indices:
+            grp_name = rep_groups[s_i][0]
+            curr_selected_markers = marker_groups[grp_name]
+            selected_markers.extend(curr_selected_markers)
+            curr_score = scores[selected_indices.index(s_i)]
+            curr_selected_frames = data.get_marked_structures(
+                curr_selected_markers
+            )
+            for a in curr_selected_frames:
+                a.info["score"] = curr_score
+            num_curr_frames = len(curr_selected_frames)
+            _counter += num_curr_frames
 
         assert _counter == len(selected_markers)
 
