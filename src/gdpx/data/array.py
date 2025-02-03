@@ -71,6 +71,60 @@ def _map_idx(loc, shape):
     return i
 
 
+def _process_data(data_nd: list):
+    """"""
+    sizes = [[len(data_nd)]]
+
+    def _flat_inhomo_data(items: list) -> list:
+        """Flatten the nested list.
+
+        The input items must be a nested list only with Atoms or None elements.
+
+        """
+        if isinstance(items, list) or isinstance(items, tuple):
+            if not (isinstance(items[0], Atoms) or items[0] is None):
+                sizes.append([len(item) for item in items])
+                items = _flat_inhomo_data(list(itertools.chain(*items)))
+            else:
+                return items
+        else:
+            ...
+
+        return items
+
+    # NOTE: properly deal with None?
+    data_1d = [a for a in _flat_inhomo_data(data_nd) if a is not None]
+    shape = tuple([max(s) for s in sizes])
+
+    def _assign_markers(arr, seq):
+        if isinstance(arr, list):  # assume it is a list
+            if arr[0] is None:  # arr.ndim == 1:
+                inds = []
+                for i, a in enumerate(seq):
+                    if isinstance(a, Atoms):
+                        inds.append(i)
+                m = len(arr)
+                for i in range(m):
+                    if i in inds:
+                        arr[i] = True
+                    else:
+                        arr[i] = False
+            else:
+                for subarr, subseq in itertools.zip_longest(
+                    arr, seq, fillvalue=()
+                ):
+                    _assign_markers(subarr, subseq)
+        else:
+            ...
+
+    raw_markers = np.full(shape, None).tolist()
+    _ = _assign_markers(raw_markers, data_nd)
+    markers_1d = np.argwhere(raw_markers)
+    ind_map = {_map_idx(loc, shape): i for i, loc in enumerate(markers_1d)}
+
+    return shape, data_1d, markers_1d, ind_map
+
+
 class AtomsNDArray:
 
     #: Atoms data.
@@ -86,7 +140,9 @@ class AtomsNDArray:
     """
 
     def __init__(
-        self, data: Optional[Union[list, "AtomsNDArray"]] = None, markers=None
+        self,
+        data: Optional[Union[list, "AtomsNDArray"]] = None,
+        markers: Optional[numpy.typing.NDArray] = None,
     ) -> None:
         """Initialise an AtomsArray from a nested list."""
         if data is None:
@@ -97,81 +153,26 @@ class AtomsNDArray:
             markers = data.markers  # overwrite input markers
             data = data.tolist()
         else:
-            raise ValueError(
-                f"Data should be a list or a AtomsNDArray instead of {type(data)}."
+            raise Exception(
+                f"The input data should be a list or a AtomsNDArray instead of {type(data)}."
             )
 
-        assert data is not None
+        assert isinstance(
+            data, list
+        ), "The input data for AtomsNDArray should be a list."
         if len(data) == 0:
-            raise RuntimeError(f"Input data is empty as {data}.")
+            raise Exception(f"The input data is empty as {data}.")
 
-        self._shape, self._data, self._markers, self._ind_map = (
-            self._process_data(data)
+        self._shape, self._data, self._markers, self._ind_map = _process_data(
+            data
         )
         self._init_markers = copy.deepcopy(self._markers)
 
-        # TODO: Check IndexError?
+        # Update markers with the custom input.
         if markers is not None:
             self.markers = markers
 
         return
-
-    @staticmethod
-    def _process_data(data_nd):
-        """"""
-        sizes = [[len(data_nd)]]
-
-        def _flat_inhomo_data(items: list):
-            """"""
-            if isinstance(items, list) or isinstance(items, tuple):
-                # NOTE: The input items must be a nested list only with Atoms or None elements
-                # print(f"current size: {sizes}")
-                # print(f"current size: {items[0]}")
-                if not (isinstance(items[0], Atoms) or items[0] is None):
-                    sizes.append([len(item) for item in items])
-                    items = _flat_inhomo_data(list(itertools.chain(*items)))
-                else:
-                    return items
-            else:
-                ...
-
-            return items
-
-        # NOTE: properly deal with None?
-        data_1d = [a for a in _flat_inhomo_data(data_nd) if a is not None]
-        shape = tuple([max(s) for s in sizes])
-        # print(f"sizes: {sizes}")
-        # print(f"shape: {shape}")
-
-        def assign_markers(arr, seq):
-            # print(arr)
-            # print(seq)
-            if isinstance(arr, list):  # assume it is a list
-                if arr[0] is None:  # arr.ndim == 1:
-                    inds = []
-                    for i, a in enumerate(seq):
-                        if isinstance(a, Atoms):
-                            inds.append(i)
-                    m = len(arr)
-                    for i in range(m):
-                        if i in inds:
-                            arr[i] = True
-                        else:
-                            arr[i] = False
-                else:
-                    for subarr, subseq in itertools.zip_longest(
-                        arr, seq, fillvalue=()
-                    ):
-                        assign_markers(subarr, subseq)
-            else:
-                ...
-
-        raw_markers = np.full(shape, None).tolist()
-        _ = assign_markers(raw_markers, data_nd)
-        markers_1d = np.argwhere(raw_markers)
-        ind_map = {_map_idx(loc, shape): i for i, loc in enumerate(markers_1d)}
-
-        return shape, data_1d, markers_1d, ind_map
 
     @property
     def shape(self):
