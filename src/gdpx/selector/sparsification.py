@@ -3,14 +3,54 @@
 
 
 import copy
+import dataclasses
 
 import numpy as np
 import numpy.typing
 from scipy.sparse.linalg import LinearOperator, svds
 from scipy.spatial.distance import cdist
 
-"""Methods for selection of vector-based descriptors.
-"""
+
+@dataclasses.dataclass
+class Sparsification:
+
+    method: str
+
+
+@dataclasses.dataclass
+class FilterSparsify(Sparsification):
+
+    method: str = "filter"
+
+    resverse: bool = False
+
+
+@dataclasses.dataclass
+class SortSparsify(Sparsification):
+
+    method: str = "sort"
+
+    reverse: bool = False
+
+
+@dataclasses.dataclass
+class HistSparsify(Sparsification):
+
+    method: str = "hist"
+
+
+@dataclasses.dataclass
+class BoltzSparsify(Sparsification):
+
+    method: str = "boltz"
+
+
+IMPLEMENTED_SPARSIFY_METHODS = dict(
+    filter=FilterSparsify,
+    sort=SortSparsify,
+    hist=HistSparsify,
+    boltz=BoltzSparsify,
+)
 
 
 def descriptor_svd(at_descs, num: int, do_vectors="vh"):

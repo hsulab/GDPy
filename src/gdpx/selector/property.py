@@ -3,8 +3,9 @@
 
 
 import collections
+import copy
 import dataclasses
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -14,7 +15,11 @@ from gdpx.data.array import AtomsNDArray
 
 from ..describer.interface import DescriberVariable
 from .selector import BaseSelector
-from .sparsification import boltz_selection, hist_selection
+from .sparsification import (
+    IMPLEMENTED_SPARSIFY_METHODS,
+    boltz_selection,
+    hist_selection,
+)
 from .utils import group_structures_by_axis, stat_str2val
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
@@ -89,8 +94,8 @@ class PropertyItem:
     #: Apply group selection.
     group: Optional[str] = None
 
-    #: Sparsifiction method. [filter, sort, hist, boltz]
-    sparsify: str = "filter"
+    #: Sparsifiction method.
+    sparsify: dict = dataclasses.field(default_factory=dict)
 
     #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
@@ -141,12 +146,16 @@ class PropertyItem:
             self._metric_functions = []
 
         # Check sparsification method
-        assert self.sparsify in [
-            "filter",
-            "sort",
-            "hist",
-            "boltz",
-        ], f"Unknown sparsification {self.sparsify}."
+        sparsify_params = copy.deepcopy(self.sparsify)
+        sparsify_method = sparsify_params.pop("method", "filter")
+        if sparsify_method not in IMPLEMENTED_SPARSIFY_METHODS:
+            raise NotImplementedError(
+                f"Unknown sparsification method {sparsify_method}."
+            )
+        else:
+            self._sparsify = IMPLEMENTED_SPARSIFY_METHODS[sparsify_method](
+                **sparsify_params
+            )
 
         return
 
@@ -427,8 +436,10 @@ class PropertySelector(BaseSelector):
 
         nframes = len(frames)
 
+        sparsify_method = prop_item._sparsify.method
+
         curr_indices, scores = [], []
-        if prop_item.sparsify == "filter":
+        if sparsify_method == "filter":
             # -- select current property
             # TODO: possibly use np.where to replace this code
             if not prop_item.reverse:
@@ -443,7 +454,7 @@ class PropertySelector(BaseSelector):
                     ):
                         curr_indices.append(i)
             scores = [prop_vals[i] for i in curr_indices]
-        elif prop_item.sparsify == "sort":
+        elif sparsify_method == "sort":
             numbers = list(range(nframes))
             sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
 
@@ -461,7 +472,7 @@ class PropertySelector(BaseSelector):
                 ]
             else:
                 ...
-        elif prop_item.sparsify == "hist":
+        elif sparsify_method == "hist":
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
             scores, curr_indices = hist_selection(
@@ -473,7 +484,7 @@ class PropertySelector(BaseSelector):
                 num_fixed,
                 self.rng,
             )
-        elif prop_item.sparsify == "boltz":
+        elif sparsify_method == "boltz":
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
             scores, curr_indices = boltz_selection(
