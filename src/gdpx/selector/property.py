@@ -86,11 +86,6 @@ class PropertyItem:
     #: metric config...
     metric: Optional[Union[str, list[str]]] = None
 
-    #: List of functions, min, max, average and ...
-    _metric: list[Callable] = dataclasses.field(
-        init=False, default_factory=list
-    )
-
     #: Apply group selection.
     group: Optional[str] = None
 
@@ -154,9 +149,9 @@ class PropertyItem:
                     raise NotImplementedError(
                         f"Unknown metric function {metric_name}."
                     )
-                self._metric.append(metric_func)
+                self._metric_functions.append(metric_func)
         else:
-            self._metric = []
+            self._metric_functions = []
 
         # - sparsify
         assert self.sparsify in [
@@ -170,11 +165,11 @@ class PropertyItem:
 
     def _convert_raw_(self, raws_, weights_=None):
         """Convert raw values by the metric."""
-        if len(self._metric) > 0:
+        if len(self._metric_functions) > 0:
             converts_ = []
             for raw_ in raws_:
                 convert_ = raw_  # NOTE: copy?
-                for metric_func in self._metric:
+                for metric_func in self._metric_functions:
                     convert_ = metric_func(convert_)
                 converts_.append(convert_)
         else:
