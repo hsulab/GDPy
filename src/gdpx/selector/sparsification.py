@@ -4,6 +4,9 @@
 
 import copy
 import dataclasses
+from typing import Optional
+
+from ase import units
 
 import numpy as np
 import numpy.typing
@@ -59,6 +62,24 @@ class HistSparsify(Sparsification):
 class BoltzSparsify(Sparsification):
 
     method: str = "boltz"
+
+    #: Boltzmann temperature [K].
+    temperature: Optional[float] = None
+
+    #: Boltzmann temperature in energy [eV].
+    kBT: Optional[float] = None
+
+    def __post_init__(self):
+        """"""
+        if self.temperature is not None:
+            self.kBT = units.kB * self.temperature
+        else:
+            if self.kBT is not None:
+                self.temperature = self.kBT / units.kB
+            else:
+                raise Exception("Either temperature or kBT should be provided.")
+
+        return
 
 
 IMPLEMENTED_SPARSIFY_METHODS = dict(

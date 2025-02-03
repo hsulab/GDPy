@@ -88,7 +88,7 @@ class PropertyItem:
     #: Parameters for initialising a describer.
     params: dict = dataclasses.field(default_factory=dict)
 
-    #: metric config...
+    #: The metric functions applied to the property values.
     metric: Optional[Union[str, list[str]]] = None
 
     #: Apply group selection.
@@ -104,9 +104,6 @@ class PropertyItem:
 
     #: Number of bins for histogram-based sparsification.
     nbins: int = 20
-
-    #: Boltzmann temperature (eV).
-    kBT: Optional[float] = None
 
     def __post_init__(self):
         """"""
@@ -485,7 +482,7 @@ class PropertySelector(BaseSelector):
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
             scores, curr_indices = boltz_selection(
-                prop_item.kBT,
+                prop_item._sparsify.kBT,
                 [prop_vals[i] for i in prev_indices],
                 prev_indices,
                 num_fixed,
