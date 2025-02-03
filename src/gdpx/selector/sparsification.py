@@ -4,12 +4,11 @@
 
 import copy
 import dataclasses
-from typing import Optional
-
-from ase import units
+from typing import Optional, Union
 
 import numpy as np
 import numpy.typing
+from ase import units
 from scipy.sparse.linalg import LinearOperator, svds
 from scipy.spatial.distance import cdist
 
@@ -21,7 +20,35 @@ class Sparsification:
 
 
 @dataclasses.dataclass
-class FilterSparsify(Sparsification):
+class ScalarSparsification:
+    """Sparsification based on scalar properties."""
+
+    method: str
+
+    #: Property range to filter, which should be two strings or two numbers or mixed.
+    range: list[Optional[Union[float, str]]] = dataclasses.field(
+        default_factory=lambda: [None, None]
+    )
+
+    #: Number of bins for histogram.
+    nbins: int = 20
+
+    def __post_init__(self):
+        """"""
+        # Check lower and upper limits
+        bounds_ = self.range
+        if bounds_[0] is None:
+            bounds_[0] = "min"
+        if bounds_[1] is None:
+            bounds_[1] = "max"
+
+        self._pmin, self._pmax = bounds_
+
+        return
+
+
+@dataclasses.dataclass
+class FilterSparsify(ScalarSparsification):
     """Filter-based sparsification.
 
     The items with property values in the range will be selected.
@@ -37,8 +64,7 @@ class FilterSparsify(Sparsification):
 
 
 @dataclasses.dataclass
-class SortSparsify(Sparsification):
-
+class SortSparsify(ScalarSparsification):
     """Sort-based sparsification.
 
     A given number of items will be selected based on the sorted property values.
@@ -53,13 +79,13 @@ class SortSparsify(Sparsification):
 
 
 @dataclasses.dataclass
-class HistSparsify(Sparsification):
+class HistSparsify(ScalarSparsification):
 
     method: str = "hist"
 
 
 @dataclasses.dataclass
-class BoltzSparsify(Sparsification):
+class BoltzSparsify(ScalarSparsification):
 
     method: str = "boltz"
 
@@ -77,7 +103,9 @@ class BoltzSparsify(Sparsification):
             if self.kBT is not None:
                 self.temperature = self.kBT / units.kB
             else:
-                raise Exception("Either temperature or kBT should be provided.")
+                raise Exception(
+                    "Either temperature or kBT should be provided."
+                )
 
         return
 
@@ -195,6 +223,27 @@ def fps_selection(
         )  # shape (npoints,)
 
     scores = distances
+
+    return scores, selected_indices
+
+
+def select_by_filter(
+    props: list[float], pmin: float, pmax: float, reverse: bool
+) -> tuple[list[float], list[int]]:
+    """"""
+    num_points = len(props)
+
+    # TODO: possibly use np.where to replace this code
+    selected_indices, scores = [], []
+    if not reverse:
+        for i in range(num_points):
+            if pmin <= props[i] <= pmax:
+                selected_indices.append(i)
+    else:
+        for i in range(num_points):
+            if pmin > props[i] and props[i] > pmax:
+                selected_indices.append(i)
+    scores = [props[i] for i in selected_indices]
 
     return scores, selected_indices
 

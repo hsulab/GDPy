@@ -17,8 +17,10 @@ from ..describer.interface import DescriberVariable
 from .selector import BaseSelector
 from .sparsification import (
     IMPLEMENTED_SPARSIFY_METHODS,
+    ScalarSparsification,
     boltz_selection,
     hist_selection,
+    select_by_filter
 )
 from .utils import group_structures_by_axis, stat_str2val
 
@@ -97,25 +99,8 @@ class PropertyItem:
     #: Sparsifiction method.
     sparsify: dict = dataclasses.field(default_factory=dict)
 
-    #: Property range to filter, which should be two strings or two numbers or mixed.
-    range: list[Optional[Union[float, str]]] = dataclasses.field(
-        default_factory=lambda: [None, None]
-    )
-
-    #: Number of bins for histogram-based sparsification.
-    nbins: int = 20
-
     def __post_init__(self):
         """"""
-        # Check lower and upper limits
-        bounds_ = self.range
-        if bounds_[0] is None:
-            bounds_[0] = "min"
-        if bounds_[1] is None:
-            bounds_[1] = "max"
-
-        self._pmin, self._pmax = bounds_
-
         # Map meteric functions
         if self.metric is not None:
             if isinstance(self.metric, str):
@@ -361,26 +346,28 @@ class PropertySelector(BaseSelector):
 
         return prop_vals
 
-    def _statistics(self, prop_item: PropertyItem, prop_vals):
-        """"""
-        # Get basic statistics
+    def _statistics(self, prop_name, prop_vals, sparsify: ScalarSparsification):
+        """Show statistics of the property and update the lower and upper limites of the sparsification."""
+        # Get basic statistics for property values
         pmax = stat_str2val("max", prop_vals)
         pmin = stat_str2val("min", prop_vals)
 
         pavg = stat_str2val("avg", prop_vals)
         pstd = stat_str2val("std", prop_vals)
 
-        # Update pmin and pmax for hist based on input values
-        assert prop_item._pmin is not None and prop_item._pmax is not None
-        prop_item._pmin = stat_str2val(prop_item._pmin, prop_vals)
-        prop_item._pmax = stat_str2val(prop_item._pmax, prop_vals)
-        if prop_item._pmax < prop_item._pmin:
-            prop_item._pmax = prop_item._pmin
+        # Update sparsification's pmin and pmax by a custom range
+        s_pmin, s_pmax = sparsify._pmin, sparsify._pmax
+        assert s_pmin is not None and s_pmax is not None
+        s_pmin = stat_str2val(s_pmin, prop_vals)
+        s_pmax = stat_str2val(s_pmax, prop_vals)
+        if s_pmax < s_pmin:
+            s_pmax = s_pmin
 
-        hist_max, hist_min = prop_item._pmax, prop_item._pmin
+        nbins = sparsify.nbins
+        hist_max, hist_min = s_pmax, s_pmin
 
         bins = np.linspace(
-            hist_min, hist_max, prop_item.nbins, endpoint=False
+            hist_min, hist_max, nbins, endpoint=False
         ).tolist()
         bins.append(hist_max)
         hist, bin_edges = np.histogram(
@@ -388,12 +375,12 @@ class PropertySelector(BaseSelector):
         )
 
         # Output histogram
-        content = f"# Property {prop_item.name}\n"
+        content = f"# Property {prop_name}\n"
         content += f"# min {pmin:<12.4f} max {pmax:<12.4f}\n"
         content += f"# avg {pavg:<12.4f} std {pstd:<12.4f}\n"
         content += f"# histogram of {np.sum(hist)} points in the range (npoints: {len(prop_vals)})\n"
         content += (
-            f"# min {prop_item._pmin:<12.4f} max {prop_item._pmax:<12.4f}\n"
+            f"# min {s_pmin:<12.4f} max {s_pmax:<12.4f}\n"
         )
         for x, y in zip(hist, bin_edges[:-1]):
             content += f"{y:>12.4f}  {x:>12d}\n"
@@ -401,7 +388,7 @@ class PropertySelector(BaseSelector):
 
         with open(
             self.info_fpath.parent
-            / (self.info_fpath.stem + f"-{prop_item.name}-stat.txt"),
+            / (self.info_fpath.stem + f"-{prop_name}-stat.txt"),
             "w",
         ) as fopen:
             fopen.write(content)
@@ -418,8 +405,8 @@ class PropertySelector(BaseSelector):
         prop_vals = self._extract_property(frames, prop_item)
 
         # Give statistics of this property
-        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES:
-            self._statistics(prop_item, prop_vals)
+        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(prop_item._sparsify, ScalarSparsification):
+            self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
         elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
             unique_types = sorted(list(set(prop_vals)))
             counter = collections.Counter(prop_vals)
@@ -434,20 +421,12 @@ class PropertySelector(BaseSelector):
 
         curr_indices, scores = [], []
         if sparsify_method == "filter":
-            # -- select current property
-            # TODO: possibly use np.where to replace this code
-            if not prop_item._sparsify.reverse:
-                for i in range(nframes):
-                    if prop_item._pmin <= prop_vals[i] <= prop_item._pmax:
-                        curr_indices.append(i)
-            else:
-                for i in range(nframes):
-                    if (
-                        prop_item._pmin > prop_vals[i]
-                        and prop_vals[i] > prop_item._pmax
-                    ):
-                        curr_indices.append(i)
-            scores = [prop_vals[i] for i in curr_indices]
+            scores, curr_indices = select_by_filter(
+                [prop_vals[i] for i in range(nframes)],
+                pmin=prop_item._sparsify._pmin,
+                pmax=prop_item._sparsify._pmax,
+                reverse=prop_item._sparsify.reverse,
+            )
         elif sparsify_method == "sort":
             numbers = list(range(nframes))
             sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
@@ -470,9 +449,9 @@ class PropertySelector(BaseSelector):
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))
             scores, curr_indices = hist_selection(
-                prop_item.nbins,
-                prop_item._pmin,
-                prop_item._pmax,
+                prop_item._sparsify.nbins,
+                prop_item._sparsify._pmin,
+                prop_item._sparsify._pmax,
                 [prop_vals[i] for i in prev_indices],
                 prev_indices,
                 num_fixed,
