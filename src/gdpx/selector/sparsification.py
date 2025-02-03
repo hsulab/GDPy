@@ -19,17 +19,33 @@ class Sparsification:
 
 @dataclasses.dataclass
 class FilterSparsify(Sparsification):
+    """Filter-based sparsification.
+
+    The items with property values in the range will be selected.
+    If reverse is True, the items with property values out of the range
+    will be selected.
+
+    """
 
     method: str = "filter"
 
+    #: Whether reverse the sparsifiction behaviour.
     resverse: bool = False
 
 
 @dataclasses.dataclass
 class SortSparsify(Sparsification):
 
+    """Sort-based sparsification.
+
+    A given number of items will be selected based on the sorted property values.
+    If reverse is True, the items with the largest property values will be selected.
+
+    """
+
     method: str = "sort"
 
+    #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
 
 

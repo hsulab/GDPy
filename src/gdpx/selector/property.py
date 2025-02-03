@@ -97,9 +97,6 @@ class PropertyItem:
     #: Sparsifiction method.
     sparsify: dict = dataclasses.field(default_factory=dict)
 
-    #: Whether reverse the sparsifiction behaviour.
-    reverse: bool = False
-
     #: Property range to filter, which should be two strings or two numbers or mixed.
     range: list[Optional[Union[float, str]]] = dataclasses.field(
         default_factory=lambda: [None, None]
@@ -442,7 +439,7 @@ class PropertySelector(BaseSelector):
         if sparsify_method == "filter":
             # -- select current property
             # TODO: possibly use np.where to replace this code
-            if not prop_item.reverse:
+            if not prop_item._sparsify.reverse:
                 for i in range(nframes):
                     if prop_item._pmin <= prop_vals[i] <= prop_item._pmax:
                         curr_indices.append(i)
@@ -459,7 +456,7 @@ class PropertySelector(BaseSelector):
             sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
 
             num_fixed = self._parse_selection_number(nframes)
-            if not prop_item.reverse:
+            if not prop_item._sparsify.reverse:
                 curr_indices = sorted_numbers[:num_fixed]
             else:
                 curr_indices = sorted_numbers[-num_fixed:]
