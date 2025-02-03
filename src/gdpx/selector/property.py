@@ -19,8 +19,6 @@ from .sparsification import (
     IMPLEMENTED_SPARSIFY_METHODS,
     ScalarSparsification,
     boltz_selection,
-    hist_selection,
-    select_by_filter,
 )
 from .utils import group_structures_by_axis, stat_str2val
 
@@ -438,17 +436,16 @@ class PropertySelector(BaseSelector):
             else:
                 ...
         elif sparsify_method == "hist":
-            num_fixed = self._parse_selection_number(nframes)
-            prev_indices = list(range(nframes))
-            scores, curr_indices = hist_selection(
-                prop_item._sparsify.nbins,
-                prop_item._sparsify._pmin,
-                prop_item._sparsify._pmax,
-                [prop_vals[i] for i in prev_indices],
-                prev_indices,
-                num_fixed,
-                self.rng,
+            extra_params = dict(
+                props=[prop_vals[i] for i in range(nframes)],
+                num_selected=self._parse_selection_number(nframes),
+                rng=self.rng,
             )
+            sparsify_params = sparsify.get_sparsify_params()
+            for k, v in extra_params.items():
+                if k in sparsify_params:
+                    sparsify_params[k] = v
+            scores, curr_indices = sparsify.run(**sparsify_params)
         elif sparsify_method == "boltz":
             num_fixed = self._parse_selection_number(nframes)
             prev_indices = list(range(nframes))

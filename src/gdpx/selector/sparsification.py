@@ -4,7 +4,7 @@
 
 import copy
 import dataclasses
-from typing import Optional, Union, Callable
+from typing import Callable, Optional, Union
 
 import numpy as np
 import numpy.typing
@@ -207,28 +207,26 @@ def boltz_selection(
     return scores, selected_indices
 
 
-def hist_selection(
-    nbins: int,
+def select_by_hist(
+    props: numpy.typing.NDArray,
     pmin: float,
     pmax: float,
-    props: numpy.typing.NDArray,
-    input_indices: list[int],
-    num_minima: int,
+    nbins: int,
+    num_selected: int,
     rng: np.random.Generator,
-):
+) -> tuple[list[float], list[int]]:
     """Histogram-Based Selection.
 
     Args:
-        nbins: Number of bins in the histogram.
+        props: The property values.
         pmin: The property minimum.
         pmax: The property maximum.
-        props: The property values.
-        input_indices: No use.
-        num_minima: Number of data points to be selected.
+        nbins: Number of bins in the histogram.
+        num_selected: Number of data points to be selected.
         rng: A random number generator.
 
     Returns:
-        Scores and selected indices.
+        Scores and selected indices. The scores are just property values.
 
     """
     props = np.array(props)
@@ -261,7 +259,7 @@ def hist_selection(
     selected_groups = [[] for _ in range(nbins)]
 
     cur_groups_ = copy.deepcopy(groups)
-    for i in range(num_minima):
+    for i in range(num_selected):
         # select bin
         cur_hists_ = np.array([len(x) for x in cur_groups_])
         curr_npoints = np.sum(cur_hists_)
@@ -273,7 +271,7 @@ def hist_selection(
             selected_groups[s_bin].append(cur_groups_[s_bin][s_ind])
             del cur_groups_[s_bin][s_ind]
         else:
-            # Not enough data points for num_minima
+            # Not enough data points for num_selected
             break
 
     # get selected indices from each bin group
@@ -367,6 +365,21 @@ class SortSparsify(ScalarSparsification):
 class HistSparsify(ScalarSparsification):
 
     method: str = "hist"
+
+    run: Callable = select_by_hist
+
+    def get_sparsify_params(self):
+        """"""
+        params = dict(
+            props=None,
+            pmin=self._pmin,
+            pmax=self._pmax,
+            nbins=self.nbins,
+            num_selected=None,
+            rng=None,
+        )
+
+        return params
 
 
 @dataclasses.dataclass
