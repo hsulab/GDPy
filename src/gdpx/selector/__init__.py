@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import warnings
 
+import warnings
 
 from ..core.register import registers
 
-from .basin import BasinSelector
-
-registers.selector.register(BasinSelector)
+# from .basin import BasinSelector
+# registers.selector.register(BasinSelector)
 
 from .compare import CompareSelector
 
