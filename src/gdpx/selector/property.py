@@ -20,7 +20,7 @@ from .sparsification import (
     ScalarSparsification,
     boltz_selection,
     hist_selection,
-    select_by_filter
+    select_by_filter,
 )
 from .utils import group_structures_by_axis, stat_str2val
 
@@ -163,8 +163,9 @@ class PropertySelector(BaseSelector):
     name = "property"
 
     default_parameters = dict(
-        properties=[],
-        worker=None,  # compute properties on-the-fly
+        name="property",
+        params={},
+        sparsify={},
         number=[4, 0.2],
     )
 
@@ -172,42 +173,32 @@ class PropertySelector(BaseSelector):
         """"""
         super().__init__(*args, **kwargs)
 
-        # Convert input dicts into properties
-        prop_items = []
-        for name, params in self.properties.items():
-            prop_item = PropertyItem(name=name, **params)
-            prop_items.append(prop_item)
-        self._prop_items = prop_items
+        # Convert input paramters into one property
+        prop_params = copy.deepcopy(self.parameters)
+        prop_params.pop("number")
+        self._property = PropertyItem(**prop_params)
 
         return
 
     def _mark_structures(self, data: AtomsNDArray) -> None:
-        """Return selected indices.
+        """Select structures based on pre-computed property."""
 
-        The properties should be pre-computed by other modules.
+        self._print(f"property -> {self._property.name}")
 
-        """
+        # Group markers by certain criteria (axis for now)
+        marker_groups = group_structures_by_axis(data, self.axis)
+        self._debug(f"marker_groups: {marker_groups}")
 
-        for prop_item in self._prop_items:
-            self._print(str(prop_item))
+        if self._property.group is None:
+            selected_markers = self._mark_group_separate(
+                data, self._property, marker_groups
+            )
+        else:
+            selected_markers = self._mark_group_represent(
+                data, self._property, marker_groups
+            )
 
-            # Group markers by certain criteria (axis for now)
-            marker_groups = group_structures_by_axis(data, self.axis)
-            self._debug(f"marker_groups: {marker_groups}")
-
-            if prop_item.group is None:
-                selected_markers = self._mark_group_separate(
-                    data, prop_item, marker_groups
-                )
-            else:
-                selected_markers = self._mark_group_represent(
-                    data, prop_item, marker_groups
-                )
-
-            data.markers = np.array(selected_markers)
-
-            if len(selected_markers) == 0:
-                break
+        data.markers = np.array(selected_markers)
 
         return
 
@@ -346,7 +337,9 @@ class PropertySelector(BaseSelector):
 
         return prop_vals
 
-    def _statistics(self, prop_name, prop_vals, sparsify: ScalarSparsification):
+    def _statistics(
+        self, prop_name, prop_vals, sparsify: ScalarSparsification
+    ):
         """Show statistics of the property and update the lower and upper limites of the sparsification."""
         # Get basic statistics for property values
         pmax = stat_str2val("max", prop_vals)
@@ -366,9 +359,7 @@ class PropertySelector(BaseSelector):
         nbins = sparsify.nbins
         hist_max, hist_min = s_pmax, s_pmin
 
-        bins = np.linspace(
-            hist_min, hist_max, nbins, endpoint=False
-        ).tolist()
+        bins = np.linspace(hist_min, hist_max, nbins, endpoint=False).tolist()
         bins.append(hist_max)
         hist, bin_edges = np.histogram(
             prop_vals, bins=bins, range=(hist_min, hist_max)
@@ -379,9 +370,7 @@ class PropertySelector(BaseSelector):
         content += f"# min {pmin:<12.4f} max {pmax:<12.4f}\n"
         content += f"# avg {pavg:<12.4f} std {pstd:<12.4f}\n"
         content += f"# histogram of {np.sum(hist)} points in the range (npoints: {len(prop_vals)})\n"
-        content += (
-            f"# min {s_pmin:<12.4f} max {s_pmax:<12.4f}\n"
-        )
+        content += f"# min {s_pmin:<12.4f} max {s_pmax:<12.4f}\n"
         for x, y in zip(hist, bin_edges[:-1]):
             content += f"{y:>12.4f}  {x:>12d}\n"
         content += f"{bin_edges[-1]:>12.4f}  {'-':>12s}\n"
@@ -405,7 +394,9 @@ class PropertySelector(BaseSelector):
         prop_vals = self._extract_property(frames, prop_item)
 
         # Give statistics of this property
-        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(prop_item._sparsify, ScalarSparsification):
+        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(
+            prop_item._sparsify, ScalarSparsification
+        ):
             self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
         elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
             unique_types = sorted(list(set(prop_vals)))
