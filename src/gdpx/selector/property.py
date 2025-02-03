@@ -226,8 +226,16 @@ class PropertySelector(BaseSelector):
 
             curr_values = self._extract_property(curr_frames, prop_item)
             metric_val = metric_func(curr_values)
-            # FIXME: how to find index if structures with same properties?
-            rep_frame = curr_frames[curr_values.index(metric_val)]
+
+            # For some groups, there might be multiple frames with the same metric value,
+            # for instance, the minimisation trajectories.
+            for i, val in enumerate(curr_values):
+                if np.isclose(val, metric_val):
+                    rep_frame = curr_frames[i]
+                    break
+            else:
+                rep_frame = None
+            assert rep_frame is not None, f"Cannot find representative frame with metric value {metric_val}."
             rep_groups.append((grp_name, rep_frame))
 
         rep_frames = [x[1] for x in rep_groups]
@@ -235,6 +243,7 @@ class PropertySelector(BaseSelector):
         selected_markers = []
         scores, selected_indices = self._sparsify(prop_item, rep_frames)
         self._print(f"number of groups selected: {len(selected_indices)}")
+        self._print(f"selected_indices: {selected_indices}")
 
         _counter = 0
         for s_i in selected_indices:
