@@ -3,32 +3,29 @@
 
 
 import copy
-import itertools
 import functools
-import operator
+import itertools
 import numbers
-import pathlib
-from typing import Any, Union, Optional, List, Mapping
+import operator
+from typing import Mapping, Optional, Union
 
 import h5py
 import numpy as np
-
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-#:
-GROUP_NAME = "array2d"
-
-#:
-RETAINED_INFO_NAMES: List[str] = [
+#: The retained keys in atoms.info.
+RETAINED_INFO_NAMES: list[str] = [
+    # fmt: off
     "confid", "step",
     "max_devi_e", "min_devi_e", "avg_devi_e",
     "max_devi_v", "min_devi_v", "avg_devi_v",
     "max_devi_f", "min_devi_f", "avg_devi_f"
 ]
 
-#:
-RETAIEND_INFO_DTYPES: List[str] = [
+#: The retained data types in atoms.info.
+RETAIEND_INFO_DTYPES: list[str] = [
+    # fmt: off
     "i8", "i8",
     "f", "f", "f",
     "f", "f", "f",
@@ -36,10 +33,10 @@ RETAIEND_INFO_DTYPES: List[str] = [
 ]
 
 #: Saved calculated property names.
-RETAINED_CALC_PROPS: List[str] = ["energy", "free_energy", "forces"]
+RETAINED_CALC_PROPS: list[str] = ["energy", "free_energy", "forces"]
 
 #: Saved calculated atomic property names.
-RETAINED_ATOMIC_CALC_PROPS: List[str] = ["forces"]
+RETAINED_ATOMIC_CALC_PROPS: list[str] = ["forces"]
 
 
 def _flat_data(items):
@@ -56,10 +53,10 @@ def _reshape_data(data, shape):
     data = data  # NOTE: A PURE LIST
     for i, tsize in enumerate(shape[::-1][:-1]):
         npoints = len(data)
-        length = int(npoints/tsize)
+        length = int(npoints / tsize)
         data_ = []
         for i in range(length):
-            data_.append(data[i*tsize:(i+1)*tsize])
+            data_.append(data[i * tsize : (i + 1) * tsize])
         data = data_
 
     return data
@@ -69,17 +66,17 @@ def _map_idx(loc, shape):
     """"""
     i = 0
     for dim, j in enumerate(loc):
-        i += j*functools.reduce(operator.mul, ([1]+list(shape[dim+1:])))
+        i += j * functools.reduce(operator.mul, ([1] + list(shape[dim + 1 :])))
     return i
 
 
 class AtomsNDArray:
 
     #: Atoms data.
-    _data: Optional[List[Atoms]] = None
+    _data: Optional[list[Atoms]] = None
 
     #: Array shape.
-    _shape: Optional[List[int]] = None
+    _shape: Optional[list[int]] = None
 
     #: Array-like indices.
     _markers = None
@@ -93,8 +90,10 @@ class AtomsNDArray:
 
     """
 
-    def __init__(self, data: Optional[Union[list,'AtomsNDArray']] = None, markers=None) -> None:
-        """Init from a List^n object."""
+    def __init__(
+        self, data: Optional[Union[list, "AtomsNDArray"]] = None, markers=None
+    ) -> None:
+        """Init from a list^n object."""
         # TODO: Check data should be a list
         if data is None:
             data = []
@@ -105,13 +104,15 @@ class AtomsNDArray:
             data = data.tolist()
         else:
             raise ValueError(
-                f"Data should be a list or a AtomsNDArray instead of {type(data)}.")
+                f"Data should be a list or a AtomsNDArray instead of {type(data)}."
+            )
 
         if len(data) == 0:
             raise RuntimeError(f"Input data is empty as {data}.")
 
-        self._shape, self._data, self._markers, self._ind_map = self._process_data(
-            data)
+        self._shape, self._data, self._markers, self._ind_map = (
+            self._process_data(data)
+        )
         self._init_markers = copy.deepcopy(self._markers)
 
         # TODO: Check IndexError?
@@ -129,8 +130,8 @@ class AtomsNDArray:
             """"""
             if isinstance(items, list) or isinstance(items, tuple):
                 # NOTE: The input items must be a nested list only with Atoms or None elements
-                #print(f"current size: {sizes}")
-                #print(f"current size: {items[0]}")
+                # print(f"current size: {sizes}")
+                # print(f"current size: {items[0]}")
                 if not (isinstance(items[0], Atoms) or items[0] is None):
                     sizes.append([len(item) for item in items])
                     items = _flat_inhomo_data(list(itertools.chain(*items)))
@@ -163,7 +164,9 @@ class AtomsNDArray:
                         else:
                             arr[i] = False
                 else:
-                    for subarr, subseq in itertools.zip_longest(arr, seq, fillvalue=()):
+                    for subarr, subseq in itertools.zip_longest(
+                        arr, seq, fillvalue=()
+                    ):
                         assign_markers(subarr, subseq)
             else:
                 ...
@@ -249,8 +252,10 @@ class AtomsNDArray:
         else:
             curr_markers = markers
 
-        structures = [self._data[self._ind_map[_map_idx(
-            loc, self.shape)]] for loc in curr_markers]
+        structures = [
+            self._data[self._ind_map[_map_idx(loc, self.shape)]]
+            for loc in curr_markers
+        ]
 
         return structures
 
@@ -291,8 +296,10 @@ class AtomsNDArray:
             natoms_list, grp["box"], grp["pbc"], grp["atype"], grp["positions"]
         ):
             atoms = Atoms(
-                numbers=atomic_numbers[:natoms], positions=positions[:natoms, :],
-                cell=box.reshape(3, 3), pbc=pbc
+                numbers=atomic_numbers[:natoms],
+                positions=positions[:natoms, :],
+                cell=box.reshape(3, 3),
+                pbc=pbc,
             )
             images.append(atoms)
         nimages = len(images)
@@ -308,12 +315,12 @@ class AtomsNDArray:
         data = grp.get("momenta", default=None)
         if data is not None:
             for i, v in enumerate(data):
-                a_v = v[:natoms_list[i]]
+                a_v = v[: natoms_list[i]]
                 if not np.all(np.isnan(a_v)):
                     images[i].set_momenta(a_v)
 
         # -- add calc
-        results = [{} for _ in range(nimages)]  # List[Mapping[str,data]]
+        results = [{} for _ in range(nimages)]  # list[Mapping[str,data]]
         for name in RETAINED_CALC_PROPS:
             data = grp.get(name, default=None)
             if data is not None:
@@ -321,7 +328,7 @@ class AtomsNDArray:
                     if name not in RETAINED_ATOMIC_CALC_PROPS:
                         results[i][name] = v
                     else:
-                        results[i][name] = v[:natoms_list[i]]
+                        results[i][name] = v[: natoms_list[i]]
 
         for atoms, ret in zip(images, results):
             spc = SinglePointCalculator(atoms, **ret)
@@ -351,7 +358,7 @@ class AtomsNDArray:
 
         return
 
-    def _convert_images(self, grp, images: List[Atoms]):
+    def _convert_images(self, grp, images: list[Atoms]):
         """Convert data...
 
         NOTE:
@@ -364,9 +371,7 @@ class AtomsNDArray:
         boxes = np.array(
             [a.get_cell(complete=True) for a in images], dtype=np.float64
         ).reshape(-1, 9)
-        pbcs = np.array(
-            [a.get_pbc() for a in images], dtype=np.int8
-        )
+        pbcs = np.array([a.get_pbc() for a in images], dtype=np.int8)
         # atomic_numbers = np.array(
         #    [a.get_atomic_numbers() for a in images], dtype=np.int8
         # )
@@ -374,16 +379,18 @@ class AtomsNDArray:
         atomic_numbers = np.zeros((nimages, max(natoms_list)), dtype=np.int32)
         positions = np.zeros((nimages, max(natoms_list), 3), dtype=np.float64)
         for i, a in enumerate(images):
-            atomic_numbers[i, :natoms_list[i]] = a.get_atomic_numbers()
-            positions[i, :natoms_list[i], :] = a.get_positions()
+            atomic_numbers[i, : natoms_list[i]] = a.get_atomic_numbers()
+            positions[i, : natoms_list[i], :] = a.get_positions()
 
         # -- sys props
         natoms_dset = grp.create_dataset(
-            "natoms", data=natoms_list, dtype="i8")
+            "natoms", data=natoms_list, dtype="i8"
+        )
         box_dset = grp.create_dataset("box", data=boxes, dtype="f8")
         pbc_dset = grp.create_dataset("pbc", data=pbcs, dtype="i8")
         atype_dset = grp.create_dataset(
-            "atype", data=atomic_numbers, dtype="i8")
+            "atype", data=atomic_numbers, dtype="i8"
+        )
         pos_dset = grp.create_dataset("positions", data=positions, dtype="f8")
 
         # - add some info
@@ -399,13 +406,14 @@ class AtomsNDArray:
         # -- calc props
         # TODO: without calc properties?
         # NOTE: energy and forces have apply_constraint True...
-        energies = np.array([a.get_potential_energy()
-                            for a in images], dtype=np.float64)
+        energies = np.array(
+            [a.get_potential_energy() for a in images], dtype=np.float64
+        )
         free_energies = []
         for i, a in enumerate(images):
             try:
                 free_energy = a.get_potential_energy(force_consistent=True)
-            except: # Assume no free_energy property is available.
+            except:  # Assume no free_energy property is available.
                 free_energy = energies[i]
             free_energies.append(free_energy)
 
@@ -414,15 +422,17 @@ class AtomsNDArray:
         momenta = np.empty((nimages, max(natoms_list), 3), dtype=np.float64)
         momenta.fill(np.nan)
         for i, a in enumerate(images):
-            forces[i, :natoms_list[i], :] = a.get_forces()
+            forces[i, : natoms_list[i], :] = a.get_forces()
             if "momenta" in a.arrays:
-                momenta[i, :natoms_list[i], :] = a.get_momenta()
+                momenta[i, : natoms_list[i], :] = a.get_momenta()
             else:
                 ...
 
         # save properties to dataset
         ene_dset = grp.create_dataset("energy", data=energies, dtype="f8")
-        fen_dset = grp.create_dataset("free_energy", data=free_energies, dtype="f8")
+        fen_dset = grp.create_dataset(
+            "free_energy", data=free_energies, dtype="f8"
+        )
         frc_dset = grp.create_dataset("forces", data=forces, dtype="f8")
         mom_dset = grp.create_dataset("momenta", data=momenta, dtype="f8")
 
@@ -442,7 +452,7 @@ class AtomsNDArray:
     def __getitem__(self, key):
         """"""
         if isinstance(key, numbers.Integral) or isinstance(key, slice):
-            key = [key] + [slice(None) for _ in range(len(self._shape)-1)]
+            key = [key] + [slice(None) for _ in range(len(self._shape) - 1)]
         elif not isinstance(key, tuple):
             raise IndexError("Index must be an integer, a slice or a tuple.")
         assert len(key) <= len(self._shape), "Out of dimension."
@@ -456,7 +466,8 @@ class AtomsNDArray:
             if isinstance(i, numbers.Integral):
                 if i < -size or i >= size:
                     raise IndexError(
-                        f"index {i} is out of bounds for axis {dim} with size {size}.")
+                        f"index {i} is out of bounds for axis {dim} with size {size}."
+                    )
                     # IndexError: index 1 is out of bounds for axis 0 with size 1
                 if i < 0:
                     i += size
@@ -469,7 +480,8 @@ class AtomsNDArray:
                 tshape.append(len(curr_indices))
             else:
                 raise IndexError(
-                    f"Index must be an integer or a slice for dimension {dim}.")
+                    f"Index must be an integer or a slice for dimension {dim}."
+                )
             indices.append(curr_indices)
         # print(f"tshape: {tshape}")
 
