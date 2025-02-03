@@ -4,128 +4,13 @@
 
 import copy
 import dataclasses
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import numpy as np
 import numpy.typing
 from ase import units
 from scipy.sparse.linalg import LinearOperator, svds
 from scipy.spatial.distance import cdist
-
-
-@dataclasses.dataclass
-class Sparsification:
-
-    method: str
-
-
-@dataclasses.dataclass
-class ScalarSparsification:
-    """Sparsification based on scalar properties."""
-
-    method: str
-
-    #: Property range to filter, which should be two strings or two numbers or mixed.
-    range: list[Optional[Union[float, str]]] = dataclasses.field(
-        default_factory=lambda: [None, None]
-    )
-
-    #: Number of bins for histogram.
-    nbins: int = 20
-
-    def __post_init__(self):
-        """"""
-        # Check lower and upper limits
-        bounds_ = self.range
-        if bounds_[0] is None:
-            bounds_[0] = "min"
-        if bounds_[1] is None:
-            bounds_[1] = "max"
-
-        self._pmin, self._pmax = bounds_
-
-        return
-
-
-@dataclasses.dataclass
-class FilterSparsify(ScalarSparsification):
-    """Filter-based sparsification.
-
-    The items with property values in the range will be selected.
-    If reverse is True, the items with property values out of the range
-    will be selected.
-
-    """
-
-    method: str = "filter"
-
-    #: Whether reverse the sparsifiction behaviour.
-    reverse: bool = False
-
-    def get_sparsify_params(self):
-        """"""
-        params = dict(
-            pmin=self._pmin,
-            pmax=self._pmax,
-            reverse=self.reverse,
-        )
-
-        return params
-
-
-@dataclasses.dataclass
-class SortSparsify(ScalarSparsification):
-    """Sort-based sparsification.
-
-    A given number of items will be selected based on the sorted property values.
-    If reverse is True, the items with the largest property values will be selected.
-
-    """
-
-    method: str = "sort"
-
-    #: Whether reverse the sparsifiction behaviour.
-    reverse: bool = False
-
-
-@dataclasses.dataclass
-class HistSparsify(ScalarSparsification):
-
-    method: str = "hist"
-
-
-@dataclasses.dataclass
-class BoltzSparsify(ScalarSparsification):
-
-    method: str = "boltz"
-
-    #: Boltzmann temperature [K].
-    temperature: Optional[float] = None
-
-    #: Boltzmann temperature in energy [eV].
-    kBT: Optional[float] = None
-
-    def __post_init__(self):
-        """"""
-        if self.temperature is not None:
-            self.kBT = units.kB * self.temperature
-        else:
-            if self.kBT is not None:
-                self.temperature = self.kBT / units.kB
-            else:
-                raise Exception(
-                    "Either temperature or kBT should be provided."
-                )
-
-        return
-
-
-IMPLEMENTED_SPARSIFY_METHODS = dict(
-    filter=FilterSparsify,
-    sort=SortSparsify,
-    hist=HistSparsify,
-    boltz=BoltzSparsify,
-)
 
 
 def descriptor_svd(at_descs, num: int, do_vectors="vh"):
@@ -398,6 +283,124 @@ def hist_selection(
     scores = [props[i] for i in selected_indices]
 
     return scores, selected_indices
+
+
+@dataclasses.dataclass
+class Sparsification:
+
+    method: str
+
+
+@dataclasses.dataclass
+class ScalarSparsification:
+    """Sparsification based on scalar properties."""
+
+    method: str
+
+    #: Property range to filter, which should be two strings or two numbers or mixed.
+    range: list[Optional[Union[float, str]]] = dataclasses.field(
+        default_factory=lambda: [None, None]
+    )
+
+    #: Number of bins for histogram.
+    nbins: int = 20
+
+    def __post_init__(self):
+        """"""
+        # Check lower and upper limits
+        bounds_ = self.range
+        if bounds_[0] is None:
+            bounds_[0] = "min"
+        if bounds_[1] is None:
+            bounds_[1] = "max"
+
+        self._pmin, self._pmax = bounds_
+
+        return
+
+
+@dataclasses.dataclass
+class FilterSparsify(ScalarSparsification):
+    """Filter-based sparsification.
+
+    The items with property values in the range will be selected.
+    If reverse is True, the items with property values out of the range
+    will be selected.
+
+    """
+
+    method: str = "filter"
+
+    #: Whether reverse the sparsifiction behaviour.
+    reverse: bool = False
+
+    #:
+    run: Callable = select_by_filter
+
+    def get_sparsify_params(self):
+        """"""
+        params = dict(
+            pmin=self._pmin,
+            pmax=self._pmax,
+            reverse=self.reverse,
+        )
+
+        return params
+
+
+@dataclasses.dataclass
+class SortSparsify(ScalarSparsification):
+    """Sort-based sparsification.
+
+    A given number of items will be selected based on the sorted property values.
+    If reverse is True, the items with the largest property values will be selected.
+
+    """
+
+    method: str = "sort"
+
+    #: Whether reverse the sparsifiction behaviour.
+    reverse: bool = False
+
+
+@dataclasses.dataclass
+class HistSparsify(ScalarSparsification):
+
+    method: str = "hist"
+
+
+@dataclasses.dataclass
+class BoltzSparsify(ScalarSparsification):
+
+    method: str = "boltz"
+
+    #: Boltzmann temperature [K].
+    temperature: Optional[float] = None
+
+    #: Boltzmann temperature in energy [eV].
+    kBT: Optional[float] = None
+
+    def __post_init__(self):
+        """"""
+        if self.temperature is not None:
+            self.kBT = units.kB * self.temperature
+        else:
+            if self.kBT is not None:
+                self.temperature = self.kBT / units.kB
+            else:
+                raise Exception(
+                    "Either temperature or kBT should be provided."
+                )
+
+        return
+
+
+IMPLEMENTED_SPARSIFY_METHODS = dict(
+    filter=FilterSparsify,
+    sort=SortSparsify,
+    hist=HistSparsify,
+    boltz=BoltzSparsify,
+)
 
 
 if __name__ == "__main__":

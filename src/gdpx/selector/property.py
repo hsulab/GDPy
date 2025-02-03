@@ -409,16 +409,16 @@ class PropertySelector(BaseSelector):
 
         nframes = len(frames)
 
-        sparsify_method = prop_item._sparsify.method
+        sparsify = prop_item._sparsify
+        sparsify_method = sparsify.method
 
         curr_indices, scores = [], []
         if sparsify_method == "filter":
-            scores, curr_indices = select_by_filter(
-                [prop_vals[i] for i in range(nframes)],
-                pmin=prop_item._sparsify._pmin,
-                pmax=prop_item._sparsify._pmax,
-                reverse=prop_item._sparsify.reverse,
+            sparsify_params = sparsify.get_sparsify_params()
+            sparsify_params.update(
+                props=[prop_vals[i] for i in range(nframes)]
             )
+            scores, curr_indices = sparsify.run(**sparsify_params)
         elif sparsify_method == "sort":
             numbers = list(range(nframes))
             sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
