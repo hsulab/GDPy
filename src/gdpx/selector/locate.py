@@ -6,7 +6,8 @@ import itertools
 
 import numpy as np
 
-from ..data.array import AtomsNDArray
+from gdpx.data.array import AtomsNDArray
+
 from .selector import BaseSelector
 
 
@@ -39,7 +40,9 @@ def convert_string_to_indices(indstr: str, length: int, convention="py"):
                 else:
                     start, stop, step = x, x - 1, -1
         elif len(curr_range) == 2:
-            x, y = _convert_string(curr_range[0]), _convert_string(curr_range[1])
+            x, y = _convert_string(curr_range[0]), _convert_string(
+                curr_range[1]
+            )
             start, stop, step = x, y, None
         elif len(curr_range) == 3:
             x, y, z = (
@@ -64,40 +67,43 @@ class LocateSelector(BaseSelector):
         indices=":"  # can be single integer, string or a List of integers
     )
 
-    def __init__(self, *args, **kwargs) -> None:
-        """"""
-        super().__init__(*args, **kwargs)
-
-        return
-
     def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
         """"""
-        super()._mark_structures(data, *args, **kwargs)
-
-        axis = self.group_by
-        if axis < 0:
-            axis = data.ndim + axis
-        indices = self.indices
-
         # This is similar to np.take_along_axis
         if data.ndim > 0:
-            marker_groups = {}
-            for k, v in itertools.groupby(
-                data.markers,
-                key=lambda x: [x[i] for i in range(data.ndim) if i != axis],
-            ):
-                k = tuple(k)
-                if k in marker_groups:
-                    marker_groups[k].extend(list(v))
-                else:
-                    marker_groups[k] = list(v)
+            # Group markers by axis
+            # TODO: The group behaviour below is not consistent with others.
+            axis = self.group_by
+            if axis is not None:
+                if axis < 0:
+                    axis = data.ndim + axis
+
+                marker_groups = {}
+                for k, v in itertools.groupby(
+                    data.markers,
+                    key=lambda x: [
+                        x[i] for i in range(data.ndim) if i != axis
+                    ],
+                ):
+                    k = tuple(k)
+                    if k in marker_groups:
+                        marker_groups[k].extend(list(v))
+                    else:
+                        marker_groups[k] = list(v)
+            else:
+                marker_groups = dict(all=data.markers)
+            # Get selected markers
             selected_markers = []
             for k, v in marker_groups.items():
                 v = sorted(np.array(v).tolist())
                 selected_markers.extend(
-                    [v[i] for i in convert_string_to_indices(self.indices, len(v))]
+                    [
+                        v[i]
+                        for i in convert_string_to_indices(
+                            self.indices, len(v)
+                        )
+                    ]
                 )
-            # self._print(f"selected_markers: {selected_markers}")
         else:
             raise RuntimeError(
                 f"Locator does not support array dimension with {data.ndim}"
