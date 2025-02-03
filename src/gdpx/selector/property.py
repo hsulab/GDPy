@@ -355,6 +355,7 @@ class PropertySelector(BaseSelector):
         s_pmax = stat_str2val(s_pmax, prop_vals)
         if s_pmax < s_pmin:
             s_pmax = s_pmin
+        sparsify._pmin, sparsify._pmax = s_pmin, s_pmax
 
         nbins = sparsify.nbins
         hist_max, hist_min = s_pmax, s_pmin

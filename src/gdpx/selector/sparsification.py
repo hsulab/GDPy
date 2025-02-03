@@ -60,7 +60,17 @@ class FilterSparsify(ScalarSparsification):
     method: str = "filter"
 
     #: Whether reverse the sparsifiction behaviour.
-    resverse: bool = False
+    reverse: bool = False
+
+    def get_sparsify_params(self):
+        """"""
+        params = dict(
+            pmin=self._pmin,
+            pmax=self._pmax,
+            reverse=self.reverse,
+        )
+
+        return params
 
 
 @dataclasses.dataclass
