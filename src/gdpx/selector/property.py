@@ -183,12 +183,20 @@ class PropertySelector(BaseSelector):
         marker_groups = group_structures_by_axis(data, self.axis)
         self._debug(f"marker_groups: {marker_groups}")
 
-        if self._property.group is None:
-            selected_markers = self._mark_group_separate(
-                data, self._property, marker_groups
-            )
+        num_groups = len(marker_groups)
+        self._print(f"number of groups: {num_groups}")
+
+        if num_groups > 1:
+            if self._property.group is None:
+                selected_markers = self._mark_group_separate(
+                    data, self._property, marker_groups
+                )
+            else:
+                selected_markers = self._mark_group_represent(
+                    data, self._property, marker_groups
+                )
         else:
-            selected_markers = self._mark_group_represent(
+            selected_markers = self._mark_group_separate(
                 data, self._property, marker_groups
             )
 
@@ -262,7 +270,9 @@ class PropertySelector(BaseSelector):
                 scores, selected_indices = self._sparsify(
                     prop_item, curr_frames
                 )
-                self._print(f"group: {grp_name} -> number of structures: {len(selected_indices)}")
+                self._print(
+                    f"group: {grp_name} -> number of structures: {len(selected_indices)}"
+                )
                 curr_selected_markers = [
                     curr_markers[i] for i in selected_indices
                 ]
