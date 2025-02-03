@@ -3,18 +3,17 @@
 
 
 import copy
-import itertools
 
 import numpy as np
 import numpy.typing
 from ase import Atoms
 from dscribe.descriptors import SOAP
 
-from .sparsification import cur_selection, fps_selection
-from .selector import BaseSelector
+from gdpx.data.array import AtomsNDArray
 
-"""Selector using descriptors.
-"""
+from .clustering import group_structures_by_axis
+from .selector import BaseSelector
+from .sparsification import cur_selection, fps_selection
 
 
 class DescriptorSelector(BaseSelector):
@@ -23,7 +22,6 @@ class DescriptorSelector(BaseSelector):
     name = "dscribe"
 
     default_parameters = dict(
-        mode="stru",
         descriptor=None,
         sparsify=dict(
             # -- cur
@@ -44,14 +42,12 @@ class DescriptorSelector(BaseSelector):
         """"""
         super().__init__(*args, **kwargs)
 
-        # - check params
+        # Verify params
         criteria_method = self.sparsify["method"]
         assert criteria_method in [
             "cur",
             "fps",
         ], f"Unknown selection method {criteria_method}."
-
-        assert self.mode in ["stru", "traj"], f"Unknown selection mode {self.mode}."
 
         return
 
@@ -85,36 +81,28 @@ class DescriptorSelector(BaseSelector):
 
         return features
 
-    def _mark_structures(self, data, *args, **kwargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray) -> None:
         """Mark structures.
 
         The selected_indices is the local indices for input markers.
 
         """
-        # - group markers
-        if self.group_by is None:
-            marker_groups = dict(all=data.markers)
-        else:
-            marker_groups = {}
-            for k, v in itertools.groupby(data.markers, key=lambda x: x[self.group_by]):
-                if k in marker_groups:
-                    marker_groups[k].extend(list(v))
-                else:
-                    marker_groups[k] = list(v)
+        # Group markers
+        marker_groups = group_structures_by_axis(data, axis=self.axis)
         self._debug(f"marker_groups: {marker_groups}")
 
         selected_markers = []
         features, sind_grps, oind_grps = None, {}, {}
         for grp_name, markers in marker_groups.items():
-            frames = data.get_marked_structures(markers)  # reference of atoms
+            frames = data.get_marked_structures(markers)
 
-            # -
-            curr_features, curr_selected_indices = self._select_structures(frames)
-            # - update markers
+            curr_features, curr_selected_indices = self._select_structures(
+                frames
+            )
             curr_selected_markers = [markers[i] for i in curr_selected_indices]
             selected_markers.extend(curr_selected_markers)
 
-            # - prepare for plot
+            # Prepare for plotting
             if curr_selected_indices:
                 if features is None:
                     curr_nframes = 0
@@ -122,10 +110,14 @@ class DescriptorSelector(BaseSelector):
                 else:
                     curr_nframes = features.shape[0]
                     features = np.vstack((features, curr_features))
-                # - selected ones
-                sind_grps[grp_name] = [x + curr_nframes for x in curr_selected_indices]
-                # - other ones
-                oind_grps[grp_name] = [x + curr_nframes for x in range(len(markers))]
+                # Selected ones
+                sind_grps[grp_name] = [
+                    x + curr_nframes for x in curr_selected_indices
+                ]
+                # Other ones
+                oind_grps[grp_name] = [
+                    x + curr_nframes for x in range(len(markers))
+                ]
 
         if any([len(v) for k, v in sind_grps.items()]):
             self._plot_results(features, sind_grps, oind_grps)
@@ -139,8 +131,6 @@ class DescriptorSelector(BaseSelector):
         nframes = len(frames)
         num_fixed = self._parse_selection_number(nframes)
 
-        # NOTE: currently, only cur and fps are supported
-        # TODO: clustering ...
         if num_fixed > 0:
             features = self._compute_descripter(frames)
             if nframes == 1:
@@ -160,11 +150,9 @@ class DescriptorSelector(BaseSelector):
 
     def _sparsify(self, features, num_fixed: int):
         """"""
-        # TODO: sparsify each traj separately?
         criteria_params = copy.deepcopy(self.sparsify)
         method = criteria_params.pop("method", "cur")
         if method == "cur":
-            # -- cur decomposition
             scores, selected_indices = cur_selection(
                 features, num_fixed, **criteria_params, rng=self.rng
             )
@@ -173,11 +161,11 @@ class DescriptorSelector(BaseSelector):
                 features, num_fixed, **criteria_params, rng=self.rng
             )
         else:
-            ...
+            raise Exception(f"Unknown sparsification {method}.")
 
         return scores, selected_indices
 
-    def _plot_results(self, features, groups: dict, others: dict, *args, **kwargs):
+    def _plot_results(self, features, groups: dict, others: dict):
         """"""
         # - plot selection
         import matplotlib.pyplot as plt
@@ -204,7 +192,9 @@ class DescriptorSelector(BaseSelector):
                     label=f"grp-{grp_name} {len(others[grp_name])} -> {len(inds)}",
                 )
                 # --
-                selected_proj = reducer.transform(np.array([features[i] for i in inds]))
+                selected_proj = reducer.transform(
+                    np.array([features[i] for i in inds])
+                )
                 ax.scatter(
                     selected_proj[:, 0],
                     selected_proj[:, 1],
@@ -214,7 +204,9 @@ class DescriptorSelector(BaseSelector):
                 )
             ax.legend(fontsize=12)
             ax.axis("off")
-            fig.savefig(self.info_fpath.parent / (self.info_fpath.stem + ".png"))
+            fig.savefig(
+                self.info_fpath.parent / (self.info_fpath.stem + ".png")
+            )
             plt.close()
         else:
             ...  # Cannot plot PCA with only one structure...
