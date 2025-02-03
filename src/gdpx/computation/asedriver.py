@@ -682,12 +682,16 @@ class AseDriver(AbstractDriver):
         """"""
         verified = super()._verify_checkpoint()
         if verified:
-            asetraj = self.directory / self.xyz_fname
-            if asetraj.exists() and asetraj.stat().st_size != 0:
-                temp_frames = read(asetraj, ":")
-                try:
-                    _ = temp_frames[0].get_forces()
-                except:  # `RuntimeError: Atoms object has no calculator.`
+            ckpt_dir = self._find_latest_checkpoint(self.directory)
+            if ckpt_dir is not None:
+                ckpt_stru_fpath = ckpt_dir / "structures.xyz"
+                if ckpt_stru_fpath.exists() and ckpt_stru_fpath.stat().st_size != 0:
+                    temp_frames = read(ckpt_stru_fpath, ":")
+                    try:
+                        _ = temp_frames[0].get_forces()
+                    except:  # `RuntimeError: Atoms object has no calculator.`
+                        verified = False
+                else:
                     verified = False
             else:
                 verified = False
@@ -696,12 +700,16 @@ class AseDriver(AbstractDriver):
 
         return verified
 
-    def _find_latest_checkpoint(self, wdir: pathlib.Path):
+    def _find_latest_checkpoint(self, wdir: pathlib.Path) -> Optional[pathlib.Path]:
         """"""
         ckpt_dirs = sorted(
             wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1])
         )
-        latest_ckpt_dir = ckpt_dirs[-1]
+        num_ckpts = len(ckpt_dirs)
+        if num_ckpts > 0:
+            latest_ckpt_dir = ckpt_dirs[-1]
+        else:
+            latest_ckpt_dir = None
 
         return latest_ckpt_dir
 
@@ -727,10 +735,9 @@ class AseDriver(AbstractDriver):
         **kwargs,
     ):
         """Run the simulation."""
-        prev_wdir = ckpt_wdir
         # To restart, velocities are always retained
         prev_ignore_atoms_velocities = self.setting.ignore_atoms_velocities
-        if prev_wdir is None:  # start from the scratch
+        if ckpt_wdir is None:  # start from the scratch
             start_step = 0
             rng_state = None
 
@@ -742,7 +749,7 @@ class AseDriver(AbstractDriver):
             with open(self.directory / "params.json", "w") as fopen:
                 json.dump(curr_params, fopen, indent=2)
         else:  # restart ...
-            ckpt_wdir = self._find_latest_checkpoint(prev_wdir)
+            ckpt_wdir = self._find_latest_checkpoint(ckpt_wdir)
             atoms, rng_state = self._load_checkpoint(ckpt_wdir)
             write(self.directory / self.xyz_fname, atoms)
             start_step = atoms.info["step"]
