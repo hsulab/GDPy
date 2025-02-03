@@ -258,18 +258,17 @@ class PropertySelector(BaseSelector):
             curr_frames = data.get_marked_structures(curr_markers)
             curr_nframes = len(curr_frames)
 
-            # --
             if curr_nframes > 0:
                 scores, selected_indices = self._sparsify(
                     prop_item, curr_frames
                 )
-                self._print(f"number of structures: {len(selected_indices)}")
+                self._print(f"group: {grp_name} -> number of structures: {len(selected_indices)}")
                 curr_selected_markers = [
                     curr_markers[i] for i in selected_indices
                 ]
                 selected_markers.extend(curr_selected_markers)
 
-                # - add score to atoms
+                # Add score to atoms
                 for score, i in zip(scores, selected_indices):
                     curr_frames[i].info["score"] = score
 
