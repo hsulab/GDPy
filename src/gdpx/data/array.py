@@ -75,9 +75,6 @@ class AtomsNDArray:
     #: Atoms data.
     _data: Optional[list[Atoms]] = None
 
-    #: Array shape.
-    _shape: Optional[list[int]] = None
-
     #: Array-like indices.
     _markers = None
 
@@ -93,8 +90,7 @@ class AtomsNDArray:
     def __init__(
         self, data: Optional[Union[list, "AtomsNDArray"]] = None, markers=None
     ) -> None:
-        """Init from a list^n object."""
-        # TODO: Check data should be a list
+        """Initialise an AtomsArray from a nested list."""
         if data is None:
             data = []
         if isinstance(data, list):
@@ -107,6 +103,7 @@ class AtomsNDArray:
                 f"Data should be a list or a AtomsNDArray instead of {type(data)}."
             )
 
+        assert data is not None
         if len(data) == 0:
             raise RuntimeError(f"Input data is empty as {data}.")
 
