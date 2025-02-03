@@ -11,6 +11,7 @@ from typing import Mapping, Optional, Union
 
 import h5py
 import numpy as np
+import numpy.typing
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -74,9 +75,6 @@ class AtomsNDArray:
 
     #: Atoms data.
     _data: Optional[list[Atoms]] = None
-
-    #: Array-like indices.
-    _markers = None
 
     #:
     _ind_map: Optional[Mapping[int, int]] = None
@@ -197,7 +195,7 @@ class AtomsNDArray:
         return raw_markers
 
     @property
-    def markers(self) -> np.ndarray:
+    def markers(self) -> numpy.typing.NDArray:
         """Return markers.
 
         If it is the first time, all structures are returned.
