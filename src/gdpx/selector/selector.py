@@ -93,7 +93,7 @@ class BaseSelector(BaseComponent):
     """The base class of any selector."""
 
     #: Selector name.
-    name: str = "abstract"
+    name: str = "base"
 
     #: Target axis to select.
     axis: Optional[int] = None
@@ -167,13 +167,13 @@ class BaseSelector(BaseComponent):
         self.info_fpath = self._directory / self._fname
         return
 
-    def select(self, inp_dat: AtomsNDArray) -> list[Atoms]:
+    def select(self, structures: AtomsNDArray) -> list[Atoms]:
         """Select trajectories.
 
         Based on used selction protocol
 
         Args:
-            inp_dat: The input AtomsNDArray object.
+            structures: The input AtomsNDArray object.
 
         Returns:
             A list of Atoms objects.
@@ -184,48 +184,34 @@ class BaseSelector(BaseComponent):
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
-        # NOTE: input structures should always be the AtomsNDArray type
-        # TODO: if inp_dat is already a AtomsNDArray, a new object is created,
-        #       which makes markers immutable... Need fix this!!
-        if isinstance(inp_dat, AtomsNDArray):
+        # The input structures should always be the AtomsNDArray type.
+        if isinstance(structures, AtomsNDArray):
             ...
         else:
-            inp_dat = AtomsNDArray(inp_dat)
+            structures = AtomsNDArray(structures)
 
-        frames = inp_dat
-        inp_nframes = len(frames.markers)
+        num_inp_strucutures = len(structures.markers)
 
-        # - check if it is finished
+        # Check if the selection has been done before.
         if not (self.info_fpath).exists():
-            # -- mark structures
             self._print("run selection...")
-            self._mark_structures(frames)
-            # -- save cached results for restart
-            self._write_cached_results(frames)
+            self._mark_structures(structures)
+            self._write_cached_results(structures)
         else:
-            # -- restart
             self._print("use cached...")
             raw_markers = load_cache(self.info_fpath)
-            # print(f"raw_markers: {raw_markers}")
-            frames.markers = raw_markers
+            structures.markers = raw_markers
 
-        out_nframes = len(frames.markers)
+        num_out_structures = len(structures.markers)
         self._print(
-            f"{self.name} nstructures {inp_nframes} -> nselected {out_nframes}"
+            f"{self.name} num_structures {num_inp_strucutures} -> num_selected {num_out_structures}"
         )
 
-        # - add history
-        #   get_marked_structures return reference to Atoms objects
-        # for a in inp_dat.get_marked_structures():
-        #    print(a.info.get("selection"))
-
-        marked_structures = inp_dat.get_marked_structures()
+        # TODO: Improve selection history records.
+        marked_structures = structures.get_marked_structures()
         for atoms in marked_structures:
             selection = atoms.info.get("selection", "")
             atoms.info["selection"] = selection + f"->{self.name}"
-
-        # for a in inp_dat.get_marked_structures():
-        #    print(a.info["selection"])
 
         return marked_structures
 
