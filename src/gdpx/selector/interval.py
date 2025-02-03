@@ -2,15 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
-import itertools
-
 import numpy as np
 
-from ..data.array import AtomsNDArray
+from gdpx.data.array import AtomsNDArray
+
+from .clustering import group_structures_by_axis
 from .selector import BaseSelector
 
 
 class IntervalSelector(BaseSelector):
+    """Select structures by interval."""
 
     name = "interval"
 
@@ -20,16 +21,7 @@ class IntervalSelector(BaseSelector):
         include_last=False,
     )
 
-    """This is a number-unaware selector.
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        """"""
-        super().__init__(*args, **kwargs)
-
-        return
-
-    def _mark_structures(self, data: AtomsNDArray, *args, **kargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray) -> None:
         """Select structures.
 
         Add unmasks to input trajectories.
@@ -38,31 +30,7 @@ class IntervalSelector(BaseSelector):
             inp_dat: Structures.
 
         """
-        # if axis == -1 or axis == ndim-1:
-        #    # NOTE: Last dimension is the trajectory
-        #    #       it may have padded dummy atoms
-        #    ...
-        # else:
-        #    ...
-
-        # - group markers
-        if self.group_by is not None:
-            axis = self.group_by
-            ndim = len(data.shape)
-            if axis < -ndim or axis > ndim:
-                raise IndexError(f"axis {axis} is out of dimension {ndim}.")
-            if axis < 0:
-                axis = ndim + axis
-
-            marker_groups = {}
-            for k, v in itertools.groupby(data.markers, key=lambda x: x[axis]):
-                if k in marker_groups:
-                    marker_groups[k].extend(list(v))
-                else:
-                    marker_groups[k] = list(v)
-        else:
-            marker_groups = dict(all=data.markers)
-
+        marker_groups = group_structures_by_axis(data, axis=self.group_by)
         self._debug(f"marker_groups: {marker_groups}")
 
         selected_markers = []
@@ -70,7 +38,7 @@ class IntervalSelector(BaseSelector):
             curr_markers = sorted(np.array(curr_markers).tolist())
             nstructures = len(curr_markers)
 
-            first, last = 0, nstructures - 1
+            _, last = 0, nstructures - 1
             if self.include_first:
                 curr_indices = list(range(0, nstructures, self.period))
                 if self.include_last:
@@ -89,6 +57,11 @@ class IntervalSelector(BaseSelector):
                         curr_indices.remove(last)
             curr_selected_markers = [curr_markers[i] for i in curr_indices]
             selected_markers.extend(curr_selected_markers)
+
+            self._print(
+                f"group: {curr_grpname} -> "
+                + f"number of structures: {len(curr_selected_markers)}"
+            )
 
         data.markers = np.array(selected_markers)
 
