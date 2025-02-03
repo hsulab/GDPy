@@ -386,52 +386,40 @@ class PropertySelector(BaseSelector):
 
     def _statistics(self, prop_item: PropertyItem, prop_vals):
         """"""
-        # - here are all data
-        npoints = len(prop_vals)
-        # pmax, pmin, pavg = np.max(prop_vals), np.min(prop_vals), np.mean(prop_vals)
-        # pstd = np.sqrt(np.var(prop_vals-pavg))
+        # Get basic statistics
         pmax = stat_str2val("max", prop_vals)
         pmin = stat_str2val("min", prop_vals)
 
         pavg = stat_str2val("avg", prop_vals)
         pstd = stat_str2val("svar", prop_vals)
 
-        # NOTE: convert range to pmin and pmax
-        #       hist data only in the range
+        # Update pmin and pmax for hist based on input values
         prop_item.pmin = stat_str2val(prop_item.pmin, prop_vals)
         prop_item.pmax = stat_str2val(prop_item.pmax, prop_vals)
         if prop_item.pmax < prop_item.pmin:
             prop_item.pmax = prop_item.pmin
 
         hist_max, hist_min = prop_item.pmax, prop_item.pmin
-        # if hist_max == np.inf:
-        #    hist_max = pmax
-        # if hist_min == -np.inf:
-        #    hist_min = pmin
 
         bins = np.linspace(
             hist_min, hist_max, prop_item.nbins, endpoint=False
         ).tolist()
         bins.append(hist_max)
         hist, bin_edges = np.histogram(
-            prop_vals, bins=bins, range=[hist_min, hist_max]
+            prop_vals, bins=bins, range=(hist_min, hist_max)
         )
 
-        # - output
+        # Output histogram
         content = f"# Property {prop_item.name}\n"
-        content += "# min {:<12.4f} max {:<12.4f}\n".format(pmin, pmax)
-        content += "# avg {:<12.4f} std {:<12.4f}\n".format(pavg, pstd)
-        content += (
-            "# histogram of {} points in the range (npoints: {})\n".format(
-                np.sum(hist), npoints
-            )
-        )
+        content += f"# min {pmin:<12.4f} max {pmax:<12.4f}\n"
+        content += f"# avg {pavg:<12.4f} std {pstd:<12.4f}\n"
+        content += f"# histogram of {np.sum(hist)} points in the range (npoints: {len(prop_vals)})\n"
         content += (
             f"# min {prop_item.pmin:<12.4f} max {prop_item.pmax:<12.4f}\n"
         )
         for x, y in zip(hist, bin_edges[:-1]):
-            content += "{:>12.4f}  {:>12d}\n".format(y, x)
-        content += "{:>12.4f}  {:>12s}\n".format(bin_edges[-1], "-")
+            content += f"{y:>12.4f}  {x:>12d}\n"
+        content += f"{bin_edges[-1]:>12.4f}  {'-':>12s}\n"
 
         with open(
             self.info_fpath.parent
