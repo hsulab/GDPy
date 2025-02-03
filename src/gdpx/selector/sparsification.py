@@ -356,6 +356,10 @@ class ScalarSparsification:
 
         return
 
+    def get_sparsify_params(self):
+        """"""
+        raise NotImplementedError
+
 
 @dataclasses.dataclass
 class FilterSparsify(ScalarSparsification):
@@ -372,7 +376,6 @@ class FilterSparsify(ScalarSparsification):
     #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
 
-    #:
     run: Callable = select_by_filter
 
     def get_sparsify_params(self):
@@ -447,8 +450,11 @@ class BoltzSparsify(ScalarSparsification):
     #: Boltzmann temperature in energy [eV].
     kBT: Optional[float] = None
 
+    run: Callable = select_by_boltz
+
     def __post_init__(self):
         """"""
+        super().__post_init__()
         if self.temperature is not None:
             self.kBT = units.kB * self.temperature
         else:
