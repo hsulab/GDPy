@@ -143,14 +143,25 @@ def select_by_filter(
     return scores, selected_indices
 
 
-def boltz_selection(
-    boltz: float,
+def select_by_boltz(
     props: list[float],
-    input_indices: list[int],
-    num_minima: int,
+    nbins: int,
+    boltz: float,
+    num_selected: int,
     rng: np.random.Generator,
 ):
     """Selected indices based on Boltzmann distribution.
+
+    The property values are weighted by the histogram number and the Boltzmann factor.
+
+    Args:
+        props: The property values.
+        boltz: Boltzmann temperature in eV.
+        num_selected: Number of data points to be selected.
+        rng: A random number generator.
+
+    Returns:
+        Scores and selected indices. The scores are current probabilities when selected.
 
     References:
         [1] Bernstein, N.; Csányi, G.; Deringer, V. L.
@@ -159,10 +170,10 @@ def boltz_selection(
 
     """
     # compute desired probabilities for flattened histogram
-    hist, bin_edges = np.histogram(props, bins=10)  # hits, bin_edges
+    hist, bin_edges = np.histogram(props, bins=nbins)  # hits, bin_edges
     min_prop = np.min(props)
 
-    # - multiply bin number
+    # Multiply bin number
     config_prob = []
     for H in props:
         bin_i = np.searchsorted(bin_edges[1:], H)  # ret index of the bin
@@ -171,38 +182,33 @@ def boltz_selection(
         else:
             p = 0.0
         if boltz > 0.0:
-            p *= np.exp(-(H - min_prop) / boltz)  # TODO: custom expression?
+            p *= np.exp(-(H - min_prop) / boltz)
         config_prob.append(p)
 
     assert len(config_prob) == len(props)
-    # uniform_probs = np.array(config_prob) / np.sum(config_prob)
 
-    # - select
+    # Select by weighted property values
     props = copy.deepcopy(props)
-    input_indices = copy.deepcopy(input_indices)
+    local_indices = list(range(len(props)))
 
     scores, selected_indices = [], []
-    for i in range(num_minima):
-        # -- random
-        # TODO: rewrite by mask
+    for _ in range(num_selected):
+        # Select a structure randomly based on the probabilities
         config_prob = np.array(config_prob)
         config_prob /= np.sum(config_prob)
         cumul_prob = np.cumsum(config_prob)
         rv = rng.uniform()
         config_i = np.searchsorted(cumul_prob, rv)
-        # print(converged_trajectories[config_i][0])
-        selected_indices.append(input_indices[config_i])
+        selected_indices.append(local_indices[config_i])
 
-        # -- remove from config_prob by converting to list
+        # Remove from config_prob by converting to list
         scores.append(config_prob[config_i])
         config_prob = list(config_prob)
         del config_prob[config_i]
 
         # remove from other lists
         del props[config_i]
-        del input_indices[config_i]
-
-    # NOTE: scores are current probabilities when selected
+        del local_indices[config_i]
 
     return scores, selected_indices
 
@@ -406,6 +412,18 @@ class BoltzSparsify(ScalarSparsification):
                 )
 
         return
+
+    def get_sparsify_params(self):
+        """"""
+        params = dict(
+            props=None,
+            nbins=self.nbins,
+            boltz=self.kBT,
+            num_selected=None,
+            rng=None,
+        )
+
+        return params
 
 
 IMPLEMENTED_SPARSIFY_METHODS = dict(

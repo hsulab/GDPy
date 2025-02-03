@@ -15,11 +15,7 @@ from gdpx.data.array import AtomsNDArray
 
 from ..describer.interface import DescriberVariable
 from .selector import BaseSelector
-from .sparsification import (
-    IMPLEMENTED_SPARSIFY_METHODS,
-    ScalarSparsification,
-    boltz_selection,
-)
+from .sparsification import IMPLEMENTED_SPARSIFY_METHODS, ScalarSparsification
 from .utils import group_structures_by_axis, stat_str2val
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
@@ -447,18 +443,18 @@ class PropertySelector(BaseSelector):
                     sparsify_params[k] = v
             scores, curr_indices = sparsify.run(**sparsify_params)
         elif sparsify_method == "boltz":
-            num_fixed = self._parse_selection_number(nframes)
-            prev_indices = list(range(nframes))
-            scores, curr_indices = boltz_selection(
-                prop_item._sparsify.kBT,
-                [prop_vals[i] for i in prev_indices],
-                prev_indices,
-                num_fixed,
-                self.rng,
+            extra_params = dict(
+                props=[prop_vals[i] for i in range(nframes)],
+                num_selected=self._parse_selection_number(nframes),
+                rng=self.rng,
             )
+            sparsify_params = sparsify.get_sparsify_params()
+            for k, v in extra_params.items():
+                if k in sparsify_params:
+                    sparsify_params[k] = v
+            scores, curr_indices = sparsify.run(**sparsify_params)
         else:
-            # NOTE: check sparsifiction method in PropertyItem
-            ...
+            ...  # The method has already been checked in PropertyItem.
 
         return scores, curr_indices
 
