@@ -14,9 +14,10 @@ from ase.neighborlist import neighbor_list
 from gdpx.data.array import AtomsNDArray
 
 from ..describer.interface import DescriberVariable
+from .clustering import group_structures_by_axis
 from .selector import BaseSelector
 from .sparsification import IMPLEMENTED_SPARSIFY_METHODS, ScalarSparsification
-from .utils import group_structures_by_axis, stat_str2val
+from .utils import stat_str2val
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy",
@@ -250,7 +251,6 @@ class PropertySelector(BaseSelector):
         selected_markers = []
         scores, selected_indices = self._sparsify(prop_item, rep_frames)
         self._print(f"number of groups selected: {len(selected_indices)}")
-        self._print(f"selected_indices: {selected_indices}")
 
         _counter = 0
         for s_i in selected_indices:
