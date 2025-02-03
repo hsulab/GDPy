@@ -143,6 +143,40 @@ def select_by_filter(
     return scores, selected_indices
 
 
+def select_by_sort(
+    props: list[float], num_selected: int, reverse: bool, prop_type: str
+) -> tuple[list[float], list[int]]:
+    """Select data points based on sorted property values.
+
+    Args:
+        props: The property values.
+        num_selected: Number of data points to be selected.
+        reverse: Whether reverse the selection.
+        prop_type: The property type either scalar or string.
+
+    Returns:
+        Scores and selected indices. The scores are simply property values.
+        An exception will be raised if the property type is invalid.
+
+    """
+    sorted_indices = sorted(
+        range(len(props)), key=lambda i: props[i], reverse=reverse
+    )
+    if not reverse:
+        selected_indices = sorted_indices[:num_selected]
+    else:
+        selected_indices = sorted_indices[-num_selected:]
+    if prop_type == "scalar":
+        scores = [props[i] for i in selected_indices]
+    elif prop_type == "string":
+        unique_types = sorted(list(set(props)))
+        scores = [unique_types.index(props[i]) for i in selected_indices]
+    else:
+        raise Exception(f"Unknown property type {prop_type}.")
+
+    return scores, selected_indices
+
+
 def select_by_boltz(
     props: list[float],
     nbins: int,
@@ -365,6 +399,19 @@ class SortSparsify(ScalarSparsification):
 
     #: Whether reverse the sparsifiction behaviour.
     reverse: bool = False
+
+    run: Callable = select_by_sort
+
+    def get_sparsify_params(self):
+        """"""
+        params = dict(
+            props=None,
+            num_selected=None,
+            reverse=self.reverse,
+            prop_type=None,
+        )
+
+        return params
 
 
 @dataclasses.dataclass

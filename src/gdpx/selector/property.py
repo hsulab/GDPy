@@ -414,23 +414,23 @@ class PropertySelector(BaseSelector):
             )
             scores, curr_indices = sparsify.run(**sparsify_params)
         elif sparsify_method == "sort":
-            numbers = list(range(nframes))
-            sorted_numbers = sorted(numbers, key=lambda i: prop_vals[i])
-
-            num_fixed = self._parse_selection_number(nframes)
-            if not prop_item._sparsify.reverse:
-                curr_indices = sorted_numbers[:num_fixed]
-            else:
-                curr_indices = sorted_numbers[-num_fixed:]
             if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES:
-                scores = [prop_vals[i] for i in curr_indices]
+                prop_type = "scalar"
             elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
-                unique_types = sorted(list(set(prop_vals)))
-                scores = [
-                    unique_types.index(prop_vals[i]) for i in curr_indices
-                ]
+                prop_type = "string"
             else:
-                ...
+                raise Exception(f"Unknown property type {prop_item.name}.")
+            extra_params = dict(
+                prop_type=prop_type,
+                props=[prop_vals[i] for i in range(nframes)],
+                num_selected=self._parse_selection_number(nframes),
+                rng=self.rng,
+            )
+            sparsify_params = sparsify.get_sparsify_params()
+            for k, v in extra_params.items():
+                if k in sparsify_params:
+                    sparsify_params[k] = v
+            scores, curr_indices = sparsify.run(**sparsify_params)
         elif sparsify_method == "hist":
             extra_params = dict(
                 props=[prop_vals[i] for i in range(nframes)],
