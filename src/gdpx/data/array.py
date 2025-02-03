@@ -277,6 +277,7 @@ class AtomsNDArray:
             markers = np.array(grp["markers"][:])
             mapper = {k: v for k, v in zip(grp["map_k"], grp["map_v"])}
 
+        shape = tuple(shape)
         data_1d = np.full(shape, None).flatten().tolist()
         for k, v in mapper.items():
             data_1d[k] = images[v]
@@ -374,14 +375,10 @@ class AtomsNDArray:
             positions[i, : natoms_list[i], :] = a.get_positions()
 
         # Save structures to datasets
-        _ = grp.create_dataset(
-            "natoms", data=natoms_list, dtype="i8"
-        )
+        _ = grp.create_dataset("natoms", data=natoms_list, dtype="i8")
         _ = grp.create_dataset("box", data=boxes, dtype="f8")
         _ = grp.create_dataset("pbc", data=pbcs, dtype="i8")
-        _ = grp.create_dataset(
-            "atype", data=atomic_numbers, dtype="i8"
-        )
+        _ = grp.create_dataset("atype", data=atomic_numbers, dtype="i8")
         _ = grp.create_dataset("positions", data=positions, dtype="f8")
 
         # Add some information
@@ -419,9 +416,7 @@ class AtomsNDArray:
                 ...
 
         _ = grp.create_dataset("energy", data=energies, dtype="f8")
-        _ = grp.create_dataset(
-            "free_energy", data=free_energies, dtype="f8"
-        )
+        _ = grp.create_dataset("free_energy", data=free_energies, dtype="f8")
         _ = grp.create_dataset("forces", data=forces, dtype="f8")
         _ = grp.create_dataset("momenta", data=momenta, dtype="f8")
 
