@@ -13,9 +13,9 @@ from ase.neighborlist import neighbor_list
 from gdpx.data.array import AtomsNDArray
 
 from ..describer.interface import DescriberVariable
-from .cur import boltz_selection, hist_selection, stat_str2val
+from .cur import boltz_selection, hist_selection
 from .selector import BaseSelector
-from .utils import group_structures_by_axis
+from .utils import group_structures_by_axis, stat_str2val
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy",
@@ -370,7 +370,7 @@ class PropertySelector(BaseSelector):
         pmin = stat_str2val("min", prop_vals)
 
         pavg = stat_str2val("avg", prop_vals)
-        pstd = stat_str2val("svar", prop_vals)
+        pstd = stat_str2val("std", prop_vals)
 
         # Update pmin and pmax for hist based on input values
         assert prop_item._pmin is not None and prop_item._pmax is not None
