@@ -47,10 +47,10 @@ class SelectorVariable(Variable):
         selectors = []
         for params in selection:
             method = params.pop("method", None)
-            selector = registers.create("selector", method, convert_name=True, **params)
+            selector = registers.create("selector", method, convert_name=False, **params)
             selectors.append(selector)
-        nselectors = len(selectors)
-        if nselectors > 1:
+        num_selectors = len(selectors)
+        if num_selectors > 1:
             selector = ComposedSelector(selectors)
         else:
             selector = selectors[0]
