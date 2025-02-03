@@ -10,7 +10,7 @@ import numpy.typing
 from ase import Atoms
 from dscribe.descriptors import SOAP
 
-from .cur import cur_selection, fps_selection
+from .sparsification import cur_selection, fps_selection
 from .selector import BaseSelector
 
 """Selector using descriptors.

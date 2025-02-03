@@ -13,7 +13,7 @@ from ase.neighborlist import neighbor_list
 from gdpx.data.array import AtomsNDArray
 
 from ..describer.interface import DescriberVariable
-from .cur import boltz_selection, hist_selection
+from .sparsification import boltz_selection, hist_selection
 from .selector import BaseSelector
 from .utils import group_structures_by_axis, stat_str2val
 
