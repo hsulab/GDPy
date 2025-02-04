@@ -88,7 +88,7 @@ class DescriptorSelector(BaseSelector):
 
         """
         # Group markers
-        marker_groups = group_structures_by_axis(data, axis=self.axis)
+        marker_groups = group_structures_by_axis(data, axis=self.group_by)
         self._debug(f"marker_groups: {marker_groups}")
 
         selected_markers = []
