@@ -8,6 +8,7 @@ import itertools
 import numbers
 import operator
 import pathlib
+import traceback
 from typing import Mapping, Optional, Union
 
 import h5py
@@ -268,15 +269,34 @@ class AtomsNDArray:
         return _reshape_data(data_1d, self.shape)
 
     @classmethod
-    def from_file(cls, target: Union[str, pathlib.Path]):
+    def from_file(
+        cls,
+        target: Union[str, pathlib.Path, h5py.File],
+        grp_name: str = "images",
+    ) -> "AtomsNDArray":
         """"""
-        with h5py.File(target, "r") as fopen:
-            grp = fopen.require_group("images")
+        # Read atoms from HDF5 file
+        if isinstance(target, str) or isinstance(target, pathlib.Path):
+            fopen = h5py.File(target, "r")
+        else:
+            assert isinstance(target, h5py.File)
+            fopen = target
+
+        try:
+            grp = fopen.require_group(grp_name)
             shape = grp.attrs["shape"]
             images = cls._from_hd5grp(grp=grp)
             markers = np.array(grp["markers"][:])
             mapper = {k: v for k, v in zip(grp["map_k"], grp["map_v"])}
+        except:
+            raise Exception(traceback.format_exc())
+        finally:
+            if isinstance(target, str) or isinstance(target, pathlib.Path):
+                fopen.close()
+            else:
+                ... # close externally
 
+        # Convert a list of Atoms to AtomsNDArray
         shape = tuple(shape)
         data_1d = np.full(shape, None).flatten().tolist()
         for k, v in mapper.items():
@@ -343,25 +363,43 @@ class AtomsNDArray:
 
         return images
 
-    def save_file(self, target):
+    def save_file(
+        self,
+        target: Union[str, pathlib.Path, h5py.File],
+        grp_name: str = "images",
+    ) -> None:
         """"""
-        with h5py.File(target, mode="w") as fopen:
-            grp = fopen.create_group("images")
+        if isinstance(target, str) or isinstance(target, pathlib.Path):
+            fopen = h5py.File(target, "w")
+        else:
+            assert isinstance(target, h5py.File)
+            fopen = target
+
+        try:
+            grp = fopen.create_group(grp_name)
             grp.attrs["shape"] = self.shape
 
-            # - save structures
+            # Save structures
             self._convert_images(grp=grp, images=self._data)
 
-            # - save markers
+            # Save markers
             grp.create_dataset("markers", data=self.markers, dtype="i8")
 
-            # - save mapper
+            # Save mapper
             mapper_k, mapper_v = [], []
             for k, v in self._ind_map.items():
                 mapper_k.append(k)
                 mapper_v.append(v)
             grp.create_dataset("map_k", data=mapper_k, dtype="i8")
             grp.create_dataset("map_v", data=mapper_v, dtype="i8")
+        except:
+            print(f"{target=}  {grp_name=}")
+            raise Exception(traceback.format_exc())
+        finally:
+            if isinstance(target, str) or isinstance(target, pathlib.Path):
+                fopen.close()
+            else:
+                ... # close externally
 
         return
 
