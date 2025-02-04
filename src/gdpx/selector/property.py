@@ -343,10 +343,12 @@ class PropertySelector(BaseSelector):
                     if atoms_property is None:
                         raise KeyError(f"{prop_item.name} does not exist.")
                 prop_vals.append(atoms_property)
-        else:  # Try use describer to get properties
+        else:
+            # Try use describer to get properties, and make sure the property
+            # values are a list as some sparsify needs a list (hist, boltz).
             desc_params = dict(name=prop_item.name, **prop_item.params)
             describer = DescriberVariable(**desc_params).value
-            prop_vals = describer.run(frames)
+            prop_vals = describer.run(frames).tolist()
 
         prop_vals = prop_item._convert_raw_(prop_vals)
 
@@ -421,7 +423,10 @@ class PropertySelector(BaseSelector):
             for unique_name in unique_types:
                 self._print(f"  {unique_name} -> {counter[unique_name]}")
         else:
+            # These properties may be from describers.
             prop_type = "scalar"  # TODO: More property types?
+            if prop_type == "scalar":
+                self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
             self._print(f"{prop_item.name} does not support statistics.")
 
         if prop_type is None:
