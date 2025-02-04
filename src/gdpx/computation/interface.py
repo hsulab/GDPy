@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import itertools
 import pathlib
 import time
 from typing import List, Optional, Tuple, Union
 
+import h5py
 import numpy as np
 import omegaconf
 from ase import Atoms
@@ -91,13 +93,12 @@ class DriverVariable(Variable):
 
         for values in values_to_broadcast:
             new_params = copy.deepcopy(params)
-            new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
+            new_params.update(
+                {k: v for k, v in zip(keys_to_broadcast, values)}
+            )
             params_list.append(new_params)
 
         return params_list
-
-
-# --- operation ---
 
 
 def extract_results_from_workers(
@@ -143,7 +144,9 @@ def extract_results_from_workers(
             curr_trajectories = worker.retrieve(
                 include_retrieved=True, use_archive=use_archive
             )
-            AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath / "dataset.h5")
+            AtomsNDArray(curr_trajectories).save_file(
+                cached_trajs_dpath / "dataset.h5"
+            )
         else:
             curr_trajectories = AtomsNDArray.from_file(
                 cached_trajs_dpath / "dataset.h5"
@@ -154,6 +157,70 @@ def extract_results_from_workers(
         worker_status[i] = True
 
     trajectories = AtomsNDArray(trajectories)
+
+    status = "unfinished"
+    if all(worker_status):
+        status = "finished"
+    else:
+        ...
+
+    return status, trajectories
+
+
+def extract_results_from_workers_compact(
+    directory: pathlib.Path,
+    workers: List[DriverBasedWorker],
+    *,
+    safe_inspect: bool = True,
+    use_archive: bool = True,
+    print_func=print,
+    debug_func=print,
+) -> Tuple[str, AtomsNDArray]:
+    """"""
+    if not directory.exists():
+        directory.mkdir(parents=True, exist_ok=True)
+
+    nworkers = len(workers)
+    worker_status = [False] * nworkers
+
+    debug_func(f"workers: {workers}")
+
+    cache_fpath = directory / "cache.h5"
+    if not cache_fpath.exists():
+        with h5py.File(cache_fpath, "w") as fopen:
+            ...
+    with h5py.File(cache_fpath, "r+") as fopen:
+        trajectories = []
+        for i, worker in enumerate(workers):
+            print_func(f"worker: {str(worker.directory)}")
+            grp_name = f"{worker.directory.parent.name}-{i:>04d}"
+            if grp_name not in fopen:
+                if safe_inspect:
+                    # inspect again for using extract without drive
+                    worker.inspect(resubmit=False)
+                    if not (worker.get_number_of_running_jobs() == 0):
+                        print_func(f"{worker.directory} is not finished.")
+                        break
+                else:
+                    # If compute enables extract, it has already done the inspects
+                    # thus we can skip them here.
+                    ...
+                curr_trajectories = worker.retrieve(
+                    include_retrieved=True, use_archive=use_archive
+                )
+                AtomsNDArray(curr_trajectories).save_file(
+                    fopen, grp_name=grp_name
+                )
+            else:
+                curr_trajectories = AtomsNDArray.from_file(
+                    fopen, grp_name=grp_name
+                ).tolist()
+
+            trajectories.append(curr_trajectories)
+
+            worker_status[i] = True
+
+        trajectories = AtomsNDArray(trajectories)
 
     status = "unfinished"
     if all(worker_status):
@@ -208,7 +275,9 @@ def convert_results_to_structures(
             # - get a full list of indices and fill None to a flatten Atoms List
             # _print(inp_markers)
             curr_converted_structures = []
-            full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
+            full_list = list(
+                itertools.product(*[range(x) for x in inp_shape_])
+            )
             for i, iloc in enumerate(full_list):
                 if iloc in inp_markers:
                     curr_converted_structures.append(
@@ -223,7 +292,10 @@ def convert_results_to_structures(
                 npoints = len(curr_converted_structures)
                 repeats = int(npoints / s)
                 reshaped_converted_structures = [
-                    [curr_converted_structures[i] for i in range(r * s, (r + 1) * s)]
+                    [
+                        curr_converted_structures[i]
+                        for i in range(r * s, (r + 1) * s)
+                    ]
                     for r in range(repeats)
                 ]
                 curr_converted_structures = reshaped_converted_structures
@@ -281,7 +353,9 @@ class compute(Operation):
             if builder is not None:
                 structures = builder
             else:
-                raise RuntimeError("Either `structures` or `builder` should be set.")
+                raise RuntimeError(
+                    "Either `structures` or `builder` should be set."
+                )
         else:
             ...
         super().__init__(input_nodes=[structures, worker], directory=directory)
@@ -369,7 +443,9 @@ class compute(Operation):
             shape_dir = self.directory / "_shape"
             shape_dir.mkdir(parents=True, exist_ok=True)
             np.savetxt(
-                shape_dir / "shape.dat", np.array(inp_shape, dtype=np.int32), fmt="%8d"
+                shape_dir / "shape.dat",
+                np.array(inp_shape, dtype=np.int32),
+                fmt="%8d",
             )
             np.savetxt(
                 shape_dir / "markers.dat",
@@ -579,7 +655,9 @@ class compute_chain(Operation):
                 else:
                     break
             else:
-                curr_structures = read(worker.directory / "end_frames.xyz", ":")
+                curr_structures = read(
+                    worker.directory / "end_frames.xyz", ":"
+                )
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
                 self._print(content)
@@ -609,9 +687,13 @@ class compute_chain(Operation):
                         for j in range(num_candidates):
                             new_results[j].extend(curr_results[j][1:])
                     if is_earlystopped:
-                        if (worker.directory / f"EARLYSTOP.{str(i).zfill(2)}").exists():
+                        if (
+                            worker.directory / f"EARLYSTOP.{str(i).zfill(2)}"
+                        ).exists():
                             with open(
-                                worker.directory / f"EARLYSTOP.{str(i).zfill(2)}", "r"
+                                worker.directory
+                                / f"EARLYSTOP.{str(i).zfill(2)}",
+                                "r",
                             ) as fopen:
                                 content = fopen.readlines()
                             self._print(content)
@@ -634,7 +716,9 @@ def extract_results_from_worker_chain(
     new_results = []
     for i, worker in enumerate(workers):
         print_func(f"{worker.directory=}")
-        curr_results = worker.retrieve(include_retrieved=True, use_archive=use_archive)
+        curr_results = worker.retrieve(
+            include_retrieved=True, use_archive=use_archive
+        )
         # TODO: inhomogeneous trajectories?
         if i == 0:
             for res in curr_results:
@@ -651,7 +735,9 @@ def extract_results_from_worker_chain(
 @registers.operation.register
 class extract_chain(Operation):
 
-    def __init__(self, compute, merge_workers: bool = False, directory="./") -> None:
+    def __init__(
+        self, compute, merge_workers: bool = False, directory="./"
+    ) -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
 
@@ -670,7 +756,9 @@ class extract_chain(Operation):
             for icomp, computer in enumerate(computers):
                 workers = computer.value
                 for iwork, worker in enumerate(workers):
-                    worker.directory = computer.directory / f"chainstep.{iwork:>02d}"
+                    worker.directory = (
+                        computer.directory / f"chainstep.{iwork:>02d}"
+                    )
                 comp_results = extract_results_from_worker_chain(
                     workers=workers,
                     use_archive=True,
@@ -706,7 +794,10 @@ class extract_cache(Operation):
     """
 
     def __init__(
-        self, compute, cache_wdirs: List[Union[str, pathlib.Path]], directory="./"
+        self,
+        compute,
+        cache_wdirs: List[Union[str, pathlib.Path]],
+        directory="./",
     ) -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
@@ -725,7 +816,9 @@ class extract_cache(Operation):
         nworkers = len(workers)
         assert (
             nwdirs == nworkers
-        ) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
+        ) or nworkers == 1, (
+            "Found inconsistent number of cache dirs and workers."
+        )
 
         # - use driver to read results
         cache_data = self.directory / "cache_data.h5"
@@ -769,16 +862,17 @@ class extract(Operation):
         reduce_single_worker: bool = True,
         use_archive: bool = True,
         check_scf_convergence: bool = False,
+        use_compact: bool = True,
         directory="./",
-        *args,
-        **kwargs,
     ) -> None:
         """Init an extract operation.
 
         Args:
             compute: Any node forwards a List of workers.
             merge_workers: Whether merge results from different workers togather.
+            reduce_single_worker: Whether squeeze the worker axis for one worker.
             use_archive: Whether archive computation folders after all workers finished.
+            use_compact: Whether save all results in one compact file.
 
         """
         super().__init__(input_nodes=[compute], directory=directory)
@@ -788,6 +882,8 @@ class extract(Operation):
 
         self.use_archive = use_archive
         self.check_scf_convergence = check_scf_convergence
+
+        self.use_compact = use_compact
 
         return
 
@@ -810,7 +906,11 @@ class extract(Operation):
         )
 
         # - extract results
-        status, computed_structures = extract_results_from_workers(
+        if self.use_compact:
+            extract_func = extract_results_from_workers_compact
+        else:
+            extract_func = extract_results_from_workers
+        status, computed_structures = extract_func(
             self.directory,
             workers,
             use_archive=self.use_archive,
