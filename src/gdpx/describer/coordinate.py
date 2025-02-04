@@ -4,12 +4,12 @@
 
 from gdpx.group import evaluate_group_expression
 
-from .describer import AbstractDescriber
+from .describer import BaseDescriber
 
 COMPONENT_MAP = dict(x=0, y=1, z=2)
 
 
-class CoordinateDescriber(AbstractDescriber):
+class CoordinateDescriber(BaseDescriber):
 
     name: str = "distance"
 

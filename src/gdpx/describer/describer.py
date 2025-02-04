@@ -89,9 +89,5 @@ class BaseDescriber(BaseComponent):
         return
 
 
-# For backward compatibility,
-AbstractDescriber = BaseDescriber
-
-
 if __name__ == "__main__":
     ...

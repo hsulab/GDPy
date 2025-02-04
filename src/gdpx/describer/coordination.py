@@ -12,7 +12,7 @@ from ase.io import read, write
 from ase.neighborlist import neighbor_list
 from scipy.spatial import distance_matrix
 
-from .describer import AbstractDescriber
+from .describer import BaseDescriber
 
 
 def switch_function(
@@ -74,7 +74,7 @@ def compute_coordination_number_statistics(data, cnmax: int, type_list: List[str
     return hist
 
 
-class CoordinationDescriber(AbstractDescriber):
+class CoordinationDescriber(BaseDescriber):
 
     name: str = "coordination"
 

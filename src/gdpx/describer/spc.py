@@ -8,10 +8,10 @@ import numpy as np
 
 from ase.io import read, write
 
-from .describer import AbstractDescriber
+from .describer import BaseDescriber
 
 
-class SpcDescriber(AbstractDescriber):
+class SpcDescriber(BaseDescriber):
 
     name: str = "spc"
 

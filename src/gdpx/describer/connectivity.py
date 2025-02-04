@@ -10,10 +10,10 @@ from ase.data import atomic_numbers
 from gdpx.geometry.spatial import (check_atomic_distances,
                                    get_bond_distance_dict)
 
-from .describer import AbstractDescriber
+from .describer import BaseDescriber
 
 
-class ConnectivityDescriber(AbstractDescriber):
+class ConnectivityDescriber(BaseDescriber):
 
     name: str = "connectivity"
 

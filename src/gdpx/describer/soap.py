@@ -12,7 +12,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from ..core.register import registers
-from .describer import AbstractDescriber
+from .describer import BaseDescriber
 
 #try:
 #    from dscribe.descriptors import SOAP
@@ -24,7 +24,7 @@ from dscribe.descriptors import SOAP
 
 
 @registers.describer.register("soap")
-class SoapDescriber(AbstractDescriber):
+class SoapDescriber(BaseDescriber):
 
     cache_features = "features.npy"
 
