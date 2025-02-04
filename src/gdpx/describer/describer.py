@@ -4,6 +4,7 @@
 
 import abc
 
+import numpy.typing
 from sklearn.decomposition import PCA
 
 from gdpx.core.component import BaseComponent
@@ -14,7 +15,7 @@ except Exception as e:
     chemiscope = None
 
 
-class AbstractDescriber(BaseComponent):
+class BaseDescriber(BaseComponent):
 
     cache_features = "features.npy"
 
@@ -25,10 +26,10 @@ class AbstractDescriber(BaseComponent):
         return
 
     @abc.abstractmethod
-    def run(self, dataset, *args, **kwargs):
+    def run(self, dataset, *args, **kwargs) -> numpy.typing.NDArray:
         """"""
 
-        return
+        ...
 
     def _write_chemiscope(self, frames, features):
         """"""
@@ -45,11 +46,15 @@ class AbstractDescriber(BaseComponent):
             # )
         )
 
-        frame_properties = chemiscope.extract_properties(frames, only=["energy"])
+        frame_properties = chemiscope.extract_properties(
+            frames, only=["energy"]
+        )
         properties.update(**frame_properties)
 
         chemiscope.write_input(
-            self.directory / "my-input.json.gz", frames=frames, properties=properties
+            self.directory / "my-input.json.gz",
+            frames=frames,
+            properties=properties,
         )
 
         return
@@ -82,6 +87,10 @@ class AbstractDescriber(BaseComponent):
         plt.savefig(self.directory / "pca.png")
 
         return
+
+
+# For backward compatibility,
+AbstractDescriber = BaseDescriber
 
 
 if __name__ == "__main__":

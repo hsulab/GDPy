@@ -21,6 +21,9 @@ registers.describer.register("coordination")(CoordinationDescriber)
 from .connectivity import ConnectivityDescriber
 registers.describer.register("connectivity")(ConnectivityDescriber)
 
+from .formation_energy import FormationEnergyDescriber
+registers.describer.register("formation_energy")(FormationEnergyDescriber)
+
 
 if __name__ == "__main__":
     ...
