@@ -287,20 +287,26 @@ class AtomsNDArray:
         return cls(data=data, markers=markers)
 
     @classmethod
-    def _from_hd5grp(cls, grp):
+    def _from_hd5grp(cls, grp) -> list[Atoms]:
         """Reconstruct an atoms_array from data stored in HDF5 group `images`."""
         # Make clean atoms objects
         natoms_list = grp["natoms"]
 
         images = []
-        for natoms, box, pbc, atomic_numbers, positions in zip(
-            natoms_list, grp["box"], grp["pbc"], grp["atype"], grp["positions"]
+        for natoms, box, pbc, atomic_numbers, tags, positions in zip(
+            natoms_list,
+            grp["box"],
+            grp["pbc"],
+            grp["atype"],
+            grp["tags"],
+            grp["positions"],
         ):
             atoms = Atoms(
                 numbers=atomic_numbers[:natoms],
                 positions=positions[:natoms, :],
                 cell=box.reshape(3, 3),
                 pbc=pbc,
+                tags=tags[:natoms],
             )
             images.append(atoms)
         nimages = len(images)
@@ -359,19 +365,22 @@ class AtomsNDArray:
 
         return
 
-    def _convert_images(self, grp, images: list[Atoms]):
+    def _convert_images(self, grp, images: list[Atoms]) -> None:
         """Convert Atoms objects to HDF5 datasets."""
         # Get data
         nimages = len(images)
-        natoms_list = np.array([len(a) for a in images], dtype=np.int32)
+        natoms_list = np.array([len(a) for a in images], dtype=np.int64)
         boxes = np.array(
             [a.get_cell(complete=True) for a in images], dtype=np.float64
         ).reshape(-1, 9)
         pbcs = np.array([a.get_pbc() for a in images], dtype=np.int8)
-        atomic_numbers = np.zeros((nimages, max(natoms_list)), dtype=np.int32)
-        positions = np.zeros((nimages, max(natoms_list), 3), dtype=np.float64)
+        max_natoms = max(natoms_list)
+        atomic_numbers = np.zeros((nimages, max_natoms), dtype=np.int64)
+        positions = np.zeros((nimages, max_natoms, 3), dtype=np.float64)
+        tags = np.zeros((nimages, max_natoms), dtype=np.int64)
         for i, a in enumerate(images):
             atomic_numbers[i, : natoms_list[i]] = a.get_atomic_numbers()
+            tags[i, : natoms_list[i]] = a.get_tags()
             positions[i, : natoms_list[i], :] = a.get_positions()
 
         # Save structures to datasets
@@ -379,6 +388,7 @@ class AtomsNDArray:
         _ = grp.create_dataset("box", data=boxes, dtype="f8")
         _ = grp.create_dataset("pbc", data=pbcs, dtype="i8")
         _ = grp.create_dataset("atype", data=atomic_numbers, dtype="i8")
+        _ = grp.create_dataset("tags", data=tags, dtype="i8")
         _ = grp.create_dataset("positions", data=positions, dtype="f8")
 
         # Add some information
