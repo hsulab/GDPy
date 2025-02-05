@@ -5,6 +5,8 @@
 import pathlib
 from typing import Union
 
+from ..calculators.mixer import CommitteeCalculator
+
 
 def canonicalise_input_models(model: Union[str, list[str]]) -> list[str]:
     """Convert input models to a list of resolved path strings.
@@ -30,6 +32,28 @@ def canonicalise_input_models(model: Union[str, list[str]]) -> list[str]:
         models.append(str(m))
 
     return models
+
+
+def build_a_committee_calculator(
+    calc_cls, params_list: list[dict], estimate_uncertainty: bool = False
+):
+    """Build a committee calculator.
+
+    If there is one set of parameters or estimate_uncertainty is False, 
+    then a single calculator is built.
+
+    """
+    num_calculators = len(params_list)
+    assert num_calculators >= 1, "At least one calculator must be provided."
+    use_committee = num_calculators > 1 and estimate_uncertainty
+    if use_committee:
+        calc = CommitteeCalculator(
+            calcs=[calc_cls(**params) for params in params_list]
+        )
+    else:
+        calc = calc_cls(**params_list[0])
+
+    return calc
 
 
 if __name__ == "__main__":
