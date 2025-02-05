@@ -653,11 +653,13 @@ class DeepmdManager(AbstractPotentialManager):
                 specific_params = copy.deepcopy(shared_params)
                 specific_params["model"] = m
                 params_list.append(specific_params)
-            calc = build_a_committee_calculator(
-                DP,
-                params_list=params_list,
-                estimate_uncertainty=estimate_uncertainty,
-            )
+            num_models = len(models)
+            if num_models > 0:
+                calc = build_a_committee_calculator(
+                    DP,
+                    params_list=params_list,
+                    estimate_uncertainty=estimate_uncertainty,
+                )
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
 
