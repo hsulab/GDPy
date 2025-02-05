@@ -23,6 +23,7 @@ from .. import (
     DummyCalculator,
     remove_extra_stream_handlers,
 )
+from ..utils import canonicalise_input_models
 from .convert import convert_groups
 
 
@@ -51,7 +52,9 @@ class DeepmdSystem:
         ), f"{self.name}: {self.nframes} != sum({self.train_and_split})"
 
         composition_list = [a.get_chemical_formula() for a in self.frames]
-        assert len(set(composition_list)) == 1, f"{self.name}: {composition_list[0]}?"
+        assert (
+            len(set(composition_list)) == 1
+        ), f"{self.name}: {composition_list[0]}?"
         self.composition = composition_list[0]
 
         return
@@ -137,14 +140,18 @@ class DeepmdDataloader:
             for p2 in self.valid_sys_dirs:
                 p2 = pathlib.Path(p2)
                 if p2.name == p.name:
-                    curr_valid_frames = DeepmdDataloader.convert_system_to_frames(p2)
+                    curr_valid_frames = (
+                        DeepmdDataloader.convert_system_to_frames(p2)
+                    )
                     num_curr_valid_frames = len(curr_valid_frames)
                     curr_frames.extend(curr_valid_frames)
                     break
             else:
                 num_curr_valid_frames = 0
             curr_system = DeepmdSystem(
-                p.name, curr_frames, (num_curr_train_frames, num_curr_valid_frames)
+                p.name,
+                curr_frames,
+                (num_curr_train_frames, num_curr_valid_frames),
             )
             systems.append(curr_system)
         self._systems = systems
@@ -183,9 +190,15 @@ class DeepmdDataloader:
             cell = boxes[i, :].reshape(3, 3)
             positions = coords[i, :].reshape(-1, 3)
             atoms = Atoms(
-                symbols=chemical_symbols, positions=positions, cell=cell, pbc=pbc
+                symbols=chemical_symbols,
+                positions=positions,
+                cell=cell,
+                pbc=pbc,
             )
-            results = {"energy": energies[i], "forces": forces[i, :].reshape(-1, 3)}
+            results = {
+                "energy": energies[i],
+                "forces": forces[i, :].reshape(-1, 3),
+            }
             spc = SinglePointCalculator(atoms, **results)
             atoms.calc = spc
             frames.append(atoms)
@@ -210,7 +223,9 @@ class DeepmdDataloader:
         # train data
         frames = []
         for set_dir in set_dirs[:]:
-            frames.extend(DeepmdDataloader.set2frames(set_dir, chemical_symbols, pbc))
+            frames.extend(
+                DeepmdDataloader.set2frames(set_dir, chemical_symbols, pbc)
+            )
 
         return frames
 
@@ -292,7 +307,9 @@ class DeepmdTrainer(AbstractTrainer):
             elif init_model_path.name.endswith("model.ckpt"):
                 command += " --init-model {}".format(str(init_model_path))
             else:
-                raise RuntimeError(f"Unknown init_model {str(init_model_path)}.")
+                raise RuntimeError(
+                    f"Unknown init_model {str(init_model_path)}."
+                )
         command += " 2>&1 > {}.out".format(self.name)
 
         return command
@@ -407,16 +424,22 @@ class DeepmdTrainer(AbstractTrainer):
         train_config["training"]["training_data"]["systems"] = [
             x for x in dataset.train_sys_dirs
         ]
-        train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
+        train_config["training"]["training_data"][
+            "batch_size"
+        ] = dataset.batchsizes
 
         # verify validation_data
         validation_data, validation_batchsizes = [], []
-        for v_system, v_batchsize in zip(dataset.valid_sys_dirs, dataset.batchsizes):
+        for v_system, v_batchsize in zip(
+            dataset.valid_sys_dirs, dataset.batchsizes
+        ):
             if v_system != "None":  # None will be saved to a string before
                 validation_data.append(v_system)
                 validation_batchsizes.append(v_batchsize)
         if validation_data:
-            train_config["training"]["validation_data"]["systems"] = validation_data
+            train_config["training"]["validation_data"][
+                "systems"
+            ] = validation_data
             train_config["training"]["validation_data"][
                 "batch_size"
             ] = validation_batchsizes
@@ -424,7 +447,9 @@ class DeepmdTrainer(AbstractTrainer):
             if "validation_data" in train_config["training"]:
                 train_config["training"].pop("validation_data", None)
 
-        train_config["training"]["seed"] = self.rng.integers(0, 10000, dtype=int)
+        train_config["training"]["seed"] = self.rng.integers(
+            0, 10000, dtype=int
+        )
 
         # Determine `numb_steps`
         min_freq_unit = 100.0
@@ -452,7 +477,9 @@ class DeepmdTrainer(AbstractTrainer):
         # may have few tens of structures.
         train_config["training"]["numb_steps"] = numb_steps
         if self.train_batches is not None and numb_steps < self.train_batches:
-            num_chekpoints = int(np.ceil(self.train_epochs / self.print_epochs))
+            num_chekpoints = int(
+                np.ceil(self.train_epochs / self.print_epochs)
+            )
             new_save_freq = int(
                 np.ceil(self.train_batches / num_chekpoints / min_freq_unit)
                 * min_freq_unit
@@ -478,7 +505,9 @@ class DeepmdTrainer(AbstractTrainer):
         if frozen_model.exists() and not compressed_model.exists():
             command = self._resolve_compress_command()
             try:
-                proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+                proc = subprocess.Popen(
+                    command, shell=True, cwd=self.directory
+                )
             except OSError as err:
                 msg = "Failed to execute `{}`".format(command)
                 # raise RuntimeError(msg) from err
@@ -492,7 +521,9 @@ class DeepmdTrainer(AbstractTrainer):
                 path = os.path.abspath(self.directory)
                 msg = (
                     'Trainer "{}" failed with command "{}" failed in '
-                    "{} with error code {}".format(self.name, command, path, errorcode)
+                    "{} with error code {}".format(
+                        self.name, command, path, errorcode
+                    )
                 )
                 # NOTE: sometimes dp cannot compress the model
                 #       this happens when the descriptor trainable is set False?
@@ -565,14 +596,6 @@ class DeepmdManager(AbstractPotentialManager):
         ("lammps", "lammps"),
     )
 
-    #: Used for estimating uncertainty.
-    _estimator = None
-
-    def __init__(self, *args, **kwargs):
-        """"""
-
-        return
-
     def _create_calculator(self, calc_params: dict) -> Calculator:
         """Create an ase calculator.
 
@@ -582,38 +605,31 @@ class DeepmdManager(AbstractPotentialManager):
         """
         calc_params = copy.deepcopy(calc_params)
 
-        # Some shared params
+        # Some backends need a command for an external executable.
         command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", pathlib.Path.cwd())
 
+        # Check type list as early versions of deepmd need explicitly 
+        # set this.
         type_list = calc_params.pop("type_list", [])
         type_map = {}
         for i, a in enumerate(type_list):
             type_map[a] = i
 
-        # --- model files
-        model_ = calc_params.get("model", [])
-        if not isinstance(model_, list):
-            model_ = [model_]
-
-        models = []
-        for m in model_:
-            m = pathlib.Path(m).resolve()
-            if not m.exists():
-                raise FileNotFoundError(f"Cant find model file {str(m)}")
-            models.append(str(m))
+        # Check if all models exist and update the self.calc_params
+        # as the potential may be used in other directories if submitted by a scheduler.
+        models = canonicalise_input_models(calc_params.pop("model", []))
         self.calc_params.update(model=models)
 
         # TODO: make this a dataclass??
         #       currently, default disable uncertainty estimation
         estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
-        # - create specific calculator
+        # Create a specific calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            # return ase calculator
             try:
                 from deepmd._version import version as dp_version
+
                 if dp_version.startswith("2"):
                     from .calculator import DP
                 elif dp_version.startswith("3"):
@@ -626,8 +642,6 @@ class DeepmdManager(AbstractPotentialManager):
                 raise ModuleNotFoundError(
                     "Please install deepmd-kit to use the ase interface."
                 )
-            # if models and type_map:
-            #    calc = DP(model=models[0], type_dict=type_map)
             calcs = []
             for m in models:
                 curr_calc = DP(model=m, type_dict=type_map)
@@ -644,7 +658,7 @@ class DeepmdManager(AbstractPotentialManager):
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
 
-            # We only the executable path of lammps and
+            # We only need the executable path of lammps and
             # the rest of command will be completed by itself.
             # The `lmp` will be `lmp -in in.lammps 2>&1 > lmp.out`.
             if command is None:
@@ -667,7 +681,6 @@ class DeepmdManager(AbstractPotentialManager):
 
                 calc = Lammps(
                     command=command,
-                    directory=directory,
                     pair_style=pair_style,
                     pair_coeff=pair_coeff,
                     **calc_params,
@@ -681,6 +694,8 @@ class DeepmdManager(AbstractPotentialManager):
                     neighbor="2.0 bin",
                     neigh_modify="every 10 check yes",
                 )
+        else:
+            ...  # The backend has already been checked.
 
         return calc
 

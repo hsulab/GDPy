@@ -3,36 +3,9 @@
 
 
 import copy
-import pathlib
-from typing import Union
 
 from . import BasePotentialManager, DummyCalculator
-
-
-def canonicalise_input_models(model: Union[str, list[str]]) -> list[str]:
-    """Convert input models to a list of resolved path strings.
-
-    Args:
-        model: The input model(s).
-
-    Returns:
-        The resolved path strings. An error is raised if the model does not exist.
-
-    """
-    if not isinstance(model, list):
-        assert isinstance(model, str)
-        model_ = [model]
-    else:
-        model_ = model
-
-    models = []
-    for m in model_:
-        m = pathlib.Path(m).resolve()
-        if not m.exists():
-            raise FileNotFoundError(f"The model {str(m)} does not exist.")
-        models.append(str(m))
-
-    return models
+from .utils import canonicalise_input_models
 
 
 class MatterSimManager(BasePotentialManager):
@@ -66,7 +39,9 @@ class MatterSimManager(BasePotentialManager):
                 raise ModuleNotFoundError(
                     "Please install mattersim and torch to use the ase interface."
                 )
-            calc = MatterSimCalculator.from_checkpoint(load_path=models[0], device=device)
+            calc = MatterSimCalculator.from_checkpoint(
+                load_path=models[0], device=device
+            )
         else:
             ...  # Backend has already been checked.
 
