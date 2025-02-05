@@ -92,7 +92,9 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
     results = copy.deepcopy(atoms.calc.results)
     # devi_results = [(k,v) for k,v in results.items() if "devi" in k]
     devi_results = [
-        (k, v) for k, v in results.items() if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS
+        (k, v)
+        for k, v in results.items()
+        if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS
     ]
     if devi_results:
         devi_names = [x[0] for x in devi_results]
@@ -134,7 +136,8 @@ def save_trajectory(atoms, traj_fpath) -> None:
         atoms_to_save.set_momenta(atoms.get_momenta())
 
     results = dict(
-        energy=atoms.get_potential_energy(), forces=copy.deepcopy(atoms.get_forces())
+        energy=atoms.get_potential_energy(),
+        forces=copy.deepcopy(atoms.get_forces()),
     )
     try:
         results.update(stress=atoms.get_stress())
@@ -169,11 +172,15 @@ def save_trajectory(atoms, traj_fpath) -> None:
     # -- check special metadata
     calc = atoms.calc
     if isinstance(calc, EnhancedCalculator):
-        atoms_to_save.info["host_energy"] = copy.deepcopy(calc.results["host_energy"])
+        atoms_to_save.info["host_energy"] = copy.deepcopy(
+            calc.results["host_energy"]
+        )
         atoms_to_save.info["bias_energy"] = (
             results["energy"] - calc.results["host_energy"]
         )
-        atoms_to_save.arrays["host_forces"] = copy.deepcopy(calc.results["host_forces"])
+        atoms_to_save.arrays["host_forces"] = copy.deepcopy(
+            calc.results["host_forces"]
+        )
 
     # - append to traj
     write(traj_fpath, atoms_to_save, append=True)
@@ -204,7 +211,9 @@ def save_checkpoint(
                     calc._save_checkpoint(ckpt_wdir)
 
         # remove checkpoints if the number is over ckpt_number
-        ckpt_wdirs = sorted(wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:]))
+        ckpt_wdirs = sorted(
+            wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:])
+        )
         num_ckpts = len(ckpt_wdirs)
         if num_ckpts > ckpt_number:
             for w in ckpt_wdirs[:-ckpt_number]:
@@ -266,7 +275,7 @@ class BFGSCellMinimiser(Controller):
 
         pressure = self.params.get("pressure", 0.0)  # bar
         assert pressure is not None
-        pressure *= 1e5*units.Pascal  # bar -> eV/Ang^3
+        pressure *= 1e5 * units.Pascal  # bar -> eV/Ang^3
 
         # TODO: StrainFilter, FrechetCellFilter
         from ase.filters import UnitCellFilter as filter_cls
@@ -274,7 +283,9 @@ class BFGSCellMinimiser(Controller):
         def combine_filter_and_minimiser(atoms, **kwargs):
             """"""
             new_filter_cls = functools.partial(
-                filter_cls, hydrostatic_strain=isotropic, scalar_pressure=pressure
+                filter_cls,
+                hydrostatic_strain=isotropic,
+                scalar_pressure=pressure,
             )
 
             return min_cls(atoms=new_filter_cls(atoms), maxstep=maxstep, **kwargs)  # type: ignore
@@ -633,7 +644,9 @@ class AseDriver(AbstractDriver):
         elif self.setting.task == "md":
             # velocity
             self._prepare_velocities(
-                atoms, self.setting.velocity_seed, self.setting.ignore_atoms_velocities
+                atoms,
+                self.setting.velocity_seed,
+                self.setting.ignore_atoms_velocities,
             )
 
             # other callbacks
@@ -650,19 +663,28 @@ class AseDriver(AbstractDriver):
 
             # check if the simulation is annealing
             if self.setting.tend is not None:
-                dtemp = (self.setting.tend - self.setting.temp) / self.setting.steps
+                dtemp = (
+                    self.setting.tend - self.setting.temp
+                ) / self.setting.steps
                 driver.set_temperature(
                     temperature_K=self.setting.temp + (start_step - 1) * dtemp
                 )
                 driver.attach(
-                    update_target_temperature, dyn=driver, dtemp=dtemp, interval=1
+                    update_target_temperature,
+                    dyn=driver,
+                    dtemp=dtemp,
+                    interval=1,
                 )
             if self.setting.pend is not None:
-                dpres = (self.setting.pend - self.setting.press) / self.setting.steps
+                dpres = (
+                    self.setting.pend - self.setting.press
+                ) / self.setting.steps
                 # ase-v3.23.0 hase a bug in berendsen_npt _process_pressure
                 # our input pressure is in bar and the one used by ase is eV/Ang^3
                 driver.pressure = (
-                    (self.setting.press + (start_step - 1) * dpres) * 1e5 * units.Pascal
+                    (self.setting.press + (start_step - 1) * dpres)
+                    * 1e5
+                    * units.Pascal
                 )
                 driver.attach(
                     update_target_pressure, dyn=driver, dpres=dpres, interval=1
@@ -671,7 +693,9 @@ class AseDriver(AbstractDriver):
             # override rng
             if hasattr(driver, "rng"):
                 # Langevin needs this!
-                self._print(f"MD Driver uses rng: {self.rng.bit_generator.state}")
+                self._print(
+                    f"MD Driver uses rng: {self.rng.bit_generator.state}"
+                )
                 driver.rng = self.rng
         else:
             raise NotImplementedError(f"Unknown task {self.setting.task}.")
@@ -685,7 +709,10 @@ class AseDriver(AbstractDriver):
             ckpt_dir = self._find_latest_checkpoint(self.directory)
             if ckpt_dir is not None:
                 ckpt_stru_fpath = ckpt_dir / "structures.xyz"
-                if ckpt_stru_fpath.exists() and ckpt_stru_fpath.stat().st_size != 0:
+                if (
+                    ckpt_stru_fpath.exists()
+                    and ckpt_stru_fpath.stat().st_size != 0
+                ):
                     temp_frames = read(ckpt_stru_fpath, ":")
                     try:
                         _ = temp_frames[0].get_forces()
@@ -700,7 +727,9 @@ class AseDriver(AbstractDriver):
 
         return verified
 
-    def _find_latest_checkpoint(self, wdir: pathlib.Path) -> Optional[pathlib.Path]:
+    def _find_latest_checkpoint(
+        self, wdir: pathlib.Path
+    ) -> Optional[pathlib.Path]:
         """"""
         ckpt_dirs = sorted(
             wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1])
@@ -758,7 +787,9 @@ class AseDriver(AbstractDriver):
                     if hasattr(calc, "_load_checkpoint"):
                         calc._load_checkpoint(ckpt_wdir, start_step=start_step)
             # --- update run_params in settings
-            target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
+            target_steps = self.setting.get_run_params(*args, **kwargs)[
+                "steps"
+            ]
             if target_steps > 0:
                 if self.setting.task == "md":
                     steps = target_steps - start_step
@@ -836,23 +867,22 @@ class AseDriver(AbstractDriver):
         # run simulation
         try:
             dynamics.run(**run_params)
-        except Exception as e:
-            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
-            self._debug(
-                f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
-            )
+        except:
+            self._print(f"{traceback.format_exc()}.")
 
         # make sure the max_steps are the same as input even if
         # it is set by earlystop observer
         dynamics.max_steps = self.setting.steps
 
-        # NOTE: check if the last frame is properly stored
+        # Check if the last frame is properly stored
         dump_period = self.setting.dump_period
         ckpt_period = self.setting.ckpt_period
 
         should_dump_last, should_ckpt_last = False, False
         # task min optimiser dumps every step to log but we control saved structures
         # by dump_period
+        # TODO: If the computation failed, the codes below will throw an error.
+        #       We better skip the failed structures and move on to next one?
         nsteps = atoms.info["step"] + 1
         if nsteps > 0 and (nsteps - 1) % dump_period != 0:
             should_dump_last = True
@@ -865,7 +895,9 @@ class AseDriver(AbstractDriver):
             self._debug("dump the last frame...")
             update_atoms_info(atoms, dynamics)
             save_trajectory(atoms, self.directory / self.xyz_fname)
-            retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
+            retrieve_and_save_deviation(
+                atoms, self.directory / self.devi_fname
+            )
 
         if should_ckpt_last:
             self._debug("ckpt the last frame...")
@@ -876,8 +908,8 @@ class AseDriver(AbstractDriver):
                 ckpt_number=self.setting.ckpt_number,
             )
 
-        # - Some interactive calculator needs kill processes after finishing,
-        #   e.g. VaspInteractive...
+        # Some interactive calculator needs kill processes after finishing,
+        # e.g. VaspInteractive...
         if hasattr(self.calc, "finalize"):
             self.calc.finalize()
         # To restart, velocities are always retained
@@ -909,7 +941,11 @@ class AseDriver(AbstractDriver):
         return scf_convergence
 
     def _read_a_single_trajectory(
-        self, wdir: pathlib.Path, archive_path: pathlib.Path = None, *args, **kwargs
+        self,
+        wdir: pathlib.Path,
+        archive_path: pathlib.Path = None,
+        *args,
+        **kwargs,
     ):
         """"""
         self._debug(f"archive_path: {archive_path}")
@@ -943,7 +979,9 @@ class AseDriver(AbstractDriver):
 
         return frames
 
-    def read_trajectory(self, archive_path=None, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(
+        self, archive_path=None, *args, **kwargs
+    ) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         # - read trajectory
         traj_frames = self._aggregate_trajectories(archive_path=archive_path)
