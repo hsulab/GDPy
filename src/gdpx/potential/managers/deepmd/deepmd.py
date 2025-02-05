@@ -613,7 +613,13 @@ class DeepmdManager(AbstractPotentialManager):
         if self.calc_backend == "ase":
             # return ase calculator
             try:
-                from .calculator import DP
+                from deepmd._version import version as dp_version
+                if dp_version.startswith("2"):
+                    from .calculator import DP
+                elif dp_version.startswith("3"):
+                    from .calculator_v3 import DP
+                else:
+                    raise Exception(f"Unknown deepmd version {dp_version}.")
 
                 remove_extra_stream_handlers()
             except:
