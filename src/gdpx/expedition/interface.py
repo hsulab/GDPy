@@ -4,13 +4,16 @@
 
 import copy
 import pathlib
-from typing import Union, Iterable
+from typing import Iterable, Union
 
 import numpy as np
+import omegaconf
+
+from gdpx.scheduler.scheduler import AbstractScheduler
 
 from ..core.operation import Operation
 from ..core.register import registers
-from ..core.variable import Variable, DummyVariable
+from ..core.variable import DummyVariable, Variable
 from ..scheduler.interface import SchedulerVariable
 from ..worker.explore import ExpeditionBasedWorker
 from .expedition import AbstractExpedition
@@ -19,13 +22,14 @@ from .expedition import AbstractExpedition
 def register_genetic_algorithm_components():
     """"""
     # ASE built-in mutations
-    from ase.ga.standardmutations import RattleMutation, MirrorMutation
+    from ase.ga.standardmutations import MirrorMutation, RattleMutation
 
     registers.builder.register("rattle")(RattleMutation)
     registers.builder.register("mirror")(MirrorMutation)
 
-    from ase.ga.standardmutations import StrainMutation
     from ase.ga.soft_mutation import SoftMutation
+    from ase.ga.standardmutations import StrainMutation
+
     registers.builder.register("strain")(StrainMutation)
     registers.builder.register("soft")(SoftMutation)
 
@@ -39,19 +43,22 @@ def register_genetic_algorithm_components():
     registers.builder.register("swap_mutation")(SwapMutation)
 
     from .genetic_algorithm.mutation.rattle import RattleBufferMutation
+
     registers.builder.register("rattle_buffer")(RattleBufferMutation)
 
     # ASE built-in crossovers
-    from ase.ga.particle_crossovers import CutSpliceCrossover
     from ase.ga.cutandsplicepairing import CutAndSplicePairing
-    
+    from ase.ga.particle_crossovers import CutSpliceCrossover
+
     registers.builder.register("cut_and_splice")(CutAndSplicePairing)
     registers.builder.register("cut_and_splice_cluster")(CutSpliceCrossover)
 
     # Genetic workflow
     from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
 
-    registers.expedition.register("genetic_algorithm")(GeneticAlgorithmBroadcaster)
+    registers.expedition.register("genetic_algorithm")(
+        GeneticAlgorithmBroadcaster
+    )
 
     return
 
@@ -104,7 +111,9 @@ class ExpeditionVariable(Variable):
 
         method = kwargs.pop("method", None)
         if "builder" in kwargs:
-            builder = self._canonicalise_builder(kwargs["builder"], random_seed)
+            builder = self._canonicalise_builder(
+                kwargs["builder"], random_seed
+            )
             kwargs["builder"] = builder
 
         expedition = registers.create(
@@ -130,7 +139,10 @@ class ExpeditionVariable(Variable):
                 builder_params = copy.deepcopy(builder)
                 builder_method = builder_params.pop("method")
                 builder = registers.create(
-                    "builder", builder_method, convert_name=False, **builder_params
+                    "builder",
+                    builder_method,
+                    convert_name=False,
+                    **builder_params,
                 )
             else:  # variable
                 builder = builder.value
@@ -161,6 +173,16 @@ class explore(Operation):
         """"""
         if scheduler is None:
             scheduler = SchedulerVariable()
+        if isinstance(scheduler, dict) or isinstance(
+            scheduler, omegaconf.DictConfig
+        ):
+            scheduler_params = copy.deepcopy(scheduler)
+            scheduler = SchedulerVariable(**scheduler_params)
+        elif isinstance(scheduler, Variable):
+            ...
+        else:
+            raise Exception(f"Unknown {scheduler} for the scheduler.")
+
         input_nodes = [expedition, worker, scheduler]
         super().__init__(input_nodes, directory)
 
