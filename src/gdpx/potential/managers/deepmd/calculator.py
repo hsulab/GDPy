@@ -1,33 +1,18 @@
 """ASE calculator interface module."""
 
-import copy
-from pathlib import (
-    Path,
-)
-from typing import (
-    TYPE_CHECKING,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar, Optional, Union
 
 import numpy as np
-
 from ase.calculators.calculator import (
     Calculator,
     PropertyNotImplementedError,
     all_changes,
 )
-
-from deepmd import (
-    DeepPotential,
-)
+from deepmd import DeepPotential
 
 if TYPE_CHECKING:
-    from ase import (
-        Atoms,
-    )
+    from ase import Atoms
 
 __all__ = ["DP"]
 
@@ -46,6 +31,8 @@ class DP(Calculator):
     type_dict : Dict[str, int], optional
         mapping of element types and their numbers, best left None and the calculator
         will infer this information from model, by default None
+    neighbor_list : ase.neighborlist.NeighborList, optional
+        The neighbor list object. If None, then build the native neighbor list.
 
     Examples
     --------
@@ -71,28 +58,32 @@ class DP(Calculator):
     """
 
     name = "DP"
-    implemented_properties = ["energy", "free_energy", "forces", "virial", "stress"]
+    implemented_properties: ClassVar[list[str]] = [
+        "energy",
+        "free_energy",
+        "forces",
+        "virial",
+        "stress",
+    ]
 
     def __init__(
         self,
         model: Union[str, "Path"],
         label: str = "DP",
-        type_dict: Dict[str, int] = None,
+        type_dict: Optional[dict[str, int]] = None,
         **kwargs,
     ) -> None:
         Calculator.__init__(self, label=label, **kwargs)
-
-        self.model_path = str(Path(model).resolve())
+        # Lazy initialization
         self.type_dict = type_dict
-
-        # - lazy init
-        self.dp = None # will init when first calculate
+        self.model_path = str(Path(model).resolve())
+        self.dp = None  # will init when first calculate
 
     def calculate(
         self,
         atoms: Optional["Atoms"] = None,
-        properties: List[str] = ["energy", "forces", "virial"],
-        system_changes: List[str] = all_changes,
+        properties: list[str] = ["energy", "forces", "virial"],
+        system_changes: list[str] = all_changes,
     ):
         """Run calculation with deepmd model.
 
@@ -100,10 +91,10 @@ class DP(Calculator):
         ----------
         atoms : Optional[Atoms], optional
             atoms object to run the calculation on, by default None
-        properties : List[str], optional
+        properties : list[str], optional
             unused, only for function signature compatibility,
             by default ["energy", "forces", "stress"]
-        system_changes : List[str], optional
+        system_changes : list[str], optional
             unused, only for function signature compatibility, by default all_changes
         """
         if atoms is not None:
@@ -111,7 +102,9 @@ class DP(Calculator):
 
         if self.dp is None:
             self.dp = DeepPotential(self.model_path)
-            if self.type_dict is None:
+            if self.type_dict:
+                self.type_dict = self.type_dict
+            else:
                 self.type_dict = dict(
                     zip(self.dp.get_type_map(), range(self.dp.get_ntypes()))
                 )
@@ -135,7 +128,9 @@ class DP(Calculator):
             if sum(atoms.get_pbc()) > 0:
                 # the usual convention (tensile stress is positive)
                 # stress = -virial / volume
-                stress = -0.5 * (v[0].copy() + v[0].copy().T) / atoms.get_volume()
+                stress = (
+                    -0.5 * (v[0].copy() + v[0].copy().T) / atoms.get_volume()
+                )
                 # Voigt notation
                 self.results["stress"] = stress.flat[[0, 4, 8, 5, 2, 1]]
             else:
@@ -145,7 +140,13 @@ class DP(Calculator):
 class BatchDP:
 
     name = "DP"
-    implemented_properties = ["energy", "free_energy", "forces", "virial", "stress"]
+    implemented_properties = [
+        "energy",
+        "free_energy",
+        "forces",
+        "virial",
+        "stress",
+    ]
 
     """Evaluate a batch of structures.
 
@@ -157,7 +158,7 @@ class BatchDP:
         self,
         model: Union[str, "Path"],
         label: str = "DP",
-        type_dict: Dict[str, int] = None,
+        type_dict: dict[str, int] = None,
         **kwargs,
     ) -> None:
         """"""
@@ -165,15 +166,15 @@ class BatchDP:
         self.type_dict = type_dict
 
         # - lazy init
-        self.dp = None # will init when first calculate
+        self.dp = None  # will init when first calculate
 
         return
-    
+
     def calculate(
         self,
-        frames: Optional[List["Atoms"]] = None,
-        properties: List[str] = ["energy", "forces", "virial"],
-        system_changes: List[str] = all_changes,
+        frames: Optional[list["Atoms"]] = None,
+        properties: list[str] = ["energy", "forces", "virial"],
+        system_changes: list[str] = all_changes,
     ):
         """"""
         if self.dp is None:
@@ -182,12 +183,14 @@ class BatchDP:
                 self.type_dict = dict(
                     zip(self.dp.get_type_map(), range(self.dp.get_ntypes()))
                 )
-        
+
         # - convert atoms
         # TODO: assume it is not mixed-type
         coords, cells, atypes = [], [], []
         for atoms in frames:
-            curr_coord, curr_cell, curr_atype = self._convert_from_ase_to_dp(atoms)
+            curr_coord, curr_cell, curr_atype = self._convert_from_ase_to_dp(
+                atoms
+            )
             coords.append(curr_coord)
             cells.append(curr_cell)
             atypes.append(curr_atype)
@@ -200,8 +203,8 @@ class BatchDP:
 
         # - convert results
         self.results = {}
-        self.results["energy"] = [x[0] for x in e] # List[float]
-        self.results["free_energy"] = [x[0] for x in e] # List[float]
+        self.results["energy"] = [x[0] for x in e]  # list[float]
+        self.results["free_energy"] = [x[0] for x in e]  # list[float]
         self.results["forces"] = f.squeeze
         self.results["virial"] = [x.reshape(3, 3) for x in v]
 
@@ -212,14 +215,20 @@ class BatchDP:
                 if sum(atoms.get_pbc()) > 0:
                     # the usual convention (tensile stress is positive)
                     # stress = -virial / volume
-                    stress = -0.5 * (v[i].copy() + v[i].copy().T) / atoms.get_volume()
+                    stress = (
+                        -0.5
+                        * (v[i].copy() + v[i].copy().T)
+                        / atoms.get_volume()
+                    )
                     # Voigt notation
-                    self.results["stress"].append(stress.flat[[0, 4, 8, 5, 2, 1]])
+                    self.results["stress"].append(
+                        stress.flat[[0, 4, 8, 5, 2, 1]]
+                    )
                 else:
                     raise PropertyNotImplementedError
-        
+
         return
-    
+
     def _convert_from_ase_to_dp(self, atoms):
         """"""
         coord = atoms.get_positions().reshape([1, -1])
