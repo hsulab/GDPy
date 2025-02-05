@@ -23,7 +23,7 @@ from .. import (
     DummyCalculator,
     remove_extra_stream_handlers,
 )
-from ..utils import canonicalise_input_models
+from ..utils import build_a_committee_calculator, canonicalise_input_models
 from .convert import convert_groups
 
 
@@ -608,12 +608,15 @@ class DeepmdManager(AbstractPotentialManager):
         # Some backends need a command for an external executable.
         command = calc_params.pop("command", None)
 
-        # Check type list as early versions of deepmd need explicitly 
+        # Check type list as early versions of deepmd need explicitly
         # set this.
         type_list = calc_params.pop("type_list", [])
         type_map = {}
         for i, a in enumerate(type_list):
             type_map[a] = i
+
+        # Some parameters for large models
+        head = calc_params.pop("head", None)
 
         # Check if all models exist and update the self.calc_params
         # as the potential may be used in other directories if submitted by a scheduler.
@@ -642,19 +645,19 @@ class DeepmdManager(AbstractPotentialManager):
                 raise ModuleNotFoundError(
                     "Please install deepmd-kit to use the ase interface."
                 )
-            calcs = []
+            shared_params = dict(type_dict=type_map)
+            if head is not None:
+                shared_params["head"] = head
+            params_list = []
             for m in models:
-                curr_calc = DP(model=m, type_dict=type_map)
-                calcs.append(curr_calc)
-            if len(calcs) == 1:
-                calc = calcs[0]
-            elif len(calcs) > 1:
-                if estimate_uncertainty:
-                    calc = CommitteeCalculator(calcs=calcs)
-                else:
-                    calc = calcs[0]
-            else:
-                ...
+                specific_params = copy.deepcopy(shared_params)
+                specific_params["model"] = m
+                params_list.append(specific_params)
+            calc = build_a_committee_calculator(
+                DP,
+                params_list=params_list,
+                estimate_uncertainty=estimate_uncertainty,
+            )
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
 
