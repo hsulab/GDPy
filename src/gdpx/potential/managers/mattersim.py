@@ -35,6 +35,7 @@ class MatterSimManager(BasePotentialManager):
             try:
                 import torch
                 from mattersim.forcefield import MatterSimCalculator
+                device = "cuda" if torch.cuda.is_available() else "cpu"
             except:
                 raise ModuleNotFoundError(
                     "Please install mattersim and torch to use the ase interface."
