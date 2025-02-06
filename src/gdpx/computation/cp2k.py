@@ -311,7 +311,7 @@ class Cp2kDriverSetting(DriverSetting):
     #: Dynamics controller.
     controller: dict = dataclasses.field(default_factory=dict)
 
-    #: Force tolerance.
+    #: Force tolerance, [eV/Ang] -> [Hartree/Bohr], 0.0231 -> 4.5e-4, 0.0103 -> 2.0e-4.
     fmax: Optional[float] = 4.5e-4 * (units.Hartree / units.Bohr)
 
     def __post_init__(self):
