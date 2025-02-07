@@ -89,6 +89,8 @@ class LangevinThermostat(Controller):
 
         friction_seed = self.params.get("friction_seed", None)
 
+        # Lammps uses the reciprocal of the friction coefficient
+        # with the time unit.
         self.conv_params = dict(
             damp=unitconvert.convert(
                 1.0 / friction, "time", "real", self.units
