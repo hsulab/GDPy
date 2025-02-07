@@ -194,7 +194,7 @@ def run_session_once(
     if exec_mode == "basic":  # sequential
         from .basic import Session
 
-        session_states = [True]
+        session_states = []
         for i, (k, v) in enumerate(container.items()):
             n = entry_nodes[i]
             if n is None:
@@ -202,6 +202,7 @@ def run_session_once(
             entry_operation = v
             session = Session(directory=directory / n)
             session.run(entry_operation, feed_dict={})
+            session_states.append(session.is_finished())
     elif exec_mode == "active":
         from .active import ActiveSession
 
@@ -267,7 +268,7 @@ def run_session(
             SessionInitialiser.cache_nodes = (
                 {}
             )  # Clear cache before a new run.
-            config._print(f"Monitor is running step {i}!!!")
+            config._print(f"... Daemon is running step {i:>04d} ...")
             config_dict = copy.deepcopy(raw_config_dict)
             is_finished = run_session_once(
                 config_dict, feed_command, directory
@@ -275,7 +276,9 @@ def run_session(
             if is_finished:
                 break
             else:
-                config._print(f"Monitor is sleeping for {timewait} seconds.")
+                config._print(
+                    f"... Daemon will sleep for {timewait} seconds ..."
+                )
                 time.sleep(timewait)
         else:
             config._print("Reach maximum monitor for-loop.")

@@ -47,6 +47,9 @@ class Session(AbstractSession):
             else:
                 ...
 
+            if self.state == "StepFinished":
+                self.state = "LoopFinished"
+
         return
 
     def _irun(
