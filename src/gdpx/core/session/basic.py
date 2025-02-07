@@ -3,7 +3,9 @@
 
 
 import pathlib
+from typing import Union
 
+from ..operation import Operation
 from ..placeholder import Placeholder
 from ..variable import Variable
 from .session import AbstractSession
@@ -12,15 +14,15 @@ from .utils import traverse_postorder
 
 class Session(AbstractSession):
 
-    def __init__(self, directory="./") -> None:
+    def __init__(self, directory: Union[str, pathlib.Path] = "./") -> None:
         """"""
         self.directory = pathlib.Path(directory)
 
         return
 
-    def run(self, operation, feed_dict: dict = {}) -> None:
+    def run(self, operation: Operation, feed_dict: dict = {}) -> None:
         """"""
-        # - find forward order
+        # Find forward order
         nodes_postorder = traverse_postorder(operation)
         for node in nodes_postorder:
             if hasattr(node, "_active") and node._active:
@@ -36,11 +38,13 @@ class Session(AbstractSession):
             )
             + "\x1b[0m"
         )
-        self._print("\x1b[1;34;40m" + "    {}".format(str(self.directory)) + "\x1b[0m")
+        self._print(
+            "\x1b[1;34;40m" + "    {}".format(str(self.directory)) + "\x1b[0m"
+        )
 
-        # - run nodes
+        # Run nodes
         for i, node in enumerate(nodes_postorder):
-            # NOTE: reset directory since it maybe changed
+            # Reset directory since it maybe changed
             prev_name = node.directory.name
             if not prev_name:
                 prev_name = node.__class__.__name__
@@ -51,7 +55,9 @@ class Session(AbstractSession):
                 node_type = "OP"
             self._print(
                 "[{:^24s}] NAME: {} AT {}".format(
-                    node_type, node.__class__.__name__.upper(), node.directory.name
+                    node_type,
+                    node.__class__.__name__.upper(),
+                    node.directory.name,
                 )
             )
 
@@ -60,6 +66,7 @@ class Session(AbstractSession):
             elif isinstance(node, Variable):
                 node.output = node.value
             else:  # Operation
+                assert isinstance(node, Operation), f"Unknown node type: {type(node)}"
                 self._debug(f"node: {node}")
                 self._process_operation(node)
 
