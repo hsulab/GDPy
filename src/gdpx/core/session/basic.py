@@ -3,6 +3,7 @@
 
 
 import pathlib
+import time
 from typing import Union
 
 from ..operation import Operation
@@ -22,6 +23,8 @@ class Session(AbstractSession):
 
     def run(self, operation: Operation, feed_dict: dict = {}) -> None:
         """"""
+        self.state = "StepToStart"
+
         # Find forward order
         nodes_postorder = traverse_postorder(operation)
         for node in nodes_postorder:
@@ -31,24 +34,52 @@ class Session(AbstractSession):
                     f"Set {node} active to false as it is not supported in a basic session"
                 )
 
+        self._irun(self.directory, nodes_postorder, feed_dict)
+        if not (self.state == "StepFinished"):
+            self._print("wait current iteration to finish...")
+        else:
+            if not (self.directory / "FINISHED").exists():
+                # Save state to a file
+                with open(self.directory / "FINISHED", "w") as fopen:
+                    fopen.write(
+                        f"STATE {self.state} FINISHED AT {time.asctime( time.localtime(time.time()) )}."
+                    )
+            else:
+                ...
+
+        return
+
+    def _irun(
+        self,
+        wdir: pathlib.Path,
+        nodes_postorder: list[Operation],
+        feed_dict: dict = {},
+    ) -> None:
+        """"""
+        if (wdir / "FINISHED").exists():
+            self.state = "StepFinished"
+            return
+
+        # Whether clear nodes?
+
+        # Show session information
+        num_nodes = len(nodes_postorder)
         self._print(
             "\x1b[1;34;40m"
-            + "[{:^24s}] NUM_NODES: {} AT MAIN: ".format(
-                "START", len(nodes_postorder)
-            )
+            + f"[{'START':^24s}] NUM_NODES: {num_nodes} AT MAIN: "
             + "\x1b[0m"
         )
-        self._print(
-            "\x1b[1;34;40m" + "    {}".format(str(self.directory)) + "\x1b[0m"
-        )
+        self._print("\x1b[1;34;40m" + f"    {str(wdir)}" + "\x1b[0m")
 
         # Run nodes
+        self.state = "StepFinished"
         for i, node in enumerate(nodes_postorder):
+            # Change node version?
             # Reset directory since it maybe changed
             prev_name = node.directory.name
             if not prev_name:
                 prev_name = node.__class__.__name__
-            node.directory = self.directory / f"{str(i).zfill(4)}.{prev_name}"
+            node.directory = wdir / f"{i:>04d}.{prev_name}"
             if node.__class__.__name__.endswith("Variable"):
                 node_type = "VX"
             else:
