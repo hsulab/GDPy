@@ -66,7 +66,9 @@ class Session(AbstractSession):
             elif isinstance(node, Variable):
                 node.output = node.value
             else:  # Operation
-                assert isinstance(node, Operation), f"Unknown node type: {type(node)}"
+                assert isinstance(
+                    node, Operation
+                ), f"Unknown node type: {type(node)}"
                 self._debug(f"node: {node}")
                 self._process_operation(node)
 
