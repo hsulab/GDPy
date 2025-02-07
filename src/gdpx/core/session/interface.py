@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import json
 import logging
 import pathlib
 import time
 import traceback
-from typing import Optional
+from typing import Optional, Union
 
 import omegaconf
 import yaml
@@ -24,7 +25,7 @@ class SessionInitialiser:
 
     @staticmethod
     def instantiate_operation(op_name, op_params):
-        """"""
+        """Instantiate an operation."""
         params = {}
         for k, v in op_params.items():
             params[k] = v  # resolve one by one...
@@ -34,7 +35,7 @@ class SessionInitialiser:
 
     @staticmethod
     def resolve_operations(config: dict):
-        """"""
+        """Initialise operations."""
         operations = {}
         for op_name, op_params in config.items():
             op = SessionInitialiser.instantiate_operation(op_name, op_params)
@@ -45,9 +46,9 @@ class SessionInitialiser:
 
     @staticmethod
     def register_custom_resolvers():
-        """"""
+        """Add some custom resolvers."""
 
-        # - add resolvers
+        # Convert dictionary to object
         def create_vx_instance(vx_name, _root_):
             """"""
             if vx_name not in SessionInitialiser.cache_nodes:
@@ -58,7 +59,9 @@ class SessionInitialiser:
             else:
                 return SessionInitialiser.cache_nodes[vx_name]
 
-        OmegaConf.register_new_resolver("vx", create_vx_instance, use_cache=False)
+        OmegaConf.register_new_resolver(
+            "vx", create_vx_instance, use_cache=False
+        )
 
         def create_op_instance(op_name: str, _root_):
             """"""
@@ -70,9 +73,11 @@ class SessionInitialiser:
             else:
                 return SessionInitialiser.cache_nodes[op_name]
 
-        OmegaConf.register_new_resolver("op", create_op_instance, use_cache=False)
+        OmegaConf.register_new_resolver(
+            "op", create_op_instance, use_cache=False
+        )
 
-        # --
+        # Convert file to dictionary
         def read_json(input_file):
             with open(input_file, "r") as fopen:
                 input_dict = json.load(fopen)
@@ -119,7 +124,6 @@ class SessionInitialiser:
         for op_name, op_params in conf.operations.items():
             op_params["directory"] = str(directory / op_name)
 
-
         # set variable directory
         if "variables" not in conf:
             conf.variables = {}
@@ -133,7 +137,9 @@ class SessionInitialiser:
         #    print(k, v)
 
         try:
-            operations = SessionInitialiser.resolve_operations(conf["operations"])
+            operations = SessionInitialiser.resolve_operations(
+                conf["operations"]
+            )
         except omegaconf.errors.InterpolationResolutionError as err:
             config._debug(traceback.format_exc())
             err_key = (str(err).strip().split("\n")[1]).strip().split(":")[1]
@@ -169,7 +175,11 @@ class SessionInitialiser:
         return container, session_names, sconfigs
 
 
-def run_session_once(config_dict: dict, feed_command=None, directory="./"):
+def run_session_once(
+    config_dict: dict,
+    feed_command: Optional[list[str]] = None,
+    directory: Union[str, pathlib.Path] = "./",
+):
     """Configure session with omegaconfig."""
     # set directory
     directory = pathlib.Path(directory)
@@ -205,7 +215,9 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
             entry_operation = v
             session = ActiveSession(
                 steps=session_config.get("steps", 2),
-                reset_random_state=session_config.get("reset_random_state", False),
+                reset_random_state=session_config.get(
+                    "reset_random_state", False
+                ),
                 reset_random_config=session_config.get(
                     "reset_random_config", ("init", 0)
                 ),
@@ -223,12 +235,13 @@ def run_session_once(config_dict: dict, feed_command=None, directory="./"):
 
 
 def run_session(
-    config_filepath: str,
-    feed_command=None,
+    config_filepath: Union[str, pathlib.Path],
+    feed_command: Optional[list[str]] = None,
     timewait: float = -1.0,
-    directory: str = "./",
+    directory: Union[str, pathlib.Path] = "./",
 ):
     """Configure session with omegaconfig."""
+    # Check working directory and input file.
     directory = pathlib.Path(directory)
 
     config_filepath = pathlib.Path(config_filepath)
@@ -246,13 +259,19 @@ def run_session(
 
     SessionInitialiser.register_custom_resolvers()
 
-    # -
+    # Run session repeatedly.
+    # We may not use an explicit daemon here as it may be killed by the
+    # administrator.
     if timewait > 0:
         for i in range(1000):
-            SessionInitialiser.cache_nodes = {}  # Clear cache before a new run.
+            SessionInitialiser.cache_nodes = (
+                {}
+            )  # Clear cache before a new run.
             config._print(f"Monitor is running step {i}!!!")
             config_dict = copy.deepcopy(raw_config_dict)
-            is_finished = run_session_once(config_dict, feed_command, directory)
+            is_finished = run_session_once(
+                config_dict, feed_command, directory
+            )
             if is_finished:
                 break
             else:
