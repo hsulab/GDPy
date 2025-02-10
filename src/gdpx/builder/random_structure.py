@@ -4,19 +4,19 @@
 
 import copy
 import time
-from typing import List, Optional
+from typing import Optional
 
 import joblib
 import numpy as np
 from ase import Atoms
 from ase.data import atomic_numbers
 
+from gdpx.geometry.composition import CompositionSpace
+from gdpx.geometry.insert import insert_fragments_by_step
+from gdpx.geometry.spatial import get_bond_distance_dict
+from gdpx.nodes.region import RegionVariable
 from gdpx.utils.atoms_tags import reassign_tags_by_species
 
-from ..geometry.composition import CompositionSpace
-from ..geometry.insert import insert_fragments_by_step
-from ..geometry.spatial import get_bond_distance_dict
-from ..nodes.region import RegionVariable
 from .builder import StructureModifier
 
 RANDOM_INTEGER_HIGH: int = 1_000_000_000_000
@@ -33,10 +33,12 @@ def stratified_random_structures(
     inner_max_attempts: int,
     n_jobs,
     rng,
-) -> List[List[Atoms]]:
+) -> list[list[Atoms]]:
     """"""
     # prepare inputs for parallel
-    prepared_substrates = [copy.deepcopy(substrate) for _ in range(outer_max_attempts)]
+    prepared_substrates = [
+        copy.deepcopy(substrate) for _ in range(outer_max_attempts)
+    ]
     prepared_fragments = [
         composition_space.get_fragments_from_one_composition(rng)
         for _ in range(outer_max_attempts)
@@ -56,7 +58,7 @@ def stratified_random_structures(
             covalent_ratio=covalent_ratio,
             bond_distance_dict=bond_distance_dict,
             random_state=random_state,
-            max_attempts=inner_max_attempts
+            max_attempts=inner_max_attempts,
         )
         for substrate, fragments, random_state in zip(
             prepared_substrates, prepared_fragments, prepared_random_states
@@ -77,13 +79,13 @@ class RandomStructureImprovedModifier(StructureModifier):
         composition,
         region,
         box=None,
-        pbc: bool=True,
-        use_tags: bool=True,
+        pbc: bool = True,
+        use_tags: bool = True,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
-        max_times_size: int=10,
-        sort_by_tags: bool=True,
-        sort_by_natoms: bool=True,
+        max_times_size: int = 10,
+        sort_by_tags: bool = True,
+        sort_by_natoms: bool = True,
         *args,
         **kwargs,
     ):
@@ -116,11 +118,13 @@ class RandomStructureImprovedModifier(StructureModifier):
                 if box.size == 3:
                     self.box = np.diag(box)
                 else:  # assume it is (3,3)
-                    self.box = np.reshape(box, (3,3))
+                    self.box = np.reshape(box, (3, 3))
             else:
                 self.box = None
         except:
-            raise RuntimeError(f"box must be a (3,) or (3,3) array but `{box}` is given.")
+            raise RuntimeError(
+                f"box must be a (3,) or (3,3) array but `{box}` is given."
+            )
 
         self.pbc = pbc
 
@@ -142,7 +146,9 @@ class RandomStructureImprovedModifier(StructureModifier):
         # To compatible with GA engine
         self.use_tags = use_tags
         if not self.use_tags:
-            raise Exception("`random_structure_improved` must have use_tags to be True.")
+            raise Exception(
+                "`random_structure_improved` must have use_tags to be True."
+            )
 
         self._substrate = None
         if self.substrates is not None:
@@ -158,7 +164,7 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         return
 
-    def _infer_chemical_numbers_in_composition_space(self):
+    def _infer_chemical_numbers_in_composition_space(self) -> list[int]:
         """Infer what chemical numbers may occur based on the composition space and the substrates.
 
         This is normally used to determine the covalent bond distances.
@@ -171,16 +177,22 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         return chemical_numbers
 
-    def get_bond_distance_dict(self, ratio: float=1.0) -> dict:
+    def get_bond_distance_dict(self, ratio: float = 1.0) -> dict:
         """"""
         chemical_numbers = self._infer_chemical_numbers_in_composition_space()
-        bond_distance_dict = get_bond_distance_dict(chemical_numbers, ratio=ratio)
+        bond_distance_dict = get_bond_distance_dict(
+            chemical_numbers, ratio=ratio
+        )
 
         return bond_distance_dict
 
     def run(
-        self, substrates: Optional[List[Atoms]] = None, size: int = 1, *args, **kwargs
-    ) -> List[Atoms]:
+        self,
+        substrates: Optional[list[Atoms]] = None,
+        size: int = 1,
+        *args,
+        **kwargs,
+    ) -> list[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
@@ -188,7 +200,9 @@ class RandomStructureImprovedModifier(StructureModifier):
             ...
         else:
             if self.box is None:
-                raise RuntimeError(f"box must be set when substrates are not given.")
+                raise RuntimeError(
+                    f"box must be set when substrates are not given."
+                )
             self.substrates = [Atoms("", cell=self.box, pbc=self.pbc)]
 
         # Infer chemical species may occur in structures
@@ -200,13 +214,17 @@ class RandomStructureImprovedModifier(StructureModifier):
         #       enough structures are generated.
         frames = []
         for isub, substrate in enumerate(self.substrates):
-            self._print(f"generating structures based on substrate-{isub:>04d}.")
+            self._print(
+                f"generating structures based on substrate-{isub:>04d}."
+            )
             curr_frames = []
             for i in range(self.max_times_size):
                 num_curr_frames = len(curr_frames)
                 if num_curr_frames == size:
                     break
-                max_attempts = self.njobs * 2 ** int(np.log(size - num_curr_frames))
+                max_attempts = self.njobs * 2 ** int(
+                    np.log(size - num_curr_frames)
+                )
                 st = time.time()
                 batch_frames = stratified_random_structures(
                     substrate,
@@ -227,11 +245,15 @@ class RandomStructureImprovedModifier(StructureModifier):
                 for atoms in batch_frames:
                     curr_frames.append(atoms)
                     if len(curr_frames) == size:
-                        self._print(f"stride-{i:>04d} has already obtained {size} structures.")
+                        self._print(
+                            f"stride-{i:>04d} has already obtained {size} structures."
+                        )
                         break
             num_curr_frames = len(curr_frames)
             if num_curr_frames != size:
-                raise RuntimeError(f"Need {size} but only {num_curr_frames} are generated.")
+                raise RuntimeError(
+                    f"Need {size} but only {num_curr_frames} are generated."
+                )
             frames.extend(curr_frames)
 
         # Sort atoms in each structure by tags?
