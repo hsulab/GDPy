@@ -83,6 +83,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         molecular_distances=[None, None],
         max_times_size: int=10,
         sort_by_tags: bool=True,
+        sort_by_natoms: bool=True,
         *args,
         **kwargs,
     ):
@@ -151,6 +152,9 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         # Whether we should have a consistent tags
         self.sort_by_tags = sort_by_tags
+
+        # Whether we should have structures order by natoms per elements
+        self.sort_by_natoms = sort_by_natoms
 
         return
 
@@ -231,6 +235,8 @@ class RandomStructureImprovedModifier(StructureModifier):
             frames.extend(curr_frames)
 
         # Sort atoms in each structure by tags?
+        if self.sort_by_natoms:
+            frames = sorted(frames, key=lambda x: len(x))
         if self.sort_by_tags:
             new_frames = []
             for atoms in frames:
