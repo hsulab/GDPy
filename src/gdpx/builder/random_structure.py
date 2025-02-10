@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import collections
 import copy
 import time
 from typing import Optional
@@ -20,6 +21,34 @@ from gdpx.utils.atoms_tags import reassign_tags_by_species
 from .builder import StructureModifier
 
 RANDOM_INTEGER_HIGH: int = 1_000_000_000_000
+
+
+def get_structure_chemical_notation(
+    atoms: Atoms, chemical_types: list[str], padding_length: int = 4
+) -> str:
+    """Get the chemical notation of a structure that can be sorted easily.
+
+    Args:
+        atoms: Atoms object.
+        chemical_types: A list of chemical types sorted alphabetically.
+        padding_length: The padding length of the number of each chemical type.
+
+    Returns:
+        A string of chemical notation.
+
+    """
+    counter = collections.Counter(atoms.get_chemical_symbols())
+
+    notation = ""
+    for k in chemical_types:
+        num = counter.get(k, 0)
+        if num >= 10**padding_length:
+            raise RuntimeError(
+                f"Too many atoms {num} for the padding length {padding_length}."
+            )
+        notation += f"{num:>0{padding_length}d}"
+
+    return notation
 
 
 def stratified_random_structures(
@@ -85,7 +114,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         molecular_distances=[None, None],
         max_times_size: int = 10,
         sort_by_tags: bool = True,
-        sort_by_natoms: bool = True,
+        sort_by_natoms_per_type: bool = True,
         *args,
         **kwargs,
     ):
@@ -160,19 +189,25 @@ class RandomStructureImprovedModifier(StructureModifier):
         self.sort_by_tags = sort_by_tags
 
         # Whether we should have structures order by natoms per elements
-        self.sort_by_natoms = sort_by_natoms
+        self.sort_by_natoms_per_type = sort_by_natoms_per_type
 
         return
+
+    def _infer_chemical_types_in_composition_space(self) -> list[str]:
+        """"""
+        chemical_symbols = self._compspec.get_chemical_symbols()
+        for substrate in self.substrates:
+            chemical_symbols.extend(substrate.get_chemical_symbols())
+        chemical_symbols = sorted(list(set(chemical_symbols)))
+
+        return chemical_symbols
 
     def _infer_chemical_numbers_in_composition_space(self) -> list[int]:
         """Infer what chemical numbers may occur based on the composition space and the substrates.
 
         This is normally used to determine the covalent bond distances.
         """
-        chemical_symbols = self._compspec.get_chemical_symbols()
-        for substrate in self.substrates:
-            chemical_symbols.extend(substrate.get_chemical_symbols())
-        chemical_symbols = set(chemical_symbols)
+        chemical_symbols = self._infer_chemical_types_in_composition_space()
         chemical_numbers = [atomic_numbers[s] for s in chemical_symbols]
 
         return chemical_numbers
@@ -257,8 +292,14 @@ class RandomStructureImprovedModifier(StructureModifier):
             frames.extend(curr_frames)
 
         # Sort atoms in each structure by tags?
-        if self.sort_by_natoms:
-            frames = sorted(frames, key=lambda x: len(x))
+        if self.sort_by_natoms_per_type:
+            chemical_types = self._infer_chemical_types_in_composition_space()
+            frames = sorted(
+                frames,
+                key=lambda a: get_structure_chemical_notation(
+                    a, chemical_types, padding_length=4
+                ),
+            )
         if self.sort_by_tags:
             new_frames = []
             for atoms in frames:
