@@ -4,7 +4,7 @@
 
 import copy
 import itertools
-from typing import Optional
+from typing import Optional, Union
 
 import ase
 import numpy as np
@@ -14,15 +14,125 @@ from ase.ga.startgenerator import StartGenerator
 from ase.ga.utilities import (  # get system composition (both substrate and top)
     CellBounds,
     closest_distances_generator,
-    get_all_atom_types,
 )
 
 from gdpx.geometry.composition import CompositionSpace
 from gdpx.nodes.region import RegionVariable
 
 from .builder import StructureModifier
-from .species import build_species
-from .utils import compute_molecule_number_from_density
+
+
+def get_random_cell_params(box_params: dict):
+    """"""
+    # Check number_of_variable_cell_vectors
+    box_cell = np.array(box_params.get("cell", []))
+    if box_cell.size not in [0, 3, 6, 9]:
+        raise Exception("The cell must be an array with 0, 3, 6 or 9 entries.")
+    box_cell = box_cell.reshape(-1, 3)
+    box_cell_dim = box_cell.shape[0]
+
+    number_of_variable_cell_vectors = 3 - box_cell_dim
+
+    if number_of_variable_cell_vectors > 0:
+        # Get box_to_place_in
+        box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
+        if box_cell_dim > 0:
+            box_to_place_in[1][number_of_variable_cell_vectors:] = box_cell
+        box_to_place_in = box_to_place_in
+
+        # Get cell_bounds
+        box_bounds = box_params.get("bounds", {})
+        if isinstance(box_bounds, dict):
+            cell_bounds = {}
+            angles = ["a", "b", "c"]
+            for k in angles:
+                cell_bounds[k] = box_bounds.get(k, [15, 165])
+            lengths = ["phi", "chi", "psi"]
+            for k in lengths:
+                cell_bounds[k] = box_bounds.get(k, [2, 60])
+            cell_bounds = CellBounds(cell_bounds)
+        else:
+            cell_bounds = box_bounds
+        assert isinstance(cell_bounds, CellBounds), f"{cell_bounds} is not a CellBounds."
+
+        # Get cell_splits
+        box_splits = box_params.get("splits", None)
+        if box_splits is not None:
+            splits_ = {}
+            for r, p in zip(box_splits["repeats"], box_splits["probs"]):
+                splits_[tuple(r)] = p
+            cell_splits = splits_
+        else:
+            cell_splits = None
+
+        # Get cell_volume
+        cell_volume = box_params.get("volume", None)
+    else:
+        box_to_place_in = None
+        cell_bounds = None
+        cell_splits = None
+        cell_volume = None
+
+    return (
+        number_of_variable_cell_vectors,
+        box_to_place_in,
+        cell_bounds,
+        cell_splits,
+        cell_volume,
+    )
+
+
+def get_a_bulk_generator(
+    composition: tuple[tuple[str, int]],
+    min_bond_distance_dict,
+    number_of_variable_cell_vectors: int,
+    box_to_place_in,
+    cell_bounds: Optional[CellBounds] = None,
+    cell_splits: Optional[dict] = None,
+    cell_volume: Optional[float] = None,
+    atomic_radius_ratio: float = 1.0,
+    test_too_far: bool = True,
+    rng=np.random,
+) -> StartGenerator:
+    """"""
+    composition_chemical_numbers = [
+        atomic_numbers[s]
+        for s in itertools.chain(*[[s] * n for s, n in composition])
+    ]
+
+    if number_of_variable_cell_vectors == 0:
+        # Get the substrate and get random structures in a fixed box
+        # similar to the ranomd_structure_improved
+        substrate = box_to_place_in[1]
+    else:
+        # Get the substrate
+        substrate = Atoms("", pbc=True)
+
+        # Get the cell volume
+        radii = np.array(
+            [covalent_radii[x] for x in composition_chemical_numbers]
+        )
+        regular_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
+        if cell_volume is None:
+            cell_volume = regular_volume * (atomic_radius_ratio**3)
+        else:
+            ...  # Give a warning if the volume is too small?
+
+    generator = StartGenerator(
+        substrate,
+        blocks=composition,
+        blmin=min_bond_distance_dict,
+        number_of_variable_cell_vectors=number_of_variable_cell_vectors,
+        box_to_place_in=box_to_place_in,
+        box_volume=cell_volume,
+        splits=cell_splits,
+        cellbounds=cell_bounds,
+        test_dist_to_slab=False,
+        test_too_far=test_too_far,
+        rng=rng,
+    )
+
+    return generator
 
 
 class RandomBulkBuilder(StructureModifier):
@@ -42,10 +152,7 @@ class RandomBulkBuilder(StructureModifier):
         self,
         composition: dict[str, int],
         region: dict = {},
-        cell=None,
-        cell_volume: Optional[float] = None,
-        cell_bounds: Optional[dict] = None,
-        cell_splits: Optional[dict] = None,
+        box: Optional[Union[list, dict]] = None,
         pbc: bool = True,
         use_tags: bool = True,
         covalent_ratio=[0.8, 2.0],
@@ -70,15 +177,12 @@ class RandomBulkBuilder(StructureModifier):
         _init_params = dict(
             composition=composition,
             region=region,
-            cell=cell,
+            box=box,
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
             max_times_size=max_times_size,
             test_too_far=test_too_far,
             test_dist_to_slab=test_dist_to_slab,
-            cell_volume=cell_volume,
-            cell_bounds=cell_bounds,
-            cell_splits=cell_splits,
             pbc=pbc,
             **kwargs,
         )
@@ -111,7 +215,6 @@ class RandomBulkBuilder(StructureModifier):
         # Check composition
         self._compspec = CompositionSpace(composition)
 
-        self.covalent_ratio = covalent_ratio
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
@@ -119,21 +222,22 @@ class RandomBulkBuilder(StructureModifier):
             self._compspec.get_chemical_numbers(), self.covalent_min
         )
 
-        # Some box-related settings
-        self.cell = cell
-
-        self.cell_volume = cell_volume
-        self.cell_bounds = cell_bounds
-
-        self.cell_splits = cell_splits
-        self._converted_cell_splits = None
-
-        self.number_of_variable_cell_vectors = (
-            0  # number_of_variable_cell_vectors
-        )
-
         self.test_too_far = test_too_far
         self.test_dist_to_slab = test_dist_to_slab
+
+        # Some box-related settings
+        self.box = box
+
+        # Genetic algorithm bulk crossover needs 
+        # number_of_variable_cell_vectors and cell_bounds
+        box_params = self.box
+        (
+            self.number_of_variable_cell_vectors,
+            self.box_to_place_in,
+            self.cell_bounds,
+            self.cell_splits,
+            self.cell_volume,
+        ) = get_random_cell_params(box_params)
 
         self.pbc = pbc
         if not self.pbc:
@@ -178,7 +282,18 @@ class RandomBulkBuilder(StructureModifier):
 
         # Instantiate the ase generator
         composition = self._compspec._compositions[0]
-        generator = self._create_generator(composition)
+        generator = get_a_bulk_generator(
+            composition,
+            min_bond_distance_dict=self.blmin,
+            number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
+            box_to_place_in=self.box_to_place_in,
+            cell_bounds=self.cell_bounds,
+            cell_splits=self.cell_splits,
+            cell_volume=self.cell_volume,
+            atomic_radius_ratio=self.covalent_max,
+            test_too_far=self.test_too_far,
+            rng=np.random,
+        )
 
         # Generate structures
         frames, num_frames, num_attempts = [], 0, 0
@@ -209,75 +324,6 @@ class RandomBulkBuilder(StructureModifier):
                     atoms.set_tags(prev_tags + 1)
 
         return frames
-
-    def _create_generator(
-        self, composition: list[tuple[str, int]]
-    ) -> StartGenerator:
-        """"""
-        composition_chemical_numbers = [
-            atomic_numbers[s]
-            for s in itertools.chain(*[[s] * n for s, n in composition])
-        ]
-
-        # check number_of_variable_cell_vectors
-        if self.cell is None:
-            self.cell = []
-        number_of_variable_cell_vectors = 3 - len(self.cell)
-        box_to_place_in = None
-        if number_of_variable_cell_vectors > 0:
-            box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
-            if len(self.cell) > 0:
-                box_to_place_in[1][
-                    number_of_variable_cell_vectors:
-                ] = self.cell
-        self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
-        self.box_to_place_in = box_to_place_in
-
-        # check volume
-        if self.cell_volume is None:
-            radii = [
-                covalent_radii[x] * self.covalent_max
-                for x in composition_chemical_numbers
-            ]
-            self.cell_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
-
-        # cell bounds
-        if isinstance(self.cell_bounds, dict):
-            cell_bounds = {}
-            angles = ["a", "b", "c"]
-            for k in angles:
-                cell_bounds[k] = self.cell_bounds.get(k, [15, 165])
-            lengths = ["phi", "chi", "psi"]
-            for k in lengths:
-                cell_bounds[k] = self.cell_bounds.get(k, [2, 60])
-            self.cell_bounds = CellBounds(cell_bounds)
-        else:
-            assert isinstance(self.cell_bounds, CellBounds)
-
-        # cell splits
-        if self.cell_splits is not None:
-            splits_ = {}
-            for r, p in zip(
-                self.cell_splits["repeats"], self.cell_splits["probs"]
-            ):
-                splits_[tuple(r)] = p
-            self._converted_cell_splits = splits_
-
-        generator = StartGenerator(
-            Atoms("", pbc=True),
-            blocks=composition,
-            blmin=self.blmin,
-            number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
-            box_to_place_in=self.box_to_place_in,
-            box_volume=self.cell_volume,
-            splits=self._converted_cell_splits,
-            cellbounds=self.cell_bounds,
-            test_dist_to_slab=self.test_dist_to_slab,
-            test_too_far=self.test_too_far,
-            rng=np.random,
-        )  # structure generator
-
-        return generator
 
     def _build_tolerance(
         self, unique_atom_types: list[int], ratio: float = 1.0
