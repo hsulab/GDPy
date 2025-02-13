@@ -3,8 +3,6 @@
 
 
 import copy
-import pathlib
-import warnings
 from typing import Optional
 
 import ase
@@ -41,17 +39,17 @@ class RandomBulkBuilder(StructureModifier):
     def __init__(
         self,
         composition: dict[str, int],
-        substrates=None,
         region: dict = {},
         cell=None,
-        covalent_ratio=[0.8, 2.0],
-        max_times_size: int = 10,
-        test_too_far: bool = True,
-        test_dist_to_slab: bool = True,
         cell_volume: Optional[float] = None,
         cell_bounds: Optional[dict] = None,
         cell_splits: Optional[dict] = None,
         use_tags: bool = True,
+        covalent_ratio=[0.8, 2.0],
+        molecular_distances=[None, None],
+        test_too_far: bool = True,
+        test_dist_to_slab: bool = True,
+        max_times_size: int = 10,
         *args,
         **kwargs,
     ):
@@ -63,21 +61,15 @@ class RandomBulkBuilder(StructureModifier):
             use_tags: Whether use tags to distinguish molecules.
 
         """
-        super().__init__(substrates=substrates, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        # TODO: substrates should also be a Builder Object
-        # TODO: if substrates is a ChemiclFormula?
-        if isinstance(substrates, str) or isinstance(substrates, pathlib.Path):
-            substrates = str(pathlib.Path(substrates).absolute())
-        else:
-            ...
-
-        _state_params = dict(
+        # Save init params
+        _init_params = dict(
             composition=composition,
-            substrates=substrates,
             region=region,
             cell=cell,
             covalent_ratio=covalent_ratio,
+            molecular_distances=molecular_distances,
             max_times_size=max_times_size,
             test_too_far=test_too_far,
             test_dist_to_slab=test_dist_to_slab,
@@ -85,8 +77,13 @@ class RandomBulkBuilder(StructureModifier):
             cell_bounds=cell_bounds,
             cell_splits=cell_splits,
             random_seed=self.random_seed,
+            **kwargs,
         )
-        self._state_params = copy.deepcopy(_state_params)
+        self._init_params = copy.deepcopy(_init_params)
+
+        # Overwrite substrates if it is a file path
+        if self._input_substrates is not None:
+            self._init_params["substrates"] = self._input_substrates
 
         # Set random seed for generators due to compatibility
         if isinstance(self.random_seed, int):
@@ -102,7 +99,7 @@ class RandomBulkBuilder(StructureModifier):
         # Create a region
         self.region = RegionVariable(**region)
 
-        # - parse composition
+        # Parse composition
         self.composition = composition
         self._parse_composition()
 
@@ -113,7 +110,10 @@ class RandomBulkBuilder(StructureModifier):
         # Canonicalise substrates
         self._substrate = None
         if self.substrates is not None:
+            if len(self.substrates) != 1:
+                raise Exception("The random_bulk supports only one substrate.")
             self._substrate = self.substrates[0]
+
         if self._substrate is not None:
             unique_atom_types = get_all_atom_types(
                 self._substrate, self.composition_atom_numbers
@@ -135,7 +135,9 @@ class RandomBulkBuilder(StructureModifier):
         self.cell_splits = cell_splits
         self._converted_cell_splits = None
 
-        self.number_of_variable_cell_vectors = 0  # number_of_variable_cell_vectors
+        self.number_of_variable_cell_vectors = (
+            0  # number_of_variable_cell_vectors
+        )
 
         # The built-in cut_and_splice will reinit tags from 0 if use_tags is false,
         # here, use_tags is set true no matter what type of system is explored to
@@ -145,14 +147,6 @@ class RandomBulkBuilder(StructureModifier):
             raise Exception("`random_builder` must have use_tags to be True.")
 
         return
-
-    def _canonicalise_substrates(self, inp_sub) -> list[Atoms]:
-        """"""
-        substrates = super()._canonicalise_substrates(inp_sub)
-        if substrates is not None:
-            assert len(substrates) == 1, "RandomBuilder only supports one substrate."
-
-        return substrates
 
     def run(
         self,
@@ -221,7 +215,9 @@ class RandomBulkBuilder(StructureModifier):
         if number_of_variable_cell_vectors > 0:
             box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
             if len(self.cell) > 0:
-                box_to_place_in[1][number_of_variable_cell_vectors:] = self.cell
+                box_to_place_in[1][
+                    number_of_variable_cell_vectors:
+                ] = self.cell
         self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
         self.box_to_place_in = box_to_place_in
 
@@ -249,7 +245,9 @@ class RandomBulkBuilder(StructureModifier):
         # cell splits
         if self.cell_splits is not None:
             splits_ = {}
-            for r, p in zip(self.cell_splits["repeats"], self.cell_splits["probs"]):
+            for r, p in zip(
+                self.cell_splits["repeats"], self.cell_splits["probs"]
+            ):
                 splits_[tuple(r)] = p
             self._converted_cell_splits = splits_
 
@@ -308,7 +306,9 @@ class RandomBulkBuilder(StructureModifier):
         for species, num in self.composition_blocks:
             numbers = []
             for s, n in (
-                ase.formula.Formula(species.get_chemical_formula()).count().items()
+                ase.formula.Formula(species.get_chemical_formula())
+                .count()
+                .items()
             ):
                 numbers.extend([ase.data.atomic_numbers[s]] * n)
             atom_numbers.extend(numbers * num)
@@ -346,7 +346,9 @@ class RandomBulkBuilder(StructureModifier):
 
         content = "Bond Distance Minimum\n"
         content += "  covalent ratio: {}\n".format(self.covalent_min)
-        content += "  " + " " * 4 + ("{:>6}  " * nelements).format(*symbols) + "\n"
+        content += (
+            "  " + " " * 4 + ("{:>6}  " * nelements).format(*symbols) + "\n"
+        )
         for i, s in enumerate(symbols):
             content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(
                 s, *list(distance_map[i])
@@ -375,7 +377,7 @@ class RandomBulkBuilder(StructureModifier):
 
     def as_dict(self) -> dict:
         """"""
-        params = copy.deepcopy(self._state_params)
+        params = copy.deepcopy(self._init_params)
         params["method"] = self.name
 
         return params
