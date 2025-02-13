@@ -3,12 +3,13 @@
 
 
 import copy
+import itertools
 from typing import Optional
 
 import ase
 import numpy as np
 from ase import Atoms
-from ase.data import covalent_radii
+from ase.data import atomic_numbers, covalent_radii
 from ase.ga.startgenerator import StartGenerator
 from ase.ga.utilities import (  # get system composition (both substrate and top)
     CellBounds,
@@ -16,6 +17,7 @@ from ase.ga.utilities import (  # get system composition (both substrate and top
     get_all_atom_types,
 )
 
+from gdpx.geometry.composition import CompositionSpace
 from gdpx.nodes.region import RegionVariable
 
 from .builder import StructureModifier
@@ -44,6 +46,7 @@ class RandomBulkBuilder(StructureModifier):
         cell_volume: Optional[float] = None,
         cell_bounds: Optional[dict] = None,
         cell_splits: Optional[dict] = None,
+        pbc: bool = True,
         use_tags: bool = True,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
@@ -76,7 +79,7 @@ class RandomBulkBuilder(StructureModifier):
             cell_volume=cell_volume,
             cell_bounds=cell_bounds,
             cell_splits=cell_splits,
-            random_seed=self.random_seed,
+            pbc=pbc,
             **kwargs,
         )
         self._init_params = copy.deepcopy(_init_params)
@@ -84,6 +87,12 @@ class RandomBulkBuilder(StructureModifier):
         # Overwrite substrates if it is a file path
         if self._input_substrates is not None:
             self._init_params["substrates"] = self._input_substrates
+
+        # Substrates are not allowed in random bulk.
+        self._substrate = None
+        if self.substrates is not None:
+            if len(self.substrates) != 0:
+                raise Exception("The random_bulk does not support substrates.")
 
         # Set random seed for generators due to compatibility
         if isinstance(self.random_seed, int):
@@ -99,35 +108,19 @@ class RandomBulkBuilder(StructureModifier):
         # Create a region
         self.region = RegionVariable(**region)
 
-        # Parse composition
-        self.composition = composition
-        self._parse_composition()
+        # Check composition
+        self._compspec = CompositionSpace(composition)
 
         self.covalent_ratio = covalent_ratio
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
-        # Canonicalise substrates
-        self._substrate = None
-        if self.substrates is not None:
-            if len(self.substrates) != 1:
-                raise Exception("The random_bulk supports only one substrate.")
-            self._substrate = self.substrates[0]
-
-        if self._substrate is not None:
-            unique_atom_types = get_all_atom_types(
-                self._substrate, self.composition_atom_numbers
-            )
-            self.blmin = self._build_tolerance(unique_atom_types)
-        else:
-            unique_atom_types = set(self.composition_atom_numbers)
-            self.blmin = self._build_tolerance(unique_atom_types)
+        self.blmin = self._build_tolerance(
+            self._compspec.get_chemical_numbers(), self.covalent_min
+        )
 
         # Some box-related settings
         self.cell = cell
-
-        self.test_too_far = test_too_far
-        self.test_dist_to_slab = test_dist_to_slab
 
         self.cell_volume = cell_volume
         self.cell_bounds = cell_bounds
@@ -138,6 +131,15 @@ class RandomBulkBuilder(StructureModifier):
         self.number_of_variable_cell_vectors = (
             0  # number_of_variable_cell_vectors
         )
+
+        self.test_too_far = test_too_far
+        self.test_dist_to_slab = test_dist_to_slab
+
+        self.pbc = pbc
+        if not self.pbc:
+            raise Exception(
+                "The random_bulk does not support non-periodic boundary conditions (pbc=False)."
+            )
 
         # The built-in cut_and_splice will reinit tags from 0 if use_tags is false,
         # here, use_tags is set true no matter what type of system is explored to
@@ -167,8 +169,16 @@ class RandomBulkBuilder(StructureModifier):
         """
         super().run(substrates=substrates, *args, **kwargs)
 
+        if self.substrates is not None:
+            raise Exception(
+                f"The random_bulk does not support substrates `{self.substrates}`."
+            )
+        else:
+            ...
+
         # Instantiate the ase generator
-        generator = self._create_generator(self.substrates)
+        composition = self._compspec._compositions[0]
+        generator = self._create_generator(composition)
 
         # Generate structures
         frames, num_frames, num_attempts = [], 0, 0
@@ -191,21 +201,23 @@ class RandomBulkBuilder(StructureModifier):
             )
 
         # Make tags start with 1 if no substrate is used
-        num_atoms_in_substrate = len(self._substrate)
-        if num_atoms_in_substrate == 0:
-            for atoms in frames:
-                prev_tags = atoms.get_tags()
-                atoms.set_tags(prev_tags + 1)
+        if self._substrate is not None:
+            num_atoms_in_substrate = len(self._substrate)
+            if num_atoms_in_substrate == 0:
+                for atoms in frames:
+                    prev_tags = atoms.get_tags()
+                    atoms.set_tags(prev_tags + 1)
 
         return frames
 
-    def _update_settings(self, substarte: Optional[Atoms] = None):
+    def _create_generator(
+        self, composition: list[tuple[str, int]]
+    ) -> StartGenerator:
         """"""
-        # ignore substrate
-        self._substrate = Atoms("", pbc=True)
-
-        unique_atom_types = set(self.composition_atom_numbers)
-        self.blmin = self._build_tolerance(unique_atom_types)
+        composition_chemical_numbers = [
+            atomic_numbers[s]
+            for s in itertools.chain(*[[s] * n for s, n in composition])
+        ]
 
         # check number_of_variable_cell_vectors
         if self.cell is None:
@@ -225,7 +237,7 @@ class RandomBulkBuilder(StructureModifier):
         if self.cell_volume is None:
             radii = [
                 covalent_radii[x] * self.covalent_max
-                for x in self.composition_atom_numbers
+                for x in composition_chemical_numbers
             ]
             self.cell_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
 
@@ -251,19 +263,10 @@ class RandomBulkBuilder(StructureModifier):
                 splits_[tuple(r)] = p
             self._converted_cell_splits = splits_
 
-        return
-
-    def _create_generator(self, substrates: Optional[list[Atoms]] = None):
-        """"""
-        if substrates is not None:
-            self._update_settings(substrates[0])
-        else:
-            self._update_settings()
-
         generator = StartGenerator(
-            self._substrate,
-            self.composition_blocks,  # blocks
-            self.blmin,
+            Atoms("", pbc=True),
+            blocks=composition,
+            blmin=self.blmin,
             number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
             box_to_place_in=self.box_to_place_in,
             box_volume=self.cell_volume,
@@ -276,52 +279,14 @@ class RandomBulkBuilder(StructureModifier):
 
         return generator
 
-    def _parse_composition(self):
-        # --- Define the composition of the atoms to optimize ---
-        blocks = []
-        for k, v in self.composition.items():
-            k = build_species(k)
-            if isinstance(v, int):  # number
-                v = v
-            else:  # string command
-                data = v.split()
-                if data[0] == "density":
-                    v = compute_molecule_number_from_density(
-                        np.sum(k.get_masses()),
-                        self.region.get_volume(),
-                        density=float(data[1]),
-                    )
-                else:
-                    raise RuntimeError(f"Unrecognised composition {k:v}.")
-            blocks.append((k, v))
-        for k, v in blocks:
-            if len(k) > 1:
-                self.use_tags = True
-                break
-        else:
-            self.use_tags = False
-        self.composition_blocks = blocks
-
-        atom_numbers = []  # atomic number of inserted atoms
-        for species, num in self.composition_blocks:
-            numbers = []
-            for s, n in (
-                ase.formula.Formula(species.get_chemical_formula())
-                .count()
-                .items()
-            ):
-                numbers.extend([ase.data.atomic_numbers[s]] * n)
-            atom_numbers.extend(numbers * num)
-        self.composition_atom_numbers = atom_numbers
-
-        return
-
-    def _build_tolerance(self, unique_atom_types: list[int]):
+    def _build_tolerance(
+        self, unique_atom_types: list[int], ratio: float = 1.0
+    ):
         """"""
         blmin = closest_distances_generator(
             atom_numbers=unique_atom_types,
             # be careful with test too far
-            ratio_of_covalent_radii=self.covalent_min,
+            ratio_of_covalent_radii=ratio,
         )
 
         return blmin
