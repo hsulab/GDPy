@@ -498,7 +498,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             f"number of relaxed in current generation: {self.num_relaxed_gen}"
         )
         self._print(
-            integers_to_string(
+            "confids: "
+            + integers_to_string(
                 sorted(self.relaxed_confids), inp_convention="lmp"
             )
         )
@@ -506,7 +507,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}"
         )
         self._print(
-            integers_to_string(
+            "confids: "
+            + integers_to_string(
                 sorted(self.unrelaxed_confids), inp_convention="lmp"
             )
         )
