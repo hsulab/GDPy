@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
 
-from ase.calculators.abacus import Abacus, AbacusProfile
-from ase.io.abacus import read_input
-
 from . import AbstractPotentialManager
-
-
-class AbacusWrapper(Abacus):
-
-    def reset(self):
-        """Clear all information from old calculation."""
-
-        self.atoms = None
-        self.results = {}
-
-        return
 
 
 class AbacusManager(AbstractPotentialManager):
@@ -45,12 +32,18 @@ class AbacusManager(AbstractPotentialManager):
 
         command = calc_params.pop("command", None)
 
-        pseudo_dir = str(pathlib.Path(calc_params.pop("pseudo_dir", None)).resolve())
+        pseudo_dir = str(
+            pathlib.Path(calc_params.pop("pseudo_dir", None)).resolve()
+        )
         self.calc_params.update(pseudo_dir=pseudo_dir)
-        basis_dir = str(pathlib.Path(calc_params.pop("basis_dir", None)).resolve())
+        basis_dir = str(
+            pathlib.Path(calc_params.pop("basis_dir", None)).resolve()
+        )
         self.calc_params.update(basis_dir=basis_dir)
 
-        template_fpath = str(pathlib.Path(calc_params.pop("template")).resolve())
+        template_fpath = str(
+            pathlib.Path(calc_params.pop("template")).resolve()
+        )
         self.calc_params.update(basis_dir=basis_dir)
         kpts = calc_params.pop("kpts", (1, 1, 1))
 
@@ -60,6 +53,24 @@ class AbacusManager(AbstractPotentialManager):
             basis[s] = data["basis"]
 
         if self.calc_backend == "abacus":
+            try:
+                from ase.calculators.abacus import Abacus, AbacusProfile
+                from ase.io.abacus import read_input
+
+                class AbacusWrapper(Abacus):
+
+                    def reset(self):
+                        """Clear all information from old calculation."""
+
+                        self.atoms = None
+                        self.results = {}
+
+                        return
+
+            except:
+                raise ModuleNotFoundError(
+                    "Please install the ase with abacus to use the ase interface."
+                )
             profile = AbacusProfile(
                 command=command, pseudo_dir=pseudo_dir, basis_dir=basis_dir
             )
