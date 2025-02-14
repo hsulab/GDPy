@@ -41,12 +41,6 @@ from .nequip import NequipManager, NequipTrainer
 registers.manager.register("nequip")(NequipManager)
 registers.trainer.register(NequipTrainer)
 
-#try:
-#    from .schnet import SchnetManager
-#    registers.manager.register(SchnetManager)
-#except ImportError as e:
-#    warnings.warn("Module {} import failed: {}".format("schnet", e), UserWarning)
-
 from .mattersim import MatterSimManager
 registers.manager.register("mattersim")(MatterSimManager)
 
