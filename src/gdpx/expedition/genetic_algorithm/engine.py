@@ -925,15 +925,18 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             blmin = self.generator.get_bond_distance_dict(
                 ratio=self.generator.covalent_ratio[0]
             )
-            bond_distance_dict = self.generator.get_bond_distance_dict()
+            bond_distance_dict = self.generator.get_bond_distance_dict(
+                ratio=1.0
+            )
             specific_params.update(
                 blmin=blmin,
                 bond_distance_dict=bond_distance_dict,
             )
         else:
-            specific_params.update(
-                blmin=self.generator.blmin,
-                bond_distance_dict=self.generator.blmin,
+            raise Exception(
+                f"Genetic only supports builder with "
+                + "get_bond_distance_dict, for example, "
+                + "random_bulk and random_structure_improved."
             )
 
         # StrainMutation uses cellbounds instead of cell_bounds

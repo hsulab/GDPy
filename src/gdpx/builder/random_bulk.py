@@ -11,12 +11,10 @@ import numpy as np
 from ase import Atoms
 from ase.data import atomic_numbers, covalent_radii
 from ase.ga.startgenerator import StartGenerator
-from ase.ga.utilities import (  # get system composition (both substrate and top)
-    CellBounds,
-    closest_distances_generator,
-)
+from ase.ga.utilities import CellBounds
 
 from gdpx.geometry.composition import CompositionSpace
+from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import (
     sort_structures_by_natoms_per_type,
     sort_structures_by_tags,
@@ -217,12 +215,11 @@ class RandomBulkBuilder(StructureModifier):
         # Check composition
         self._compspec = CompositionSpace(composition)
 
+        self.covalent_ratio = covalent_ratio
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
-        self.blmin = self._build_tolerance(
-            self._compspec.get_chemical_numbers(), self.covalent_min
-        )
+        self.blmin = self.get_bond_distance_dict(ratio=self.covalent_min)
 
         self.test_too_far = test_too_far
         self.test_dist_to_slab = test_dist_to_slab
@@ -274,6 +271,14 @@ class RandomBulkBuilder(StructureModifier):
         self.sort_by_natoms_per_type = sort_by_natoms_per_type
 
         return
+
+    def get_bond_distance_dict(self, ratio: float = 1.0) -> dict:
+        """"""
+        bond_distance_dict = get_bond_distance_dict(
+            self._compspec.get_chemical_numbers(), ratio=ratio
+        )
+
+        return bond_distance_dict
 
     def run(
         self,
