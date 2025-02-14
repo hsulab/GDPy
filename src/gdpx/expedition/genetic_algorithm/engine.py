@@ -376,31 +376,32 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         self._print(f"===== Genetic Algorithm =====")
         self._print(f"Target of Global Optimisation is {self.target}")
 
+        # Update output functions
+        self.pop_manager._print = self._print
+
+        # Check random structure builder (generator)
+        self._print("===== register builder =====")
+        for l in str(self.generator).split("\n"):
+            self._print(l)
+        self._print(f"random_state: {self.generator.random_seed}")
+
         # Check worker
         self._print("===== register worker =====")
         assert self.worker is not None, "GA has not set its worker properly."
         self.worker.directory = self.directory / self.CALC_DIRNAME
 
-        # - outputs
-        self.pop_manager._print = self._print
+        if self.generator.name == "random_bulk" and self.worker.driver.setting.task != "cmin":
+            content = "*"*50 + "\n"
+            content += "*    " + f"{'':<44s}" + "*\n"
+            content += "*    " + f"{'YOU ARE EXPLORING RANDOM BULK STRUCTURES':<44s}" + "*\n"
+            content += "*    " + f"{'BETTER USE `task: cmin` IN THE DRIVER':<44s}" + "*\n"
+            content += "*    " + f"{'OTHERWISE THE CELL WILL NOT BE CHANGED':<44s}" + "*\n"
+            content += "*    " + f"{'':<44s}" + "*\n"
+            content += "*"*50 + "\n"
+            for l in content.split("\n"):
+                self._print(l)
 
-        # - generator info
-        self._print("===== register builder =====")
-        for l in str(self.generator).split("\n"):
-            self._print(l)
-        self._print(f"random_state: f{self.generator.random_seed}")
-
-        # TODO: move this part to where before generator is created
-        # HACK: As the substrate is lazy-evaluated, it is unknown until
-        #       generator.run() is called. The unknwon substrate will
-        #       cause the crossover giving inconsistent pbc.
-        #       Thus, we initialise a substrate by default in generator's setting.
-        try:
-            self.generator._update_settings()
-        except:
-            ...
-
-        # NOTE: check database existence and generation number to determine restart
+        # Check database existence and generation number to determine restart
         self._print("===== register database =====")
         self._debug(f"database path: {str(self.db_path)}")
         if not self.db_path.exists():
@@ -413,11 +414,11 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         num_atoms_substrate = self.da.get_param("num_atoms_substrate")
         self._print(f"{num_atoms_substrate=}")
 
-        # --- mutation and comparassion operators
+        # Register mutation and comparassion operators
         self._print("===== register operators =====")
         self._register_operators()
 
-        # - run
+        # Run genetic
         for _ in range(1000):
             self._check_generation()
             if self.read_convergence():
