@@ -18,6 +18,7 @@ class SwapMutation(OffspringCreator):
     def __init__(
         self,
         bond_distance_dict,
+        particles=None,
         swap_ratio=0.33,
         covalent_ratio=[0.8, 2.0],
         num_muts=1,
@@ -31,6 +32,21 @@ class SwapMutation(OffspringCreator):
 
         self.bond_distance_dict = bond_distance_dict
         self.covalent_ratio = covalent_ratio
+
+        if particles is not None:
+            if isinstance(particles, list):
+                if isinstance(particles[0], list):
+                    swap_pairs = particles
+                else:
+                    num_particles = len(particles)
+                    if num_particles <= 1:
+                        raise Exception(f"At least two particles but got `{particles}`.")
+                    swap_pairs = [[particles[i], particles[j]] for i in range(num_particles) for j in range(i+1, num_particles)]
+                self.swap_pairs = [tuple(sorted(p)) for p in swap_pairs]
+            else:
+                raise Exception(f"Invalid input for particles `{particles}`.")
+        else:
+            self.swap_pairs = None
 
         self.swap_ratio = swap_ratio
 
@@ -107,6 +123,7 @@ class SwapMutation(OffspringCreator):
                 bond_distance_dict=self.bond_distance_dict,
                 covalent_ratio=self.covalent_ratio,
                 intra_bond_pairs=intra_bond_pairs,
+                swap_pairs=self.swap_pairs,
                 rng=self.rng,
             )
         else:

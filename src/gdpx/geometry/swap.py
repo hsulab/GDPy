@@ -3,7 +3,7 @@
 
 
 import copy
-from typing import Optional 
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -28,7 +28,10 @@ def pick_one_particle(
 
 
 def debug_swapped_positions(
-    atoms: Atoms, pick_one: list[int], pick_two: list[int], prefix: str = "actual"
+    atoms: Atoms,
+    pick_one: list[int],
+    pick_two: list[int],
+    prefix: str = "actual",
 ) -> None:
     """"""
     particle_one = atoms[pick_one]  # default copy
@@ -57,7 +60,8 @@ def swap_particles_by_step(
     num_swaps: int,
     bond_distance_dict: dict,
     covalent_ratio: list = [0.8, 2.0],
-    intra_bond_pairs: list[tuple[int, int]]=[],
+    intra_bond_pairs: list[tuple[int, int]] = [],
+    swap_pairs: Optional[list[tuple[str, str]]] = None,
     max_attempts: Optional[int] = None,
     rng: np.random.Generator = np.random.default_rng(),
 ) -> tuple[Optional[Atoms], str]:
@@ -70,9 +74,10 @@ def swap_particles_by_step(
         bond_distance_dict: The common distance for covalent bonds.
         covalent_ratio: The minimum and maxmimum ratios for covalent bond distances.
         intra_bond_pairs: The bonds ignored by distance check.
+        swap_pairs: The pairs of particle types allowed to swap.
         max_attempts: The maxmimum attempts to swap.
         rng: The random number generator.
-        
+
     Returns:
         The updated structure and information about swap successes and attempts.
 
@@ -84,21 +89,47 @@ def swap_particles_by_step(
     # Get particle types and try to swap
     particle_types = list(identities.keys())
     num_particle_types = len(particle_types)
+    type_pairs = [
+        tuple(sorted([particle_types[i], particle_types[j]]))
+        for i in range(num_particle_types)
+        for j in range(i + 1, num_particle_types)
+    ]
+
+    if swap_pairs is None:
+        swap_pairs = type_pairs
+    found_pairs = False
+    for pair in type_pairs:
+        if pair in swap_pairs:
+            found_pairs = True
+            break
+    if not found_pairs:
+        max_attempts = 0  # skip the for loop
 
     records = []
     candidate, num_success = atoms, 0
     for _ in range(max_attempts):
         # Pick two different particles
-        type_one, type_two = rng.choice(num_particle_types, size=2, replace=False)
+        type_one, type_two = rng.choice(
+            num_particle_types, size=2, replace=False
+        )
+        type_pair = tuple(sorted([particle_types[type_one], particle_types[type_two]]))
+        if type_pair not in swap_pairs:
+            continue
         particle_one, tag_one, pick_one = pick_one_particle(
-            candidate, identity_list=identities[particle_types[type_one]], rng=rng
+            candidate,
+            identity_list=identities[particle_types[type_one]],
+            rng=rng,
         )
         particle_two, tag_two, pick_two = pick_one_particle(
-            candidate, identity_list=identities[particle_types[type_two]], rng=rng
+            candidate,
+            identity_list=identities[particle_types[type_two]],
+            rng=rng,
         )
 
         # Add pair to records and check them to avoid duplicate swaps
-        tag_pair = (tag_one, tag_two) if tag_one <= tag_two else (tag_two, tag_one)
+        tag_pair = (
+            (tag_one, tag_two) if tag_one <= tag_two else (tag_two, tag_one)
+        )
         if tag_pair in records:
             continue
         else:
