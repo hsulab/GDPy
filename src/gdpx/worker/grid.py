@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import json
 import pathlib
 import tempfile
 import time
 import uuid
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
-import yaml
 from ase import Atoms
-from ase.io import read, write
+from ase.io import write
 from tinydb import Query, TinyDB
 
 from ..computation.driver import AbstractDriver
-from ..potential.manager import AbstractPotentialManager
+from gdpx.potential.manager import BasePotentialManager
 from ..scheduler.local import LocalScheduler
 from ..scheduler.scheduler import AbstractScheduler
 from ..utils.command import CustomTimer
@@ -32,8 +32,8 @@ class GridDriverBasedWorker(AbstractWorker):
 
     def __init__(
         self,
-        potters: List[AbstractPotentialManager],
-        drivers: List[AbstractDriver],
+        potters: list[BasePotentialManager],
+        drivers: list[AbstractDriver],
         scheduler: AbstractScheduler = LocalScheduler(),
         directory="./",
         *args,
@@ -50,9 +50,9 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return
 
-    def _preprocess_structures(self, structures) -> Tuple[str, List[Atoms]]:
+    def _preprocess_structures(self, structures) -> Tuple[str, list[Atoms]]:
         """Preprocess structures."""
-        if isinstance(structures, list):  # assume List[Atoms]
+        if isinstance(structures, list):  # assume list[Atoms]
             structures = structures
         else:  # assume it is a builder
             structures = structures.run()
@@ -137,7 +137,7 @@ class GridDriverBasedWorker(AbstractWorker):
         The structures and the drivers must be one-to-one.
 
         Args:
-            structures: A plain List[Atoms] or a builder.
+            structures: A plain list[Atoms] or a builder.
             batch: batch number.
 
         Returns:
@@ -233,7 +233,7 @@ class GridDriverBasedWorker(AbstractWorker):
         identifier,
         database,
         batch_name: str,
-        batch_indices: List[int],
+        batch_indices: list[int],
         wdir_names,
         structures,
     ):

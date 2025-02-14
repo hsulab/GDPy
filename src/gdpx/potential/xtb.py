@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import os
-import pathlib
-from typing import NoReturn
 
-from . import AbstractPotentialManager
+from .manager import BasePotentialManager
 
 
-class XtbManager(AbstractPotentialManager):
+class XtbManager(BasePotentialManager):
 
     name = "xtb"
 
-    implemented_backends = ["xtb", "tblite"]
+    implemented_backends = ("xtb", "tblite")
     valid_combinations = (
         ("xtb", "ase"),
         ("tblite", "ase"),
@@ -29,12 +26,6 @@ class XtbManager(AbstractPotentialManager):
 
     """
 
-    def __init__(self, *args, **kwargs):
-        """"""
-        super().__init__()
-
-        return
-    
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
@@ -54,8 +45,10 @@ class XtbManager(AbstractPotentialManager):
                 exit()
             calc_cls = TBLite
         else:
-            raise NotImplementedError(f"Unsupported backend {self.calc_backend}.")
-        
+            raise NotImplementedError(
+                f"Unsupported backend {self.calc_backend}."
+            )
+
         calc = calc_cls(**calc_params)
 
         self.calc = calc

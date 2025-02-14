@@ -12,12 +12,10 @@ from typing import Optional, Union
 import omegaconf
 from ase import Atoms
 
-from .. import (
-    AbstractPotentialManager,
-    AbstractTrainer,
-    CommitteeCalculator,
-    DummyCalculator,
-)
+from ..calculators.dummy import DummyCalculator
+from ..calculators.mixer import CommitteeCalculator
+from ..manager import BasePotentialManager
+from ..trainer import BasePotentialTrainer
 
 
 def parse_reann_input_config(para: Union[str, pathlib.Path]) -> list[str]:
@@ -42,7 +40,9 @@ def parse_reann_input_config(para: Union[str, pathlib.Path]) -> list[str]:
                 # type_list = line.strip().split("#")[0].split("=")[1]
                 m = re.findall("\[.*\]", line)
                 assert len(m) == 1
-                type_list = [str(x.strip(" '\"")) for x in m[0][1:-1].split(",")]
+                type_list = [
+                    str(x.strip(" '\"")) for x in m[0][1:-1].split(",")
+                ]
                 break
         else:
             raise RuntimeError(f"No atomtype found in {str(para)}.")
@@ -231,7 +231,7 @@ class ReannDataloader:
         return params
 
 
-class ReannTrainer(AbstractTrainer):
+class ReannTrainer(BasePotentialTrainer):
 
     name = "reann"
     command = ""
@@ -311,7 +311,9 @@ class ReannTrainer(AbstractTrainer):
             # NOTE: `para/input*` will be overwritten by current self.config
             command = self._train_from_the_scratch(dataset, init_model)
             if init_model is not None:
-                self._print(f"{self.name} init training from model {init_model}.")
+                self._print(
+                    f"{self.name} init training from model {init_model}."
+                )
                 (self.directory / self.ckpt_name).unlink(missing_ok=True)
                 shutil.copyfile(init_model, self.directory / self.ckpt_name)
                 prev_config = load_reann_input_para(self.directory / "para")
@@ -332,7 +334,9 @@ class ReannTrainer(AbstractTrainer):
                 if log_path.exists():
                     with open(self.directory / "nn.err", "r") as fopen:
                         lines = fopen.readlines()
-                    epoch_lines = [l for l in lines if l.strip().startswith("Epoch")]
+                    epoch_lines = [
+                        l for l in lines if l.strip().startswith("Epoch")
+                    ]
                     try:
                         end_epoch = int(epoch_lines[-1].split()[1])
                         self._debug(f"{end_epoch =}")
@@ -340,12 +344,18 @@ class ReannTrainer(AbstractTrainer):
                         end_epoch = 0
                         self._print(f"The endline of `nn.err` is strange.")
                     # -
-                    prev_config = load_reann_input_para(self.directory / "para")
+                    prev_config = load_reann_input_para(
+                        self.directory / "para"
+                    )
                     prev_config["nn"]["table_init"] = 1
-                    prev_config["nn"]["Epoch"] = prev_config["nn"]["Epoch"] - end_epoch
+                    prev_config["nn"]["Epoch"] = (
+                        prev_config["nn"]["Epoch"] - end_epoch
+                    )
                     prev_config["nn"]["patience_epoch"] = 0
                     assert prev_config["nn"]["Epoch"] >= 0
-                    _ = dump_reann_input_para(prev_config, self.directory / "para")
+                    _ = dump_reann_input_para(
+                        prev_config, self.directory / "para"
+                    )
                     self._print(
                         f"{self.name} restarts training from epoch {end_epoch}."
                     )
@@ -438,7 +448,7 @@ class ReannTrainer(AbstractTrainer):
         return converged
 
 
-class ReannManager(AbstractPotentialManager):
+class ReannManager(BasePotentialManager):
 
     name = "reann"
     implemented_backends = [
@@ -490,7 +500,9 @@ class ReannManager(AbstractPotentialManager):
                 from .calculators.reann import REANN
 
                 device = torch.device(
-                    "cuda" if torch.cuda.is_available() else torch.device("cpu")
+                    "cuda"
+                    if torch.cuda.is_available()
+                    else torch.device("cpu")
                 )
                 if precision == "float32":
                     precision = torch.float32

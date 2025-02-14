@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from pathlib import Path
 
-from . import AbstractPotentialManager
+import pathlib
+
+from .manager import BasePotentialManager
 
 
-class ReaxManager(AbstractPotentialManager):
+class ReaxManager(BasePotentialManager):
 
     name = "reax"
-    implemented_backends = ["lammps"]
+    implemented_backends = "lammps"
 
     valid_combinations = (("lammps", "ase"), ("lammps", "lammps"))
-
-    def __init__(self, *args, **kwargs):
-        """"""
-
-        return
 
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
         command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", Path.cwd())
+        directory = calc_params.pop("directory", pathlib.Path.cwd())
 
         model = calc_params.get("model", None)
-        model = str(Path(model).resolve())
+        model = str(pathlib.Path(model).resolve())
         self.calc_params["model"] = model
 
         if self.calc_backend == "lammps":
@@ -53,4 +49,4 @@ class ReaxManager(AbstractPotentialManager):
 
 
 if __name__ == "__main__":
-    pass
+    ...

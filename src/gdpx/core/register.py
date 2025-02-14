@@ -168,7 +168,7 @@ class registers:
 
 ALL_MODULES = [
     ("gdpx", ["scheduler"]),
-    ("gdpx.potential", ["managers"]),
+    ("gdpx", ["potential"]),
     ("gdpx.data", ["dataset"]),
     ("gdpx", ["region"]),
     ("gdpx", ["bias"]),

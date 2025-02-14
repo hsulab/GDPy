@@ -10,15 +10,13 @@ import yaml
 from ase.calculators.calculator import Calculator
 from ase.io import read, write
 
-from . import (
-    AbstractPotentialManager,
-    AbstractTrainer,
-    CommitteeCalculator,
-    DummyCalculator,
-)
+from .calculators.dummy import DummyCalculator
+from .calculators.mixer import CommitteeCalculator
+from .manager import BasePotentialManager
+from .trainer import BasePotentialTrainer
 
 
-class NequipTrainer(AbstractTrainer):
+class NequipTrainer(BasePotentialTrainer):
 
     name = "nequip"
     command = "nequip-train"
@@ -116,7 +114,8 @@ class NequipTrainer(AbstractTrainer):
         write(self.directory / "dataset.xyz", frames)
 
         n_train = (
-            int(nframes * dataset.train_ratio / dataset.batchsize) * dataset.batchsize
+            int(nframes * dataset.train_ratio / dataset.batchsize)
+            * dataset.batchsize
         )
         n_val = nframes - n_train
 
@@ -168,22 +167,16 @@ class NequipTrainer(AbstractTrainer):
         return converged
 
 
-class NequipManager(AbstractPotentialManager):
+class NequipManager(BasePotentialManager):
 
     name = "nequip"
-    implemented_backends = ["ase", "lammps"]
+    implemented_backends = ("ase", "lammps")
 
     valid_combinations = (
-        ("ase", "ase"),  # calculator, dynamics
+        ("ase", "ase"),
         ("lammps", "ase"),
         ("lammps", "lammps"),
     )
-
-    def __init__(self):
-        """"""
-        self.committee = None
-
-        return
 
     def _create_calculator(self, calc_params: dict) -> Calculator:
         """Create an ase calculator.
@@ -230,7 +223,9 @@ class NequipManager(AbstractPotentialManager):
                 curr_calc = NequIPCalculator.from_deployed_model(
                     model_path=m,
                     species_to_type_name={k: k for k in atypes},
-                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                    device=torch.device(
+                        "cuda" if torch.cuda.is_available() else "cpu"
+                    ),
                 )
                 calcs.append(curr_calc)
             if len(calcs) == 1:
@@ -273,4 +268,3 @@ class NequipManager(AbstractPotentialManager):
 
 if __name__ == "__main__":
     ...
-

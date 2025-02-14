@@ -12,8 +12,8 @@ import yaml
 from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import DummyVariable, Variable
-from ..potential.manager import AbstractPotentialManager
-from ..potential.trainer import AbstractTrainer
+from gdpx.potential.manager import BasePotentialManager
+from gdpx.potential.trainer import BasePotentialTrainer
 from ..scheduler.interface import SchedulerVariable
 from ..scheduler.scheduler import AbstractScheduler
 from ..worker.train import TrainerBasedWorker
@@ -84,9 +84,9 @@ class train(Operation):
     def forward(
         self,
         dataset,
-        trainer: AbstractTrainer,
+        trainer: BasePotentialTrainer,
         scheduler: AbstractScheduler,
-        potter: AbstractPotentialManager,
+        potter: BasePotentialManager,
     ):
         """"""
         super().forward()

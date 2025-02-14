@@ -1,27 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import os
 import pathlib
-from typing import NoReturn
 
-from . import AbstractPotentialManager
+from .manager import BasePotentialManager
 
 
-class VaspManager(AbstractPotentialManager):
+class VaspManager(BasePotentialManager):
 
     name = "vasp"
 
-    implemented_backends = ["vasp", "vasp_interactive"]
-    valid_combinations = (
-        # calculator, dynamics
-        ("vasp", "vasp"), 
-        ("vasp_interactive", "ase")
-    )
-
-    def __init__(self):
-
-        return
+    implemented_backends = ("vasp", "vasp_interactive")
+    valid_combinations = (("vasp", "vasp"), ("vasp_interactive", "ase"))
 
     def _set_environs(self, pp_path, vdw_path) -> None:
         """Set files need for calculation.
@@ -30,14 +22,14 @@ class VaspManager(AbstractPotentialManager):
               dummy calculator.
 
         """
-        # ===== environs TODO: from inputs 
+        # ===== environs TODO: from inputs
         # - ASE_VASP_COMMAND
-        # pseudo 
+        # pseudo
         if "VASP_PP_PATH" in os.environ.keys():
             os.environ.pop("VASP_PP_PATH", "")
         os.environ["VASP_PP_PATH"] = pp_path
 
-        # - vdw 
+        # - vdw
         vdw_envname = "ASE_VASP_VDW"
         if vdw_envname in os.environ.keys():
             _ = os.environ.pop(vdw_envname, "")
@@ -66,27 +58,32 @@ class VaspManager(AbstractPotentialManager):
         #       -- convert paths to absolute ones
 
         inp_fdict = dict(
-            incar = calc_params.pop("incar", None),
-            pp_path = calc_params.pop("pp_path", ""),
-            vdw_path = calc_params.pop("vdw_path", "")
+            incar=calc_params.pop("incar", None),
+            pp_path=calc_params.pop("pp_path", ""),
+            vdw_path=calc_params.pop("vdw_path", ""),
         )
 
         if not is_remote:
             for fname in inp_fdict.keys():
-                inp_fdict[fname] = str(pathlib.Path(inp_fdict[fname]).resolve())
+                inp_fdict[fname] = str(
+                    pathlib.Path(inp_fdict[fname]).resolve()
+                )
             self.calc_params.update(**inp_fdict)
         else:
             for fname, fpath in inp_fdict.items():
                 if not pathlib.Path(fpath).is_absolute():
-                    raise RuntimeError(f"{fname} for remote must be an absolute path.")
+                    raise RuntimeError(
+                        f"{fname} for remote must be an absolute path."
+                    )
 
         if self.calc_backend == "vasp":
             # return ase calculator
             from ase.calculators.vasp import Vasp
+
             calc = Vasp(directory=directory, command=command)
 
             # - set some default electronic parameters
-            calc.set_xc_params("PBE") # NOTE: since incar may not set GGA
+            calc.set_xc_params("PBE")  # NOTE: since incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
             calc.set(lreal="Auto")
@@ -97,9 +94,10 @@ class VaspManager(AbstractPotentialManager):
             calc.set(**calc_params)
         elif self.calc_backend == "vasp_interactive":
             from vasp_interactive import VaspInteractive
+
             calc = VaspInteractive(directory=directory, command=command)
             # - set some default electronic parameters
-            calc.set_xc_params("PBE") # NOTE: since incar may not set GGA
+            calc.set_xc_params("PBE")  # NOTE: since incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
             calc.set(lreal="Auto")
@@ -109,17 +107,19 @@ class VaspManager(AbstractPotentialManager):
             calc.set(potim=0.0)
             calc.set(ibrion=-1)
             calc.set(ediffg=0)
-            #calc.set(isif=3) # TODO: Does not support stress for now...
+            # calc.set(isif=3) # TODO: Does not support stress for now...
             self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
             # - update residual params
             calc.set(**calc_params)
         else:
-            raise NotImplementedError(f"Unimplemented backend {self.calc_backend} for vasp.")
-        
+            raise NotImplementedError(
+                f"Unimplemented backend {self.calc_backend} for vasp."
+            )
+
         self.calc = calc
 
         return
 
 
 if __name__ == "__main__":
-    pass
+    ...

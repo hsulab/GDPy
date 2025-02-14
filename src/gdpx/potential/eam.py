@@ -4,10 +4,11 @@
 
 import pathlib
 
-from . import AbstractPotentialManager, DummyCalculator
+from .calculators.dummy import DummyCalculator
+from .manager import BasePotentialManager
 
 
-class EamManager(AbstractPotentialManager):
+class EamManager(BasePotentialManager):
 
     name = "eam"
 
@@ -16,12 +17,6 @@ class EamManager(AbstractPotentialManager):
 
     """See LAMMPS documentation for calculator parameters.
     """
-
-    def __init__(self, *args, **kwargs):
-        """"""
-        super().__init__()
-
-        return
 
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
@@ -82,4 +77,3 @@ class EamManager(AbstractPotentialManager):
 
 if __name__ == "__main__":
     ...
-

@@ -5,13 +5,11 @@
 import collections
 import copy
 import pathlib
-import shutil
-import traceback
-from typing import Callable, List, Union
+from typing import Callable, Union
 
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
+from ase.io import write
 
 try:
     import dpdata
@@ -30,10 +28,10 @@ def get_formula_from_atoms(atoms: Atoms) -> str:
 
 
 def convert_groups(
-    names: List[str],
-    groups: List[List[Atoms]],
-    batchsizes: Union[List[int], int],
-    type_map: List[str],
+    names: list[str],
+    groups: list[list[Atoms]],
+    batchsizes: Union[list[int], int],
+    type_map: list[str],
     suffix: str,
     dest_dir: Union[str, pathlib.Path] = "./",
     pfunc: Callable = print,
@@ -67,7 +65,9 @@ def convert_groups(
             continue
         else:
             if num_compositions != 1:
-                raise RuntimeError(f"Inconsistent composition {num_compositions} =? 1...")
+                raise RuntimeError(
+                    f"Inconsistent composition {num_compositions} =? 1..."
+                )
         curr_composition = compositions[0]
 
         pfunc(
@@ -128,7 +128,9 @@ def convert_groups(
         #       so we need separate dirs...
         sys_dir = set_dir / name
         if sys_dir.exists():
-            raise FileExistsError(f"{sys_dir} exists. Please check the dataset.")
+            raise FileExistsError(
+                f"{sys_dir} exists. Please check the dataset."
+            )
         else:
             dsys.to_deepmd_npy(set_dir / "_temp")  # prec, set_size
             (set_dir / "_temp" / curr_composition).rename(sys_dir)
@@ -136,7 +138,7 @@ def convert_groups(
                 with open(sys_dir / "nopbc", "w") as fopen:
                     fopen.write("nopbc\n")
         sys_dirs.append(sys_dir)
-    if (set_dir/"_temp").exists():
+    if (set_dir / "_temp").exists():
         (set_dir / "_temp").rmdir()
 
     return cum_batchsizes, sys_dirs

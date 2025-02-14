@@ -5,15 +5,14 @@
 import copy
 import itertools
 import pathlib
-import shutil
-from typing import Union, List, Optional
+from typing import Optional, Union
 
+from ase.io import write
 
-from ase.io import read, write
-
-
-from . import AbstractPotentialManager, AbstractTrainer
-from . import DummyCalculator, CommitteeCalculator
+from .calculators.dummy import DummyCalculator
+from .calculators.mixer import CommitteeCalculator
+from .manager import BasePotentialManager
+from .trainer import BasePotentialTrainer
 
 
 class MaceDataloader:
@@ -52,7 +51,7 @@ class MaceDataloader:
         return params
 
 
-class MaceTrainer(AbstractTrainer):
+class MaceTrainer(BasePotentialTrainer):
 
     name = "mace"
     command = "mace_run_train"
@@ -67,7 +66,7 @@ class MaceTrainer(AbstractTrainer):
     def __init__(
         self,
         config: dict,
-        type_list: List[str] = None,
+        type_list: Optional[list[str]] = None,
         train_epochs: int = 200,
         print_epochs: int = 5,
         directory=".",
@@ -105,9 +104,13 @@ class MaceTrainer(AbstractTrainer):
         # models = list((self.directory/"checkpoints").glob("*.model"))
         use_swa = self.config.get("swa", False)
         if not use_swa:
-            model_fpath = self.directory / ("{}.model".format(self.config["name"]))
+            model_fpath = self.directory / (
+                "{}.model".format(self.config["name"])
+            )
         else:
-            model_fpath = self.directory / ("{}_swa.model".format(self.config["name"]))
+            model_fpath = self.directory / (
+                "{}_swa.model".format(self.config["name"])
+            )
 
         return model_fpath
 
@@ -178,7 +181,7 @@ class MaceTrainer(AbstractTrainer):
     def get_checkpoint(self):
         """"""
 
-        return pathlib.Path(self.directory/"checkpoints").resolve()
+        return pathlib.Path(self.directory / "checkpoints").resolve()
 
     def _train_from_the_restart(self, dataset, init_model) -> str:
         """Train from the restart.
@@ -254,7 +257,9 @@ class MaceTrainer(AbstractTrainer):
                 if ckpt_path is not None:
                     ckpt_dir.mkdir()
                     curr_seed = train_config["seed"]
-                    (ckpt_dir/f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
+                    (
+                        ckpt_dir / f"{model_name}_run-{curr_seed}_epoch-0.pt"
+                    ).symlink_to(ckpt_path)
                     train_config.pop("restart_latest", None)
                     train_config["init_latest"] = True
                 else:
@@ -265,7 +270,9 @@ class MaceTrainer(AbstractTrainer):
         else:
             if ckpt_dir.exists():
                 # continue from the latest checkpoint
-                prev_seed = _check_latest_checkpoint(ckpt_dir, train_config["name"])
+                prev_seed = _check_latest_checkpoint(
+                    ckpt_dir, train_config["name"]
+                )
                 self._print(f"{prev_seed =}")
                 if prev_seed is not None:
                     train_config["seed"] = prev_seed
@@ -281,11 +288,16 @@ class MaceTrainer(AbstractTrainer):
                     if ckpt_path is not None:
                         ckpt_dir.mkdir()
                         curr_seed = train_config["seed"]
-                        (ckpt_dir/f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
+                        (
+                            ckpt_dir
+                            / f"{model_name}_run-{curr_seed}_epoch-0.pt"
+                        ).symlink_to(ckpt_path)
                         train_config.pop("restart_latest", None)
                         train_config["init_latest"] = True
                     else:
-                        self._print(f"FAILED to init from `{str(init_model)}`.")
+                        self._print(
+                            f"FAILED to init from `{str(init_model)}`."
+                        )
                 else:
                     # train from the scratch and no config needs update
                     ...
@@ -311,7 +323,7 @@ class MaceTrainer(AbstractTrainer):
             )
 
             # NOTE: reann does not support split-system training,
-            #       so we need merge all structures into one List
+            #       so we need merge all structures into one list
             train_frames = itertools.chain(*train_frames)
             write(self.directory / self._train_fname, train_frames)
 
@@ -356,7 +368,7 @@ class MaceTrainer(AbstractTrainer):
         return converged
 
 
-class MaceManager(AbstractPotentialManager):
+class MaceManager(BasePotentialManager):
 
     name = "mace"
     implemented_backends = ["ase", "jax"]
@@ -439,7 +451,9 @@ class MaceManager(AbstractPotentialManager):
             #     curr_calc = MACEJAXCalculator(
             #
             #     )
-            raise NotImplementedError("The JAX backend for MACE is under development.")
+            raise NotImplementedError(
+                "The JAX backend for MACE is under development."
+            )
         elif self.calc_backend == "lammps":
             raise NotImplementedError(
                 "The LAMMPS backend for MACE is under development."
@@ -460,7 +474,7 @@ class MaceManager(AbstractPotentialManager):
                 calc = CommitteeCalculator(calcs)
             else:
                 calc = calcs[0]
-        else: # Empty list
+        else:  # Empty list
             calc = DummyCalculator()
 
         return calc

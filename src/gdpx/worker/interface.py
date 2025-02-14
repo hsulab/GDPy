@@ -5,15 +5,15 @@
 import copy
 import itertools
 import pathlib
-from typing import Callable, List, NoReturn, Optional
+from typing import Callable, Optional
 
 import omegaconf
-from ase.calculators.calculator import Calculator, BaseCalculator
+from ase.calculators.calculator import BaseCalculator
 
 from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import Variable
-from ..potential.manager import AbstractPotentialManager
+from gdpx.potential.manager import BasePotentialManager
 from ..potential.utils import convert_input_to_potter
 from ..scheduler.scheduler import AbstractScheduler
 from ..utils.command import parse_input_file
@@ -30,7 +30,7 @@ def broadcast_and_adjust_potter(
     estimate_uncertainty: Optional[bool] = False,
     switch_backend: Optional[str] = None,
     print_func: Callable = print,
-) -> List[AbstractPotentialManager]:
+) -> list[BasePotentialManager]:
     """Convert an input to a potter and adjust its behaviour."""
     # convert everything into potter
     potter = convert_input_to_potter(inp)
@@ -107,7 +107,7 @@ class ComputerChainVariable(Variable):
         else:
             raise RuntimeError()
 
-        value = []  # List[List[Worker]]
+        value = []  # list[list[Worker]]
         for i, computer in enumerate(computers):
             assert len(computer.value) == 1, f"ChainStep.{str(i).zfill(2)} has more than one workers."
             value.append(computer.value[0])
@@ -184,13 +184,13 @@ class ComputerVariable(Variable):
 
         return
 
-    def _load_driver(self, inp) -> List[dict]:
+    def _load_driver(self, inp) -> list[dict]:
         """Load drivers from a Variable or a dict."""
         # print("driver: ", inp)
         drivers = []  # params
         if isinstance(inp, Variable):
             drivers = inp.value
-        elif isinstance(inp, list):  # assume it contains a List of dicts
+        elif isinstance(inp, list):  # assume it contains a list of dicts
             drivers = inp
         elif isinstance(inp, dict) or isinstance(
             inp, omegaconf.dictconfig.DictConfig
@@ -232,7 +232,7 @@ class ComputerVariable(Variable):
         share_wdir: bool = False,
         use_single: bool = False,
         retain_info: bool = False,
-    ) -> List[AbstractWorker]:
+    ) -> list[AbstractWorker]:
         """Create a list of workers."""
         # check potters
         num_potters = len(potters)
@@ -336,13 +336,13 @@ class ReactorVariable(Variable):
 
         return
 
-    def _load_driver(self, inp) -> List[dict]:
+    def _load_driver(self, inp) -> list[dict]:
         """Load drivers from a Variable or a dict."""
         # print("driver: ", inp)
         drivers = []  # params
         if isinstance(inp, Variable):
             drivers = inp.value
-        elif isinstance(inp, list):  # assume it contains a List of dicts
+        elif isinstance(inp, list):  # assume it contains a list of dicts
             drivers = inp
         elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
             driver_params = copy.deepcopy(inp)
@@ -372,7 +372,7 @@ class ReactorVariable(Variable):
     def _create_workers(
         self,
         potters,
-        drivers: List[dict],
+        drivers: list[dict],
         scheduler,
         *,
         batchsize: int = 1,

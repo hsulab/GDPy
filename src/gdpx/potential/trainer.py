@@ -24,7 +24,7 @@ class FreezingFailed(RuntimeError):
     ...
 
 
-class AbstractTrainer(BaseComponent):
+class BasePotentialTrainer(BaseComponent):
 
     #: Name of this trainer.
     name: str = "trainer"

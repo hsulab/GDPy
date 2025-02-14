@@ -5,17 +5,18 @@
 import copy
 import json
 import pathlib
-from typing import Optional, List
+from typing import Optional
 
 import numpy as np
 
-from .. import AbstractPotentialManager, AbstractTrainer, DummyCalculator
-
+from ..calculators.dummy import DummyCalculator
+from ..manager import BasePotentialManager
+from ..trainer import BasePotentialTrainer
 from .convert import convert_groups
 from .deepmd import DeepmdDataloader
 
 
-def get_model_fpaths(params: dict) -> List[str]:
+def get_model_fpaths(params: dict) -> list[str]:
     """Get model file paths from a dict.
 
     The file paths will be converted to be absolute.
@@ -34,11 +35,11 @@ def get_model_fpaths(params: dict) -> List[str]:
     return models
 
 
-class DeepmdJaxManager(AbstractPotentialManager):
+class DeepmdJaxManager(BasePotentialManager):
 
     name: str = "deepmd_jax"
 
-    implemented_backends: List[str] = ["ase", "jax"]
+    implemented_backends = ("ase", "jax")
 
     valid_combinations = (
         ("ase", "ase"),
@@ -85,11 +86,11 @@ class DeepmdJaxManager(AbstractPotentialManager):
         return
 
 
-class DeepmdJaxTrainer(AbstractTrainer):
+class DeepmdJaxTrainer(BasePotentialTrainer):
 
     name = "deepmd_jax"
 
-    def __init__(self, type_list: Optional[List[str]]=None, *args, **kwargs):
+    def __init__(self, type_list: Optional[list[str]] = None, *args, **kwargs):
         """"""
         super().__init__(type_list=type_list, *args, **kwargs)
 
@@ -98,7 +99,9 @@ class DeepmdJaxTrainer(AbstractTrainer):
         else:
             self._type_list = type_list
 
-        assert sorted(self.type_list) == self.type_list, f"DeepmdJaxTrainer must have a type list in the alphabetical order."
+        assert (
+            sorted(self.type_list) == self.type_list
+        ), f"DeepmdJaxTrainer must have a type list in the alphabetical order."
 
         return
 
@@ -125,13 +128,9 @@ class DeepmdJaxTrainer(AbstractTrainer):
         train_config = copy.deepcopy(self.config)
 
         train_config["model_type"] = "energy"
-        train_config["save_path"] = str(self.directory/self.frozen_name)
-        train_config["train_data_path"] = [
-            [x] for x in dataset.train_sys_dirs
-        ]
-        train_config["val_data_path"] = [
-            [x] for x in dataset.valid_sys_dirs
-        ]
+        train_config["save_path"] = str(self.directory / self.frozen_name)
+        train_config["train_data_path"] = [[x] for x in dataset.train_sys_dirs]
+        train_config["val_data_path"] = [[x] for x in dataset.valid_sys_dirs]
 
         if isinstance(dataset.batchsize, int):
             train_config["batch_size"] = dataset.batchsize
@@ -162,7 +161,7 @@ class DeepmdJaxTrainer(AbstractTrainer):
 
         train_config["seed"] = self.rng.integers(0, 1e8, dtype=int)
 
-        with open(self.directory/"deepmd_jax.json", "w") as fopen:
+        with open(self.directory / "deepmd_jax.json", "w") as fopen:
             json.dump(train_config, fopen, indent=2)
 
         return
@@ -201,13 +200,16 @@ class DeepmdJaxTrainer(AbstractTrainer):
             self._print(f"accumulated number of batches: {cum_batchsizes}")
 
             dataset = DeepmdDataloader(
-                dataset.batchsize, batchsizes, cum_batchsizes, train_sys_dirs, valid_sys_dirs
+                dataset.batchsize,
+                batchsizes,
+                cum_batchsizes,
+                train_sys_dirs,
+                valid_sys_dirs,
             )
         else:
             ...
 
         return dataset
-
 
     def train(self, dataset, init_model=None, *args, **kwargs):
         """"""
@@ -217,12 +219,13 @@ class DeepmdJaxTrainer(AbstractTrainer):
             self.directory.mkdir(parents=True, exist_ok=True)
         self.write_input(dataset)
 
-        with open(self.directory/"deepmd_jax.json", "r") as fopen:
+        with open(self.directory / "deepmd_jax.json", "r") as fopen:
             train_config = json.load(fopen)
 
         self._print(f"{train_config}")
 
         from deepmd_jax.train import train
+
         _ = train(**train_config)
 
         return
@@ -237,7 +240,7 @@ class DeepmdJaxTrainer(AbstractTrainer):
         """"""
         converged = False
 
-        if (self.directory/self.frozen_name):
+        if self.directory / self.frozen_name:
             converged = True
 
         return converged

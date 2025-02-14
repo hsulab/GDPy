@@ -4,10 +4,10 @@
 
 import pathlib
 
-from . import AbstractPotentialManager
+from .manager import BasePotentialManager
 
 
-class AbacusManager(AbstractPotentialManager):
+class AbacusManager(BasePotentialManager):
 
     name = "abacus"
 

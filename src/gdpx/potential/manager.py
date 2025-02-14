@@ -6,17 +6,12 @@ import abc
 import copy
 
 import numpy as np
-
 from ase.calculators.calculator import Calculator
 
 from .. import config
 from ..computation import register_drivers
 from ..core.register import registers
 from .calculators.dummy import DummyCalculator
-
-"""The abstract base class of any potential manager.
-
-"""
 
 
 class BasePotentialManager(abc.ABC):
@@ -28,7 +23,7 @@ class BasePotentialManager(abc.ABC):
     name: str = "potential"
 
     #: Supported calculator backends.
-    implemented_backends: list[str] = []
+    implemented_backends: tuple[str, ...] = ()
 
     #: Supported combinations of calculator backend and driver/engine.
     valid_combinations: tuple = ()
@@ -194,10 +189,6 @@ class BasePotentialManager(abc.ABC):
         params["params"] = copy.deepcopy(self.calc_params)
 
         return params
-
-
-# For compatibility,
-AbstractPotentialManager = BasePotentialManager
 
 
 if __name__ == "__main__":

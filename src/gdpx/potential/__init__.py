@@ -2,19 +2,12 @@
 # -*- coding: utf-8 -*
 
 
-from .. import config
-from .. import registers
-from ..manager import AbstractPotentialManager, BasePotentialManager
-from ..trainer import AbstractTrainer
-
-from ..calculators.dummy import DummyCalculator
-from ..calculators.mixer import CommitteeCalculator
-
-from .. import remove_extra_stream_handlers
+from gdpx import config
+from gdpx.core.register import registers
 
 
-# - basic potentials
-# -- MLIP
+# Basic potentials
+# MLIP
 from .deepmd import DeepmdManager, DeepmdTrainer, DeepmdDataloader
 registers.manager.register("deepmd")(DeepmdManager)
 registers.trainer.register(DeepmdTrainer)
@@ -57,8 +50,7 @@ registers.trainer.register(NequipTrainer)
 from .mattersim import MatterSimManager
 registers.manager.register("mattersim")(MatterSimManager)
 
-# -- reference potentials
-# --- DFT
+# DFTs
 from .cp2k import Cp2kManager
 registers.manager.register("cp2k")(Cp2kManager)
 
@@ -68,7 +60,7 @@ registers.manager.register("espresso")(EspressoManager)
 from .vasp import VaspManager
 registers.manager.register("vasp")(VaspManager)
 
-# --- FFs
+# FFs
 from .asepot import AsePotManager
 registers.manager.register("ase")(AsePotManager)
 
@@ -84,7 +76,7 @@ registers.manager.register("emt")(EmtManager)
 from .reax import ReaxManager
 registers.manager.register("reax")(ReaxManager)
 
-# - advanced potentials
+# Advanced potentials
 from .grid import GridManager
 registers.manager.register("grid")(GridManager)
 
@@ -122,13 +114,12 @@ try:
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`plumed`':<16s} -> require `{e.name}`.")
 
-# - trainers
+# Trainers under development
 from .gp.fgp import FGPTrainer
 registers.trainer.register("FgpTrainer")(FGPTrainer)
 
 from .gp.sgp import SGPTrainer
 registers.trainer.register("SgpTrainer")(SGPTrainer)
-
 
 
 if __name__ == "__main__":

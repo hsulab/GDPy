@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 import json
 import pathlib
 import shutil
@@ -10,8 +9,7 @@ import tarfile
 import tempfile
 import time
 import uuid
-import warnings
-from typing import List, NoReturn, Tuple, Union, Optional
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import omegaconf
@@ -21,20 +19,16 @@ from ase.io import read, write
 from joblib import Parallel, delayed
 from tinydb import Query, TinyDB
 
-from .. import config
+from gdpx.potential.manager import BasePotentialManager
+
 from ..builder.builder import StructureBuilder
 from ..computation.driver import AbstractDriver
-from ..potential.manager import AbstractPotentialManager
 from ..scheduler import LocalScheduler
 from ..scheduler.scheduler import AbstractScheduler
 from ..utils.command import CustomTimer
+from ..utils.logio import remove_extra_stream_handlers
 from .utils import copy_minimal_frames, get_file_md5
 from .worker import AbstractWorker
-from ..utils.logio import remove_extra_stream_handlers
-
-"""Monitor computation tasks with Worker.
-
-"""
 
 
 def compare_atoms(a1, a2):
@@ -78,7 +72,7 @@ class DriverBasedWorker(AbstractWorker):
     print_period: int = 100
 
     #: Reserved keys in atoms.info by gdp.
-    reserved_keys: List["str"] = ["energy", "step", "wdir"]
+    reserved_keys: list["str"] = ["energy", "step", "wdir"]
 
     #: Whether the worker is spawned.
     is_spawned: bool = False
@@ -96,17 +90,22 @@ class DriverBasedWorker(AbstractWorker):
     _retain_info: bool = False
 
     def __init__(
-        self, potter_, driver_=None, scheduler_=Optional[AbstractScheduler], *args, **kwargs
+        self,
+        potter_,
+        driver_=None,
+        scheduler_=Optional[AbstractScheduler],
+        *args,
+        **kwargs,
     ):
         """"""
         super().__init__(*args, **kwargs)
 
-        assert isinstance(potter_, AbstractPotentialManager), ""
+        assert isinstance(potter_, BasePotentialManager), ""
         self.potter = potter_
         self.driver = driver_
 
         if scheduler_ is not None:
-            self.scheduler = scheduler_ 
+            self.scheduler = scheduler_
         else:
             self.scheduler = LocalScheduler()
 
@@ -126,10 +125,12 @@ class DriverBasedWorker(AbstractWorker):
 
     def _split_groups(
         self, nframes: int, batchsize: int = 1
-    ) -> Tuple[List[int], List[int]]:
+    ) -> Tuple[list[int], list[int]]:
         """Split nframes into groups."""
         # - split frames
-        self._debug(f"split_groups for {nframes} nframes and {batchsize} batchsize.")
+        self._debug(
+            f"split_groups for {nframes} nframes and {batchsize} batchsize."
+        )
         ngroups = int(np.floor(1.0 * nframes / batchsize))
         group_indices = [0]
         for i in range(ngroups):
@@ -137,7 +138,9 @@ class DriverBasedWorker(AbstractWorker):
         if group_indices[-1] != nframes:
             group_indices.append(nframes)
         starts, ends = group_indices[:-1], group_indices[1:]
-        assert len(starts) == len(ends), "Inconsistent start and end indices..."
+        assert len(starts) == len(
+            ends
+        ), "Inconsistent start and end indices..."
         # group_indices = [f"{s}:{e}" for s, e in zip(starts,ends)]
 
         return (starts, ends)
@@ -196,7 +199,11 @@ class DriverBasedWorker(AbstractWorker):
         # NOTE: if two jobs start too close,
         #       there may be conflicts in checking structures
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
-            write(tmp.name, curr_frames, columns=["symbols", "positions", "move_mask"])
+            write(
+                tmp.name,
+                curr_frames,
+                columns=["symbols", "positions", "move_mask"],
+            )
 
             with open(tmp.name, "rb") as fopen:
                 curr_md5 = get_file_md5(fopen)
@@ -207,7 +214,9 @@ class DriverBasedWorker(AbstractWorker):
         if not self._share_random_seed:
             rng = np.random.Generator(np.random.PCG64(self.driver.random_seed))
             random_seeds = rng.integers(0, 1e8, size=len(curr_frames))
-            random_seeds = [int(x) for x in random_seeds]  # We need List[int]!!
+            random_seeds = [
+                int(x) for x in random_seeds
+            ]  # We need list[int]!!
         else:
             random_seeds = [self.driver.random_seed] * len(curr_frames)
 
@@ -242,11 +251,15 @@ class DriverBasedWorker(AbstractWorker):
                 for i, a in enumerate(prev_frames):
                     line = (
                         f"{i:<24d}  "
-                        + "  ".join([f"{str(a.info.get(k)):<24s}" for k in info_keys])
+                        + "  ".join(
+                            [f"{str(a.info.get(k)):<24s}" for k in info_keys]
+                        )
                         + "\n"
                     )
                     content += line
-                with open(processed_dpath / f"{curr_md5}_xinfo.txt", "w") as fopen:
+                with open(
+                    processed_dpath / f"{curr_md5}_xinfo.txt", "w"
+                ) as fopen:
                     fopen.write(content)
             # - save structures
             write(
@@ -256,8 +269,10 @@ class DriverBasedWorker(AbstractWorker):
             )
             # - save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
-            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}  {:>24s}\n".format(
-                "#id", "MD5", "confid", "step", "wdir", "rs"
+            content = (
+                "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}  {:>24s}\n".format(
+                    "#id", "MD5", "confid", "step", "wdir", "rs"
+                )
             )
             for i, ((confid, step, wdir), rs) in enumerate(
                 zip(curr_info, random_seeds)
@@ -275,9 +290,9 @@ class DriverBasedWorker(AbstractWorker):
 
     def _prepare_batches(
         self,
-        frames: List[Atoms],
+        frames: list[Atoms],
         start_confid: int,
-        rng_states: Union[List[int], List[dict]],
+        rng_states: Union[list[int], list[dict]],
     ):
         # - check wdir
         num_frames = len(frames)
@@ -332,8 +347,12 @@ class DriverBasedWorker(AbstractWorker):
         super().run(*args, **kwargs)
 
         # - check if the same input structures are provided
-        identifier, frames, start_confid, new_rng_states = self._preprocess(builder)
-        if rng_states:  # Sometimes we need explicit rng_states as in active learning
+        identifier, frames, start_confid, new_rng_states = self._preprocess(
+            builder
+        )
+        if (
+            rng_states
+        ):  # Sometimes we need explicit rng_states as in active learning
             new_rng_states = rng_states
         batches = self._prepare_batches(frames, start_confid, new_rng_states)
 
@@ -354,13 +373,18 @@ class DriverBasedWorker(AbstractWorker):
             # -- whether store job info
             if self.scheduler.name != "local":
                 if batch_name in queued_names and identifier in queued_frames:
-                    self._print(f"{batch_name} at {self.directory.name} was submitted.")
+                    self._print(
+                        f"{batch_name} at {self.directory.name} was submitted."
+                    )
                     continue
             else:  # Local Scheduler
                 is_resubmit = kwargs.get("resubmit", False)
                 if not is_resubmit:
                     # NOTE:  Only re-run computation when resubmit is set
-                    if batch_name in queued_names and identifier in queued_frames:
+                    if (
+                        batch_name in queued_names
+                        and identifier in queued_frames
+                    ):
                         self._print(
                             f"{batch_name} at {self.directory.name} was submitted."
                         )
@@ -404,7 +428,8 @@ class DriverBasedWorker(AbstractWorker):
             # - save this batch job to the database
             if identifier not in queued_frames:
                 with TinyDB(
-                    self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
+                    self.directory / f"_{self.scheduler.name}_jobs.json",
+                    indent=2,
                 ) as database:
                     _ = database.insert(
                         dict(
@@ -421,11 +446,15 @@ class DriverBasedWorker(AbstractWorker):
                     self.directory / "_data" / f"worker-{identifier}.json"
                 )
                 if not worker_input_fpath.exists():
-                    # TODO: We make sure the dict is python primitive since they may be 
+                    # TODO: We make sure the dict is python primitive since they may be
                     #       from session nodes,
                     #       or we should convert it in operations?
-                    worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
-                    worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
+                    worker_input_dict = omegaconf.OmegaConf.create(
+                        self.as_dict()
+                    )
+                    worker_input_dict = omegaconf.OmegaConf.to_container(
+                        worker_input_dict
+                    )
                     with open(worker_input_fpath, "w") as fopen:
                         json.dump(worker_input_dict, fopen, indent=2)
 
@@ -434,7 +463,9 @@ class DriverBasedWorker(AbstractWorker):
     def _irun(self, *args, **kwargs):
         """"""
 
-        raise NotImplementedError("Function to run a batch of structures is undefined.")
+        raise NotImplementedError(
+            "Function to run a batch of structures is undefined."
+        )
 
     def inspect(self, resubmit=False, batch=None, *args, **kwargs):
         """Check if any job were finished correctly not due to time limit.
@@ -462,11 +493,13 @@ class DriverBasedWorker(AbstractWorker):
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory / f"run-{uid}.script"
 
-                # check if the job is still running (or in the queue) 
+                # check if the job is still running (or in the queue)
                 # True if the task finished correctly not due to time-limit
                 if self.scheduler.is_finished():
                     is_finished = False  # whether all calculations are correctly finished
-                    wdir_names = doc_data["wdir_names"]  # cand0 cand1 ... cand{N-1} cand{N}
+                    wdir_names = doc_data[
+                        "wdir_names"
+                    ]  # cand0 cand1 ... cand{N-1} cand{N}
                     if hasattr(self.scheduler, "_sync_remote"):
                         self.scheduler._sync_remote(wdir_names=wdir_names)
                     else:
@@ -490,16 +523,24 @@ class DriverBasedWorker(AbstractWorker):
                                 is_finished = True
                         else:
                             self._print("NOT ALL wdirs exist.")
-                        self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
+                        self._print(
+                            f"progress: {nwdir_exists}/{len(wdir_existence)}"
+                        )
                     else:
                         # We need first check if cache file exists,
                         # sometimes due to unexpected errors (e.g. OOM)
                         # no cache file will be written.
                         is_finished = False
-                        cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
+                        cache_fpath = (
+                            self.directory
+                            / "_data"
+                            / f"{identifier}_cache.xyz"
+                        )
                         if cache_fpath.exists():
                             cache_frames = read(cache_fpath, ":")
-                            cache_wdirs = [a.info["wdir"] for a in cache_frames]
+                            cache_wdirs = [
+                                a.info["wdir"] for a in cache_frames
+                            ]
                             if set(wdir_names) == set(cache_wdirs):
                                 is_finished = True
                             else:
@@ -512,7 +553,9 @@ class DriverBasedWorker(AbstractWorker):
                         # -- finished correctly
                         self._print(f"{job_name} is finished...")
                         doc_data = database.get(Query().gdir == job_name)
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                        database.update(
+                            {"finished": True}, doc_ids=[doc_data.doc_id]
+                        )
                     else:
                         # NOTE: no need to remove unfinished structures
                         #       since the driver would check it
@@ -530,17 +573,29 @@ class DriverBasedWorker(AbstractWorker):
                                             f"{job_name} is re-submitted with local."
                                         )
                                         frames = read(
-                                            self.directory / "_data" / f"{identifier}.xyz", ":"
+                                            self.directory
+                                            / "_data"
+                                            / f"{identifier}.xyz",
+                                            ":",
                                         )
-                                        self.run(frames, batch=curr_batch, resubmit=True)
+                                        self.run(
+                                            frames,
+                                            batch=curr_batch,
+                                            resubmit=True,
+                                        )
                                 else:
                                     self._print(
                                         f"{job_name} is re-submitted with local."
                                     )
                                     frames = read(
-                                        self.directory / "_data" / f"{identifier}.xyz", ":"
+                                        self.directory
+                                        / "_data"
+                                        / f"{identifier}.xyz",
+                                        ":",
                                     )
-                                    self.run(frames, batch=curr_batch, resubmit=True)
+                                    self.run(
+                                        frames, batch=curr_batch, resubmit=True
+                                    )
                 else:
                     self._print(f"{job_name} is running...")
 
@@ -549,7 +604,7 @@ class DriverBasedWorker(AbstractWorker):
     def retrieve(
         self,
         include_retrieved: bool = False,
-        given_wdirs: List[str] = None,
+        given_wdirs: list[str] = None,
         use_archive: bool = False,
         *args,
         **kwargs,
@@ -561,7 +616,7 @@ class DriverBasedWorker(AbstractWorker):
                               Otherwise, all finished jobs are included.
 
         Returns:
-            A nested List of Atoms.
+            A nested list of Atoms.
 
         """
         self.inspect(*args, **kwargs)
@@ -606,17 +661,24 @@ class DriverBasedWorker(AbstractWorker):
             if not self._share_wdir:
                 archive_path = (self.directory / "cand.tgz").absolute()
                 if not archive_path.exists():  # read unarchived data
-                    results = self._read_results(unretrieved_wdirs, *args, **kwargs)
+                    results = self._read_results(
+                        unretrieved_wdirs, *args, **kwargs
+                    )
                 else:
                     self._print("read archived data...")
                     results = self._read_results(
-                        unretrieved_wdirs, archive_path=archive_path, *args, **kwargs
+                        unretrieved_wdirs,
+                        archive_path=archive_path,
+                        *args,
+                        **kwargs,
                     )
                 # - archive results if it has not been done
                 if use_archive and not archive_path.exists():
                     # TODO: Check if all computation folders are valid?
                     self._print("archive computation folders...")
-                    with tarfile.open(archive_path, "w:gz", compresslevel=6) as tar:
+                    with tarfile.open(
+                        archive_path, "w:gz", compresslevel=6
+                    ) as tar:
                         for w in unretrieved_wdirs:
                             tar.add(w, arcname=w.name)
                     for w in unretrieved_wdirs:
@@ -628,11 +690,18 @@ class DriverBasedWorker(AbstractWorker):
                 cache_frames = []
                 for identifier in unretrieved_identifiers:
                     cache_frames.extend(
-                        read(self.directory / "_data" / f"{identifier}_cache.xyz", ":")
+                        read(
+                            self.directory
+                            / "_data"
+                            / f"{identifier}_cache.xyz",
+                            ":",
+                        )
                     )
                 wdir_names = [x.name for x in unretrieved_wdirs]
-                results_ = [a for a in cache_frames if a.info["wdir"] in wdir_names]
-                # - convert to a List[List[Atoms]] as non-shared run
+                results_ = [
+                    a for a in cache_frames if a.info["wdir"] in wdir_names
+                ]
+                # - convert to a list[list[Atoms]] as non-shared run
                 results_ = [[a] for a in results_]
                 # -- re-add info
                 if self._retain_info:
@@ -662,11 +731,11 @@ class DriverBasedWorker(AbstractWorker):
 
     def _read_results(
         self,
-        unretrieved_wdirs: List[pathlib.Path],
+        unretrieved_wdirs: list[pathlib.Path],
         archive_path: pathlib.Path = None,
         *args,
         **kwargs,
-    ) -> Union[List[Atoms], List[List[Atoms]]]:
+    ) -> Union[list[Atoms], list[list[Atoms]]]:
         """Read results from calculation directories.
 
         Args:
@@ -688,7 +757,9 @@ class DriverBasedWorker(AbstractWorker):
             # -- re-add info
             if self._retain_info:
                 info_keys, info_data = self._read_cached_xinfo()
-                retained_keys = [k for k in info_keys if k not in self.reserved_keys]
+                retained_keys = [
+                    k for k in info_keys if k not in self.reserved_keys
+                ]
                 for i, traj_frames in enumerate(results_):
                     retained_dict = {
                         k: v
@@ -718,7 +789,7 @@ class DriverBasedWorker(AbstractWorker):
     @staticmethod
     def _iread_results(
         driver, wdir, info_data: dict = None, archive_path: pathlib.Path = None
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Extract results from a single directory.
 
         This must be a staticmethod as it may be pickled by joblib for parallel
@@ -764,7 +835,7 @@ class DriverBasedWorker(AbstractWorker):
 
         # TODO: MACHINE file will be overwritten by different batches
         #       even though they are the same.
-        with open(self.directory/f"MACHINE", "w") as fopen:
+        with open(self.directory / f"MACHINE", "w") as fopen:
             fopen.write(self.scheduler.machine_prefix)
 
         return
@@ -784,10 +855,10 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         batch_name: str,
         uid: str,
         identifier: str,
-        frames: List[Atoms],
-        curr_indices: List[int],
-        curr_wdirs: List[Union[str, pathlib.Path]],
-        rng_states: Union[List[int], List[dict]],
+        frames: list[Atoms],
+        curr_indices: list[int],
+        curr_wdirs: list[Union[str, pathlib.Path]],
+        rng_states: Union[list[int], list[dict]],
         *args,
         **kwargs,
     ) -> None:
@@ -798,7 +869,11 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         self._write_worker_inputs(uid=uid)
 
         # - save structures
-        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
+        dataset_path = str(
+            (self.directory / "_data" / f"{identifier}.xyz").relative_to(
+                self.directory
+            )
+        )
 
         # - save scheduler file
         jobscript_fname = f"run-{uid}.script"
@@ -815,7 +890,9 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         # - TODO: check whether params for scheduler is changed
         self.scheduler.write()
         if self._submit:
-            self._print(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
+            self._print(
+                f"{self.directory.name} JOBID: {self.scheduler.submit()}"
+            )
         else:
             self._print(f"{self.directory.name} waits to submit.")
 
@@ -829,10 +906,10 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         batch_name: str,
         uid: str,
         identifier: str,
-        frames: List[Atoms],
-        curr_indices: List[int],
-        curr_wdirs: List[Union[str, pathlib.Path]],
-        rng_states: Union[List[int], List[dict]],
+        frames: list[Atoms],
+        curr_indices: list[int],
+        curr_wdirs: list[Union[str, pathlib.Path]],
+        rng_states: Union[list[int], list[dict]],
         *args,
         **kwargs,
     ) -> None:
@@ -848,8 +925,8 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         curr_frames = [frames[i] for i in curr_indices]
 
         machine_prefix = ""
-        if (self.directory/"MACHINE").exists():
-            with open(self.directory/"MACHINE", "r") as fopen:
+        if (self.directory / "MACHINE").exists():
+            with open(self.directory / "MACHINE", "r") as fopen:
                 machine_prefix = "".join(fopen.readlines()).strip()
 
         # - run calculations
@@ -858,7 +935,9 @@ class CommandDriverBasedWorker(DriverBasedWorker):
             if machine_prefix:
                 self.driver.setting.machine_prefix = machine_prefix
             if not self._share_wdir:
-                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
+                for wdir, atoms, rs in zip(
+                    curr_wdirs, curr_frames, rng_states
+                ):
                     remove_extra_stream_handlers()
                     self.driver.directory = self.directory / wdir
                     prev_random_seed = self.driver.random_seed
@@ -871,7 +950,9 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                     self.driver.set_rng(seed=prev_random_seed)
             else:
                 # read calculation cache
-                cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
+                cache_fpath = (
+                    self.directory / "_data" / f"{identifier}_cache.xyz"
+                )
                 if cache_fpath.exists():
                     cache_frames = read(cache_fpath, ":")
                     cache_wdirs = [a.info["wdir"] for a in cache_frames]
@@ -896,7 +977,9 @@ class CommandDriverBasedWorker(DriverBasedWorker):
                         )
                     self.driver.set_rng(seed=rs)
                     self.driver.reset()
-                    self.driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=wdir))
+                    self.driver.run(
+                        atoms, read_ckpt=False, extra_info=dict(wdir=wdir)
+                    )
                     new_atoms = self.driver.read_trajectory()[-1]
                     new_atoms.info["wdir"] = atoms.info["wdir"]
                     # - save data

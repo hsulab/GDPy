@@ -16,13 +16,12 @@ from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import write
 
-from .. import (
-    AbstractPotentialManager,
-    AbstractTrainer,
-    CommitteeCalculator,
-    DummyCalculator,
-    remove_extra_stream_handlers,
-)
+from gdpx.utils.logio import remove_extra_stream_handlers
+
+from ..calculators.dummy import DummyCalculator
+from ..calculators.mixer import CommitteeCalculator
+from ..manager import BasePotentialManager
+from ..trainer import BasePotentialTrainer
 from ..utils import build_a_committee_calculator, canonicalise_input_models
 from .convert import convert_groups
 
@@ -244,7 +243,7 @@ class DeepmdDataloader:
         return params
 
 
-class DeepmdTrainer(AbstractTrainer):
+class DeepmdTrainer(BasePotentialTrainer):
 
     name = "deepmd"
     command = "dp"
@@ -581,14 +580,13 @@ class DeepmdTrainer(AbstractTrainer):
         return trainer_params
 
 
-class DeepmdManager(AbstractPotentialManager):
+class DeepmdManager(BasePotentialManager):
 
     name = "deepmd"
 
-    implemented_backends = ["ase", "jax", "lammps"]
+    implemented_backends = ("ase", "jax", "lammps")
 
     valid_combinations = (
-        # calculator, dynamics
         ("ase", "ase"),
         ("jax", "ase"),
         ("jax", "jax"),

@@ -3,30 +3,24 @@
 
 
 import copy
-from typing import List
 
-from ase.calculators.calculator import Calculator, BaseCalculator
+from ase.calculators.calculator import BaseCalculator
 
-from ..calculators.mixer import EnhancedCalculator
-from ..utils import convert_input_to_potter
-from . import AbstractPotentialManager, DummyCalculator
+from .calculators.dummy import DummyCalculator
+from .calculators.mixer import EnhancedCalculator
+from .manager import BasePotentialManager
+from .utils import convert_input_to_potter
 
 
-class MixerManager(AbstractPotentialManager):
+class MixerManager(BasePotentialManager):
 
     name = "mixer"
     implemented_backends = ("ase",)
 
     valid_combinations = (
-        # calculator, dynamics
         ("ase", "ase"),
         ("ase", "lammps"),
     )
-
-    def __init__(self) -> None:
-        """"""
-
-        return
 
     def register_calculator(self, calc_params, *args, **kwargs) -> None:
         """"""
@@ -53,7 +47,7 @@ class MixerManager(AbstractPotentialManager):
         for i, p in enumerate(potters):
             if isinstance(p.calc, BaseCalculator):
                 ...
-            else:  # assume it is a List of calculators
+            else:  # assume it is a list of calculators
                 if broadcast_index != -1:
                     raise RuntimeError(
                         f"Broadcast cannot on {broadcast_index} and {i}."
@@ -74,7 +68,8 @@ class MixerManager(AbstractPotentialManager):
                     x[broadcast_index] = potters[broadcast_index].calc[i]
                     new_pot_calcs.append(x)
                 calc = [
-                    EnhancedCalculator(x, save_host=save_host) for x in new_pot_calcs
+                    EnhancedCalculator(x, save_host=save_host)
+                    for x in new_pot_calcs
                 ]
         else:
             ...
@@ -120,7 +115,7 @@ class MixerManager(AbstractPotentialManager):
         return
 
     @staticmethod
-    def broadcast(manager: "MixerManager") -> List["MixerManager"]:
+    def broadcast(manager: "MixerManager") -> list["MixerManager"]:
         """"""
         calc_params = copy.deepcopy(manager.calc_params)
         calc_params["backend"] = manager.calc_backend
@@ -132,7 +127,7 @@ class MixerManager(AbstractPotentialManager):
         for i, p in enumerate(manager.potters):
             if isinstance(p.calc, BaseCalculator):
                 ...
-            else:  # assume it is a List of calculators
+            else:  # assume it is a list of calculators
                 if broadcast_index != -1:
                     raise RuntimeError(
                         f"Broadcast cannot on {broadcast_index} and {i}."

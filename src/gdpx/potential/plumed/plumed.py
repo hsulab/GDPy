@@ -4,24 +4,20 @@
 
 import pathlib
 
-from .. import AbstractPotentialManager, DummyCalculator
+from ..calculators.dummy import DummyCalculator
+from ..manager import BasePotentialManager
 
 
-class PlumedManager(AbstractPotentialManager):
+class PlumedManager(BasePotentialManager):
 
     name = "plumed"
 
-    implemented_backends = ["ase"]
+    implemented_backends = ("ase",)
 
     valid_combinations = (
         # calculator, dynamics
         ("ase", "ase"),
     )
-
-    def __init__(self) -> None:
-        """"""
-
-        return
 
     def register_calculator(self, calc_params: dict, *agrs, **kwargs) -> None:
         """"""

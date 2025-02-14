@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-""" worker for training potentials
-"""
 
-import uuid
 import pathlib
-from typing import NoReturn, Callable
+import uuid
 import warnings
-import yaml
 
 import numpy as np
-
+import yaml
 from tinydb import Query, TinyDB
 
 from ..data.interface import DatasetVariable
+from ..potential.trainer import BasePotentialTrainer
 from .worker import AbstractWorker
-from ..potential.trainer import AbstractTrainer
 
 
 class TrainerBasedWorker(AbstractWorker):
@@ -28,7 +24,7 @@ class TrainerBasedWorker(AbstractWorker):
 
     def __init__(
         self,
-        trainer: AbstractTrainer,
+        trainer: BasePotentialTrainer,
         scheduler,
         share_dataset: bool = False,
         auto_submit: bool = True,
@@ -57,7 +53,7 @@ class TrainerBasedWorker(AbstractWorker):
 
     def _get_train_params(
         self,
-        trainer: AbstractTrainer,
+        trainer: BasePotentialTrainer,
         dataset,
         init_model,
         use_shared_dataset: bool = False,
@@ -81,7 +77,9 @@ class TrainerBasedWorker(AbstractWorker):
 
         return trainer_params
 
-    def run(self, dataset, size: int = 1, init_models=None, *args, **kwargs) -> None:
+    def run(
+        self, dataset, size: int = 1, init_models=None, *args, **kwargs
+    ) -> None:
         """"""
         super().run(*args, **kwargs)
         if init_models is None:
@@ -115,10 +113,14 @@ class TrainerBasedWorker(AbstractWorker):
             if not dataset_path.exists():
                 self._print("prepare a shared dataset...")
                 if hasattr(trainer, "_prepare_dataset"):
-                    trainer.directory = dataset_path  # NOTE: only for creating dataset
-                    dataset = trainer._prepare_dataset(dataset, *args, **kwargs)
+                    trainer.directory = (
+                        dataset_path  # NOTE: only for creating dataset
+                    )
+                    dataset = trainer._prepare_dataset(
+                        dataset, *args, **kwargs
+                    )
                     self._print(f"{dataset =}")
-                    with open(dataset_path/"dataset.yaml", "w") as fopen:
+                    with open(dataset_path / "dataset.yaml", "w") as fopen:
                         yaml.safe_dump(dataset.as_dict(), fopen)
                 else:
                     self._print(
@@ -128,7 +130,7 @@ class TrainerBasedWorker(AbstractWorker):
                 # NOTE: sometimes local trainer does not finish,
                 #       we need to load the shared dataset
                 self._print("shared dataset exists...")
-                with open(dataset_path/"dataset.yaml", "r") as fopen:
+                with open(dataset_path / "dataset.yaml", "r") as fopen:
                     dataset_params = yaml.safe_load(fopen)
                 dataset = DatasetVariable(**dataset_params).value
                 self._print(f"{dataset =}")
@@ -149,7 +151,9 @@ class TrainerBasedWorker(AbstractWorker):
             job_name = uid + "-" + batch_name
             wdir = self.directory / f"{self.TRAIN_PREFIX}{i}"
             if batch_name in queued_names:
-                self._print(f"{job_name} at {self.directory.name} was submitted.")
+                self._print(
+                    f"{job_name} at {self.directory.name} was submitted."
+                )
                 continue
             wdir.mkdir(parents=True, exist_ok=True)
 
@@ -216,7 +220,9 @@ class TrainerBasedWorker(AbstractWorker):
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory / "train.script"
 
-                if self.scheduler.is_finished():  # NOTE: scheduler only checks job_name
+                if (
+                    self.scheduler.is_finished()
+                ):  # NOTE: scheduler only checks job_name
                     # -- check if the job finished properly
                     is_finished = False
                     for x in wdir_names:
@@ -230,11 +236,15 @@ class TrainerBasedWorker(AbstractWorker):
                     else:
                         is_finished = True
                     if is_finished:
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                        database.update(
+                            {"finished": True}, doc_ids=[doc_data.doc_id]
+                        )
                     else:
                         if resubmit:
                             if self.scheduler.name != "local":
-                                self._print(f"RESUBMIT: {str(self.trainer.directory)}")
+                                self._print(
+                                    f"RESUBMIT: {str(self.trainer.directory)}"
+                                )
                                 if self._submit:
                                     self.scheduler.script = (
                                         self.trainer.directory / "train.script"
@@ -253,11 +263,14 @@ class TrainerBasedWorker(AbstractWorker):
                                 #       self.inspect() is called without self.run() before.
                                 # NOTE: Local job will automatically re-run when
                                 #       self.run() is called.
-                                self._print(f"RESUBMIT: {self.trainer.directory = }")
+                                self._print(
+                                    f"RESUBMIT: {self.trainer.directory = }"
+                                )
                                 # self.trainer.train(dataset, init_model=init_models[i])
                         else:
                             warnings.warn(
-                                "Trainer does not support re-submit.", UserWarning
+                                "Trainer does not support re-submit.",
+                                UserWarning,
                             )
                 else:
                     self._print(f"{job_name} is running...")
@@ -281,7 +294,8 @@ class TrainerBasedWorker(AbstractWorker):
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_wdirs_.extend(
-                    (self.directory / w).resolve() for w in doc_data["wdir_names"]
+                    (self.directory / w).resolve()
+                    for w in doc_data["wdir_names"]
                 )
         unretrieved_wdirs = unretrieved_wdirs_
 

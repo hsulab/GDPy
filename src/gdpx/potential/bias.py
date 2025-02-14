@@ -3,16 +3,15 @@
 
 
 import copy
-from typing import List
 
 from . import registers
-from . import AbstractPotentialManager, DummyCalculator
-
+from .calculators.dummy import DummyCalculator
+from .manager import BasePotentialManager
 
 """This manager registers ALL bias calculators."""
 
 
-class BiasManager(AbstractPotentialManager):
+class BiasManager(BasePotentialManager):
 
     name = "bias"
     implemented_backends = ("ase",)
@@ -76,13 +75,15 @@ class BiasManager(AbstractPotentialManager):
         return registers.bias[method]
 
     @staticmethod
-    def broadcast(manager: "BiasManager") -> List["BiasManager"]:
+    def broadcast(manager: "BiasManager") -> list["BiasManager"]:
         """"""
         calc_params = copy.deepcopy(manager.calc_params)
         calc_params["backend"] = manager.calc_backend
         # print(f"{calc_params =}")
 
-        bias_cls = manager.get_bias_cls(calc_params["backend"], calc_params["method"])
+        bias_cls = manager.get_bias_cls(
+            calc_params["backend"], calc_params["method"]
+        )
         if hasattr(bias_cls, "broadcast_params"):
             broadcasted_params = bias_cls.broadcast_params(calc_params)
             # print(f"{broadcasted_params =}")

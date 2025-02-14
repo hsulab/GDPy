@@ -4,25 +4,17 @@
 
 import copy
 
-from . import AbstractPotentialManager
+from .manager import BasePotentialManager
 
 
-class AsePotManager(AbstractPotentialManager):
+class AsePotManager(BasePotentialManager):
 
     name = "ase"
 
     implemented_backends = ["ase"]
-    valid_combinations = (
-        ("ase", "ase"),
-    )
+    valid_combinations = (("ase", "ase"),)
 
     """Here is an interface to ase built-in calculators."""
-
-    def __init__(self, *args, **kwargs):
-        """"""
-        super().__init__()
-
-        return
 
     def register_calculator(self, calc_params: dict, *args, **kwargs):
         """"""
@@ -34,18 +26,23 @@ class AsePotManager(AbstractPotentialManager):
         if self.calc_backend == "ase":
             if method == "lj":
                 from ase.calculators.lj import LennardJones
+
                 calc_cls = LennardJones
             elif method == "morse":
                 from ase.calculators.morse import MorsePotential
+
                 calc_cls = MorsePotential
             elif method == "tip3p":
                 from ase.calculators.tip3p import TIP3P
+
                 calc_cls = TIP3P
             else:
                 raise NotImplementedError(f"Unsupported potential {method}.")
         else:
-            raise NotImplementedError(f"Unsupported backend {self.calc_backend}.")
-        
+            raise NotImplementedError(
+                f"Unsupported backend {self.calc_backend}."
+            )
+
         calc = calc_cls(**calc_params)
 
         self.calc = calc

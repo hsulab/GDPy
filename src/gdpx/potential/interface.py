@@ -4,7 +4,7 @@
 
 from ..core.register import registers
 from ..core.variable import Variable
-from ..potential.managers.mixer import MixerManager
+from .mixer import MixerManager
 
 
 @registers.variable.register

@@ -4,7 +4,8 @@
 
 import copy
 
-from . import BasePotentialManager, DummyCalculator
+from .calculators.dummy import DummyCalculator
+from .manager import BasePotentialManager
 from .utils import canonicalise_input_models
 
 
@@ -35,6 +36,7 @@ class MatterSimManager(BasePotentialManager):
             try:
                 import torch
                 from mattersim.forcefield import MatterSimCalculator
+
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             except:
                 raise ModuleNotFoundError(

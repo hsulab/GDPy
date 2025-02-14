@@ -3,10 +3,10 @@
 
 
 from typing import List
-from gdpx.potential.trainer import AbstractTrainer
+from gdpx.potential.trainer import BasePotentialTrainer
 
 
-class FGPTrainer(AbstractTrainer):
+class FGPTrainer(BasePotentialTrainer):
 
     name = "fgp"
 
