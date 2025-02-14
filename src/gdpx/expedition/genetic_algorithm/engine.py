@@ -7,6 +7,7 @@ import copy
 import inspect
 import itertools
 import pathlib
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,34 +28,6 @@ from .population.population import (
     Population,
     PopulationWithVariableComposition,
 )
-
-"""
-Workflow
-    check current calculation
-        |
-    check population and generate offspring
-        |
-    submit unrelaxed structures
-
-Systems
-    bulk
-    slab
-    cluster
-
-Reserved Keywords in Database
-    generation
-    relaxed
-    queued
-    extinct
-    description
-    pairing
-
-Operators
-    comparator
-    crossover (pairing)
-    mutation
-
-"""
 
 
 def get_generation_number(da: DataConnection) -> int:
@@ -144,7 +117,7 @@ def reduce_cell_by_bounds(atoms: Atoms, cell_bounds: CellBounds) -> Atoms:
 class GeneticAlgorithmBroadcaster:
     """Broadcast genetic_algorithm_engine by parameters."""
 
-    def __init__(self, builder, params, worker=None, random_seed=None):
+    def __init__(self, builder, params, random_seed=None):
         """"""
         new_params_list = self._broadcast_parameters(params)
 
@@ -152,7 +125,6 @@ class GeneticAlgorithmBroadcaster:
         for new_params in new_params_list:
             input_params = dict(
                 builder=copy.deepcopy(builder),
-                worker=copy.deepcopy(worker),
                 params=new_params,
                 random_seed=copy.deepcopy(random_seed),
             )
@@ -200,9 +172,16 @@ class GeneticAlgorithmBroadcaster:
 
 
 class GeneticAlgorithmEngine(AbstractExpedition):
-    """Genetic Algorithem Engine."""
+    """The genetic algorithm engine for structure search.
 
-    _directory = pathlib.Path.cwd()
+    The systems include bulk, surface, cluster, and surface with adsorbates.
+    A database is used to store the information along the search, and the
+    reserved keywords in the database including generation, relaxed, queued,
+    extinct, description, and pairing.
+    Three types of operators are used, namely, comparator, crossover (pairing)
+    and mutation.
+
+    """
 
     # local optimisation directory
     CALC_DIRNAME = "tmp_folder"
@@ -219,8 +198,6 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         self,
         builder: dict,
         params: dict,
-        directroy="./",
-        random_seed=None,
         *args,
         **kwargs,
     ):
@@ -230,13 +207,13 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             builder: Define the system to explore.
 
         """
-        ga_dict = params  # For compat
+        super().__init__(*args, **kwargs)
 
-        # --- database ---
+        # For compatibility
+        ga_dict = params
+
+        # Database
         self.db_name = ga_dict.get("database", "mydb.db")
-
-        # -
-        self.directory = directroy
 
         # Store initial parameters
         self.ga_dict = copy.deepcopy(ga_dict)
@@ -251,39 +228,32 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     )
 
         # Check random consistency, generator and population
-        if random_seed is None:
-            random_seed = np.random.randint(0, 1e8)  # type: ignore
-        self.random_seed = random_seed
-        self._print(f"GA RANDOM SEED {random_seed}")
-        self.rng = np.random.Generator(np.random.PCG64(seed=random_seed))
+        self._print(f"GA RANDOM SEED {self.random_seed}")
 
         # Check builder for random structure generation
         if isinstance(builder, dict):
-            # -- generator will reset np.random by the given random_seed
             builder_params = copy.deepcopy(builder)
-            builder_method = builder_params.pop("method")
-            prev_seed = builder_params.get("random_seed")
-            builder_params.update(random_seed=random_seed)
-            self.generator = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
-        else:
-            # NOTE: randomBuilder uses deprecated np.random
-            #       if multi engines are running at the same time
-            #       the builders will intervine each other on random!!!
-            prev_seed = builder.random_seed
-            self.generator = builder
-            np.random.seed(random_seed)
-            if (self.generator, "rng"):
-                self.generator.rng = self.rng
-        self._print(
-            f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {random_seed}"
+        else:  # assume it is a StructureBuilder
+            builder_params = builder.as_dict()
+
+        # The builder has its own rng but it is initialised from the engine's random_seed.
+        # If random_bulk is used, due to its deprecated np.random,
+        # the results may not be reproducible.
+        builder_method = builder_params.pop("method")
+        prev_seed = builder_params.get("random_seed", None)
+        builder_params.update(random_seed=self.random_seed)
+        self.generator = registers.create(
+            "builder", builder_method, convert_name=False, **builder_params
         )
 
-        # - worker info
+        self._print(
+            f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {self.random_seed}"
+        )
+
+        # Worker will be lazily checked in run
         self.worker = None
 
-        # --- population ---
+        # Population
         self.pop_manager = AbstractPopulationManager(
             ga_dict["population"], rng=self.rng
         )
@@ -321,22 +291,20 @@ class GeneticAlgorithmEngine(AbstractExpedition):
 
         self.target = target
 
-        # --- convergence ---
+        # Convergence
         self.conv_dict = ga_dict["convergence"]
 
-        # - misc
+        # Misc
         self.use_archive = ga_dict.get("use_archive", True)
 
         return
 
-    @property
-    def directory(self):
-        return self._directory
-
-    @directory.setter
-    def directory(self, directory_):
-        self._directory = pathlib.Path(directory_)
+    @AbstractExpedition.directory.setter
+    def directory(self, directory: Union[str, pathlib.Path]) -> None:
+        """"""
+        self._directory = pathlib.Path(directory).resolve()
         self.db_path = self._directory / self.db_name
+
         return
 
     def report(self):
