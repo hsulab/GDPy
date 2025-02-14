@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import importlib
 import logging
 import warnings
@@ -16,12 +17,15 @@ class Register:
 
     def __setitem__(self, key, value):
         if not callable(value):
-            raise Exception(f"Value of a Registry must be a callable!\nValue: {value}")
+            raise Exception(
+                f"Value of a Registry must be a callable!\nValue: {value}"
+            )
         if key is None:
             key = value.__name__
         if key in self._dict:
             warnings.warn(
-                "Key %s already in registry %s." % (key, self._name), UserWarning
+                "Key %s already in registry %s." % (key, self._name),
+                UserWarning,
             )
         self._dict[key] = value
 
@@ -64,7 +68,9 @@ class Register:
 
         nrest = nkeys - nrows * ncols
         if nrest > 0:
-            content += ("  " + "{:<24s}" * nrest + "\n").format(*keys[nrows * ncols :])
+            content += ("  " + "{:<24s}" * nrest + "\n").format(
+                *keys[nrows * ncols :]
+            )
 
         return content
 
@@ -126,12 +132,12 @@ class registers:
     validator: Register = Register("validator")
 
     def __init__(self):
-        raise RuntimeError("Registries is not intended to be instantiated")
+        raise RuntimeError("The registers is not intended to be instantiated")
 
     @staticmethod
     def get(mod_name: str, cls_name: str, convert_name: bool = True):
         """Acquire the target class from modules."""
-        # - convert the cls_name by the internal convention
+        # Convert the cls_name by the internal convention
         if convert_name:
             # cls_name = cls_name.capitalize() + mod_name.capitalize()
             cls_name = (
@@ -139,7 +145,7 @@ class registers:
                 + mod_name.capitalize()
             )
 
-        # - get the class
+        # Get the class
         curr_register = getattr(registers, mod_name)
         target_cls = curr_register[cls_name]
 
@@ -147,7 +153,11 @@ class registers:
 
     @staticmethod
     def create(
-        mode_name: str, cls_name: str, convert_name: bool = True, *args, **kwargs
+        mode_name: str,
+        cls_name: str,
+        convert_name: bool = True,
+        *args,
+        **kwargs,
     ):
         """"""
         target_cls = registers.get(mode_name, cls_name, convert_name)
@@ -157,35 +167,19 @@ class registers:
 
 
 ALL_MODULES = [
-    # - working components.
-    # -- schedulers
     ("gdpx", ["scheduler"]),
-    # -- managers (potentials)
     ("gdpx.potential", ["managers"]),
-    # -- dataloaders (datasets)
     ("gdpx.data", ["dataset"]),
-    # -- region
     ("gdpx", ["region"]),
-    # -- bias
     ("gdpx", ["bias"]),
-    # -- builders
     ("gdpx", ["builder"]),
-    # -- colvar
     ("gdpx", ["colvar"]),
-    # -- selectors
     ("gdpx", ["selector"]),
-    # -- describer
     ("gdpx", ["describer"]),
-    # -- comparators
     ("gdpx", ["comparator"]),
-    # -- expeditions
     ("gdpx.expedition", ["interface"]),
-    # -- reactors
-    # -- validators
     ("gdpx", ["validator"]),
-    # - nodes (variables),
     ("gdpx.nodes", ["region", "trainer", "validator"]),
-    # - session operations + variables.
     ("gdpx.computation", ["interface"]),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),
@@ -215,32 +209,37 @@ def _handle_errors(errors):
     return names, reasons
 
 
-def show_failed_modules_in_rows(names):
+def show_failed_modules_in_rows(names, ncols: int = 3) -> list[str]:
     """"""
     keys = sorted(names)
     nkeys = len(keys)
-    ncols = 3
     nrows = int(nkeys / ncols)
 
     lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
     for i in range(nrows):
         lines.append(
-            ("  " + "{:<48s}" * ncols + "").format(*keys[i * ncols : i * ncols + ncols])
+            ("  " + "{:<48s}" * ncols + "").format(
+                *keys[i * ncols : i * ncols + ncols]
+            )
         )
 
     nrest = nkeys - nrows * ncols
     if nrest > 0:
-        lines.append(("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :]))
+        lines.append(
+            ("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :])
+        )
 
     return lines
 
-def show_failed_modules_in_rows_with_reasons(names, reasons):
+
+def show_failed_modules_in_rows_with_reasons(names, reasons) -> list[str]:
     """"""
     lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
     for name, err in zip(names, reasons):
-        lines.append(f"{name:<24} -> ({err})")
+        lines.append(f"{name:<24s} -> ({err})")
 
     return lines
+
 
 def import_all_modules_for_register(custom_module_paths=None) -> None:
     """Import all modules for register."""
@@ -251,7 +250,6 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
             modules.append(full_name)
     if isinstance(custom_module_paths, list):
         modules += custom_module_paths
-    # print("ALL MODULES: ", modules)
     errors = []
     for module in modules:
         try:
@@ -260,16 +258,15 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
             errors.append((module, error))
     names, reasons = _handle_errors(errors)
 
-    # - some imported packages change `logging.basicConfig`
-    #   and accidently add a StreamHandler to logging.root
-    #   so remove it...
+    # Some imported packages change `logging.basicConfig`
+    # and accidently add a StreamHandler to logging.root
+    # so remove it...
     for h in logging.root.handlers:
         if isinstance(h, logging.StreamHandler) and not isinstance(
             h, logging.FileHandler
         ):
             logging.root.removeHandler(h)
 
-    # lines = show_failed_modules_in_rows(names)
     lines = show_failed_modules_in_rows_with_reasons(names, reasons)
     for line in lines:
         config._print(line)
