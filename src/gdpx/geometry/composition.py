@@ -10,6 +10,7 @@ import numpy as np
 from ase import Atoms
 from ase.build import molecule
 from ase.collections import g2
+from ase.data import atomic_numbers
 from ase.formula import Formula
 
 from gdpx.utils.strconv import string_to_integers
@@ -40,11 +41,15 @@ def get_chemical_species_from_kwpairs(name: str, number: Union[int, str]):
     if isinstance(number, int):
         species = [(name, number)]
     elif isinstance(number, str):
-        numbers = string_to_integers(number, convention="lmp", out_convention="lmp")
+        numbers = string_to_integers(
+            number, convention="lmp", out_convention="lmp"
+        )
         for num in numbers:
             species.append((name, num))
     else:
-        raise RuntimeError(f"number must be int or str but `{number}` is given.")
+        raise RuntimeError(
+            f"number must be int or str but `{number}` is given."
+        )
 
     return species
 
@@ -57,7 +62,9 @@ class CompositionSpace:
         if isinstance(composition, dict):
             entries = []
             for k, v in composition.items():
-                entries.append(get_chemical_species_from_kwpairs(name=k, number=v))
+                entries.append(
+                    get_chemical_species_from_kwpairs(name=k, number=v)
+                )
             # Sort species by name to make the composition order consistent
             # Though we will sort fragments in insert
             entries = sorted(entries, key=lambda e: e[0])
@@ -67,6 +74,7 @@ class CompositionSpace:
         else:
             raise RuntimeError()
 
+        # Something like [(('H', 2), ('O', 1))]
         self._compositions = _compositions
         assert (
             len(self._compositions) > 0
@@ -75,7 +83,7 @@ class CompositionSpace:
         return
 
     def get_chemical_symbols(self):
-        """"""
+        """Get possible chemical symbols in the composition space."""
         chemical_symbols = []
         for comp in self._compositions:
             for name, numb in comp:
@@ -85,7 +93,16 @@ class CompositionSpace:
 
         return chemical_symbols
 
-    def get_fragments_from_one_composition(self, rng=np.random.default_rng()) -> List[Atoms]:
+    def get_chemical_numbers(self):
+        """Get possible chemical numbers in the composition space."""
+        chemical_symbols = self.get_chemical_symbols()
+        chemical_numbers = [atomic_numbers[s] for s in chemical_symbols]
+
+        return chemical_numbers
+
+    def get_fragments_from_one_composition(
+        self, rng=np.random.default_rng()
+    ) -> List[Atoms]:
         """"""
         num_compositions = len(self._compositions)
         idx = rng.choice(num_compositions, size=1, replace=False)[0]
