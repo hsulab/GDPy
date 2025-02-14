@@ -75,11 +75,6 @@ try:
 except ImportError as e:
     config._print(f"  {'Builder':<16s} {'`hypercube`':<16s} -> require `{e.name}`.")
 
-# Extra utilities
-from gdpx.builder.utils import remove_vacuum, reset_cell
-registers.operation.register(remove_vacuum)
-registers.operation.register(reset_cell)
-
 
 if __name__ == "__main__":
     ...

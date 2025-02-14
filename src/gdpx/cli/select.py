@@ -5,7 +5,7 @@
 import pathlib
 from typing import Union
 
-from gdpx.nodes.builder import canonicalise_builder
+from gdpx.factory.builder import canonicalise_builder
 
 from ..data.array import AtomsNDArray
 from ..selector.interface import SelectorVariable

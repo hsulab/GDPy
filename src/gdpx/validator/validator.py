@@ -9,7 +9,7 @@ from typing import Any, Optional, Union
 from gdpx.core.component import BaseComponent
 from gdpx.data.array import AtomsNDArray
 from gdpx.data.dataset import AbstractDataloader
-from gdpx.nodes.builder import canonicalise_builder
+from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.computer import canonicalise_worker
 from gdpx.worker.drive import DriverBasedWorker
 

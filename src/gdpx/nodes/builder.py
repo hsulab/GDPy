@@ -3,18 +3,17 @@
 
 
 import pathlib
-from typing import Any, Union, Optional
+from typing import Union
 
+import numpy as np
 import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.builder.builder import StructureBuilder
-
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import Variable
-from ..data.array import AtomsNDArray
+from gdpx.core.operation import Operation
+from gdpx.core.register import registers
+from gdpx.core.variable import Variable
+from gdpx.data.array import AtomsNDArray
 
 
 @registers.variable.register
@@ -24,7 +23,9 @@ class BuilderVariable(Variable):
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
         method = kwargs.pop("method", "direct")
-        builder = registers.create("builder", method, convert_name=False, **kwargs)
+        builder = registers.create(
+            "builder", method, convert_name=False, **kwargs
+        )
 
         super().__init__(initial_value=builder, directory=directory)
 
@@ -56,7 +57,13 @@ class BuilderVariable(Variable):
 class read_stru(Operation):
 
     def __init__(
-        self, fname, format=None, index=":", input_nodes=[], directory="./", **kwargs
+        self,
+        fname,
+        format=None,
+        index=":",
+        input_nodes=[],
+        directory="./",
+        **kwargs,
     ) -> None:
         """"""
         super().__init__(input_nodes, directory)
@@ -103,7 +110,13 @@ class read_stru(Operation):
 class write_stru(Operation):
 
     def __init__(
-        self, structures, fname=None, format="extxyz", directory="./", *args, **kwargs
+        self,
+        structures,
+        fname=None,
+        format="extxyz",
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """"""
         input_nodes = [structures]
@@ -122,8 +135,12 @@ class write_stru(Operation):
         if isinstance(structures, AtomsNDArray):
             structures = structures.get_marked_structures()
 
-        self._print(f"write structures to {str(self.directory/'structures.xyz')}")
-        write(self.directory / "structures.xyz", structures, format=self.format)
+        self._print(
+            f"write structures to {str(self.directory/'structures.xyz')}"
+        )
+        write(
+            self.directory / "structures.xyz", structures, format=self.format
+        )
 
         if self.fname is not None:
             fpath = pathlib.Path(self.fname)
@@ -182,7 +199,9 @@ class build(Operation):
         if isinstance(builder, dict) or isinstance(
             builder, omegaconf.dictconfig.DictConfig
         ):
-            builder = BuilderVariable(directory=self.directory / "builder", **builder)
+            builder = BuilderVariable(
+                directory=self.directory / "builder", **builder
+            )
 
         return [builder]
 
@@ -191,10 +210,17 @@ class build(Operation):
 class modify(Operation):
 
     def __init__(
-        self, substrates, modifier, size: int = 1, repeat: int = 1, directory="./"
+        self,
+        substrates,
+        modifier,
+        size: int = 1,
+        repeat: int = 1,
+        directory="./",
     ) -> None:
         """"""
-        super().__init__(input_nodes=[substrates, modifier], directory=directory)
+        super().__init__(
+            input_nodes=[substrates, modifier], directory=directory
+        )
 
         self.size = size  # create number of new structures
         self.repeat = repeat  # repeat modification times for one structure
@@ -229,7 +255,9 @@ class modify(Operation):
             modifier = BuilderVariable(
                 directory=self.directory / "modifier", **modifier
             )
-        elif isinstance(modifier, list) or isinstance(modifier, omegaconf.ListConfig):
+        elif isinstance(modifier, list) or isinstance(
+            modifier, omegaconf.ListConfig
+        ):
             modifiers_ = []
             for modifier_ in modifier:
                 modifier_ = BuilderVariable(
@@ -268,39 +296,93 @@ class modify(Operation):
         return frames
 
 
-def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:
-    """"""
-    # Check if it is a structure file path, a configuration file path or just a pure string
-    supported_configtypes = [".json", ".yaml"]
-    if isinstance(config, str):
-        config = pathlib.Path(config)
-        if config.suffix in supported_configtypes:
-            from gdpx.utils.command import parse_input_file
+@registers.operation.register
+class remove_vacuum(Operation):
 
-            config = parse_input_file(config)
+    cache: str = "cache_frames.xyz"
+
+    def __init__(
+        self, structures, thickness: float = 20.0, directory="./"
+    ) -> None:
+        """"""
+        input_nodes = [structures]
+        super().__init__(input_nodes, directory)
+
+        self.thickness = thickness
+
+        return
+
+    def forward(self, structures) -> list[Atoms]:
+        """Remove some vaccum of structures.
+
+        Args:
+            structures: A list of Atoms or AtomsNDArray.
+
+        """
+        super().forward()
+
+        if isinstance(structures, AtomsNDArray):
+            frames = structures.get_marked_structures()
         else:
-            if config.exists():  # a structure filepath
-                ...
-            else:
-                config = config.name
+            frames = structures
 
-    if isinstance(config, str):
-        raise NotImplementedError(f"Cannot convert `{config}` to builder.")
-    elif isinstance(config, pathlib.Path):
-        config = dict(method="direct", frames=str(config))
-    elif isinstance(config, dict):
-        ...
-    elif isinstance(config, type(None)):
-        ...
-    else:
-        raise Exception(f"Unknown config `{config}` with type `{type(config)}`.")
+        # TODO: convert to atoms_array?
+        cache_fpath = self.directory / self.cache
+        if cache_fpath.exists():
+            frames = read(cache_fpath, ":")
+        else:
+            for a in frames:
+                a.cell[2, 2] -= self.thickness
+            write(cache_fpath, frames)
 
-    if config is not None:
-        builder = BuilderVariable(**config).value  # type: ignore
-    else:
-        builder = None
+        self.status = "finished"
 
-    return builder
+        return frames
+
+
+@registers.operation.register
+class reset_cell(Operation):
+
+    cache: str = "cache_frames.xyz"
+
+    def __init__(self, structures, cell, directory="./") -> None:
+        """"""
+        input_nodes = [structures]
+        super().__init__(input_nodes, directory)
+
+        self.cell = np.array(cell)
+
+        return
+
+    def forward(self, structures) -> list[Atoms]:
+        """Remove some vaccum of structures.
+
+        Args:
+            structures: A list of Atoms or AtomsNDArray.
+
+        """
+        super().forward()
+
+        if isinstance(structures, AtomsNDArray):
+            frames = structures.get_marked_structures()
+        else:
+            frames = structures
+
+        # TODO: convert to atoms_array?
+        cache_fpath = self.directory / self.cache
+        if cache_fpath.exists():
+            frames = read(cache_fpath, ":")
+        else:
+            center_of_cell = np.sum(self.cell, axis=0) / 2.0
+            for a in frames:
+                com = a.get_center_of_mass()
+                a.set_cell(self.cell)
+                a.positions -= com - center_of_cell
+            write(cache_fpath, frames)
+
+        self.status = "finished"
+
+        return frames
 
 
 if __name__ == "__main__":
