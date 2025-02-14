@@ -202,7 +202,7 @@ class RandomBulkBuilder(StructureModifier):
 
         # To compatible with GA engine,
         # and substrates are not allowed in random bulk.
-        self._substrate = None
+        self._substrate = Atoms("", pbc=True)
         if self.substrates is not None:
             if len(self.substrates) != 0:
                 raise Exception("The random_bulk does not support substrates.")
@@ -349,7 +349,8 @@ class RandomBulkBuilder(StructureModifier):
         # The ase startgenerator assigns tags from 0
         # while tag=0 is reserved for substrate,
         # so we need to reassign tags to avoid conflicts.
-        assert self._substrate is None
+        num_atoms_in_substrate = len(self._substrate)
+        assert num_atoms_in_substrate == 0
         for atoms in frames:
             prev_tags = atoms.get_tags()
             assert prev_tags.min() == 0
