@@ -5,7 +5,7 @@
 import pathlib
 from typing import Union
 
-from gdpx.nodes.validator import canonicalise_validator
+from gdpx.factory.validator import canonicalise_validator
 
 
 def run_validation(config: dict, directory: Union[str, pathlib.Path], potter):
