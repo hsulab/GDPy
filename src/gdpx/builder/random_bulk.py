@@ -17,7 +17,10 @@ from ase.ga.utilities import (  # get system composition (both substrate and top
 )
 
 from gdpx.geometry.composition import CompositionSpace
-from gdpx.nodes.region import RegionVariable
+from gdpx.utils.atoms_tags import (
+    sort_structures_by_natoms_per_type,
+    sort_structures_by_tags,
+)
 
 from .builder import StructureModifier
 
@@ -144,7 +147,7 @@ class RandomBulkBuilder(StructureModifier):
     def __init__(
         self,
         composition: dict[str, int],
-        region: dict = {},
+        region: Optional[dict] = None,
         box: Optional[Union[list, dict]] = None,
         pbc: bool = True,
         use_tags: bool = True,
@@ -153,6 +156,8 @@ class RandomBulkBuilder(StructureModifier):
         test_too_far: bool = True,
         test_dist_to_slab: bool = True,
         max_times_size: int = 10,
+        sort_by_tags: bool = True,
+        sort_by_natoms_per_type: bool = True,
         *args,
         **kwargs,
     ):
@@ -171,25 +176,17 @@ class RandomBulkBuilder(StructureModifier):
             composition=composition,
             region=region,
             box=box,
+            pbc=pbc,
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
             max_times_size=max_times_size,
             test_too_far=test_too_far,
             test_dist_to_slab=test_dist_to_slab,
-            pbc=pbc,
+            sort_by_tags=sort_by_tags,
+            sort_by_natoms_per_type=sort_by_natoms_per_type,
             **kwargs,
         )
         self._init_params = copy.deepcopy(_init_params)
-
-        # Overwrite substrates if it is a file path
-        if self._input_substrates is not None:
-            self._init_params["substrates"] = self._input_substrates
-
-        # Substrates are not allowed in random bulk.
-        self._substrate = None
-        if self.substrates is not None:
-            if len(self.substrates) != 0:
-                raise Exception("The random_bulk does not support substrates.")
 
         # Set random seed for generators due to compatibility
         if isinstance(self.random_seed, int):
@@ -199,14 +196,23 @@ class RandomBulkBuilder(StructureModifier):
         else:
             raise Exception(f"Invalid random seed `{self.random_seed}`.")
 
-        # The number of attempts to generate structures
-        self.max_times_size = max_times_size
+        # Overwrite substrates if it is a file path
+        if self._input_substrates is not None:
+            self._init_params["substrates"] = self._input_substrates
 
-        #: Number of attempts to create a random candidate.
-        self.max_attempts_per_candidate: int = 100
+        # To compatible with GA engine,
+        # and substrates are not allowed in random bulk.
+        self._substrate = None
+        if self.substrates is not None:
+            if len(self.substrates) != 0:
+                raise Exception("The random_bulk does not support substrates.")
 
-        # Create a region
-        self.region = RegionVariable(**region)
+        # The built-in cut_and_splice will reinit tags from 0 if use_tags is false,
+        # here, use_tags is set true no matter what type of system is explored to
+        # retain tags information.
+        self.use_tags = use_tags
+        if not self.use_tags:
+            raise Exception("`random_builder` must have use_tags to be True.")
 
         # Check composition
         self._compspec = CompositionSpace(composition)
@@ -227,6 +233,15 @@ class RandomBulkBuilder(StructureModifier):
         # Genetic algorithm bulk crossover needs
         # number_of_variable_cell_vectors and cell_bounds
         box_params = self.box
+        if isinstance(box_params, list):
+            box_params = dict(cell=box_params)
+        elif isinstance(box_params, dict):
+            ...
+        else:
+            raise Exception(
+                f"Invalid box `{box_params}` with type `{type(box_params)}`."
+            )
+
         (
             self.number_of_variable_cell_vectors,
             self.box_to_place_in,
@@ -241,12 +256,22 @@ class RandomBulkBuilder(StructureModifier):
                 "The random_bulk does not support non-periodic boundary conditions (pbc=False)."
             )
 
-        # The built-in cut_and_splice will reinit tags from 0 if use_tags is false,
-        # here, use_tags is set true no matter what type of system is explored to
-        # retain tags information.
-        self.use_tags = use_tags
-        if not self.use_tags:
-            raise Exception("`random_builder` must have use_tags to be True.")
+        # Create region
+        self.region = region
+        if self.region is not None:
+            raise Exception("The random_bulk does not accept region.")
+
+        # The number of attempts to generate structures
+        self.max_times_size = max_times_size
+
+        #: Number of attempts to create a random candidate.
+        self.max_attempts_per_candidate: int = 100
+
+        # Whether we should have a consistent tags
+        self.sort_by_tags = sort_by_tags
+
+        # Whether we should have structures order by natoms per elements
+        self.sort_by_natoms_per_type = sort_by_natoms_per_type
 
         return
 
@@ -321,13 +346,22 @@ class RandomBulkBuilder(StructureModifier):
                 f"Failed to create {size} structures after {num_attempts} attempts, only {num_frames} are created."
             )
 
-        # Make tags start with 1 if no substrate is used
-        if self._substrate is not None:
-            num_atoms_in_substrate = len(self._substrate)
-            if num_atoms_in_substrate == 0:
-                for atoms in frames:
-                    prev_tags = atoms.get_tags()
-                    atoms.set_tags(prev_tags + 1)
+        # The ase startgenerator assigns tags from 0
+        # while tag=0 is reserved for substrate,
+        # so we need to reassign tags to avoid conflicts.
+        assert self._substrate is None
+        for atoms in frames:
+            prev_tags = atoms.get_tags()
+            assert prev_tags.min() == 0
+            atoms.set_tags(prev_tags + 1)
+
+        # Sort atoms in each structure by tags
+        if self.sort_by_natoms_per_type:
+            chemical_types = self._compspec.get_chemical_symbols()
+            frames = sort_structures_by_natoms_per_type(frames, chemical_types)
+
+        if self.sort_by_tags:
+            frames = sort_structures_by_tags(frames)
 
         return frames
 
