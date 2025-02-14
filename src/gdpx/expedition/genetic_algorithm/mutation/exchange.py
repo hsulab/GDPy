@@ -64,16 +64,26 @@ class ExchangeMutation(OffspringCreator):
 
         num_species = len(self.species)
         if num_min_max is None:
-            self.num_min_max = [(0, np.inf)] * num_species
+            _num_min_max = [(0, np.inf)] * num_species
         else:
             if isinstance(num_min_max, list):
                 if isinstance(num_min_max[0], list):
-                    self.num_min_max = num_min_max
-                    assert len(num_min_max) == num_species
+                    _num_min_max = num_min_max
                 else:
-                    self.num_min_max = [num_min_max] * num_species
+                    _num_min_max = [num_min_max] * num_species
             else:
                 raise Exception(f"num_min_max `{num_min_max}` must be a list of tuples.")
+        assert len(_num_min_max) == num_species
+
+        self.num_min_max = []
+        for (n_min, n_max) in _num_min_max:
+            if n_min is None:
+                n_min = 0
+            if n_max is None:
+                n_max = np.inf
+            if n_min >= n_max:
+                raise Exception(f"n_min={n_min} >= n_max={n_max}")
+            self.num_min_max.append((n_min, n_max))
 
         return
 
