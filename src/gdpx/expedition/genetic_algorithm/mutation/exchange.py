@@ -25,10 +25,10 @@ class ExchangeMutation(OffspringCreator):
     def __init__(
         self,
         species,
-        region,
         bond_distance_dict,
         covalent_ratio=[0.8, 2.0],
         num_min_max = None,
+        region=None,
         anchors=None,
         nsel=1,
         num_muts=1,
@@ -40,6 +40,7 @@ class ExchangeMutation(OffspringCreator):
         self.descriptor = "ExMut"
         self.min_inputs = 1
 
+        region = region if region is not None else {}
         self.region = RegionVariable(**region).value
 
         self.bond_distance_dict = bond_distance_dict
