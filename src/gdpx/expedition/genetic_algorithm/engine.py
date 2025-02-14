@@ -11,8 +11,11 @@ import pathlib
 import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
+from ase.build import niggli_reduce
+from ase.calculators.singlepoint import SinglePointCalculator
 from ase.ga.data import DataConnection, PrepareDB
 from ase.ga.offspring_creator import OperationSelector
+from ase.ga.utilities import CellBounds
 from ase.io import read, write
 
 from gdpx.utils.strconv import integers_to_string
@@ -104,6 +107,38 @@ def plot_evolution_figure(rdir, data, gen_num, target):
     plt.close()
 
     return
+
+
+def reduce_cell_by_bounds(atoms: Atoms, cell_bounds: CellBounds) -> Atoms:
+    """Reduce the cell of atoms based on the cell bounds.
+
+    If the cell is not within the bounds, the raw score is set to -1e8,
+    which is small enough to not be selected in the population.
+
+    Args:
+        atoms: The atoms object.
+        cell_bounds: The cell bounds.
+
+    Returns:
+        The reduced atoms object.
+
+    """
+    energy = atoms.get_potential_energy()
+    forces = atoms.get_forces()
+    stress = atoms.get_stress()
+    raw_score = atoms.info["key_value_pairs"]["raw_score"]
+
+    niggli_reduce(atoms)
+    calc = SinglePointCalculator(
+        atoms, energy=energy, forces=forces, stress=stress
+    )
+    atoms.calc = calc
+    if cell_bounds.is_within_bounds(atoms.get_cell()):
+        atoms.info["key_value_pairs"]["raw_score"] = raw_score
+    else:
+        atoms.info["key_value_pairs"]["raw_score"] = -1e8
+
+    return atoms
 
 
 class GeneticAlgorithmBroadcaster:
@@ -390,14 +425,29 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         assert self.worker is not None, "GA has not set its worker properly."
         self.worker.directory = self.directory / self.CALC_DIRNAME
 
-        if self.generator.name == "random_bulk" and self.worker.driver.setting.task != "cmin":
-            content = "*"*50 + "\n"
+        if (
+            self.generator.name == "random_bulk"
+            and self.worker.driver.setting.task != "cmin"
+        ):
+            content = "*" * 50 + "\n"
             content += "*    " + f"{'':<44s}" + "*\n"
-            content += "*    " + f"{'YOU ARE EXPLORING RANDOM BULK STRUCTURES':<44s}" + "*\n"
-            content += "*    " + f"{'BETTER USE `task: cmin` IN THE DRIVER':<44s}" + "*\n"
-            content += "*    " + f"{'OTHERWISE THE CELL WILL NOT BE CHANGED':<44s}" + "*\n"
+            content += (
+                "*    "
+                + f"{'YOU ARE EXPLORING RANDOM BULK STRUCTURES':<44s}"
+                + "*\n"
+            )
+            content += (
+                "*    "
+                + f"{'BETTER USE `task: cmin` IN THE DRIVER':<44s}"
+                + "*\n"
+            )
+            content += (
+                "*    "
+                + f"{'OTHERWISE THE CELL WILL NOT BE CHANGED':<44s}"
+                + "*\n"
+            )
             content += "*    " + f"{'':<44s}" + "*\n"
-            content += "*"*50 + "\n"
+            content += "*" * 50 + "\n"
             for l in content.split("\n"):
                 self._print(l)
 
@@ -479,11 +529,19 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         self._print(
             f"number of relaxed in current generation: {self.num_relaxed_gen}"
         )
-        self._print(integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
+        self._print(
+            integers_to_string(
+                sorted(self.relaxed_confids), inp_convention="lmp"
+            )
+        )
         self._print(
             f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}"
         )
-        self._print(integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
+        self._print(
+            integers_to_string(
+                sorted(self.unrelaxed_confids), inp_convention="lmp"
+            )
+        )
         self._print(f"end of current generation: {self.end_of_gen}")
 
         # - population
@@ -671,7 +729,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     f"calculation directory for generation {self.cur_gen} exists."
                 )
 
-        # --- check if there were finished jobs
+        # Check if there were finished jobs
         curr_convergence = False
         self.worker.directory = (
             self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
@@ -679,6 +737,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("===== Retrieve Relaxed Population =====")
+            whethre_reduce_cell = hasattr(self.generator, "cell_bounds")
+            if whethre_reduce_cell:
+                self._print("The candidates will be reduced by cell bounds.")
             converged_candidates = [
                 t[-1]
                 for t in self.worker.retrieve(use_archive=self.use_archive)
@@ -717,10 +778,12 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                     ...
                 # evaluate raw score
                 self.evaluate_candidate(cand)
+                if whethre_reduce_cell:
+                    cand = reduce_cell_by_bounds(
+                        cand, self.generator.cell_bounds
+                    )
                 fitness = cand.info["key_value_pairs"]["raw_score"]
-                self._print(
-                    f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f}"
-                )
+                cand_stat = f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f} "
                 if "identity_stats" in cand.info:
                     identity_info = "  " + " ".join(
                         [
@@ -728,7 +791,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
                             for k, v in cand.info["identity_stats"].items()
                         ]
                     )
-                    self._print(identity_info)
+                    cand_stat += identity_info
+                self._print(cand_stat)
                 self.da.add_relaxed_step(
                     cand,
                     find_neighbors=self.find_neighbors,
@@ -1059,28 +1123,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # evaluate based on target property
         if self.target == "energy":
             energy = atoms.get_potential_energy()
-            forces = atoms.get_forces()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
             atoms.info["key_value_pairs"]["target"] = energy
-
-            # Reduce the cell in the bulk structure search.
-            # Check whether the cell is in the bound.
-            from ase.build import niggli_reduce
-            from ase.calculators.singlepoint import SinglePointCalculator
-
-            if hasattr(self.generator, "cell_bounds"):
-                stress = atoms.get_stress()
-                niggli_reduce(atoms)
-                calc = SinglePointCalculator(
-                    atoms, energy=energy, forces=forces, stress=stress
-                )
-                atoms.calc = calc
-                if self.generator.cell_bounds.is_within_bounds(
-                    atoms.get_cell()
-                ):
-                    atoms.info["key_value_pairs"]["raw_score"] = -energy
-                else:
-                    atoms.info["key_value_pairs"]["raw_score"] = -1e8
         elif self.target == "formation_energy":
             identity_stats = atoms.info.get("identity_stats", None)
             assert (
@@ -1096,7 +1140,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
             atoms.info["key_value_pairs"]["target"] = formation_energy
         elif self.target == "reaction_energy":
-            ...  # TODO: ...
+            raise NotImplementedError()
         else:
             raise RuntimeError(f"Unknown target {self.target}...")
 
