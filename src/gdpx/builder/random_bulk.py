@@ -53,7 +53,9 @@ def get_random_cell_params(box_params: dict):
             cell_bounds = CellBounds(cell_bounds)
         else:
             cell_bounds = box_bounds
-        assert isinstance(cell_bounds, CellBounds), f"{cell_bounds} is not a CellBounds."
+        assert isinstance(
+            cell_bounds, CellBounds
+        ), f"{cell_bounds} is not a CellBounds."
 
         # Get cell_splits
         box_splits = box_params.get("splits", None)
@@ -139,15 +141,6 @@ class RandomBulkBuilder(StructureModifier):
 
     name: str = "random_bulk"
 
-    #: Number of attempts to create a random candidate.
-    MAX_ATTEMPTS_PER_CANDIDATE: int = 1000
-
-    #: Atom numbers of composition to insert.
-    composition_atom_numbers: Optional[list[int]] = None
-
-    #: Composition to insert.
-    composition_blocks: Optional[dict[str, int]] = None
-
     def __init__(
         self,
         composition: dict[str, int],
@@ -209,6 +202,9 @@ class RandomBulkBuilder(StructureModifier):
         # The number of attempts to generate structures
         self.max_times_size = max_times_size
 
+        #: Number of attempts to create a random candidate.
+        self.max_attempts_per_candidate: int = 100
+
         # Create a region
         self.region = RegionVariable(**region)
 
@@ -228,7 +224,7 @@ class RandomBulkBuilder(StructureModifier):
         # Some box-related settings
         self.box = box
 
-        # Genetic algorithm bulk crossover needs 
+        # Genetic algorithm bulk crossover needs
         # number_of_variable_cell_vectors and cell_bounds
         box_params = self.box
         (
@@ -281,28 +277,38 @@ class RandomBulkBuilder(StructureModifier):
             ...
 
         # Instantiate the ase generator
-        composition = self._compspec._compositions[0]
-        generator = get_a_bulk_generator(
-            composition,
-            min_bond_distance_dict=self.blmin,
-            number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
-            box_to_place_in=self.box_to_place_in,
-            cell_bounds=self.cell_bounds,
-            cell_splits=self.cell_splits,
-            cell_volume=self.cell_volume,
-            atomic_radius_ratio=self.covalent_max,
-            test_too_far=self.test_too_far,
-            rng=np.random,
+        possible_compositions = self._compspec._compositions
+
+        bulk_generators = []
+        for composition in possible_compositions:
+            generator = get_a_bulk_generator(
+                composition,
+                min_bond_distance_dict=self.blmin,
+                number_of_variable_cell_vectors=self.number_of_variable_cell_vectors,
+                box_to_place_in=self.box_to_place_in,
+                cell_bounds=self.cell_bounds,
+                cell_splits=self.cell_splits,
+                cell_volume=self.cell_volume,
+                atomic_radius_ratio=self.covalent_max,
+                test_too_far=self.test_too_far,
+                rng=np.random,
+            )
+            bulk_generators.append(generator)
+        num_generators = len(bulk_generators)
+
+        max_attempts = size * self.max_times_size
+        selected_generator_indices = self.rng.choice(
+            num_generators, size=max_attempts, replace=True
         )
 
         # Generate structures
         frames, num_frames, num_attempts = [], 0, 0
-        for i in range(size * self.max_times_size):
+        for i in range(max_attempts):
             num_frames = len(frames)
             if num_frames < size:
-                atoms = generator.get_new_candidate(
-                    maxiter=self.MAX_ATTEMPTS_PER_CANDIDATE
-                )
+                atoms = bulk_generators[
+                    selected_generator_indices[i]
+                ].get_new_candidate(maxiter=self.max_attempts_per_candidate)
                 if atoms is not None:
                     frames.append(atoms)
                     num_frames += 1
