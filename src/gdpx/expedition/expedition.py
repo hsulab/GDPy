@@ -14,19 +14,6 @@ from . import registers
 # For backward compatibility
 parse_worker = canonicalise_worker
 
-def canonicalise_builder(builder: dict):
-    """"""
-    if isinstance(builder, dict):
-        builder_params = copy.deepcopy(builder)
-        builder_method = builder_params.pop("method")
-        builder = registers.create(
-            "builder", builder_method, convert_name=False, **builder_params
-        )
-    else:  # Assume it is already a StructureBuilder
-        builder = builder
-
-    return builder
-
 
 class AbstractExpedition(BaseComponent):
 

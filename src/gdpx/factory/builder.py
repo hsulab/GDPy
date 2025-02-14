@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 import pathlib
 from typing import Any, Optional
 
@@ -12,6 +13,11 @@ from gdpx.utils.command import parse_input_file
 
 def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:
     """"""
+    # Check if it is already a StructureBuilder, then return it directly,
+    # which will keep its state, especially, the random state.
+    if isinstance(config, StructureBuilder):
+        return config
+
     # Check if it is a structure file path, a configuration file path or just a pure string
     supported_configtypes = [".json", ".yaml"]
     if isinstance(config, str):
@@ -24,6 +30,7 @@ def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:
             else:
                 config = config.name
 
+    # Convert everything into a dict
     if isinstance(config, str):
         raise NotImplementedError(f"Cannot convert `{config}` to builder.")
     elif isinstance(config, pathlib.Path):
@@ -38,9 +45,10 @@ def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:
         )
 
     if config is not None:
-        method = config.pop("method", "direct")
+        config_to_use = copy.deepcopy(config)
+        method = config_to_use.pop("method", "direct")
         builder = registers.create(
-            "builder", method, convert_name=False, **config
+            "builder", method, convert_name=False, **config_to_use
         )
     else:
         builder = None
