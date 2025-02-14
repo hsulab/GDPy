@@ -3,15 +3,19 @@
 
 
 import copy
-from typing import Optional, List
+from typing import Optional
 
 import numpy as np
-
 from ase import Atoms
 
+from gdpx.utils.strconv import str2array
+
 from ..builder import StructureModifier
-from .. import str2array
-from .intercoord import compute_bond_angles, compute_angle_jacobian, optimisation_step
+from .intercoord import (
+    compute_angle_jacobian,
+    compute_bond_angles,
+    optimisation_step,
+)
 
 
 class ScanAngleModifier(StructureModifier):
@@ -24,30 +28,34 @@ class ScanAngleModifier(StructureModifier):
     #: Tolerance of target internal coordinates.
     TOL_INTCOORD: float = 1e-4
 
-    def __init__(self, angle: List[int], target: str, *args, **kwargs):
+    def __init__(self, angle: list[int], target: str, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
         self.angle = np.array(angle).reshape(-1, 3)
         if isinstance(target, str):
             self.target = str2array(target)
-        else: # assume it is a plain list
+        else:  # assume it is a plain list
             self.target = np.array(target)
 
         return
 
-    def run(self, substrates: Optional[List[Atoms]], size: int = 1, *args, **kwargs):
+    def run(
+        self, substrates: Optional[list[Atoms]], size: int = 1, *args, **kwargs
+    ):
         """"""
         super().run(substrates=substrates, *args, *kwargs)
 
         frames = []
         for substrate in self.substrates:
-            curr_frames = self._irun(substrate=substrate, size=size, *args, **kwargs)
+            curr_frames = self._irun(
+                substrate=substrate, size=size, *args, **kwargs
+            )
             frames.extend(curr_frames)
 
         return frames
 
-    def _irun(self, substrate: Atoms, size=1, *args, **kwargs) -> List[Atoms]:
+    def _irun(self, substrate: Atoms, size=1, *args, **kwargs) -> list[Atoms]:
         """"""
         targets = self.target[:, np.newaxis]
         trimers = self.angle
@@ -85,7 +93,9 @@ class ScanAngleModifier(StructureModifier):
             )
         else:
             # warnings.warn("Iterative approximation is not converged.", UserWarning)
-            self._print(f"Iterative approximation is not converged from {internals} to {targets}.")
+            self._print(
+                f"Iterative approximation is not converged from {internals} to {targets}."
+            )
 
         # - update positions
         atoms.positions = positions

@@ -1,34 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-from typing import Callable, List, Tuple
+from typing import Callable, Tuple
 
 import networkx as nx
 from ase import Atoms
 from ase.io import write
 from joblib import Parallel, delayed
 
+from gdpx.graph.comparison import get_unique_environments_based_on_bonds
+from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
+from gdpx.graph.utils import unpack_node_name
 from gdpx.group import evaluate_group_expression
+from gdpx.utils.command import CustomTimer
 
-from .. import (
-    CustomTimer,
-    StruGraphCreator,
-    extract_chem_envs,
-    get_unique_environments_based_on_bonds,
-    unpack_node_name,
-)
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
 
 def single_remove_adsorbate(
     species: str,
     graph_params: dict,
-    target_group: List[dict],
+    target_group: list[dict],
     atoms: Atoms,
     print_func: Callable = print,
     debug_func: Callable = print,
-) -> Tuple[List[Atoms], List[nx.Graph]]:
+) -> Tuple[list[Atoms], list[nx.Graph]]:
     """Remove selected particles from the structure.
 
     Currently, only single atom can be removed. TODO: molecule.
@@ -98,8 +96,8 @@ class GraphRemoveModifier(GraphModifier):
     def __init__(
         self,
         species,
-        spectators: List[str],
-        target_group: List[dict],
+        spectators: list[str],
+        target_group: list[dict],
         substrates=None,
         graph: dict = DEFAULT_GRAPH_PARAMS,
         *args,
@@ -122,7 +120,7 @@ class GraphRemoveModifier(GraphModifier):
 
         return
 
-    def _irun(self, substrates: List[Atoms]) -> List[Atoms]:
+    def _irun(self, substrates: list[Atoms]) -> list[Atoms]:
         """Remove atoms/molecules/adsorbates."""
         self._print("---run remove---")
         graph_params = copy.deepcopy(self.graph_params)
@@ -152,7 +150,9 @@ class GraphRemoveModifier(GraphModifier):
                 # -- add data
                 ret_envs.extend(envs)
                 ret_frames.extend(frames)
-                self._print(f"number of sites {nenvs} to remove for substrate {i}.")
+                self._print(
+                    f"number of sites {nenvs} to remove for substrate {i}."
+                )
         # nsites = len(ret_frames)
         # self._print(f"Total number of chemical environments: {nsites}")
 

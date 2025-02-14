@@ -10,7 +10,9 @@ from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
 
-from .. import CustomTimer, SiteFinder, config
+from gdpx.graph.sites import SiteFinder
+from gdpx.utils.command import CustomTimer
+
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
 
@@ -90,9 +92,6 @@ class GraphInsertModifier(GraphModifier):
         # site_radius
         # region
 
-        # - parallel
-        self.njobs = config.NJOBS
-
         return
 
     def _irun(self, substrates: list[Atoms]) -> list[Atoms]:
@@ -125,7 +124,9 @@ class GraphInsertModifier(GraphModifier):
             adsorbate = read(species["adsorbate"])  # only one structure
         symbols = list(set(adsorbate.get_chemical_symbols()))
 
-        selected_species = copy.deepcopy(graph_params.get("adsorbate_elements", []))
+        selected_species = copy.deepcopy(
+            graph_params.get("adsorbate_elements", [])
+        )
         selected_species.extend(symbols)
         selected_species = list(set(selected_species))
 

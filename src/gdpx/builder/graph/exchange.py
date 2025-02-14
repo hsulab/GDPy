@@ -3,22 +3,19 @@
 
 
 import copy
-from typing import Callable, List, Tuple
+from typing import Callable, Tuple
 
 import networkx as nx
 from ase import Atoms
 from ase.io import write
 from joblib import Parallel, delayed
 
+from gdpx.graph.comparison import get_unique_environments_based_on_bonds
+from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
+from gdpx.graph.utils import unpack_node_name
 from gdpx.group import evaluate_group_expression
+from gdpx.utils.command import CustomTimer
 
-from .. import (
-    CustomTimer,
-    StruGraphCreator,
-    extract_chem_envs,
-    get_unique_environments_based_on_bonds,
-    unpack_node_name,
-)
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
 
@@ -30,7 +27,7 @@ def single_exchange_adsorbate(
     atoms: Atoms,
     print_func: Callable = print,
     debug_func: Callable = print,
-) -> Tuple[List[Atoms], List[nx.Graph]]:
+) -> Tuple[list[Atoms], list[nx.Graph]]:
     """Exchange selected particles from the structure with target species.
 
     Currently, only single atom can be removed. TODO: molecule.
@@ -110,7 +107,7 @@ class GraphExchangeModifier(GraphModifier):
         species: str,
         target: str,
         target_group,
-        spectators: List[str],
+        spectators: list[str],
         substrates=None,
         graph: dict = DEFAULT_GRAPH_PARAMS,
         *args,
@@ -134,7 +131,7 @@ class GraphExchangeModifier(GraphModifier):
 
         return
 
-    def _irun(self, substrates: List[Atoms]) -> List[Atoms]:
+    def _irun(self, substrates: list[Atoms]) -> list[Atoms]:
         """Exchange an adsorbate with another species."""
         self._print("---run exchange---")
         # - params for graph creator
@@ -166,7 +163,9 @@ class GraphExchangeModifier(GraphModifier):
                 # -- add data
                 ret_envs.extend(envs)
                 ret_frames.extend(frames)
-                self._print(f"number of sites {nenvs} to exchange for substrate {i}.")
+                self._print(
+                    f"number of sites {nenvs} to exchange for substrate {i}."
+                )
         # not unique across substrates
         write(self.directory / f"possible_frames.xyz", ret_frames)
 
