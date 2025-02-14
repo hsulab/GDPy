@@ -25,9 +25,11 @@ def run_expedition(
     directory = pathlib.Path(directory)
 
     if potter is not None:
-        exp_params["worker"] = potter
+        worker_params = potter
     else:
-        if "worker" not in exp_params:
+        if "worker" in exp_params:
+            worker_params = exp_params.pop("worker")
+        else:
             raise RuntimeError("Expedition must have a worker.")
 
     # Pop scheduler as expedition does not have it as an argument
@@ -43,7 +45,7 @@ def run_expedition(
 
     for curr_expedition in expedition:
         if hasattr(curr_expedition, "register_worker"):
-            curr_expedition.register_worker(exp_params["worker"])
+            curr_expedition.register_worker(worker_params)
 
     num_expeditions = len(expedition)
     if spawn:  # Run expedition in commandline as input files are prepared by worker
