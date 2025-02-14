@@ -3,12 +3,15 @@
 
 
 import copy
+import collections
 import itertools
 
 from ase import Atoms
 
 
-def get_tags_per_species(atoms: Atoms) -> dict[str, list[tuple[int, list[int]]]]:
+def get_tags_per_species(
+    atoms: Atoms,
+) -> dict[str, list[tuple[int, list[int]]]]:
     """Get tags per species.
 
     Args:
@@ -54,15 +57,21 @@ def reassign_tags_by_species(atoms: Atoms) -> Atoms:
     num_atoms_in_substrate: int = 0
     for k, v in tags_dict.items():
         num_instances = len(v)
-        v_ = sorted(v, key=lambda x: x[0])  # Make sure we have the entry that has tag=0 at the first
+        v_ = sorted(
+            v, key=lambda x: x[0]
+        )  # Make sure we have the entry that has tag=0 at the first
         if v[0][0] == 0:
-            assert num_instances == 1, f"`{atoms}` must have only one substrate (tag==0)."
+            assert (
+                num_instances == 1
+            ), f"`{atoms}` must have only one substrate (tag==0)."
             substrate = k
             num_atoms_in_substrate = len(v[0][1])  # type: ignore
             break
     else:
         tag_min = atoms.get_tags().min()
-        assert tag_min > 0, f"`{atoms}` must have tags greater than 0 if no substrate (tag==0) is found."
+        assert (
+            tag_min > 0
+        ), f"`{atoms}` must have tags greater than 0 if no substrate (tag==0) is found."
 
     new_tags = [0] * num_atoms_in_substrate
     new_indices = list(range(num_atoms_in_substrate))
@@ -82,6 +91,59 @@ def reassign_tags_by_species(atoms: Atoms) -> Atoms:
     new_atoms.info = copy.deepcopy(atoms.info)
 
     return new_atoms
+
+
+def sort_structures_by_tags(frames: list[Atoms]) -> list[Atoms]:
+    """Sort atomic orders by their tags."""
+    new_frames = []
+    for atoms in frames:
+        new_atoms = reassign_tags_by_species(atoms)
+        new_frames.append(new_atoms)
+    frames = new_frames
+
+    return new_frames
+
+
+def get_structure_chemical_notation(
+    atoms: Atoms, chemical_types: list[str], padding_length: int = 4
+) -> str:
+    """Get the chemical notation of a structure that can be sorted easily.
+
+    Args:
+        atoms: Atoms object.
+        chemical_types: A list of chemical types sorted alphabetically.
+        padding_length: The padding length of the number of each chemical type.
+
+    Returns:
+        A string of chemical notation.
+
+    """
+    counter = collections.Counter(atoms.get_chemical_symbols())
+
+    notation = ""
+    for k in chemical_types:
+        num = counter.get(k, 0)
+        if num >= 10**padding_length:
+            raise RuntimeError(
+                f"Too many atoms {num} for the padding length {padding_length}."
+            )
+        notation += f"{num:>0{padding_length}d}"
+
+    return notation
+
+
+def sort_structures_by_natoms_per_type(
+    frames: list[Atoms], chemical_types: list[str]
+) -> list[Atoms]:
+    """"""
+    frames = sorted(
+        frames,
+        key=lambda a: get_structure_chemical_notation(
+            a, chemical_types, padding_length=4
+        ),
+    )
+
+    return frames
 
 
 if __name__ == "__main__":

@@ -16,39 +16,14 @@ from gdpx.geometry.composition import CompositionSpace
 from gdpx.geometry.insert import insert_fragments_by_step
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.nodes.region import RegionVariable
-from gdpx.utils.atoms_tags import reassign_tags_by_species
+from gdpx.utils.atoms_tags import (
+    sort_structures_by_natoms_per_type,
+    sort_structures_by_tags,
+)
 
 from .builder import StructureModifier
 
 RANDOM_INTEGER_HIGH: int = 1_000_000_000_000
-
-
-def get_structure_chemical_notation(
-    atoms: Atoms, chemical_types: list[str], padding_length: int = 4
-) -> str:
-    """Get the chemical notation of a structure that can be sorted easily.
-
-    Args:
-        atoms: Atoms object.
-        chemical_types: A list of chemical types sorted alphabetically.
-        padding_length: The padding length of the number of each chemical type.
-
-    Returns:
-        A string of chemical notation.
-
-    """
-    counter = collections.Counter(atoms.get_chemical_symbols())
-
-    notation = ""
-    for k in chemical_types:
-        num = counter.get(k, 0)
-        if num >= 10**padding_length:
-            raise RuntimeError(
-                f"Too many atoms {num} for the padding length {padding_length}."
-            )
-        notation += f"{num:>0{padding_length}d}"
-
-    return notation
 
 
 def stratified_random_structures(
@@ -130,12 +105,27 @@ class RandomStructureImprovedModifier(StructureModifier):
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
             max_times_size=max_times_size,
+            sort_by_tags=sort_by_tags,
+            sort_by_natoms_per_type=sort_by_natoms_per_type,
             **kwargs,
         )
 
         # Overwrite substrates if it is a file path
         if self._input_substrates is not None:
             self._init_params["substrates"] = self._input_substrates
+
+        # To compatible with GA engine
+        self._substrate = None
+        if self.substrates is not None:
+            self._substrate = self.substrates[0]
+        else:
+            self._substrate = Atoms("", cell=self.box, pbc=self.pbc)
+
+        self.use_tags = use_tags
+        if not self.use_tags:
+            raise Exception(
+                "`random_structure_improved` must have use_tags to be True."
+            )
 
         # Check composition
         self._compspec = CompositionSpace(composition)
@@ -171,19 +161,6 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         # Attempts
         self.max_times_size = max_times_size
-
-        # To compatible with GA engine
-        self.use_tags = use_tags
-        if not self.use_tags:
-            raise Exception(
-                "`random_structure_improved` must have use_tags to be True."
-            )
-
-        self._substrate = None
-        if self.substrates is not None:
-            self._substrate = self.substrates[0]
-        else:
-            self._substrate = Atoms("", cell=self.box, pbc=self.pbc)
 
         # Whether we should have a consistent tags
         self.sort_by_tags = sort_by_tags
@@ -291,21 +268,13 @@ class RandomStructureImprovedModifier(StructureModifier):
                 )
             frames.extend(curr_frames)
 
-        # Sort atoms in each structure by tags?
+        # Sort atoms in each structure by tags
         if self.sort_by_natoms_per_type:
             chemical_types = self._infer_chemical_types_in_composition_space()
-            frames = sorted(
-                frames,
-                key=lambda a: get_structure_chemical_notation(
-                    a, chemical_types, padding_length=4
-                ),
-            )
+            frames = sort_structures_by_natoms_per_type(frames, chemical_types)
+
         if self.sort_by_tags:
-            new_frames = []
-            for atoms in frames:
-                new_atoms = reassign_tags_by_species(atoms)
-                new_frames.append(new_atoms)
-            frames = new_frames
+            frames = sort_structures_by_tags(frames)
 
         return frames
 
