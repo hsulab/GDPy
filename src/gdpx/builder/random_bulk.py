@@ -404,10 +404,8 @@ class RandomBulkBuilder(StructureModifier):
             content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(
                 s, *list(distance_map[i])
             )
-        content += "  too_far: {}, dist_to_slab: {}\n".format(
-            self.test_too_far, self.test_dist_to_slab
-        )
-        content += "  note: default too far tolerance is 2 times\n"
+        content += "  note: too far tolerance is\n"
+        content += "        2 times covalent bond distance\n"
 
         return content
 
@@ -417,7 +415,6 @@ class RandomBulkBuilder(StructureModifier):
         content += f"----- {self.__class__.__name__} Parameters -----\n"
         content += f"random_seed: {self.random_seed}\n"
 
-        content += str(self.region)
         if self.blmin is not None:
             content += self._print_blmin(self.blmin)
         else:
