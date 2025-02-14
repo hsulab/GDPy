@@ -108,13 +108,6 @@ try:
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`plumed`':<16s} -> require `{e.name}`.")
 
-# Trainers under development
-from .gp.fgp import FGPTrainer
-registers.trainer.register("FgpTrainer")(FGPTrainer)
-
-from .gp.sgp import SGPTrainer
-registers.trainer.register("SgpTrainer")(SGPTrainer)
-
 
 if __name__ == "__main__":
     ...
