@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-import warnings
-
+from .. import config
 from ..core.register import registers
 
 # from .basin import BasinSelector
@@ -43,7 +42,7 @@ try:
 
     registers.selector.register("descriptor")(DescriptorSelector)
 except ImportError as e:
-    warnings.warn(f"Module DescriptorSelector import failed: {e}", UserWarning)
+    config._print(f"  {'Selector':<16s} {'`descriptor`':<16s} -> require `{e.name}`.")
 
 
 if __name__ == "__main__":

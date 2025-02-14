@@ -236,13 +236,15 @@ def show_failed_modules_in_rows_with_reasons(names, reasons) -> list[str]:
     """"""
     lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
     for name, err in zip(names, reasons):
-        lines.append(f"{name:<24s} -> ({err})")
+        lines.append(f"  {name:<33s} -> require `{err.name}`.")
 
     return lines
 
 
 def import_all_modules_for_register(custom_module_paths=None) -> None:
     """Import all modules for register."""
+    config._print("FAILED TO IMPORT OPTIONAL CLASSES: ")
+
     modules = []
     for base_dir, submodules in ALL_MODULES:
         for name in submodules:

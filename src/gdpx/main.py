@@ -14,12 +14,12 @@ from .utils.command import dict2str, parse_input_file
 
 
 def main():
-    # - register
+    # Load all components
     import_all_modules_for_register()
 
+    # The arguments
     description = "gdpx: Generating Deep Potential with Python\n"
 
-    # - arguments
     parser = argparse.ArgumentParser(prog="gdp", description=description)
 
     parser.add_argument(

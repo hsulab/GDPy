@@ -25,7 +25,7 @@ try:
     registers.manager.register("deepmd-jax")(DeepmdJaxManager)
     registers.trainer.register(DeepmdJaxTrainer)
 except ImportError as e:
-    config._print(f"Potential `deepmd_jax` import failed: {e}")
+    config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
 
 from .reann.beann import BeannManager, BeannTrainer
 registers.manager.register("beann")(BeannManager)
@@ -91,36 +91,36 @@ registers.manager.register("grid")(GridManager)
 from .mixer import MixerManager
 registers.manager.register("mixer")(MixerManager)
 
-# - optional potentials
+# Optional potentials
 try:
     from .abacus import AbacusManager
     registers.manager.register("abacus")(AbacusManager)
 except ImportError as e:
-    config._print(f"Potential {'abacus'} import failed: {e}")
+    config._print(f"  {'Potential':<16s} {'`abacus`':<16s} -> require `{e.name}`.")
 
 try:
     from .xtb import XtbManager
     registers.manager.register("xtb")(XtbManager)
 except ImportError as e:
-    warnings.warn("Module {} import failed: {}".format("xtb", e), UserWarning)
+    config._print(f"  {'Potential':<16s} {'`xtb`':<16s} -> require `{e.name}`.")
 
 try:
     from .dftd3 import Dftd3Manager
     registers.manager.register("dftd3")(Dftd3Manager)
 except ImportError as e:
-    config._print(f"Potential {'dftd3'} import failed: {e}")
+    config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
 
 try:
     from .bias import BiasManager
     registers.manager.register("bias")(BiasManager)
 except ImportError as e:
-    config._print(f"Potential {'bias'} import failed: {e}")
+    config._print(f"  {'Potential':<16s} {'`bias`':<16s} -> require `{e.name}`.")
 
 try:
     from .plumed.plumed import PlumedManager
     registers.manager.register("plumed")(PlumedManager)
 except ImportError as e:
-    config._print(f"Potential {'plumed'} import failed: {e}")
+    config._print(f"  {'Potential':<16s} {'`plumed`':<16s} -> require `{e.name}`.")
 
 # - trainers
 from .gp.fgp import FGPTrainer
