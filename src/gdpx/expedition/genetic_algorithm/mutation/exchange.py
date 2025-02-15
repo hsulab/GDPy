@@ -3,7 +3,6 @@
 
 
 import copy
-from typing import List
 
 import numpy as np
 from ase import Atoms
@@ -14,10 +13,10 @@ from gdpx.geometry.exchange import insert_one_particle, remove_one_particle
 from gdpx.nodes.region import RegionVariable
 from gdpx.utils.atoms_tags import get_tags_per_species
 
-"""Some mutations that exchange particles with external reservoirs."""
-
 
 class ExchangeMutation(OffspringCreator):
+
+    """The exchange mutation inserts or removes particles from the given structure."""
 
     #: Maximum number of attempts to rattle atoms.
     MAX_ATTEMPTS: int = 1000
@@ -27,7 +26,7 @@ class ExchangeMutation(OffspringCreator):
         species,
         bond_distance_dict,
         covalent_ratio=[0.8, 2.0],
-        num_min_max = None,
+        num_min_max=None,
         region=None,
         anchors=None,
         nsel=1,
@@ -60,7 +59,9 @@ class ExchangeMutation(OffspringCreator):
         else:  # assume it is a list of chemical formulae
             self.species = species
 
-        self._species_instances = {s: convert_string_to_atoms(s) for s in self.species}
+        self._species_instances = {
+            s: convert_string_to_atoms(s) for s in self.species
+        }
 
         num_species = len(self.species)
         if num_min_max is None:
@@ -72,11 +73,13 @@ class ExchangeMutation(OffspringCreator):
                 else:
                     _num_min_max = [num_min_max] * num_species
             else:
-                raise Exception(f"num_min_max `{num_min_max}` must be a list of tuples.")
+                raise Exception(
+                    f"num_min_max `{num_min_max}` must be a list of tuples."
+                )
         assert len(_num_min_max) == num_species
 
         self.num_min_max = []
-        for (n_min, n_max) in _num_min_max:
+        for n_min, n_max in _num_min_max:
             if n_min is None:
                 n_min = 0
             if n_max is None:
@@ -87,7 +90,7 @@ class ExchangeMutation(OffspringCreator):
 
         return
 
-    def get_new_individual(self, parents: List[Atoms]):
+    def get_new_individual(self, parents: list[Atoms]):
         """"""
         f = parents[0]
 
@@ -118,7 +121,9 @@ class ExchangeMutation(OffspringCreator):
 
         # Check if the number of the selected species is within the tolerance
         species_to_exchange = str(self.rng.choice(self.species, replace=False))
-        num_species_to_exchange = len(valid_identities.get(species_to_exchange, []))
+        num_species_to_exchange = len(
+            valid_identities.get(species_to_exchange, [])
+        )
         num_min_max = self.num_min_max[self.species.index(species_to_exchange)]
 
         if num_species_to_exchange <= num_min_max[0]:
@@ -156,7 +161,7 @@ class ExchangeMutation(OffspringCreator):
             ...  # Should not be here.
 
         return mutant, extra_info
-    
+
 
 if __name__ == "__main__":
     ...
