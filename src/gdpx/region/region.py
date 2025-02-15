@@ -4,41 +4,30 @@
 
 import abc
 import copy
-
-from typing import NoReturn, List, Mapping
+from typing import Mapping, NoReturn, Optional
 
 import numpy as np
+from ase import Atoms, data
 
-from ase import Atoms
-from ase import data
-
-from . import registers
 from ..utils.atoms_tags import get_tags_per_species
+from . import registers
 
 
+class BaseRegion(abc.ABC):
+    """The base class of region."""
 
-class Region(abc.ABC):
-
-    """The base class of region.
-
-    Triclinic, sphere, cylinder.
-
-    TODO: override __contains__?
-
-    """
-
-    def __init__(self, origin: List[float], *args, **kwargs):
+    def __init__(self, origin: list[float]):
         """"""
         self._origin = np.array(origin)
 
         return
-    
-    @abc.abstractmethod
-    def from_str(command: str):
+
+    @staticmethod
+    def from_str(command: str) -> "BaseRegion":
         """Init a region from the command"""
 
-        return
-    
+        ...
+
     def get_contained_indices(self, atoms: Atoms):
         """"""
         indices_within_region = []
@@ -47,42 +36,44 @@ class Region(abc.ABC):
                 indices_within_region.append(i)
 
         return indices_within_region
-    
+
     def get_random_positions(self, size=1, rng=np.random):
         """"""
         random_positions = []
-        for i in range(size):
+        for _ in range(size):
             ran_pos = self._get_a_random_position(rng)
             random_positions.append(ran_pos)
         random_positions = np.array(random_positions)
 
         return random_positions
-    
+
     @abc.abstractmethod
     def _get_a_random_position(self, rng):
         """"""
 
         return
-    
+
     @abc.abstractmethod
     def _is_within_region(self, position) -> bool:
         """Positions are normally atomic positions or molecular centre positions."""
 
-        return
-    
+        ...
+
     def get_tags_dict(self, atoms: Atoms):
         """Get tags dict for atoms within the (entire) system"""
 
         return get_tags_per_species(atoms)
-    
-    def get_contained_tags_dict(self, atoms: Atoms, tags_dict: dict=None) -> Mapping[str,List[int]]:
+
+    def get_contained_tags_dict(
+        self, atoms: Atoms, tags_dict: Optional[dict] = None
+    ) -> Mapping[str, list[int]]:
         """"""
         # - find tags and compute cops
         if tags_dict is None:
             tags_dict_within_system = get_tags_per_species(atoms)
         else:
             tags_dict_within_system = tags_dict
-        
+
         # - NOTE: get wrapped positions due to PBC
         positions = copy.deepcopy(atoms.get_positions(wrap=True))
 
@@ -95,109 +86,128 @@ class Region(abc.ABC):
                 if key not in cops_dict:
                     cops_dict[key] = []
                 cops_dict[key].append([tag, cop])
-        
-        # - check 
+
+        # - check
         tags_dict_within_region = {}
         for key, tags_and_cops in cops_dict.items():
-            #print(tags_and_cops)
+            # print(tags_and_cops)
             for tag, cop in tags_and_cops:
                 if self._is_within_region(cop):
                     if key in tags_dict_within_region:
                         tags_dict_within_region[key].append(tag)
                     else:
                         tags_dict_within_region[key] = [tag]
- 
+
         return tags_dict_within_region
-    
-    def get_empty_volume(self, atoms: Atoms, tags_dict: dict=None, ratio: float=1.0) -> float:
+
+    def get_empty_volume(
+        self, atoms: Atoms, tags_dict: Optional[dict] = None, ratio: float = 1.0
+    ) -> float:
         """Empty volume = Region volume - total volume of atoms within region.
 
-        This is not always correct since all atoms in the fragment are considered 
+        This is not always correct since all atoms in the fragment are considered
         within the region if their cop is in the region.
-        
+
         """
-        # - get atom indices with given tags
+        # Get atom indices with given tags
         if tags_dict is None:
             tags_dict = self.get_contained_tags_dict(atoms)
         tags_within_region = []
         for key, tags in tags_dict.items():
             tags_within_region.extend(tags)
-        atomic_indices = [i for i, t in enumerate(atoms.get_tags()) if t in tags_within_region]
+        atomic_indices = [
+            i
+            for i, t in enumerate(atoms.get_tags())
+            if t in tags_within_region
+        ]
 
-        # - get atoms' radii
-        radii = np.array([data.covalent_radii[data.atomic_numbers[atoms[i].symbol]] for i in atomic_indices])
+        # Get atoms' radii
+        radii = np.array(
+            [
+                data.covalent_radii[data.atomic_numbers[atoms[i].symbol]]
+                for i in atomic_indices
+            ]
+        )
         radii *= ratio
 
-        atoms_volume = np.sum([4./3.*np.pi*r**3 for r in radii])
+        atoms_volume = np.sum([4.0 / 3.0 * np.pi * r**3 for r in radii])
 
         return self.get_volume() - atoms_volume
-    
+
     @abc.abstractmethod
     def get_volume(self) -> float:
         """"""
 
-        return
-    
-    #def __eq__(self, other):
-    #    """"""
-    #    return all(self.__dict__ == other.__dict__)
+        ...
 
     @abc.abstractmethod
     def as_dict(self) -> dict:
         """"""
 
-        return
+        ...
 
 
-class AutoRegion(Region):
+class AutoRegion(BaseRegion):
 
     _curr_atoms: Atoms = None
 
-    def __init__(self, origin: List[float]=[0.,0.,0.], atoms=None, *args, **kwargs) -> NoReturn:
+    def __init__(
+        self,
+        origin: list[float] = [0.0, 0.0, 0.0],
+        atoms=None,
+        *args,
+        **kwargs,
+    ) -> NoReturn:
         """"""
         super().__init__(origin, *args, **kwargs)
 
         self._curr_atoms = atoms
 
         return
-    
+
     @staticmethod
     def from_str(command: str):
         """"""
 
         raise NotImplementedError("AutoRegion does support init_from_str.")
-    
+
     def _get_a_random_position(self, rng=np.random):
         """"""
         if self._curr_atoms is None:
-            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
-        
-        frac_pos = rng.uniform(0,1,3)
+            raise RuntimeError(
+                f"No atoms is attached to {self.__class__.__name__}"
+            )
+
+        frac_pos = rng.uniform(0, 1, 3)
         ran_pos = np.dot(frac_pos, self._curr_atoms.get_cell())
-        
+
         return ran_pos
-    
+
     def _is_within_region(self, position) -> bool:
         """"""
         if self._curr_atoms is None:
-            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
+            raise RuntimeError(
+                f"No atoms is attached to {self.__class__.__name__}"
+            )
 
         is_in = False
         pos_ = position - self._origin
         frac_pos_ = np.dot(np.linalg.inv(self._curr_atoms.get_cell().T), pos_)
         if (
-            0. <= np.modf(frac_pos_[0])[0] < 1. and
-            0. <= np.modf(frac_pos_[1])[0] < 1. and
-            0. <= np.modf(frac_pos_[2])[0] < 1.
+            0.0 <= np.modf(frac_pos_[0])[0] < 1.0
+            and 0.0 <= np.modf(frac_pos_[1])[0] < 1.0
+            and 0.0 <= np.modf(frac_pos_[2])[0] < 1.0
         ):
             is_in = True
 
         return is_in
-    
+
     def get_volume(self) -> float:
         """"""
         if self._curr_atoms is None:
-            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
+            raise RuntimeError(
+                f"No atoms is attached to {self.__class__.__name__}"
+            )
 
         return self._curr_atoms.get_volume()
 
@@ -207,11 +217,13 @@ class AutoRegion(Region):
         region_params["method"] = "auto"
 
         return region_params
-    
 
-class CubeRegion(Region):
 
-    def __init__(self, origin: List[float], boundary: List[float], *args, **kwargs):
+class CubeRegion(BaseRegion):
+
+    def __init__(
+        self, origin: list[float], boundary: list[float], *args, **kwargs
+    ):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
         boundaries_ = np.array(boundary, dtype=np.float64)
@@ -228,16 +240,17 @@ class CubeRegion(Region):
         boundary = data[3:]
 
         return CubeRegion(origin, boundary)
-    
+
     def _get_a_random_position(self, rng=np.random):
         """"""
         boundaries_ = copy.deepcopy(self.boundaries)
-        boundaries_ = np.reshape(boundaries_, (2,3))
+        boundaries_ = np.reshape(boundaries_, (2, 3))
 
-        ran_frac_pos = rng.uniform(0,1,3)
+        ran_frac_pos = rng.uniform(0, 1, 3)
         ran_pos = (
-            self._origin + boundaries_[0,:] +
-            (boundaries_[0,:] - boundaries_[1,:])*ran_frac_pos
+            self._origin
+            + boundaries_[0, :]
+            + (boundaries_[0, :] - boundaries_[1, :]) * ran_frac_pos
         )
 
         return ran_pos
@@ -251,9 +264,9 @@ class CubeRegion(Region):
 
         is_in = False
         if (
-            (ox+xl <= position[0] <= ox+xh) and
-            (oy+yl <= position[1] <= oy+yh) and
-            (oz+zl <= position[2] <= oz+zh)
+            (ox + xl <= position[0] <= ox + xh)
+            and (oy + yl <= position[1] <= oy + yh)
+            and (oz + zl <= position[2] <= oz + zh)
         ):
             is_in = True
 
@@ -263,7 +276,7 @@ class CubeRegion(Region):
         """"""
         (xl, yl, zl, xh, yh, zh) = self.boundaries
 
-        return (xh-xl)*(yh-yl)*(zh-zl)
+        return (xh - xl) * (yh - yl) * (zh - zl)
 
     def __repr__(self) -> str:
         """"""
@@ -284,9 +297,9 @@ class CubeRegion(Region):
         return region_params
 
 
-class SphereRegion(Region):
+class SphereRegion(BaseRegion):
 
-    def __init__(self, origin: List[float], radius: float, *args, **kwargs):
+    def __init__(self, origin: list[float], radius: float, *args, **kwargs):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
         self._radius = radius
@@ -301,39 +314,39 @@ class SphereRegion(Region):
         radius = data[3]
 
         return SphereRegion(origin, radius)
-    
+
     def _get_a_random_position(self, rng):
         """"""
-        ran_coord = rng.uniform(0,1,3)
+        ran_coord = rng.uniform(0, 1, 3)
         polar = np.array([self._radius, np.pi, np.pi]) * ran_coord
         r, theta, phi = polar
 
         ran_pos = np.array(
             [
-                r*np.sin(theta)*np.cos(phi),
-                r*np.sin(theta)*np.sin(phi),
-                r*np.cos(theta)
+                r * np.sin(theta) * np.cos(phi),
+                r * np.sin(theta) * np.sin(phi),
+                r * np.cos(theta),
             ]
         )
         ran_pos += self._origin
 
         return ran_pos
-    
+
     def _is_within_region(self, position) -> bool:
         """"""
         is_in = False
 
         position = np.array(position)
-        distance = np.linalg.norm(position-self._origin)
+        distance = np.linalg.norm(position - self._origin)
         if distance <= self._radius:
             is_in = True
 
         return is_in
-    
+
     def get_volume(self):
         """"""
 
-        return 4./3.*np.pi*self._radius**3
+        return 4.0 / 3.0 * np.pi * self._radius**3
 
     def __repr__(self) -> str:
         """"""
@@ -353,12 +366,17 @@ class SphereRegion(Region):
         return region_params
 
 
-class CylinderRegion(Region):
+class CylinderRegion(BaseRegion):
+    """Region by a vertical cylinder."""
 
-    """Region by a vertical cylinder.
-    """
-
-    def __init__(self, origin: List[float], radius: float, height: float, *args, **kwargs):
+    def __init__(
+        self,
+        origin: list[float],
+        radius: float,
+        height: float,
+        *args,
+        **kwargs,
+    ):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
 
@@ -379,34 +397,28 @@ class CylinderRegion(Region):
 
     def _get_a_random_position(self, rng):
         """"""
-        r, theta, h = rng.uniform(0,1,3) # r, theta, h
+        r, theta, h = rng.uniform(0, 1, 3)  # r, theta, h
 
-        ran_pos = np.array(
-            [
-                r*np.cos(theta),
-                r*np.sin(theta),
-                h
-            ]
-        )
+        ran_pos = np.array([r * np.cos(theta), r * np.sin(theta), h])
         ran_pos += self._origin
 
         return ran_pos
-    
+
     def _is_within_region(self, position) -> bool:
         """"""
         ox, oy, oz = self._origin
 
         is_in = False
-        if oz <= position[2] <= oz+self._height:
+        if oz <= position[2] <= oz + self._height:
             distance = np.linalg.norm(position[:2] - self._origin[:2])
             if distance <= self._radius:
                 is_in = True
 
         return is_in
-    
+
     def get_volume(self) -> float:
         """"""
-        return np.pi*self._radius**2*self._height
+        return np.pi * self._radius**2 * self._height
 
     def __repr__(self) -> str:
         """"""
@@ -427,12 +439,14 @@ class CylinderRegion(Region):
         return region_params
 
 
-class LatticeRegion(Region):
+class LatticeRegion(BaseRegion):
 
-    def __init__(self, origin: List[float], cell: List[float], *args, **kwargs):
+    def __init__(
+        self, origin: list[float], cell: list[float], *args, **kwargs
+    ):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
-        self._cell = np.reshape(cell, (3,3))
+        self._cell = np.reshape(cell, (3, 3))
 
         return
 
@@ -447,16 +461,16 @@ class LatticeRegion(Region):
 
     def _get_a_random_position(self, rng):
         """"""
-        ran_frac_coord = rng.uniform(0,1,3)
+        ran_frac_coord = rng.uniform(0, 1, 3)
         ran_pos = np.dot(ran_frac_coord, self._cell)
         ran_pos += self._origin
 
         return ran_pos
-    
+
     def _is_within_region(self, position) -> bool:
         """Check if a position is in the region.
 
-        Some atoms may have negative coordinates, thus, 
+        Some atoms may have negative coordinates, thus,
         users need set origin with a small negative value (e.g. 1e-7)
         to make atoms at boundary included in the region
 
@@ -471,27 +485,29 @@ class LatticeRegion(Region):
         pos_ = position - self._origin
         frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
         if (
-            0. <= np.modf(frac_pos_[0])[0] < 1. and
-            0. <= np.modf(frac_pos_[1])[0] < 1. and
-            0. <= np.modf(frac_pos_[2])[0] < 1.
+            0.0 <= np.modf(frac_pos_[0])[0] < 1.0
+            and 0.0 <= np.modf(frac_pos_[1])[0] < 1.0
+            and 0.0 <= np.modf(frac_pos_[2])[0] < 1.0
         ):
             is_in = True
 
         return is_in
-    
+
     def get_volume(self) -> float:
         """"""
         a, b, c = self._cell
 
-        return np.dot(np.cross(a,b), c)
-    
+        return np.dot(np.cross(a, b), c)
+
     def __repr__(self) -> str:
         """"""
         content = f"{self.__class__.__name__}\n"
         content += f"origin\n"
-        content += ("  "+"{:<12.8f}  "*3+"\n").format(*self._origin)
+        content += ("  " + "{:<12.8f}  " * 3 + "\n").format(*self._origin)
         content += f"cell\n"
-        content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
+        content += (("  " + "{:<12.8f}  " * 3 + "\n") * 3).format(
+            *self._cell.flatten()
+        )
 
         return content
 
@@ -507,12 +523,18 @@ class LatticeRegion(Region):
 
 class SurfaceLatticeRegion(LatticeRegion):
 
-    def __init__(self, origin: List[float], cell: List[float], *args, **kwargs):
+    def __init__(
+        self, origin: list[float], cell: list[float], *args, **kwargs
+    ):
         """"""
         super().__init__(origin, cell, *args, **kwargs)
 
-        assert self._origin[0] == 0. and self._origin[1] == 0., "The x and y of origin should be ZERO."
-        assert self._cell[2][0] == 0. and self._cell[2][1] == 0., "The x and y of cell 3rd vec should be ZERO."
+        assert (
+            self._origin[0] == 0.0 and self._origin[1] == 0.0
+        ), "The x and y of origin should be ZERO."
+        assert (
+            self._cell[2][0] == 0.0 and self._cell[2][1] == 0.0
+        ), "The x and y of cell 3rd vec should be ZERO."
 
         return
 
@@ -528,9 +550,9 @@ class SurfaceLatticeRegion(LatticeRegion):
     def _is_within_region(self, position) -> bool:
         """"""
         is_in = False
-        #vec1, vec2 = self._cell[0], self._cell[1]
-        #normal = np.cross(vec1, vec2)
-        #normal = normal/np.linalg.norm(normal)
+        # vec1, vec2 = self._cell[0], self._cell[1]
+        # normal = np.cross(vec1, vec2)
+        # normal = normal/np.linalg.norm(normal)
         if self._origin[2] <= position[2] < self._origin[2] + self._cell[2][2]:
             is_in = super()._is_within_region(position)
 
@@ -544,11 +566,18 @@ class SurfaceLatticeRegion(LatticeRegion):
         region_params["cell"] = self._cell.tolist()
 
         return region_params
-    
 
-class SurfaceRegion(Region):
 
-    def __init__(self, origin: List[float], normal: List[float], thickness: float, *args, **kwargs):
+class SurfaceRegion(BaseRegion):
+
+    def __init__(
+        self,
+        origin: list[float],
+        normal: list[float],
+        thickness: float,
+        *args,
+        **kwargs,
+    ):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
         self._normal = np.array(normal, dtype=float)
@@ -568,45 +597,45 @@ class SurfaceRegion(Region):
 
     def _get_a_random_position(self, rng):
         """"""
-        ran_frac_coord = rng.uniform(0,1,3)
+        ran_frac_coord = rng.uniform(0, 1, 3)
         ran_pos = np.dot(ran_frac_coord, self._cell)
         ran_pos += self._origin
 
         raise NotImplementedError()
-    
+
     def _is_within_region(self, position) -> bool:
         """"""
         is_in = False
         pos_ = position - self._origin
         frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
         if (
-            0. <= np.modf(frac_pos_[0])[0] < 1. and
-            0. <= np.modf(frac_pos_[1])[0] < 1. and
-            0. <= np.modf(frac_pos_[2])[0] < 1.
+            0.0 <= np.modf(frac_pos_[0])[0] < 1.0
+            and 0.0 <= np.modf(frac_pos_[1])[0] < 1.0
+            and 0.0 <= np.modf(frac_pos_[2])[0] < 1.0
         ):
             is_in = True
 
         raise NotImplementedError()
-    
+
     def get_volume(self) -> float:
         """"""
         a, b, c = self._cell
 
-        #return np.dot(np.cross(a,b), c)
+        # return np.dot(np.cross(a,b), c)
         raise NotImplementedError()
-    
+
     def __repr__(self) -> str:
         """"""
         content = f"{self.__class__.__name__}\n"
         content += f"origin\n"
-        content += ("  "+"{:<12.8f}  "*3+"\n").format(*self._origin)
-        #content += f"cell\n"
-        #content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
+        content += ("  " + "{:<12.8f}  " * 3 + "\n").format(*self._origin)
+        # content += f"cell\n"
+        # content += (("  "+"{:<12.8f}  "*3+"\n")*3).format(*self._cell.flatten())
 
         return content
 
 
-class IntersectRegion(Region):
+class IntersectRegion(BaseRegion):
 
     #: Maximum number of attempts to get a random position.
     MAX_ATTEMPTS: int = 1000
@@ -615,15 +644,17 @@ class IntersectRegion(Region):
         """Initialise an IntersectRegion.
 
         Args:
-            regions: A List of regions.
+            regions: A list of regions.
             origin: Region origin should be always zero.
-        
+
         """
         super().__init__(origin, *args, **kwargs)
 
         # NOTE: Can sub-regions be intersect ones?
         self.regions = regions
-        assert len(self.regions), "IntersectRegion supports only twp sub-regions."
+        assert len(
+            self.regions
+        ), "IntersectRegion supports only twp sub-regions."
 
         self._regions = []
         for r in copy.deepcopy(regions):
@@ -639,7 +670,7 @@ class IntersectRegion(Region):
     def from_str(command: str):
 
         raise NotImplementedError()
-    
+
     def _get_a_random_position(self, rng):
         """"""
         for i in range(self.MAX_ATTEMPTS):
@@ -648,20 +679,22 @@ class IntersectRegion(Region):
             if not r2._is_within_region(ran_pos):
                 break
         else:
-            raise RuntimeError("Fail to get a random position in the IntersectRegion.")
+            raise RuntimeError(
+                "Fail to get a random position in the IntersectRegion."
+            )
 
         return ran_pos
-    
+
     def _is_within_region(self, position) -> bool:
         """"""
 
         raise NotImplementedError()
-    
+
     def get_volume(self) -> float:
         """"""
 
         raise NotImplementedError()
-    
+
     def as_dict(self):
         """"""
         region_params = {}
