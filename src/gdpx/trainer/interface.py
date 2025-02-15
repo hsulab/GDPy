@@ -15,7 +15,7 @@ from ..core.variable import DummyVariable, Variable
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.potential.trainer import BasePotentialTrainer
 from ..scheduler.interface import SchedulerVariable
-from ..scheduler.scheduler import AbstractScheduler
+from ..scheduler.scheduler import BaseScheduler
 from ..worker.train import TrainerBasedWorker
 
 
@@ -85,7 +85,7 @@ class train(Operation):
         self,
         dataset,
         trainer: BasePotentialTrainer,
-        scheduler: AbstractScheduler,
+        scheduler: BaseScheduler,
         potter: BasePotentialManager,
     ):
         """"""

@@ -6,10 +6,10 @@ import subprocess
 import json
 import pathlib
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class PbsScheduler(AbstractScheduler):
+class PbsScheduler(BaseScheduler):
 
     name = "pbs"
 

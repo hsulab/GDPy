@@ -3,15 +3,15 @@
 
 from typing import NoReturn
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class LocalScheduler(AbstractScheduler):
+class LocalScheduler(BaseScheduler):
     """Local scheduler."""
 
     name: str = "local"
 
-    @AbstractScheduler.job_name.setter
+    @BaseScheduler.job_name.setter
     def job_name(self, job_name_: str):
         self._job_name = job_name_
         return

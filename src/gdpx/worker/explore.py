@@ -12,7 +12,7 @@ from typing import Optional, Iterable
 
 from tinydb import Query, TinyDB
 
-from ..scheduler.scheduler import AbstractScheduler
+from ..scheduler.scheduler import BaseScheduler
 from .worker import AbstractWorker
 
 """Worker that manages expeditions.
@@ -64,7 +64,7 @@ class ExpeditionBasedWorker(AbstractWorker):
     def __init__(
         self,
         expedition,
-        scheduler: AbstractScheduler,
+        scheduler: BaseScheduler,
         batchsize: int = 1,
         directory=None,
     ) -> None:

@@ -12,7 +12,7 @@ from tinydb import TinyDB, Query
 
 from .. import config
 from ..scheduler import LocalScheduler
-from ..scheduler.scheduler import AbstractScheduler
+from ..scheduler.scheduler import BaseScheduler
 
 
 """worker = driver + scheduler.
@@ -36,7 +36,7 @@ class AbstractWorker(abc.ABC):
     batchsize: int = 1
 
     _directory: Optional[pathlib.Path] = None
-    _scheduler: AbstractScheduler = LocalScheduler()
+    _scheduler: BaseScheduler = LocalScheduler()
     _database = None
 
     _submit = True
@@ -79,9 +79,9 @@ class AbstractWorker(abc.ABC):
         return self._scheduler
 
     @scheduler.setter
-    def scheduler(self, scheduler_) -> AbstractScheduler:
+    def scheduler(self, scheduler_) -> BaseScheduler:
         """"""
-        assert isinstance(scheduler_, AbstractScheduler), ""
+        assert isinstance(scheduler_, BaseScheduler), ""
         self._scheduler = scheduler_
 
         return

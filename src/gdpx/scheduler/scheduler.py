@@ -33,7 +33,7 @@ def submit_job_script(
     return job_id
 
 
-class AbstractScheduler(ABC):
+class BaseScheduler(ABC):
     """The abstract scheduler that implements common functions.
 
     A scheduler deals with the lifecycle of a job in the queue.

@@ -3,10 +3,10 @@
 
 import subprocess
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class LsfScheduler(AbstractScheduler):
+class LsfScheduler(BaseScheduler):
     """Load Sharing Facility (LSF) scheduler.
 
     A LSF scheduler. Commands are bjobs, bsub, bkill.
@@ -61,7 +61,7 @@ class LsfScheduler(AbstractScheduler):
 
         return content
 
-    @AbstractScheduler.job_name.setter
+    @BaseScheduler.job_name.setter
     def job_name(self, job_name_: str):
         self._job_name = job_name_
         self.set(**{"J": self._job_name})

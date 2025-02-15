@@ -16,7 +16,7 @@ from tinydb import Query, TinyDB
 from ..computation.driver import AbstractDriver
 from gdpx.potential.manager import BasePotentialManager
 from ..scheduler.local import LocalScheduler
-from ..scheduler.scheduler import AbstractScheduler
+from ..scheduler.scheduler import BaseScheduler
 from ..utils.command import CustomTimer
 from .utils import copy_minimal_frames, get_file_md5
 from .worker import AbstractWorker
@@ -34,7 +34,7 @@ class GridDriverBasedWorker(AbstractWorker):
         self,
         potters: list[BasePotentialManager],
         drivers: list[AbstractDriver],
-        scheduler: AbstractScheduler = LocalScheduler(),
+        scheduler: BaseScheduler = LocalScheduler(),
         directory="./",
         *args,
         **kwargs,

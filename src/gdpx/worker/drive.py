@@ -24,7 +24,7 @@ from gdpx.potential.manager import BasePotentialManager
 from ..builder.builder import StructureBuilder
 from ..computation.driver import AbstractDriver
 from ..scheduler import LocalScheduler
-from ..scheduler.scheduler import AbstractScheduler
+from ..scheduler.scheduler import BaseScheduler
 from ..utils.command import CustomTimer
 from ..utils.logio import remove_extra_stream_handlers
 from .utils import copy_minimal_frames, get_file_md5
@@ -93,7 +93,7 @@ class DriverBasedWorker(AbstractWorker):
         self,
         potter_,
         driver_=None,
-        scheduler_=Optional[AbstractScheduler],
+        scheduler_=Optional[BaseScheduler],
         *args,
         **kwargs,
     ):

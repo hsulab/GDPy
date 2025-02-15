@@ -15,7 +15,7 @@ from ..core.register import registers
 from ..core.variable import Variable
 from gdpx.potential.manager import BasePotentialManager
 from ..potential.utils import convert_input_to_potter
-from ..scheduler.scheduler import AbstractScheduler
+from ..scheduler.scheduler import BaseScheduler
 from ..utils.command import parse_input_file
 from .drive import (CommandDriverBasedWorker, DriverBasedWorker,
                     QueueDriverBasedWorker)
@@ -206,7 +206,7 @@ class ComputerVariable(Variable):
     def _load_scheduler(self, inp):
         """"""
         scheduler = None
-        if isinstance(inp, AbstractScheduler):
+        if isinstance(inp, BaseScheduler):
             scheduler = inp
         elif isinstance(inp, Variable):
             scheduler = inp.value

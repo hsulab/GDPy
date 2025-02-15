@@ -5,7 +5,7 @@ import copy
 from gdpx.core.variable import Variable
 from gdpx.core.register import registers
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
 @registers.variable.register
@@ -23,7 +23,7 @@ class SchedulerVariable(Variable):
         return
     
     @property
-    def value(self) -> AbstractScheduler:
+    def value(self) -> BaseScheduler:
         """"""
 
         return self._value  # type: ignore
