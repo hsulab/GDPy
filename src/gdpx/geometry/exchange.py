@@ -79,6 +79,7 @@ def insert_one_particle(
     # Try inserting
     num_attempts = 0
     candidate = atoms + particle
+    region.preprocess(candidate)
     for iattempt in range(max_attempts):
         assert len(atoms) == num_atoms  # Make sure we have not messed up with the substrate
         position = region.get_random_positions(size=1, rng=rng)[0]
