@@ -17,7 +17,7 @@ from ase.ga.standardmutations import (
     StrainMutation,
 )
 
-from gdpx.comparator.inter_atomic_distance import InteratomicDistanceComparator
+from .comparator.interatomic_distance import InteratomicDistanceComparator
 
 from .mutation.exchange import ExchangeMutation
 from .mutation.rattle import RattleBufferMutation
