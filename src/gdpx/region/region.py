@@ -9,8 +9,8 @@ from typing import Mapping, Optional
 import numpy as np
 from ase import Atoms, data
 
-from ..utils.atoms_tags import get_tags_per_species
-from . import registers
+from gdpx.core.register import registers
+from gdpx.utils.atoms_tags import get_tags_per_species
 
 
 class BaseRegion(abc.ABC):

@@ -172,7 +172,7 @@ ALL_MODULES = [
     ("gdpx.data", ["dataset"]),
     ("gdpx", ["region"]),
     ("gdpx", ["bias"]),
-    ("gdpx.prelude", ["builder"]),
+    ("gdpx.prelude", ["builder", "region"]),
     ("gdpx", ["colvar"]),
     ("gdpx", ["selector"]),
     ("gdpx", ["describer"]),
