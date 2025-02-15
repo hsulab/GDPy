@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import re
-import subprocess
-import json
-import pathlib
 
 from .scheduler import BaseScheduler
 
@@ -26,7 +22,6 @@ class PbsScheduler(BaseScheduler):
 
     def __str__(self):
         """Return the content of the job script."""
-        # - slurm params
         content = self.SHELL + "\n"
         for key, value in self.parameters.items():
             if value:

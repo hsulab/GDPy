@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
+import abc
 import copy
 import pathlib
 import subprocess
-from abc import ABC, abstractmethod
-from typing import Callable, Iterable, List, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
-from .. import config
+from gdpx import config
 
 
 def submit_job_script(
@@ -25,7 +26,9 @@ def submit_job_script(
     )
     errorcode = proc.wait(timeout=submit_timeout)
     if errorcode:
-        raise RuntimeError(f"Error in submitting job script {str(script_fpath)}")
+        raise RuntimeError(
+            f"Error in submitting job script {str(script_fpath)}"
+        )
 
     output = "".join(proc.stdout.readlines())  # type: ignore
     job_id = output.strip().split()[-1]
@@ -33,7 +36,7 @@ def submit_job_script(
     return job_id
 
 
-class BaseScheduler(ABC):
+class BaseScheduler(abc.ABC):
     """The abstract scheduler that implements common functions.
 
     A scheduler deals with the lifecycle of a job in the queue.
@@ -81,7 +84,7 @@ class BaseScheduler(ABC):
     _job_name: str = "scheduler"
 
     #: Environment settings for a job.
-    environs: Union[str, List[str]] = ""
+    environs: Union[str, list[str]] = ""
 
     #: Machine-related prefix added before executable (e.g. mpirun).
     machine_prefix: str = ""
@@ -90,7 +93,7 @@ class BaseScheduler(ABC):
     user_commands: str = ""
 
     #: The tags that a job may have in the queue.
-    running_status: List[str] = []
+    running_status: list[str] = []
 
     def __init__(self, submit_timeout: float = 10.0, *args, **kwargs):
         """Init an abstract scheduler.
@@ -138,7 +141,7 @@ class BaseScheduler(ABC):
         return self._job_name
 
     @job_name.setter
-    @abstractmethod
+    @abc.abstractmethod
     def job_name(self, job_name_: str):
         self._job_name = job_name_
         # update job name in parameters
@@ -174,7 +177,9 @@ class BaseScheduler(ABC):
                 for env in self.environs:
                     content += env.strip() + "\n"
             else:
-                raise RuntimeError(f"Fail to convert environs `{self.environs}`.")
+                raise RuntimeError(
+                    f"Fail to convert environs `{self.environs}`."
+                )
         else:
             ...
         content += "\n\n"
@@ -219,7 +224,7 @@ class BaseScheduler(ABC):
 
         return job_id
 
-    @abstractmethod
+    @abc.abstractmethod
     def is_finished(self) -> bool:
         """Check whether the job is finished.
 
@@ -232,7 +237,9 @@ class BaseScheduler(ABC):
     def as_dict(self) -> dict:
         """"""
         sch_params = {}
-        sch_params = {k: v for k, v in self.parameters.items() if v is not None}
+        sch_params = {
+            k: v for k, v in self.parameters.items() if v is not None
+        }
         sch_params["environs"] = self.environs
         sch_params["backend"] = self.name
 
