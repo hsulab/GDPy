@@ -18,9 +18,10 @@ from ase.ga.offspring_creator import OperationSelector
 from ase.ga.utilities import CellBounds
 from ase.io import read, write
 
+from gdpx.factory.builder import canonicalise_builder
+from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
-from .. import get_tags_per_species, registers
 from ..expedition import AbstractExpedition
 from .operators import instantiate_a_genetic_operator
 from .population.manager import AbstractPopulationManager
@@ -239,12 +240,9 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # The builder has its own rng but it is initialised from the engine's random_seed.
         # If random_bulk is used, due to its deprecated np.random,
         # the results may not be reproducible.
-        builder_method = builder_params.pop("method")
         prev_seed = builder_params.get("random_seed", None)
         builder_params.update(random_seed=self.random_seed)
-        self.generator = registers.create(
-            "builder", builder_method, convert_name=False, **builder_params
-        )
+        self.generator = canonicalise_builder(builder_params)
 
         self._print(
             f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {self.random_seed}"
