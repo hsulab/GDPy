@@ -4,7 +4,7 @@
 
 import abc
 import copy
-from typing import Mapping, NoReturn, Optional
+from typing import Mapping, Optional
 
 import numpy as np
 from ase import Atoms, data
@@ -27,6 +27,13 @@ class BaseRegion(abc.ABC):
         """Init a region from the command"""
 
         ...
+
+    def preprocess(self, atoms: Atoms):
+        """Preprocess the region with the atoms."""
+        if hasattr(self, "_atoms"):
+            self._atoms = atoms
+
+        return
 
     def get_contained_indices(self, atoms: Atoms):
         """"""
@@ -74,7 +81,7 @@ class BaseRegion(abc.ABC):
         else:
             tags_dict_within_system = tags_dict
 
-        # - NOTE: get wrapped positions due to PBC
+        # Get wrapped positions due to PBC
         positions = copy.deepcopy(atoms.get_positions(wrap=True))
 
         cops_dict = {}
@@ -87,7 +94,7 @@ class BaseRegion(abc.ABC):
                     cops_dict[key] = []
                 cops_dict[key].append([tag, cop])
 
-        # - check
+        # Check if the fragment is within the region
         tags_dict_within_region = {}
         for key, tags_and_cops in cops_dict.items():
             # print(tags_and_cops)
@@ -101,7 +108,10 @@ class BaseRegion(abc.ABC):
         return tags_dict_within_region
 
     def get_empty_volume(
-        self, atoms: Atoms, tags_dict: Optional[dict] = None, ratio: float = 1.0
+        self,
+        atoms: Atoms,
+        tags_dict: Optional[dict] = None,
+        ratio: float = 1.0,
     ) -> float:
         """Empty volume = Region volume - total volume of atoms within region.
 
@@ -148,20 +158,17 @@ class BaseRegion(abc.ABC):
 
 
 class AutoRegion(BaseRegion):
-
-    _curr_atoms: Atoms = None
+    """AutoRegion is a region that is automatically determined by the atoms."""
 
     def __init__(
         self,
         origin: list[float] = [0.0, 0.0, 0.0],
-        atoms=None,
-        *args,
-        **kwargs,
-    ) -> NoReturn:
+        atoms: Optional[Atoms] = None,
+    ) -> None:
         """"""
-        super().__init__(origin, *args, **kwargs)
+        super().__init__(origin)
 
-        self._curr_atoms = atoms
+        self._atoms = atoms
 
         return
 
@@ -173,26 +180,26 @@ class AutoRegion(BaseRegion):
 
     def _get_a_random_position(self, rng=np.random):
         """"""
-        if self._curr_atoms is None:
+        if self._atoms is None:
             raise RuntimeError(
-                f"No atoms is attached to {self.__class__.__name__}"
+                f"No atoms is attached to {self.__class__.__name__}."
             )
 
         frac_pos = rng.uniform(0, 1, 3)
-        ran_pos = np.dot(frac_pos, self._curr_atoms.get_cell())
+        ran_pos = np.dot(frac_pos, self._atoms.get_cell())
 
         return ran_pos
 
     def _is_within_region(self, position) -> bool:
         """"""
-        if self._curr_atoms is None:
+        if self._atoms is None:
             raise RuntimeError(
                 f"No atoms is attached to {self.__class__.__name__}"
             )
 
         is_in = False
         pos_ = position - self._origin
-        frac_pos_ = np.dot(np.linalg.inv(self._curr_atoms.get_cell().T), pos_)
+        frac_pos_ = np.dot(np.linalg.inv(self._atoms.get_cell().T), pos_)
         if (
             0.0 <= np.modf(frac_pos_[0])[0] < 1.0
             and 0.0 <= np.modf(frac_pos_[1])[0] < 1.0
@@ -204,14 +211,14 @@ class AutoRegion(BaseRegion):
 
     def get_volume(self) -> float:
         """"""
-        if self._curr_atoms is None:
+        if self._atoms is None:
             raise RuntimeError(
                 f"No atoms is attached to {self.__class__.__name__}"
             )
 
-        return self._curr_atoms.get_volume()
+        return self._atoms.get_volume()
 
-    def as_dict(self):
+    def as_dict(self) -> dict:
         """"""
         region_params = {}
         region_params["method"] = "auto"
