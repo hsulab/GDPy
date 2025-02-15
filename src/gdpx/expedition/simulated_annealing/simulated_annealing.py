@@ -11,10 +11,10 @@ from typing import Union, List
 
 from .. import registers
 
-from ..expedition import AbstractExpedition
+from ..expedition import BaseExpedition
 
 
-class SimulatedAnnealing(AbstractExpedition):
+class SimulatedAnnealing(BaseExpedition):
 
     name: str = "simulated_annealing"
 

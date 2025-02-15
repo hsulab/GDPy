@@ -21,7 +21,7 @@ from .. import (
     create_mixer,
     find_molecules,
 )
-from ..expedition import AbstractExpedition
+from ..expedition import BaseExpedition
 
 
 def convert_index_to_formula(atoms, group_indices: list[list[int]]):
@@ -111,7 +111,7 @@ class ReactionSpace:
         return is_possible
 
 
-class AFIRSearch(AbstractExpedition):
+class AFIRSearch(BaseExpedition):
 
     def __init__(
         self,

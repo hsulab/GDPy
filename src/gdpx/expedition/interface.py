@@ -15,7 +15,7 @@ from gdpx.core.variable import DummyVariable, Variable
 from gdpx.scheduler.interface import SchedulerVariable
 from gdpx.worker.explore import ExpeditionBasedWorker
 
-from .expedition import AbstractExpedition
+from .expedition import BaseExpedition
 
 
 def register_expedition_methods():
@@ -86,7 +86,7 @@ class ExpeditionVariable(Variable):
         return
 
     @property
-    def value(self) -> AbstractExpedition:
+    def value(self) -> BaseExpedition:
         """"""
 
         return self._value  # type: ignore

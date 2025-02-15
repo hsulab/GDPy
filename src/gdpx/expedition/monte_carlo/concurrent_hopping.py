@@ -20,7 +20,7 @@ from gdpx.cli.compute import run_worker, convert_input_to_computer  # TODO: refa
 from gdpx.factory.builder import canonicalise_builder
 
 from .. import DriverBasedWorker, get_tags_per_species, registers
-from ..expedition import AbstractExpedition, canonicalise_worker
+from ..expedition import BaseExpedition, canonicalise_worker
 from .operators import parse_operators, select_operator
 
 GenerationState = enum.Enum(
@@ -499,7 +499,7 @@ def canonical_candidates_from_worker_results(
     return relaxed_candidates
 
 
-class ConcurrentHopping(AbstractExpedition):
+class ConcurrentHopping(BaseExpedition):
 
     def __init__(
         self,

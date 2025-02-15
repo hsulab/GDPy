@@ -16,7 +16,7 @@ from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.strconv import integers_to_string
 
 from .. import DriverBasedWorker, SingleWorker, dict2str
-from ..expedition import AbstractExpedition
+from ..expedition import BaseExpedition
 from .operators import (
     load_operator,
     parse_operators,
@@ -62,7 +62,7 @@ def convert_blmin_to_str(blmin: dict) -> str:
     return content
 
 
-class MonteCarlo(AbstractExpedition):
+class MonteCarlo(BaseExpedition):
 
     restart = False
 

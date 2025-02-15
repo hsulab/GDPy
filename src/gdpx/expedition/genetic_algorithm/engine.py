@@ -22,7 +22,7 @@ from gdpx.factory.builder import canonicalise_builder
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
-from ..expedition import AbstractExpedition
+from ..expedition import BaseExpedition
 from .operators import instantiate_a_genetic_operator
 from .population.manager import AbstractPopulationManager
 from .population.population import (
@@ -172,7 +172,7 @@ class GeneticAlgorithmBroadcaster:
         return new_params_list
 
 
-class GeneticAlgorithmEngine(AbstractExpedition):
+class GeneticAlgorithmEngine(BaseExpedition):
     """The genetic algorithm engine for structure search.
 
     The systems include bulk, surface, cluster, and surface with adsorbates.
@@ -297,7 +297,7 @@ class GeneticAlgorithmEngine(AbstractExpedition):
 
         return
 
-    @AbstractExpedition.directory.setter
+    @BaseExpedition.directory.setter
     def directory(self, directory: Union[str, pathlib.Path]) -> None:
         """"""
         self._directory = pathlib.Path(directory).resolve()

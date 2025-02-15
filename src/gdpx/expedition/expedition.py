@@ -15,7 +15,7 @@ from . import registers
 parse_worker = canonicalise_worker
 
 
-class AbstractExpedition(BaseComponent):
+class BaseExpedition(BaseComponent):
 
     #: Name of the expedition.
     name: str = "expedition"
