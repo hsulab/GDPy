@@ -4,7 +4,6 @@
 
 import collections
 import copy
-import inspect
 import itertools
 import pathlib
 from typing import Union
@@ -23,6 +22,7 @@ from gdpx.utils.strconv import integers_to_string
 
 from .. import get_tags_per_species, registers
 from ..expedition import AbstractExpedition
+from .operators import instantiate_a_genetic_operator
 from .population.manager import AbstractPopulationManager
 from .population.population import (
     Population,
@@ -810,33 +810,6 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         else:
             return False
 
-    def _create_operator(
-        self,
-        op_params: dict,
-        specific_params: dict,
-        mod_name: str,
-        convert_name=False,
-    ):
-        """Create operators such as comparator, crossover, and mutation.
-
-        Args:
-            op_params: Operator parameters loaded from input file.
-            specific_params: Operator parameters obtained based on system.
-
-        """
-        op_params = copy.deepcopy(op_params)
-        method = op_params.pop("method", None)
-        if method is None:
-            raise RuntimeError(f"There is no operator {method}.")
-        op_cls = registers.get(mod_name, method, convert_name=convert_name)
-        init_args = inspect.getargspec(op_cls.__init__).args[1:]  # skip self
-        for k, v in specific_params.items():
-            if k in init_args:
-                op_params.update(**{k: v})
-        op = op_cls(**op_params)
-
-        return op
-
     def _register_operators(self):
         """"""
         self.operators = {}
@@ -938,8 +911,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # --- comparator
         comp_params = op_dict.get("comparator", None)
         if comp_params is not None:
-            comparing = self._create_operator(
-                comp_params, specific_params, "comparator", convert_name=True
+            comparing = instantiate_a_genetic_operator(
+                "comparator", comp_params, specific_params
             )
 
             self._print("  --- comparator ---")
@@ -950,11 +923,10 @@ class GeneticAlgorithmEngine(AbstractExpedition):
         # --- crossover
         crossover_params = op_dict.get("crossover", None)
         if crossover_params is not None:
-            pairing = self._create_operator(
+            pairing = instantiate_a_genetic_operator(
+                "crossover",
                 crossover_params,
                 specific_params,
-                "builder",
-                convert_name=False,
             )
             # For some ase-builtin operators, we manually set allow_variable_composition to False
             # by default. For others, we can set it through the input file.
@@ -982,8 +954,8 @@ class GeneticAlgorithmEngine(AbstractExpedition):
             for mut_params in mutation_list:
                 prob = mut_params.pop("prob", 1.0)
                 probs.append(prob)
-                mut = self._create_operator(
-                    mut_params, specific_params, "builder", convert_name=False
+                mut = instantiate_a_genetic_operator(
+                    "mutation", mut_params, specific_params
                 )
                 # Check whether mutation accepts molecules
                 if use_tags:

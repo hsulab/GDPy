@@ -9,64 +9,23 @@ from typing import Iterable, Union
 import numpy as np
 import omegaconf
 
-from gdpx.scheduler.scheduler import AbstractScheduler
+from gdpx.core.operation import Operation
+from gdpx.core.register import registers
+from gdpx.core.variable import DummyVariable, Variable
+from gdpx.scheduler.interface import SchedulerVariable
+from gdpx.worker.explore import ExpeditionBasedWorker
 
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import DummyVariable, Variable
-from ..scheduler.interface import SchedulerVariable
-from ..worker.explore import ExpeditionBasedWorker
 from .expedition import AbstractExpedition
-
-
-def register_genetic_algorithm_components():
-    """"""
-    # ASE built-in mutations
-    from ase.ga.standardmutations import MirrorMutation, RattleMutation
-
-    registers.builder.register("rattle")(RattleMutation)
-    registers.builder.register("mirror")(MirrorMutation)
-
-    from ase.ga.soft_mutation import SoftMutation
-    from ase.ga.standardmutations import StrainMutation
-
-    registers.builder.register("strain")(StrainMutation)
-    registers.builder.register("soft")(SoftMutation)
-
-    # Custom mutations
-    from .genetic_algorithm.mutation.exchange import ExchangeMutation
-
-    registers.builder.register("exchange_mutation")(ExchangeMutation)
-
-    from .genetic_algorithm.mutation.swap import SwapMutation
-
-    registers.builder.register("swap_mutation")(SwapMutation)
-
-    from .genetic_algorithm.mutation.rattle import RattleBufferMutation
-
-    registers.builder.register("rattle_buffer")(RattleBufferMutation)
-
-    # ASE built-in crossovers
-    from ase.ga.cutandsplicepairing import CutAndSplicePairing
-    from ase.ga.particle_crossovers import CutSpliceCrossover
-
-    registers.builder.register("cut_and_splice")(CutAndSplicePairing)
-    registers.builder.register("cut_and_splice_cluster")(CutSpliceCrossover)
-
-    # Genetic workflow
-    from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
-
-    registers.expedition.register("genetic_algorithm")(
-        GeneticAlgorithmBroadcaster
-    )
-
-    return
 
 
 def register_expedition_methods():
     """"""
     # Evolutionary Methods
-    register_genetic_algorithm_components()
+    from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
+
+    registers.expedition.register("genetic_algorithm")(
+        GeneticAlgorithmBroadcaster
+    )
 
     # Monte Carlo Based Methods
     from .monte_carlo.basin_hopping import BasinHopping
