@@ -11,18 +11,39 @@ from ..operation import Operation
 from ..placeholder import Placeholder
 from ..variable import Variable
 
-SessionState = enum.Enum(
-    "SessionState",
-    (
-        "StepToStart",
-        "StepToContinue",
-        "StepFinished",
-        "StepBroken",
-        "LoopFinished",
-        "LoopConverged",
-        "LoopUnConverged",
-    ),
-)
+
+class SessionState(enum.Enum):
+    """Represents different session states."""
+
+    # The iteration is about to start.
+    StepToStart = enum.auto()
+
+    # The iteration is not finished yet.
+    StepToContinue = enum.auto()
+
+    # The iteration is finished.
+    StepFinished = enum.auto()
+
+    # The iteration is broken.
+    StepBroken = enum.auto()
+
+    # The session iterations are all finsihed.
+    LoopFinished = enum.auto()
+
+    # The session is converged at an iteration.
+    LoopConverged = enum.auto()
+
+    # The session is not converged until the last iteration.
+    LoopUnConverged = enum.auto()
+
+    def is_finished(self) -> bool:
+        """"""
+        is_finished = False
+        if self in FINISHED_SESSION_STATES:
+            is_finished = True
+
+        return is_finished
+
 
 FINISHED_SESSION_STATES: tuple[SessionState, ...] = (
     SessionState.StepBroken,
@@ -62,11 +83,8 @@ class AbstractSession:
 
     def is_finished(self) -> bool:
         """"""
-        is_finished = False
-        if self.state in FINISHED_SESSION_STATES:
-            is_finished = True
 
-        return is_finished
+        return self.state.is_finished()
 
     def _process_operation(self, node: Operation) -> Optional[SessionState]:
         """"""
