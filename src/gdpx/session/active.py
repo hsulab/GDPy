@@ -8,7 +8,7 @@ from typing import Union
 
 from gdpx.core.operation import Operation
 
-from .session import AbstractSession, SessionState
+from .session import BaseSession, SessionState
 from .utils import traverse_postorder
 
 
@@ -24,7 +24,7 @@ def set_node_directory_in_active_session(
     return
 
 
-class ActiveSession(AbstractSession):
+class ActiveSession(BaseSession):
 
     def __init__(
         self,

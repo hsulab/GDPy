@@ -8,11 +8,11 @@ from typing import Union
 
 from gdpx.core.operation import Operation
 
-from .session import AbstractSession, SessionState
+from .session import BaseSession, SessionState
 from .utils import traverse_postorder
 
 
-class Session(AbstractSession):
+class SequentialSession(BaseSession):
 
     def __init__(self, directory: Union[str, pathlib.Path] = "./") -> None:
         """"""

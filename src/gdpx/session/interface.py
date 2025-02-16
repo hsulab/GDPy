@@ -189,9 +189,9 @@ def run_session_from_dict(
         )
     )
 
-    exec_mode = session_config.get("mode", "basic")
-    if exec_mode == "basic":  # sequential
-        from .basic import Session
+    exec_mode = session_config.get("mode", "sequential")
+    if exec_mode == "sequential":
+        from .sequential import SequentialSession
 
         session_states = []
         for i, (k, v) in enumerate(container.items()):
@@ -199,7 +199,7 @@ def run_session_from_dict(
             if n is None:
                 n = k
             entry_operation = v
-            session = Session(directory=directory / n)
+            session = SequentialSession(directory=directory / n)
             session.run(entry_operation, feed_dict={})
             session_states.append(session.is_finished())
     elif exec_mode == "active":

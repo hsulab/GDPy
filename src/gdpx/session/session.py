@@ -53,7 +53,7 @@ FINISHED_SESSION_STATES: tuple[SessionState, ...] = (
 )
 
 
-class AbstractSession:
+class BaseSession:
 
     #: Standard print function.
     _print: Callable = config._print
