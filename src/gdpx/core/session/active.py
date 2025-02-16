@@ -59,11 +59,28 @@ class ActiveSession(AbstractSession):
                 f"RESET RANDOM SEED - MODE: {self.reset_random_seed_mode} STEP: {self.reset_random_seed_step}"
             )
 
+        def set_node_directory(
+            node: Operation, node_index, working_directory: pathlib.Path
+        ) -> None:
+            """"""
+            prev_name = node.directory.name.split(".")[
+                -1
+            ]  # remove previous orders
+            if not prev_name:
+                prev_name = node.__class__.__name__
+            node.directory = (
+                working_directory / f"{node_index:>04d}.{prev_name}"
+            )
+
+            return
+
         # Run iterative steps
         for curr_step in range(self.steps):
             curr_wdir = self.directory / f"iter.{str(curr_step).zfill(4)}"
-            # -- run operation
+            # Find forward order
             nodes_postorder = traverse_postorder(operation)
+
+            # Check random states
             if (
                 self.reset_random_state
                 and curr_step >= self.reset_random_seed_step
@@ -76,12 +93,17 @@ class ActiveSession(AbstractSession):
                         node.reset_random_seed(
                             mode=self.reset_random_seed_mode
                         )
-            # -- run operations
-            self._irun(
-                wdir=curr_wdir,
+
+            # Run operations
+            self._run_nodes(
+                curr_wdir,
                 nodes_postorder=nodes_postorder,
                 feed_dict=feed_dict,
+                reset_states=True,
+                set_node_dir_func=set_node_directory,
             )
+
+            # Check state
             if not (self.state == "StepFinished"):
                 self._print("wait current iteration to finish...")
             else:
@@ -124,76 +146,6 @@ class ActiveSession(AbstractSession):
                 break
         else:
             self.state = "LoopFinished"
-
-        return
-
-    def _irun(
-        self,
-        wdir: Union[str, pathlib.Path],
-        nodes_postorder: list[Operation],
-        feed_dict: dict = {},
-    ) -> None:
-        """"""
-        if (wdir / "FINISHED").exists():
-            self.state = "StepFinished"
-            return
-
-        # Clear previous nodes' outputs somtimes two steps run consecutively
-        # and some nodes in the second step
-        # breaks and make its following nodes use outputs from the last step,
-        # which is a hidden error
-        for node in nodes_postorder:
-            node.reset()
-
-        # Find forward order
-        self._print(
-            "\x1b[1;34;40m"
-            + "[{:^24s}] NUM_NODES: {} AT MAIN: ".format(
-                "START", len(nodes_postorder)
-            )
-            + "\x1b[0m"
-        )
-        self._print("\x1b[1;34;40m" + "    {}".format(str(wdir)) + "\x1b[0m")
-
-        # Run nodes
-        self.state = "StepFinished"
-        for i, node in enumerate(nodes_postorder):
-            # -- change version ...
-            if hasattr(node, "version"):
-                node.version = wdir.name
-
-            # Reset directory since it maybe changed
-            prev_name = node.directory.name.split(".")[
-                -1
-            ]  # remove previous orders
-            if not prev_name:
-                prev_name = node.__class__.__name__
-            # prev_name = node.__class__.__name__
-            node.directory = wdir / f"{str(i).zfill(4)}.{prev_name}"
-            if node.__class__.__name__.endswith("Variable"):
-                node_type = "VX"
-            else:
-                node_type = "OP"
-            self._print(
-                "[{:^24s}] NAME: {} AT {}".format(
-                    node_type,
-                    node.__class__.__name__.upper(),
-                    node.directory.name,
-                )
-            )
-
-            if isinstance(node, Placeholder):
-                node.output = feed_dict[node]
-            elif isinstance(node, Variable):
-                node.output = node.value
-            else:  # Operation
-                # FIXME: If the session has many branches,
-                #        how do we define the state?
-                assert isinstance(
-                    node, Operation
-                ), f"Unknown node type: {type(node)}"
-                self._debug(f"node: {node}")
-                self._process_operation(node)
 
         return
 

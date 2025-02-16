@@ -25,6 +25,19 @@ class Session(AbstractSession):
         """"""
         self.state = "StepToStart"
 
+        def set_node_directory(
+            node: Operation, node_index, working_directory: pathlib.Path
+        ) -> None:
+            """"""
+            prev_name = node.directory.name
+            if not prev_name:
+                prev_name = node.__class__.__name__
+            node.directory = (
+                working_directory / f"{node_index:>04d}.{prev_name}"
+            )
+
+            return
+
         # Find forward order
         nodes_postorder = traverse_postorder(operation)
         for node in nodes_postorder:
@@ -34,7 +47,13 @@ class Session(AbstractSession):
                     f"Set {node} active to false as it is not supported in a basic session"
                 )
 
-        self._irun(self.directory, nodes_postorder, feed_dict)
+        self._run_nodes(
+            self.directory,
+            nodes_postorder=nodes_postorder,
+            feed_dict=feed_dict,
+            reset_states=False,
+            set_node_dir_func=set_node_directory,
+        )
         if not (self.state == "StepFinished"):
             self._print("wait current iteration to finish...")
         else:
@@ -49,62 +68,6 @@ class Session(AbstractSession):
 
             if self.state == "StepFinished":
                 self.state = "LoopFinished"
-
-        return
-
-    def _irun(
-        self,
-        wdir: pathlib.Path,
-        nodes_postorder: list[Operation],
-        feed_dict: dict = {},
-    ) -> None:
-        """"""
-        if (wdir / "FINISHED").exists():
-            self.state = "StepFinished"
-            return
-
-        # Whether clear nodes?
-
-        # Show session information
-        num_nodes = len(nodes_postorder)
-        self._print(
-            "\x1b[1;34;40m"
-            + f"[{'START':^24s}] NUM_NODES: {num_nodes} AT MAIN: "
-            + "\x1b[0m"
-        )
-        self._print("\x1b[1;34;40m" + f"    {str(wdir)}" + "\x1b[0m")
-
-        # Run nodes
-        self.state = "StepFinished"
-        for i, node in enumerate(nodes_postorder):
-            # Change node version?
-            # Reset directory since it maybe changed
-            prev_name = node.directory.name
-            if not prev_name:
-                prev_name = node.__class__.__name__
-            node.directory = wdir / f"{i:>04d}.{prev_name}"
-            if node.__class__.__name__.endswith("Variable"):
-                node_type = "VX"
-            else:
-                node_type = "OP"
-            self._print(
-                "[{:^24s}] NAME: {} AT {}".format(
-                    node_type,
-                    node.__class__.__name__.upper(),
-                    node.directory.name,
-                )
-            )
-
-            if isinstance(node, Placeholder):
-                node.output = feed_dict[node]
-            elif isinstance(node, Variable):
-                node.output = node.value
-            else:  # Operation
-                assert isinstance(
-                    node, Operation
-                ), f"Unknown node type: {type(node)}"
-                self._debug(f"node: {node}")
-                self._process_operation(node)
 
         return
 
