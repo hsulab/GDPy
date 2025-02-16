@@ -104,7 +104,7 @@ class ActiveSession(AbstractSession):
                 # as we skip them...
                 if not (curr_wdir / "FINISHED").exists():
                     # Report convergence
-                    self._print("[{'CONVERGENCE':^24s}]")
+                    self._print(f"[{'CONVERGENCE':^24s}]")
                     converged_list = []
                     for node in nodes_postorder:
                         if hasattr(node, "report_convergence"):
