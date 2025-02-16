@@ -253,7 +253,7 @@ def main():
 
     # - use subcommands
     if args.subcommand == "session":
-        from gdpx.session import run_session
+        from .cli.session import run_session
 
         run_session(args.SESSION, args.feed, args.timewait, args.directory)
     elif args.subcommand == "convert":
