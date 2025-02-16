@@ -7,10 +7,20 @@ import time
 from typing import Tuple, Union
 
 from ..operation import Operation
-from ..placeholder import Placeholder
-from ..variable import Variable
 from .session import AbstractSession
 from .utils import traverse_postorder
+
+
+def set_node_directory_in_active_session(
+    node: Operation, node_index, working_directory: pathlib.Path
+) -> None:
+    """"""
+    prev_name = node.directory.name.split(".")[-1]  # remove previous orders
+    if not prev_name:
+        prev_name = node.__class__.__name__
+    node.directory = working_directory / f"{node_index:>04d}.{prev_name}"
+
+    return
 
 
 class ActiveSession(AbstractSession):
@@ -59,21 +69,6 @@ class ActiveSession(AbstractSession):
                 f"RESET RANDOM SEED - MODE: {self.reset_random_seed_mode} STEP: {self.reset_random_seed_step}"
             )
 
-        def set_node_directory(
-            node: Operation, node_index, working_directory: pathlib.Path
-        ) -> None:
-            """"""
-            prev_name = node.directory.name.split(".")[
-                -1
-            ]  # remove previous orders
-            if not prev_name:
-                prev_name = node.__class__.__name__
-            node.directory = (
-                working_directory / f"{node_index:>04d}.{prev_name}"
-            )
-
-            return
-
         # Run iterative steps
         for curr_step in range(self.steps):
             curr_wdir = self.directory / f"iter.{str(curr_step).zfill(4)}"
@@ -100,7 +95,7 @@ class ActiveSession(AbstractSession):
                 nodes_postorder=nodes_postorder,
                 feed_dict=feed_dict,
                 reset_states=True,
-                set_node_dir_func=set_node_directory,
+                set_node_dir_func=set_node_directory_in_active_session,
             )
 
             # Check state
@@ -111,7 +106,7 @@ class ActiveSession(AbstractSession):
                 # as we skip them...
                 if not (curr_wdir / "FINISHED").exists():
                     # Report convergence
-                    self._print("[{:^24s}]".format("CONVERGENCE"))
+                    self._print("[{'CONVERGENCE':^24s}]")
                     converged_list = []
                     for node in nodes_postorder:
                         if hasattr(node, "report_convergence"):
