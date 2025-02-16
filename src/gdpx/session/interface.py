@@ -14,7 +14,7 @@ import omegaconf
 import yaml
 from omegaconf import OmegaConf
 
-from .. import config
+from gdpx import config
 from .utils import create_operation, create_variable
 
 

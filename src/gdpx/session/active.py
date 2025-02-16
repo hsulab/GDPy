@@ -4,9 +4,10 @@
 
 import pathlib
 import time
-from typing import Tuple, Union
+from typing import Union
 
-from ..operation import Operation
+from gdpx.core.operation import Operation
+
 from .session import AbstractSession, SessionState
 from .utils import traverse_postorder
 
@@ -29,7 +30,7 @@ class ActiveSession(AbstractSession):
         self,
         steps: int = 2,
         reset_random_state: bool = False,
-        reset_random_config: Tuple[str, int] = ("init", 0),
+        reset_random_config: tuple[str, int] = ("init", 0),
         directory: Union[str, pathlib.Path] = "./",
     ) -> None:
         """Initialise an ActiveSession.

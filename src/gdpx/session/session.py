@@ -6,10 +6,10 @@ import enum
 import pathlib
 from typing import Callable, Optional
 
-from .. import config
-from ..operation import Operation
-from ..placeholder import Placeholder
-from ..variable import Variable
+from gdpx import config
+from gdpx.core.operation import Operation
+from gdpx.core.placeholder import Placeholder
+from gdpx.core.variable import Variable
 
 
 class SessionState(enum.Enum):

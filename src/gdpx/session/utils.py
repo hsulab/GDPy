@@ -5,9 +5,9 @@
 import copy
 from typing import Any, Optional
 
-from .. import config
-from ..operation import Operation
-from ..register import registers
+from gdpx import config
+from gdpx.core.operation import Operation
+from gdpx.core.register import registers
 
 
 def traverse_postorder(operation: Operation):

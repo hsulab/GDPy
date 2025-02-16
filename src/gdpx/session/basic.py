@@ -6,7 +6,8 @@ import pathlib
 import time
 from typing import Union
 
-from ..operation import Operation
+from gdpx.core.operation import Operation
+
 from .session import AbstractSession, SessionState
 from .utils import traverse_postorder
 
