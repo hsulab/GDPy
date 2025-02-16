@@ -174,7 +174,7 @@ class SessionInitialiser:
         return container, session_names, sconfigs
 
 
-def run_session_once(
+def run_session_from_dict(
     config_dict: dict,
     feed_command: Optional[list[str]] = None,
     directory: Union[str, pathlib.Path] = "./",

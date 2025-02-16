@@ -11,7 +11,7 @@ from typing import Optional, Union
 import yaml
 
 from gdpx import config
-from gdpx.session.interface import SessionInitialiser, run_session_once
+from gdpx.session.interface import SessionInitialiser, run_session_from_dict
 
 
 def run_session(
@@ -49,7 +49,7 @@ def run_session(
             )  # Clear cache before a new run.
             config._print(f"... Daemon is running step {i:>04d} ...")
             config_dict = copy.deepcopy(raw_config_dict)
-            is_finished = run_session_once(
+            is_finished = run_session_from_dict(
                 config_dict, feed_command, directory
             )
             if is_finished:
@@ -62,7 +62,7 @@ def run_session(
         else:
             config._print("Reach maximum monitor for-loop.")
     else:
-        run_session_once(config_dict, feed_command, directory)
+        run_session_from_dict(config_dict, feed_command, directory)
 
     return
 
