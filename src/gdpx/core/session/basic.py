@@ -7,9 +7,7 @@ import time
 from typing import Union
 
 from ..operation import Operation
-from ..placeholder import Placeholder
-from ..variable import Variable
-from .session import AbstractSession
+from .session import AbstractSession, SessionState
 from .utils import traverse_postorder
 
 
@@ -23,7 +21,7 @@ class Session(AbstractSession):
 
     def run(self, operation: Operation, feed_dict: dict = {}) -> None:
         """"""
-        self.state = "StepToStart"
+        self.state = SessionState.StepToStart
 
         def set_node_directory(
             node: Operation, node_index, working_directory: pathlib.Path
@@ -54,7 +52,7 @@ class Session(AbstractSession):
             reset_states=False,
             set_node_dir_func=set_node_directory,
         )
-        if not (self.state == "StepFinished"):
+        if not (self.state == SessionState.StepFinished):
             self._print("wait current iteration to finish...")
         else:
             if not (self.directory / "FINISHED").exists():
@@ -66,8 +64,8 @@ class Session(AbstractSession):
             else:
                 ...
 
-            if self.state == "StepFinished":
-                self.state = "LoopFinished"
+            if self.state == SessionState.StepFinished:
+                self.state = SessionState.LoopFinished
 
         return
 

@@ -2,39 +2,37 @@
 # -*- coding: utf-8 -*-
 
 
+import enum
 import pathlib
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from .. import config
 from ..operation import Operation
 from ..placeholder import Placeholder
 from ..variable import Variable
 
-#: A List of valid session states.
-SESSION_STATE_LIST: List[str] = [
-    "StepToStart",
-    "StepFinished",
-    "StepToContinue",
-    "StepBroken",
-    "LoopToStart",
-    "LoopFinished",
-    "LoopConverged",
-    "LoopUnConverged",
-]
+SessionState = enum.Enum(
+    "SessionState",
+    (
+        "StepToStart",
+        "StepToContinue",
+        "StepFinished",
+        "StepBroken",
+        "LoopFinished",
+        "LoopConverged",
+        "LoopUnConverged",
+    ),
+)
 
-#: A List of finished session states.
-FINISHED_SESSION_STATES: List[str] = [
-    "StepBroken",
-    "LoopFinished",
-    "LoopConverged",
-    "LoopUnConverged",
-]
+FINISHED_SESSION_STATES: tuple[SessionState, ...] = (
+    SessionState.StepBroken,
+    SessionState.LoopFinished,
+    SessionState.LoopConverged,
+    SessionState.LoopUnConverged,
+)
 
 
 class AbstractSession:
-
-    #: Session State.
-    _state: str = "LoopToStart"
 
     #: Standard print function.
     _print: Callable = config._print
@@ -42,18 +40,22 @@ class AbstractSession:
     #: Standard debug function.
     _debug: Callable = config._debug
 
+    def __init__(self) -> None:
+        """"""
+        self._state = SessionState.StepToStart
+
+        return
+
     @property
-    def state(self) -> str:
+    def state(self) -> SessionState:
         """"""
 
         return self._state
 
     @state.setter
-    def state(self, state: str):
+    def state(self, state: SessionState):
         """"""
-        assert (
-            state in SESSION_STATE_LIST
-        ), f"Invalid state `{state}` to assign."
+        assert state in SessionState, f"Invalid state `{state}` to assign."
         self._state = state
 
         return
@@ -66,8 +68,9 @@ class AbstractSession:
 
         return is_finished
 
-    def _process_operation(self, node: Operation):
+    def _process_operation(self, node: Operation) -> Optional[SessionState]:
         """"""
+        state = None
         if not node.is_about_to_exit():
             if node.is_ready_to_forward():  # All input nodes finished.
                 node.inputs = [
@@ -75,7 +78,7 @@ class AbstractSession:
                 ]
                 node.output = node.forward(*node.inputs)
             else:
-                # - check whether this node' not ready due to previous nodes are broken.
+                # Check whether this node' not ready due to previous nodes are broken.
                 broken_states = []
                 for input_node in node.input_nodes:
                     if isinstance(input_node, Operation):
@@ -86,7 +89,7 @@ class AbstractSession:
                 self._debug(f"{broken_states =}")
                 is_broken = any(broken_states)
                 if not is_broken:
-                    self.state = "StepToContinue"
+                    state = SessionState.StepToContinue
                     self._print(
                         "\x1b[1;33;40m"
                         + "  wait previous nodes to finish..."
@@ -95,19 +98,19 @@ class AbstractSession:
                 else:
                     # The `broken` status is contagious
                     node.status = "exit"
-                    self.state = "StepBroken"
+                    state = SessionState.StepBroken
                     self._print(
                         "\x1b[1;31;40m"
                         + "  The current node is broken."
                         + "\x1b[0m"
                     )
         else:
-            self.state = "StepBroken"
+            state = SessionState.StepBroken
             self._print(
                 "\x1b[1;31;40m" + "  The current node is broken." + "\x1b[0m"
             )
 
-        return
+        return state
 
     def _run_nodes(
         self,
@@ -121,7 +124,7 @@ class AbstractSession:
         assert set_node_dir_func is not None
 
         if (wdir / "FINISHED").exists():
-            self.state = "StepFinished"
+            self.state = SessionState.StepFinished
             return
 
         # Clear previous nodes' outputs somtimes two steps run consecutively
@@ -140,7 +143,7 @@ class AbstractSession:
         self._print("\x1b[1;34;40m" + f"    {str(wdir)}" + "\x1b[0m")
 
         # Run nodes
-        self.state = "StepFinished"
+        self.state = SessionState.StepFinished
         for i, node in enumerate(nodes_postorder):
             # Update node version
             if hasattr(node, "version"):
@@ -169,7 +172,9 @@ class AbstractSession:
                     node, Operation
                 ), f"Unknown node type: {type(node)}"
                 self._debug(f"node: {node}")
-                self._process_operation(node)
+                _state = self._process_operation(node)
+                if _state is not None:
+                    self.state = _state
 
         return
 

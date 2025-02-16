@@ -7,7 +7,7 @@ import time
 from typing import Tuple, Union
 
 from ..operation import Operation
-from .session import AbstractSession
+from .session import AbstractSession, SessionState
 from .utils import traverse_postorder
 
 
@@ -54,11 +54,9 @@ class ActiveSession(AbstractSession):
 
         return
 
-    def run(
-        self, operation: Operation, feed_dict: dict = {}, *args, **kwargs
-    ) -> None:
+    def run(self, operation: Operation, feed_dict: dict = {}) -> None:
         """"""
-        self.state = "StepToStart"
+        self.state = SessionState.StepToStart
         # Update nodes' attrs based on the previous iteration
         # nodes_postorder = traverse_postorder(operation)
         # for node in nodes_postorder:
@@ -70,15 +68,15 @@ class ActiveSession(AbstractSession):
             )
 
         # Run iterative steps
-        for curr_step in range(self.steps):
-            curr_wdir = self.directory / f"iter.{str(curr_step).zfill(4)}"
+        for istep in range(self.steps):
+            curr_wdir = self.directory / f"iter.{istep:>04d}"
             # Find forward order
             nodes_postorder = traverse_postorder(operation)
 
             # Check random states
             if (
                 self.reset_random_state
-                and curr_step >= self.reset_random_seed_step
+                and istep >= self.reset_random_seed_step
             ):
                 for node in nodes_postorder:
                     if hasattr(node, "reset_random_seed"):
@@ -99,7 +97,7 @@ class ActiveSession(AbstractSession):
             )
 
             # Check state
-            if not (self.state == "StepFinished"):
+            if not (self.state == SessionState.StepFinished):
                 self._print("wait current iteration to finish...")
             else:
                 # If previous step finished, the nodes may not have outputs
@@ -114,15 +112,15 @@ class ActiveSession(AbstractSession):
                             converged_list.append(converged)
                     if converged_list and all(converged_list):
                         self._print(
-                            f"Active Session converged at step {curr_step}."
+                            f"Active Session converged at step {istep}."
                         )
-                        self.state = "LoopConverged"
+                        self.state = SessionState.LoopConverged
                     else:
                         self._print(
-                            f"Active Session UNconverged at step {curr_step}."
+                            f"Active Session UNconverged at step {istep}."
                         )
-                        if curr_step + 1 == self.steps:
-                            self.state = "LoopUnConverged"
+                        if istep + 1 == self.steps:
+                            self.state = SessionState.LoopUnConverged
                         else:
                             ...  # Just StepFinished
                     # Save state to a file
@@ -133,14 +131,14 @@ class ActiveSession(AbstractSession):
                 else:
                     self._print(
                         "[{:^24s}] FINISHED".format(
-                            f"STEP.{str(curr_step).zfill(4)}"
+                            f"STEP.{str(istep).zfill(4)}"
                         )
                     )
             # Add an atrribute that indicates all steps are finished
-            if self.state != "StepFinished":
+            if self.state != SessionState.StepFinished:
                 break
         else:
-            self.state = "LoopFinished"
+            self.state = SessionState.LoopFinished
 
         return
 
