@@ -416,6 +416,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
             content += "*" * 50 + "\n"
             for l in content.split("\n"):
                 self._print(l)
+        else:
+            self._print("")
 
         # Check database existence and generation number to determine restart
         self._print("===== register database =====")
