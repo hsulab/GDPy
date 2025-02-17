@@ -271,9 +271,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
         else:
             ...
 
+        self.target = target
+
         # The ase built-in cut_and_splice reinits tags from 0 if use_tags is false,
-        # Here, no matter what type of system is explored, we enforce use_tags to be true
-        # as it retains the tags information.
+        # Here, no matter what type of system is explored, we enforce the builder's use_tags 
+        # to be true as it retains the tags information.
         if hasattr(self.generator, "use_tags"):
             if self.generator.use_tags:
                 ...
@@ -286,8 +288,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
             raise RuntimeError(
                 f"Builder `{self.generator.name}` does not have true `use_tags`."
             )
-
-        self.target = target
 
         # Convergence
         self.conv_dict = ga_dict["convergence"]
