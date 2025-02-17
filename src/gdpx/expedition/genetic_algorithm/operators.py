@@ -11,15 +11,11 @@ from ase.ga.ofp_comparator import OFPComparator
 from ase.ga.particle_comparator import NNMatComparator
 from ase.ga.particle_crossovers import CutSpliceCrossover
 from ase.ga.soft_mutation import SoftMutation
-from ase.ga.standardmutations import (
-    MirrorMutation,
-    RattleMutation,
-    StrainMutation,
-)
+from ase.ga.standardmutations import RattleMutation, StrainMutation
 
 from .comparator.interatomic_distance import InteratomicDistanceComparator
-
 from .mutation.exchange import ExchangeMutation
+from .mutation.mirror import MirrorMutation
 from .mutation.rattle import RattleBufferMutation
 from .mutation.swap import SwapMutation
 
