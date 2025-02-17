@@ -57,6 +57,22 @@ def clean_seed_structures(prev_frames: List[Atoms]) -> List[Atoms]:
     return curr_frames
 
 
+def is_reproduction_isolation(a0: Atoms, a1: Atoms) -> bool:
+    """"""
+    is_isolation = True
+    natoms_a0, natoms_a1 = len(a0), len(a1)
+    if natoms_a0 == natoms_a1:
+        symbols_a0, symbols_a1 = (
+            a0.get_chemical_symbols(),
+            a1.get_chemical_symbols(),
+        )
+        if symbols_a0 == symbols_a1:
+            if np.array_equal(a0.get_tags(), a1.get_tags()):
+                is_isolation = False
+
+    return is_isolation
+
+
 class AbstractPopulationManager:
     """An abstract population manager for evolutionary algorithms.
 
@@ -530,25 +546,19 @@ class AbstractPopulationManager:
                 for _ in range(100):
                     parents = population.get_two_candidates()
                     # TODO: Move this check to population?
-                    if parents is not None:
-                        natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                        if natoms_p0 == natoms_p1:
-                            symbols_p0, symbols_p1 = (
-                                parents[0].get_chemical_symbols(),
-                                parents[1].get_chemical_symbols(),
-                            )
-                            if symbols_p0 == symbols_p1:
-                                tags_dict = get_tags_per_species(parents[0])
-                                identities = " ".join(
-                                    [
-                                        k + "_" + str(len(v))
-                                        for k, v in tags_dict.items()
-                                    ]
-                                )
-                                self._print(
-                                    f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1} composition: {identities}"
-                                )
-                                break
+                    if not is_reproduction_isolation(parents[0], parents[1]):
+                        natoms_p0 = len(parents[0])
+                        tags_dict = get_tags_per_species(parents[0])
+                        identities = " ".join(
+                            [
+                                k + "_" + str(len(v))
+                                for k, v in tags_dict.items()
+                            ]
+                        )
+                        self._print(
+                            f"  natoms: {natoms_p0} composition: {identities}"
+                        )
+                        break
                 else:
                     self._print(
                         f"Cannot find two parents after 100 attempts from a population of {len(population.pop)}."
