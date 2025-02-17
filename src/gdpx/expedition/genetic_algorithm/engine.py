@@ -274,7 +274,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.target = target
 
         # The ase built-in cut_and_splice reinits tags from 0 if use_tags is false,
-        # Here, no matter what type of system is explored, we enforce the builder's use_tags 
+        # Here, no matter what type of system is explored, we enforce the builder's use_tags
         # to be true as it retains the tags information.
         if hasattr(self.generator, "use_tags"):
             if self.generator.use_tags:
@@ -942,8 +942,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
             pairing = None
 
         # --- mutations
-        use_tags = specific_params.get("use_tags", False)
-
         mutation_list = op_dict.get("mutation", [])
         if mutation_list:
             mutations, probs = [], []
@@ -952,19 +950,27 @@ class GeneticAlgorithmEngine(BaseExpedition):
             for mut_params in mutation_list:
                 prob = mut_params.pop("prob", 1.0)
                 probs.append(prob)
+                mut_use_tags = mut_params.get("use_tags", True)
+                specific_params_ = copy.deepcopy(specific_params)
+                sys_use_tags = specific_params_.pop("use_tags", True)
+                mut_params["use_tags"] = sys_use_tags and mut_use_tags
                 mut = instantiate_a_genetic_operator(
-                    "mutation", mut_params, specific_params
+                    "mutation", mut_params, specific_params_
                 )
                 # Check whether mutation accepts molecules
-                if use_tags:
-                    if hasattr(mut, "use_tags"):
+                if hasattr(mut, "use_tags"):
+                    if mut_use_tags:
                         assert (
                             mut.use_tags
-                        ), f"use_tags `{use_tags}` in mutation `{mut}` must be true."
+                        ), f"use_tags `{mut.use_tags}` in mutation `{mut}` must be true."
                     else:
-                        raise RuntimeError(
-                            f"Mutation `{mut}` cannot be used in a search with tags."
-                        )
+                        # HACK: We may disbale the use_tags in the mutation if all our fragments
+                        # are just atoms, and the mutation does not mess up with tags.
+                        ...
+                else:
+                    raise RuntimeError(
+                        f"Mutation `{mut}` cannot be used in a search with tags."
+                    )
                 mutations.append(mut)
 
             self._print("  --- mutations ---")
