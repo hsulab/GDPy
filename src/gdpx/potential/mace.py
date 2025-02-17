@@ -9,6 +9,8 @@ from typing import Optional, Union
 
 from ase.io import write
 
+from gdpx.utils.logio import remove_extra_stream_handlers
+
 from .calculators.dummy import DummyCalculator
 from .calculators.mixer import CommitteeCalculator
 from .manager import BasePotentialManager
@@ -422,6 +424,8 @@ class MaceManager(BasePotentialManager):
             try:
                 import torch
                 from mace.calculators import MACECalculator
+
+                remove_extra_stream_handlers()
             except:
                 raise ModuleNotFoundError(
                     "Please install mace and torch to use the ase interface."
