@@ -15,6 +15,7 @@ from .calculators.dummy import DummyCalculator
 from .calculators.mixer import CommitteeCalculator
 from .manager import BasePotentialManager
 from .trainer import BasePotentialTrainer
+from .utils import build_a_committee_calculator, canonicalise_input_models
 
 
 class MaceDataloader:
@@ -373,54 +374,36 @@ class MaceTrainer(BasePotentialTrainer):
 class MaceManager(BasePotentialManager):
 
     name = "mace"
-    implemented_backends = ["ase", "jax"]
+    implemented_backends = ("ase", "jax")
 
     valid_combinations = (
         ("ase", "ase"),
         ("jax", "ase"),
     )
 
-    def __init__(self):
-        """"""
-
-        return
-
     def register_calculator(self, calc_params, *agrs, **kwargs):
-        """"""
+        """Register the calculator."""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
-        # - parse params
         calc_params = copy.deepcopy(calc_params)
 
-        command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", pathlib.Path.cwd())
         type_list = calc_params.pop("type_list", [])
 
         type_map = {}
         for i, a in enumerate(type_list):
             type_map[a] = i
 
-        # - model files
-        model_ = calc_params.get("model", [])
-        if not isinstance(model_, list):
-            model_ = [model_]
-
-        models = []
-        for m in model_:
-            m = pathlib.Path(m).resolve()
-            if not m.exists():
-                raise FileNotFoundError(f"Cant find model file {str(m)}")
-            models.append(str(m))
+        # Check if all models exist and update the self.calc_params
+        # as the potential may be used in other directories if submitted by a scheduler.
+        models = canonicalise_input_models(calc_params.pop("model", []))
         self.calc_params.update(model=models)
 
         precision = calc_params.pop("precision", "float32")
 
         estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
-        # - create specific calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            # return ase calculator
             try:
                 import torch
                 from mace.calculators import MACECalculator
@@ -431,17 +414,20 @@ class MaceManager(BasePotentialManager):
                     "Please install mace and torch to use the ase interface."
                 )
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            # print(f"mace device: {device}")
-            calcs = []
+
+            shared_params = dict(device=device, default_dtype=precision)
+            params_list = []
             for m in models:
-                # print("device", torch.device("cuda" if torch.cuda.is_available() else torch.device("cpu")))
-                curr_calc = MACECalculator(
-                    model_paths=m,
-                    device=device,
-                    default_dtype=precision,
+                specific_params = copy.deepcopy(shared_params)
+                specific_params["model_paths"] = m
+                params_list.append(specific_params)
+            num_models = len(models)
+            if num_models > 0:
+                calc = build_a_committee_calculator(
+                    MACECalculator,
+                    params_list=params_list,
+                    estimate_uncertainty=estimate_uncertainty,
                 )
-                calcs.append(curr_calc)
-            calc = self._process_committee(calcs, estimate_uncertainty)
         elif self.calc_backend == "jax":
             try:
                 import jax
@@ -450,11 +436,6 @@ class MaceManager(BasePotentialManager):
                 raise ModuleNotFoundError(
                     "Please install mace-jax and jax to use the jax interface."
                 )
-            # calcs = []
-            # for m in models:
-            #     curr_calc = MACEJAXCalculator(
-            #
-            #     )
             raise NotImplementedError(
                 "The JAX backend for MACE is under development."
             )
@@ -469,20 +450,6 @@ class MaceManager(BasePotentialManager):
 
         return
 
-    def _process_committee(self, calcs, estimate_uncertainty: bool):
-        """"""
-        if len(calcs) == 1:
-            calc = calcs[0]
-        elif len(calcs) > 1:
-            if estimate_uncertainty:
-                calc = CommitteeCalculator(calcs)
-            else:
-                calc = calcs[0]
-        else:  # Empty list
-            calc = DummyCalculator()
-
-        return calc
-
     def switch_uncertainty_estimation(self, status: bool = True):
         """Switch on/off the uncertainty estimation."""
         # NOTE: Sometimes the manager loads several models and supports uncertainty
@@ -492,7 +459,6 @@ class MaceManager(BasePotentialManager):
             raise RuntimeError(
                 "Fail to switch uncertainty status as it does not have a calc."
             )
-        # print(f"{self.calc}")
 
         # NOTE: make sure manager.as_dict() can have correct param
         self.calc_params["estimate_uncertainty"] = status
