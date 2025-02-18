@@ -12,7 +12,7 @@ import shutil
 import tarfile
 import traceback
 import warnings
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from ase import Atoms, units
@@ -759,7 +759,7 @@ class AseDriver(AbstractDriver):
         self,
         atoms: Atoms,
         ckpt_wdir=None,
-        cache_traj: List[Atoms] = None,
+        cache_traj: Optional[list[Atoms]] = None,
         *args,
         **kwargs,
     ):
@@ -981,7 +981,7 @@ class AseDriver(AbstractDriver):
 
     def read_trajectory(
         self, archive_path=None, *args, **kwargs
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Read trajectory in the current working directory."""
         # - read trajectory
         traj_frames = self._aggregate_trajectories(archive_path=archive_path)
