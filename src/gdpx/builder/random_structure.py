@@ -114,19 +114,6 @@ class RandomStructureImprovedModifier(StructureModifier):
         if self._input_substrates is not None:
             self._init_params["substrates"] = self._input_substrates
 
-        # To compatible with GA engine
-        self._substrate = None
-        if self.substrates is not None:
-            self._substrate = self.substrates[0]
-        else:
-            self._substrate = Atoms("", cell=self.box, pbc=self.pbc)
-
-        self.use_tags = use_tags
-        if not self.use_tags:
-            raise Exception(
-                "`random_structure_improved` must have use_tags to be True."
-            )
-
         # Check composition
         self._compspec = CompositionSpace(composition)
 
@@ -146,6 +133,19 @@ class RandomStructureImprovedModifier(StructureModifier):
             )
 
         self.pbc = pbc
+
+        # To compatible with GA engine
+        self._substrate = None
+        if self.substrates is not None:
+            self._substrate = self.substrates[0]
+        else:
+            self._substrate = Atoms("", cell=self.box, pbc=self.pbc)
+
+        self.use_tags = use_tags
+        if not self.use_tags:
+            raise Exception(
+                "`random_structure_improved` must have use_tags to be True."
+            )
 
         # Check region
         self.region = RegionVariable(**region).value
