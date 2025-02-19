@@ -44,7 +44,7 @@ class BaseRegion(abc.ABC):
 
         return indices_within_region
 
-    def get_random_positions(self, size=1, rng=np.random):
+    def get_random_positions(self, size=1, rng=np.random.default_rng()):
         """"""
         random_positions = []
         for _ in range(size):
@@ -55,10 +55,10 @@ class BaseRegion(abc.ABC):
         return random_positions
 
     @abc.abstractmethod
-    def _get_a_random_position(self, rng):
+    def _get_a_random_position(self, rng: np.random.Generator) -> np.ndarray:
         """"""
 
-        return
+        ...
 
     @abc.abstractmethod
     def _is_within_region(self, position) -> bool:
@@ -325,7 +325,7 @@ class SphereRegion(BaseRegion):
     def _get_a_random_position(self, rng):
         """"""
         ran_coord = rng.uniform(0, 1, 3)
-        polar = np.array([self._radius, np.pi, np.pi]) * ran_coord
+        polar = np.array([self._radius, np.pi, 2*np.pi]) * ran_coord
         r, theta, phi = polar
 
         ran_pos = np.array(
