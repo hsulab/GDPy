@@ -38,8 +38,8 @@ registers.scheduler.register(SlurmScheduler)
 try:
     from .remote import RemoteSlurmScheduler
     registers.scheduler.register(RemoteSlurmScheduler)
-except Exception as e:
-    config._print(f"Module {'remote'} import failed: {e}")
+except ImportError as e:
+    config._print(f"  {'Scheduler':<16s} {'`remote`':<16s} -> require `{e.name}`.")
 
 
 if __name__ == "__main__":
