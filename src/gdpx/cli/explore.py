@@ -58,7 +58,7 @@ def run_expedition(
             run_expedition_in_commandline(
                 wdir=directory,
                 expedition=expedition[0],
-                timewait=None,
+                timewait=wait,
                 print_func=config._print,
             )
         else:
@@ -66,7 +66,7 @@ def run_expedition(
                 run_expedition_in_commandline(
                     directory / f"expedition-{i}",
                     exp,
-                    timewait=None,
+                    timewait=wait,
                     print_func=config._print,
                 )
     else:
