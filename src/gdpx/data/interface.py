@@ -9,14 +9,11 @@ import re
 from typing import Mapping, Optional
 
 import numpy as np
-from ase import Atoms
-from ase.io import read, write
 
 from .. import config
 from ..core.operation import Operation
 from ..core.register import registers
 from ..core.variable import Variable
-from .array import AtomsNDArray
 from .system import DataSystem
 
 
@@ -239,109 +236,6 @@ class list_nodes(Operation):
         ret = list(outputs)
 
         return ret
-
-
-@registers.operation.register
-class transfer(Operation):
-    """Transfer worker results to target destination."""
-
-    def __init__(
-        self,
-        structures,
-        dataset,
-        version,
-        prefix: str = "",
-        system: str = "mixed",
-        clean_info: bool = False,
-        set_pbc: bool = True,
-        directory="./",
-    ) -> None:
-        """"""
-        input_nodes = [structures, dataset]
-        super().__init__(input_nodes=input_nodes, directory=directory)
-
-        self.version = version
-
-        self.prefix = prefix
-        self.system = system  # molecule/cluster, surface, bulk
-
-        self.clean_info = clean_info  # whether clean atoms info
-        self.set_pbc = set_pbc  # Whether set structures to full pbc
-
-        return
-
-    def forward(self, structures: list[Atoms], dataset):
-        """"""
-        super().forward()
-
-        if isinstance(structures, AtomsNDArray):
-            structures = structures.get_marked_structures()
-        num_structures = len(structures)
-        self._print(f"{num_structures = }")
-
-        target_dir = dataset.directory.resolve()
-        self._print(f"target dir: {str(target_dir)}")
-
-        # Check chemical symbols
-        system_dict = {}  # {formula: [indices]}
-
-        # We need aggregate by ourselves
-        # as groupby only collects contiguous data
-        formulae = [a.get_chemical_formula() for a in structures]
-        for k, v in itertools.groupby(enumerate(formulae), key=lambda x: x[1]):
-            if k not in system_dict:
-                system_dict[k] = [x[0] for x in v]
-            else:
-                system_dict[k].extend([x[0] for x in v])
-
-        # Transfer data
-        acc_num_structures = 0
-        for formula, curr_indices in system_dict.items():
-            system_type = self.system  # currently, use user input one
-            dirname = "-".join([self.prefix, formula, system_type])
-
-            target_subdir = target_dir / dirname
-            target_subdir.mkdir(parents=True, exist_ok=True)
-
-            curr_structures = [structures[i] for i in curr_indices]
-            curr_num_frames = len(curr_structures)
-
-            if self.set_pbc:
-                for atoms in curr_structures:
-                    atoms.set_pbc(True)
-
-            if self.clean_info:
-                self._clean_frames(curr_structures)
-
-            strname = self.version + ".xyz"
-            target_destination = target_dir / dirname / strname
-            if not target_destination.exists():
-                write(target_destination, curr_structures)
-                self._print(
-                    f"num_structures {curr_num_frames} -> {str(target_destination.relative_to(target_dir))}"
-                )
-            else:
-                self._print(
-                    f"{str(target_destination.relative_to(target_dir))} exists."
-                )
-
-            acc_num_structures += curr_num_frames
-
-        assert num_structures == acc_num_structures
-
-        self.status = "finished"
-
-        return dataset
-
-    def _clean_frames(self, structures: list[Atoms]):
-        """"""
-        for atoms in structures:
-            info_keys = copy.deepcopy(list(atoms.info.keys()))
-            for k in info_keys:
-                if k not in ["energy", "free_energy"]:
-                    del atoms.info[k]
-
-        return
 
 
 @registers.operation.register
