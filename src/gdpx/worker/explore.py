@@ -8,7 +8,7 @@ import pathlib
 import time
 import uuid
 import warnings
-from typing import Optional, Iterable
+from typing import Optional
 
 from tinydb import Query, TinyDB
 
@@ -33,8 +33,8 @@ def run_expedition_in_commandline(
             expedition.run()
             if expedition.read_convergence():
                 break
-            time.sleep(timewait)
             print_func(f"wait {timewait} seconds...")
+            time.sleep(timewait)
         else:
             ...
     else:
@@ -78,7 +78,9 @@ class ExpeditionBasedWorker(AbstractWorker):
         self.wait_time = 60
 
         if self.batchsize != 1:
-            raise Exception("Currently, expedition worker only supports batchsize of 1.")
+            raise Exception(
+                "Currently, expedition worker only supports batchsize of 1."
+            )
 
         return
 
@@ -108,7 +110,9 @@ class ExpeditionBasedWorker(AbstractWorker):
             if batch_name in queued_names:
                 uid = queued_uuids[i]
                 job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
-                self._print(f"{job_name} at {self.directory.name} was submitted.")
+                self._print(
+                    f"{job_name} at {self.directory.name} was submitted."
+                )
                 continue
             else:
                 uid = str(uuid.uuid1())
@@ -140,7 +144,7 @@ class ExpeditionBasedWorker(AbstractWorker):
             self.scheduler.script = wdir / f"{self._script_name}-{uid}"
             relative_inp_fpath = str(inp_fpath.relative_to(wdir.resolve()))
             batch_index_str = ",".join([str(i)])
-            self.scheduler.user_commands = f"gdp explore {relative_inp_fpath} --wait {self.wait_time} --spawn {batch_index_str}"
+            self.scheduler.user_commands = f"gdp explore {relative_inp_fpath} --wait {self.wait_time} --spawn {batch_index_str}\n"
             job_status = self.scheduler.submit(func_to_execute=exp_func)
             self._print(f"{wdir.name}: {job_status}")
 
@@ -180,7 +184,9 @@ class ExpeditionBasedWorker(AbstractWorker):
                 uid = doc_data["uid"]
 
                 self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory / f"{self._script_name}-{uid}"
+                self.scheduler.script = (
+                    self.directory / f"{self._script_name}-{uid}"
+                )
 
                 # Get expedition indices
                 wdir_names = doc_data["wdir_names"]
@@ -194,25 +200,32 @@ class ExpeditionBasedWorker(AbstractWorker):
                     nwdir_exists = sum(1 for x in wdir_existence if x)
                     if all(wdir_existence):
                         for wdir_name in wdir_names:
-                            exp_index = int(wdir_name[len("expedition-"):])
+                            exp_index = int(wdir_name[len("expedition-") :])
                             self._print(f"{exp_index=}")
                             wdir_path = self.directory / wdir_name
                             if not wdir_path.exists():
                                 break
                             else:
                                 expeditions[exp_index].directory = wdir_path
-                                if not expeditions[exp_index].read_convergence():
+                                if not expeditions[
+                                    exp_index
+                                ].read_convergence():
                                     break
                         else:
                             is_finished = True
                     else:
                         self._print(f"NOT all workding directories exist.")
-                    self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
+                    self._print(
+                        f"progress: {nwdir_exists}/{len(wdir_existence)}"
+                    )
                     if is_finished:
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
+                        database.update(
+                            {"finished": True}, doc_ids=[doc_data.doc_id]
+                        )
                     else:
                         warnings.warn(
-                            "Exploration does not support re-submit.", UserWarning
+                            "Exploration does not support re-submit.",
+                            UserWarning,
                         )
                 else:
                     self._print(f"{job_name} is running...")
@@ -237,7 +250,8 @@ class ExpeditionBasedWorker(AbstractWorker):
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_wdirs_.extend(
-                    (self.directory / w).resolve() for w in doc_data["wdir_names"]
+                    (self.directory / w).resolve()
+                    for w in doc_data["wdir_names"]
                 )
             unretrieved_wdirs = unretrieved_wdirs_
 
@@ -252,7 +266,7 @@ class ExpeditionBasedWorker(AbstractWorker):
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             self._debug(f"unretrieved_wdirs: {unretrieved_wdirs}")
             for p in unretrieved_wdirs:
-                exp_index = int(p.name[len("expedition-"):])
+                exp_index = int(p.name[len("expedition-") :])
                 expedition = expeditions[exp_index]
                 expedition.directory = p
                 workers.extend(expedition.get_workers())
