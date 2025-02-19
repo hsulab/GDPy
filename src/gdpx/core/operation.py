@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 import pathlib
-from typing import Callable, Union, Any
+from typing import Any, Callable, Union
 
 from .. import config
 
@@ -13,9 +14,6 @@ class Operation(abc.ABC):
 
     #: Node ID.
     identifier: str = "op"
-
-    #: Working directory for the operation.
-    _directory: Union[str, pathlib.Path] = pathlib.Path.cwd()
 
     #: Whether re-compute this operation
     status: str = "unfinished"  # ["unfinished", "ready", "wait", "finished"]
@@ -30,14 +28,14 @@ class Operation(abc.ABC):
         self, input_nodes=[], directory: Union[str, pathlib.Path] = "./"
     ) -> None:
         """"""
+        self._directory = pathlib.Path(directory)
+
         if hasattr(self, "_preprocess_input_nodes"):
             self.input_nodes = self._preprocess_input_nodes(input_nodes)
         else:
             self.input_nodes = input_nodes
 
-        self.directory = directory
-
-        # Initialize list of consumers
+        # Initialise list of consumers
         # (i.e. nodes that receive this operation's output as input)
         self.consumers = []
 
@@ -54,13 +52,13 @@ class Operation(abc.ABC):
         return self._directory
 
     @directory.setter
-    def directory(self, directory_) -> None:
+    def directory(self, directory) -> None:
         """"""
-        self._directory = pathlib.Path(directory_)
+        self._directory = pathlib.Path(directory)
 
         return
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset node's output and status."""
         if hasattr(self, "output"):
             delattr(self, "output")
@@ -78,7 +76,6 @@ class Operation(abc.ABC):
 
     def is_ready_to_forward(self) -> bool:
         """Check whether this operation is ready to forward."""
-        # - check input nodes' status
         status = [node.status == "finished" for node in self.input_nodes]
         if all(status):
             return True
@@ -88,7 +85,6 @@ class Operation(abc.ABC):
     @abc.abstractmethod
     def forward(self, *args, **kwargs) -> Any:
         """"""
-        # - set working directory and logger
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 

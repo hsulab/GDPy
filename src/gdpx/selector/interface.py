@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-import itertools
 import pathlib
-from typing import List, NoReturn, Union
+from typing import Union
 
 import omegaconf
-from ase import Atoms
 from ase.io import read, write
 
 from gdpx.nodes.builder import BuilderVariable, build
@@ -24,13 +23,17 @@ from .selector import BaseSelector, load_cache
 class SelectorVariable(Variable):
 
     def __init__(
-        self, selection: Union[dict, List[dict]], directory="./", *args, **kwargs
+        self,
+        selection: Union[dict, list[dict]],
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """Define a Variable that has a Selector."""
         # We can define a selector in two different ways:
         # The Dict must have a selection key
         # - a Dict that defines a single selector
-        # - a List of Dict that defines several selectors,
+        # - a list of Dict that defines several selectors,
         #   which will be converted into a composed one
         selection = copy.deepcopy(selection)
         if isinstance(selection, dict) or isinstance(
@@ -47,7 +50,9 @@ class SelectorVariable(Variable):
         selectors = []
         for params in selection:
             method = params.pop("method", None)
-            selector = registers.create("selector", method, convert_name=False, **params)
+            selector = registers.create(
+                "selector", method, convert_name=False, **params
+            )
             selectors.append(selector)
         num_selectors = len(selectors)
         if num_selectors > 1:
@@ -75,16 +80,11 @@ class select(Operation):
         **kwargs,
     ):
         """"""
-        super().__init__(input_nodes=[structures, selector], directory=directory)
+        super().__init__(
+            input_nodes=[structures, selector], directory=directory
+        )
 
         self.ignore_previous_selections = ignore_previous_selections
-
-        return
-
-    @Operation.directory.setter
-    def directory(self, directory_) -> NoReturn:
-        """"""
-        super(select, select).directory.__set__(self, directory_)
 
         return
 
@@ -103,7 +103,7 @@ class select(Operation):
         # We can define a selector in two different ways:
         # The Dict must have a selection key
         # - a Dict that defines a single selector
-        # - a List of Dict that defines several selectors,
+        # - a list of Dict that defines several selectors,
         #   which will be converted into a composed one
         if isinstance(selector, dict) or isinstance(
             selector, omegaconf.dictconfig.DictConfig
