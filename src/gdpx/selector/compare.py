@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import io
-import itertools
-import os
-import pathlib
 
-import matplotlib
+import io
+
 import matplotlib.pyplot as plt
 import numpy as np
 import PIL
-from ase.io import read, write
+from ase.io import write
 
 try:
-    USE_REPORTLAB=1
+    USE_REPORTLAB = 1
     from reportlab.lib.utils import ImageReader
-    from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate,
-                                Table)
+    from reportlab.platypus import (
+        Image,
+        PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Table,
+    )
 except:
-    USE_REPORTLAB=0
+    USE_REPORTLAB = 0
 
 from . import registers
 from .selector import BaseSelector
@@ -30,9 +32,12 @@ class CompareSelector(BaseSelector):
 
     default_parameters: dict = dict(comparator_name=None, comparator_params={})
 
-    def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         """"""
-        super().__init__(directory, axis, *args, **kwargs)
+        super().__init__(*args, **kwargs)
+
+        if self.group_by is not None:
+            raise Exception("Grouping is not supported in comparison.")
 
         self.comparator = registers.create(
             "comparator",
@@ -45,19 +50,15 @@ class CompareSelector(BaseSelector):
 
     def _mark_structures(self, data, *args, **kwargs) -> None:
         """"""
-        super()._mark_structures(data, *args, **kwargs)
-
-        # -
         structures = data.get_marked_structures()
-        nstructures = len(structures)
 
-        # - start from the first structure and compare structures by a given comparator
+        # Start from the first structure and compare structures by a given comparator
         if not hasattr(self.comparator, "prepare_data"):
             selected_indices, scores = [0], []
             for i, a1 in enumerate(structures[1:]):
-                # NOTE: assume structures are sorted by energy
-                #       close structures may have a high possibility to be similar
-                #       so we compare reversely
+                # Assume structures are sorted by energy,
+                # close structures may have a high possibility to be similar,
+                # so we compare reversely.
                 for j in selected_indices[::-1]:
                     self._print(f"compare: {i+1} and {j}")
                     a2 = structures[j]
@@ -69,10 +70,10 @@ class CompareSelector(BaseSelector):
         else:
             fingerprints = self.comparator.prepare_data(structures)
 
-            # - compare structural fingerprint
+            # Compare structural fingerprint
             selected_indices, unique_groups, scores = [], {}, []
             for i, fp in enumerate(fingerprints):
-                for j in selected_indices[::-1]: # j -> unique_group_index
+                for j in selected_indices[::-1]:  # j -> unique_group_index
                     # --- average ---
                     # # TODO: The ditribution maybe too wide?
                     # fp_avg = np.average(
@@ -129,8 +130,10 @@ class CompareSelector(BaseSelector):
                 self._print("Please install `reportlab` to report comparison.")
 
         curr_markers = data.markers
-        # NOTE: convert to np.array as there may have 2D markers
-        selected_markers = np.array([curr_markers[i] for i in selected_indices])
+        # Convert to np.array as there may have 2D markers
+        selected_markers = np.array(
+            [curr_markers[i] for i in selected_indices]
+        )
         data.markers = selected_markers
 
         return
