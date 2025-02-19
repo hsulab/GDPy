@@ -95,6 +95,13 @@ class BaseSession:
                     input_node.output for input_node in node.input_nodes
                 ]
                 node.output = node.forward(*node.inputs)
+                if node.status == "unfinished":
+                    state = SessionState.StepToContinue
+                    self._print(
+                        "\x1b[1;33;40m"
+                        + "  wait current node to finish..."
+                        + "\x1b[0m"
+                    )
             else:
                 # Check whether this node' not ready due to previous nodes are broken.
                 broken_states = []
