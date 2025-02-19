@@ -160,6 +160,7 @@ class transfer(Operation):
 
             acc_num_structures += curr_num_frames
 
+        dataset.directory = target_dirpaths[0]
         assert num_structures == acc_num_structures
 
         self.status = "finished"
