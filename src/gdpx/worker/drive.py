@@ -364,6 +364,8 @@ class DriverBasedWorker(AbstractWorker):
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
         queued_frames = [q["md5"] for q in queued_jobs]
 
+        is_resubmit = kwargs.get("resubmit", False)
+
         for ig, (global_indices, wdirs, rs) in enumerate(batches):
             # - set job name
             batch_name = f"group-{ig}"
@@ -378,9 +380,7 @@ class DriverBasedWorker(AbstractWorker):
                     )
                     continue
             else:  # Local Scheduler
-                is_resubmit = kwargs.get("resubmit", False)
                 if not is_resubmit:
-                    # NOTE:  Only re-run computation when resubmit is set
                     if (
                         batch_name in queued_names
                         and identifier in queued_frames
@@ -408,22 +408,6 @@ class DriverBasedWorker(AbstractWorker):
                     ...
             else:
                 ...
-
-            # - run batch
-            # NOTE: For command execution, if computation exits incorrectly,
-            #       it will not be recorded. The computation will resume next
-            #       time.
-            self._irun(
-                batch_name,
-                uid,
-                identifier,
-                frames,
-                global_indices,
-                wdirs,
-                rng_states=rs,
-                *args,
-                **kwargs,
-            )
 
             # - save this batch job to the database
             if identifier not in queued_frames:
@@ -457,6 +441,19 @@ class DriverBasedWorker(AbstractWorker):
                     )
                     with open(worker_input_fpath, "w") as fopen:
                         json.dump(worker_input_dict, fopen, indent=2)
+
+            # Run batch
+            self._irun(
+                batch_name,
+                uid,
+                identifier,
+                frames,
+                global_indices,
+                wdirs,
+                rng_states=rs,
+                *args,
+                **kwargs,
+            )
 
         return
 
