@@ -173,8 +173,9 @@ class RandomStructureImprovedModifier(StructureModifier):
     def _infer_chemical_types_in_composition_space(self) -> list[str]:
         """"""
         chemical_symbols = self._compspec.get_chemical_symbols()
-        for substrate in self.substrates:
-            chemical_symbols.extend(substrate.get_chemical_symbols())
+        if self.substrates is not None:
+            for substrate in self.substrates:
+                chemical_symbols.extend(substrate.get_chemical_symbols())
         chemical_symbols = sorted(list(set(chemical_symbols)))
 
         return chemical_symbols
