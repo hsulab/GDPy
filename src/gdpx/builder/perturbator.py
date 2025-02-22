@@ -8,7 +8,10 @@ from typing import List, Optional
 import numpy as np
 from ase import Atoms
 
-from gdpx.geometry.spatial import check_atomic_distances, get_bond_distance_dict
+from gdpx.geometry.spatial import (
+    check_atomic_distances,
+    get_bond_distance_dict,
+)
 from gdpx.utils.strconv import string_to_integers
 
 from .builder import StructureModifier
@@ -77,7 +80,11 @@ class PerturbatorBuilder(StructureModifier):
         return
 
     def run(
-        self, substrates: Optional[List[Atoms]] = None, size: int = 1, *args, **kwargs
+        self,
+        substrates: Optional[List[Atoms]] = None,
+        size: int = 1,
+        *args,
+        **kwargs,
     ) -> List[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
@@ -98,7 +105,7 @@ class PerturbatorBuilder(StructureModifier):
                 atoms = copy.deepcopy(substrate)
                 if self.eps is not None:
                     natoms = len(atoms)
-                    pos_drift = self.rng.random((natoms, 3))
+                    pos_drift = self.rng.random((natoms, 3)) * 2 - 1
                     if self.group is not None:
                         pos_drift_ = np.zeros((natoms, 3))
                         pos_drift_[self.group] = pos_drift[self.group]  # type: ignore
@@ -112,12 +119,16 @@ class PerturbatorBuilder(StructureModifier):
                     new_cell = atoms.get_cell(complete=True) * (
                         1 + self.ceps * lat_drift
                     )
-                    atoms.set_cell(new_cell, scale_atoms=True, apply_constraint=False)
+                    atoms.set_cell(
+                        new_cell, scale_atoms=True, apply_constraint=False
+                    )
                 # TODO: If group is used, determine atomic_indices and excluded_pairs?
                 if check_atomic_distances(
                     atoms,
                     covalent_ratio=self.covalent_ratio,
-                    bond_distance_dict=get_bond_distance_dict(set(atoms.get_atomic_numbers())),
+                    bond_distance_dict=get_bond_distance_dict(
+                        set(atoms.get_atomic_numbers())
+                    ),
                 ):
                     frames.append(atoms)
             else:
