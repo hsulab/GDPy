@@ -3,7 +3,7 @@
 
 
 import copy
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -81,11 +81,11 @@ class PerturbatorBuilder(StructureModifier):
 
     def run(
         self,
-        substrates: Optional[List[Atoms]] = None,
+        substrates: Optional[list[Atoms]] = None,
         size: int = 1,
         *args,
         **kwargs,
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
 
