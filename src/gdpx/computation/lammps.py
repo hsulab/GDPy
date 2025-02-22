@@ -767,7 +767,7 @@ class LmpDriver(AbstractDriver):
         """"""
         converged = False
         log_fpath = self.directory / ASELMPCONFIG.log_filename
-        if log_fpath:
+        if log_fpath.exists() and log_fpath.stat().st_size != 0:  
             with open(log_fpath, "r") as fopen:
                 lines = fopen.readlines()
             end_line = lines[-1].strip()
