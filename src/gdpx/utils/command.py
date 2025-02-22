@@ -6,15 +6,15 @@ import json
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Union, Mapping
 
 import yaml
 
 
-def dict2str(d: dict, indent: int = 2):
+def dictionary_to_string(d: Mapping[str, Any], indent: int = 2):
     """Convert a nested dict to str."""
 
-    def _dict2str(d_: dict, indent_: int):
+    def _dict2str(d_: Mapping[str, Any], indent_: int):
         """Recursive function."""
         content = ""
         for k, v in d_.items():

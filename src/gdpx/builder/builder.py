@@ -12,7 +12,7 @@ from ase.io import read
 from gdpx.core.component import BaseComponent
 
 from ..data.array import AtomsNDArray
-from ..utils.command import dict2str
+from ..utils.command import dictionary_to_string
 
 
 class StructureBuilder(BaseComponent):
@@ -39,7 +39,7 @@ class StructureBuilder(BaseComponent):
             self._print(f"-->{self.__class__.__name__}")
             self._print(f"RANDOM_SEED : {self.random_seed}")
             rng_state = self.rng.bit_generator.state
-            for l in dict2str(rng_state).split("\n"):  # type: ignore
+            for l in dictionary_to_string(rng_state).split("\n"):  # type: ignore
                 self._print(l)
         else:
             ...

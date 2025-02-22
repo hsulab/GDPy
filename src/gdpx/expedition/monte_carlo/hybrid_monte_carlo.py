@@ -6,7 +6,7 @@ import functools
 
 from ase.io import write
 
-from .. import DriverBasedWorker, SingleWorker, dict2str
+from .. import DriverBasedWorker, SingleWorker, dictionary_to_string
 from ..expedition import parse_worker
 from .monte_carlo import MCStepState, MonteCarlo
 from .operators import select_operator
@@ -181,7 +181,7 @@ class HybridMonteCarlo(MonteCarlo):
         """
         self._print(f"===== MC Step {step} {name.upper()} =====")
         self._print(f"RANDOM_SEED:  {self.random_seed}")
-        for l in dict2str(self.rng.bit_generator.state).split("\n"):
+        for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
             self._print(l)
 
         worker.wdir_name = f"{self.WDIR_PREFIX}{step}"

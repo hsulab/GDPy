@@ -10,7 +10,7 @@ import numpy as np
 
 from . import config
 from .core.register import import_all_modules_for_register, registers
-from .utils.command import dict2str, parse_input_file
+from .utils.command import dictionary_to_string, parse_input_file
 
 
 def main():
@@ -233,7 +233,7 @@ def main():
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
 
     rng_state = config.GRNG.bit_generator.state
-    for l in dict2str(rng_state).split("\n"):
+    for l in dictionary_to_string(rng_state).split("\n"):
         config._print(l)
 
     # - potential
@@ -298,10 +298,10 @@ def main():
     else:
         ...
 
-    # - report the end random state
+    # Report the end random state
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
     rng_state = config.GRNG.bit_generator.state
-    for l in dict2str(rng_state).split("\n"):
+    for l in dictionary_to_string(rng_state).split("\n"):
         config._print(l)
 
     return

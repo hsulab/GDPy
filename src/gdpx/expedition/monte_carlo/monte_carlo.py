@@ -15,7 +15,7 @@ from ase.io import read, write
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.strconv import integers_to_string
 
-from .. import DriverBasedWorker, SingleWorker, dict2str
+from .. import DriverBasedWorker, SingleWorker, dictionary_to_string
 from ..expedition import BaseExpedition
 from .operators import (
     load_operator,
@@ -348,7 +348,7 @@ class MonteCarlo(BaseExpedition):
         """Run a single MC step."""
         self._print(f"===== MC Step {istep} =====")
         self._print(f"RANDOM_SEED:  {self.random_seed}")
-        for l in dict2str(self.rng.bit_generator.state).split("\n"):
+        for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
             self._print(l)
 
         step_wdir = self.directory / f"{self.WDIR_PREFIX}{istep}"
