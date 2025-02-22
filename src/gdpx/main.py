@@ -215,27 +215,23 @@ def main():
         fh.setFormatter(config.formatter)
         config.logger.addHandler(fh)
 
-    # -- set LOGO
+    # Display the package logo
     for line in config.LOGO_LINES:
         config._print(line)
 
-    # -- set njobs
+    # Set the number of processors
     config.NJOBS = args.n_jobs
     if config.NJOBS != 1:
         config._print(f"Use {config.NJOBS} processors.")
 
-    # -- set rng
-    # TODO: load random state from a file???
+    # Set the global random state
     random_seed = args.random_seed
-    if random_seed is None:
-        # NOTE: np.random should only be called here once...
-        random_seed = np.random.randint(0, 1e8)
+    if random_seed is not None:
+        config.GRNG = np.random.default_rng(random_seed)
     else:
-        ...
-
-    config.GRNG = np.random.Generator(np.random.PCG64(random_seed))
-
+        random_seed = config._random_seed
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
+
     rng_state = config.GRNG.bit_generator.state
     for l in dict2str(rng_state).split("\n"):
         config._print(l)

@@ -5,6 +5,8 @@
 import logging
 from typing import Callable
 
+import numpy as np
+
 logger = logging.getLogger("GDP")
 logger.setLevel(logging.INFO)
 
@@ -32,7 +34,8 @@ LOGO_LINES = [
 NJOBS: int = 1
 
 #: Global random number generator
-GRNG = None
+_random_seed = np.random.randint(0, 1_000_000_000_000)
+GRNG = np.random.default_rng(_random_seed)
 
 #: Model deviations by the committee model.
 VALID_DEVI_FRAME_KEYS: list[str] = [
