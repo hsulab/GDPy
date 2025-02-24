@@ -145,7 +145,7 @@ class MDController(Controller):
 
 @dataclasses.dataclass
 class Verlet(MDController):
-    
+
     name: str = "verlet"
 
     def __post_init__(self):
@@ -319,58 +319,40 @@ class LmpDriverSetting(DriverSetting):
 
         return
 
-    def get_minimisation_inputs(self, random_seed, group: str = "mobile") -> list[str]:
-        """"""
+    def get_simulation_inputs(self, random_seed: int, group: str = "mobile") -> list[str]:
         """Convert parameters into lammps input lines."""
-        MIN_FIX_ID: str = "controller"
-        _init_min_params = dict(
-            fix_id=MIN_FIX_ID,
-            group=group,
-        )
-        if self.controller:
-            min_cls_name = self.controller["name"] + "_min"
-            if min_cls_name in controllers:
-                min_cls = controllers[min_cls_name]
-            else:
-                raise RuntimeError(f"Unknown minimiser {min_cls_name}.")
+        _init_params = {}
+
+        if self.task == "min":
+            suffix = self.task
+        elif self.task == "md":
+            suffix = self.ensemble
+            _init_params.update(
+                timestep=self.timestep,
+                temperature=self.temp,
+                temperature_end=self.tend if self.tend else self.temp,
+                pressure=self.press,
+                pressure_end=self.pend if self.pend else self.press,
+                fix_com=self.fix_com,
+            )
         else:
-            min_cls = FireMinimizer
-
-        minimiser = min_cls(units=self.units, **self.controller)
-
-        # The input inline should be a f-string with placeholders that accept
-        # system-specific parameters.
-        min_line = minimiser.conv_params["input_line"].format(**_init_min_params)
-        lines = [min_line]
-
-        return lines
-
-    def get_molecular_dynamics_inputs(self, random_seed: int, group: str = "mobile") -> list[str]:
-        """Convert parameters into lammps input lines."""
-        _init_md_params = dict(
-            timestep=self.timestep,
-            temperature=self.temp,
-            temperature_end=self.tend if self.tend else self.temp,
-            pressure=self.press,
-            pressure_end=self.pend if self.pend else self.press,
-            fix_com=self.fix_com,
-        )
+            suffix = self.task
 
         if self.controller:
-            cont_cls_name = self.controller["name"] + "_" + self.ensemble
+            cont_cls_name = self.controller["name"] + "_" + suffix
             if cont_cls_name in controllers:
                 cont_cls = controllers[cont_cls_name]
             else:
                 raise RuntimeError(f"Unknown controller {cont_cls_name}.")
         else:
-            cont_cls = default_controllers[self.ensemble]
+            cont_cls = default_controllers[suffix]
 
-        _init_md_params.update(**self.controller)
-        controller = cont_cls(units=self.units, **_init_md_params)
+        _init_params.update(**self.controller)
+        controller = cont_cls(units=self.units, **_init_params)
 
-        MD_FIX_ID: str = "controller"
+        # The input inline should be a f-string with placeholders that accept system-specific parameters.
         _init_placeholders = dict(
-            fix_id=MD_FIX_ID,
+            fix_id="controller",
             group=group,
             seed=random_seed,  # langevin needs this
         )
@@ -476,12 +458,9 @@ class LmpDriver(AbstractDriver):
     def _create_dynamics(self, atoms: Atoms, *args, **kwargs):
         """Convert parameters into lammps input lines."""
         lines = []
-        if self.setting.task == "min":
-            dynamics = self.setting.get_minimisation_inputs(random_seed=self.random_seed)
-            lines.extend(dynamics)
-        else:  # assume md
-            # NOTE: Velocities by ASE may lose precision as
-            #       they are first written to data file and read by lammps then
+        if self.setting.task == "md":
+            # Velocities by ASE may lose precision as
+            # they are first written to data file and read by lammps then
             if self.setting.use_lmpvel:
                 velocity_seed = self.setting.velocity_seed
                 if velocity_seed is None:
@@ -507,8 +486,11 @@ class LmpDriver(AbstractDriver):
                     self.setting.velocity_seed,
                     self.setting.ignore_atoms_velocities,
                 )
-            dynamics = self.setting.get_molecular_dynamics_inputs(random_seed=self.random_seed)
-            lines.extend(dynamics)
+        else:
+            ...
+
+        dynamics = self.setting.get_simulation_inputs(random_seed=self.random_seed, group="mobile")
+        lines.extend(dynamics)
 
         return lines
 
