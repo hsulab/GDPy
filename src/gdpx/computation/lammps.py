@@ -741,6 +741,7 @@ class Lammps(FileIOCalculator):
         read_restart=None,
         units="metal",
         atom_style="atomic",
+        atom_modify=None,
         processors=None,
         # boundary = "p p p",
         newton=None,
@@ -895,6 +896,8 @@ class Lammps(FileIOCalculator):
         content = f"restart         {self.ckpt_period}  restart.*.data\n\n"
         content += "units           %s\n" % self.units
         content += "atom_style      %s\n" % self.atom_style
+        if self.atom_modify is not None:
+            content += f"atom_modify {self.atom_modify}\n"
 
         # Parallel settings
         if self.processors is not None:
@@ -935,6 +938,16 @@ class Lammps(FileIOCalculator):
             content += "\n"
 
         # Pair styles
+        type_list_str = " ".join(self.type_list)
+        pair_dicts = dict(
+            pair_style=dict(
+                type_list=type_list_str,
+                out_freq=self.dump_period,  # deepmd
+            ),
+            pair_coeff=dict(
+                type_list=type_list_str,
+            ),
+        )
         if self.is_classic:
             # assert (
             #     self.atom_style == "charge"
@@ -949,7 +962,6 @@ class Lammps(FileIOCalculator):
         else:
             # Some potentials need system-specific information such as type_list,
             # so we treat them separately.
-            type_list_str = " ".join(self.type_list)
             potential = self.pair_style.strip().split()[0]
             if potential == "reax/c":
                 assert self.atom_style == "charge", "reax/c should have charge atom_style"
@@ -982,8 +994,10 @@ class Lammps(FileIOCalculator):
                 content += f"pair_style  {self.pair_style}\n"
                 content += f"pair_coeff  {self.pair_coeff} {type_list_str}\n"
             else:
-                content += f"pair_style  {self.pair_style}\n"
-                content += f"pair_coeff  {self.pair_coeff}\n"
+                # PotentialManager should give f-strings for pair_style and pair_coeff that
+                # system-specific information can be applied below.
+                content += "pair_style  " + self.pair_style.format(**pair_dicts["pair_style"]) + "\n"
+                content += "pair_coeff  " + self.pair_coeff.format(**pair_dicts["pair_coeff"]) + "\n"
 
         if self.pair_modify is not None:
             content += f"pair_modify {self.pair_modify}\n"
@@ -997,7 +1011,7 @@ class Lammps(FileIOCalculator):
         # Neighbour list settings
         content += f"neighbor        {self.neighbor}\n"
         if self.neigh_modify:
-            content += f"neigh_modify        {self.neigh_modify}\n"
+            content += f"neigh_modify    {self.neigh_modify}\n"
         content += "\n"
 
         # Whether fix atoms
