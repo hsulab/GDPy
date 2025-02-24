@@ -98,7 +98,45 @@ class FireMinimizer(Controller):
 
 
 @dataclasses.dataclass
-class LangevinThermostat(Controller):
+class MDController(Controller):
+
+    #: Controller name.
+    name: str = "md"
+
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Temperature at end in Kelvin.
+    temperature_end: Optional[float] = None
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Pressure in bar.
+    pressure_end: Optional[float] = None
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+
+@dataclasses.dataclass
+class Verlet(MDController):
+    
+    name: str = "verlet"
+
+    def __post_init__(self):
+        """"""
+        input_line = "fix {fix_id:>24s} {group} nve"
+        self.conv_params = dict(input_line=input_line)
+
+        return
+
+
+@dataclasses.dataclass
+class LangevinThermostat(MDController):
 
     name: str = "langevin"
 
@@ -106,14 +144,22 @@ class LangevinThermostat(Controller):
         """"""
         friction = self.params.get("friction", 0.01)  # fs^-1
         assert friction is not None
+        # Lammps uses the reciprocal of the friction coefficient
+        # with the time unit.
+        damp = unitconvert.convert(1.0 / friction, "time", "real", self.units)
 
         friction_seed = self.params.get("friction_seed", None)
 
-        # Lammps uses the reciprocal of the friction coefficient
-        # with the time unit.
-        self.conv_params = dict(damp=unitconvert.convert(1.0 / friction, "time", "real", self.units))
+        input_line = "fix {fix_id:>24s}0 {group} nve\n"
+        input_line += "fix {fix_id:>24s}1 {group} langevin {Tstart} {Tstop} "
+        input_line += f"{damp} "
+
         if friction_seed is not None:
-            self.conv_params.update(seed=friction_seed)
+            input_line += f"{friction_seed}"
+        else:
+            input_line += "{seed}"
+
+        self.conv_params = dict(input_line=input_line)
 
         return
 
@@ -125,10 +171,14 @@ class NoseHooverChainThermostat(Controller):
 
     def __post_init__(self):
         """"""
-        Tdamp = self.params.get("Tdamp", 100.0)
+        Tdamp = self.params.get("Tdamp", 100.0)  # fs
         assert Tdamp is not None
+        Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
 
-        self.conv_params = dict(Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units))
+        input_line = "fix {fix_id:>24s} {group} nvt temp {Tstart} {Tstop} "
+        input_line += f"{Tdamp}"
+
+        self.conv_params = dict(input_line=input_line)
 
         return
 
@@ -140,20 +190,25 @@ class ParrinelloRahmanBarostat(Controller):
 
     def __post_init__(self):
         """"""
-        Tdamp = self.params.get("Tdamp", 100.0)
+        Tdamp = self.params.get("Tdamp", 100.0)  # fs
         assert Tdamp is not None
+        Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
 
-        Pdamp = self.params.get("Pdamp", 100.0)
+        Pdamp = self.params.get("Pdamp", 1000.0)  # fs
         assert Pdamp is not None
+        Pdamp = unitconvert.convert(Pdamp, "time", "real", self.units)
 
         isotropic = self.params.get("isotropic", True)
         assert isotropic is not None
+        isotropic = "iso" if isotropic else "aniso"
 
-        self.conv_params = dict(
-            Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units),
-            Pdamp=unitconvert.convert(Pdamp, "time", "real", self.units),
-            isotropic="iso" if isotropic else "aniso",
-        )
+        input_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} "
+        input_line += f"{Tdamp} "
+        input_line += f"{isotropic} "
+        input_line += "{Pstart} {Pstop} "
+        input_line += f"{Pdamp}"
+
+        self.conv_params = dict(input_line=input_line)
 
         return
 
@@ -162,11 +217,20 @@ controllers = dict(
     # min
     cg_min=CGMinimiser,
     fire_min=FireMinimizer,
+    # nve
+    verlet_nve=Verlet,
     # nvt
     langevin_nvt=LangevinThermostat,
     nose_hoover_chain_nvt=NoseHooverChainThermostat,
     # npt
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
+)
+
+default_controllers = dict(
+    min=FireMinimizer,
+    nve=Verlet,
+    nvt=LangevinThermostat,
+    npt=ParrinelloRahmanBarostat,
 )
 
 
@@ -254,66 +318,34 @@ class LmpDriverSetting(DriverSetting):
 
         return lines
 
-    def get_molecular_dynamics_inputs(self, random_seed, group: str = "mobile") -> list[str]:
+    def get_molecular_dynamics_inputs(self, random_seed: int, group: str = "mobile") -> list[str]:
         """Convert parameters into lammps input lines."""
         MD_FIX_ID: str = "controller"
         _init_md_params = dict(
             fix_id=MD_FIX_ID,
             group=group,
-            timestep=unitconvert.convert(self.timestep, "time", "real", self.units),
+            timestep=unitconvert.convert(self.timestep, "time", "real", self.units),  # from fs to units
+            Tstart=self.temp,
+            Tstop=self.tend if self.tend else self.temp,
+            Pstart=self.press,
+            Pstop=self.pend if self.pend else self.press,
+            seed=random_seed,  # langevin needs this
         )
 
-        if self.ensemble == "nve":
-            lines = ["fix {fix_id:>24s} {group} nve".format(**_init_md_params)]
-        elif self.ensemble == "nvt":
-            _init_md_params.update(
-                Tstart=self.temp,
-                Tstop=self.tend if self.tend else self.temp,
-            )
-            if self.controller:
-                thermo_cls_name = self.controller["name"] + "_" + self.ensemble
-                thermo_cls = controllers[thermo_cls_name]
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + self.ensemble
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
             else:
-                thermo_cls = LangevinThermostat
-            thermostat = thermo_cls(units=self.units, **self.controller)
-            if thermostat.name == "langevin":
-                _init_md_params.update(
-                    seed=random_seed,
-                )
-                _init_md_params.update(**thermostat.conv_params)
-                thermo_line = "fix {fix_id:>24s}0 {group} nve\n".format(**_init_md_params)
-                thermo_line += "fix {fix_id:>24s}1 {group} langevin {Tstart} {Tstop} {damp} {seed}".format(
-                    **_init_md_params
-                )
-            elif thermostat.name == "nose_hoover_chain":
-                _init_md_params.update(**thermostat.conv_params)
-                thermo_line = "fix {fix_id:>24s} {group} nvt temp {Tstart} {Tstop} {Tdamp}".format(**_init_md_params)
-            else:
-                raise RuntimeError(f"Unknown thermostat {thermostat}.")
-            lines = [thermo_line]
-        elif self.ensemble == "npt":
-            _init_md_params.update(
-                Tstart=self.temp,
-                Tstop=self.tend if self.tend else self.temp,
-                Pstart=self.press,
-                Pstop=self.pend if self.pend else self.press,
-            )
-            if self.controller:
-                baro_cls_name = self.controller["name"] + "_" + self.ensemble
-                baro_cls = controllers[baro_cls_name]
-            else:
-                baro_cls = ParrinelloRahmanBarostat
-            barostat = baro_cls(units=self.units, **self.controller)
-            if barostat.name == "parrinello_rahman":
-                _init_md_params.update(**barostat.conv_params)
-                baro_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} {Tdamp} {isotropic} {Pstart} {Pstop} {Pdamp}".format(
-                    **_init_md_params
-                )
-            else:
-                raise RuntimeError(f"Unknown barostat {barostat}.")
-            lines = [baro_line]
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
         else:
-            raise RuntimeError(f"Unknown ensemble {self.ensemble}.")
+            cont_cls = default_controllers[self.ensemble]
+
+        controller = cont_cls(units=self.units, **self.controller)
+        print(controller)
+
+        input_line = controller.conv_params["input_line"].format(**_init_md_params)
+        lines = [input_line]
 
         if self.fix_com:
             com_line = "fix  fix_com {group} recenter INIT INIT INIT".format(**_init_md_params)
