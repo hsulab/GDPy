@@ -8,7 +8,7 @@ import json
 import os
 import pathlib
 import subprocess
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -36,7 +36,7 @@ class DeepmdSystem:
     frames: list[Atoms]
 
     #: Number of train_and_split.
-    train_and_split: Tuple[int, int]
+    train_and_split: tuple[int, int]
 
     #: Batchsize
     batchsize: int = 1
@@ -46,14 +46,10 @@ class DeepmdSystem:
     ):
         """"""
         self.nframes = len(self.frames)
-        assert self.nframes == sum(
-            self.train_and_split
-        ), f"{self.name}: {self.nframes} != sum({self.train_and_split})"
+        assert self.nframes == sum(self.train_and_split), f"{self.name}: {self.nframes} != sum({self.train_and_split})"
 
         composition_list = [a.get_chemical_formula() for a in self.frames]
-        assert (
-            len(set(composition_list)) == 1
-        ), f"{self.name}: {composition_list[0]}?"
+        assert len(set(composition_list)) == 1, f"{self.name}: {composition_list[0]}?"
         self.composition = composition_list[0]
 
         return
@@ -113,9 +109,7 @@ class DeepmdDataloader:
         batchsizes = [1] * len(trainset_dirs)
         cum_batchsizes = sum(batchsizes)
 
-        return DeepmdDataloader(
-            batchsize, batchsizes, cum_batchsizes, trainset_dirs, validset_dirs
-        )
+        return DeepmdDataloader(batchsize, batchsizes, cum_batchsizes, trainset_dirs, validset_dirs)
 
     @property
     def systems(
@@ -139,9 +133,7 @@ class DeepmdDataloader:
             for p2 in self.valid_sys_dirs:
                 p2 = pathlib.Path(p2)
                 if p2.name == p.name:
-                    curr_valid_frames = (
-                        DeepmdDataloader.convert_system_to_frames(p2)
-                    )
+                    curr_valid_frames = DeepmdDataloader.convert_system_to_frames(p2)
                     num_curr_valid_frames = len(curr_valid_frames)
                     curr_frames.extend(curr_valid_frames)
                     break
@@ -171,9 +163,7 @@ class DeepmdDataloader:
         return
 
     @staticmethod
-    def set2frames(
-        set_dir: pathlib.Path, chemical_symbols: list[str], pbc: list[int]
-    ) -> list[Atoms]:
+    def set2frames(set_dir: pathlib.Path, chemical_symbols: list[str], pbc: list[int]) -> list[Atoms]:
         """Convert set into frames."""
         boxes = np.load(set_dir / "box.npy")
         nframes = boxes.shape[0]
@@ -222,9 +212,7 @@ class DeepmdDataloader:
         # train data
         frames = []
         for set_dir in set_dirs[:]:
-            frames.extend(
-                DeepmdDataloader.set2frames(set_dir, chemical_symbols, pbc)
-            )
+            frames.extend(DeepmdDataloader.set2frames(set_dir, chemical_symbols, pbc))
 
         return frames
 
@@ -296,9 +284,7 @@ class DeepmdTrainer(BasePotentialTrainer):
         train_command = self.command
 
         # - add options
-        command = "{} train {}.json {} ".format(
-            train_command, self.name, self.train_options
-        )
+        command = "{} train {}.json {} ".format(train_command, self.name, self.train_options)
         if init_model is not None:
             init_model_path = pathlib.Path(init_model).resolve()
             if init_model_path.name.endswith(".pb"):
@@ -306,9 +292,7 @@ class DeepmdTrainer(BasePotentialTrainer):
             elif init_model_path.name.endswith("model.ckpt"):
                 command += " --init-model {}".format(str(init_model_path))
             else:
-                raise RuntimeError(
-                    f"Unknown init_model {str(init_model_path)}."
-                )
+                raise RuntimeError(f"Unknown init_model {str(init_model_path)}.")
         command += " 2>&1 > {}.out".format(self.name)
 
         return command
@@ -318,9 +302,7 @@ class DeepmdTrainer(BasePotentialTrainer):
         freeze_command = self.command
 
         # - add options
-        command = "{} freeze -o {} 2>&1 >> {}.out".format(
-            freeze_command, self.frozen_name, self.name
-        )
+        command = "{} freeze -o {} 2>&1 >> {}.out".format(freeze_command, self.frozen_name, self.name)
 
         return command
 
@@ -361,9 +343,7 @@ class DeepmdTrainer(BasePotentialTrainer):
         if not self.directory.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
         if not isinstance(dataset, DeepmdDataloader):
-            set_names, train_frames, test_frames, adjusted_batchsizes = (
-                dataset.split_train_and_test()
-            )
+            set_names, train_frames, test_frames, adjusted_batchsizes = dataset.split_train_and_test()
             train_dir = self.directory
 
             # - update config
@@ -413,49 +393,30 @@ class DeepmdTrainer(BasePotentialTrainer):
         #       training - training_data, validation_data
         train_config = copy.deepcopy(self.config)
 
-        train_config["model"]["descriptor"]["seed"] = self.rng.integers(
-            0, 10000, dtype=int
-        )
-        train_config["model"]["fitting_net"]["seed"] = self.rng.integers(
-            0, 10000, dtype=int
-        )
+        train_config["model"]["descriptor"]["seed"] = self.rng.integers(0, 10000, dtype=int)
+        train_config["model"]["fitting_net"]["seed"] = self.rng.integers(0, 10000, dtype=int)
 
-        train_config["training"]["training_data"]["systems"] = [
-            x for x in dataset.train_sys_dirs
-        ]
-        train_config["training"]["training_data"][
-            "batch_size"
-        ] = dataset.batchsizes
+        train_config["training"]["training_data"]["systems"] = [x for x in dataset.train_sys_dirs]
+        train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
 
         # verify validation_data
         validation_data, validation_batchsizes = [], []
-        for v_system, v_batchsize in zip(
-            dataset.valid_sys_dirs, dataset.batchsizes
-        ):
+        for v_system, v_batchsize in zip(dataset.valid_sys_dirs, dataset.batchsizes):
             if v_system != "None":  # None will be saved to a string before
                 validation_data.append(v_system)
                 validation_batchsizes.append(v_batchsize)
         if validation_data:
-            train_config["training"]["validation_data"][
-                "systems"
-            ] = validation_data
-            train_config["training"]["validation_data"][
-                "batch_size"
-            ] = validation_batchsizes
+            train_config["training"]["validation_data"]["systems"] = validation_data
+            train_config["training"]["validation_data"]["batch_size"] = validation_batchsizes
         else:
             if "validation_data" in train_config["training"]:
                 train_config["training"].pop("validation_data", None)
 
-        train_config["training"]["seed"] = self.rng.integers(
-            0, 10000, dtype=int
-        )
+        train_config["training"]["seed"] = self.rng.integers(0, 10000, dtype=int)
 
         # Determine `numb_steps`
         min_freq_unit = 100.0
-        save_freq = int(
-            np.ceil(dataset.cum_batchsizes * self.print_epochs / min_freq_unit)
-            * min_freq_unit
-        )
+        save_freq = int(np.ceil(dataset.cum_batchsizes * self.print_epochs / min_freq_unit) * min_freq_unit)
         train_config["training"]["save_freq"] = save_freq
 
         # NOTE: Currently, we check whether the training is fininished by steps in lcurve.out.
@@ -464,9 +425,7 @@ class DeepmdTrainer(BasePotentialTrainer):
         train_config["training"]["disp_freq"] = save_freq
 
         numb_steps = dataset.cum_batchsizes * self.train_epochs
-        num_checkpoints = int(
-            np.ceil(dataset.cum_batchsizes * self.train_epochs / save_freq)
-        )
+        num_checkpoints = int(np.ceil(dataset.cum_batchsizes * self.train_epochs / save_freq))
         numb_steps = num_checkpoints * save_freq
 
         # Check if the training steps are too small, which happens in the early stage of
@@ -476,13 +435,8 @@ class DeepmdTrainer(BasePotentialTrainer):
         # may have few tens of structures.
         train_config["training"]["numb_steps"] = numb_steps
         if self.train_batches is not None and numb_steps < self.train_batches:
-            num_chekpoints = int(
-                np.ceil(self.train_epochs / self.print_epochs)
-            )
-            new_save_freq = int(
-                np.ceil(self.train_batches / num_chekpoints / min_freq_unit)
-                * min_freq_unit
-            )
+            num_chekpoints = int(np.ceil(self.train_epochs / self.print_epochs))
+            new_save_freq = int(np.ceil(self.train_batches / num_chekpoints / min_freq_unit) * min_freq_unit)
             new_numb_steps = new_save_freq * num_chekpoints
             train_config["training"]["save_freq"] = new_save_freq
             train_config["training"]["disp_freq"] = new_save_freq
@@ -504,9 +458,7 @@ class DeepmdTrainer(BasePotentialTrainer):
         if frozen_model.exists() and not compressed_model.exists():
             command = self._resolve_compress_command()
             try:
-                proc = subprocess.Popen(
-                    command, shell=True, cwd=self.directory
-                )
+                proc = subprocess.Popen(command, shell=True, cwd=self.directory)
             except OSError as err:
                 msg = "Failed to execute `{}`".format(command)
                 # raise RuntimeError(msg) from err
@@ -518,19 +470,14 @@ class DeepmdTrainer(BasePotentialTrainer):
             errorcode = proc.wait()
             if errorcode:
                 path = os.path.abspath(self.directory)
-                msg = (
-                    'Trainer "{}" failed with command "{}" failed in '
-                    "{} with error code {}".format(
-                        self.name, command, path, errorcode
-                    )
+                msg = 'Trainer "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+                    self.name, command, path, errorcode
                 )
                 # NOTE: sometimes dp cannot compress the model
                 #       this happens when the descriptor trainable is set False?
                 # raise RuntimeError(msg)
                 # self._print(msg)
-                compressed_model.symlink_to(
-                    frozen_model.relative_to(compressed_model.parent)
-                )
+                compressed_model.symlink_to(frozen_model.relative_to(compressed_model.parent))
         else:
             ...
 
@@ -640,9 +587,7 @@ class DeepmdManager(BasePotentialManager):
 
                 remove_extra_stream_handlers()
             except:
-                raise ModuleNotFoundError(
-                    "Please install deepmd-kit to use the ase interface."
-                )
+                raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
             shared_params = dict(type_dict=type_map)
             if head is not None:
                 shared_params["head"] = head
@@ -681,9 +626,7 @@ class DeepmdManager(BasePotentialManager):
                 pair_coeff += " {type_list}"
 
                 pair_style_name = pair_style.split()[0]
-                assert (
-                    pair_style_name == "deepmd"
-                ), "Incorrect pair_style for lammps deepmd..."
+                assert pair_style_name == "deepmd", "Incorrect pair_style for lammps deepmd..."
 
                 calc = Lammps(
                     command=command,
@@ -719,13 +662,9 @@ class DeepmdManager(BasePotentialManager):
             return
 
         if not hasattr(self, "calc"):
-            raise RuntimeError(
-                f"{self.name} cannot switch backend as it does not have a calculator attached."
-            )
+            raise RuntimeError(f"{self.name} cannot switch backend as it does not have a calculator attached.")
         if backend not in self.implemented_backends:
-            raise RuntimeError(
-                f"{self.name} cannot switch backend from {self.calc_backend} to {backend}."
-            )
+            raise RuntimeError(f"{self.name} cannot switch backend from {self.calc_backend} to {backend}.")
 
         prev_backend = self.calc_backend
         if prev_backend == "ase" and backend == "lammps":
@@ -733,9 +672,7 @@ class DeepmdManager(BasePotentialManager):
             calc_params["backend"] = "lammps"
             command = calc_params.get("command", None)
             if command is None:
-                raise RuntimeError(
-                    f"{self.name} cannot switch backend from ase to lammps as no command is provided."
-                )
+                raise RuntimeError(f"{self.name} cannot switch backend from ase to lammps as no command is provided.")
             else:
                 self.calc_params["backend"] = "lammps"
             self.register_calculator(calc_params)
@@ -755,9 +692,7 @@ class DeepmdManager(BasePotentialManager):
         #       by committee but the user disables it. We need change the calc to
         #       the correct one as the loaded one is just a single calculator.
         if not hasattr(self, "calc"):
-            raise RuntimeError(
-                "Fail to switch uncertainty status as it does not have a calc."
-            )
+            raise RuntimeError("Fail to switch uncertainty status as it does not have a calc.")
         # print(f"{self.calc}")
 
         # NOTE: make sure manager.as_dict() can have correct param
