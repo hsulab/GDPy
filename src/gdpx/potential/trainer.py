@@ -83,16 +83,16 @@ class BasePotentialTrainer(BaseComponent):
         return self._type_list
 
     @abc.abstractmethod
-    def _resolve_train_command(self, *args, **kwargs):
+    def _resolve_train_command(self, *args, **kwargs) -> str:
         """"""
 
-        return
+        ...
 
     @abc.abstractmethod
-    def _resolve_freeze_command(self, *args, **kwargs):
+    def _resolve_freeze_command(self, *args, **kwargs) -> str:
         """"""
 
-        return
+        ...
 
     @property
     @abc.abstractmethod
