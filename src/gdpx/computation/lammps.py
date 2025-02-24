@@ -84,10 +84,11 @@ class FireMinimizer(Controller):
 
     def __post_init__(self):
         """"""
-        min_modify = self.params.get("min_modify", "integrator verlet tmax 4")
+        integrator = self.params.get("integrator", "verlet")
+        tmax = self.params.get("tmax", 4)
 
         input_line = "min_style  fire\n"
-        input_line += f"min_modify {min_modify}"
+        input_line += f"min_modify integrator {integrator} tmax {tmax}"
 
         self.conv_params = dict(
             input_line=input_line,
@@ -248,8 +249,6 @@ class LmpDriverSetting(DriverSetting):
 
         # The input inline should be a f-string with placeholders that accept
         # system-specific parameters.
-        print(minimiser.conv_params)
-        print(_init_min_params)
         min_line = minimiser.conv_params["input_line"].format(**_init_min_params)
         lines = [min_line]
 
