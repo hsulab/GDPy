@@ -7,13 +7,12 @@ import os
 import pathlib
 
 import yaml
-from ase.calculators.calculator import Calculator
 from ase.io import read, write
 
 from .calculators.dummy import DummyCalculator
-from .calculators.mixer import CommitteeCalculator
 from .manager import BasePotentialManager
 from .trainer import BasePotentialTrainer
+from .utils import build_a_committee_calculator, canonicalise_input_models
 
 
 class NequipTrainer(BasePotentialTrainer):
@@ -92,7 +91,7 @@ class NequipTrainer(BasePotentialTrainer):
         self._print("--- auto data reader ---")
 
         frames = []
-        for i, curr_system in enumerate(data_dirs):
+        for _, curr_system in enumerate(data_dirs):
             curr_system = pathlib.Path(curr_system)
             self._print(f"System {curr_system.stem}\n")
             curr_frames = []
@@ -171,60 +170,49 @@ class NequipManager(BasePotentialManager):
         ("lammps", "lammps"),
     )
 
-    def _create_calculator(self, calc_params: dict) -> Calculator:
-        """Create an ase calculator.
+    def register_calculator(self, calc_params, *args, **kwargs):
+        """Register the calculator."""
+        super().register_calculator(calc_params, *args, **kwargs)
 
-        Todo:
-            In fact, uncertainty estimation has various backends as well.
-
-        """
         calc_params = copy.deepcopy(calc_params)
 
-        command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", pathlib.Path.cwd())
-        atypes = calc_params.pop("type_list", [])
+        type_list = calc_params.pop("type_list", [])
 
         type_map = {}
-        for i, a in enumerate(atypes):
+        for i, a in enumerate(type_list):
             type_map[a] = i
 
-        # --- model files
-        model_ = calc_params.get("model", [])
-        if not isinstance(model_, list):
-            model_ = [model_]
+        # Check if all models exist and update the self.calc_params
+        # as the potential may be used in other directories if submitted by a scheduler.
+        models = canonicalise_input_models(calc_params.pop("model", []))
+        self.calc_params.update(model=models)
 
-        models = []
-        for m in model_:
-            m = pathlib.Path(m).resolve()
-            if not m.exists():
-                raise FileNotFoundError(f"Cant find model file {str(m)}")
-            models.append(str(m))
+        estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
-        # - create specific calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            # return ase calculator
             try:
                 import torch
-                from nequip.ase import NequIPCalculator
+                from nequip.ase import NequIPCalculator  # type: ignore
             except:
                 raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.")
-            calcs = []
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            shared_params = dict(species_to_type_name={k: k for k in type_list}, device=device)
+            params_list = []
             for m in models:
-                curr_calc = NequIPCalculator.from_deployed_model(
-                    model_path=m,
-                    species_to_type_name={k: k for k in atypes},
-                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                specific_params = copy.deepcopy(shared_params)
+                specific_params["model_path"] = m
+                params_list.append(specific_params)
+            num_models = len(models)
+            if num_models > 0:
+                calc = build_a_committee_calculator(
+                    NequIPCalculator.from_deployed_model, params_list, estimate_uncertainty=estimate_uncertainty
                 )
-                calcs.append(curr_calc)
-            if len(calcs) == 1:
-                calc = calcs[0]
-            elif len(calcs) > 1:
-                calc = CommitteeCalculator(calcs)
-            else:
-                ...
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
+
+            command = calc_params.pop("command", None)
 
             flavour = calc_params.pop("flavour", "nequip")  # nequip or allegro
             if models:
@@ -232,7 +220,6 @@ class NequipManager(BasePotentialManager):
                 pair_coeff = f"* * {str(models[0])}" + " {type_list}"
                 calc = Lammps(
                     command=command,
-                    directory=directory,
                     pair_style=pair_style,
                     pair_coeff=pair_coeff,
                     **calc_params,
@@ -245,14 +232,8 @@ class NequipManager(BasePotentialManager):
                     calc.set(newton="on")
                 else:
                     raise Exception(f"Unknown flavour {flavour} that must be nequip or allegro.")
-
-        return calc
-
-    def register_calculator(self, calc_params):
-        """"""
-        super().register_calculator(calc_params)
-
-        self.calc = self._create_calculator(calc_params)
+        else:
+            ...
 
         return
 
