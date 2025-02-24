@@ -63,9 +63,7 @@ class NequipTrainer(BasePotentialTrainer):
         command = "{} {}.yaml ".format(train_command, self.name)
         if init_model is not None:
             # command += "--init-model {}".format(str(pathlib.Path(init_model).resolve()))
-            raise RuntimeError(
-                f"{self.__class__.__name__} does not support init_model."
-            )
+            raise RuntimeError(f"{self.__class__.__name__} does not support init_model.")
         command += " 2>&1 > {}.out\n".format(self.name)
 
         return command
@@ -113,10 +111,7 @@ class NequipTrainer(BasePotentialTrainer):
 
         write(self.directory / "dataset.xyz", frames)
 
-        n_train = (
-            int(nframes * dataset.train_ratio / dataset.batchsize)
-            * dataset.batchsize
-        )
+        n_train = int(nframes * dataset.train_ratio / dataset.batchsize) * dataset.batchsize
         n_val = nframes - n_train
 
         # - check train config
@@ -131,9 +126,7 @@ class NequipTrainer(BasePotentialTrainer):
         train_config["dataset_seed"] = self.rng.integers(0, 10000, dtype=int)
 
         train_config["dataset"] = "ase"
-        train_config["dataset_file_name"] = str(
-            (self.directory / "dataset.xyz").resolve()
-        )
+        train_config["dataset_file_name"] = str((self.directory / "dataset.xyz").resolve())
 
         train_config["chemical_symbols"] = self.type_list
 
@@ -215,17 +208,13 @@ class NequipManager(BasePotentialManager):
                 import torch
                 from nequip.ase import NequIPCalculator
             except:
-                raise ModuleNotFoundError(
-                    "Please install nequip and torch to use the ase interface."
-                )
+                raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.")
             calcs = []
             for m in models:
                 curr_calc = NequIPCalculator.from_deployed_model(
                     model_path=m,
                     species_to_type_name={k: k for k in atypes},
-                    device=torch.device(
-                        "cuda" if torch.cuda.is_available() else "cpu"
-                    ),
+                    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
                 )
                 calcs.append(curr_calc)
             if len(calcs) == 1:
