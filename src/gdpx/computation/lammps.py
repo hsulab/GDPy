@@ -277,7 +277,7 @@ class LmpDriverSetting(DriverSetting):
     fix_com: bool = False
 
     #: Whether initialise velocties internally by LAMMPS.
-    use_lmpvel: bool = True
+    use_lammps_vinit: bool = True
 
     #: Energy tolerance in minimisation, 1e-5 [eV].
     emax: Optional[float] = 0.0
@@ -461,7 +461,7 @@ class LmpDriver(AbstractDriver):
         if self.setting.task == "md":
             # Velocities by ASE may lose precision as
             # they are first written to data file and read by lammps then
-            if self.setting.use_lmpvel:
+            if self.setting.use_lammps_vinit:
                 velocity_seed = self.setting.velocity_seed
                 if velocity_seed is None:
                     velocity_seed = self.random_seed
