@@ -374,10 +374,11 @@ class MaceTrainer(BasePotentialTrainer):
 class MaceManager(BasePotentialManager):
 
     name = "mace"
-    implemented_backends = ("ase", "jax")
+    implemented_backends = ("ase", "jax", "lammps")
 
     valid_combinations = (
         ("ase", "ase"),
+        ("lammps", "lammps"),
         ("jax", "ase"),
     )
 
@@ -440,8 +441,29 @@ class MaceManager(BasePotentialManager):
                 "The JAX backend for MACE is under development."
             )
         elif self.calc_backend == "lammps":
-            raise NotImplementedError(
-                "The LAMMPS backend for MACE is under development."
+            from gdpx.computation.lammps import Lammps
+            command = calc_params.pop("command", "lmp")
+            
+            # LAMMPS builds a periodic graph rather than treating ghost atoms
+            # as independent nodes.
+            pair_style = "mace no_domain_decomposition"
+
+            num_models = len(models)
+            if num_models != 1:
+                raise Exception("MACE-LAMMPS only supports one model.")
+            pair_coeff = f"* * {str(models[0])} " + "{type_list}"
+            
+            calc = Lammps(
+                command=command,
+                pair_style=pair_style,
+                pair_coeff=pair_coeff,
+                **calc_params,
+            )
+            calc.set(
+                units="metal",
+                atom_style="atomic",
+                newton="on",
+                atom_modify="map yes",
             )
         else:
             ...
