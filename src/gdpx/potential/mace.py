@@ -107,13 +107,9 @@ class MaceTrainer(BasePotentialTrainer):
         # models = list((self.directory/"checkpoints").glob("*.model"))
         use_swa = self.config.get("swa", False)
         if not use_swa:
-            model_fpath = self.directory / (
-                "{}.model".format(self.config["name"])
-            )
+            model_fpath = self.directory / ("{}.model".format(self.config["name"]))
         else:
-            model_fpath = self.directory / (
-                "{}_swa.model".format(self.config["name"])
-            )
+            model_fpath = self.directory / ("{}_swa.model".format(self.config["name"]))
 
         return model_fpath
 
@@ -152,9 +148,7 @@ class MaceTrainer(BasePotentialTrainer):
         if swa:
             start_swa = train_config.get("start_swa", -1)
             if not (0 < start_swa < self.train_epochs):
-                raise RuntimeError(
-                    f"{start_swa = } must be smaller than {self.train_epochs = }"
-                )
+                raise RuntimeError(f"{start_swa = } must be smaller than {self.train_epochs = }")
         else:
             ...
 
@@ -260,9 +254,7 @@ class MaceTrainer(BasePotentialTrainer):
                 if ckpt_path is not None:
                     ckpt_dir.mkdir()
                     curr_seed = train_config["seed"]
-                    (
-                        ckpt_dir / f"{model_name}_run-{curr_seed}_epoch-0.pt"
-                    ).symlink_to(ckpt_path)
+                    (ckpt_dir / f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
                     train_config.pop("restart_latest", None)
                     train_config["init_latest"] = True
                 else:
@@ -273,9 +265,7 @@ class MaceTrainer(BasePotentialTrainer):
         else:
             if ckpt_dir.exists():
                 # continue from the latest checkpoint
-                prev_seed = _check_latest_checkpoint(
-                    ckpt_dir, train_config["name"]
-                )
+                prev_seed = _check_latest_checkpoint(ckpt_dir, train_config["name"])
                 self._print(f"{prev_seed =}")
                 if prev_seed is not None:
                     train_config["seed"] = prev_seed
@@ -291,16 +281,11 @@ class MaceTrainer(BasePotentialTrainer):
                     if ckpt_path is not None:
                         ckpt_dir.mkdir()
                         curr_seed = train_config["seed"]
-                        (
-                            ckpt_dir
-                            / f"{model_name}_run-{curr_seed}_epoch-0.pt"
-                        ).symlink_to(ckpt_path)
+                        (ckpt_dir / f"{model_name}_run-{curr_seed}_epoch-0.pt").symlink_to(ckpt_path)
                         train_config.pop("restart_latest", None)
                         train_config["init_latest"] = True
                     else:
-                        self._print(
-                            f"FAILED to init from `{str(init_model)}`."
-                        )
+                        self._print(f"FAILED to init from `{str(init_model)}`.")
                 else:
                     # train from the scratch and no config needs update
                     ...
@@ -321,9 +306,7 @@ class MaceTrainer(BasePotentialTrainer):
         self.directory.mkdir(parents=True, exist_ok=True)
 
         if not isinstance(dataset, MaceDataloader):
-            set_names, train_frames, test_frames, adjusted_batchsizes = (
-                dataset.split_train_and_test()
-            )
+            set_names, train_frames, test_frames, adjusted_batchsizes = dataset.split_train_and_test()
 
             # NOTE: reann does not support split-system training,
             #       so we need merge all structures into one list
@@ -411,9 +394,7 @@ class MaceManager(BasePotentialManager):
 
                 remove_extra_stream_handlers()
             except:
-                raise ModuleNotFoundError(
-                    "Please install mace and torch to use the ase interface."
-                )
+                raise ModuleNotFoundError("Please install mace and torch to use the ase interface.")
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
             shared_params = dict(device=device, default_dtype=precision)
@@ -434,16 +415,13 @@ class MaceManager(BasePotentialManager):
                 import jax
                 from mace_jax.calculators.mace import MACEJAXCalculator
             except:
-                raise ModuleNotFoundError(
-                    "Please install mace-jax and jax to use the jax interface."
-                )
-            raise NotImplementedError(
-                "The JAX backend for MACE is under development."
-            )
+                raise ModuleNotFoundError("Please install mace-jax and jax to use the jax interface.")
+            raise NotImplementedError("The JAX backend for MACE is under development.")
         elif self.calc_backend == "lammps":
             from gdpx.computation.lammps import Lammps
+
             command = calc_params.pop("command", "lmp")
-            
+
             # LAMMPS builds a periodic graph rather than treating ghost atoms
             # as independent nodes.
             pair_style = "mace no_domain_decomposition"
@@ -452,7 +430,7 @@ class MaceManager(BasePotentialManager):
             if num_models != 1:
                 raise Exception("MACE-LAMMPS only supports one model.")
             pair_coeff = f"* * {str(models[0])} " + "{type_list}"
-            
+
             calc = Lammps(
                 command=command,
                 pair_style=pair_style,
@@ -478,9 +456,7 @@ class MaceManager(BasePotentialManager):
         #       by committee but the user disables it. We need change the calc to
         #       the correct one as the loaded one is just a single calculator.
         if not hasattr(self, "calc"):
-            raise RuntimeError(
-                "Fail to switch uncertainty status as it does not have a calc."
-            )
+            raise RuntimeError("Fail to switch uncertainty status as it does not have a calc.")
 
         # NOTE: make sure manager.as_dict() can have correct param
         self.calc_params["estimate_uncertainty"] = status
