@@ -58,6 +58,26 @@ def parse_type_list(atoms):
 
 
 @dataclasses.dataclass
+class CGMinimiser(Controller):
+
+    name: str = "cg"
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        maxstep = unitconvert.convert(maxstep, "distance", "metal", self.units)
+
+        input_line = "min_style  cg\n"
+        input_line += f"min_modify dmax {maxstep}"
+
+        self.conv_params = dict(
+            input_line=input_line,
+        )
+
+        return
+
+
+@dataclasses.dataclass
 class FireMinimizer(Controller):
 
     name: str = "fire"
@@ -65,6 +85,7 @@ class FireMinimizer(Controller):
     def __post_init__(self):
         """"""
         min_modify = self.params.get("min_modify", "integrator verlet tmax 4")
+
         input_line = "min_style  fire\n"
         input_line += f"min_modify {min_modify}"
 
@@ -137,9 +158,13 @@ class ParrinelloRahmanBarostat(Controller):
 
 
 controllers = dict(
+    # min
+    cg_min=CGMinimiser,
+    fire_min=FireMinimizer,
     # nvt
     langevin_nvt=LangevinThermostat,
     nose_hoover_chain_nvt=NoseHooverChainThermostat,
+    # npt
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
 )
 
@@ -223,6 +248,8 @@ class LmpDriverSetting(DriverSetting):
 
         # The input inline should be a f-string with placeholders that accept
         # system-specific parameters.
+        print(minimiser.conv_params)
+        print(_init_min_params)
         min_line = minimiser.conv_params["input_line"].format(**_init_min_params)
         lines = [min_line]
 
