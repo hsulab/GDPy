@@ -64,9 +64,12 @@ class FireMinimizer(Controller):
 
     def __post_init__(self):
         """"""
+        min_modify = self.params.get("min_modify", "integrator verlet tmax 4")
+        input_line = "min_style  fire\n"
+        input_line += f"min_modify {min_modify}"
+
         self.conv_params = dict(
-            min_style="fire",
-            min_modify=self.params.get("min_modify", "integrator verlet tmax 4"),
+            input_line=input_line,
         )
 
         return
@@ -209,18 +212,18 @@ class LmpDriverSetting(DriverSetting):
         )
         if self.controller:
             min_cls_name = self.controller["name"] + "_min"
-            min_cls = controllers[min_cls_name]
+            if min_cls_name in controllers:
+                min_cls = controllers[min_cls_name]
+            else:
+                raise RuntimeError(f"Unknown minimiser {min_cls_name}.")
         else:
             min_cls = FireMinimizer
 
         minimiser = min_cls(units=self.units, **self.controller)
-        _init_min_params.update(**minimiser.conv_params)
 
-        if minimiser.name == "fire":
-            min_line = "min_style  {min_style}\nmin_modify {min_modify}".format(**_init_min_params)
-        else:
-            raise RuntimeError(f"Unknown minimiser {minimiser}.")
-
+        # The input inline should be a f-string with placeholders that accept
+        # system-specific parameters.
+        min_line = minimiser.conv_params["input_line"].format(**_init_min_params)
         lines = [min_line]
 
         return lines
