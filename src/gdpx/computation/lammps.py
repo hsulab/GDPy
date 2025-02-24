@@ -121,6 +121,27 @@ class MDController(Controller):
     #: Whether fix center of mass.
     fix_com: bool = True
 
+    def __post_init__(self):
+        """"""
+        # convert timestep from fs to units
+        self.timestep = unitconvert.convert(self.timestep, "time", "real", self.units)
+
+        # convert temperature from Kelvin to units
+        self.temperature = unitconvert.convert(self.temperature, "temperature", "real", self.units)
+        self.temperature_end = unitconvert.convert(self.temperature_end, "temperature", "real", self.units)
+
+        # convert pressure from bar to units
+        self.pressure = unitconvert.convert(self.pressure, "pressure", "metal", self.units)
+        self.pressure_end = unitconvert.convert(self.pressure_end, "pressure", "metal", self.units)
+
+        input_line = ""
+        if self.fix_com:
+            input_line += "fix  fix_com {group} recenter INIT INIT INIT\n"
+        input_line += f"\ntimestep {self.timestep}\n"
+        self.conv_params = dict(input_line=input_line)
+
+        return
+
 
 @dataclasses.dataclass
 class Verlet(MDController):
@@ -129,8 +150,10 @@ class Verlet(MDController):
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         input_line = "fix {fix_id:>24s} {group} nve"
-        self.conv_params = dict(input_line=input_line)
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
@@ -142,6 +165,8 @@ class LangevinThermostat(MDController):
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         friction = self.params.get("friction", 0.01)  # fs^-1
         assert friction is not None
         # Lammps uses the reciprocal of the friction coefficient
@@ -151,45 +176,49 @@ class LangevinThermostat(MDController):
         friction_seed = self.params.get("friction_seed", None)
 
         input_line = "fix {fix_id:>24s}0 {group} nve\n"
-        input_line += "fix {fix_id:>24s}1 {group} langevin {Tstart} {Tstop} "
-        input_line += f"{damp} "
+        input_line += "fix {fix_id:>24s}1 {group} langevin "
+        input_line += f"{self.temperature} {self.temperature_end} {damp} "
 
         if friction_seed is not None:
             input_line += f"{friction_seed}"
         else:
             input_line += "{seed}"
 
-        self.conv_params = dict(input_line=input_line)
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
 
 @dataclasses.dataclass
-class NoseHooverChainThermostat(Controller):
+class NoseHooverChainThermostat(MDController):
 
     name: str = "nose_hoover_chain"
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         Tdamp = self.params.get("Tdamp", 100.0)  # fs
         assert Tdamp is not None
         Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
 
-        input_line = "fix {fix_id:>24s} {group} nvt temp {Tstart} {Tstop} "
-        input_line += f"{Tdamp}"
+        input_line = "fix {fix_id:>24s} {group} nvt temp "
+        input_line += f"{self.temperature} {self.temperature_end} {Tdamp}"
 
-        self.conv_params = dict(input_line=input_line)
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
 
 @dataclasses.dataclass
-class ParrinelloRahmanBarostat(Controller):
+class ParrinelloRahmanBarostat(MDController):
 
     name: str = "parrinello_rahman"
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         Tdamp = self.params.get("Tdamp", 100.0)  # fs
         assert Tdamp is not None
         Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
@@ -202,13 +231,11 @@ class ParrinelloRahmanBarostat(Controller):
         assert isotropic is not None
         isotropic = "iso" if isotropic else "aniso"
 
-        input_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} "
-        input_line += f"{Tdamp} "
-        input_line += f"{isotropic} "
-        input_line += "{Pstart} {Pstop} "
-        input_line += f"{Pdamp}"
+        input_line = "fix {fix_id:>24s} {group} npt temp "
+        input_line += f"{self.temperature} {self.temperature_end} {Tdamp} "
+        input_line += f"{isotropic} {self.pressure} {self.pressure_end} {Pdamp}"
 
-        self.conv_params = dict(input_line=input_line)
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
@@ -320,16 +347,13 @@ class LmpDriverSetting(DriverSetting):
 
     def get_molecular_dynamics_inputs(self, random_seed: int, group: str = "mobile") -> list[str]:
         """Convert parameters into lammps input lines."""
-        MD_FIX_ID: str = "controller"
         _init_md_params = dict(
-            fix_id=MD_FIX_ID,
-            group=group,
-            timestep=unitconvert.convert(self.timestep, "time", "real", self.units),  # from fs to units
-            Tstart=self.temp,
-            Tstop=self.tend if self.tend else self.temp,
-            Pstart=self.press,
-            Pstop=self.pend if self.pend else self.press,
-            seed=random_seed,  # langevin needs this
+            timestep=self.timestep,
+            temperature=self.temp,
+            temperature_end=self.tend if self.tend else self.temp,
+            pressure=self.press,
+            pressure_end=self.pend if self.pend else self.press,
+            fix_com=self.fix_com,
         )
 
         if self.controller:
@@ -341,17 +365,17 @@ class LmpDriverSetting(DriverSetting):
         else:
             cont_cls = default_controllers[self.ensemble]
 
-        controller = cont_cls(units=self.units, **self.controller)
-        print(controller)
+        _init_md_params.update(**self.controller)
+        controller = cont_cls(units=self.units, **_init_md_params)
 
-        input_line = controller.conv_params["input_line"].format(**_init_md_params)
+        MD_FIX_ID: str = "controller"
+        _init_placeholders = dict(
+            fix_id=MD_FIX_ID,
+            group=group,
+            seed=random_seed,  # langevin needs this
+        )
+        input_line = controller.conv_params["input_line"].format(**_init_placeholders)
         lines = [input_line]
-
-        if self.fix_com:
-            com_line = "fix  fix_com {group} recenter INIT INIT INIT".format(**_init_md_params)
-            lines.append(com_line)
-
-        lines.append(f"timestep {_init_md_params['timestep']}")
 
         return lines
 
