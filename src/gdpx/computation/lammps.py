@@ -987,9 +987,6 @@ class Lammps(FileIOCalculator):
                 else:
                     pair_coeff = self.pair_coeff
                 content += f"pair_coeff	{pair_coeff} {type_list_str}\n"
-            elif potential == "nequip":
-                content += f"pair_style  {self.pair_style}\n"
-                content += f"pair_coeff  {self.pair_coeff} {type_list_str}\n"
             else:
                 # PotentialManager should give f-strings for pair_style and pair_coeff that
                 # system-specific information can be applied below.

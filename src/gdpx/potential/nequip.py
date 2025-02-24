@@ -239,8 +239,8 @@ class NequipManager(BasePotentialManager):
 
             flavour = calc_params.pop("flavour", "nequip")  # nequip or allegro
             if models:
-                pair_style = "{}".format(flavour)
-                pair_coeff = "* * {}".format(models[0])
+                pair_style = f"{flavour}"
+                pair_coeff = f"* * {str(models[0])}" + " {type_list}"
                 calc = Lammps(
                     command=command,
                     directory=directory,
@@ -251,9 +251,11 @@ class NequipManager(BasePotentialManager):
                 # Update several extra parameters
                 calc.set(units="metal", atom_style="atomic")
                 if pair_style == "nequip":
-                    calc.set(**dict(newton="off"))
+                    calc.set(newton="off")
                 elif pair_style == "allegro":
-                    calc.set(**dict(newton="on"))
+                    calc.set(newton="on")
+                else:
+                    raise Exception(f"Unknown flavour {flavour} that must be nequip or allegro.")
 
         return calc
 
