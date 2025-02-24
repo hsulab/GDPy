@@ -675,7 +675,10 @@ class DeepmdManager(BasePotentialManager):
                         pair_style = "deepmd {}".format(" ".join(models))
                     else:
                         pair_style = "deepmd {}".format(models[0])
+                pair_style += " out_freq {out_freq}"
+
                 pair_coeff = calc_params.pop("pair_coeff", "* *")
+                pair_coeff += " {type_list}"
 
                 pair_style_name = pair_style.split()[0]
                 assert (
