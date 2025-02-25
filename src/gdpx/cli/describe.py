@@ -7,8 +7,8 @@ from typing import Union
 
 from gdpx.factory.builder import canonicalise_builder
 
-from ..data.array import AtomsNDArray
-from ..describer.interface import DescriberVariable
+from gdpx.data.array import AtomsNDArray
+from gdpx.nodes.describer import DescriberVariable
 
 
 def describe_structures(config: dict, structures, directory: Union[str,pathlib.Path]="./"):

@@ -17,9 +17,7 @@ class Register:
 
     def __setitem__(self, key, value):
         if not callable(value):
-            raise Exception(
-                f"Value of a Registry must be a callable!\nValue: {value}"
-            )
+            raise Exception(f"Value of a Registry must be a callable!\nValue: {value}")
         if key is None:
             key = value.__name__
         if key in self._dict:
@@ -62,15 +60,11 @@ class Register:
         ncols = 5
         nrows = int(nkeys / ncols)
         for i in range(nrows):
-            content += ("  " + "{:<24s}" * ncols + "\n").format(
-                *keys[i * ncols : i * ncols + ncols]
-            )
+            content += ("  " + "{:<24s}" * ncols + "\n").format(*keys[i * ncols : i * ncols + ncols])
 
         nrest = nkeys - nrows * ncols
         if nrest > 0:
-            content += ("  " + "{:<24s}" * nrest + "\n").format(
-                *keys[nrows * ncols :]
-            )
+            content += ("  " + "{:<24s}" * nrest + "\n").format(*keys[nrows * ncols :])
 
         return content
 
@@ -140,10 +134,7 @@ class registers:
         # Convert the cls_name by the internal convention
         if convert_name:
             # cls_name = cls_name.capitalize() + mod_name.capitalize()
-            cls_name = (
-                "".join([x.capitalize() for x in cls_name.strip().split("_")])
-                + mod_name.capitalize()
-            )
+            cls_name = "".join([x.capitalize() for x in cls_name.strip().split("_")]) + mod_name.capitalize()
 
         # Get the class
         curr_register = getattr(registers, mod_name)
@@ -172,18 +163,15 @@ ALL_MODULES = [
     ("gdpx.data", ["dataset"]),
     ("gdpx", ["region"]),
     ("gdpx", ["bias"]),
-    ("gdpx.prelude", ["builder", "region", "selector"]),
+    ("gdpx.prelude", ["builder", "region", "selector", "describer"]),
     ("gdpx", ["colvar"]),
-    ("gdpx", ["selector"]),
-    ("gdpx", ["describer"]),
     ("gdpx", ["comparator"]),
     ("gdpx.expedition", ["interface"]),
     ("gdpx", ["validator"]),
-    ("gdpx.nodes", ["region", "trainer", "validator", "dataset", "selector"]),
+    ("gdpx.nodes", ["region", "trainer", "validator", "dataset", "selector", "describer"]),
     ("gdpx.computation", ["interface"]),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),
-    ("gdpx.describer", ["interface"]),
     ("gdpx.potential", ["interface"]),
     ("gdpx.reactor", ["interface"]),
     ("gdpx.comparator", ["interface"]),
@@ -216,17 +204,11 @@ def show_failed_modules_in_rows(names, ncols: int = 3) -> list[str]:
 
     lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
     for i in range(nrows):
-        lines.append(
-            ("  " + "{:<48s}" * ncols + "").format(
-                *keys[i * ncols : i * ncols + ncols]
-            )
-        )
+        lines.append(("  " + "{:<48s}" * ncols + "").format(*keys[i * ncols : i * ncols + ncols]))
 
     nrest = nkeys - nrows * ncols
     if nrest > 0:
-        lines.append(
-            ("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :])
-        )
+        lines.append(("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :]))
 
     return lines
 
@@ -263,9 +245,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     # and accidently add a StreamHandler to logging.root
     # so remove it...
     for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(
-            h, logging.FileHandler
-        ):
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
             logging.root.removeHandler(h)
 
     lines = show_failed_modules_in_rows_with_reasons(names, reasons)

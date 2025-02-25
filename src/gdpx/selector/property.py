@@ -12,8 +12,8 @@ from ase import Atoms
 from ase.neighborlist import neighbor_list
 
 from gdpx.data.array import AtomsNDArray
+from gdpx.nodes.describer import DescriberVariable
 
-from ..describer.interface import DescriberVariable
 from .clustering import group_structures_by_axis
 from .selector import BaseSelector
 from .sparsification import IMPLEMENTED_SPARSIFY_METHODS, ScalarSparsification
@@ -33,9 +33,7 @@ IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
 IMPLEMENTED_STRING_PROPERTIES: list[str] = [
     "chemical_formula",
 ]
-IMPLEMENTED_PROPERTIES: list[str] = (
-    IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
-)
+IMPLEMENTED_PROPERTIES: list[str] = IMPLEMENTED_SCALAR_PROPERTIES + IMPLEMENTED_STRING_PROPERTIES
 
 
 def get_metric_func(metric_name: str):
@@ -61,9 +59,7 @@ def compute_minimum_distance(atoms: Atoms, cutoff: float):
     return np.min(d)
 
 
-def get_aligned_chemical_formula(
-    atoms: Atoms, symbol_list: list[str], padding_width: int = 4
-):
+def get_aligned_chemical_formula(atoms: Atoms, symbol_list: list[str], padding_width: int = 4):
     """"""
     chemical_symbols = atoms.get_chemical_symbols()
     counter = collections.Counter(chemical_symbols)
@@ -112,9 +108,7 @@ class PropertyItem:
                 elif metric_name == "min":
                     metric_func = np.min
                 else:
-                    raise NotImplementedError(
-                        f"Unknown metric function {metric_name}."
-                    )
+                    raise NotImplementedError(f"Unknown metric function {metric_name}.")
                 self._metric_functions.append(metric_func)
         else:
             self._metric_functions = []
@@ -123,13 +117,9 @@ class PropertyItem:
         sparsify_params = copy.deepcopy(self.sparsify)
         sparsify_method = sparsify_params.pop("method", "filter")
         if sparsify_method not in IMPLEMENTED_SPARSIFY_METHODS:
-            raise NotImplementedError(
-                f"Unknown sparsification method {sparsify_method}."
-            )
+            raise NotImplementedError(f"Unknown sparsification method {sparsify_method}.")
         else:
-            self._sparsify = IMPLEMENTED_SPARSIFY_METHODS[sparsify_method](
-                **sparsify_params
-            )
+            self._sparsify = IMPLEMENTED_SPARSIFY_METHODS[sparsify_method](**sparsify_params)
 
         return
 
@@ -191,34 +181,24 @@ class PropertySelector(BaseSelector):
 
         if num_groups > 1:
             if self._property.represent_by is None:
-                selected_markers = self._mark_group_separate(
-                    data, self._property, marker_groups
-                )
+                selected_markers = self._mark_group_separate(data, self._property, marker_groups)
             else:
                 self._print(
                     "Group-based selection is enabled "
                     + f"using representative structure by {self._property.represent_by}."
                 )
-                selected_markers = self._mark_group_represent(
-                    data, self._property, marker_groups
-                )
+                selected_markers = self._mark_group_represent(data, self._property, marker_groups)
         else:
-            selected_markers = self._mark_group_separate(
-                data, self._property, marker_groups
-            )
+            selected_markers = self._mark_group_separate(data, self._property, marker_groups)
 
         data.markers = np.array(selected_markers)
 
         return
 
-    def _mark_group_represent(
-        self, data, prop_item: PropertyItem, marker_groups
-    ):
+    def _mark_group_represent(self, data, prop_item: PropertyItem, marker_groups):
         """Mark a group of structures based on a representative structure's property."""
 
-        assert (
-            prop_item.represent_by is not None
-        ), "No representative method is provided."
+        assert prop_item.represent_by is not None, "No representative method is provided."
         metric_func = get_metric_func(prop_item.represent_by)
 
         rep_groups = []  # data for representative groups
@@ -226,9 +206,7 @@ class PropertySelector(BaseSelector):
             curr_frames = data.get_marked_structures(curr_markers)
             curr_nframes = len(curr_frames)
 
-            assert (
-                curr_nframes > 0
-            ), f"No structures is found in group {grp_name}."
+            assert curr_nframes > 0, f"No structures is found in group {grp_name}."
 
             curr_values = self._extract_property(curr_frames, prop_item)
             metric_val = metric_func(curr_values)
@@ -241,9 +219,7 @@ class PropertySelector(BaseSelector):
                     break
             else:
                 rep_frame = None
-            assert (
-                rep_frame is not None
-            ), f"Cannot find representative frame with metric value {metric_val}."
+            assert rep_frame is not None, f"Cannot find representative frame with metric value {metric_val}."
             rep_groups.append((grp_name, rep_frame))
 
         rep_frames = [x[1] for x in rep_groups]
@@ -258,9 +234,7 @@ class PropertySelector(BaseSelector):
             curr_selected_markers = marker_groups[grp_name]
             selected_markers.extend(curr_selected_markers)
             curr_score = scores[selected_indices.index(s_i)]
-            curr_selected_frames = data.get_marked_structures(
-                curr_selected_markers
-            )
+            curr_selected_frames = data.get_marked_structures(curr_selected_markers)
             for a in curr_selected_frames:
                 a.info["score"] = curr_score
             num_curr_frames = len(curr_selected_frames)
@@ -270,9 +244,7 @@ class PropertySelector(BaseSelector):
 
         return selected_markers
 
-    def _mark_group_separate(
-        self, data, prop_item: PropertyItem, marker_groups
-    ):
+    def _mark_group_separate(self, data, prop_item: PropertyItem, marker_groups):
         """Mark a group of structures based on a structure's own property."""
         selected_markers = []
         for grp_name, curr_markers in marker_groups.items():
@@ -280,15 +252,9 @@ class PropertySelector(BaseSelector):
             curr_nframes = len(curr_frames)
 
             if curr_nframes > 0:
-                scores, selected_indices = self._sparsify(
-                    prop_item, curr_frames
-                )
-                self._print(
-                    f"group: {grp_name} -> number of structures: {len(selected_indices)}"
-                )
-                curr_selected_markers = [
-                    curr_markers[i] for i in selected_indices
-                ]
+                scores, selected_indices = self._sparsify(prop_item, curr_frames)
+                self._print(f"group: {grp_name} -> number of structures: {len(selected_indices)}")
+                curr_selected_markers = [curr_markers[i] for i in selected_indices]
                 selected_markers.extend(curr_selected_markers)
 
                 # Add score to atoms
@@ -331,9 +297,7 @@ class PropertySelector(BaseSelector):
                     )
                 elif prop_item.name == "min_distance":
                     # TODO: Move to observables?
-                    atoms_property = compute_minimum_distance(
-                        atoms, prop_item.params["cutoff"]
-                    )
+                    atoms_property = compute_minimum_distance(atoms, prop_item.params["cutoff"])
                 else:
                     # -- any property stored in atoms.info
                     #    e.g. max_devi_f
@@ -354,9 +318,7 @@ class PropertySelector(BaseSelector):
 
         return prop_vals
 
-    def _statistics(
-        self, prop_name, prop_vals, sparsify: ScalarSparsification
-    ):
+    def _statistics(self, prop_name, prop_vals, sparsify: ScalarSparsification):
         """Show statistics of the property and update the lower and upper limites of the sparsification."""
         # Get basic statistics for property values
         pmax = stat_str2val("max", prop_vals)
@@ -379,9 +341,7 @@ class PropertySelector(BaseSelector):
 
         bins = np.linspace(hist_min, hist_max, nbins, endpoint=False).tolist()
         bins.append(hist_max)
-        hist, bin_edges = np.histogram(
-            prop_vals, bins=bins, range=(hist_min, hist_max)
-        )
+        hist, bin_edges = np.histogram(prop_vals, bins=bins, range=(hist_min, hist_max))
 
         # Output histogram
         content = f"# Property {prop_name}\n"
@@ -394,8 +354,7 @@ class PropertySelector(BaseSelector):
         content += f"{bin_edges[-1]:>12.4f}  {'-':>12s}\n"
 
         with open(
-            self.info_fpath.parent
-            / (self.info_fpath.stem + f"-{prop_name}-stat.txt"),
+            self.info_fpath.parent / (self.info_fpath.stem + f"-{prop_name}-stat.txt"),
             "w",
         ) as fopen:
             fopen.write(content)
@@ -411,9 +370,7 @@ class PropertySelector(BaseSelector):
         prop_vals = self._extract_property(frames, prop_item)
 
         # Show statistics of this property
-        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(
-            prop_item._sparsify, ScalarSparsification
-        ):
+        if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(prop_item._sparsify, ScalarSparsification):
             prop_type = "scalar"
             self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
         elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:

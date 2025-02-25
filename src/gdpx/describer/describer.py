@@ -5,7 +5,6 @@
 import abc
 
 import numpy.typing
-from sklearn.decomposition import PCA
 
 from gdpx.core.component import BaseComponent
 
@@ -46,9 +45,7 @@ class BaseDescriber(BaseComponent):
             # )
         )
 
-        frame_properties = chemiscope.extract_properties(
-            frames, only=["energy"]
-        )
+        frame_properties = chemiscope.extract_properties(frames, only=["energy"])
         properties.update(**frame_properties)
 
         chemiscope.write_input(
@@ -61,8 +58,8 @@ class BaseDescriber(BaseComponent):
 
     def _plot_results(self, features, groups: dict[str, list[int]]):
         """"""
-        # - plot selection
         import matplotlib.pyplot as plt
+        from sklearn.decomposition import PCA
 
         try:
             plt.style.use("presentation")

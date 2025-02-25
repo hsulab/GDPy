@@ -1,26 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
-import pathlib
-from typing import Optional, List, Mapping
 
 import numpy as np
-from sklearn.decomposition import PCA
-
+import numpy.typing
 from ase import Atoms
-from ase.io import read, write
-
-from ..core.register import registers
-from .describer import BaseDescriber
-
-#try:
-#    from dscribe.descriptors import SOAP
-#except Exception as e:
-#    print(e)
 
 # NOTE: If there is no dscribe, this class will not be registered.
 from dscribe.descriptors import SOAP
+
+from gdpx.core.register import registers
+
+from .describer import BaseDescriber
 
 
 @registers.describer.register("soap")
@@ -45,9 +38,9 @@ class SoapDescriber(BaseDescriber):
         features = []
         for system in dataset:
             curr_frames = system._images
-            if not (self.directory/system.prefix).exists():
-                (self.directory/system.prefix).mkdir(parents=True)
-            cache_features = self.directory/system.prefix/self.cache_features
+            if not (self.directory / system.prefix).exists():
+                (self.directory / system.prefix).mkdir(parents=True)
+            cache_features = self.directory / system.prefix / self.cache_features
             if not cache_features.exists():
                 curr_features = self._compute_descripter(frames=curr_frames)
                 np.save(cache_features, curr_features)
@@ -58,8 +51,8 @@ class SoapDescriber(BaseDescriber):
         self._debug(f"shape of features: {features.shape}")
 
         return features
-        
-    def _compute_descripter(self, frames: List[Atoms]) -> np.array:
+
+    def _compute_descripter(self, frames: list[Atoms]) -> numpy.typing.NDArray:
         """Calculate vector-based descriptors.
 
         Each structure is represented by a vector.
@@ -74,8 +67,8 @@ class SoapDescriber(BaseDescriber):
         features = soap.create(frames, n_jobs=self.njobs)
         self._print("finished calculating features...")
 
-        # - save calculated features 
-        features = features.reshape(-1,ndim)
+        # - save calculated features
+        features = features.reshape(-1, ndim)
 
         return features
 
