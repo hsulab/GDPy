@@ -9,14 +9,13 @@ from typing import Union
 import omegaconf
 from ase.io import read, write
 
+from gdpx.core.operation import Operation
+from gdpx.core.register import registers
+from gdpx.core.variable import Variable
+from gdpx.data.array import AtomsNDArray
 from gdpx.nodes.builder import BuilderVariable, build
-
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import Variable
-from ..data.array import AtomsNDArray
-from .composition import ComposedSelector
-from .selector import BaseSelector, load_cache
+from gdpx.selector.composition import ComposedSelector
+from gdpx.selector.selector import BaseSelector, load_cache
 
 
 @registers.variable.register
@@ -36,13 +35,9 @@ class SelectorVariable(Variable):
         # - a list of Dict that defines several selectors,
         #   which will be converted into a composed one
         selection = copy.deepcopy(selection)
-        if isinstance(selection, dict) or isinstance(
-            selection, omegaconf.dictconfig.DictConfig
-        ):
+        if isinstance(selection, dict) or isinstance(selection, omegaconf.dictconfig.DictConfig):
             selection = [selection]
-        elif isinstance(selection, list) or isinstance(
-            selection, omegaconf.listconfig.ListConfig
-        ):
+        elif isinstance(selection, list) or isinstance(selection, omegaconf.listconfig.ListConfig):
             ...
         else:
             raise TypeError(f"Unknown type of {selection =}.")
@@ -50,9 +45,7 @@ class SelectorVariable(Variable):
         selectors = []
         for params in selection:
             method = params.pop("method", None)
-            selector = registers.create(
-                "selector", method, convert_name=False, **params
-            )
+            selector = registers.create("selector", method, convert_name=False, **params)
             selectors.append(selector)
         num_selectors = len(selectors)
         if num_selectors > 1:
@@ -80,9 +73,7 @@ class select(Operation):
         **kwargs,
     ):
         """"""
-        super().__init__(
-            input_nodes=[structures, selector], directory=directory
-        )
+        super().__init__(input_nodes=[structures, selector], directory=directory)
 
         self.ignore_previous_selections = ignore_previous_selections
 
@@ -105,19 +96,13 @@ class select(Operation):
         # - a Dict that defines a single selector
         # - a list of Dict that defines several selectors,
         #   which will be converted into a composed one
-        if isinstance(selector, dict) or isinstance(
-            selector, omegaconf.dictconfig.DictConfig
-        ):
-            selector = SelectorVariable(
-                directory=self.directory / "selector", **selector
-            )
+        if isinstance(selector, dict) or isinstance(selector, omegaconf.dictconfig.DictConfig):
+            selector = SelectorVariable(directory=self.directory / "selector", **selector)
         # self._print(f"{selector = }")
 
         return structures, selector
 
-    def forward(
-        self, structures: AtomsNDArray, selector: BaseSelector
-    ) -> AtomsNDArray:
+    def forward(self, structures: AtomsNDArray, selector: BaseSelector) -> AtomsNDArray:
         """"""
         super().forward()
         selector.directory = self.directory

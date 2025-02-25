@@ -12,17 +12,12 @@ from ase.io import write
 try:
     USE_REPORTLAB = 1
     from reportlab.lib.utils import ImageReader
-    from reportlab.platypus import (
-        Image,
-        PageBreak,
-        Paragraph,
-        SimpleDocTemplate,
-        Table,
-    )
+    from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Table
 except:
     USE_REPORTLAB = 0
 
-from . import registers
+from gdpx.core.register import registers
+
 from .selector import BaseSelector
 
 
@@ -131,9 +126,7 @@ class CompareSelector(BaseSelector):
 
         curr_markers = data.markers
         # Convert to np.array as there may have 2D markers
-        selected_markers = np.array(
-            [curr_markers[i] for i in selected_indices]
-        )
+        selected_markers = np.array([curr_markers[i] for i in selected_indices])
         data.markers = selected_markers
 
         return
@@ -179,9 +172,7 @@ class CompareSelector(BaseSelector):
                         ]
                     )
                 if (curr_nframes - nrows * num_structures_per_row) > 0:
-                    image_table.append(
-                        [images[im] for im in range(nrows * 4, curr_nframes)]
-                    )
+                    image_table.append([images[im] for im in range(nrows * 4, curr_nframes)])
 
                 story.append(Table(image_table))
                 story.append(PageBreak())
