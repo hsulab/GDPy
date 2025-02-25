@@ -1,31 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
-import copy
 import pathlib
-from typing import NoReturn, Optional, Union, Callable, List, Tuple
+from typing import Callable, Optional, Union
 
 import numpy as np
+from tinydb import Query, TinyDB
 
-from tinydb import TinyDB, Query
-
-from .. import config
-from ..scheduler import LocalScheduler
-from ..scheduler.scheduler import BaseScheduler
-
-
-"""worker = driver + scheduler.
-
-A worker that manages a series of dynamics tasks
-worker needs a scheduler to dertermine whether run by serial
-or on cluster.
-
-"""
+from gdpx import config
+from gdpx.scheduler import LocalScheduler
+from gdpx.scheduler.scheduler import BaseScheduler
 
 
 class AbstractWorker(abc.ABC):
-    """"""
+    """The base class of any worker using schedulers."""
 
     UUIDLEN = 36  # length of uuid
 
@@ -35,25 +25,26 @@ class AbstractWorker(abc.ABC):
     # Number of executation in each queue job.
     batchsize: int = 1
 
-    _directory: Optional[pathlib.Path] = None
     _scheduler: BaseScheduler = LocalScheduler()
     _database = None
 
+    # Whether to submit the job to the scheduler.
     _submit = True
 
+    # The default name of the job script to run.
     _script_name = "run.script"
 
     def __init__(
         self,
         directory: Optional[Union[str, pathlib.Path]] = None,
         batchsize=1,
-        *args,
-        **kwargs,
     ) -> None:
         """ """
         # - set default directory
         if directory is not None:
-            self.directory = directory
+            self._directory = pathlib.Path(directory)
+        else:
+            self._directory = pathlib.Path.cwd() / "_tmp"
 
         self.batchsize = batchsize
 
@@ -68,25 +59,25 @@ class AbstractWorker(abc.ABC):
         return self._directory
 
     @directory.setter
-    def directory(self, directory_: Union[str, pathlib.Path]):
-        self._directory = pathlib.Path(directory_)
+    def directory(self, directory: Union[str, pathlib.Path]):
+        self._directory = pathlib.Path(directory)
 
         return
 
     @property
-    def scheduler(self):
+    def scheduler(self) -> BaseScheduler:
 
         return self._scheduler
 
     @scheduler.setter
-    def scheduler(self, scheduler_) -> BaseScheduler:
+    def scheduler(self, scheduler):
         """"""
-        assert isinstance(scheduler_, BaseScheduler), ""
-        self._scheduler = scheduler_
+        assert isinstance(scheduler, BaseScheduler), ""
+        self._scheduler = scheduler
 
         return
 
-    def _split_groups(self, npoints: int) -> Tuple[List[int], List[int]]:
+    def _split_groups(self, npoints: int) -> tuple[list[int], list[int]]:
         """Split nframes into groups."""
         # - split frames
         ngroups = int(np.floor(1.0 * npoints / self.batchsize))
@@ -101,21 +92,10 @@ class AbstractWorker(abc.ABC):
 
         return (starts, ends)
 
-    # @property
-    # def database(self):
-
-    #    return self._database
-
-    # @database.setter
-    # def database(self, database_):
-    #    self._database = database_
-
-    #    return
-
     def _initialise(self, *args, **kwargs):
         """"""
         if not self.directory.exists():
-            self.directory.mkdir(parents=True, exist_ok=True)  # NOTE: ./tmp_folder
+            self.directory.mkdir(parents=True, exist_ok=True)
         else:
             ...
         assert self.directory, "Working directory is not set properly..."
@@ -126,21 +106,14 @@ class AbstractWorker(abc.ABC):
     def run(self, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        # - some imported packages change `logging.basicConfig`
-        #   and accidently add a StreamHandler to logging.root
-        #   so remove it...
-        # for h in logging.root.handlers:
-        #    if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
-        #        logging.root.removeHandler(h)
         self._print(f"<<-- {self.__class__.__name__}+run -->>")
+
         return
 
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
         self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
-
-        running_jobs = self._get_running_jobs()
 
         return
 
@@ -155,37 +128,25 @@ class AbstractWorker(abc.ABC):
 
     def _get_running_jobs(self):
         """"""
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            running_jobs = database.search(
-                Query().queued.exists() & (~Query().finished.exists())
-            )
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+            running_jobs = database.search(Query().queued.exists() & (~Query().finished.exists()))
         running_jobs = [r["gdir"] for r in running_jobs]
 
         return running_jobs
 
     def _get_finished_jobs(self):
         """"""
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            finished_jobs = database.search(
-                Query().queued.exists() & (Query().finished.exists())
-            )
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+            finished_jobs = database.search(Query().queued.exists() & (Query().finished.exists()))
         finished_jobs = [r["gdir"] for r in finished_jobs]
 
         return finished_jobs
 
     def _get_retrieved_jobs(self):
         """"""
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             retrieved_jobs = database.search(
-                Query().queued.exists()
-                & (Query().finished.exists())
-                & Query().retrieved.exists()
+                Query().queued.exists() & (Query().finished.exists()) & Query().retrieved.exists()
             )
         retrieved_jobs = [r["gdir"] for r in retrieved_jobs]
 
@@ -193,12 +154,9 @@ class AbstractWorker(abc.ABC):
 
     def _get_unretrieved_jobs(self):
         """"""
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             unretrieved_jobs = database.search(
-                (Query().queued.exists() & Query().finished.exists())
-                & (~Query().retrieved.exists())
+                (Query().queued.exists() & Query().finished.exists()) & (~Query().retrieved.exists())
             )
         unretrieved_jobs = [r["gdir"] for r in unretrieved_jobs]
 
@@ -212,14 +170,8 @@ class AbstractWorker(abc.ABC):
 
     def as_dict(self) -> dict:
         """"""
-        worker_params = {}
-        worker_params["potter"] = self.potter.as_dict()
-        worker_params["driver"] = self.driver.as_dict()
-        worker_params["scheduler"] = self.scheduler.as_dict()
 
-        worker_params = copy.deepcopy(worker_params)
-
-        return worker_params
+        raise NotImplementedError()
 
 
 if __name__ == "__main__":
