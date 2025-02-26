@@ -3,6 +3,7 @@
 
 
 import copy
+import functools
 import json
 import pathlib
 import shutil
@@ -367,18 +368,24 @@ class DriverBasedWorker(BaseWorker):
 
         return batches
 
-    def run(self, builder=None, rng_states=list(), *args, **kwargs) -> None:
-        """Split frames into groups and submit jobs."""
-        super().run(*args, **kwargs)
-
+    def prepare_batches(self, builder, rng_states=list()):
+        """"""
         # Check if the same input structures are provided
         identifier, frames, start_confid, new_rng_states = self._preprocess(builder)
         if rng_states:  # Sometimes we need explicit rng_states as in active learning
             new_rng_states = rng_states
         batches = self._prepare_batches(frames, start_confid, new_rng_states)
 
+        return identifier, frames, batches
+
+    def run(self, builder=None, rng_states=list(), *args, **kwargs) -> None:
+        """Split frames into groups and submit jobs."""
+        super().run(*args, **kwargs)
+
+        # Prepare batches
+        identifier, frames, batches = self.prepare_batches(builder, rng_states)
+
         # Some optional arguments
-        is_resubmit = kwargs.get("resubmit", False)
         target_batch = kwargs.get("batch", None)
 
         if not self.is_spawned:
@@ -386,7 +393,6 @@ class DriverBasedWorker(BaseWorker):
                 identifier,
                 frames,
                 batches,
-                is_resubmit=is_resubmit,
                 target_batch=target_batch,
             )
         else:
@@ -434,7 +440,6 @@ class DriverBasedWorker(BaseWorker):
         identifier: str,
         frames: list[Atoms],
         batches,
-        is_resubmit: bool = False,
         target_batch: Optional[int] = None,
     ):
         """"""
@@ -453,29 +458,21 @@ class DriverBasedWorker(BaseWorker):
             uid = str(uuid.uuid1())
             job_name = uid + "-" + batch_name
 
-            # Whether store job info
-            if self.scheduler.name != "local":
-                if batch_name in queued_names and identifier in queued_frames:
-                    self._print(f"{batch_name} at {self.directory.name} was submitted.")
-                    continue
-            else:  # Local Scheduler
-                if not is_resubmit:
-                    if batch_name in queued_names and identifier in queued_frames:
-                        self._print(f"{batch_name} at {self.directory.name} was submitted.")
-                        continue
-                else:
-                    ...
+            # Check whether the job is submitted
+            if batch_name in queued_names and identifier in queued_frames:
+                self._print(f"{batch_name} at {self.directory.name} was submitted.")
+                continue
 
             # Specify which group this worker is responsible for if not, then skip
             # Skip batch here assures the skipped batches will not recorded and
             # thus will not affect their execution if several batches run at the same time.
             if isinstance(target_batch, int):
                 if ig != target_batch:
-                    with CustomTimer(name="run-driver", func=self._print):
-                        self._print(
-                            f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} batch {ig} is skipped..."
-                        )
-                        continue
+                    self._print(
+                        f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} "
+                        + f"batch {ig} is skipped..."
+                    )
+                    continue
                 else:
                     ...
             else:
@@ -483,10 +480,7 @@ class DriverBasedWorker(BaseWorker):
 
             # Save this batch job to the database
             if identifier not in queued_frames:
-                with TinyDB(
-                    self.directory / f"_{self.scheduler.name}_jobs.json",
-                    indent=2,
-                ) as database:
+                with TinyDB(database_path, indent=2) as database:
                     _ = database.insert(
                         dict(
                             uid=uid,
@@ -501,8 +495,7 @@ class DriverBasedWorker(BaseWorker):
                 worker_input_fpath = self.directory / "_data" / f"worker-{identifier}.json"
                 if not worker_input_fpath.exists():
                     # TODO: We make sure the dict is python primitive since they may be
-                    #       from session nodes,
-                    #       or we should convert it in operations?
+                    #       from session nodes, or we should convert it in operations?
                     worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
                     worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
                     with open(worker_input_fpath, "w") as fopen:
@@ -540,7 +533,7 @@ class DriverBasedWorker(BaseWorker):
 
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in running_jobs:
-                self._debug(f"inspect {job_name}")
+                self._print(f">> inspect {job_name}")
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
@@ -596,33 +589,29 @@ class DriverBasedWorker(BaseWorker):
                         doc_data = database.get(Query().gdir == job_name)
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
-                        # NOTE: no need to remove unfinished structures
-                        #       since the driver would check it
                         if resubmit:
-                            if self.scheduler.name != "local":
-                                jobid = self.scheduler.submit()
-                                self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                            else:
-                                if self.is_spawned:
-                                    # spawned local worker respects batch keyword
-                                    if curr_batch == batch:
-                                        self._print(f"{job_name} is re-submitted with local.")
-                                        frames = read(
-                                            self.directory / "_data" / f"{identifier}.xyz",
-                                            ":",
-                                        )
-                                        self.run(
-                                            frames,
-                                            batch=curr_batch,
-                                            resubmit=True,
-                                        )
-                                else:
-                                    self._print(f"{job_name} is re-submitted with local.")
-                                    frames = read(
-                                        self.directory / "_data" / f"{identifier}.xyz",
-                                        ":",
-                                    )
-                                    self.run(frames, batch=curr_batch, resubmit=True)
+                            frames = read(
+                                self.directory / "_data" / f"{identifier}.xyz",
+                                ":",
+                            )
+                            cache_identifier, cache_frames, cache_batches = self.prepare_batches(frames)
+                            assert cache_identifier == identifier, "Inconsistent identifiers for the input structure."
+                            batch_indices, batch_dirnames, batch_rng_states = cache_batches[curr_batch]
+                            batch_frames = [cache_frames[i] for i in batch_indices]
+                            func_to_execute = functools.partial(
+                                run_computation_in_commandline,
+                                identifier=cache_identifier,
+                                structures=batch_frames,
+                                computation_dirnames=batch_dirnames,
+                                rng_states=batch_rng_states,
+                                driver=self.driver,
+                                directory=self.directory,
+                                share_wdir=self._share_wdir,
+                                print_period=self.print_period,
+                                print_func=self._print,
+                            )
+                            job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+                            self._print(f"{job_name} is re-submitted with JOBID: {job_id}...")
                 else:
                     self._print(f"{job_name} is running...")
 
