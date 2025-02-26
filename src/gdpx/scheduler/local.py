@@ -25,6 +25,22 @@ class LocalScheduler(BaseScheduler):
 
         return True
 
+    def write(self) -> None:
+        """Write self to the path of the job script.
+
+        Since the local scheduler runs everything locally in the commandline,
+        we do nothing here.
+
+        """
+
+        return
+
+    def __str__(self) -> str:
+        """Return the content of the job script."""
+
+        return f"local {self.job_name}\n"
+
+
 
 if __name__ == "__main__":
     ...
