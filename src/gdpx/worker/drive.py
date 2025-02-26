@@ -15,7 +15,6 @@ from typing import Optional, Union
 
 import numpy as np
 import omegaconf
-import yaml
 from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
@@ -44,12 +43,30 @@ def run_computation_in_commandline(
     print_period: int = 100,
     print_func=print,
 ) -> None:
-    """Run computations directly in the commandline."""
+    """Run computations directly in the commandline.
+
+    Args:
+        identifier: The identifier of the input structure file (e.g. MD5).
+        structures: A batch of structures.
+        computation_dirnames: The working directories for each structure.
+        rng_states: The random number generator states for each structure.
+        driver: The driver object.
+        directory: The root directory for all computations.
+        share_wdir: Whether share the working directory for each structure.
+        print_period: The print period for showing the computation progress.
+        print_func: The print function.
+
+    Returns:
+        Nothing.
+
+    """
     # Check machine-specific prefix
-    machine_prefix = ""
-    if (directory / "MACHINE").exists():
-        with open(directory / "MACHINE", "r") as fopen:
+    machine_prefix_fpath = directory / "_data" / f"MACHINE_{identifier}"
+    if machine_prefix_fpath.exists():
+        with open(machine_prefix_fpath, "r") as fopen:
             machine_prefix = "".join(fopen.readlines()).strip()
+    else:
+        machine_prefix = ""
 
     # Run computations
     with CustomTimer(name="run-driver", func=print_func):
@@ -500,6 +517,8 @@ class DriverBasedWorker(BaseWorker):
                     worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
                     with open(worker_input_fpath, "w") as fopen:
                         json.dump(worker_input_dict, fopen, indent=2)
+                    with open(self.directory / "_data" / f"MACHINE_{identifier}", "w") as fopen:
+                        fopen.write(self.scheduler.machine_prefix)
 
             # Run batch
             self._irun(
@@ -524,12 +543,12 @@ class DriverBasedWorker(BaseWorker):
         curr_wdirs: list[str],
         rng_states: Union[list[int], list[dict]],
     ) -> None:
-        """"""
+        """Submit one batch either to the queue or to the commandline."""
         # Get the batch number
         batch_number = int(batch_name.split("-")[-1])
 
-        # Save worker input file used by `gdp compute`
-        self._write_worker_inputs(uid=uid)
+        # Use structure-specific input worker file
+        worker_input_fpath = str((self.directory / "_data" / f"worker-{identifier}.json").relative_to(self.directory))
 
         # Check the filepth of the input structures
         dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
@@ -540,7 +559,7 @@ class DriverBasedWorker(BaseWorker):
         self.scheduler.script = self.directory / jobscript_fname
 
         self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
-            (self.directory / f"worker-{uid}.yaml").name,
+            worker_input_fpath,
             dataset_path,
             batch_number,
         )
@@ -840,7 +859,7 @@ class DriverBasedWorker(BaseWorker):
 
         """
         driver.directory = wdir
-        # NOTE: name convention, cand1112_field1112_field1112
+        # Name convention, cand1112_field1112_field1112
         confid_ = int(wdir.name.strip("cand").split("_")[0])  # internal name
         if info_data is not None:
             cache_confid = int(info_data[confid_][2])
@@ -851,32 +870,13 @@ class DriverBasedWorker(BaseWorker):
         else:
             confid = confid_
 
-        # NOTE: always return the entire trajectories
+        # Always return the entire trajectories
         traj_frames = driver.read_trajectory(add_step_info=True, archive_path=archive_path)
         for a in traj_frames:
             a.info["confid"] = confid
             a.info["wdir"] = str(wdir.name)
 
         return traj_frames
-
-    def _write_worker_inputs(self, uid: str):
-        """"""
-        worker_params = {}
-        worker_params["driver"] = self.driver.as_dict()
-        worker_params["potential"] = self.potter.as_dict()
-        worker_params["batchsize"] = self.batchsize
-        worker_params["share_wdir"] = self._share_wdir
-        worker_params["retain_info"] = self._retain_info
-
-        with open(self.directory / f"worker-{uid}.yaml", "w") as fopen:
-            yaml.dump(worker_params, fopen)
-
-        # TODO: MACHINE file will be overwritten by different batches
-        #       even though they are the same.
-        with open(self.directory / f"MACHINE", "w") as fopen:
-            fopen.write(self.scheduler.machine_prefix)
-
-        return
 
     def as_dict(self) -> dict:
         """"""
@@ -888,6 +888,8 @@ class DriverBasedWorker(BaseWorker):
         worker_params = copy.deepcopy(worker_params)
 
         worker_params["batchsize"] = self.batchsize
+        worker_params["share_wdir"] = self._share_wdir
+        worker_params["retain_info"] = self._retain_info
 
         return worker_params
 
