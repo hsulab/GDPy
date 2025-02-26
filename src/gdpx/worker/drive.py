@@ -29,7 +29,7 @@ from gdpx.utils.command import CustomTimer
 from gdpx.utils.logio import remove_extra_stream_handlers
 
 from .utils import copy_minimal_frames, get_file_md5
-from .worker import AbstractWorker
+from .worker import BaseWorker
 
 
 def compare_atoms(a1, a2):
@@ -56,7 +56,7 @@ def compare_atoms(a1, a2):
     return True
 
 
-class DriverBasedWorker(AbstractWorker):
+class DriverBasedWorker(BaseWorker):
     """Monitor driver-based jobs.
 
     Lifetime: queued (running) -> finished -> retrieved

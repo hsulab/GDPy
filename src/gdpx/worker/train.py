@@ -10,12 +10,13 @@ import numpy as np
 import yaml
 from tinydb import Query, TinyDB
 
-from ..data.interface import DatasetVariable
-from ..potential.trainer import BasePotentialTrainer
-from .worker import AbstractWorker
+from gdpx.data.interface import DatasetVariable
+from gdpx.potential.trainer import BasePotentialTrainer
+
+from .worker import BaseWorker
 
 
-class TrainerBasedWorker(AbstractWorker):
+class TrainerBasedWorker(BaseWorker):
 
     TRAIN_PREFIX: str = "m"
 
@@ -77,16 +78,12 @@ class TrainerBasedWorker(AbstractWorker):
 
         return trainer_params
 
-    def run(
-        self, dataset, size: int = 1, init_models=None, *args, **kwargs
-    ) -> None:
+    def run(self, dataset, size: int = 1, init_models=None, *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
         if init_models is None:
             init_models = [None for i in range(size)]
-        assert (
-            len(init_models) == size
-        ), "The number of init models is inconsistent with size."
+        assert len(init_models) == size, "The number of init models is inconsistent with size."
 
         trainer = self.trainer
         scheduler = self.scheduler
@@ -113,19 +110,13 @@ class TrainerBasedWorker(AbstractWorker):
             if not dataset_path.exists():
                 self._print("prepare a shared dataset...")
                 if hasattr(trainer, "_prepare_dataset"):
-                    trainer.directory = (
-                        dataset_path  # NOTE: only for creating dataset
-                    )
-                    dataset = trainer._prepare_dataset(
-                        dataset, *args, **kwargs
-                    )
+                    trainer.directory = dataset_path  # NOTE: only for creating dataset
+                    dataset = trainer._prepare_dataset(dataset, *args, **kwargs)
                     self._print(f"{dataset =}")
                     with open(dataset_path / "dataset.yaml", "w") as fopen:
                         yaml.safe_dump(dataset.as_dict(), fopen)
                 else:
-                    self._print(
-                        f"{trainer.__class__.__name__} does not support a shared dataset."
-                    )
+                    self._print(f"{trainer.__class__.__name__} does not support a shared dataset.")
             else:
                 # NOTE: sometimes local trainer does not finish,
                 #       we need to load the shared dataset
@@ -138,9 +129,7 @@ class TrainerBasedWorker(AbstractWorker):
             self._print("trainers prepare their own datasets...")
 
         # - read metadata from file or database
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
 
@@ -151,9 +140,7 @@ class TrainerBasedWorker(AbstractWorker):
             job_name = uid + "-" + batch_name
             wdir = self.directory / f"{self.TRAIN_PREFIX}{i}"
             if batch_name in queued_names:
-                self._print(
-                    f"{job_name} at {self.directory.name} was submitted."
-                )
+                self._print(f"{job_name} at {self.directory.name} was submitted.")
                 continue
             wdir.mkdir(parents=True, exist_ok=True)
 
@@ -163,9 +150,7 @@ class TrainerBasedWorker(AbstractWorker):
             if curr_init_model is not None:
                 curr_init_model = str(curr_init_model)
 
-            trainer_params = self._get_train_params(
-                trainer, dataset, curr_init_model, self._share_dataset
-            )
+            trainer_params = self._get_train_params(trainer, dataset, curr_init_model, self._share_dataset)
             with open(wdir / "trainer.yaml", "w") as fopen:
                 yaml.dump(trainer_params, fopen)
 
@@ -177,9 +162,7 @@ class TrainerBasedWorker(AbstractWorker):
             else:
                 scheduler.job_name = job_name
                 scheduler.script = wdir / "train.script"
-                scheduler.user_commands = "gdp train {}\n".format(
-                    str((wdir / "trainer.yaml").resolve())
-                )
+                scheduler.user_commands = "gdp train {}\n".format(str((wdir / "trainer.yaml").resolve()))
                 scheduler.write()
                 if self._submit:
                     self._print(f"{wdir.name}: {scheduler.submit()}")
@@ -187,9 +170,7 @@ class TrainerBasedWorker(AbstractWorker):
                     self._print(f"{wdir.name} waits to submit.")
 
             # - update database
-            with TinyDB(
-                self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-            ) as database:
+            with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
                 _ = database.insert(
                     dict(
                         uid=uid,
@@ -209,9 +190,7 @@ class TrainerBasedWorker(AbstractWorker):
 
         running_jobs = self._get_running_jobs()
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in running_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
@@ -220,9 +199,7 @@ class TrainerBasedWorker(AbstractWorker):
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory / "train.script"
 
-                if (
-                    self.scheduler.is_finished()
-                ):  # NOTE: scheduler only checks job_name
+                if self.scheduler.is_finished():  # NOTE: scheduler only checks job_name
                     # -- check if the job finished properly
                     is_finished = False
                     for x in wdir_names:
@@ -236,23 +213,15 @@ class TrainerBasedWorker(AbstractWorker):
                     else:
                         is_finished = True
                     if is_finished:
-                        database.update(
-                            {"finished": True}, doc_ids=[doc_data.doc_id]
-                        )
+                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
                         if resubmit:
                             if self.scheduler.name != "local":
-                                self._print(
-                                    f"RESUBMIT: {str(self.trainer.directory)}"
-                                )
+                                self._print(f"RESUBMIT: {str(self.trainer.directory)}")
                                 if self._submit:
-                                    self.scheduler.script = (
-                                        self.trainer.directory / "train.script"
-                                    )
+                                    self.scheduler.script = self.trainer.directory / "train.script"
                                     jobid = self.scheduler.submit()
-                                    self._print(
-                                        f"{job_name} is re-submitted with JOBID {jobid}."
-                                    )
+                                    self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                                 else:
                                     self._print(f"{job_name} waits to submit.")
                             else:
@@ -263,9 +232,7 @@ class TrainerBasedWorker(AbstractWorker):
                                 #       self.inspect() is called without self.run() before.
                                 # NOTE: Local job will automatically re-run when
                                 #       self.run() is called.
-                                self._print(
-                                    f"RESUBMIT: {self.trainer.directory = }"
-                                )
+                                self._print(f"RESUBMIT: {self.trainer.directory = }")
                                 # self.trainer.train(dataset, init_model=init_models[i])
                         else:
                             warnings.warn(
@@ -288,15 +255,10 @@ class TrainerBasedWorker(AbstractWorker):
         else:
             unretrieved_jobs = self._get_finished_jobs()
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
-                unretrieved_wdirs_.extend(
-                    (self.directory / w).resolve()
-                    for w in doc_data["wdir_names"]
-                )
+                unretrieved_wdirs_.extend((self.directory / w).resolve() for w in doc_data["wdir_names"])
         unretrieved_wdirs = unretrieved_wdirs_
 
         results = []
@@ -308,9 +270,7 @@ class TrainerBasedWorker(AbstractWorker):
                 # NOTE: Due to yaml.safe_dump, we require path should be str
                 results.append(str(self.trainer.freeze()))
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])

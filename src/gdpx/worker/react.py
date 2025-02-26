@@ -15,17 +15,17 @@ from ase.io import read, write
 from joblib import Parallel, delayed
 from tinydb import Query, TinyDB
 
+from gdpx import config
+from gdpx.data.array import AtomsNDArray
 from gdpx.potential.manager import BasePotentialManager
+from gdpx.reactor.reactor import AbstractReactor
+from gdpx.utils.command import CustomTimer
 
-from .. import config
-from ..data.array import AtomsNDArray
-from ..reactor.reactor import AbstractReactor
-from ..utils.command import CustomTimer
 from .utils import copy_minimal_frames, get_file_md5, read_cache_info
-from .worker import AbstractWorker
+from .worker import BaseWorker
 
 
-class ReactorBasedWorker(AbstractWorker):
+class ReactorBasedWorker(BaseWorker):
 
     wdir_prefix: str = "pair"  # TODO: cand?
 
@@ -62,9 +62,7 @@ class ReactorBasedWorker(AbstractWorker):
         #       which means the number of input structures should be even.
         if isinstance(structures, list):
             nstructures = len(structures)
-            assert (
-                nstructures % 2 == 0
-            ), "The number of structures should be even."
+            assert nstructures % 2 == 0, "The number of structures should be even."
             pairs = list(
                 zip(
                     [structures[i] for i in range(0, nstructures, 2)],
@@ -73,9 +71,7 @@ class ReactorBasedWorker(AbstractWorker):
             )
         elif isinstance(structures, AtomsNDArray):
             if structures.ndim == 3:  # from extract
-                assert (
-                    structures.shape[0] == 2
-                ), "Structures must have a shape of (2, ?, ?)."
+                assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
                 pairs = []
                 for p in structures:
                     p = [[a for a in s if a is not None][-1] for s in p]
@@ -134,9 +130,7 @@ class ReactorBasedWorker(AbstractWorker):
             )
             # - save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
-            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}\n".format(
-                "#id", "MD5", "confid", "step", "wdir"
-            )
+            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}\n".format("#id", "MD5", "confid", "step", "wdir")
             for i, (confid, step, wdir) in enumerate(curr_info):
                 line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}\n".format(
                     i + start_confid, curr_md5, confid, step, wdir
@@ -176,9 +170,7 @@ class ReactorBasedWorker(AbstractWorker):
         batches = self._prepare_batches(pairs, start_confid=start_pairid)
 
         # - read metadata
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
         queued_input = [q["md5"] for q in queued_jobs]
@@ -193,9 +185,7 @@ class ReactorBasedWorker(AbstractWorker):
             # -- whether store job info
             if self.scheduler.name != "local":
                 if batch_name in queued_names and identifier in queued_input:
-                    self._print(
-                        f"{batch_name} at {self.directory.name} was submitted."
-                    )
+                    self._print(f"{batch_name} at {self.directory.name} was submitted.")
                     continue
             else:
                 # NOTE: If use local scheduler, always run it again if re-submit
@@ -299,9 +289,7 @@ class ReactorBasedWorker(AbstractWorker):
                 fopen.write(self.scheduler.machine_prefix)
 
             # - save structures
-            dataset_path = str(
-                (self.directory / "_data" / f"{identifier}.xyz").resolve()
-            )
+            dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").resolve())
 
             # - save scheduler file
             jobscript_fname = f"run-{uid}.script"
@@ -318,9 +306,7 @@ class ReactorBasedWorker(AbstractWorker):
             # - TODO: check whether params for scheduler is changed
             self.scheduler.write()
             if self._submit:
-                self._print(
-                    f"{self.directory.name} JOBID: {self.scheduler.submit()}"
-                )
+                self._print(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
             else:
                 self._print(f"{self.directory.name} waits to submit.")
                 ...
@@ -339,9 +325,7 @@ class ReactorBasedWorker(AbstractWorker):
 
         running_jobs = self._get_running_jobs()
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in running_jobs:
                 group_directory = self.directory
                 doc_data = database.get(Query().gdir == job_name)
@@ -373,24 +357,18 @@ class ReactorBasedWorker(AbstractWorker):
                         # -- finished correctly
                         self._print(f"{job_name} is finished...")
                         doc_data = database.get(Query().gdir == job_name)
-                        database.update(
-                            {"finished": True}, doc_ids=[doc_data.doc_id]
-                        )
+                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
                         # NOTE: no need to remove unfinished structures
                         #       since the driver would check it
                         if resubmit:
                             if self.scheduler.name != "local":
                                 jobid = self.scheduler.submit()
-                                self._print(
-                                    f"{job_name} is re-submitted with JOBID {jobid}."
-                                )
+                                self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                             else:
                                 # warnings.warn("Local scheduler does not support re-submit.", UserWarning)
                                 frames = read(
-                                    self.directory
-                                    / "_data"
-                                    / f"{identifier}.xyz",
+                                    self.directory / "_data" / f"{identifier}.xyz",
                                     ":",
                                 )
                                 self.run(frames, batch=batch)
@@ -428,15 +406,11 @@ class ReactorBasedWorker(AbstractWorker):
 
         unretrieved_identifiers = []
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 unretrieved_identifiers.append(doc_data["md5"])
-                unretrieved_wdirs_.extend(
-                    self.directory / w for w in doc_data["wdir_names"]
-                )
+                unretrieved_wdirs_.extend(self.directory / w for w in doc_data["wdir_names"])
 
         # - get given wdirs
         unretrieved_wdirs = []
@@ -455,9 +429,7 @@ class ReactorBasedWorker(AbstractWorker):
         else:
             results = []
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in unretrieved_jobs:
                 doc_data = database.get(Query().gdir == job_name)
                 database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
@@ -476,8 +448,7 @@ class ReactorBasedWorker(AbstractWorker):
         with CustomTimer(name="read-results", func=self._print):
             # NOTE: works for vasp, ...
             results_ = Parallel(n_jobs=self.n_jobs)(
-                delayed(self._iread_results)(self.driver, wdir, info_data=None)
-                for wdir in unretrieved_wdirs
+                delayed(self._iread_results)(self.driver, wdir, info_data=None) for wdir in unretrieved_wdirs
             )
 
             # NOTE: Failed Calcution, One fail, traj fails
@@ -497,9 +468,7 @@ class ReactorBasedWorker(AbstractWorker):
             results = results_
 
             if results:
-                self._print(
-                    f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}"
-                )
+                self._print(f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}")
 
         return results
 

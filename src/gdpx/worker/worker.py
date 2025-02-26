@@ -14,7 +14,7 @@ from gdpx.scheduler import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
 
 
-class AbstractWorker(abc.ABC):
+class BaseWorker(abc.ABC):
     """The base class of any worker using schedulers."""
 
     UUIDLEN = 36  # length of uuid

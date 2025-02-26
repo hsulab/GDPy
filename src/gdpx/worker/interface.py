@@ -10,19 +10,18 @@ from typing import Callable, Optional
 import omegaconf
 from ase.calculators.calculator import BaseCalculator
 
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import Variable
+from gdpx.core.register import registers
+from gdpx.core.variable import Variable
 from gdpx.potential.manager import BasePotentialManager
-from ..potential.utils import convert_input_to_potter
-from ..scheduler.scheduler import BaseScheduler
-from ..utils.command import parse_input_file
-from .drive import (CommandDriverBasedWorker, DriverBasedWorker,
-                    QueueDriverBasedWorker)
+from gdpx.potential.utils import convert_input_to_potter
+from gdpx.scheduler.scheduler import BaseScheduler
+from gdpx.utils.command import parse_input_file
+
+from .drive import CommandDriverBasedWorker, QueueDriverBasedWorker
 from .grid import GridDriverBasedWorker
 from .react import ReactorBasedWorker
 from .single import SingleWorker
-from .worker import AbstractWorker
+from .worker import BaseWorker
 
 
 def broadcast_and_adjust_potter(
@@ -49,16 +48,12 @@ def broadcast_and_adjust_potter(
         print_func(f"potter-{i} {potter.name}")
         if hasattr(potter, "switch_uncertainty_estimation"):
             if estimate_uncertainty is not None:
-                print_func(
-                    f"{potter.name} switches its uncertainty estimation to {estimate_uncertainty}..."
-                )
+                print_func(f"{potter.name} switches its uncertainty estimation to {estimate_uncertainty}...")
                 potter.switch_uncertainty_estimation(estimate_uncertainty)
             else:
                 ...
         else:
-            print_func(
-                f"{potter.name} does not support switching its uncertainty estimation..."
-            )
+            print_func(f"{potter.name} does not support switching its uncertainty estimation...")
 
         if hasattr(potter, "switch_backend"):
             if switch_backend is not None:
@@ -80,15 +75,13 @@ class ComputerChainVariable(Variable):
         value = self._canonicalise_input_nodes([computers])
         super().__init__(value)
 
-        self._init_params = copy.deepcopy(
-            [c.as_dict() for c in value]
-        )
+        self._init_params = copy.deepcopy([c.as_dict() for c in value])
 
         return
-    
+
     def _canonicalise_input_nodes(self, input_nodes):
         """"""
-        computers, = input_nodes
+        (computers,) = input_nodes
 
         if isinstance(computers, list) or isinstance(computers, omegaconf.ListConfig):
             computers_ = []
@@ -113,7 +106,7 @@ class ComputerChainVariable(Variable):
             value.append(computer.value[0])
 
         return value
-    
+
     def as_dict(self) -> dict:
         """"""
 
@@ -142,16 +135,16 @@ class ComputerVariable(Variable):
         # Save input parameters
         self._init_params = copy.deepcopy(
             dict(
-                potter = potter,
-                driver = driver,
-                scheduler = scheduler,
-                use_grid = use_grid,
-                estimate_uncertainty = estimate_uncertainty,
-                switch_backend = switch_backend,
-                batchsize = batchsize,
-                share_wdir = share_wdir,
-                use_single = use_single,
-                retain_info = retain_info,
+                potter=potter,
+                driver=driver,
+                scheduler=scheduler,
+                use_grid=use_grid,
+                estimate_uncertainty=estimate_uncertainty,
+                switch_backend=switch_backend,
+                batchsize=batchsize,
+                share_wdir=share_wdir,
+                use_single=use_single,
+                retain_info=retain_info,
             )
         )
 
@@ -213,9 +206,7 @@ class ComputerVariable(Variable):
         elif isinstance(inp, dict) or isinstance(inp, omegaconf.DictConfig):
             scheduler_params = copy.deepcopy(inp)
             backend = scheduler_params.pop("backend", "local")
-            scheduler = registers.create(
-                "scheduler", backend, convert_name=True, **scheduler_params
-            )
+            scheduler = registers.create("scheduler", backend, convert_name=True, **scheduler_params)
         else:
             raise RuntimeError(f"Unknown {inp} for the scheduler.")
 
@@ -232,7 +223,7 @@ class ComputerVariable(Variable):
         share_wdir: bool = False,
         use_single: bool = False,
         retain_info: bool = False,
-    ) -> list[AbstractWorker]:
+    ) -> list[BaseWorker]:
         """Create a list of workers."""
         # check potters
         num_potters = len(potters)
@@ -256,9 +247,7 @@ class ComputerVariable(Variable):
                 driver = potters[p_i].create_driver(drivers[d_i])
                 if not use_single:
                     if scheduler.name == "local":
-                        worker = CommandDriverBasedWorker(
-                            potters[p_i], driver, scheduler
-                        )
+                        worker = CommandDriverBasedWorker(potters[p_i], driver, scheduler)
                     else:
                         worker = QueueDriverBasedWorker(potters[p_i], driver, scheduler)
                 else:
@@ -278,9 +267,7 @@ class ComputerVariable(Variable):
                 new_potters.append(potter)
                 driver = potter.create_driver(drivers[d_i])
                 new_drivers.append(driver)
-            worker = GridDriverBasedWorker(
-                new_potters, new_drivers, scheduler=scheduler
-            )
+            worker = GridDriverBasedWorker(new_potters, new_drivers, scheduler=scheduler)
             worker.batchsize = batchsize
             worker.directory = self.directory
             workers = [worker]
@@ -328,9 +315,7 @@ class ReactorVariable(Variable):
 
         # - create a reactor
         # reactor = self.potter.create_reactor(kwargs)
-        workers = self._create_workers(
-            self.potter, self.driver, self.scheduler, batchsize=self.batchsize
-        )
+        workers = self._create_workers(self.potter, self.driver, self.scheduler, batchsize=self.batchsize)
 
         super().__init__(initial_value=workers, directory=directory)
 
@@ -361,9 +346,7 @@ class ReactorVariable(Variable):
         elif isinstance(inp, dict) or isinstance(inp, omegaconf.DictConfig):
             scheduler_params = copy.deepcopy(inp)
             backend = scheduler_params.pop("backend", "local")
-            scheduler = registers.create(
-                "scheduler", backend, convert_name=True, **scheduler_params
-            )
+            scheduler = registers.create("scheduler", backend, convert_name=True, **scheduler_params)
         else:
             raise RuntimeError(f"Unknown {inp} for the scheduler.")
 
