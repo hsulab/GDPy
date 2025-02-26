@@ -371,27 +371,53 @@ class DriverBasedWorker(BaseWorker):
         """Split frames into groups and submit jobs."""
         super().run(*args, **kwargs)
 
-        # - check if the same input structures are provided
+        # Check if the same input structures are provided
         identifier, frames, start_confid, new_rng_states = self._preprocess(builder)
         if rng_states:  # Sometimes we need explicit rng_states as in active learning
             new_rng_states = rng_states
         batches = self._prepare_batches(frames, start_confid, new_rng_states)
 
-        # - read metadata from file or database
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+        # Load metadata for previous submitted batches
+        database_path = self.directory / f"_{self.scheduler.name}_jobs.json"
+
+        with TinyDB(database_path, indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
         queued_frames = [q["md5"] for q in queued_jobs]
 
         is_resubmit = kwargs.get("resubmit", False)
+        target_batch = kwargs.get("batch", None)
 
+        self._run_by_scheduler(
+            identifier,
+            frames,
+            batches,
+            queued_names,
+            queued_frames,
+            is_resubmit=is_resubmit,
+            target_batch=target_batch,
+        )
+
+        return
+
+    def _run_by_scheduler(
+        self,
+        identifier: str,
+        frames,
+        batches,
+        queued_names,
+        queued_frames,
+        is_resubmit: bool = False,
+        target_batch: Optional[int] = None,
+    ):
+        """"""
         for ig, (global_indices, wdirs, rs) in enumerate(batches):
-            # - set job name
+            # Set job name
             batch_name = f"group-{ig}"
             uid = str(uuid.uuid1())
             job_name = uid + "-" + batch_name
 
-            # -- whether store job info
+            # Whether store job info
             if self.scheduler.name != "local":
                 if batch_name in queued_names and identifier in queued_frames:
                     self._print(f"{batch_name} at {self.directory.name} was submitted.")
@@ -404,13 +430,11 @@ class DriverBasedWorker(BaseWorker):
                 else:
                     ...
 
-            # - specify which group this worker is responsible for
-            #   if not, then skip
-            #   Skip batch here assures the skipped batches will not recorded and
-            #   thus will not affect their execution if several batches run at the same time.
-            target_number = kwargs.get("batch", None)
-            if isinstance(target_number, int):
-                if ig != target_number:
+            # Specify which group this worker is responsible for if not, then skip
+            # Skip batch here assures the skipped batches will not recorded and
+            # thus will not affect their execution if several batches run at the same time.
+            if isinstance(target_batch, int):
+                if ig != target_batch:
                     with CustomTimer(name="run-driver", func=self._print):
                         self._print(
                             f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} batch {ig} is skipped..."
@@ -421,7 +445,7 @@ class DriverBasedWorker(BaseWorker):
             else:
                 ...
 
-            # - save this batch job to the database
+            # Save this batch job to the database
             if identifier not in queued_frames:
                 with TinyDB(
                     self.directory / f"_{self.scheduler.name}_jobs.json",
@@ -457,8 +481,6 @@ class DriverBasedWorker(BaseWorker):
                 global_indices,
                 wdirs,
                 rng_states=rs,
-                *args,
-                **kwargs,
             )
 
         return
@@ -804,8 +826,6 @@ class QueueDriverBasedWorker(DriverBasedWorker):
         curr_indices: list[int],
         curr_wdirs: list[Union[str, pathlib.Path]],
         rng_states: Union[list[int], list[dict]],
-        *args,
-        **kwargs,
     ) -> None:
         """"""
         batch_number = int(batch_name.split("-")[-1])
@@ -849,8 +869,6 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         curr_indices: list[int],
         curr_wdirs: list[str],
         rng_states: Union[list[int], list[dict]],
-        *args,
-        **kwargs,
     ) -> None:
         """Run calculations directly in the command line.
 
