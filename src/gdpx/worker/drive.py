@@ -32,6 +32,84 @@ from .utils import copy_minimal_frames, get_file_md5
 from .worker import BaseWorker
 
 
+def run_computation_in_commandline(
+    identifier: str,
+    structures: list[Atoms],
+    computation_dirnames: list[str],
+    rng_states,
+    driver: AbstractDriver,
+    directory: pathlib.Path,
+    share_wdir: bool,
+    print_period: int = 100,
+    print_func=print,
+) -> None:
+    """Run computations directly in the commandline."""
+    # Check machine-specific prefix
+    machine_prefix = ""
+    if (directory / "MACHINE").exists():
+        with open(directory / "MACHINE", "r") as fopen:
+            machine_prefix = "".join(fopen.readlines()).strip()
+
+    # Run computations
+    with CustomTimer(name="run-driver", func=print_func):
+        prev_machine_prefix = driver.setting.machine_prefix
+        if machine_prefix:
+            driver.setting.machine_prefix = machine_prefix
+        if not share_wdir:
+            for dirname, atoms, rs in zip(computation_dirnames, structures, rng_states):
+                remove_extra_stream_handlers()
+                driver.directory = directory / dirname
+                prev_random_seed = driver.random_seed
+                driver.set_rng(seed=rs)
+                print_func(
+                    f"{time.asctime( time.localtime(time.time()) )} {dirname} {driver.directory.name} is running..."
+                )
+                driver.reset()
+                driver.run(atoms, read_ckpt=True, extra_info=None)
+                driver.set_rng(seed=prev_random_seed)
+        else:
+            # read calculation cache
+            cache_fpath = directory / "_data" / f"{identifier}_cache.xyz"
+            if cache_fpath.exists():
+                cache_frames = read(cache_fpath, ":")
+                cache_wdirs = [a.info["wdir"] for a in cache_frames]
+            else:
+                cache_wdirs = []
+
+            num_structures = len(structures)
+
+            # run calculations
+            temp_wdir = directory / "_shared"
+            for i, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
+                if dirname in cache_wdirs:
+                    continue
+                if temp_wdir.exists():
+                    shutil.rmtree(temp_wdir)
+                driver.directory = temp_wdir
+                if i % print_period == 0 or i + 1 == num_structures:
+                    print_func(
+                        f"{time.asctime( time.localtime(time.time()) )} {dirname} {driver.directory.name} is running..."
+                    )
+                driver.set_rng(seed=rs)
+                driver.reset()
+                driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=dirname))
+                new_atoms = driver.read_trajectory()[-1]
+                new_atoms.info["wdir"] = atoms.info["wdir"]
+                # save data
+                # TODO: There may have conflicts in write as many groups may run at the same time.
+                #       Add a lock to the file?
+                write(
+                    directory / "_data" / f"{identifier}_cache.xyz",
+                    new_atoms,
+                    append=True,
+                )
+
+        # restore machine prefix
+        driver.setting.machine_prefix = prev_machine_prefix
+
+    return
+
+
 class DriverBasedWorker(BaseWorker):
     """Monitor driver-based jobs.
 
@@ -769,7 +847,7 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         identifier: str,
         frames: list[Atoms],
         curr_indices: list[int],
-        curr_wdirs: list[Union[str, pathlib.Path]],
+        curr_wdirs: list[str],
         rng_states: Union[list[int], list[dict]],
         *args,
         **kwargs,
@@ -782,69 +860,21 @@ class CommandDriverBasedWorker(DriverBasedWorker):
         """
         batch_number = int(batch_name.split("-")[-1])
 
-        # - get structures
+        # Get structures
         curr_frames = [frames[i] for i in curr_indices]
 
-        machine_prefix = ""
-        if (self.directory / "MACHINE").exists():
-            with open(self.directory / "MACHINE", "r") as fopen:
-                machine_prefix = "".join(fopen.readlines()).strip()
-
-        # - run calculations
-        with CustomTimer(name="run-driver", func=self._print):
-            prev_machine_prefix = self.driver.setting.machine_prefix
-            if machine_prefix:
-                self.driver.setting.machine_prefix = machine_prefix
-            if not self._share_wdir:
-                for wdir, atoms, rs in zip(curr_wdirs, curr_frames, rng_states):
-                    remove_extra_stream_handlers()
-                    self.driver.directory = self.directory / wdir
-                    prev_random_seed = self.driver.random_seed
-                    self.driver.set_rng(seed=rs)
-                    self._print(
-                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                    )
-                    self.driver.reset()
-                    self.driver.run(atoms, read_ckpt=True, extra_info=None)
-                    self.driver.set_rng(seed=prev_random_seed)
-            else:
-                # read calculation cache
-                cache_fpath = self.directory / "_data" / f"{identifier}_cache.xyz"
-                if cache_fpath.exists():
-                    cache_frames = read(cache_fpath, ":")
-                    cache_wdirs = [a.info["wdir"] for a in cache_frames]
-                else:
-                    cache_wdirs = []
-
-                num_curr_frames = len(curr_frames)
-
-                # run calculations
-                temp_wdir = self.directory / "_shared"
-                for i, (wdir, atoms, rs) in enumerate(zip(curr_wdirs, curr_frames, rng_states)):
-                    if wdir in cache_wdirs:
-                        continue
-                    if temp_wdir.exists():
-                        shutil.rmtree(temp_wdir)
-                    self.driver.directory = temp_wdir
-                    if i % self.print_period == 0 or i + 1 == num_curr_frames:
-                        self._print(
-                            f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                        )
-                    self.driver.set_rng(seed=rs)
-                    self.driver.reset()
-                    self.driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=wdir))
-                    new_atoms = self.driver.read_trajectory()[-1]
-                    new_atoms.info["wdir"] = atoms.info["wdir"]
-                    # - save data
-                    # TODO: There may have conflicts in write as many groups may run at the same time.
-                    #       Add protection to the file.
-                    write(
-                        self.directory / "_data" / f"{identifier}_cache.xyz",
-                        new_atoms,
-                        append=True,
-                    )
-            # restore machine prefix
-            self.driver.setting.machine_prefix = prev_machine_prefix
+        # Run computations
+        run_computation_in_commandline(
+            identifier,
+            curr_frames,
+            curr_wdirs,
+            rng_states,
+            self.driver,
+            self.directory,
+            self._share_wdir,
+            print_period=self.print_period,
+            print_func=self._print,
+        )
 
         return
 
