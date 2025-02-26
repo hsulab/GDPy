@@ -514,10 +514,62 @@ class DriverBasedWorker(BaseWorker):
 
         return
 
-    def _irun(self, *args, **kwargs):
+    def _irun(
+        self,
+        batch_name: str,
+        uid: str,
+        identifier: str,
+        frames: list[Atoms],
+        curr_indices: list[int],
+        curr_wdirs: list[str],
+        rng_states: Union[list[int], list[dict]],
+    ) -> None:
         """"""
+        # Get the batch number
+        batch_number = int(batch_name.split("-")[-1])
 
-        raise NotImplementedError("Function to run a batch of structures is undefined.")
+        # Save worker input file used by `gdp compute`
+        self._write_worker_inputs(uid=uid)
+
+        # Check the filepth of the input structures
+        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
+
+        # Update scheduler
+        jobscript_fname = f"run-{uid}.script"
+        self.scheduler.job_name = uid + "-" + batch_name
+        self.scheduler.script = self.directory / jobscript_fname
+
+        self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
+            (self.directory / f"worker-{uid}.yaml").name,
+            dataset_path,
+            batch_number,
+        )
+
+        # Update function to execute
+        curr_frames = [frames[i] for i in curr_indices]
+
+        func_to_execute = functools.partial(
+            run_computation_in_commandline,
+            identifier=identifier,
+            structures=curr_frames,
+            computation_dirnames=curr_wdirs,
+            rng_states=rng_states,
+            driver=self.driver,
+            directory=self.directory,
+            share_wdir=self._share_wdir,
+            print_period=self.print_period,
+            print_func=self._print,
+        )
+
+        # TODO: check whether params for scheduler is changed
+        self.scheduler.write()
+        if self._submit:
+            job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+            self._print(f"{self.directory.name} JOBID: {job_id}")
+        else:
+            self._print(f"{self.directory.name} waits to submit.")
+
+        return
 
     def inspect(self, resubmit=False, batch=None, *args, **kwargs):
         """Check if any job were finished correctly not due to time limit.
@@ -838,88 +890,6 @@ class DriverBasedWorker(BaseWorker):
         worker_params["batchsize"] = self.batchsize
 
         return worker_params
-
-
-class QueueDriverBasedWorker(DriverBasedWorker):
-
-    def _irun(
-        self,
-        batch_name: str,
-        uid: str,
-        identifier: str,
-        frames: list[Atoms],
-        curr_indices: list[int],
-        curr_wdirs: list[Union[str, pathlib.Path]],
-        rng_states: Union[list[int], list[dict]],
-    ) -> None:
-        """"""
-        batch_number = int(batch_name.split("-")[-1])
-
-        # - save worker file
-        self._write_worker_inputs(uid=uid)
-
-        # - save structures
-        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
-
-        # - save scheduler file
-        jobscript_fname = f"run-{uid}.script"
-        self.scheduler.job_name = uid + "-" + batch_name
-        self.scheduler.script = self.directory / jobscript_fname
-
-        self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
-            (self.directory / f"worker-{uid}.yaml").name,
-            # (self.directory/structure_fname).name
-            dataset_path,
-            batch_number,
-        )
-
-        # - TODO: check whether params for scheduler is changed
-        self.scheduler.write()
-        if self._submit:
-            self._print(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
-        else:
-            self._print(f"{self.directory.name} waits to submit.")
-
-        return
-
-
-class CommandDriverBasedWorker(DriverBasedWorker):
-
-    def _irun(
-        self,
-        batch_name: str,
-        uid: str,
-        identifier: str,
-        frames: list[Atoms],
-        curr_indices: list[int],
-        curr_wdirs: list[str],
-        rng_states: Union[list[int], list[dict]],
-    ) -> None:
-        """Run calculations directly in the command line.
-
-        Local execution supports a compact mode as structures will reuse the
-        calculation working directory.
-
-        """
-        batch_number = int(batch_name.split("-")[-1])
-
-        # Get structures
-        curr_frames = [frames[i] for i in curr_indices]
-
-        # Run computations
-        run_computation_in_commandline(
-            identifier,
-            curr_frames,
-            curr_wdirs,
-            rng_states,
-            self.driver,
-            self.directory,
-            self._share_wdir,
-            print_period=self.print_period,
-            print_func=self._print,
-        )
-
-        return
 
 
 if __name__ == "__main__":

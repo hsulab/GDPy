@@ -17,7 +17,7 @@ from gdpx.potential.utils import convert_input_to_potter
 from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.utils.command import parse_input_file
 
-from .drive import CommandDriverBasedWorker, QueueDriverBasedWorker
+from .drive import DriverBasedWorker
 from .grid import GridDriverBasedWorker
 from .react import ReactorBasedWorker
 from .single import SingleWorker
@@ -246,10 +246,7 @@ class ComputerVariable(Variable):
                 # workers share calculator in potter
                 driver = potters[p_i].create_driver(drivers[d_i])
                 if not use_single:
-                    if scheduler.name == "local":
-                        worker = CommandDriverBasedWorker(potters[p_i], driver, scheduler)
-                    else:
-                        worker = QueueDriverBasedWorker(potters[p_i], driver, scheduler)
+                    worker = DriverBasedWorker(potters[p_i], driver, scheduler)
                 else:
                     worker = SingleWorker(potters[d_i], driver, scheduler)
                 worker._share_wdir = share_wdir

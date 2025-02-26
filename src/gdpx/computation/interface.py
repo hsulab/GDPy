@@ -6,7 +6,7 @@ import copy
 import itertools
 import pathlib
 import time
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import h5py
 import numpy as np
@@ -14,23 +14,18 @@ import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
-from .. import config
-from ..computation.observer import create_an_observer
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import Variable
-from ..data.array import AtomsNDArray
-from ..selector.scf import ScfSelector
-from ..utils.command import CustomTimer
-from ..utils.strconv import str2array
-from ..worker.drive import (
-    CommandDriverBasedWorker,
-    DriverBasedWorker,
-    QueueDriverBasedWorker,
-)
-from ..worker.interface import ComputerVariable
+from gdpx import config
+from gdpx.core.operation import Operation
+from gdpx.core.register import registers
+from gdpx.core.variable import Variable
+from gdpx.data.array import AtomsNDArray
+from gdpx.selector.scf import ScfSelector
+from gdpx.utils.command import CustomTimer
+from gdpx.utils.strconv import str2array
+from gdpx.worker.drive import DriverBasedWorker
+from gdpx.worker.interface import ComputerVariable
 
-# --- variable ---
+from .observer import create_an_observer
 
 
 @registers.variable.register
@@ -61,7 +56,7 @@ class DriverVariable(Variable):
 
         return
 
-    def _broadcast_drivers(self, params: dict) -> List[dict]:
+    def _broadcast_drivers(self, params: dict) -> list[dict]:
         """Broadcast parameters if there were any parameter is a list."""
         # Find parameters with list values
         params_, plengths = {}, []
@@ -82,9 +77,7 @@ class DriverVariable(Variable):
         # Get parameter names with more than one value
         keys_to_broadcast = sorted([k for k, n in plengths if n > 1])
 
-        values_to_broadcast = list(
-            itertools.product(*[params_[k] for k in keys_to_broadcast])
-        )
+        values_to_broadcast = list(itertools.product(*[params_[k] for k in keys_to_broadcast]))
 
         params = params_
 
@@ -93,9 +86,7 @@ class DriverVariable(Variable):
 
         for values in values_to_broadcast:
             new_params = copy.deepcopy(params)
-            new_params.update(
-                {k: v for k, v in zip(keys_to_broadcast, values)}
-            )
+            new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
             params_list.append(new_params)
 
         return params_list
@@ -103,13 +94,13 @@ class DriverVariable(Variable):
 
 def extract_results_from_workers(
     directory: pathlib.Path,
-    workers: List[DriverBasedWorker],
+    workers: list[DriverBasedWorker],
     *,
     safe_inspect: bool = True,
     use_archive: bool = True,
     print_func=print,
     debug_func=print,
-) -> Tuple[str, AtomsNDArray]:
+) -> tuple[str, AtomsNDArray]:
     """"""
     _print = print_func
     _debug = debug_func
@@ -141,16 +132,10 @@ def extract_results_from_workers(
                 # thus we can skip them here.
                 ...
             cached_trajs_dpath.mkdir(parents=True, exist_ok=True)
-            curr_trajectories = worker.retrieve(
-                include_retrieved=True, use_archive=use_archive
-            )
-            AtomsNDArray(curr_trajectories).save_file(
-                cached_trajs_dpath / "dataset.h5"
-            )
+            curr_trajectories = worker.retrieve(include_retrieved=True, use_archive=use_archive)
+            AtomsNDArray(curr_trajectories).save_file(cached_trajs_dpath / "dataset.h5")
         else:
-            curr_trajectories = AtomsNDArray.from_file(
-                cached_trajs_dpath / "dataset.h5"
-            ).tolist()
+            curr_trajectories = AtomsNDArray.from_file(cached_trajs_dpath / "dataset.h5").tolist()
 
         trajectories.append(curr_trajectories)
 
@@ -169,13 +154,13 @@ def extract_results_from_workers(
 
 def extract_results_from_workers_compact(
     directory: pathlib.Path,
-    workers: List[DriverBasedWorker],
+    workers: list[DriverBasedWorker],
     *,
     safe_inspect: bool = True,
     use_archive: bool = True,
     print_func=print,
     debug_func=print,
-) -> Tuple[str, AtomsNDArray]:
+) -> tuple[str, AtomsNDArray]:
     """"""
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=True)
@@ -205,16 +190,10 @@ def extract_results_from_workers_compact(
                     # If compute enables extract, it has already done the inspects
                     # thus we can skip them here.
                     ...
-                curr_trajectories = worker.retrieve(
-                    include_retrieved=True, use_archive=use_archive
-                )
-                AtomsNDArray(curr_trajectories).save_file(
-                    fopen, grp_name=grp_name
-                )
+                curr_trajectories = worker.retrieve(include_retrieved=True, use_archive=use_archive)
+                AtomsNDArray(curr_trajectories).save_file(fopen, grp_name=grp_name)
             else:
-                curr_trajectories = AtomsNDArray.from_file(
-                    fopen, grp_name=grp_name
-                ).tolist()
+                curr_trajectories = AtomsNDArray.from_file(fopen, grp_name=grp_name).tolist()
 
             trajectories.append(curr_trajectories)
 
@@ -272,17 +251,13 @@ def convert_results_to_structures(
             # ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
             _print(f"previous  structure shape: {inp_shape}")
             _print(f"target    structure shape: {inp_shape_}")
-            # - get a full list of indices and fill None to a flatten Atoms List
+            # - get a full list of indices and fill None to a flatten Atoms list
             # _print(inp_markers)
             curr_converted_structures = []
-            full_list = list(
-                itertools.product(*[range(x) for x in inp_shape_])
-            )
+            full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
             for i, iloc in enumerate(full_list):
                 if iloc in inp_markers:
-                    curr_converted_structures.append(
-                        curr_structures[inp_markers.index(iloc)]
-                    )
+                    curr_converted_structures.append(curr_structures[inp_markers.index(iloc)])
                 else:
                     curr_converted_structures.append(None)
             # _print(len(curr_converted_structures))
@@ -292,11 +267,7 @@ def convert_results_to_structures(
                 npoints = len(curr_converted_structures)
                 repeats = int(npoints / s)
                 reshaped_converted_structures = [
-                    [
-                        curr_converted_structures[i]
-                        for i in range(r * s, (r + 1) * s)
-                    ]
-                    for r in range(repeats)
+                    [curr_converted_structures[i] for i in range(r * s, (r + 1) * s)] for r in range(repeats)
                 ]
                 curr_converted_structures = reshaped_converted_structures
             converted_structures.append(curr_converted_structures)
@@ -353,9 +324,7 @@ class compute(Operation):
             if builder is not None:
                 structures = builder
             else:
-                raise RuntimeError(
-                    "Either `structures` or `builder` should be set."
-                )
+                raise RuntimeError("Either `structures` or `builder` should be set.")
         else:
             ...
         super().__init__(input_nodes=[structures, worker], directory=directory)
@@ -381,18 +350,16 @@ class compute(Operation):
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         builder, worker = input_nodes
-        if isinstance(worker, dict) or isinstance(
-            worker, omegaconf.dictconfig.DictConfig
-        ):
+        if isinstance(worker, dict) or isinstance(worker, omegaconf.dictconfig.DictConfig):
             worker = ComputerVariable(**worker)
 
         return builder, worker
 
     def forward(
         self,
-        structures: Union[List[Atoms], AtomsNDArray],
-        workers: List[DriverBasedWorker],
-    ) -> Union[List[DriverBasedWorker], List[AtomsNDArray]]:
+        structures: Union[list[Atoms], AtomsNDArray],
+        workers: list[DriverBasedWorker],
+    ) -> Union[list[DriverBasedWorker], list[AtomsNDArray]]:
         """Run simulations with given structures and workers.
 
         Workers' working directory and batchsize are probably set.
@@ -415,11 +382,7 @@ class compute(Operation):
         except:  # GridDriverBasedWorker
             driver0_dict = dict(task="unknown")
 
-        if (
-            num_workers == 1
-            and driver0_dict.get("task", "min") == "min"
-            and (driver0_dict.get("steps", 0) <= 0)
-        ):
+        if num_workers == 1 and driver0_dict.get("task", "min") == "min" and (driver0_dict.get("steps", 0) <= 0):
             # check input data type
             inp_shape, inp_markers = None, None
             if isinstance(structures, AtomsNDArray):
@@ -431,7 +394,7 @@ class compute(Operation):
                 num_frames = len(frames)
                 inp_shape = structures.shape
                 inp_markers = [tuple(iloc.tolist()) for iloc in curr_markers]
-            else:  # assume it is just a List of Atoms
+            else:  # assume it is just a list of Atoms
                 frames = structures
                 num_frames = len(frames)
                 inp_shape = (1, num_frames)
@@ -459,7 +422,7 @@ class compute(Operation):
                 else:
                     curr_markers = structures.init_markers
                 frames = structures.get_marked_structures(markers=curr_markers)
-            else:  # assume it is just a plain List of Atoms
+            else:  # assume it is just a plain list of Atoms
                 frames = structures
             num_frames = len(frames)
             inp_shape, inp_markers = None, None
@@ -492,9 +455,7 @@ class compute(Operation):
                 if worker.get_number_of_running_jobs() == 0:
                     # -- save flag
                     with open(flag_fpath, "w") as fopen:
-                        fopen.write(
-                            f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
-                        )
+                        fopen.write(f"FINISHED AT {time.asctime( time.localtime(time.time()) )}.")
                     worker_status.append(True)
                 else:
                     worker_status.append(False)
@@ -623,27 +584,19 @@ class compute_chain(Operation):
                 is_step_finished = run_one_step(worker, curr_structures)
                 if is_step_finished:
                     config._print("chainstep is finished.")
-                    results = worker.retrieve(
-                        include_retrieved=True, use_archive=self.use_archive
-                    )
+                    results = worker.retrieve(include_retrieved=True, use_archive=self.use_archive)
                     (worker.directory / "extracted").mkdir(exist_ok=True)
-                    AtomsNDArray(results).save_file(
-                        worker.directory / "extracted" / "results.h5"
-                    )
+                    AtomsNDArray(results).save_file(worker.directory / "extracted" / "results.h5")
                     curr_structures = [res[-1] for res in results]
                     write(worker.directory / "end_frames.xyz", curr_structures)
                     with open(flag_fpath, "w") as fopen:
-                        fopen.write(
-                            f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}."
-                        )
+                        fopen.write(f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}.")
                     # earlystop?
                     try:
                         for i, observer in enumerate(self.observers):
                             for j, atoms in enumerate(curr_structures):
                                 if observer.run(atoms):
-                                    raise ChainStepEarlystop(
-                                        f"{observer.__class__.__name__} stops at candidate {j}"
-                                    )
+                                    raise ChainStepEarlystop(f"{observer.__class__.__name__} stops at candidate {j}")
                     except ChainStepEarlystop as e:
                         self._print(str(e))
                         is_finished, is_earlystopped = True, True
@@ -655,9 +608,7 @@ class compute_chain(Operation):
                 else:
                     break
             else:
-                curr_structures = read(
-                    worker.directory / "end_frames.xyz", ":"
-                )
+                curr_structures = read(worker.directory / "end_frames.xyz", ":")
                 with open(flag_fpath, "r") as fopen:
                     content = fopen.readlines()
                 self._print(content)
@@ -675,9 +626,7 @@ class compute_chain(Operation):
                 self._print("--- extract results ---")
                 new_results = []
                 for i, worker in enumerate(workers):
-                    curr_results = AtomsNDArray.from_file(
-                        worker.directory / "extracted" / "results.h5"
-                    )
+                    curr_results = AtomsNDArray.from_file(worker.directory / "extracted" / "results.h5")
                     # TODO: inhomogeneous trajectories?
                     if i == 0:
                         for res in curr_results:
@@ -687,12 +636,9 @@ class compute_chain(Operation):
                         for j in range(num_candidates):
                             new_results[j].extend(curr_results[j][1:])
                     if is_earlystopped:
-                        if (
-                            worker.directory / f"EARLYSTOP.{str(i).zfill(2)}"
-                        ).exists():
+                        if (worker.directory / f"EARLYSTOP.{str(i).zfill(2)}").exists():
                             with open(
-                                worker.directory
-                                / f"EARLYSTOP.{str(i).zfill(2)}",
+                                worker.directory / f"EARLYSTOP.{str(i).zfill(2)}",
                                 "r",
                             ) as fopen:
                                 content = fopen.readlines()
@@ -709,16 +655,12 @@ class compute_chain(Operation):
         return output
 
 
-def extract_results_from_worker_chain(
-    workers, use_archive: bool = True, print_func=print, debug_func=print
-):
+def extract_results_from_worker_chain(workers, use_archive: bool = True, print_func=print, debug_func=print):
     """"""
     new_results = []
     for i, worker in enumerate(workers):
         print_func(f"{worker.directory=}")
-        curr_results = worker.retrieve(
-            include_retrieved=True, use_archive=use_archive
-        )
+        curr_results = worker.retrieve(include_retrieved=True, use_archive=use_archive)
         # TODO: inhomogeneous trajectories?
         if i == 0:
             for res in curr_results:
@@ -735,9 +677,7 @@ def extract_results_from_worker_chain(
 @registers.operation.register
 class extract_chain(Operation):
 
-    def __init__(
-        self, compute, merge_workers: bool = False, directory="./"
-    ) -> None:
+    def __init__(self, compute, merge_workers: bool = False, directory="./") -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
 
@@ -756,9 +696,7 @@ class extract_chain(Operation):
             for icomp, computer in enumerate(computers):
                 workers = computer.value
                 for iwork, worker in enumerate(workers):
-                    worker.directory = (
-                        computer.directory / f"chainstep.{iwork:>02d}"
-                    )
+                    worker.directory = computer.directory / f"chainstep.{iwork:>02d}"
                 comp_results = extract_results_from_worker_chain(
                     workers=workers,
                     use_archive=True,
@@ -796,7 +734,7 @@ class extract_cache(Operation):
     def __init__(
         self,
         compute,
-        cache_wdirs: List[Union[str, pathlib.Path]],
+        cache_wdirs: list[Union[str, pathlib.Path]],
         directory="./",
     ) -> None:
         """"""
@@ -807,18 +745,14 @@ class extract_cache(Operation):
         return
 
     @CustomTimer(name="extract_cache", func=config._debug)
-    def forward(self, workers: List[DriverBasedWorker]):
+    def forward(self, workers: list[DriverBasedWorker]):
         """"""
         super().forward()
 
         # - broadcast workers
         nwdirs = len(self.cache_wdirs)
         nworkers = len(workers)
-        assert (
-            nwdirs == nworkers
-        ) or nworkers == 1, (
-            "Found inconsistent number of cache dirs and workers."
-        )
+        assert (nwdirs == nworkers) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
 
         # - use driver to read results
         cache_data = self.directory / "cache_data.h5"
@@ -828,9 +762,7 @@ class extract_cache(Operation):
             # TODO: whether check convergence?
             trajectories = Parallel(n_jobs=config.NJOBS)(
                 delayed(self._read_trajectory)(curr_wdir, curr_worker)
-                for curr_wdir, curr_worker in itertools.zip_longest(
-                    self.cache_wdirs, workers, fillvalue=workers[0]
-                )
+                for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
             )
             trajectories = AtomsNDArray(data=trajectories)
             trajectories.save_file(cache_data)
@@ -868,7 +800,7 @@ class extract(Operation):
         """Init an extract operation.
 
         Args:
-            compute: Any node forwards a List of workers.
+            compute: Any node forwards a list of workers.
             merge_workers: Whether merge results from different workers togather.
             reduce_single_worker: Whether squeeze the worker axis for one worker.
             use_archive: Whether archive computation folders after all workers finished.
@@ -887,7 +819,7 @@ class extract(Operation):
 
         return
 
-    def forward(self, workers: List[DriverBasedWorker]) -> AtomsNDArray:
+    def forward(self, workers: list[DriverBasedWorker]) -> AtomsNDArray:
         """
         Args:
             workers: ...
@@ -901,9 +833,7 @@ class extract(Operation):
         self.workers = workers  # for operations to access
 
         # - shape
-        inp_shape, inp_markers = get_shape_data(
-            self.input_nodes[0].directory / "_shape"
-        )
+        inp_shape, inp_markers = get_shape_data(self.input_nodes[0].directory / "_shape")
 
         # - extract results
         if self.use_compact:
