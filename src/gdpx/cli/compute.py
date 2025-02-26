@@ -10,20 +10,15 @@ from typing import List, Optional, Union
 from ase import Atoms
 from ase.io import read, write
 
+from gdpx import config
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.builder import BuilderVariable
-
-from .. import config
-from ..reactor.reactor import AbstractReactor
-from ..scheduler.interface import SchedulerVariable
-from ..utils.command import parse_input_file
-from ..worker.drive import DriverBasedWorker
-from ..worker.grid import GridDriverBasedWorker
-from ..worker.interface import (
-    ComputerChainVariable,
-    ComputerVariable,
-    ReactorVariable,
-)
+from gdpx.reactor.reactor import AbstractReactor
+from gdpx.scheduler.interface import SchedulerVariable
+from gdpx.utils.command import parse_input_file
+from gdpx.worker.drive import DriverBasedWorker, run_computation_in_commandline
+from gdpx.worker.grid import GridDriverBasedWorker
+from gdpx.worker.interface import ComputerChainVariable, ComputerVariable, ReactorVariable
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -46,14 +41,10 @@ def convert_input_to_computer(config):
     if isinstance(config, dict):
         computer = convert_config_to_computer(config)
     elif isinstance(config, list):
-        assert (
-            len(config) >= 1
-        ), "ComputerChain must have more than one computer configuration."
+        assert len(config) >= 1, "ComputerChain must have more than one computer configuration."
         computer = convert_config_to_computer_chain(config)
     else:
-        raise RuntimeError(
-            f"Unknown input for computer with a type of {config}."
-        )
+        raise RuntimeError(f"Unknown input for computer with a type of {config}.")
 
     return computer
 
@@ -87,9 +78,7 @@ def convert_config_to_computer(config):
         if potential_params is not None:
             params["potter"] = potential_params
         else:
-            raise RuntimeError(
-                "Fail to find any potter (potential) definition."
-            )
+            raise RuntimeError("Fail to find any potter (potential) definition.")
     else:
         params["potter"] = potter_params
 
@@ -135,25 +124,26 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
 
     # run computations
     _ = worker.run(structures, batch=batch)
-    worker.inspect(resubmit=True, batch=batch)
 
     # check results
     comp_state = CompState.QUEUED
-    if not spawn and worker.get_number_of_running_jobs() == 0:
-        res_dir = directory / "results"
-        if not res_dir.exists():
-            res_dir.mkdir()
-            ret = worker.retrieve(include_retrieved=True, use_archive=archive)
-            if not isinstance(worker.driver, AbstractReactor):
-                end_frames = [traj[-1] for traj in ret]
-                write(res_dir / "end_frames.xyz", end_frames)
+    if not spawn:
+        worker.inspect(resubmit=True, batch=batch)
+        if worker.get_number_of_running_jobs() == 0:
+            res_dir = directory / "results"
+            if not res_dir.exists():
+                res_dir.mkdir()
+                ret = worker.retrieve(include_retrieved=True, use_archive=archive)
+                if not isinstance(worker.driver, AbstractReactor):
+                    end_frames = [traj[-1] for traj in ret]
+                    write(res_dir / "end_frames.xyz", end_frames)
+                    config._print(f"{directory.name} has already been retrieved.")
+                    comp_state = CompState.FINISHED
+                else:
+                    config._print("Reactor results cannot be retreived for now.")
+            else:
                 config._print(f"{directory.name} has already been retrieved.")
                 comp_state = CompState.FINISHED
-            else:
-                config._print("Reactor results cannot be retreived for now.")
-        else:
-            config._print(f"{directory.name} has already been retrieved.")
-            comp_state = CompState.FINISHED
 
     return comp_state
 
@@ -165,17 +155,14 @@ def run_worker(
     batch: Optional[int] = None,
     spawn: bool = False,
     archive: bool = False,
-    directory: Union[str, pathlib.Path] = pathlib.Path.cwd()
-    / DEFAULT_MAIN_DIRNAME,
+    directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
 ):
     """This computation is performed either by Computer or ComputerChain."""
     # some imported packages change `logging.basicConfig`
     # and accidently add a StreamHandler to logging.root
     # so remove it...
     for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(
-            h, logging.FileHandler
-        ):
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
             logging.root.removeHandler(h)
 
     # Set working directory
@@ -196,21 +183,15 @@ def run_worker(
 
     # Find input frames
     comp_states = []
-    if isinstance(computer, ComputerVariable) or isinstance(
-        computer, ReactorVariable
-    ):
+    if isinstance(computer, ComputerVariable) or isinstance(computer, ReactorVariable):
         workers: List[DriverBasedWorker] = computer.value
         num_workers = len(workers)
         if num_workers == 1:
-            comp_state = run_one_worker(
-                frames, workers[0], directory, batch, spawn, archive
-            )
+            comp_state = run_one_worker(frames, workers[0], directory, batch, spawn, archive)
             comp_states.append(comp_state)
         else:
             for i, w in enumerate(workers):
-                comp_state = run_one_worker(
-                    frames, w, directory / f"w{i}", batch, spawn, archive
-                )
+                comp_state = run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
                 comp_states.append(comp_state)
     elif isinstance(computer, ComputerChainVariable):
         workers: List[DriverBasedWorker] = computer.value
@@ -219,21 +200,13 @@ def run_worker(
         for i, worker in enumerate(workers):
             config._print(f"<- ComputerChainStep.{str(i).zfill(2)} ->")
             chainstep_directory = directory / f"chainstep.{str(i).zfill(2)}"
-            comp_state = run_one_worker(
-                curr_frames, worker, chainstep_directory, batch, spawn, archive
-            )
+            comp_state = run_one_worker(curr_frames, worker, chainstep_directory, batch, spawn, archive)
             if comp_state == CompState.FINISHED:
                 config._print("chainstep is finished.")
-                curr_frames = read(
-                    chainstep_directory / "results" / "end_frames.xyz", ":"
-                )
+                curr_frames = read(chainstep_directory / "results" / "end_frames.xyz", ":")
                 # link to the results from the last chainstep
                 if i + 1 == num_workers:
-                    (directory / "results").symlink_to(
-                        (chainstep_directory / "results").relative_to(
-                            directory
-                        )
-                    )
+                    (directory / "results").symlink_to((chainstep_directory / "results").relative_to(directory))
             else:
                 config._print("chainstep is not finished.")
                 break
@@ -290,12 +263,8 @@ def run_grid_worker(grid_params: dict, batch: Optional[int], spawn, directory):
     directory = pathlib.Path(directory)
 
     if batch is None:  # submit jobs to queue
-        scheduler, structures, potters, drivers, aux_params = (
-            convert_config_to_grid_components(grid_params)
-        )
-        worker = GridDriverBasedWorker(
-            potters=potters, drivers=drivers, scheduler=scheduler, **aux_params
-        )
+        scheduler, structures, potters, drivers, aux_params = convert_config_to_grid_components(grid_params)
+        worker = GridDriverBasedWorker(potters=potters, drivers=drivers, scheduler=scheduler, **aux_params)
         worker._submit = False
 
         # run computations
@@ -317,9 +286,7 @@ def run_grid_worker(grid_params: dict, batch: Optional[int], spawn, directory):
         grid_params = {}
         grid_params["grid"] = batch_grid_params
 
-        scheduler, structures, potters, drivers, aux_params = (
-            convert_config_to_grid_components(grid_params)
-        )
+        scheduler, structures, potters, drivers, aux_params = convert_config_to_grid_components(grid_params)
         # aux_params["batchsize"] = len(structures)
         # worker = GridDriverBasedWorker(
         #     potters=potters, drivers=drivers, scheduler=scheduler, **aux_params
@@ -338,8 +305,7 @@ def run_computation(
     batch: Optional[int] = None,
     spawn: bool = False,
     archive: bool = False,
-    directory: Union[str, pathlib.Path] = pathlib.Path.cwd()
-    / DEFAULT_MAIN_DIRNAME,
+    directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
 ):
     """"""
     if computer is not None:

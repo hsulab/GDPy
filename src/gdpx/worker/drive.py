@@ -377,25 +377,54 @@ class DriverBasedWorker(BaseWorker):
             new_rng_states = rng_states
         batches = self._prepare_batches(frames, start_confid, new_rng_states)
 
-        # Load metadata for previous submitted batches
-        database_path = self.directory / f"_{self.scheduler.name}_jobs.json"
-
-        with TinyDB(database_path, indent=2) as database:
-            queued_jobs = database.search(Query().queued.exists())
-        queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
-        queued_frames = [q["md5"] for q in queued_jobs]
-
+        # Some optional arguments
         is_resubmit = kwargs.get("resubmit", False)
         target_batch = kwargs.get("batch", None)
 
-        self._run_by_scheduler(
+        if not self.is_spawned:
+            self._run_by_scheduler(
+                identifier,
+                frames,
+                batches,
+                is_resubmit=is_resubmit,
+                target_batch=target_batch,
+            )
+        else:
+            self._run_by_commandline(
+                identifier,
+                frames,
+                batches,
+                target_batch=target_batch,
+            )
+
+        return
+
+    def _run_by_commandline(
+        self,
+        identifier: str,
+        frames: list[Atoms],
+        batches,
+        target_batch: Optional[int] = None,
+    ):
+        """"""
+        # Load metadata for the target batch
+        batch_data = batches[target_batch]
+        curr_indices, curr_wdirs, rng_states = batch_data
+
+        # Get structures
+        curr_frames = [frames[i] for i in curr_indices]
+
+        # Run computations
+        run_computation_in_commandline(
             identifier,
-            frames,
-            batches,
-            queued_names,
-            queued_frames,
-            is_resubmit=is_resubmit,
-            target_batch=target_batch,
+            curr_frames,
+            curr_wdirs,
+            rng_states,
+            self.driver,
+            self.directory,
+            self._share_wdir,
+            print_period=self.print_period,
+            print_func=self._print,
         )
 
         return
@@ -403,14 +432,21 @@ class DriverBasedWorker(BaseWorker):
     def _run_by_scheduler(
         self,
         identifier: str,
-        frames,
+        frames: list[Atoms],
         batches,
-        queued_names,
-        queued_frames,
         is_resubmit: bool = False,
         target_batch: Optional[int] = None,
     ):
         """"""
+        # Load metadata for previous submitted batches
+        database_path = self.directory / f"_{self.scheduler.name}_jobs.json"
+        self._print(f"database_path: {database_path}")
+
+        with TinyDB(database_path, indent=2) as database:
+            queued_jobs = database.search(Query().queued.exists())
+        queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
+        queued_frames = [q["md5"] for q in queued_jobs]
+
         for ig, (global_indices, wdirs, rs) in enumerate(batches):
             # Set job name
             batch_name = f"group-{ig}"
