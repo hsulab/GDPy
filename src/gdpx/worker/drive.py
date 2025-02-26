@@ -32,30 +32,6 @@ from .utils import copy_minimal_frames, get_file_md5
 from .worker import BaseWorker
 
 
-def compare_atoms(a1, a2):
-    """Compare structures according to cell, chemical symbols, and positions.
-
-    Structures will be different if the atom order changes.
-
-    """
-    c1 = a1.get_cell(complete=True)
-    c2 = a2.get_cell(complete=True)
-    if np.sum(c1 - c2) >= 1e-8:
-        return False
-
-    s1 = a1.get_chemical_symbols()
-    s2 = a2.get_chemical_symbols()
-    if s1 != s2:
-        return False
-
-    p1 = a1.get_positions()
-    p2 = a2.get_positions()
-    if np.sum(p1 - p2) >= 1e-8:
-        return False
-
-    return True
-
-
 class DriverBasedWorker(BaseWorker):
     """Monitor driver-based jobs.
 
