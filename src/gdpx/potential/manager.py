@@ -9,11 +9,10 @@ import numpy as np
 from ase.calculators.calculator import Calculator
 
 from gdpx import config
+from gdpx.backend.ase import DummyCalculator
 from gdpx.computation import register_drivers
 from gdpx.computation.driver import AbstractDriver
 from gdpx.core.register import registers
-
-from .calculators.dummy import DummyCalculator
 
 
 class BasePotentialManager(abc.ABC):

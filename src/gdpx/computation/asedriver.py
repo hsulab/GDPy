@@ -22,8 +22,9 @@ from ase.io import read, write
 from ase.md.md import MolecularDynamics
 from ase.optimize.optimize import Dynamics
 
-from .. import config as GDPCONFIG
-from ..potential.calculators.mixer import EnhancedCalculator
+from gdpx import config as GDPCONFIG
+from gdpx.backend.ase import EnhancedCalculator
+
 from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
 from .observer import create_an_observer
 
@@ -91,11 +92,7 @@ def retrieve_and_save_deviation(atoms, devi_fpath) -> None:
     """Read model deviation and add results to atoms.info if the file exists."""
     results = copy.deepcopy(atoms.calc.results)
     # devi_results = [(k,v) for k,v in results.items() if "devi" in k]
-    devi_results = [
-        (k, v)
-        for k, v in results.items()
-        if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS
-    ]
+    devi_results = [(k, v) for k, v in results.items() if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS]
     if devi_results:
         devi_names = [x[0] for x in devi_results]
         devi_values = np.array([x[1] for x in devi_results]).reshape(1, -1)
@@ -172,15 +169,9 @@ def save_trajectory(atoms, traj_fpath) -> None:
     # -- check special metadata
     calc = atoms.calc
     if isinstance(calc, EnhancedCalculator):
-        atoms_to_save.info["host_energy"] = copy.deepcopy(
-            calc.results["host_energy"]
-        )
-        atoms_to_save.info["bias_energy"] = (
-            results["energy"] - calc.results["host_energy"]
-        )
-        atoms_to_save.arrays["host_forces"] = copy.deepcopy(
-            calc.results["host_forces"]
-        )
+        atoms_to_save.info["host_energy"] = copy.deepcopy(calc.results["host_energy"])
+        atoms_to_save.info["bias_energy"] = results["energy"] - calc.results["host_energy"]
+        atoms_to_save.arrays["host_forces"] = copy.deepcopy(calc.results["host_forces"])
 
     # - append to traj
     write(traj_fpath, atoms_to_save, append=True)
@@ -188,9 +179,7 @@ def save_trajectory(atoms, traj_fpath) -> None:
     return
 
 
-def save_checkpoint(
-    dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number: int = 3
-):
+def save_checkpoint(dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number: int = 3):
     """"""
     if dyn.nsteps > 0:
         ckpt_wdir = wdir / f"checkpoint.{dyn.nsteps}"
@@ -211,9 +200,7 @@ def save_checkpoint(
                     calc._save_checkpoint(ckpt_wdir)
 
         # remove checkpoints if the number is over ckpt_number
-        ckpt_wdirs = sorted(
-            wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:])
-        )
+        ckpt_wdirs = sorted(wdir.glob("checkpoint*"), key=lambda x: int(x.name[11:]))
         num_ckpts = len(ckpt_wdirs)
         if num_ckpts > ckpt_number:
             for w in ckpt_wdirs[:-ckpt_number]:
@@ -228,9 +215,7 @@ def save_checkpoint(
     return
 
 
-def monit_and_intervene(
-    atoms: Atoms, dynamics: Dynamics, observer, print_func=print
-) -> None:
+def monit_and_intervene(atoms: Atoms, dynamics: Dynamics, observer, print_func=print) -> None:
     """"""
     if dynamics.nsteps >= observer.patience:
         if observer.run(atoms):
@@ -618,9 +603,7 @@ class AseDriver(AbstractDriver):
 
         return self.directory / self.log_fname
 
-    def _create_dynamics(
-        self, atoms: Atoms, start_step: int = 0, *args, **kwargs
-    ) -> Tuple[Dynamics, dict]:
+    def _create_dynamics(self, atoms: Atoms, start_step: int = 0, *args, **kwargs) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
         Respect `steps` and `fmax` as restart.
@@ -634,13 +617,9 @@ class AseDriver(AbstractDriver):
 
         # - init driver
         if self.setting.task == "min":
-            driver = self.setting.driver_cls(
-                atoms, logfile=self.log_fpath, trajectory=None
-            )
+            driver = self.setting.driver_cls(atoms, logfile=self.log_fpath, trajectory=None)
         elif self.setting.task == "cmin":
-            driver = self.setting.driver_cls(
-                atoms, logfile=self.log_fpath, trajectory=None
-            )
+            driver = self.setting.driver_cls(atoms, logfile=self.log_fpath, trajectory=None)
         elif self.setting.task == "md":
             # velocity
             self._prepare_velocities(
@@ -657,18 +636,12 @@ class AseDriver(AbstractDriver):
             )
 
             # construct the driver
-            driver = self.setting.driver_cls(
-                atoms=atoms, logfile=self.log_fpath, trajectory=None
-            )
+            driver = self.setting.driver_cls(atoms=atoms, logfile=self.log_fpath, trajectory=None)
 
             # check if the simulation is annealing
             if self.setting.tend is not None:
-                dtemp = (
-                    self.setting.tend - self.setting.temp
-                ) / self.setting.steps
-                driver.set_temperature(
-                    temperature_K=self.setting.temp + (start_step - 1) * dtemp
-                )
+                dtemp = (self.setting.tend - self.setting.temp) / self.setting.steps
+                driver.set_temperature(temperature_K=self.setting.temp + (start_step - 1) * dtemp)
                 driver.attach(
                     update_target_temperature,
                     dyn=driver,
@@ -676,26 +649,16 @@ class AseDriver(AbstractDriver):
                     interval=1,
                 )
             if self.setting.pend is not None:
-                dpres = (
-                    self.setting.pend - self.setting.press
-                ) / self.setting.steps
+                dpres = (self.setting.pend - self.setting.press) / self.setting.steps
                 # ase-v3.23.0 hase a bug in berendsen_npt _process_pressure
                 # our input pressure is in bar and the one used by ase is eV/Ang^3
-                driver.pressure = (
-                    (self.setting.press + (start_step - 1) * dpres)
-                    * 1e5
-                    * units.Pascal
-                )
-                driver.attach(
-                    update_target_pressure, dyn=driver, dpres=dpres, interval=1
-                )
+                driver.pressure = (self.setting.press + (start_step - 1) * dpres) * 1e5 * units.Pascal
+                driver.attach(update_target_pressure, dyn=driver, dpres=dpres, interval=1)
 
             # override rng
             if hasattr(driver, "rng"):
                 # Langevin needs this!
-                self._print(
-                    f"MD Driver uses rng: {self.rng.bit_generator.state}"
-                )
+                self._print(f"MD Driver uses rng: {self.rng.bit_generator.state}")
                 driver.rng = self.rng
         else:
             raise NotImplementedError(f"Unknown task {self.setting.task}.")
@@ -709,10 +672,7 @@ class AseDriver(AbstractDriver):
             ckpt_dir = self._find_latest_checkpoint(self.directory)
             if ckpt_dir is not None:
                 ckpt_stru_fpath = ckpt_dir / "structures.xyz"
-                if (
-                    ckpt_stru_fpath.exists()
-                    and ckpt_stru_fpath.stat().st_size != 0
-                ):
+                if ckpt_stru_fpath.exists() and ckpt_stru_fpath.stat().st_size != 0:
                     temp_frames = read(ckpt_stru_fpath, ":")
                     try:
                         _ = temp_frames[0].get_forces()
@@ -727,13 +687,9 @@ class AseDriver(AbstractDriver):
 
         return verified
 
-    def _find_latest_checkpoint(
-        self, wdir: pathlib.Path
-    ) -> Optional[pathlib.Path]:
+    def _find_latest_checkpoint(self, wdir: pathlib.Path) -> Optional[pathlib.Path]:
         """"""
-        ckpt_dirs = sorted(
-            wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1])
-        )
+        ckpt_dirs = sorted(wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1]))
         num_ckpts = len(ckpt_dirs)
         if num_ckpts > 0:
             latest_ckpt_dir = ckpt_dirs[-1]
@@ -787,9 +743,7 @@ class AseDriver(AbstractDriver):
                     if hasattr(calc, "_load_checkpoint"):
                         calc._load_checkpoint(ckpt_wdir, start_step=start_step)
             # --- update run_params in settings
-            target_steps = self.setting.get_run_params(*args, **kwargs)[
-                "steps"
-            ]
+            target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
             if target_steps > 0:
                 if self.setting.task == "md":
                     steps = target_steps - start_step
@@ -806,9 +760,7 @@ class AseDriver(AbstractDriver):
         atoms.calc = self.calc
 
         # - set dynamics
-        dynamics, run_params = self._create_dynamics(
-            atoms, start_step=start_step, *args, **kwargs
-        )
+        dynamics, run_params = self._create_dynamics(atoms, start_step=start_step, *args, **kwargs)
         dynamics.nsteps = start_step
         dynamics.max_steps = self.setting.steps
         if hasattr(dynamics, "rng") and rng_state is not None:
@@ -895,9 +847,7 @@ class AseDriver(AbstractDriver):
             self._debug("dump the last frame...")
             update_atoms_info(atoms, dynamics)
             save_trajectory(atoms, self.directory / self.xyz_fname)
-            retrieve_and_save_deviation(
-                atoms, self.directory / self.devi_fname
-            )
+            retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
 
         if should_ckpt_last:
             self._debug("ckpt the last frame...")
@@ -956,15 +906,11 @@ class AseDriver(AbstractDriver):
             else:
                 frames = []
         else:
-            target_name = str(
-                (wdir / self.xyz_fname).relative_to(self.directory.parent)
-            )
+            target_name = str((wdir / self.xyz_fname).relative_to(self.directory.parent))
             with tarfile.open(archive_path, "r:gz") as tar:
                 for tarinfo in tar:
                     if tarinfo.name == target_name:
-                        fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         frames = read(fobj, ":", format="extxyz")
                         fobj.close()
                         break
@@ -979,9 +925,7 @@ class AseDriver(AbstractDriver):
 
         return frames
 
-    def read_trajectory(
-        self, archive_path=None, *args, **kwargs
-    ) -> list[Atoms]:
+    def read_trajectory(self, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
         # - read trajectory
         traj_frames = self._aggregate_trajectories(archive_path=archive_path)
@@ -998,9 +942,7 @@ class AseDriver(AbstractDriver):
             # steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
             # ... infer from input settings
             for i, atoms in enumerate(traj_frames):
-                atoms.info["time"] = (
-                    i * self.setting.timestep * self.setting.dump_period
-                )
+                atoms.info["time"] = i * self.setting.timestep * self.setting.dump_period
         elif self.setting.task == "min":
             # Method - Step - Time - Energy - fmax
             # BFGS:    0 22:18:46    -1024.329999        3.3947
@@ -1010,9 +952,7 @@ class AseDriver(AbstractDriver):
             # steps = [int(s) for s in data[:, 1]]
             # fmaxs = [float(fmax) for fmax in data[:, 4]]
             for atoms in traj_frames:
-                atoms.info["fmax"] = np.max(
-                    np.fabs(atoms.get_forces(apply_constraint=True))
-                )
+                atoms.info["fmax"] = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
         # assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
 
         # - deviation stored in traj, no need to read from file
@@ -1033,9 +973,7 @@ class AseDriver(AbstractDriver):
                     RuntimeWarning,
                 )
                 if nframes > 0:  # for compat
-                    traj_frames[0].info[
-                        "error"
-                    ] = f"Unconverged SCF at {self.directory}."
+                    traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
                 traj_frames.error = True
         else:
             # TODO: How about archived data?

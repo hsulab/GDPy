@@ -4,7 +4,8 @@
 
 import pathlib
 
-from ..calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from ..manager import BasePotentialManager
 
 
@@ -14,10 +15,7 @@ class PlumedManager(BasePotentialManager):
 
     implemented_backends = ("ase",)
 
-    valid_combinations = (
-        # calculator, dynamics
-        ("ase", "ase"),
-    )
+    valid_combinations = (("ase", "ase"),)
 
     def register_calculator(self, calc_params: dict, *agrs, **kwargs) -> None:
         """"""
@@ -28,9 +26,7 @@ class PlumedManager(BasePotentialManager):
             try:
                 from .calculators.plumed2 import Plumed
             except:
-                raise ModuleNotFoundError(
-                    "Please install py-plumed to use the ase interface."
-                )
+                raise ModuleNotFoundError("Please install py-plumed to use the ase interface.")
 
             inp = calc_params.get("inp", "./plumed.inp")
             if isinstance(inp, str) or isinstance(inp, pathlib.Path):
@@ -65,7 +61,7 @@ class PlumedManager(BasePotentialManager):
                 update_charge=update_charge,
             )
         else:
-            ...
+            ...  # The backend has already been checked.
 
         self.calc = calc
 

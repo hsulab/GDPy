@@ -8,10 +8,10 @@ from typing import Any, Optional, Union
 
 import omegaconf
 
+from gdpx.backend.ase import CommitteeCalculator
 from gdpx.core.register import registers
 from gdpx.utils.command import parse_input_file
 
-from .calculators.mixer import CommitteeCalculator
 from .manager import BasePotentialManager
 
 

@@ -9,10 +9,9 @@ from typing import Optional, Union
 
 from ase.io import write
 
+from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 from gdpx.utils.logio import remove_extra_stream_handlers
 
-from .calculators.dummy import DummyCalculator
-from .calculators.mixer import CommitteeCalculator
 from .manager import BasePotentialManager
 from .trainer import BasePotentialTrainer
 from .utils import build_a_committee_calculator, canonicalise_input_models

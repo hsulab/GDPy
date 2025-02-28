@@ -10,16 +10,18 @@ from .manager import BasePotentialManager
 class ReaxManager(BasePotentialManager):
 
     name = "reax"
-    implemented_backends = "lammps"
 
-    valid_combinations = (("lammps", "ase"), ("lammps", "lammps"))
+    implemented_backends = ("lammps",)
+    valid_combinations = (
+        ("lammps", "ase"),
+        ("lammps", "lammps"),
+    )
 
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
         command = calc_params.pop("command", None)
-        directory = calc_params.pop("directory", pathlib.Path.cwd())
 
         model = calc_params.get("model", None)
         model = str(pathlib.Path(model).resolve())
@@ -33,7 +35,6 @@ class ReaxManager(BasePotentialManager):
                 pair_coeff = f"* * {model}"
                 calc = Lammps(
                     command=command,
-                    directory=directory,
                     pair_style=pair_style,
                     pair_coeff=pair_coeff,
                     **calc_params,
@@ -43,6 +44,9 @@ class ReaxManager(BasePotentialManager):
                 calc.set(atom_style="charge")
             else:
                 calc = None
+        else:
+            ...  # The backend has already been checked.
+
         self.calc = calc
 
         return

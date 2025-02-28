@@ -4,9 +4,9 @@
 
 import pathlib
 
+from gdpx.backend.ase import DummyCalculator
 from gdpx.computation.lammps import Lammps
 
-from .calculators.dummy import DummyCalculator
 from .manager import BasePotentialManager
 
 
@@ -48,13 +48,7 @@ class ClassicManager(BasePotentialManager):
             pair_style = model_params.get("type")
             pair_coeff = []
             for k, v in model_params["pair"].items():
-                coeff = (
-                    " ".join(
-                        [str(type_list.index(s) + 1) for s in k.split("-")]
-                    )
-                    + "  "
-                    + v
-                )
+                coeff = " ".join([str(type_list.index(s) + 1) for s in k.split("-")]) + "  " + v
                 pair_coeff.append(coeff)
             pair_modify = model_params.get("modify", None)
             calc = Lammps(
@@ -69,9 +63,7 @@ class ClassicManager(BasePotentialManager):
             extra_params = dict(is_classic=True)
             extra_params.update(units=model_params.get("units", "metal"))
             if calc.kspace_style is not None:
-                extra_params.update(
-                    atom_style="charge", type_charges=type_charges
-                )
+                extra_params.update(atom_style="charge", type_charges=type_charges)
             calc.set(**extra_params)
         else:
             ...

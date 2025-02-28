@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*
 
 
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from .manager import BasePotentialManager
 
 """Check https://dftd3.readthedocs.io/en/latest/api/ase.html
@@ -32,9 +33,7 @@ class Dftd3Manager(BasePotentialManager):
         if self.calc_backend == "ase":
             from dftd3.ase import DFTD3 as calc_cls
         else:
-            raise NotImplementedError(
-                f"Unsupported backend {self.calc_backend}."
-            )
+            raise NotImplementedError(f"Unsupported backend {self.calc_backend}.")
 
         calc = calc_cls(**calc_params)
 
@@ -45,4 +44,3 @@ class Dftd3Manager(BasePotentialManager):
 
 if __name__ == "__main__":
     ...
-

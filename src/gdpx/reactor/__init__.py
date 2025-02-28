@@ -6,7 +6,6 @@ import copy
 
 from .. import config
 from ..core.register import registers
-from ..potential.calculators.mixer import EnhancedCalculator
 from ..utils.cmdrun import run_ase_calculator
 from ..utils.strucopy import read_sort, resort_atoms_with_spc
 

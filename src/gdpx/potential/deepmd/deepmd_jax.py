@@ -9,7 +9,8 @@ from typing import Optional
 
 import numpy as np
 
-from ..calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from ..manager import BasePotentialManager
 from ..trainer import BasePotentialTrainer
 from .convert import convert_groups

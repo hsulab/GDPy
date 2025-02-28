@@ -4,8 +4,9 @@
 
 import copy
 
-from . import registers
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+from gdpx.core.register import registers
+
 from .manager import BasePotentialManager
 
 """This manager registers ALL bias calculators."""
@@ -81,9 +82,7 @@ class BiasManager(BasePotentialManager):
         calc_params["backend"] = manager.calc_backend
         # print(f"{calc_params =}")
 
-        bias_cls = manager.get_bias_cls(
-            calc_params["backend"], calc_params["method"]
-        )
+        bias_cls = manager.get_bias_cls(calc_params["backend"], calc_params["method"])
         if hasattr(bias_cls, "broadcast_params"):
             broadcasted_params = bias_cls.broadcast_params(calc_params)
             # print(f"{broadcasted_params =}")

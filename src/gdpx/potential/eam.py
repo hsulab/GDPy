@@ -4,7 +4,8 @@
 
 import pathlib
 
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from .manager import BasePotentialManager
 
 
@@ -12,7 +13,7 @@ class EamManager(BasePotentialManager):
 
     name = "eam"
 
-    implemented_backends = ["lammps"]
+    implemented_backends = ("lammps",)
     valid_combinations = ("lammps", "lammps")
 
     """See LAMMPS documentation for calculator parameters.
@@ -54,9 +55,7 @@ class EamManager(BasePotentialManager):
                 pair_coeff += " {} ".format(models[0])
 
                 pair_style_name = pair_style.split()[0]
-                assert (
-                    pair_style_name == "eam"
-                ), "Incorrect pair_style for lammps eam..."
+                assert pair_style_name == "eam", "Incorrect pair_style for lammps eam..."
 
                 calc = Lammps(
                     command=command,

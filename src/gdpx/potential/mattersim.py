@@ -4,7 +4,8 @@
 
 import copy
 
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from .manager import BasePotentialManager
 from .utils import canonicalise_input_models
 
@@ -13,7 +14,7 @@ class MatterSimManager(BasePotentialManager):
 
     name = "mattersim"
 
-    implemented_backends = ["ase"]
+    implemented_backends = ("ase",)
 
     valid_combinations = (("ase", "ase"),)
 
@@ -39,12 +40,8 @@ class MatterSimManager(BasePotentialManager):
 
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             except:
-                raise ModuleNotFoundError(
-                    "Please install mattersim and torch to use the ase interface."
-                )
-            calc = MatterSimCalculator.from_checkpoint(
-                load_path=models[0], device=device
-            )
+                raise ModuleNotFoundError("Please install mattersim and torch to use the ase interface.")
+            calc = MatterSimCalculator.from_checkpoint(load_path=models[0], device=device)
         else:
             ...  # Backend has already been checked.
 

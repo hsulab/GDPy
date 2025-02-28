@@ -4,7 +4,8 @@
 
 import pathlib
 
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from .manager import BasePotentialManager
 
 
@@ -12,7 +13,7 @@ class EspressoManager(BasePotentialManager):
 
     name = "espresso"
 
-    implemented_backends = ["espresso"]
+    implemented_backends = ("espresso",)
     valid_combinations = ("espresso", "ase")
 
     def register_calculator(self, calc_params, *agrs, **kwargs):
@@ -21,16 +22,12 @@ class EspressoManager(BasePotentialManager):
         super().register_calculator(calc_params, *agrs, **kwargs)
 
         # Parse params
-        command = calc_params.get(
-            "command", "pw.x -in PREFIX.pwi > PREFIX.pwo"
-        )
+        command = calc_params.get("command", "pw.x -in PREFIX.pwi > PREFIX.pwo")
         self.calc_params.update(command=command)
 
         pp_path = pathlib.Path(calc_params.pop("pp_path", "./")).resolve()
         if not pp_path.exists():
-            raise FileNotFoundError(
-                "Pseudopotentials for espresso does not exist."
-            )
+            raise FileNotFoundError("Pseudopotentials for espresso does not exist.")
         self.calc_params.update(pp_path=str(pp_path))
 
         pp_name = calc_params.get("pp_name", None)
@@ -40,9 +37,7 @@ class EspressoManager(BasePotentialManager):
         template = calc_params.pop("template", "./espresso.pwi")
         template = pathlib.Path(template)
         if not template.exists():
-            raise FileNotFoundError(
-                "Template espresso input file does not exist."
-            )
+            raise FileNotFoundError("Template espresso input file does not exist.")
         self.calc_params.update(template=str(template))
 
         from gdpx.computation.espresso import EspressoParser
@@ -54,9 +49,7 @@ class EspressoManager(BasePotentialManager):
         kspacing = calc_params.pop("kspacing", None)
         koffset = calc_params.pop("koffset", 0)
 
-        assert (
-            kpts is None or kspacing is None
-        ), "Cannot set kpts and kspacing at the same time."
+        assert kpts is None or kspacing is None, "Cannot set kpts and kspacing at the same time."
 
         calc = DummyCalculator()
 
@@ -81,4 +74,3 @@ class EspressoManager(BasePotentialManager):
 
 if __name__ == "__main__":
     ...
-

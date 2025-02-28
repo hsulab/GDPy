@@ -16,7 +16,7 @@ from ase.mep import NEB
 from ase.optimize.optimize import Dynamics
 
 from gdpx import config as GDPCONFIG
-from gdpx.potential.calculators.mixer import EnhancedCalculator
+from gdpx.backend.ase import EnhancedCalculator
 
 from .string import AbstractStringReactor, StringReactorSetting
 

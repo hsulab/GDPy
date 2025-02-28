@@ -6,8 +6,8 @@ import copy
 
 from ase.calculators.calculator import BaseCalculator
 
-from .calculators.dummy import DummyCalculator
-from .calculators.mixer import EnhancedCalculator
+from gdpx.backend.ase import DummyCalculator, EnhancedCalculator
+
 from .manager import BasePotentialManager
 from .utils import convert_input_to_potter
 
@@ -22,7 +22,7 @@ class MixerManager(BasePotentialManager):
         ("ase", "lammps"),
     )
 
-    def register_calculator(self, calc_params, *args, **kwargs) -> None:
+    def register_calculator(self, calc_params: dict) -> None:
         """"""
         super().register_calculator(calc_params)
 
@@ -49,9 +49,7 @@ class MixerManager(BasePotentialManager):
                 ...
             else:  # assume it is a list of calculators
                 if broadcast_index != -1:
-                    raise RuntimeError(
-                        f"Broadcast cannot on {broadcast_index} and {i}."
-                    )
+                    raise RuntimeError(f"Broadcast cannot on {broadcast_index} and {i}.")
                 broadcast_index = i
 
         calc = DummyCalculator()
@@ -67,10 +65,7 @@ class MixerManager(BasePotentialManager):
                     x = [p.calc for p in potters]
                     x[broadcast_index] = potters[broadcast_index].calc[i]
                     new_pot_calcs.append(x)
-                calc = [
-                    EnhancedCalculator(x, save_host=save_host)
-                    for x in new_pot_calcs
-                ]
+                calc = [EnhancedCalculator(x, save_host=save_host) for x in new_pot_calcs]
         else:
             ...
 
@@ -129,9 +124,7 @@ class MixerManager(BasePotentialManager):
                 ...
             else:  # assume it is a list of calculators
                 if broadcast_index != -1:
-                    raise RuntimeError(
-                        f"Broadcast cannot on {broadcast_index} and {i}."
-                    )
+                    raise RuntimeError(f"Broadcast cannot on {broadcast_index} and {i}.")
                 broadcast_index = i
 
         if broadcast_index != -1:

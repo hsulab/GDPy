@@ -9,7 +9,8 @@ import pathlib
 import yaml
 from ase.io import read, write
 
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
+
 from .manager import BasePotentialManager
 from .trainer import BasePotentialTrainer
 from .utils import build_a_committee_calculator, canonicalise_input_models

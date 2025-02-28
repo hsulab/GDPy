@@ -10,22 +10,14 @@ from .manager import BasePotentialManager
 class LaspManager(BasePotentialManager):
 
     name = "lasp"
-    implemented_backends = ["lasp"]
+    implemented_backends = ("lasp",)
     valid_combinations = (
-        ("lasp", "lasp"),  # calculator, dynamics
+        ("lasp", "lasp"),
         ("lasp", "ase"),
     )
 
-    def __init__(self):
-
-        return
-
-    def register_calculator(self, calc_params):
-        """params
-        command
-        directory
-        pot
-        """
+    def register_calculator(self, calc_params: dict):
+        """Register the calculator."""
         super().register_calculator(calc_params)
 
         self.calc_params["pot_name"] = self.name
@@ -62,20 +54,15 @@ class LaspManager(BasePotentialManager):
         if self.calc_backend == "lasp":
             from gdpx.computation.lasp import LaspNN
 
-            self.calc = LaspNN(
-                command=command, directory=directory, pot=pot, **calc_params
-            )
+            self.calc = LaspNN(command=command, directory=directory, pot=pot, **calc_params)
         elif self.calc_backend == "lammps":
             # TODO: add lammps calculator
-            pass
+            ...
         else:
-            raise NotImplementedError(
-                f"{self.name} does not have {self.calc_backend}."
-            )
+            raise NotImplementedError(f"{self.name} does not have {self.calc_backend}.")
 
         return
 
 
 if __name__ == "__main__":
     ...
-

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 
-from .calculators.dummy import DummyCalculator
+from gdpx.backend.ase import DummyCalculator
 from .manager import BasePotentialManager
 
 
