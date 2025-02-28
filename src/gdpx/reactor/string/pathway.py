@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import dataclasses
 import pathlib
 import traceback
-
-from typing import Callable, List
+from typing import Callable
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
-from ase.neb import NEB, NEBTools
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.io import read, write
+from ase.mep import NEB
 from ase.optimize.optimize import Dynamics
 
+from gdpx import config as GDPCONFIG
+from gdpx.potential.calculators.mixer import EnhancedCalculator
 
-from .. import config as GDPCONFIG
-from .. import EnhancedCalculator
 from .string import AbstractStringReactor, StringReactorSetting
 
 
@@ -125,10 +124,7 @@ class AseStringReactorSetting(StringReactorSetting):
         steps_ = kwargs.get("steps", self.steps)
         if steps_ <= 0:
             steps_ = -1
-        run_params = dict(
-            constraint=kwargs.get("constraint", self.constraint),
-            steps=steps_, fmax=self.fmax
-        )
+        run_params = dict(constraint=kwargs.get("constraint", self.constraint), steps=steps_, fmax=self.fmax)
 
         return run_params
 
@@ -191,7 +187,7 @@ class AseStringReactor(AbstractStringReactor):
 
         return verified
 
-    def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
+    def _irun(self, structures: list[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
         # run_params = self.setting.get_run_params()
         run_params = self.setting.get_run_params(**kwargs)
@@ -221,10 +217,7 @@ class AseStringReactor(AbstractStringReactor):
         )
 
         dynamics = self.setting.opt_cls(
-            neb,
-            logfile=self.directory / "neb.log",
-            trajectory=None,
-            maxstep=0.10
+            neb, logfile=self.directory / "neb.log", trajectory=None, maxstep=0.05  # 0.20, 0.10, 0.05
         )
         self._print(f"{dynamics=}  {dynamics.maxstep=}")
         dynamics.attach(
@@ -249,9 +242,7 @@ class AseStringReactor(AbstractStringReactor):
             dynamics.run(steps=run_params["steps"], fmax=run_params["fmax"])
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
-            self._debug(
-                f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
-            )
+            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
 
         # Always save the last step
         dump_period = self.setting.dump_period
@@ -290,9 +281,7 @@ class AseStringReactor(AbstractStringReactor):
 
         reshaped_images = []
         for i in range(nbands):
-            reshaped_images.append(
-                images[i * nimages_per_band : (i + 1) * nimages_per_band]
-            )
+            reshaped_images.append(images[i * nimages_per_band : (i + 1) * nimages_per_band])
 
         return reshaped_images
 
@@ -309,7 +298,7 @@ class AseStringReactor(AbstractStringReactor):
             # self._print(end_band[3].get_forces(apply_constraint=True))
             # self._print(np.max(np.fabs(end_band[3].get_forces(apply_constraint=True))))
 
-            # NOTE: Read convergece from neb.log instead of computing fmax from 
+            # NOTE: Read convergece from neb.log instead of computing fmax from
             #       structures as sometimes it is inconsistent due to some reasons
             #       (precision?)
 
@@ -327,9 +316,7 @@ class AseStringReactor(AbstractStringReactor):
 
             if (end_fmax <= self.setting.fmax) or (end_step >= self.setting.steps + 1):
                 converged = True
-            self._print(
-                f"STEP: {end_step} >= {self.setting.steps} MAXFRC: {end_fmax} <=? {self.setting.fmax}"
-            )
+            self._print(f"STEP: {end_step} >= {self.setting.steps} MAXFRC: {end_fmax} <=? {self.setting.fmax}")
 
         return converged
 
