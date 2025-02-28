@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*
 
 
+from .calculators.dummy import DummyCalculator
 from .manager import BasePotentialManager
 
 
@@ -9,29 +10,26 @@ class EmtManager(BasePotentialManager):
 
     name = "emt"
 
-    implemented_backends = ["emt", "ase"]
-    valid_combinations = (("ase", "ase"),)
+    implemented_backends = ("ase",)
+    valid_combinations = (
+        ("ase", "ase"),
+    )
 
     """See ASE documentation for calculator parameters.
     """
 
-    def register_calculator(self, calc_params, *agrs, **kwargs):
+    def register_calculator(self, calc_params: dict, *agrs, **kwargs):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
-        if self.calc_backend == "emt":
-            self.calc_backend = "ase"
 
-        # NOTE: emt backend is just an alias of ase backend, they are the same.
+        # The emt backend is just an alias of ase backend, they are the same.
+        calc = DummyCalculator()
         if self.calc_backend == "ase":
             from ase.calculators.emt import EMT
 
-            calc_cls = EMT
+            calc = EMT(**calc_params)
         else:
-            raise NotImplementedError(
-                f"Unsupported backend {self.calc_backend}."
-            )
-
-        calc = calc_cls(**calc_params)
+            ...  # The backend has already been checked.
 
         self.calc = calc
 
