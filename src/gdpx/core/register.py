@@ -179,7 +179,6 @@ ALL_MODULES = [
     ("gdpx.trainer", ["interface"]),
     ("gdpx.scheduler", ["interface"]),
     ("gdpx.validator", ["interface"]),
-    ("gdpx.worker", ["interface"]),
 ]
 
 
