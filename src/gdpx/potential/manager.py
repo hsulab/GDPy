@@ -33,6 +33,9 @@ class BasePotentialManager(abc.ABC):
         #: Attached calculator.
         self._calc: Calculator = DummyCalculator()
 
+        #: The default backend.
+        self._default_backend: str = self.implemented_backends[0]
+
         return
 
     @property
@@ -49,7 +52,7 @@ class BasePotentialManager(abc.ABC):
     def calc_backend(self) -> str:
         """Backend of attached calculator."""
 
-        return self.calc_params.get("backend", self.name)
+        return self.calc_params.get("backend", self._default_backend)
 
     @abc.abstractmethod
     def register_calculator(self, calc_params: dict, *agrs, **kwargs):
@@ -57,7 +60,7 @@ class BasePotentialManager(abc.ABC):
         # Save the original copy of calc_params and pop the backend keyword
         # as it is not for calculator.
         self.calc_params = copy.deepcopy(calc_params)
-        calc_params.pop("backend")
+        calc_params.pop("backend", None)
 
         if self.calc_backend not in self.implemented_backends:
             raise RuntimeError(
@@ -75,9 +78,7 @@ class BasePotentialManager(abc.ABC):
         """
         # - check whether there is a calc
         if not hasattr(self, "calc"):
-            raise AttributeError(
-                "Cannot create driver since a calculator has been properly registered."
-            )
+            raise AttributeError("Cannot create driver since a calculator has been properly registered.")
 
         # parse backends
         self.dyn_params = dyn_params
@@ -86,9 +87,7 @@ class BasePotentialManager(abc.ABC):
             dynamics = self.calc_backend
 
         if (self.calc_backend, dynamics) not in self.valid_combinations:
-            raise RuntimeError(
-                f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator"
-            )
+            raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
 
         # - merge params for compat
         merged_params = {}
@@ -112,9 +111,7 @@ class BasePotentialManager(abc.ABC):
 
         # TODO: make PotentialManager a Node as well???
         assert isinstance(config.GRNG, np.random.Generator)
-        random_seed = merged_params.pop(
-            "random_seed", int(config.GRNG.integers(0, 1e8))
-        )
+        random_seed = merged_params.pop("random_seed", int(config.GRNG.integers(0, 1_000_000_000_000)))
 
         # - create dynamics
         driver_cls = register_drivers[dynamics]
@@ -140,9 +137,7 @@ class BasePotentialManager(abc.ABC):
         """
         # - check whether there is a calc
         if not hasattr(self, "calc"):
-            raise AttributeError(
-                "Cant create reactor before a calculator has been properly registered."
-            )
+            raise AttributeError("Cant create reactor before a calculator has been properly registered.")
 
         # parse backends
         self.rxn_params = rxn_params
@@ -175,9 +170,7 @@ class BasePotentialManager(abc.ABC):
             ignore_convergence=ignore_convergence,
         )
 
-        driver = registers.create(
-            "reactor", reaction, convert_name=False, **inp_params
-        )
+        driver = registers.create("reactor", reaction, convert_name=False, **inp_params)
         driver.pot_params = self.as_dict()
 
         return driver
