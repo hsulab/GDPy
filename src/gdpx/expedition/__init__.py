@@ -13,7 +13,6 @@ from ..utils.command import dictionary_to_string
 from ..utils.strconv import string_to_array
 from ..worker.drive import DriverBasedWorker
 from ..worker.grid import GridDriverBasedWorker
-from ..worker.interface import ComputerVariable
 from ..worker.single import SingleWorker
 
 from ..geometry.composition import convert_string_to_atoms

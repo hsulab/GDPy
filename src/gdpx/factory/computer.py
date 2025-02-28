@@ -8,7 +8,7 @@ from typing import Any, Optional
 from gdpx.core.register import registers
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
-from gdpx.worker.interface import ComputerVariable
+from gdpx.nodes.computer import ComputerVariable
 
 
 def canonicalise_worker(inp_worker: Optional[Any]) -> Optional[DriverBasedWorker]:

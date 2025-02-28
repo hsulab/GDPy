@@ -24,7 +24,7 @@ from gdpx.selector.scf import ScfSelector
 from gdpx.utils.command import CustomTimer
 from gdpx.utils.strconv import string_to_array
 from gdpx.worker.drive import DriverBasedWorker
-from gdpx.worker.interface import ComputerVariable
+from gdpx.nodes.computer import ComputerVariable
 
 
 @registers.variable.register

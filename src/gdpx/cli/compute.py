@@ -13,12 +13,12 @@ from ase.io import read, write
 from gdpx import config
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.builder import BuilderVariable
+from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable, ReactorVariable
 from gdpx.reactor.reactor import AbstractReactor
 from gdpx.scheduler.interface import SchedulerVariable
 from gdpx.utils.command import parse_input_file
-from gdpx.worker.drive import DriverBasedWorker, run_computation_in_commandline
+from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.grid import GridDriverBasedWorker
-from gdpx.worker.interface import ComputerChainVariable, ComputerVariable, ReactorVariable
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
