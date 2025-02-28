@@ -8,9 +8,9 @@ from typing import Any, Optional, Union
 
 import omegaconf
 
-from ..core.register import registers
-from ..core.variable import Variable
-from ..utils.command import parse_input_file
+from gdpx.core.register import registers
+from gdpx.utils.command import parse_input_file
+
 from .calculators.mixer import CommitteeCalculator
 from .manager import BasePotentialManager
 
@@ -41,9 +41,7 @@ def canonicalise_input_models(model: Union[str, list[str]]) -> list[str]:
     return models
 
 
-def build_a_committee_calculator(
-    calc_cls, params_list: list[dict], estimate_uncertainty: bool = False
-):
+def build_a_committee_calculator(calc_cls, params_list: list[dict], estimate_uncertainty: bool = False):
     """Build a committee calculator.
 
     If there is one set of parameters or estimate_uncertainty is False,
@@ -54,9 +52,7 @@ def build_a_committee_calculator(
     assert num_calculators >= 1, "At least one calculator must be provided."
     use_committee = num_calculators > 1 and estimate_uncertainty
     if use_committee:
-        calc = CommitteeCalculator(
-            calcs=[calc_cls(**params) for params in params_list]
-        )
+        calc = CommitteeCalculator(calcs=[calc_cls(**params) for params in params_list])
     else:
         calc = calc_cls(**params_list[0])
 
@@ -82,12 +78,8 @@ def convert_input_to_potter(inp: Any) -> Optional["BasePotentialManager"]:
     potter = None
     if isinstance(inp, BasePotentialManager):
         potter = inp
-    elif isinstance(inp, Variable):
-        potter = inp.value
-    elif isinstance(inp, dict) or isinstance(
-        inp, omegaconf.dictconfig.DictConfig
-    ):
-        # DictConfig must be cast to dict as sometimes cannot be overwritten.
+    elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
+        # DictConfig must be cast to dict as sometimes it cannot be overwritten.
         if isinstance(inp, omegaconf.dictconfig.DictConfig):
             inp = omegaconf.OmegaConf.to_object(inp)
         assert isinstance(inp, dict)
@@ -98,13 +90,9 @@ def convert_input_to_potter(inp: Any) -> Optional["BasePotentialManager"]:
             potter_params = parse_input_file(input_fpath=inp)
             potter = potter_from_dict(potter_params)
         else:
-            raise RuntimeError(
-                f"The potter configuration `{inp}` does not exist."
-            )
+            raise RuntimeError(f"The potter configuration `{inp}` does not exist.")
     else:
-        raise RuntimeError(
-            f"Unknown {inp} of type {type(inp)} for the potter."
-        )
+        raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
 
     return potter
 
