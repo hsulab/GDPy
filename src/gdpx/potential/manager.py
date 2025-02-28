@@ -8,9 +8,11 @@ import copy
 import numpy as np
 from ase.calculators.calculator import Calculator
 
-from .. import config
-from ..computation import register_drivers
-from ..core.register import registers
+from gdpx import config
+from gdpx.computation import register_drivers
+from gdpx.computation.driver import AbstractDriver
+from gdpx.core.register import registers
+
 from .calculators.dummy import DummyCalculator
 
 
@@ -69,18 +71,24 @@ class BasePotentialManager(abc.ABC):
 
         return
 
-    def create_driver(self, dyn_params: dict = {}, *args, **kwargs):
+    def create_driver(self, dyn_params: dict = {}) -> AbstractDriver:
         """Create a driver for dynamics.
 
-        Default the dynamics backend will be the same as calc. However,
-        ase-based dynamics can be used for all calculators.
+        The default dynamics backend will be the same as the calculator.
+        The ase-based dynamics can be used for all calculators.
+
+        Args:
+            dyn_params: Parameters for driver.
+
+        Returns:
+            A driver instance.
 
         """
-        # - check whether there is a calc
+        # Check whether the calculator is properly registered.
         if not hasattr(self, "calc"):
-            raise AttributeError("Cannot create driver since a calculator has been properly registered.")
+            raise AttributeError("Cannot create driver since a calculator has not been properly registered.")
 
-        # parse backends
+        # Parse backends
         self.dyn_params = dyn_params
         dynamics = dyn_params.get("backend", self.calc_backend)
         if dynamics == "external":
@@ -89,7 +97,7 @@ class BasePotentialManager(abc.ABC):
         if (self.calc_backend, dynamics) not in self.valid_combinations:
             raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
 
-        # - merge params for compat
+        # Merge parameters for compatibility
         merged_params = {}
         if "task" in dyn_params:
             merged_params.update(task=dyn_params.get("task", "min"))
@@ -100,22 +108,21 @@ class BasePotentialManager(abc.ABC):
         else:
             merged_params.update(**dyn_params)
 
-        # -- add params from key besides task, init, and run
+        # Add extra parameters for keys besides task, init, and run
         merged_params.update(
             ignore_convergence=dyn_params.get("ignore_convergence", False),
             random_seed=dyn_params.get("random_seed", None),
         )
 
-        # -- other params
+        # Check some special parameters
         ignore_convergence = merged_params.pop("ignore_convergence", False)
 
-        # TODO: make PotentialManager a Node as well???
+        # TODO: make PotentialManager a subclass of BaseComponent as well?
         assert isinstance(config.GRNG, np.random.Generator)
         random_seed = merged_params.pop("random_seed", int(config.GRNG.integers(0, 1_000_000_000_000)))
 
-        # - create dynamics
-        driver_cls = register_drivers[dynamics]
-        # assert driver_cls is not None, f"Cannot find a driver named {dynamics}."
+        # Create the driver instance
+        driver_cls = register_drivers[dynamics]  # The dynamics backend has already been checked.
 
         driver = driver_cls(
             self.calc,
@@ -147,7 +154,8 @@ class BasePotentialManager(abc.ABC):
 
         if (self.calc_backend, reaction) not in self.valid_combinations:
             raise RuntimeError(
-                f"Invalid reaction backend {reaction} based on {self.calc_backend} calculator. Valid combinations are {self.valid_combinations}"
+                f"Invalid reaction backend {reaction} based on {self.calc_backend} calculator."
+                + f"Valid combinations are {self.valid_combinations}."
             )
 
         # - merge params for compat
