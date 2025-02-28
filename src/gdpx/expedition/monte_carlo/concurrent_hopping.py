@@ -18,9 +18,10 @@ from ase.io import read, write
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.cli.compute import run_worker, convert_input_to_computer  # TODO: refactor this?
 from gdpx.factory.builder import canonicalise_builder
+from gdpx.factory.computer import canonicalise_worker
 
-from .. import DriverBasedWorker, get_tags_per_species, registers
-from ..expedition import BaseExpedition, canonicalise_worker
+from .. import get_tags_per_species, registers
+from ..expedition import BaseExpedition
 from .operators import parse_operators, select_operator
 
 GenerationState = enum.Enum(

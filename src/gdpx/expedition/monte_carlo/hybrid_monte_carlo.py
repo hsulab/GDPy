@@ -6,8 +6,9 @@ import functools
 
 from ase.io import write
 
+from gdpx.factory.computer import canonicalise_worker
+
 from .. import DriverBasedWorker, SingleWorker, dictionary_to_string
-from ..expedition import parse_worker
 from .monte_carlo import MCStepState, MonteCarlo
 from .operators import select_operator
 
@@ -40,7 +41,7 @@ class HybridMonteCarlo(MonteCarlo):
                 worker_name = subprocedure[1].split("_")[1]
                 worker_params = self.extra_workers.get(worker_name, None)
                 if worker_params is not None:
-                    subworker = parse_worker(worker_params)
+                    subworker = canonicalise_worker(worker_params)
                     if isinstance(subworker, DriverBasedWorker):
                         self._print(
                             "Convert a DriverBasedWorker to a SingleWorker."
@@ -62,7 +63,7 @@ class HybridMonteCarlo(MonteCarlo):
                 worker_name = subprocedure.split("_")[1]
                 worker_params = self.extra_workers.get(worker_name, None)
                 if worker_params is not None:
-                    subworker = parse_worker(worker_params)
+                    subworker = canonicalise_worker(worker_params)
                     if isinstance(subworker, DriverBasedWorker):
                         self._print(
                             "Convert a DriverBasedWorker to a SingleWorker."

@@ -7,12 +7,9 @@ import copy
 import logging
 
 from gdpx.core.component import BaseComponent
-from gdpx.nodes.computer import canonicalise_worker
+from gdpx.factory.computer import canonicalise_worker
 
 from . import registers
-
-# For backward compatibility
-parse_worker = canonicalise_worker
 
 
 class BaseExpedition(BaseComponent):
@@ -60,7 +57,7 @@ class BaseExpedition(BaseComponent):
 
     def register_worker(self, worker: dict, *args, **kwargs) -> None:
         """Register DriverBasedWorker for this expedition."""
-        self.worker = parse_worker(inp_worker=worker)
+        self.worker = canonicalise_worker(inp_worker=worker)
 
         return
 

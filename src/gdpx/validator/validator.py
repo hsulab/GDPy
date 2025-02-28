@@ -10,7 +10,7 @@ from gdpx.core.component import BaseComponent
 from gdpx.data.array import AtomsNDArray
 from gdpx.data.dataset import AbstractDataloader
 from gdpx.factory.builder import canonicalise_builder
-from gdpx.nodes.computer import canonicalise_worker
+from gdpx.factory.computer import canonicalise_worker
 from gdpx.worker.drive import DriverBasedWorker
 
 
