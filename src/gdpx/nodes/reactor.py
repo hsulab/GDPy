@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
+
 import time
-from typing import Optional, List, Mapping
+from typing import Optional
 
-import omegaconf
-
-from ase import Atoms
-
-from ..core.register import registers
-from ..core.variable import Variable
-from ..core.operation import Operation
-from ..data.array import AtomsNDArray
+from gdpx.core.operation import Operation
+from gdpx.core.register import registers
+from gdpx.data.array import AtomsNDArray
 
 
 @registers.operation.register
@@ -32,11 +27,11 @@ class pair_stru(Operation):
 
         return
 
-    def forward(self, structures: AtomsNDArray) -> List[List[Atoms]]:
+    def forward(self, structures: AtomsNDArray) -> AtomsNDArray:
         """"""
         super().forward()
 
-        # NOTE: assume this is a 1-D array
+        # Assume the input is a 1-D array
         self._debug(f"structures: {structures}")
         intermediates = structures.get_marked_structures()
 
@@ -48,15 +43,17 @@ class pair_stru(Operation):
         elif self.method == "concat":
             pair_indices = [rankings[:-1], rankings[1:]]
         elif self.method == "custom":
+            if self.pairs is None:
+                raise Exception("Custom method requires pairs.")
             pair_indices = self.pairs
         else:
-            ...
+            raise Exception(f"Unknown method {self.method}.")
 
         pair_structures = []
         for p in pair_indices:
             pair_structures.append([intermediates[i] for i in p])
 
-        # Must update status at the end of forward! Otherwise, the status will be 
+        # Must update status at the end of forward! Otherwise, the status will be
         # overwritten in active session by node.reset().
         self.status = "finished"
 
@@ -66,9 +63,7 @@ class pair_stru(Operation):
 @registers.operation.register
 class react(Operation):
 
-    def __init__(
-        self, structures, reactor, batchsize: Optional[int] = None, directory="./"
-    ) -> None:
+    def __init__(self, structures, reactor, batchsize: Optional[int] = None, directory="./") -> None:
         """"""
         super().__init__(input_nodes=[structures, reactor], directory=directory)
 
@@ -112,9 +107,7 @@ class react(Operation):
                 reactor.inspect(resubmit=True)
                 if reactor.get_number_of_running_jobs() == 0:
                     with open(flag_fpath, "w") as fopen:
-                        fopen.write(
-                            f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
-                        )
+                        fopen.write(f"FINISHED AT {time.asctime( time.localtime(time.time()) )}.")
                     reactor_status.append(True)
                 else:
                     reactor_status.append(False)
