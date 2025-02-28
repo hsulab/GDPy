@@ -168,7 +168,7 @@ ALL_MODULES = [
     ("gdpx", ["comparator"]),
     ("gdpx.expedition", ["interface"]),
     ("gdpx", ["validator"]),
-    ("gdpx.nodes", ["region", "trainer", "validator", "dataset", "selector", "describer"]),
+    ("gdpx.nodes", ["region", "trainer", "validator", "dataset", "selector", "describer", "driver"]),
     ("gdpx.computation", ["interface"]),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),

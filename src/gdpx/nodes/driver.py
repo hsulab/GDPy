@@ -15,6 +15,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx import config
+from gdpx.computation.observer import create_an_observer
 from gdpx.core.operation import Operation
 from gdpx.core.register import registers
 from gdpx.core.variable import Variable
@@ -25,7 +26,69 @@ from gdpx.utils.strconv import string_to_array
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.interface import ComputerVariable
 
-from .observer import create_an_observer
+
+@registers.variable.register
+class DriverVariable(Variable):
+
+    def __init__(self, **kwargs):
+        """"""
+        copied_params = copy.deepcopy(kwargs)
+        merged_params = dict(
+            backend=copied_params.get("backend", "external"),
+            ignore_convergence=copied_params.get("ignore_convergence", False),
+        )
+        merged_params.update(**copied_params.get("init", {}))
+        merged_params.update(**copied_params.get("run", {}))
+
+        # HACK: Computer and Reactor both use this variable
+        #       but Reactor does not have task keyword for now
+        #       we need update it later.
+        task = copied_params.get("task", "")
+        if task:
+            merged_params.update(task=task)
+        else:
+            ...
+
+        initial_value = self._broadcast_drivers(merged_params)
+
+        super().__init__(initial_value)
+
+        return
+
+    def _broadcast_drivers(self, params: dict) -> list[dict]:
+        """Broadcast parameters if there were any parameter is a list."""
+        # Find parameters with list values
+        params_, plengths = {}, []
+        for k, v in params.items():
+            if isinstance(v, list):
+                n = len(v)
+            elif isinstance(v, str):
+                if ":" in v and k != "constraint":
+                    v = string_to_array(v).tolist()
+                    n = len(v)
+                else:
+                    n = 1
+            else:  # int, float, string
+                n = 1
+            params_[k] = v
+            plengths.append((k, n))
+
+        # Get parameter names with more than one value
+        keys_to_broadcast = sorted([k for k, n in plengths if n > 1])
+
+        values_to_broadcast = list(itertools.product(*[params_[k] for k in keys_to_broadcast]))
+
+        params = params_
+
+        # Broadcast parameters
+        params_list = []
+
+        for values in values_to_broadcast:
+            new_params = copy.deepcopy(params)
+            new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
+            params_list.append(new_params)
+
+        return params_list
 
 
 def extract_results_from_workers(
@@ -146,8 +209,8 @@ def extract_results_from_workers_compact(
     return status, trajectories
 
 
-def get_shape_data(shape_dir: Union[str, pathlib.Path]):
-    # - load previous structures' shape
+def get_shape_data(shape_dir: pathlib.Path):
+    # Load previous structures' shape
     if shape_dir.exists():
         inp_shape = np.loadtxt(shape_dir / "shape.dat", dtype=int)
         inp_markers = np.loadtxt(shape_dir / "markers.dat", dtype=int)
@@ -169,14 +232,10 @@ def convert_results_to_structures(
     debug_func=print,
 ):
     """Convert `compute` resulst into structures with a proper shape."""
-    # -
-    _print = print_func
-    _debug = debug_func
-
     # TODO: Convert to correct input data shape for spc workers...
     #       Optimise the codes here?
-    _print(f"target structure shape: {inp_shape}")
-    _print(f"input  structure shape: {structures.shape}")
+    print_func(f"target structure shape: {inp_shape}")
+    print_func(f"input  structure shape: {structures.shape}")
     if inp_shape is not None and inp_markers is not None:
         converted_structures = []
         for curr_structures in structures:  # shape (nworkers, ncandidates, 1)
@@ -185,20 +244,17 @@ def convert_results_to_structures(
             # assert np.allclose(
             #    inp_shape_, inp_shape
             # ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
-            _print(f"previous  structure shape: {inp_shape}")
-            _print(f"target    structure shape: {inp_shape_}")
-            # - get a full list of indices and fill None to a flatten Atoms list
-            # _print(inp_markers)
+            print_func(f"previous  structure shape: {inp_shape}")
+            print_func(f"target    structure shape: {inp_shape_}")
+            # Get a full list of indices and fill None to a flatten Atoms list
             curr_converted_structures = []
             full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
-            for i, iloc in enumerate(full_list):
+            for _, iloc in enumerate(full_list):
                 if iloc in inp_markers:
                     curr_converted_structures.append(curr_structures[inp_markers.index(iloc)])
                 else:
                     curr_converted_structures.append(None)
-            # _print(len(curr_converted_structures))
-            # _print(curr_converted_structures[0])
-            # - reshape
+            # Reshape
             for s in inp_shape_[:0:-1]:
                 npoints = len(curr_converted_structures)
                 repeats = int(npoints / s)
@@ -211,14 +267,14 @@ def convert_results_to_structures(
     else:  # No data available to convert structures
         converted_structures = structures
 
-    # --- further convert
+    # Further convert
     if reduce_single_worker:  #  nworkers == 1
         converted_structures = converted_structures[0]
 
     if merge_workers:  # squeeze the dimension one...
         converted_structures = list(itertools.chain(*converted_structures))
     converted_structures = AtomsNDArray(converted_structures)
-    _print(f"extracted_results: {converted_structures}")
+    print_func(f"extracted_results: {converted_structures}")
 
     return converted_structures
 
