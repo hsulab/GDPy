@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
 
 import numpy as np
-
 from ase.calculators.calculator import all_changes
-from ase.calculators.mixing import MixedCalculator, LinearCombinationCalculator
+from ase.calculators.mixing import LinearCombinationCalculator, MixedCalculator
 
-from .. import config as GDPCONFIG
+from gdpx import config as GDPCONFIG
+
 
 class AddonCalculator(MixedCalculator):
 
@@ -19,19 +20,20 @@ class AddonCalculator(MixedCalculator):
         if "forces" in properties:
             forces1 = self.calcs[0].get_property("forces", atoms)
             forces2 = self.calcs[1].get_property("forces", atoms)
-            self.results["force_contributions"] = np.hstack([forces1,forces2])
+            self.results["force_contributions"] = np.hstack([forces1, forces2])
 
         return
 
 
 class EnhancedCalculator(LinearCombinationCalculator):
 
-    def __init__(self, calcs, save_host=True, weights=None, atoms=None, directory: str="./"):
+    def __init__(self, calcs, save_host=True, weights=None, directory: str = "./"):
         """Init the enhanced calculator.
 
         Args:
             calcs: Calculators.
             save_host: Whether save host energy and forces.
+
         """
         if weights is None:
             weights = np.ones(len(calcs))
@@ -67,16 +69,15 @@ class EnhancedCalculator(LinearCombinationCalculator):
 
         return
 
-
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
         """"""
-        # - for sub calculators...
+        # For sub calculators...
         for i, subcalc in enumerate(self.mixer.calcs):
             subcalc.directory = str(
-                (pathlib.Path(self.directory)/(str(i).zfill(2)+"."+subcalc.__class__.__name__)).resolve()
+                (pathlib.Path(self.directory) / (f"{i:>02d}.{subcalc.__class__.__name__}")).resolve()
             )
-        # NOTE: nequip requires that atoms has NequipCalculator or None
-        #       thus, we set atoms.calc to None and restore it later
+        # Nequip requires that atoms has NequipCalculator or None
+        # thus, we set atoms.calc to None and restore it later
         prev_calc = atoms.calc
         atoms.calc = None
 
@@ -86,8 +87,8 @@ class EnhancedCalculator(LinearCombinationCalculator):
         if self.save_host:
             self.results["host_energy"] = self.mixer.calcs[0].get_property("energy", atoms)
             self.results["host_forces"] = self.mixer.calcs[0].get_property("forces", atoms)
-        
-        # - save deviation if the host calculator is a committee
+
+        # Save deviation if the host calculator is a committee
         if isinstance(self.mixer.calcs[0], CommitteeCalculator):
             natoms = len(atoms)
             for k, v in self.mixer.calcs[0].results.items():
@@ -98,11 +99,11 @@ class EnhancedCalculator(LinearCombinationCalculator):
                     self.results[k] = np.reshape(v, (natoms, -1))
 
         return
-    
+
 
 class CommitteeCalculator(LinearCombinationCalculator):
 
-    def __init__(self, calcs, use_avg=False, save_atomic=True, ddof=0, directory: str="./"):
+    def __init__(self, calcs, use_avg=False, save_atomic=True, ddof=0, directory: str = "./"):
         """Init the committee calculator.
 
         Args:
@@ -116,7 +117,7 @@ class CommitteeCalculator(LinearCombinationCalculator):
         if use_avg:
             weights = weights / np.sum(weights)
         else:
-            weights[1:] = 0.
+            weights[1:] = 0.0
         self.ddof = ddof
         self.save_atomic = save_atomic
 
@@ -152,8 +153,8 @@ class CommitteeCalculator(LinearCombinationCalculator):
 
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
         """"""
-        # NOTE: nequip requires that atoms has NequipCalculator or None
-        #       thus, we set atoms.calc to None and restore it later
+        # Nequip requires that atoms has NequipCalculator or None
+        # thus, we set atoms.calc to None and restore it later
         prev_calc = atoms.calc
         atoms.calc = None
 
@@ -164,7 +165,7 @@ class CommitteeCalculator(LinearCombinationCalculator):
         self._compute_deviation(atoms, properties)
 
         return
-    
+
     def _compute_deviation(self, atoms, properties):
         """Compute the RMSE deviation of calculator properties."""
         # We directly check contributions in results as some properties not in `properties`
@@ -182,8 +183,8 @@ class CommitteeCalculator(LinearCombinationCalculator):
             self.results["min_devi_f"] = np.min(frc_devi)
             self.results["avg_devi_f"] = np.mean(frc_devi)
             if self.save_atomic:
-                self.results["devi_f"] = np.reshape(frc_devi, (-1,3))
-        
+                self.results["devi_f"] = np.reshape(frc_devi, (-1, 3))
+
         # TODO: atomic energies?
 
         return
