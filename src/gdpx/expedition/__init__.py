@@ -10,7 +10,7 @@ from ..data.array import AtomsNDArray
 from ..graph.molecule import MolecularAdsorbate, find_molecules
 from ..potential.interface import create_mixer
 from ..utils.command import dictionary_to_string
-from ..utils.strconv import str2array
+from ..utils.strconv import string_to_array
 from ..worker.drive import DriverBasedWorker
 from ..worker.grid import GridDriverBasedWorker
 from ..worker.interface import ComputerVariable

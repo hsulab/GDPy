@@ -104,7 +104,7 @@ def integers_to_string(
     return ret
 
 
-def str2array(inp: str):
+def string_to_array(inp: str):
     """Convert a string to a np.array using np.arange.
 
     The endpoint is always included.

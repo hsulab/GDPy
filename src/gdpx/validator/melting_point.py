@@ -23,7 +23,7 @@ from gdpx.geometry.align import wrap_traj
 
 from ..data.array import AtomsNDArray
 from ..utils.command import CustomTimer
-from ..utils.strconv import str2array
+from ..utils.strconv import string_to_array
 from .validator import BaseValidator
 
 
@@ -147,7 +147,7 @@ class MeltingPointValidator(BaseValidator):
         ):
             temperatures = temperatures
         elif isinstance(temperatures, str):
-            temperatures = str2array(temperatures)
+            temperatures = string_to_array(temperatures)
         else:
             raise TypeError(
                 f"Unknown {temperatures} of type {type(temperatures)}."

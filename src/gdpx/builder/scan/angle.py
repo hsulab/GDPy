@@ -8,7 +8,7 @@ from typing import Optional
 import numpy as np
 from ase import Atoms
 
-from gdpx.utils.strconv import str2array
+from gdpx.utils.strconv import string_to_array
 
 from ..builder import StructureModifier
 from .intercoord import (
@@ -34,7 +34,7 @@ class ScanAngleModifier(StructureModifier):
 
         self.angle = np.array(angle).reshape(-1, 3)
         if isinstance(target, str):
-            self.target = str2array(target)
+            self.target = string_to_array(target)
         else:  # assume it is a plain list
             self.target = np.array(target)
 

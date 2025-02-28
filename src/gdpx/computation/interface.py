@@ -21,75 +21,11 @@ from gdpx.core.variable import Variable
 from gdpx.data.array import AtomsNDArray
 from gdpx.selector.scf import ScfSelector
 from gdpx.utils.command import CustomTimer
-from gdpx.utils.strconv import str2array
+from gdpx.utils.strconv import string_to_array
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.interface import ComputerVariable
 
 from .observer import create_an_observer
-
-
-@registers.variable.register
-class DriverVariable(Variable):
-
-    def __init__(self, **kwargs):
-        """"""
-        copied_params = copy.deepcopy(kwargs)
-        merged_params = dict(
-            backend=copied_params.get("backend", "external"),
-            ignore_convergence=copied_params.get("ignore_convergence", False),
-        )
-        merged_params.update(**copied_params.get("init", {}))
-        merged_params.update(**copied_params.get("run", {}))
-
-        # HACK: Computer and Reactor both use this variable
-        #       but Reactor does not have task keyword for now
-        #       we need update it later.
-        task = copied_params.get("task", "")
-        if task:
-            merged_params.update(task=task)
-        else:
-            ...
-
-        initial_value = self._broadcast_drivers(merged_params)
-
-        super().__init__(initial_value)
-
-        return
-
-    def _broadcast_drivers(self, params: dict) -> list[dict]:
-        """Broadcast parameters if there were any parameter is a list."""
-        # Find parameters with list values
-        params_, plengths = {}, []
-        for k, v in params.items():
-            if isinstance(v, list):
-                n = len(v)
-            elif isinstance(v, str):
-                if ":" in v and k != "constraint":
-                    v = str2array(v).tolist()
-                    n = len(v)
-                else:
-                    n = 1
-            else:  # int, float, string
-                n = 1
-            params_[k] = v
-            plengths.append((k, n))
-
-        # Get parameter names with more than one value
-        keys_to_broadcast = sorted([k for k, n in plengths if n > 1])
-
-        values_to_broadcast = list(itertools.product(*[params_[k] for k in keys_to_broadcast]))
-
-        params = params_
-
-        # Broadcast parameters
-        params_list = []
-
-        for values in values_to_broadcast:
-            new_params = copy.deepcopy(params)
-            new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
-            params_list.append(new_params)
-
-        return params_list
 
 
 def extract_results_from_workers(
