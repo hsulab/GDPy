@@ -28,13 +28,13 @@ def traverse_postorder(operation: Operation):
     return nodes_postorder
 
 
-def create_variable(node_name: Optional[str], node_params_: Any):
+def create_variable(vx_name: Optional[str], vx_params: Any):
     """Create a variable from registers."""
-    node_params = copy.deepcopy(node_params_)
+    node_params = copy.deepcopy(vx_params)
     node_type = node_params.pop("type", None)
-    assert node_type is not None, f"{node_name} has no type."
+    assert node_type is not None, f"{vx_name} has no type."
     node_template = node_params.pop("template", None)
-    config._debug(node_name)
+    config._debug(vx_name)
     config._debug(node_params)
 
     node = None
@@ -46,9 +46,9 @@ def create_variable(node_name: Optional[str], node_params_: Any):
     return node
 
 
-def create_operation(op_name: Optional[str], op_params_: Any):
+def create_operation(op_name: Optional[str], op_params: Any):
     """Create an operation from registers."""
-    op_params = copy.deepcopy(op_params_)
+    op_params = copy.deepcopy(op_params)
     op_type = op_params.pop("type", None)
     assert op_type is not None, f"{op_name} has no type."
     _ = op_params.pop("template", None)  # Use template?
