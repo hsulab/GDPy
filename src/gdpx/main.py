@@ -8,9 +8,9 @@ import pathlib
 
 import numpy as np
 
-from . import config
-from .core.register import import_all_modules_for_register, registers
-from .utils.command import dictionary_to_string, parse_input_file
+from gdpx import config
+from gdpx.core.register import import_all_modules_for_register, registers
+from gdpx.utils.command import dictionary_to_string, parse_input_file
 
 
 def main():
