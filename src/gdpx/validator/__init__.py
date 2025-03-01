@@ -18,7 +18,7 @@ from .mass_distribution import MassDistributionValidator
 
 REGISTER.register("mass_distribution")(MassDistributionValidator)
 
-from .rdf import RdfValidator
+from .radial_distribution import RdfValidator
 
 REGISTER.register("radial_distribution")(RdfValidator)
 
