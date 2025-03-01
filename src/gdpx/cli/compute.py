@@ -15,7 +15,7 @@ from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.builder import BuilderVariable
 from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable, ReactorVariable
 from gdpx.reactor.reactor import AbstractReactor
-from gdpx.scheduler.interface import SchedulerVariable
+from gdpx.nodes.scheduler import SchedulerVariable
 from gdpx.utils.command import parse_input_file
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.grid import GridDriverBasedWorker

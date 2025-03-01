@@ -9,10 +9,10 @@ from typing import Iterable, Union
 import numpy as np
 import omegaconf
 
-from gdpx.session.operation import Operation
 from gdpx.core.register import registers
+from gdpx.nodes.scheduler import SchedulerVariable
+from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
-from gdpx.scheduler.interface import SchedulerVariable
 from gdpx.worker.explore import ExpeditionBasedWorker
 
 from .expedition import BaseExpedition
@@ -23,9 +23,7 @@ def register_expedition_methods():
     # Evolutionary Methods
     from .genetic_algorithm.engine import GeneticAlgorithmBroadcaster
 
-    registers.expedition.register("genetic_algorithm")(
-        GeneticAlgorithmBroadcaster
-    )
+    registers.expedition.register("genetic_algorithm")(GeneticAlgorithmBroadcaster)
 
     # Monte Carlo Based Methods
     from .monte_carlo.basin_hopping import BasinHopping
@@ -70,14 +68,10 @@ class ExpeditionVariable(Variable):
 
         method = kwargs.pop("method", None)
         if "builder" in kwargs:
-            builder = self._canonicalise_builder(
-                kwargs["builder"], random_seed
-            )
+            builder = self._canonicalise_builder(kwargs["builder"], random_seed)
             kwargs["builder"] = builder
 
-        expedition = registers.create(
-            "expedition", method, convert_name=False, **kwargs
-        )
+        expedition = registers.create("expedition", method, convert_name=False, **kwargs)
         if isinstance(expedition, Iterable):
             expedition = list(expedition)  # A List of expeditions
 
@@ -132,9 +126,7 @@ class explore(Operation):
         """"""
         if scheduler is None:
             scheduler = SchedulerVariable()
-        if isinstance(scheduler, dict) or isinstance(
-            scheduler, omegaconf.DictConfig
-        ):
+        if isinstance(scheduler, dict) or isinstance(scheduler, omegaconf.DictConfig):
             scheduler_params = copy.deepcopy(scheduler)
             scheduler = SchedulerVariable(**scheduler_params)
         elif isinstance(scheduler, Variable):
@@ -172,9 +164,7 @@ class explore(Operation):
                 self._print("    >>> Update seed_file...")
                 for i in range(num_expeditions):
                     prev_wdir = (
-                        self.directory.parent.parent
-                        / f"iter.{str(curr_iter-1).zfill(4)}"
-                        / self.directory.name
+                        self.directory.parent.parent / f"iter.{str(curr_iter-1).zfill(4)}" / self.directory.name
                     ) / f"expedition-{i}"
                     if hasattr(expedition, "update_active_params"):
                         expedition.update_active_params(prev_wdir)

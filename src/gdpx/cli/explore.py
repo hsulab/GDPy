@@ -3,15 +3,13 @@
 
 
 import pathlib
-from typing import Iterable, Optional, Union
+from typing import Optional, Union
 
-from numpy import expand_dims
-
-from .. import config
-from ..expedition.interface import ExpeditionVariable
-from ..scheduler.interface import SchedulerVariable
-from ..utils.logio import remove_extra_stream_handlers
-from ..worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
+from gdpx import config
+from gdpx.expedition.interface import ExpeditionVariable
+from gdpx.nodes.scheduler import SchedulerVariable
+from gdpx.utils.logio import remove_extra_stream_handlers
+from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
 
 def run_expedition(
@@ -72,9 +70,7 @@ def run_expedition(
     else:
         remove_extra_stream_handlers()
 
-        worker = ExpeditionBasedWorker(
-            expedition=expedition, scheduler=scheduler, directory=directory
-        )
+        worker = ExpeditionBasedWorker(expedition=expedition, scheduler=scheduler, directory=directory)
         worker.run()
         worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
