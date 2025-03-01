@@ -135,7 +135,6 @@ class registers:
 
 
 ALL_MODULES = [
-    ("gdpx", ["colvar"]),
     (
         "gdpx.nodes",
         [
@@ -225,6 +224,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     local_module_pairs = (
         ("bias", "bias"),
         ("builder", "builder"),
+        ("colvar", "colvar"),
         ("comparator", "comparator"),
         ("dataloader", "dataloader"),
         ("describer", "describer"),
