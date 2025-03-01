@@ -22,13 +22,9 @@ def main():
 
     parser = argparse.ArgumentParser(prog="gdp", description=description)
 
-    parser.add_argument(
-        "-rs", "--random_seed", default=None, type=int, help="global random seed"
-    )
+    parser.add_argument("-rs", "--random_seed", default=None, type=int, help="global random seed")
 
-    parser.add_argument(
-        "-d", "--directory", default=pathlib.Path.cwd(), help="working directory"
-    )
+    parser.add_argument("-d", "--directory", default=pathlib.Path.cwd(), help="working directory")
 
     # the workflow tracker
     parser.add_argument(
@@ -38,20 +34,14 @@ def main():
         help="target potential related configuration (json/yaml)",
     )
 
-    parser.add_argument(
-        "-nj", "--n_jobs", default=1, type=int, help="number of processors"
-    )
+    parser.add_argument("-nj", "--n_jobs", default=1, type=int, help="number of processors")
 
-    parser.add_argument(
-        "--debug", action="store_true", help="debug mode that gives more information"
-    )
+    parser.add_argument("--debug", action="store_true", help="debug mode that gives more information")
 
     parser.add_argument("--log", default="gdp.out", help="logging output file")
 
     # subcommands in the entire workflow
-    subparsers = parser.add_subparsers(
-        title="available subcommands", dest="subcommand", help="sub-command help"
-    )
+    subparsers = parser.add_subparsers(title="available subcommands", dest="subcommand", help="sub-command help")
 
     # - run session
     parser_session = subparsers.add_parser(
@@ -60,12 +50,8 @@ def main():
         description=str(registers.variable) + "\n" + str(registers.operation),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser_session.add_argument(
-        "SESSION", help="session configuration file (json/yaml)"
-    )
-    parser_session.add_argument(
-        "--feed", default=None, nargs="+", help="session placeholders"
-    )
+    parser_session.add_argument("SESSION", help="session configuration file (json/yaml)")
+    parser_session.add_argument("--feed", default=None, nargs="+", help="session placeholders")
     parser_session.add_argument(
         "--timewait",
         default=-1,
@@ -87,9 +73,7 @@ def main():
         default=None,
         help="file that stores substrates (e.g. *.xyz)",
     )
-    parser_build.add_argument(
-        "-n", "--number", default=1, type=int, help="number of structures to build"
-    )
+    parser_build.add_argument("-n", "--number", default=1, type=int, help="number of structures to build")
 
     # - convert dataset format
     parser_convert = subparsers.add_parser(
@@ -99,12 +83,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_convert.add_argument("INPUT", help="path of the input dataset")
-    parser_convert.add_argument(
-        "-i", "--input_format", required=True, help="the format of the input dataset"
-    )
-    parser_convert.add_argument(
-        "-o", "--output_format", required=True, help="the format of the output dataset"
-    )
+    parser_convert.add_argument("-i", "--input_format", required=True, help="the format of the input dataset")
+    parser_convert.add_argument("-o", "--output_format", required=True, help="the format of the output dataset")
 
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -119,7 +99,7 @@ def main():
     parser_compute = subparsers.add_parser(
         "compute",
         help="compute structures with basic methods (MD, MIN, and ...)",
-        description=str(registers.manager).lower() + "\n" + str(registers.scheduler),
+        description=str(registers.manager).lower() + "\n" + str(registers.bias) + "\n" + str(registers.scheduler),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_compute.add_argument(
@@ -152,17 +132,13 @@ def main():
         description=str(registers.expedition),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser_explore.add_argument(
-        "CONFIG", help="json/yaml file that stores parameters for a task"
-    )
+    parser_explore.add_argument("CONFIG", help="json/yaml file that stores parameters for a task")
     parser_explore.add_argument(
         "--spawn",
         default=None,
         help="The batch indices spawned by a host worker.",
     )
-    parser_explore.add_argument(
-        "--wait", default=None, type=float, help="wait time after each run"
-    )
+    parser_explore.add_argument("--wait", default=None, type=float, help="wait time after each run")
 
     # selection
     parser_select = subparsers.add_parser(
@@ -172,9 +148,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_select.add_argument("CONFIG", help="selection configuration file")
-    parser_select.add_argument(
-        "-s", "--structure", required=True, help="structure generator"
-    )
+    parser_select.add_argument("-s", "--structure", required=True, help="structure generator")
 
     # describer
     parser_describe = subparsers.add_parser(
