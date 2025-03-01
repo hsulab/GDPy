@@ -144,7 +144,7 @@ def main():
     parser_select = subparsers.add_parser(
         "select",
         help="apply various selection operations",
-        description=str(registers.selector),
+        description=str(registers.selector) + "\n" + str(registers.comparator),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_select.add_argument("CONFIG", help="selection configuration file")

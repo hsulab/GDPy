@@ -111,9 +111,6 @@ class registers:
     #: Reactors.
     reactor: Register = Register("reactor")
 
-    #: Comparators.
-    comparator: Register = Register("comparator")
-
     def __init__(self):
         raise RuntimeError("The registers is not intended to be instantiated")
 
@@ -150,7 +147,6 @@ ALL_MODULES = [
     ("gdpx", ["potential"]),
     ("gdpx.data", ["dataset"]),
     ("gdpx", ["colvar"]),
-    ("gdpx", ["comparator"]),
     (
         "gdpx.nodes",
         [
@@ -165,13 +161,12 @@ ALL_MODULES = [
             "reactor",
             "scheduler",
             "expedition",
+            "comparator",
         ],
     ),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),
     ("gdpx.potential", ["interface"]),
-    ("gdpx.comparator", ["interface"]),
-    ("gdpx.validator", ["interface"]),
 ]
 
 
@@ -241,7 +236,17 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     names, reasons = _handle_errors(errors)
 
     # Try loading local registers
-    local_module_names = ["bias", "builder", "describer", "expedition", "region", "scheduler", "selector", "validator"]
+    local_module_names = [
+        "bias",
+        "builder",
+        "comparator",
+        "describer",
+        "expedition",
+        "region",
+        "scheduler",
+        "selector",
+        "validator",
+    ]
     for module_name in local_module_names:
         setattr(registers, module_name, Register(module_name))  # add an empty register that can be used in main
         try:

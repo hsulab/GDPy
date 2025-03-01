@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from ..core.register import registers
+
+from gdpx.core.register import BaseRegister
+
+REGISTER = BaseRegister("comparator")
 
 from .cartesian import CartesianComparator
-registers.comparator.register(CartesianComparator)
+
+REGISTER.register("cartesian")(CartesianComparator)
 
 from .coordination import CoordinationComparator
-registers.comparator.register(CoordinationComparator)
+
+REGISTER.register("coordination")(CoordinationComparator)
 
 from .graph import GraphComparator
-registers.comparator.register(GraphComparator)
+
+REGISTER.register("graph")(GraphComparator)
 
 from .singlepoint import SinglePointComparator
-registers.comparator.register("single_point")(SinglePointComparator)
+
+REGISTER.register("single_point")(SinglePointComparator)
 
 from .reaction import ReactionComparator
-registers.comparator.register("reaction")(ReactionComparator)
 
+REGISTER.register("reaction")(ReactionComparator)
 
 
 if __name__ == "__main__":
