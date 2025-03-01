@@ -11,9 +11,18 @@ from .. import config
 
 class Register:
 
-    def __init__(self, registry_name):
+    def __init__(self, registry_name: str) -> None:
+        """"""
         self._dict = {}
         self._name = registry_name
+
+        return
+
+    @property
+    def name(self) -> str:
+        """The register name."""
+
+        return self._name
 
     def __setitem__(self, key, value):
         if not callable(value):
@@ -69,6 +78,10 @@ class Register:
         return content
 
 
+# For compatibility,
+BaseRegister = Register
+
+
 class registers:
 
     #: Session operations.
@@ -92,12 +105,6 @@ class registers:
     #: Dataloaders (Datasets).
     dataloader: Register = Register("dataloader")
 
-    #: Regions.
-    region: Register = Register("region")
-
-    #: Builders.
-    builder: Register = Register("builder")
-
     #: Bias.
     bias: Register = Register("bias")
 
@@ -112,12 +119,6 @@ class registers:
 
     #: Expeditions.
     expedition: Register = Register("expedition")
-
-    #: Selectors.
-    selector: Register = Register("selector")
-
-    #: Describers.
-    describer: Register = Register("describer")
 
     #: Comparators.
     comparator: Register = Register("comparator")
@@ -161,9 +162,7 @@ ALL_MODULES = [
     ("gdpx", ["scheduler"]),
     ("gdpx", ["potential"]),
     ("gdpx.data", ["dataset"]),
-    ("gdpx", ["region"]),
     ("gdpx", ["bias"]),
-    ("gdpx.prelude", ["builder", "region", "selector", "describer"]),
     ("gdpx", ["colvar"]),
     ("gdpx", ["comparator"]),
     ("gdpx.expedition", ["interface"]),
@@ -246,6 +245,16 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
             errors.append((module, error))
 
     names, reasons = _handle_errors(errors)
+
+    # Try loading local registers
+    local_module_names = ["builder", "describer", "region", "selector"]
+    for module_name in local_module_names:
+        try:
+            module = importlib.import_module("gdpx" + "." + module_name)
+            local_register = getattr(module, "REGISTER")
+            setattr(registers, module_name, local_register)
+        except ImportError as error:
+            errors.append((module_name, error))
 
     # Some imported packages change `logging.basicConfig`
     # and accidently add a StreamHandler to logging.root
