@@ -11,10 +11,10 @@ from ase.data import covalent_radii
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.neighborlist import NeighborList
 
+from gdpx.geometry.composition import convert_string_to_atoms
 from gdpx.geometry.exchange import insert_one_particle
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .. import convert_string_to_atoms
 from .operator import AbstractOperator
 
 
@@ -50,14 +50,10 @@ class BasicExchangeOperator(AbstractOperator):
         while adpart_tag in used_tags:
             adpart_tag = rng.integers(self.MIN_RANDOM_TAG, self.MAX_RANDOM_TAG)
         adpart_tag = int(adpart_tag)
-        self._print(
-            f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}"
-        )
+        self._print(f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}")
 
         # Use neighbour list
-        chemicl_numbers = np.hstack(
-            [new_atoms.get_atomic_numbers(), adpart.get_atomic_numbers()]
-        )
+        chemicl_numbers = np.hstack([new_atoms.get_atomic_numbers(), adpart.get_atomic_numbers()])
         nlist = self.nlist_prototype(  # type: ignore
             self.covalent_max * np.array([covalent_radii[c] for c in chemicl_numbers])
         )
@@ -149,15 +145,11 @@ class ExchangeOperator(BasicExchangeOperator):
 
         self.use_bias = use_bias
 
-        self.nlist_prototype = functools.partial(
-            NeighborList, skin=0.0, self_interaction=False, bothways=True
-        )
+        self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
         return
 
-    def run(
-        self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()
-    ) -> Optional[Atoms]:
+    def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
         # Check species in the region
         super().run(atoms)
@@ -214,9 +206,7 @@ class ExchangeOperator(BasicExchangeOperator):
         # print("species mass: ", _mass)
         _mass = _species_mass * units._amu
         kbT_J = kBT_eV * units._e  # J = kg*m2*s-2
-        cubic_wavelength = (
-            hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10
-        ) ** 3  # thermal de broglie wavelength
+        cubic_wavelength = (hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10) ** 3  # thermal de broglie wavelength
 
         # Compute coefficient
         # Determine number of exchangeable particles
@@ -265,9 +255,7 @@ class ExchangeOperator(BasicExchangeOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"reservoir: "

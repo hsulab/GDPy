@@ -2,24 +2,17 @@
 # -*- coding: utf-8 -*-
 
 
-import copy 
-from typing import List
-
 from .monte_carlo import MonteCarlo
 
 
 class BasinHopping(MonteCarlo):
 
-    def __init__(
-        self, builder: dict, operators: List[dict], convergence: dict, *args, **kwargs
-    ) -> None:
+    def __init__(self, builder: dict, operators: list[dict], convergence: dict, *args, **kwargs) -> None:
         """"""
-        super().__init__(
-            builder=builder, operators=operators, convergence=convergence, *args, **kwargs
-        )
+        super().__init__(builder=builder, operators=operators, convergence=convergence, *args, **kwargs)
 
         return
-    
+
     def as_dict(self) -> dict:
         """"""
         engine_params = super().as_dict()

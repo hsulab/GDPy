@@ -4,13 +4,14 @@
 
 import copy
 import functools
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from ase import Atoms, units
 from ase.neighborlist import NeighborList, natural_cutoffs
 
-from .. import bounce_one_atom
+from gdpx.geometry.bounce import bounce_one_atom
+
 from .operator import AbstractOperator
 
 
@@ -20,7 +21,7 @@ class BounceOperator(AbstractOperator):
 
     def __init__(
         self,
-        particles: List[str],
+        particles: list[str],
         direction: str = "",
         max_disp: float = 2.0,
         *args,
@@ -33,13 +34,11 @@ class BounceOperator(AbstractOperator):
         self.direction = direction
         self.max_disp = max_disp
 
-        self.nlist_prototype = functools.partial(
-            NeighborList, skin=0.0, self_interaction=False, bothways=True
-        )
+        self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
         return
 
-    def run(self, atoms: Atoms, rng: np.random.Generator=np.random.default_rng()) -> Optional[Atoms]:
+    def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
         # Check species in the region
         super().run(atoms)
@@ -51,15 +50,11 @@ class BounceOperator(AbstractOperator):
 
         species = atoms[species_indices]
         assert isinstance(species, Atoms)
-        self._extra_info = (
-            f"Bounce({self.direction})_{species.get_chemical_formula()}_{species_indices}"
-        )
+        self._extra_info = f"Bounce({self.direction})_{species.get_chemical_formula()}_{species_indices}"
 
         # get neighbour list
         new_atoms = copy.deepcopy(atoms)
-        nlist = self.nlist_prototype(
-            self.covalent_max * np.array(natural_cutoffs(new_atoms))
-        )
+        nlist = self.nlist_prototype(self.covalent_max * np.array(natural_cutoffs(new_atoms)))
 
         # bounce one atom
         atom_index = species_indices[0]
@@ -114,9 +109,7 @@ class BounceOperator(AbstractOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"direction: {self.direction}\n"

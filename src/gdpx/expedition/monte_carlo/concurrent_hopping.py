@@ -6,7 +6,7 @@ import copy
 import enum
 import itertools
 import shutil
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import ase.db
 import numpy as np
@@ -15,25 +15,24 @@ from ase.data import atomic_numbers
 from ase.formula import Formula
 from ase.io import read, write
 
-from gdpx.geometry.spatial import get_bond_distance_dict
-from gdpx.cli.compute import run_worker, convert_input_to_computer  # TODO: refactor this?
+from gdpx.cli.compute import convert_input_to_computer, run_worker  # TODO: refactor this?
+from gdpx.core.register import registers
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.factory.computer import canonicalise_worker
+from gdpx.geometry.spatial import get_bond_distance_dict
+from gdpx.utils.atoms_tags import get_tags_per_species
 
-from .. import get_tags_per_species, registers
 from ..expedition import BaseExpedition
 from .operators import parse_operators, select_operator
 
-GenerationState = enum.Enum(
-    "GenerationState", ("BEG_OF_GEN", "MID_OF_GEN", "END_OF_GEN")
-)
+GenerationState = enum.Enum("GenerationState", ("BEG_OF_GEN", "MID_OF_GEN", "END_OF_GEN"))
 
 
 def infer_unique_atomic_numbers(
     operators,
-    custom_atomic_types: Optional[List[str]] = None,
-    substrates: Optional[List[Atoms]] = None,
-) -> List[int]:
+    custom_atomic_types: Optional[list[str]] = None,
+    substrates: Optional[list[Atoms]] = None,
+) -> list[int]:
     """Find possible elements in the simulation and build a bond-distance list."""
     type_list = []
     for op in operators:
@@ -58,9 +57,7 @@ def infer_unique_atomic_numbers(
     return unique_atomic_numbers
 
 
-def compute_population_fitness(
-    structures: List[Atoms], with_history=True
-) -> List[float]:
+def compute_population_fitness(structures: list[Atoms], with_history=True) -> list[float]:
     """Calculates the fitness."""
     scores = [x.info["key_value_pairs"]["raw_score"] for x in structures]
     min_s = min(scores)
@@ -71,10 +68,7 @@ def compute_population_fitness(
     if with_history:
         M = [float(atoms.info["n_paired"]) for atoms in structures]
         L = [float(atoms.info["looks_like"]) for atoms in structures]
-        f = [
-            f[i] * 1.0 / np.sqrt(1.0 + M[i]) * 1.0 / np.sqrt(1.0 + L[i])
-            for i in range(len(f))
-        ]
+        f = [f[i] * 1.0 / np.sqrt(1.0 + M[i]) * 1.0 / np.sqrt(1.0 + L[i]) for i in range(len(f))]
 
     return f
 
@@ -118,9 +112,7 @@ class ConcurrentPopulation:
             )
 
         # This can be `None` as it may be lazy-initialised by builder externally.
-        self.random_offspring_generator = canonicalise_builder(
-            random_offspring_generator
-        )
+        self.random_offspring_generator = canonicalise_builder(random_offspring_generator)
 
         # Comparator adds history information for atoms in the population
         if comparator is None:
@@ -155,16 +147,12 @@ class ConcurrentPopulation:
 
         return self._pop_size
 
-    def get_current_population(
-        self, database: "GlobalOptimisationDatabase"
-    ) -> List[Atoms]:
+    def get_current_population(self, database: "GlobalOptimisationDatabase") -> list[Atoms]:
         """"""
         all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=False)
         # The candidates have already been sorted by raw_score,
         # here, we just double check it.
-        all_relaxed_candidates.sort(
-            key=lambda cand: cand.info["key_value_pairs"]["raw_score"], reverse=True
-        )
+        all_relaxed_candidates.sort(key=lambda cand: cand.info["key_value_pairs"]["raw_score"], reverse=True)
 
         # We may not have enough structures for the population
         # as some of them may look like.
@@ -193,9 +181,7 @@ class ConcurrentPopulation:
             return n
 
         for s_cand in selected_candidates:
-            s_cand.info["looks_like"] = count_looks_like(
-                s_cand, selected_candidates, self.comparator
-            )
+            s_cand.info["looks_like"] = count_looks_like(s_cand, selected_candidates, self.comparator)
 
         # TODO: Check history?
         for s_cand in selected_candidates:
@@ -215,7 +201,7 @@ class ConcurrentPopulation:
         database: "GlobalOptimisationDatabase",
         rng: np.random.Generator,
         with_history: bool = True,
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """"""
         popultion = self.get_current_population(database)
         num_structures_in_population = len(popultion)
@@ -248,9 +234,7 @@ class GlobalOptimisationDatabase:
 
     def add_unrelaxed_candidate(self, candidate: Atoms, **kwargs):
         """"""
-        confid = self.connection.write(
-            candidate, relaxed=0, queued=0, extinct=0, **kwargs
-        )
+        confid = self.connection.write(candidate, relaxed=0, queued=0, extinct=0, **kwargs)
         self.connection.update(confid, confid=confid)
         candidate.info["confid"] = confid
 
@@ -275,17 +259,13 @@ class GlobalOptimisationDatabase:
 
         return
 
-    def get_one_candidate_by_confid(
-        self, confid: int, add_info: bool = True, mark_as_queued: bool = False
-    ) -> Atoms:
+    def get_one_candidate_by_confid(self, confid: int, add_info: bool = True, mark_as_queued: bool = False) -> Atoms:
         """"""
         images = list(self.connection.select(confid=confid))
         images.sort(key=lambda x: x.mtime)
 
         # TODO: if there is no images?
-        candidate = self.connection.get_atoms(
-            images[-1].id, add_additional_information=add_info
-        )
+        candidate = self.connection.get_atoms(images[-1].id, add_additional_information=add_info)
         if mark_as_queued:
             self.connection.update(id=images[-1].id, queued=1)
 
@@ -300,9 +280,7 @@ class GlobalOptimisationDatabase:
 
         candidates = []
         for row in rows:
-            candidate = self.connection.get_atoms(
-                id=row.id, add_additional_information=True
-            )
+            candidate = self.connection.get_atoms(id=row.id, add_additional_information=True)
             candidate.info["confid"] = row.confid
             candidates.append(candidate)
 
@@ -322,15 +300,13 @@ class GlobalOptimisationDatabase:
 
         return confids
 
-    def get_all_unrelaxed_candidates(self, mark_as_queued: bool = False) -> List[Atoms]:
+    def get_all_unrelaxed_candidates(self, mark_as_queued: bool = False) -> list[Atoms]:
         """"""
         confids = self._get_all_unrelaxed_confids()
 
         candidates = []
         for confid in confids:
-            candidate = self.get_one_candidate_by_confid(
-                confid, mark_as_queued=mark_as_queued
-            )
+            candidate = self.get_one_candidate_by_confid(confid, mark_as_queued=mark_as_queued)
             candidate.info["confid"] = confid
             if "data" not in candidate.info:
                 candidate.info["data"] = {}
@@ -345,9 +321,7 @@ class GlobalOptimisationDatabase:
         queued_confids = {row.confid for row in self.connection.select(queued=1)}
 
         confids = [
-            confid
-            for confid in unrelaxed_confids
-            if (confid not in relaxed_confids and confid not in queued_confids)
+            confid for confid in unrelaxed_confids if (confid not in relaxed_confids and confid not in queued_confids)
         ]
 
         return confids
@@ -363,13 +337,11 @@ def run_monte_carlo_steps(
     rng: np.random.Generator,
 ) -> Atoms:
     """"""
-    mctraj_fpath = (
-        driver.directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
-    )
+    mctraj_fpath = driver.directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
     energy_before = atoms.get_potential_energy()
     atoms.info["mcstep"] = 0
     write(mctraj_fpath, atoms, append=False)
-    for istep in range(1, mcsteps+1):
+    for istep in range(1, mcsteps + 1):
         op = select_operator(operators, probabilities, rng=rng)  # type: ignore
         op._print(f"----- MCSTEP.{istep:>04d} -----")
         new_atoms = op.run(atoms, rng=rng)
@@ -401,9 +373,7 @@ def run_monte_carlo_steps(
     return atoms
 
 
-def evaluate_candidate(
-    atoms: Atoms, target_property: str, chempot: Optional[dict] = None
-) -> None:
+def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dict] = None) -> None:
     """Evaluate the candidate's fitness.
 
     The fitness is stored in atoms.info['raw_score'].
@@ -445,9 +415,7 @@ def evaluate_candidate(
 
         energy = atoms.get_potential_energy()
 
-        formation_energy = energy - np.sum(
-            [chempot_dict[k] * v for k, v in identity_stats.items()]  # type: ignore
-        )
+        formation_energy = energy - np.sum([chempot_dict[k] * v for k, v in identity_stats.items()])  # type: ignore
         atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
         atoms.info["key_value_pairs"]["target"] = formation_energy
     elif target == "reaction_energy":
@@ -459,7 +427,7 @@ def evaluate_candidate(
 
 
 def canonical_candidates_from_worker_results(
-    relaxed_candidates: List[Atoms],
+    relaxed_candidates: list[Atoms],
     gen_num: int,
     extinct: int = 0,
     use_tags: bool = False,
@@ -470,9 +438,7 @@ def canonical_candidates_from_worker_results(
     chempot = property.get("chempot", None)
 
     for candidate in relaxed_candidates:
-        extra_info = dict(
-            data={}, key_value_pairs={"generation": gen_num, "extinct": extinct}
-        )
+        extra_info = dict(data={}, key_value_pairs={"generation": gen_num, "extinct": extinct})
         candidate.info.update(extra_info)
         if use_tags:
             # The worker respects tags in atom, thus, we do not need
@@ -588,33 +554,23 @@ class ConcurrentHopping(BaseExpedition):
         # Register minimum covalent bond distance used by operators
         # TODO: Maker a better interface?
         bond_distance_dict = {}
-        if hasattr(
-            self.population.random_offspring_generator, "get_bond_distance_dict"
-        ):
+        if hasattr(self.population.random_offspring_generator, "get_bond_distance_dict"):
             bond_distance_dict.update(
                 self.population.random_offspring_generator.get_bond_distance_dict()  # type: ignore
             )
         unique_atomic_numbers = infer_unique_atomic_numbers(
             operators=self.operators, custom_atomic_types=None, substrates=None
         )
-        bond_distance_dict.update(
-            get_bond_distance_dict(
-                unique_atomic_numbers=unique_atomic_numbers, ratio=1.0
-            )
-        )
+        bond_distance_dict.update(get_bond_distance_dict(unique_atomic_numbers=unique_atomic_numbers, ratio=1.0))
         for op in self.operators:
             op.bond_distance_dict = bond_distance_dict
 
         # Run generations
         for _ in range(1000):
             gen_num, gen_state = self.get_generation_info(database=database)
-            converged = self.read_convergence(
-                database=database, gen_num=gen_num, gen_state=gen_state
-            )
+            converged = self.read_convergence(database=database, gen_num=gen_num, gen_state=gen_state)
             if not converged:
-                is_finished = self._irun(
-                    database=database, gen_num=gen_num, gen_state=gen_state
-                )
+                is_finished = self._irun(database=database, gen_num=gen_num, gen_state=gen_state)
                 if not is_finished:
                     self._print("Wait generation to finish.")
                     break  # Wait for the step to finish.
@@ -653,9 +609,7 @@ class ConcurrentHopping(BaseExpedition):
             # We save all mc trajectories in a centralised folder
             (gen_wdir / "mctrajs").mkdir(parents=True, exist_ok=True)
             # Try to generate new structures
-            candidates = self.population.get_current_generation(
-                database=database, rng=self.rng, with_history=True
-            )
+            candidates = self.population.get_current_generation(database=database, rng=self.rng, with_history=True)
             candidates_confids = [a.info["confid"] for a in candidates]
             self._print(f"{candidates_confids=}")
 
@@ -675,15 +629,13 @@ class ConcurrentHopping(BaseExpedition):
                 database.add_unrelaxed_candidate(atoms_after_mc)
 
         # Run simulations in the generation folder
-        candidates_to_explore = database.get_all_unrelaxed_candidates(
-            mark_as_queued=True
-        )
+        candidates_to_explore = database.get_all_unrelaxed_candidates(mark_as_queued=True)
         candidates_confids = [a.info["confid"] for a in candidates_to_explore]
         self._print(f"{candidates_confids=}")
 
         is_finished = run_worker(candidates_to_explore, self.worker, directory=gen_wdir)  # type: ignore
         if is_finished:
-            relaxed_candidates = read(gen_wdir/"results"/"end_frames.xyz", ":")
+            relaxed_candidates = read(gen_wdir / "results" / "end_frames.xyz", ":")
             explored_candidates = canonical_candidates_from_worker_results(
                 relaxed_candidates,  # type: ignore
                 gen_num=gen_num,
@@ -693,7 +645,7 @@ class ConcurrentHopping(BaseExpedition):
             )
             for candidate in explored_candidates:
                 database.add_relaxed_step(candidate)
-        
+
         return is_finished
 
     def read_convergence(
@@ -715,15 +667,9 @@ class ConcurrentHopping(BaseExpedition):
             gen_num, gen_state = self.get_generation_info(database=database)
         else:
             assert gen_state is not None
-        if (
-            gen_num == maximum_generation_number
-            and gen_state == GenerationState.END_OF_GEN
-        ):
+        if gen_num == maximum_generation_number and gen_state == GenerationState.END_OF_GEN:
             converged = True
-        elif (
-            gen_num > maximum_generation_number
-            and gen_state == GenerationState.BEG_OF_GEN
-        ):
+        elif gen_num > maximum_generation_number and gen_state == GenerationState.BEG_OF_GEN:
             assert gen_num == maximum_generation_number + 1, f"{gen_num=}  {gen_state=}"
             converged = True
         else:
@@ -731,9 +677,7 @@ class ConcurrentHopping(BaseExpedition):
 
         return converged
 
-    def get_generation_info(
-        self, database: GlobalOptimisationDatabase
-    ) -> Tuple[int, GenerationState]:
+    def get_generation_info(self, database: GlobalOptimisationDatabase) -> tuple[int, GenerationState]:
         """"""
         ini_size, gen_size = self.population.ini_size, self.population.gen_size
 
@@ -794,9 +738,7 @@ class ConcurrentHopping(BaseExpedition):
         data = []
         for i in range(maximum_generation_number):
             candidates = candidates_by_generations[i]
-            properties = np.array(
-                [a.info["key_value_pairs"]["target"] for a in candidates]
-            )
+            properties = np.array([a.info["key_value_pairs"]["target"] for a in candidates])
             stats = dict(
                 min=np.min(properties),
                 max=np.max(properties),
@@ -827,9 +769,9 @@ class ConcurrentHopping(BaseExpedition):
 
         Note:
             We do not have MC trajectories for now.
-            
+
         """
-        gen_wdirs = (self.directory/"tmp_folder").glob("gen*")
+        gen_wdirs = (self.directory / "tmp_folder").glob("gen*")
         gen_wdirs = sorted(gen_wdirs, key=lambda p: int(p.name[3:]))
         self._print(f"{gen_wdirs=}")
 

@@ -7,9 +7,8 @@ import copy
 import logging
 
 from gdpx.core.component import BaseComponent
+from gdpx.core.register import registers
 from gdpx.factory.computer import canonicalise_worker
-
-from . import registers
 
 
 class BaseExpedition(BaseComponent):
@@ -31,9 +30,7 @@ class BaseExpedition(BaseComponent):
         #   and accidently add a StreamHandler to logging.root
         #   so remove it...
         for h in logging.root.handlers:
-            if isinstance(h, logging.StreamHandler) and not isinstance(
-                h, logging.FileHandler
-            ):
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
                 logging.root.removeHandler(h)
 
         assert self.worker is not None, f"{self.name} has not set its worker properly."
@@ -45,9 +42,7 @@ class BaseExpedition(BaseComponent):
         if isinstance(builder, dict):
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
-            builder = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
+            builder = registers.create("builder", builder_method, convert_name=False, **builder_params)
         else:
             builder = builder
 

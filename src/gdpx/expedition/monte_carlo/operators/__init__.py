@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pickle
 
 import numpy as np
+from ase import units
 
-from ase import Atoms
-from ase import data, units
+from gdpx.geometry.composition import convert_string_to_atoms
 
-from .. import convert_string_to_atoms
-from .move import MoveOperator
 from .bounce import BounceOperator
-from .swap import SwapOperator
 from .exchange import ExchangeOperator
+from .move import MoveOperator
 from .react import ReactOperator
+from .swap import SwapOperator
+
 
 def save_operator(op, p):
     """"""
@@ -22,12 +23,14 @@ def save_operator(op, p):
 
     return
 
+
 def load_operator(p):
     """"""
     with open(p, "rb") as fopen:
         op = pickle.load(fopen)
 
     return op
+
 
 def select_operator(operators: list, probs: list, rng=np.random):
     """Select an operator based on the relative probabilities."""
@@ -36,6 +39,7 @@ def select_operator(operators: list, probs: list, rng=np.random):
     op = operators[op_idx]
 
     return op
+
 
 def parse_operators(op_params: dict):
     """Parse parameters for various operators.
@@ -61,26 +65,27 @@ def parse_operators(op_params: dict):
             raise NotImplementedError(f"{name} is not supported.")
         operators.append(op)
         probs.append(prob)
-    
+
     # - reweight probabilities
     probs = (np.array(probs) / np.sum(probs)).tolist()
 
     return operators, probs
 
+
 def compute_thermo_wavelength(expart: str, temperature: float):
     # - beta
     kBT_eV = units.kB * temperature
-    beta = 1./kBT_eV # 1/(kb*T), eV
+    beta = 1.0 / kBT_eV  # 1/(kb*T), eV
 
-    # - cubic thermo de broglie 
-    hplanck = units._hplanck # J/Hz = kg*m2*s-1
-    #_mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
+    # - cubic thermo de broglie
+    hplanck = units._hplanck  # J/Hz = kg*m2*s-1
+    # _mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
     _species = convert_string_to_atoms(expart)
     _species_mass = np.sum(_species.get_masses())
-    #print("species mass: ", _mass)
+    # print("species mass: ", _mass)
     _mass = _species_mass * units._amu
-    kbT_J = kBT_eV * units._e # J = kg*m2*s-2
-    cubic_wavelength = (hplanck/np.sqrt(2*np.pi*_mass*kbT_J)*1e10)**3 # thermal de broglie wavelength
+    kbT_J = kBT_eV * units._e  # J = kg*m2*s-2
+    cubic_wavelength = (hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10) ** 3  # thermal de broglie wavelength
 
     return _species_mass, beta, cubic_wavelength
 

@@ -13,25 +13,20 @@ from ase.formula import Formula
 from ase.io import read, write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
+from gdpx.utils.command import dictionary_to_string
 from gdpx.utils.strconv import integers_to_string
+from gdpx.worker.drive import DriverBasedWorker
+from gdpx.worker.single import SingleWorker
 
-from .. import DriverBasedWorker, SingleWorker, dictionary_to_string
 from ..expedition import BaseExpedition
-from .operators import (
-    load_operator,
-    parse_operators,
-    save_operator,
-    select_operator,
-)
+from .operators import load_operator, parse_operators, save_operator, select_operator
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
-MCStepState = enum.Enum(
-    "MCStepState", ("UNFINISHED", "FINISHED", "FAILED", "EARLYSTOPPED")
-)
+MCStepState = enum.Enum("MCStepState", ("UNFINISHED", "FINISHED", "FAILED", "EARLYSTOPPED"))
 
 
 def convert_blmin_to_str(blmin: dict) -> str:
@@ -55,9 +50,7 @@ def convert_blmin_to_str(blmin: dict) -> str:
     # content += "  covalent ratio: {}\n".format(covalent_min)
     content += "  " + " " * 4 + ("{:>6}  " * nelements).format(*symbols) + "\n"
     for i, s in enumerate(symbols):
-        content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(
-            s, *list(distance_map[i])
-        )
+        content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(s, *list(distance_map[i]))
 
     return content
 
@@ -139,10 +132,7 @@ class MonteCarlo(BaseExpedition):
                 # default is setting tags by elements
                 symbols = self.atoms.get_chemical_symbols()
                 type_list = sorted(list(set(symbols)))
-                new_tags = [
-                    type_list.index(s) * 10000 + i
-                    for i, s in enumerate(symbols)
-                ]
+                new_tags = [type_list.index(s) * 10000 + i for i, s in enumerate(symbols)]
                 self.atoms.set_tags(new_tags)
                 self._print("set default tags by chemical symbols...")
             else:
@@ -207,9 +197,7 @@ class MonteCarlo(BaseExpedition):
             else:
                 ...
         type_list = list(set(type_list + self.atoms.get_chemical_symbols()))
-        self._print(
-            f"possible atomic types in simulation: {' '.join(type_list)}"
-        )
+        self._print(f"possible atomic types in simulation: {' '.join(type_list)}")
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
 
         for op in self.operators:
@@ -241,9 +229,7 @@ class MonteCarlo(BaseExpedition):
         #   If it is created in init, it will be re-used in active-learning loop.
         #   Thus, we create a new one every run time.
         frames = self.builder.run()
-        assert (
-            len(frames) == 1
-        ), f"{self.__class__.__name__} only accepts one structure."
+        assert len(frames) == 1, f"{self.__class__.__name__} only accepts one structure."
         self.atoms = frames[0]
 
         # - prepare logger and output some basic info...
@@ -319,23 +305,17 @@ class MonteCarlo(BaseExpedition):
                     # -- save checkpoint
                     self._save_checkpoint(step=curr_step)
                     # -- clean up
-                    if (
-                        (
-                            self.directory / f"{self.WDIR_PREFIX}{curr_step}"
-                        ).exists()
-                    ) and (curr_step % self.dump_period != 0):
-                        shutil.rmtree(
-                            self.directory / f"{self.WDIR_PREFIX}{curr_step}"
-                        )
+                    if ((self.directory / f"{self.WDIR_PREFIX}{curr_step}").exists()) and (
+                        curr_step % self.dump_period != 0
+                    ):
+                        shutil.rmtree(self.directory / f"{self.WDIR_PREFIX}{curr_step}")
                     curr_step += 1
                 elif step_state == MCStepState.FAILED:
                     self._print(f"RETRY STEP {curr_step}.")
                 elif step_state == MCStepState.EARLYSTOPPED:
                     # We need a file flag to indicate the simutlation is finshed
                     # when read_convergence is called.
-                    with open(
-                        self.directory / MC_EARLYSTOP_FNAME, "w"
-                    ) as fopen:
+                    with open(self.directory / MC_EARLYSTOP_FNAME, "w") as fopen:
                         fopen.write(f"{step_state =}")
                 else:
                     raise Exception(f"{step_state} should not happen.")
@@ -382,9 +362,7 @@ class MonteCarlo(BaseExpedition):
                 self._print(f"post ene: {self.energy_operated}")
 
                 # -- metropolis
-                success = curr_op.metropolis(
-                    self.energy_stored, self.energy_operated, self.rng
-                )
+                success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
 
                 self._save_step_info(curr_op, success)
 
@@ -538,9 +516,7 @@ class MonteCarlo(BaseExpedition):
         mctraj = read(self.directory / self.TRAJ_NAME, f":{step+1}")
         write(self.directory / self.TRAJ_NAME, mctraj)
 
-        mctraj_attempts = read(
-            self.directory / "mc_attempts.xyz", f":{step+1}"
-        )
+        mctraj_attempts = read(self.directory / "mc_attempts.xyz", f":{step+1}")
         write(self.directory / "mc_attempts.xyz", mctraj_attempts)
 
         # Reset opstat.txt
@@ -571,9 +547,7 @@ class MonteCarlo(BaseExpedition):
                 removed_cand_indices.append(cand_index)
             else:
                 break
-        self._print(
-            f"Remove previous computation folders {integers_to_string(removed_cand_indices)}."
-        )
+        self._print(f"Remove previous computation folders {integers_to_string(removed_cand_indices)}.")
 
         return
 

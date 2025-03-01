@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import abc
 import copy
-from typing import Optional, Callable, List
+from typing import Callable, Optional
 
 import numpy as np
+from ase import Atoms, data
 
-from ase import Atoms
-from ase import data
-
-from .. import registers
+from gdpx.core.register import registers
 
 
 class AbstractOperator(abc.ABC):
@@ -53,9 +52,7 @@ class AbstractOperator(abc.ABC):
         # - region
         region_params = copy.deepcopy(region)
         region_method = region_params.pop("method", "auto")
-        self.region = registers.create(
-            "region", region_method, convert_name=True, **region_params
-        )
+        self.region = registers.create("region", region_method, convert_name=True, **region_params)
 
         self.group = group
 
@@ -85,31 +82,21 @@ class AbstractOperator(abc.ABC):
 
         tags_dict = self.region.get_tags_dict(atoms)
         content = "species within system:\n"
-        content += (
-            "  "
-            + "  ".join([str(k) + " " + str(len(v)) for k, v in tags_dict.items()])
-            + "\n"
-        )
+        content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in tags_dict.items()]) + "\n"
         for x in content.split("\n"):
             self._print(x)
 
         self._curr_tags_dict = self.region.get_contained_tags_dict(atoms, tags_dict)
         content = "species within region:\n"
-        content += (
-            "  "
-            + "  ".join(
-                [str(k) + " " + str(len(v)) for k, v in self._curr_tags_dict.items()]
-            )
-            + "\n"
-        )
+        content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in self._curr_tags_dict.items()]) + "\n"
         for x in content.split("\n"):
             self._print(x)
 
         return
 
     def _select_species(
-        self, atoms: Atoms, particles: Optional[List[str]] = None, rng=np.random.default_rng()
-    ) -> List[int]:
+        self, atoms: Atoms, particles: Optional[list[str]] = None, rng=np.random.default_rng()
+    ) -> list[int]:
         """"""
         # - pick a particle (atom/molecule)
         tags_within_region = []
@@ -123,9 +110,7 @@ class AbstractOperator(abc.ABC):
             picked_tag = rng.choice(tags_within_region)
             tags = atoms.get_tags()
             species_indices = [i for i, t in enumerate(tags) if t == picked_tag]
-            self._print(
-                f"selected tag: {picked_tag} species: {atoms[species_indices].get_chemical_formula()}"
-            )
+            self._print(f"selected tag: {picked_tag} species: {atoms[species_indices].get_chemical_formula()}")
         else:
             picked_tag = None
             species_indices = None
@@ -143,9 +128,7 @@ class AbstractOperator(abc.ABC):
 
         return species_
 
-    def check_overlap_neighbour(
-        self, nl, new_atoms: Atoms, cell, species_indices: List[int]
-    ) -> bool:
+    def check_overlap_neighbour(self, nl, new_atoms: Atoms, cell, species_indices: list[int]) -> bool:
         """Check whether the species position is valid.
 
         Use neighbour list to check newly added atom is neither too close or too
@@ -170,9 +153,7 @@ class AbstractOperator(abc.ABC):
         nl.update(new_atoms)
         for iatom, idx_pick in enumerate(species_indices):
             indices, offsets = nl.get_neighbors(idx_pick)
-            self._debug(
-                f"  check index {idx_pick} {new_atoms.positions[idx_pick]} nneighs: {len(indices)}"
-            )
+            self._debug(f"  check index {idx_pick} {new_atoms.positions[idx_pick]} nneighs: {len(indices)}")
             if len(indices) > 0:
                 # --
                 if all([(ni in species_indices) for ni in indices]):
@@ -185,8 +166,7 @@ class AbstractOperator(abc.ABC):
                     #       Intra-species distance will not be checked.
                     if ni not in species_indices:
                         dis = np.linalg.norm(
-                            new_atoms.positions[idx_pick]
-                            - (new_atoms.positions[ni] + np.dot(offset, cell))
+                            new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, cell))
                         )
                         pairs = [chemical_symbols[ni], chemical_symbols[idx_pick]]
                         pairs = tuple([data.atomic_numbers[p] for p in pairs])
@@ -234,7 +214,7 @@ class AbstractOperator(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator=np.random.default_rng()) -> bool:
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """Monte Carlo."""
 
         ...

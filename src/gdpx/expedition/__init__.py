@@ -2,22 +2,5 @@
 # -*- coding: utf-8 -*-
 
 
-from .. import config
-from ..builder.builder import StructureBuilder
-from ..utils.atoms_tags import get_tags_per_species
-from ..core.register import registers
-from ..data.array import AtomsNDArray
-from ..graph.molecule import MolecularAdsorbate, find_molecules
-from ..potential.interface import create_mixer
-from ..utils.command import dictionary_to_string
-from ..utils.strconv import string_to_array
-from ..worker.drive import DriverBasedWorker
-from ..worker.grid import GridDriverBasedWorker
-from ..worker.single import SingleWorker
-
-from ..geometry.composition import convert_string_to_atoms
-from ..geometry.bounce import bounce_one_atom
-
-
 if __name__ == "__main__":
     ...

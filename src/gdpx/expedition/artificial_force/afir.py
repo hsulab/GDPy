@@ -12,15 +12,12 @@ from ase.formula import Formula
 from ase.geometry import find_mic
 from ase.io import write
 
+from gdpx.data.array import AtomsNDArray
+from gdpx.graph.molecule import MolecularAdsorbate, find_molecules
 from gdpx.group import evaluate_group_expression
+from gdpx.potential.interface import create_mixer
+from gdpx.worker.grid import GridDriverBasedWorker
 
-from .. import (
-    AtomsNDArray,
-    GridDriverBasedWorker,
-    MolecularAdsorbate,
-    create_mixer,
-    find_molecules,
-)
 from ..expedition import BaseExpedition
 
 
@@ -35,9 +32,7 @@ def convert_index_to_formula(atoms, group_indices: list[list[int]]):
     return formulae
 
 
-def find_target_fragments(
-    atoms, target_commands: list[str]
-) -> Mapping[str, list[list[int]]]:
+def find_target_fragments(atoms, target_commands: list[str]) -> Mapping[str, list[list[int]]]:
     """Find target fragments in the structure to react.
 
     This is a wrapper for group commands as there are several ways to defind
@@ -136,9 +131,7 @@ class AFIRSearch(BaseExpedition):
 
         return
 
-    def _spawn_computers(
-        self, pair: list[list[int]], gamma_factors: list[float], *args, **kwargs
-    ):
+    def _spawn_computers(self, pair: list[list[int]], gamma_factors: list[float], *args, **kwargs):
         """Spawn AFIR computers."""
         # if hasattr(self.worker.potter, "remove_loaded_models"):
         #     self.worker.potter.remove_loaded_models()
@@ -217,8 +210,7 @@ class AFIRSearch(BaseExpedition):
             with open(pair_data_fpath, "r") as fopen:
                 pair_data = json.load(fopen)
             possible_pairs = [
-                [MolecularAdsorbate.from_dict(p0), MolecularAdsorbate.from_dict(p1)]
-                for (p0, p1) in pair_data
+                [MolecularAdsorbate.from_dict(p0), MolecularAdsorbate.from_dict(p1)] for (p0, p1) in pair_data
             ]
 
         num_pairs = len(possible_pairs)

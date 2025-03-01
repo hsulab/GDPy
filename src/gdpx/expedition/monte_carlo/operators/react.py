@@ -4,17 +4,15 @@
 
 import copy
 import dataclasses
-
 from typing import List
 
 import numpy as np
-
-from ase import Atoms
-from ase import units
+from ase import Atoms, units
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.neighborlist import NeighborList, natural_cutoffs
 
-from .. import convert_string_to_atoms
+from gdpx.geometry.composition import convert_string_to_atoms
+
 from .exchange import BasicExchangeOperator
 
 
@@ -35,9 +33,7 @@ class ElementaryReaction:
     ):
         """"""
         self.number_net_change = np.sum(self.coefficients)
-        self.chempot_change = np.sum(
-            [c * mu for c, mu in zip(self.coefficients, self.chempot_0)]
-        )
+        self.chempot_change = np.sum([c * mu for c, mu in zip(self.coefficients, self.chempot_0)])
 
         equation_parts = [[], []]
         self.reactants, self.products = [], []
@@ -48,9 +44,7 @@ class ElementaryReaction:
             else:
                 equation_parts[1].append(f"{c}{p}")
                 self.products.append(p)
-        self.chemical_equation = (
-            "+".join(equation_parts[0]) + "->" + "+".join(equation_parts[1])
-        )
+        self.chemical_equation = "+".join(equation_parts[0]) + "->" + "+".join(equation_parts[1])
 
         return
 
@@ -65,9 +59,7 @@ class ElementaryReaction:
         # - add PV term
         p_0 = 1e5  # pascal
         ang3tom3 = 1e-30
-        pv_factor = (
-            beta * p_0 * ang3tom3 * units.kJ / 1000.0
-        ) ** self.number_net_change
+        pv_factor = (beta * p_0 * ang3tom3 * units.kJ / 1000.0) ** self.number_net_change
 
         self.k2 = pv_factor * self.k
 
@@ -89,9 +81,7 @@ class ReactOperator(BasicExchangeOperator):
         **kwargs,
     ):
         """"""
-        super().__init__(
-            region=region, temperature=temperature, pressure=pressure, *args, **kwargs
-        )
+        super().__init__(region=region, temperature=temperature, pressure=pressure, *args, **kwargs)
 
         # - parse reaction
         self.reaction = ElementaryReaction(**reaction)
@@ -120,14 +110,10 @@ class ReactOperator(BasicExchangeOperator):
         self._print(f"reaction: {self.reaction.chemical_equation}")
 
         # --
-        reactant_numbers = [
-            len(self._curr_tags_dict.get(r, [])) for r in self.reaction.reactants
-        ]
+        reactant_numbers = [len(self._curr_tags_dict.get(r, [])) for r in self.reaction.reactants]
         has_reactants = all([r_n > 0 for r_n in reactant_numbers])
 
-        product_numbers = [
-            len(self._curr_tags_dict.get(p, [])) for p in self.reaction.products
-        ]
+        product_numbers = [len(self._curr_tags_dict.get(p, [])) for p in self.reaction.products]
         has_products = all([p_n > 0 for p_n in product_numbers])
 
         self._curr_particle_numbers = reactant_numbers + product_numbers
@@ -157,9 +143,7 @@ class ReactOperator(BasicExchangeOperator):
                 self._curr_operation = "reverse"
                 curr_atoms = self._reverse_reaction(atoms, rng)
 
-        self._extra_info = (
-            f"{self._curr_operation.capitalize()}_{self.reaction.chemical_equation}"
-        )
+        self._extra_info = f"{self._curr_operation.capitalize()}_{self.reaction.chemical_equation}"
 
         return curr_atoms
 
@@ -180,11 +164,7 @@ class ReactOperator(BasicExchangeOperator):
             fac *= np.math.factorial(n) / np.math.factorial(n + c)
 
         # -
-        prefactor = (
-            (self.reaction.k2**xi)
-            * (self._curr_volume ** (self.reaction.number_net_change * xi))
-            * fac
-        )
+        prefactor = (self.reaction.k2**xi) * (self._curr_volume ** (self.reaction.number_net_change * xi)) * fac
 
         return prefactor
 
@@ -208,13 +188,9 @@ class ReactOperator(BasicExchangeOperator):
 
         return particle
 
-    def _forward_reaction(
-        self, atoms_: Atoms, rng=np.random.Generator(np.random.PCG64())
-    ) -> Atoms:
+    def _forward_reaction(self, atoms_: Atoms, rng=np.random.Generator(np.random.PCG64())) -> Atoms:
         """Perform a forward reaction."""
-        self._curr_prefactor = self._compute_prefactor(
-            self._curr_particle_numbers, xi=1
-        )
+        self._curr_prefactor = self._compute_prefactor(self._curr_particle_numbers, xi=1)
 
         atoms = atoms_.copy()
 
@@ -235,9 +211,7 @@ class ReactOperator(BasicExchangeOperator):
         product = self.reaction.products[0]
         particle = self._create_a_particle(atoms, product, rng)
         new_tag = int(particle.get_tags()[0])
-        self._print(
-            f"product {particle.get_chemical_formula()} tag: {particle.get_tags()}"
-        )
+        self._print(f"product {particle.get_chemical_formula()} tag: {particle.get_tags()}")
         atoms.extend(particle)
 
         particle_indices = [i for i, t in enumerate(atoms.get_tags()) if t == new_tag]
@@ -270,13 +244,9 @@ class ReactOperator(BasicExchangeOperator):
 
         return atoms
 
-    def _reverse_reaction(
-        self, atoms_: Atoms, rng=np.random.Generator(np.random.PCG64())
-    ) -> Atoms:
+    def _reverse_reaction(self, atoms_: Atoms, rng=np.random.Generator(np.random.PCG64())) -> Atoms:
         """Perform a reverse reaction."""
-        self._curr_prefactor = self._compute_prefactor(
-            self._curr_particle_numbers, xi=-1
-        )
+        self._curr_prefactor = self._compute_prefactor(self._curr_particle_numbers, xi=-1)
 
         # - remove products
         atoms = atoms_
@@ -334,9 +304,7 @@ class ReactOperator(BasicExchangeOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"reaction: "
