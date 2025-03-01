@@ -4,7 +4,7 @@
 
 import copy
 import pathlib
-from typing import List, Union
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,14 +16,10 @@ except Exception as e:
 
 from ase import Atoms
 
-from gdpx.geometry.align import wrap_traj
+from gdpx.data.array import AtomsNDArray
 
-from ..data.array import AtomsNDArray
 from .utils import smooth_curve
 from .validator import BaseValidator
-
-"""This module is used to analyse the particle distribution in the system.
-"""
 
 
 def plot_mass_distribution(wdir, prefix, bincentres, mass, title):
@@ -44,9 +40,7 @@ def plot_mass_distribution(wdir, prefix, bincentres, mass, title):
     std_mass = np.sqrt(np.var(mass, axis=0))
     bincentres_, lo_mass_ = smooth_curve(bincentres, avg_mass - std_mass)
     bincentres_, hi_mass_ = smooth_curve(bincentres, avg_mass + std_mass)
-    ax.fill_between(
-        bincentres_, lo_mass_, hi_mass_, alpha=0.2, label="${\sigma}$"
-    )
+    ax.fill_between(bincentres_, lo_mass_, hi_mass_, alpha=0.2, label="${\sigma}$")
 
     # - stepwise
     # nframes = rdf.shape[0]
@@ -80,7 +74,7 @@ class MassDistributionValidator(BaseValidator):
 
     def __init__(
         self,
-        symbols: List[str],
+        symbols: list[str],
         drange,
         vector=[0, 0, 1],
         nbins=60,
@@ -104,7 +98,7 @@ class MassDistributionValidator(BaseValidator):
 
         return
 
-    def _process_data(self, data) -> List[List[Atoms]]:
+    def _process_data(self, data) -> list[list[Atoms]]:
         """"""
         data = AtomsNDArray(data)
 
@@ -142,13 +136,11 @@ class MassDistributionValidator(BaseValidator):
 
         return
 
-    def _irun(self, frames: List[Atoms], prefix):
+    def _irun(self, frames: list[Atoms], prefix):
         """"""
         # pmin = np.floor(np.min(projected_distances))
         # pmax = np.ceil(np.max(projected_distances))
-        bin_edges = np.linspace(
-            self.rmin, self.rmax, self.nbins, endpoint=False
-        ).tolist()
+        bin_edges = np.linspace(self.rmin, self.rmax, self.nbins, endpoint=False).tolist()
         bin_edges.append(self.rmax)
         bin_edges = np.array(bin_edges)
         # print(len(bin_edges), bin_edges)
@@ -162,9 +154,7 @@ class MassDistributionValidator(BaseValidator):
 
         mass = []
         for atoms in frames:
-            curr_mass = self._compute_mass_distribution(
-                atoms, bin_edges, self.nbins
-            )
+            curr_mass = self._compute_mass_distribution(atoms, bin_edges, self.nbins)
             mass.append(curr_mass)
         # avg_mass = np.mean(mass, axis=0)
         # min_mass = np.min(mass, axis=0)
@@ -172,26 +162,18 @@ class MassDistributionValidator(BaseValidator):
 
         mass = np.array(mass) / surf_area  # normalised by surface area
 
-        plot_mass_distribution(
-            self.directory, prefix, bincentres, mass, ", ".join(self.symbols)
-        )
+        plot_mass_distribution(self.directory, prefix, bincentres, mass, ", ".join(self.symbols))
 
         return
 
-    def _compute_mass_distribution(
-        self, atoms: List[Atoms], bin_edges, nbins: int
-    ):
+    def _compute_mass_distribution(self, atoms: list[Atoms], bin_edges, nbins: int):
         """"""
         selected_indices = []
         for i, a in enumerate(atoms):
             if a.symbol in self.symbols:
                 selected_indices.append(i)
-        selected_positions = copy.deepcopy(
-            atoms.get_positions()[selected_indices, :]
-        )
-        projected_distances = [
-            np.dot(pos, self.vector) for pos in selected_positions
-        ]
+        selected_positions = copy.deepcopy(atoms.get_positions()[selected_indices, :])
+        projected_distances = [np.dot(pos, self.vector) for pos in selected_positions]
 
         masses = atoms.get_masses()
         selected_masses = [masses[i] for i in selected_indices]
@@ -214,4 +196,3 @@ class MassDistributionValidator(BaseValidator):
 
 if __name__ == "__main__":
     ...
-

@@ -14,7 +14,7 @@ from .trimer import TrimerValidator
 
 REGISTER.register("trimer")(TrimerValidator)
 
-from .mdf import MassDistributionValidator
+from .mass_distribution import MassDistributionValidator
 
 REGISTER.register("mass_distribution")(MassDistributionValidator)
 
