@@ -135,7 +135,6 @@ class registers:
 
 
 ALL_MODULES = [
-    ("gdpx", ["potential"]),
     ("gdpx", ["colvar"]),
     (
         "gdpx.nodes",
@@ -154,7 +153,6 @@ ALL_MODULES = [
             "comparator",
         ],
     ),
-    ("gdpx.potential", ["interface"]),
 ]
 
 
@@ -224,25 +222,27 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     names, reasons = _handle_errors(errors)
 
     # Try loading local registers
-    local_module_names = [
-        "bias",
-        "builder",
-        "comparator",
-        "dataloader",
-        "describer",
-        "expedition",
-        "region",
-        "scheduler",
-        "selector",
-        "trainer",
-        "validator",
-    ]
-    for module_name in local_module_names:
+    local_module_pairs = (
+        ("bias", "bias"),
+        ("builder", "builder"),
+        ("comparator", "comparator"),
+        ("dataloader", "dataloader"),
+        ("describer", "describer"),
+        ("expedition", "expedition"),
+        ("manager", "potential"),  # use alias
+        ("region", "region"),
+        ("scheduler", "scheduler"),
+        ("selector", "selector"),
+        ("trainer", "trainer"),
+        ("validator", "validator"),
+    )
+
+    for register_name, module_name in local_module_pairs:
         setattr(registers, module_name, Register(module_name))  # add an empty register that can be used in main
         try:
             module = importlib.import_module("gdpx" + "." + module_name)
             local_register = getattr(module, "REGISTER")
-            setattr(registers, module_name, local_register)
+            setattr(registers, register_name, local_register)
         except ImportError as error:
             errors.append((module_name, error))
 

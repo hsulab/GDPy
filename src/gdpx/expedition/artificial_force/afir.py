@@ -15,10 +15,23 @@ from ase.io import write
 from gdpx.data.array import AtomsNDArray
 from gdpx.graph.molecule import MolecularAdsorbate, find_molecules
 from gdpx.group import evaluate_group_expression
-from gdpx.potential.interface import create_mixer
+from gdpx.potential.mixer import MixerManager
 from gdpx.worker.grid import GridDriverBasedWorker
 
 from ..expedition import BaseExpedition
+
+
+def create_mixer(basic_params, *args, **kwargs):
+    """"""
+    potters = [basic_params]
+    for x in args:
+        potters.append(x)
+    calc_params = dict(backend="ase", potters=potters)
+
+    mixer = MixerManager()
+    mixer.register_calculator(calc_params=calc_params)
+
+    return mixer
 
 
 def convert_index_to_formula(atoms, group_indices: list[list[int]]):

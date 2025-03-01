@@ -5,8 +5,6 @@
 from gdpx.core.register import registers
 from gdpx.session.variable import Variable
 
-from .mixer import MixerManager
-
 
 @registers.variable.register
 class PotterVariable(Variable):
@@ -25,19 +23,6 @@ class PotterVariable(Variable):
         super().__init__(initial_value=potter, directory=directory)
 
         return
-
-
-def create_mixer(basic_params, *args, **kwargs):
-    """"""
-    potters = [basic_params]
-    for x in args:
-        potters.append(x)
-    calc_params = dict(backend="ase", potters=potters)
-
-    mixer = MixerManager()
-    mixer.register_calculator(calc_params=calc_params)
-
-    return mixer
 
 
 if __name__ == "__main__":
