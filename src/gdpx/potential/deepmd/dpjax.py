@@ -68,13 +68,13 @@ class DPJax(Calculator):
 
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(self, model, type_list, label="DPJax", *args, **kwargs):
+    def __init__(self, model, type_map, head="default", label="DPJax", *args, **kwargs):
         """"""
         super().__init__(label=label, *args, **kwargs)
 
         self.model_fpath = model
-        self.type_list = type_list
-        self.type_map = {k: v for v, k in enumerate(self.type_list)}
+        self.type_map = type_map
+        self.head = head
 
         self._model = None
         self._variables = None
@@ -112,7 +112,7 @@ class DPJax(Calculator):
 
         def energy_fn(coord, nbrs_nm):
             return self._model.apply(
-                self._variables, coord, box, static_args=static_args, nbrs_nm=nbrs_nm
+                self._variables, coord, box, head=self.head, static_args=static_args, nbrs_nm=nbrs_nm
             )[0]
 
         return jax.jit(energy_fn), self._atype_sort, self._atype_rsort
@@ -120,7 +120,7 @@ class DPJax(Calculator):
     def calculate(
         self,
         atoms: Optional[Atoms] = None,
-        properties=["energy", "forces"],
+        properties=["energy"],
         system_changes=all_changes,
     ):
         """"""
@@ -133,7 +133,13 @@ class DPJax(Calculator):
                     3,
                     4,
                 ),
-            )(vmap(self._model.energy_and_force, in_axes=(None, 0, 0, None)))
+            )(vmap(self._model.energy_and_force, in_axes=(None, 0, 0, None, None)))
+            if self.head not in self._model.params["tune_heads"]:
+                raise RuntimeError(
+                    f"`{self.head}` is not in {self._model.params['tune_heads']}."
+                )
+            else:
+                ...
         else:
             ...
 
@@ -162,7 +168,7 @@ class DPJax(Calculator):
             # TODO: shift coordinates?
             coord = atoms.get_positions().reshape(1, -1, 3)[:, self._atype_sort]
             e, f = self._compute_energy_and_force(
-                self._variables, coord, self._boxes, static_args
+                self._variables, coord, self._boxes, self.head, static_args
             )
 
             self.results["energy"] = float(e[0])
