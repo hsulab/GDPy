@@ -105,9 +105,6 @@ class registers:
     #: Colvars.
     colvar: Register = Register("colvar")
 
-    #: Modifiers.
-    modifier: Register = Register("modifier")
-
     #: Reactors.
     reactor: Register = Register("reactor")
 
@@ -237,7 +234,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
         "bias",
         "builder",
         "comparator",
-        "data",
+        "dataloader",
         "describer",
         "expedition",
         "region",

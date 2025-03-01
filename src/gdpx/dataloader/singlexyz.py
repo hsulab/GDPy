@@ -11,7 +11,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read
 
-from ..dataset import AbstractDataloader
+from .dataset import AbstractDataloader
 
 
 def group_structures_by_composition(frames: list[Atoms]):

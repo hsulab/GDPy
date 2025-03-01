@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 from tinydb import Query, TinyDB
 
-from gdpx.data.interface import DatasetVariable
+from gdpx.nodes.data import DatasetVariable
 from gdpx.potential.trainer import BasePotentialTrainer
 
 from .worker import BaseWorker

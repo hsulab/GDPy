@@ -6,7 +6,7 @@ import omegaconf
 
 from gdpx.core.register import registers
 from gdpx.data.array import AtomsNDArray
-from gdpx.data.dataset import AbstractDataloader
+from gdpx.dataloader.dataset import AbstractDataloader
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
 from gdpx.validator.validator import BaseValidator
