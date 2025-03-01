@@ -3,7 +3,6 @@
 
 
 from ..core.register import registers
-from ..utils.strconv import string_to_array
 
 """Add bias on potential energy surface. 
 

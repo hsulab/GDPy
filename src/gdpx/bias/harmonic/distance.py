@@ -3,14 +3,12 @@
 
 
 import copy
-from typing import List, Optional, Tuple
 
 import numpy as np
-from ase import Atoms
-from ase.calculators.calculator import Calculator
 from ase.geometry import find_mic
 
-from .. import string_to_array
+from gdpx.utils.strconv import string_to_array
+
 from ..timeio import TimeIOCalculator
 
 
@@ -23,9 +21,7 @@ def compute_distance(cell, positions, pbc: bool = True):
     return vec, dis
 
 
-def compute_distance_harmonic_energy_and_forces(
-    vec, dis: float, center: float, kspring: float
-):
+def compute_distance_harmonic_energy_and_forces(vec, dis: float, center: float, kspring: float):
     """"""
     # compute energy
     dx = dis - center
@@ -44,9 +40,7 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
 
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(
-        self, group: List[int], center: float, kspring: float = 0.1, *args, **kwargs
-    ):
+    def __init__(self, group: list[int], center: float, kspring: float = 0.1, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
@@ -62,16 +56,14 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
 
         return
 
-    def _icalculate(self, atoms, properties, system_changes) -> Tuple[dict, list]:
+    def _icalculate(self, atoms, properties, system_changes) -> tuple[dict, tuple[float,...]]:
         """"""
         vec, dis = compute_distance(atoms.cell, atoms.positions[self.group], pbc=True)
 
         energy = 0.0
         forces = np.zeros(atoms.positions.shape)
         if self.num_steps >= self.delay:
-            energy, ext_forces = compute_distance_harmonic_energy_and_forces(
-                vec, dis, self.center, self.kspring
-            )
+            energy, ext_forces = compute_distance_harmonic_energy_and_forces(vec, dis, self.center, self.kspring)
             forces = np.zeros(atoms.positions.shape)
             forces[self.group] = ext_forces
         else:
@@ -104,7 +96,7 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
         return
 
     @staticmethod
-    def broadcast_params(inp_dict: dict) -> List[dict]:
+    def broadcast_params(inp_dict: dict) -> list[dict]:
         """"""
         # broadcast center or kspring
         centers = inp_dict.get("center", [])
@@ -142,7 +134,7 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
         return new_inputs
 
     @staticmethod
-    def broadcast(inp_dict: dict) -> List["DistanceHarmonicCalculator"]:
+    def broadcast(inp_dict: dict) -> list["DistanceHarmonicCalculator"]:
         """Create a list of calculators based on input parameters."""
 
         new_inputs = DistanceHarmonicCalculator.broadcast_params(inp_dict)
