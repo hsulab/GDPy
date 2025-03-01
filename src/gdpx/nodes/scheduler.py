@@ -5,9 +5,8 @@
 import copy
 
 from gdpx.core.register import registers
+from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.session.variable import Variable
-
-from .scheduler import BaseScheduler
 
 
 @registers.variable.register

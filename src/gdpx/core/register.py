@@ -93,9 +93,6 @@ class registers:
     #: Session placeholder
     placeholder: Register = Register("placeholder")
 
-    #: Schedulers.
-    scheduler: Register = Register("scheduler")
-
     #: Managers (Potentials).
     manager: Register = Register("manager")
 
@@ -159,7 +156,6 @@ class registers:
 
 
 ALL_MODULES = [
-    ("gdpx", ["scheduler"]),
     ("gdpx", ["potential"]),
     ("gdpx.data", ["dataset"]),
     ("gdpx", ["bias"]),
@@ -169,14 +165,24 @@ ALL_MODULES = [
     ("gdpx", ["validator"]),
     (
         "gdpx.nodes",
-        ["region", "trainer", "validator", "dataset", "selector", "describer", "driver", "computer", "reactor"],
+        [
+            "region",
+            "trainer",
+            "validator",
+            "dataset",
+            "selector",
+            "describer",
+            "driver",
+            "computer",
+            "reactor",
+            "scheduler",
+        ],
     ),
     ("gdpx", ["data"]),
     ("gdpx.data", ["interface"]),
     ("gdpx.potential", ["interface"]),
     ("gdpx.comparator", ["interface"]),
     ("gdpx.trainer", ["interface"]),
-    ("gdpx.scheduler", ["interface"]),
     ("gdpx.validator", ["interface"]),
 ]
 
@@ -247,7 +253,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     names, reasons = _handle_errors(errors)
 
     # Try loading local registers
-    local_module_names = ["builder", "describer", "region", "selector"]
+    local_module_names = ["builder", "describer", "region", "scheduler", "selector"]
     for module_name in local_module_names:
         try:
             module = importlib.import_module("gdpx" + "." + module_name)

@@ -16,28 +16,31 @@ Example:
 
 """
 
-from .. import config
-from ..core.register import registers
+from gdpx import config
+from gdpx.core.register import BaseRegister
+
+REGISTER = BaseRegister("scheduler")
 
 from .local import LocalScheduler
 
-registers.scheduler.register(LocalScheduler)
+REGISTER.register(LocalScheduler)
 
 from .lsf import LsfScheduler
 
-registers.scheduler.register(LsfScheduler)
+REGISTER.register(LsfScheduler)
 
 from .pbs import PbsScheduler
 
-registers.scheduler.register(PbsScheduler)
+REGISTER.register(PbsScheduler)
 
 from .slurm import SlurmScheduler
 
-registers.scheduler.register(SlurmScheduler)
+REGISTER.register(SlurmScheduler)
 
 try:
     from .remote import RemoteSlurmScheduler
-    registers.scheduler.register(RemoteSlurmScheduler)
+
+    REGISTER.register(RemoteSlurmScheduler)
 except ImportError as e:
     config._print(f"  {'Scheduler':<16s} {'`remote`':<16s} -> require `{e.name}`.")
 
