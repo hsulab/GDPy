@@ -1,0 +1,12 @@
+{
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "**/tests"
+  ],
+  "analysis": {
+    "autoImportCompletions": false,
+  },
+  "enableReachabilityAnalysis": false
+}
