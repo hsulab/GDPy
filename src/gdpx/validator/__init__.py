@@ -22,7 +22,7 @@ from .rdf import RdfValidator
 
 REGISTER.register("radial_distribution")(RdfValidator)
 
-from .eos import EquationOfStateValidator
+from .equation_of_state import EquationOfStateValidator
 
 REGISTER.register("equation_of_state")(EquationOfStateValidator)
 
