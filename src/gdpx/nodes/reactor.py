@@ -5,9 +5,9 @@
 import time
 from typing import Optional
 
-from gdpx.core.operation import Operation
 from gdpx.core.register import registers
 from gdpx.data.array import AtomsNDArray
+from gdpx.session.operation import Operation
 
 
 @registers.operation.register

@@ -3,7 +3,7 @@
 
 
 from gdpx.core.register import registers
-from gdpx.core.variable import Variable
+from gdpx.session.variable import Variable
 
 
 @registers.variable.register
@@ -21,4 +21,3 @@ class TrainerVariable(Variable):
 
 if __name__ == "__main__":
     ...
-  

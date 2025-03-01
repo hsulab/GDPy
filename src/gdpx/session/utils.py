@@ -6,8 +6,8 @@ import copy
 from typing import Any, Optional
 
 from gdpx import config
-from gdpx.core.operation import Operation
 from gdpx.core.register import registers
+from gdpx.session.operation import Operation
 
 
 def traverse_postorder(operation: Operation):

@@ -7,9 +7,10 @@ import pathlib
 from typing import Callable, Optional
 
 from gdpx import config
-from gdpx.core.operation import Operation
-from gdpx.core.placeholder import Placeholder
-from gdpx.core.variable import Variable
+
+from .operation import Operation
+from .variable import Variable
+from .placeholder import Placeholder
 
 
 class SessionState(enum.Enum):
@@ -91,17 +92,11 @@ class BaseSession:
         state = None
         if not node.is_about_to_exit():
             if node.is_ready_to_forward():  # All input nodes finished.
-                node.inputs = [
-                    input_node.output for input_node in node.input_nodes
-                ]
+                node.inputs = [input_node.output for input_node in node.input_nodes]
                 node.output = node.forward(*node.inputs)
                 if node.status == "unfinished":
                     state = SessionState.StepToContinue
-                    self._print(
-                        "\x1b[1;33;40m"
-                        + "  wait current node to finish..."
-                        + "\x1b[0m"
-                    )
+                    self._print("\x1b[1;33;40m" + "  wait current node to finish..." + "\x1b[0m")
             else:
                 # Check whether this node' not ready due to previous nodes are broken.
                 broken_states = []
@@ -115,25 +110,15 @@ class BaseSession:
                 is_broken = any(broken_states)
                 if not is_broken:
                     state = SessionState.StepToContinue
-                    self._print(
-                        "\x1b[1;33;40m"
-                        + "  wait previous nodes to finish..."
-                        + "\x1b[0m"
-                    )
+                    self._print("\x1b[1;33;40m" + "  wait previous nodes to finish..." + "\x1b[0m")
                 else:
                     # The `broken` status is contagious
                     node.status = "exit"
                     state = SessionState.StepBroken
-                    self._print(
-                        "\x1b[1;31;40m"
-                        + "  The current node is broken."
-                        + "\x1b[0m"
-                    )
+                    self._print("\x1b[1;31;40m" + "  The current node is broken." + "\x1b[0m")
         else:
             state = SessionState.StepBroken
-            self._print(
-                "\x1b[1;31;40m" + "  The current node is broken." + "\x1b[0m"
-            )
+            self._print("\x1b[1;31;40m" + "  The current node is broken." + "\x1b[0m")
 
         return state
 
@@ -160,11 +145,7 @@ class BaseSession:
 
         # Show session information
         num_nodes = len(nodes_postorder)
-        self._print(
-            "\x1b[1;34;40m"
-            + f"[{'START':^24s}] NUM_NODES: {num_nodes} AT MAIN: "
-            + "\x1b[0m"
-        )
+        self._print("\x1b[1;34;40m" + f"[{'START':^24s}] NUM_NODES: {num_nodes} AT MAIN: " + "\x1b[0m")
         self._print("\x1b[1;34;40m" + f"    {str(wdir)}" + "\x1b[0m")
 
         # Run nodes
@@ -193,9 +174,7 @@ class BaseSession:
             elif isinstance(node, Variable):
                 node.output = node.value
             else:  # Operation
-                assert isinstance(
-                    node, Operation
-                ), f"Unknown node type: {type(node)}"
+                assert isinstance(node, Operation), f"Unknown node type: {type(node)}"
                 self._debug(f"node: {node}")
                 _state = self._process_operation(node)
                 if _state is not None:

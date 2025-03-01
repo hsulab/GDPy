@@ -1,36 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
-from typing import NoReturn, Union
 
-class Placeholder: # Placeholder
 
-    """Placeholder for input structures that may be from external files.
-    """
-
-    #: Working directory for the operation.
-    _directory: Union[str,pathlib.Path] = pathlib.Path.cwd()
+class Placeholder:
+    """Placeholder for input structures that may be from external files."""
 
     #: Working status that should be always finished.
     status = "finished"
 
     def __init__(self):
         """"""
+        #: The input nodes.
         self.consumers = []
+
+        #: Working directory for the operation.
+        self._directory: pathlib.Path = pathlib.Path.cwd()
 
         return
 
     @property
-    def directory(self):
+    def directory(self) -> pathlib.Path:
         """"""
 
         return self._directory
-    
+
     @directory.setter
-    def directory(self, directory_) -> NoReturn:
+    def directory(self, directory) -> None:
         """"""
-        self._directory = pathlib.Path(directory_)
+        self._directory = pathlib.Path(directory)
 
         return
 

@@ -3,7 +3,7 @@
 
 
 from gdpx.core.register import registers
-from gdpx.core.variable import Variable
+from gdpx.session.variable import Variable
 
 
 @registers.variable.register
@@ -13,9 +13,7 @@ class ValidatorVariable(Variable):
         """"""
         # Instantiate a validator
         method = kwargs.pop("method", "minima")
-        validator = registers.create(
-            "validator", method, convert_name=False, **kwargs
-        )
+        validator = registers.create("validator", method, convert_name=False, **kwargs)
 
         # Save the instance
         super().__init__(initial_value=validator, directory=directory)

@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-from ..core.register import registers
-from ..core.variable import Variable
+from gdpx.core.register import registers
+from gdpx.session.variable import Variable
+
 from .mixer import MixerManager
 
 

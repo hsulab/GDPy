@@ -10,10 +10,11 @@ from typing import Mapping, Optional
 
 import numpy as np
 
-from .. import config
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import Variable
+from gdpx import config
+from gdpx.core.register import registers
+from gdpx.session.operation import Operation
+from gdpx.session.variable import Variable
+
 from .system import DataSystem
 
 
@@ -72,9 +73,7 @@ class DatasetVariable(Variable):
 
     def __init__(self, name, directory="./", *args, **kwargs):
         """"""
-        dataset = registers.create(
-            "dataloader", name, convert_name=True, **kwargs
-        )
+        dataset = registers.create("dataloader", name, convert_name=True, **kwargs)
         super().__init__(initial_value=dataset, directory=directory)
 
         return
@@ -175,9 +174,7 @@ class map(Operation):
         """"""
         super().__init__(nodes, directory)
 
-        assert len(nodes) == len(
-            names
-        ), "Numbers of nodes and names are inconsistent."
+        assert len(nodes) == len(names), "Numbers of nodes and names are inconsistent."
         self.names = names
 
         return
@@ -282,9 +279,7 @@ class scope(Operation):
         self._debug(f"starts: {starts}")
 
         # - get groups
-        group_indices = {
-            k: {sk: [] for sk in self.subgroups} for k in self.groups
-        }
+        group_indices = {k: {sk: [] for sk in self.subgroups} for k in self.groups}
         for i, system in enumerate(dataset):
             # -- match group
             for k, v in self.groups.items():
@@ -295,9 +290,7 @@ class scope(Operation):
                 continue
             # -- match subgroups
             for sk, sv in self.subgroups.items():
-                curr_indices = [
-                    x + starts[i] for x in system.get_matched_indices(sv)
-                ]
+                curr_indices = [x + starts[i] for x in system.get_matched_indices(sv)]
                 # if sk not in group_indices[k]:
                 #    group_indices[k][sk] = curr_indices
                 # else:
@@ -408,9 +401,7 @@ class scope(Operation):
             # )
         )
 
-        frame_properties = chemiscope.extract_properties(
-            frames, only=["energy"]
-        )
+        frame_properties = chemiscope.extract_properties(frames, only=["energy"])
         properties.update(**frame_properties)
 
         chemiscope.write_input(

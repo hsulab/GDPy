@@ -6,11 +6,10 @@ import abc
 import pathlib
 from typing import Any, Callable, Union
 
-from .. import config
+from gdpx import config
 
 
 class Operation(abc.ABC):
-    """"""
 
     #: Node ID.
     identifier: str = "op"
@@ -24,16 +23,11 @@ class Operation(abc.ABC):
     #: Standard debug function.
     _debug: Callable = config._debug
 
-    def __init__(
-        self, input_nodes=[], directory: Union[str, pathlib.Path] = "./"
-    ) -> None:
+    def __init__(self, input_nodes=[], directory: Union[str, pathlib.Path] = "./") -> None:
         """"""
         self._directory = pathlib.Path(directory)
 
-        if hasattr(self, "_preprocess_input_nodes"):
-            self.input_nodes = self._preprocess_input_nodes(input_nodes)
-        else:
-            self.input_nodes = input_nodes
+        self.input_nodes = self._preprocess_input_nodes(input_nodes)
 
         # Initialise list of consumers
         # (i.e. nodes that receive this operation's output as input)
@@ -57,6 +51,15 @@ class Operation(abc.ABC):
         self._directory = pathlib.Path(directory)
 
         return
+
+    def _preprocess_input_nodes(self, input_nodes) -> list:
+        """Preprocess the input nodes.
+
+        Apply default nodes if the input node is None.
+
+        """
+
+        return input_nodes
 
     def reset(self) -> None:
         """Reset node's output and status."""

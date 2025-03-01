@@ -4,13 +4,13 @@
 
 import omegaconf
 
+from gdpx.core.register import registers
+from gdpx.data.array import AtomsNDArray
+from gdpx.data.dataset import AbstractDataloader
 from gdpx.nodes.validator import ValidatorVariable
+from gdpx.session.operation import Operation
+from gdpx.session.variable import DummyVariable
 
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import DummyVariable
-from ..data.array import AtomsNDArray
-from ..data.dataset import AbstractDataloader
 from .validator import AbstractValidator
 
 
@@ -40,9 +40,7 @@ class validate(Operation):
             worker: A worker to run calculations.
 
         """
-        super().__init__(
-            input_nodes=[structures, validator, worker], directory=directory
-        )
+        super().__init__(input_nodes=[structures, validator, worker], directory=directory)
 
         self.run_params = run_params
 
@@ -57,9 +55,7 @@ class validate(Operation):
         """
         structures, validator, worker = input_nodes
 
-        if isinstance(validator, dict) or isinstance(
-            validator, omegaconf.dictconfig.DictConfig
-        ):
+        if isinstance(validator, dict) or isinstance(validator, omegaconf.dictconfig.DictConfig):
             validator = ValidatorVariable(self.directory / "validator", **validator)
             self._print(validator)
 
@@ -110,9 +106,7 @@ class validate(Operation):
         # - create a worker
         if workers is not None:
             num_workers = len(workers)
-            assert (
-                num_workers == 1
-            ), f"Validator only accepts one worker but {num_workers} were given."
+            assert num_workers == 1, f"Validator only accepts one worker but {num_workers} were given."
             worker = workers[0]
             worker.directory = self.directory
         else:

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from ..core.register import registers
-from ..core.variable import Variable
-from ..core.operation import Operation
-from ..core.variable import DummyVariable
+
+from gdpx.core.register import registers
+from gdpx.session.operation import Operation
+from gdpx.session.variable import DummyVariable, Variable
 
 
 @registers.variable.register
@@ -22,14 +22,14 @@ class ComparatorVariable(Variable):
 @registers.operation.register
 class compare(Operation):
 
-    status = "finished" # Always finished since it is not time-consuming
+    status = "finished"  # Always finished since it is not time-consuming
 
-    def __init__(self, reference, prediction = DummyVariable(), comparator = DummyVariable(), directory="./") -> None:
+    def __init__(self, reference, prediction=DummyVariable(), comparator=DummyVariable(), directory="./") -> None:
         """"""
         super().__init__(input_nodes=[reference, prediction, comparator], directory=directory)
 
         return
-    
+
     def forward(self, reference, prediction, comparator):
         """"""
         super().forward()
@@ -42,3 +42,4 @@ class compare(Operation):
 
 if __name__ == "__main__":
     ...
+

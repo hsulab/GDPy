@@ -9,13 +9,13 @@ from typing import Union
 import omegaconf
 from ase.io import read, write
 
-from gdpx.core.operation import Operation
 from gdpx.core.register import registers
-from gdpx.core.variable import Variable
 from gdpx.data.array import AtomsNDArray
 from gdpx.nodes.builder import BuilderVariable, build
 from gdpx.selector.composition import ComposedSelector
 from gdpx.selector.selector import BaseSelector, load_cache
+from gdpx.session.operation import Operation
+from gdpx.session.variable import Variable
 
 
 @registers.variable.register

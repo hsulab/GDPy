@@ -16,15 +16,15 @@ from ase.io import read, write
 
 from gdpx import config
 from gdpx.computation.observer import create_an_observer
-from gdpx.core.operation import Operation
 from gdpx.core.register import registers
-from gdpx.core.variable import Variable
 from gdpx.data.array import AtomsNDArray
+from gdpx.nodes.computer import ComputerVariable
 from gdpx.selector.scf import ScfSelector
+from gdpx.session.operation import Operation
+from gdpx.session.variable import Variable
 from gdpx.utils.command import CustomTimer
 from gdpx.utils.strconv import string_to_array
 from gdpx.worker.drive import DriverBasedWorker
-from gdpx.nodes.computer import ComputerVariable
 
 
 @registers.variable.register

@@ -11,7 +11,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import write
 
-from gdpx.core.operation import Operation
+from gdpx.session.operation import Operation
 from gdpx.core.register import registers
 from gdpx.data.array import AtomsNDArray
 

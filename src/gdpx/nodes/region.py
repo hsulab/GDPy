@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
-from ..core.register import registers
-from ..core.variable import Variable
+from gdpx.core.register import registers
+from gdpx.session.variable import Variable
 
 
 class RegionVariable(Variable):
@@ -20,4 +20,3 @@ class RegionVariable(Variable):
 
 if __name__ == "__main__":
     ...
-  

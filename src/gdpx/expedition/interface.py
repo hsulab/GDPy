@@ -9,9 +9,9 @@ from typing import Iterable, Union
 import numpy as np
 import omegaconf
 
-from gdpx.core.operation import Operation
+from gdpx.session.operation import Operation
 from gdpx.core.register import registers
-from gdpx.core.variable import DummyVariable, Variable
+from gdpx.session.variable import DummyVariable, Variable
 from gdpx.scheduler.interface import SchedulerVariable
 from gdpx.worker.explore import ExpeditionBasedWorker
 

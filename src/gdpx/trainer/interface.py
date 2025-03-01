@@ -9,14 +9,14 @@ import re
 import omegaconf
 import yaml
 
-from ..core.operation import Operation
-from ..core.register import registers
-from ..core.variable import DummyVariable, Variable
+from gdpx.core.register import registers
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.potential.trainer import BasePotentialTrainer
-from ..scheduler.interface import SchedulerVariable
-from ..scheduler.scheduler import BaseScheduler
-from ..worker.train import TrainerBasedWorker
+from gdpx.scheduler.interface import SchedulerVariable
+from gdpx.scheduler.scheduler import BaseScheduler
+from gdpx.session.operation import Operation
+from gdpx.session.variable import DummyVariable, Variable
+from gdpx.worker.train import TrainerBasedWorker
 
 
 @registers.operation.register
@@ -44,9 +44,7 @@ class train(Operation):
         input_nodes = [dataset, trainer, scheduler, potter]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
-        assert (
-            trainer.value.name == potter.value.name
-        ), "Trainer and potter have inconsistent name."
+        assert trainer.value.name == potter.value.name, "Trainer and potter have inconsistent name."
         assert (
             trainer.value.type_list == potter.value.as_dict()["params"]["type_list"]
         ), "Trainer and potter have inconsistent type_list."
@@ -96,11 +94,7 @@ class train(Operation):
             curr_iter = int(self.directory.parent.name.split(".")[-1])
             if curr_iter > 0:
                 self._print(">>> Update init_models...")
-                prev_wdir = (
-                    self.directory.parent.parent
-                    / f"iter.{str(curr_iter-1).zfill(4)}"
-                    / self.directory.name
-                )
+                prev_wdir = self.directory.parent.parent / f"iter.{str(curr_iter-1).zfill(4)}" / self.directory.name
                 prev_mdirs = []  # model dirs
                 for p in prev_wdir.iterdir():
                     if p.is_dir() and re.match("m[0-9]+", p.name):
@@ -150,15 +144,14 @@ class train(Operation):
 
         if manager is not None:
             self.status = "finished"
-        
+
         # - some imported packages change `logging.basicConfig`
         #   and accidently add a StreamHandler to logging.root
         #   so remove it...
         import logging
+
         for h in logging.root.handlers:
-            if isinstance(h, logging.StreamHandler) and not isinstance(
-                h, logging.FileHandler
-            ):
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
                 logging.root.removeHandler(h)
 
         return manager
