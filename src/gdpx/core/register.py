@@ -93,12 +93,6 @@ class registers:
     #: Session placeholder
     placeholder: Register = Register("placeholder")
 
-    #: Managers (Potentials).
-    manager: Register = Register("manager")
-
-    #: Colvars.
-    colvar: Register = Register("colvar")
-
     #: Reactors.
     reactor: Register = Register("reactor")
 
