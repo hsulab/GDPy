@@ -5,7 +5,7 @@
 import copy
 import itertools
 import re
-from typing import List, Optional
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,17 +16,18 @@ try:
 except Exception:
     ...
 
+from gdpx.worker.drive import DriverBasedWorker
+
 from ..utils.comparision import get_properties, plot_distribution, plot_parity
-from ..worker.drive import DriverBasedWorker
-from .validator import AbstractValidator
+from .validator import BaseValidator
 
 
-class SinglepointValidator(AbstractValidator):
+class SinglepointValidator(BaseValidator):
     """Calculate energies on each structures and save them to file."""
 
     def __init__(
         self,
-        subsets: Optional[List[str]] = None,
+        subsets: Optional[list[str]] = None,
         groups: Optional[dict] = None,
         convergence: Optional[dict] = None,
         *args,
@@ -176,8 +177,8 @@ class SinglepointValidator(AbstractValidator):
     def _irun(
         self,
         prefix: str,
-        ref_frames: List[Atoms],
-        pred_frames: Optional[List[Atoms]],
+        ref_frames: list[Atoms],
+        pred_frames: Optional[list[Atoms]],
         worker,
     ):
         """"""
@@ -203,9 +204,7 @@ class SinglepointValidator(AbstractValidator):
 
         return pred_frames
 
-    def _plot_comparison(
-        self, prefix, ref_frames: List[Atoms], pred_frames: List[Atoms]
-    ):
+    def _plot_comparison(self, prefix, ref_frames: list[Atoms], pred_frames: list[Atoms]):
         """"""
         if not (self.directory / prefix).exists():
             (self.directory / prefix).mkdir(parents=True)
@@ -216,21 +215,15 @@ class SinglepointValidator(AbstractValidator):
         pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
 
         # - figure
-        fig, axarr = plt.subplots(
-            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
-        )
+        fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
         axarr = axarr.flatten()
         fig.suptitle(f"{prefix} with nframes {nframes}")
 
         # -- energies
-        ene_rmse = plot_parity(
-            axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms
-        )
+        ene_rmse = plot_parity(axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms)
 
         # -- forces
-        frc_rmse = plot_parity(
-            axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
-        )
+        frc_rmse = plot_parity(axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols)
 
         # if (self.directory/f"{prefix}.png").exists():
         #    warnings.warn(f"Figure file {prefix} exists.", UserWarning)
@@ -238,18 +231,12 @@ class SinglepointValidator(AbstractValidator):
         plt.close()
 
         # plot distributions
-        fig, axarr = plt.subplots(
-            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
-        )
+        fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
-        plot_distribution(
-            axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms
-        )
-        plot_distribution(
-            axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols
-        )
+        plot_distribution(axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms)
+        plot_distribution(axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols)
 
         plt.savefig(self.directory / prefix / "dist.png")
         plt.close()
@@ -275,9 +262,7 @@ class SinglepointValidator(AbstractValidator):
                 lines = fopen.readlines()
             col_names = lines[0].strip()[1:].split()[1:]
             row_names = [x.strip().split()[0] for x in lines[1:]]
-            data = np.array(
-                [x.strip().split()[1:] for x in lines[1:]], dtype=np.float32
-            )
+            data = np.array([x.strip().split()[1:] for x in lines[1:]], dtype=np.float32)
 
             if self.convergence is not None:
                 convergence = copy.deepcopy(self.convergence)
@@ -287,9 +272,7 @@ class SinglepointValidator(AbstractValidator):
                 else:
                     matched_names = row_names
 
-                assert all(
-                    [x in col_names for x in convergence.keys()]
-                ), "Unavailable keys for convergence."
+                assert all([x in col_names for x in convergence.keys()]), "Unavailable keys for convergence."
 
                 converged = True
                 for name in matched_names:

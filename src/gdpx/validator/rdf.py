@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import copy
 import itertools
 import pathlib
-from typing import List, Optional
-
-import numpy as np
-from scipy.interpolate import make_interp_spline, BSpline
+from typing import Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.interpolate import make_interp_spline
+
 try:
     plt.style.use("presentation")
 except Exception as e:
     ...
 
-from joblib import delayed, Parallel
-
 from ase import Atoms
-from ase.io import read, write
-from ase.neighborlist import NeighborList, neighbor_list
+from ase.neighborlist import neighbor_list
+from joblib import Parallel, delayed
 
-from .validator import AbstractValidator
-from ..data.array import AtomsNDArray
+from gdpx.data.array import AtomsNDArray
+
+from .validator import BaseValidator
+
 
 def smooth_curve(bins, points):
     """"""
     spl = make_interp_spline(bins, points, k=3)
     bins = np.linspace(bins.min(), bins.max(), 300)
-    points= spl(bins)
+    points = spl(bins)
 
     for i, d in enumerate(points):
         if d < 1e-6:
@@ -36,10 +37,16 @@ def smooth_curve(bins, points):
 
     return bins, points
 
+
 def calc_rdf(
-        wdir: pathlib.Path, frames, custom_pairs, volume: Optional[float]=None, 
-        nbins: int=60, cutoff: float=6.0, n_jobs=1
-    ) -> dict:
+    wdir: pathlib.Path,
+    frames,
+    custom_pairs,
+    volume: Optional[float] = None,
+    nbins: int = 60,
+    cutoff: float = 6.0,
+    n_jobs=1,
+) -> dict:
     """Calculate radial distribution.
 
     Args:
@@ -64,36 +71,36 @@ def calc_rdf(
     chemical_symbols = frames[0].get_chemical_symbols()
     species = list(set(chemical_symbols))
     sym_dict = {k: [] for k in species}
-    for k, v in itertools.groupby(enumerate(chemical_symbols), key=lambda x:x[1]):
+    for k, v in itertools.groupby(enumerate(chemical_symbols), key=lambda x: x[1]):
         sym_dict[k].extend([x[0] for x in v])
     all_pairs = ["-".join(p) for p in itertools.product(species, species)]
 
     pair_dict = {}
     for pair in custom_pairs:
         p0, p1 = pair.split("-")
-        first_indices  = copy.deepcopy(sym_dict.get(p0, []))
+        first_indices = copy.deepcopy(sym_dict.get(p0, []))
         second_indices = copy.deepcopy(sym_dict.get(p1, []))
         assert len(first_indices) > 0, f"Cant found {p0}."
         assert len(second_indices) > 0, f"Cant found {p1}."
 
         num_first, num_second = len(first_indices), len(second_indices)
         if p0 == p1:
-            num_pairs= (num_first)*(num_second-1)
+            num_pairs = (num_first) * (num_second - 1)
         else:
-            num_pairs = num_first*num_second
+            num_pairs = num_first * num_second
         pair_dict[pair] = num_pairs
 
     # ---
-    binwidth = cutoff/nbins
-    bincentres = np.linspace(binwidth/2., cutoff+binwidth/2., nbins+1)
-    left_edges = np.copy(bincentres) - binwidth/2.
-    right_edges = np.copy(bincentres) + binwidth/2.
-    bins = np.linspace(0., cutoff+binwidth, nbins+2)
+    binwidth = cutoff / nbins
+    bincentres = np.linspace(binwidth / 2.0, cutoff + binwidth / 2.0, nbins + 1)
+    left_edges = np.copy(bincentres) - binwidth / 2.0
+    right_edges = np.copy(bincentres) + binwidth / 2.0
+    bins = np.linspace(0.0, cutoff + binwidth, nbins + 2)
 
     # ---
     def compute_distance_histogram(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth):
         """"""
-        i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff+binwidth)
+        i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff + binwidth)
 
         symbols = atoms.get_chemical_symbols()
         num_pairs = len(d)
@@ -126,9 +133,9 @@ def calc_rdf(
     for atoms in frames:
         for k, num_pairs in pair_dict.items():
             if volume is None:
-                density_dict[k].append(num_pairs/atoms.get_volume())
+                density_dict[k].append(num_pairs / atoms.get_volume())
             else:
-                density_dict[k].append(num_pairs/volume)
+                density_dict[k].append(num_pairs / volume)
 
     # - reformat data
     results = {}
@@ -137,11 +144,11 @@ def calc_rdf(
         avg_density = np.array(density_dict[k])[:, np.newaxis]
 
         # NOTE: VMD likely uses this formula
-        vshells = 4.*np.pi*left_edges**2*binwidth 
+        vshells = 4.0 * np.pi * left_edges**2 * binwidth
         # vshells = 4./3.*np.pi*binwidth*(3*left_edges**2+3*left_edges*binwidth+binwidth**2)
-        vshells[0] = 1. # avoid zero in division
+        vshells[0] = 1.0  # avoid zero in division
 
-        rdf = curr_dis_hist/vshells/avg_density
+        rdf = curr_dis_hist / vshells / avg_density
 
         rdf_avg = np.average(rdf, axis=0)
         rdf_min = np.min(rdf, axis=0)
@@ -150,9 +157,10 @@ def calc_rdf(
 
         data = np.vstack((bincentres, rdf_avg, rdf_svar, rdf_min, rdf_max)).T
         np.savetxt(
-            wdir/f"{k}.dat", data, 
-            fmt="%8.4f  %8.4f  %8.4f  %8.4f  %8.4f", 
-            header=("{:<8s}  "*5).format("r", "rdf", "svar", "min", "max")
+            wdir / f"{k}.dat",
+            data,
+            fmt="%8.4f  %8.4f  %8.4f  %8.4f  %8.4f",
+            header=("{:<8s}  " * 5).format("r", "rdf", "svar", "min", "max"),
         )
         results[k] = data
 
@@ -161,7 +169,7 @@ def calc_rdf(
 
 def plot_rdf(fig_path, data=None, ref_data=None, title="RDF"):
     """"""
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12,8))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
 
     plt.suptitle("Radial Distribution Function")
     ax.set_xlabel("r [Å]")
@@ -170,12 +178,12 @@ def plot_rdf(fig_path, data=None, ref_data=None, title="RDF"):
     ax.set_title(title)
 
     if data is not None:
-        bincentres, rdf = data[:,0], data[:,1]
+        bincentres, rdf = data[:, 0], data[:, 1]
         bincentres_, rdf_ = smooth_curve(bincentres, rdf)
         ax.plot(bincentres_, rdf_, label="prediction")
 
     if ref_data is not None:
-        bincentres, rdf = ref_data[:,0], ref_data[:,1]
+        bincentres, rdf = ref_data[:, 0], ref_data[:, 1]
         bincentres_, rdf_ = smooth_curve(bincentres, rdf)
         ax.plot(bincentres_, rdf_, ls="-.", label="reference")
 
@@ -186,42 +194,44 @@ def plot_rdf(fig_path, data=None, ref_data=None, title="RDF"):
     return
 
 
-class RdfValidator(AbstractValidator):
+class RdfValidator(BaseValidator):
 
-    def __init__(self, pairs: List[str], cutoff: float=6., nbins: int=60, directory = "./", *args, **kwargs) -> None:
+    def __init__(
+        self, pairs: list[str], cutoff: float = 6.0, nbins: int = 60, directory="./", *args, **kwargs
+    ) -> None:
         """Radial Distribution.
 
         Args:
-            paris: A List of species pairs [Cu-Cu, ..., ...].
+            paris: A list of species pairs [Cu-Cu, ..., ...].
 
         """
         super().__init__(directory=directory, *args, **kwargs)
 
         self.pairs = pairs
-        #assert len(self.pair), f"{self.__class__.__name__} requires two elements."
+        # assert len(self.pair), f"{self.__class__.__name__} requires two elements."
 
         self.cutoff = cutoff
         self.nbins = nbins
 
         return
 
-    def _process_data(self, data) -> List[List[Atoms]]:
+    def _process_data(self, data) -> list[list[Atoms]]:
         """"""
         data = AtomsNDArray(data)
 
         if data.ndim == 1:
             data = [data.tolist()]
-        elif data.ndim == 2: # assume it is from extract_cache...
+        elif data.ndim == 2:  # assume it is from extract_cache...
             data = data.tolist()
-        elif data.ndim == 3: # assume it is from a compute node...
+        elif data.ndim == 3:  # assume it is from a compute node...
             data_ = []
-            for d in data[:]: # TODO: add squeeze method?
+            for d in data[:]:  # TODO: add squeeze method?
                 data_.extend(d)
             data = data_
         else:
             raise RuntimeError(f"Invalid shape {data.shape}.")
 
-        return data[0] # TODO: support several trajectories
+        return data[0]  # TODO: support several trajectories
 
     def run(self, dataset, worker=None, *args, **kwargs):
         """Process reference and prediction data separately.
@@ -241,9 +251,7 @@ class RdfValidator(AbstractValidator):
             ref_frames = self._process_data(reference)
             self._debug(f"reference  nframes: {len(ref_frames)}")
             ref_data = self._compute_rdf(
-                self.directory/"reference", 
-                ref_frames, self.pairs, self.cutoff, self.nbins,
-                volume=volume
+                self.directory / "reference", ref_frames, self.pairs, self.cutoff, self.nbins, volume=volume
             )
         else:
             ref_data = None
@@ -254,26 +262,22 @@ class RdfValidator(AbstractValidator):
             pre_frames = self._process_data(prediction)
             self._debug(f"prediction nframes: {len(pre_frames)}")
             pre_data = self._compute_rdf(
-                self.directory/"prediction", 
-                pre_frames, self.pairs, self.cutoff, self.nbins,
-                volume=volume
+                self.directory / "prediction", pre_frames, self.pairs, self.cutoff, self.nbins, volume=volume
             )
         else:
             pre_data = None
-        
-        assert (ref_data is not None or pre_data is not None), "Neither reference nor prediction is given."
+
+        assert ref_data is not None or pre_data is not None, "Neither reference nor prediction is given."
 
         # compare results
         self._compare_results(ref_data, pre_data)
 
         return
-    
-    def _compute_rdf(self, wdir, frames: List[Atoms], pairs, cutoff, nbins, volume: float=None):
+
+    def _compute_rdf(self, wdir, frames: list[Atoms], pairs, cutoff, nbins, volume: float = None):
         """"""
         if not wdir.exists():
-            data = calc_rdf(
-                wdir, frames, pairs, volume, nbins, cutoff, n_jobs=self.njobs
-            )
+            data = calc_rdf(wdir, frames, pairs, volume, nbins, cutoff, n_jobs=self.njobs)
         else:
             data = {}
             saved_files = list(wdir.glob("*.dat"))
@@ -281,7 +285,7 @@ class RdfValidator(AbstractValidator):
                 data[p.name[:-4]] = np.loadtxt(p)
 
         return data
-    
+
     def _compare_results(self, reference, prediction):
         """"""
         for pair in self.pairs:
@@ -291,21 +295,12 @@ class RdfValidator(AbstractValidator):
             if reference is not None:
                 r = reference.get(pair, None)
             if not (p is None and r is None):
-                plot_rdf(
-                    self.directory/f"{pair}_rdf.png", 
-                    p, r, title=pair
-                )
+                plot_rdf(self.directory / f"{pair}_rdf.png", p, r, title=pair)
             else:
                 if p is not None:
-                    plot_rdf(
-                        self.directory/f"{pair}_rdf.png", 
-                        p, None, title=pair
-                    )
+                    plot_rdf(self.directory / f"{pair}_rdf.png", p, None, title=pair)
                 else:  # if r is not None:
-                    plot_rdf(
-                        self.directory/f"{pair}_rdf.png", 
-                        None, r, title=pair
-                    )
+                    plot_rdf(self.directory / f"{pair}_rdf.png", None, r, title=pair)
 
         return
 

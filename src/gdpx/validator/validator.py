@@ -17,7 +17,7 @@ from gdpx.worker.drive import DriverBasedWorker
 def canonicalise_structures_to_validate(structures) -> dict[str, Any]:
     """Validator can accept various formats of input structures.
 
-    Note: 
+    Note:
         In an active session, the dataset is dynamic, thus,
         we need load the dataset before run.
 
@@ -52,8 +52,8 @@ class BaseValidator(BaseComponent):
 
     def __init__(
         self,
-        structures: Optional[Any]=None,
-        worker: Optional[DriverBasedWorker]=None,
+        structures: Optional[Any] = None,
+        worker: Optional[DriverBasedWorker] = None,
         directory: Union[str, pathlib.Path] = "./",
         random_seed: Optional[Union[int, dict]] = None,
     ) -> None:
@@ -80,10 +80,5 @@ class BaseValidator(BaseComponent):
         ...
 
 
-# For backwards compatibility
-AbstractValidator = BaseValidator
-
-
 if __name__ == "__main__":
     ...
-
