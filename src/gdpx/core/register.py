@@ -226,19 +226,25 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     """Import all modules for register."""
     config._print("FAILED TO IMPORT OPTIONAL CLASSES: ")
 
+    # Add standard modules
     modules = []
     for base_dir, submodules in ALL_MODULES:
         for name in submodules:
             full_name = base_dir + "." + name
             modules.append(full_name)
+
+    # Add custom plugins
     if isinstance(custom_module_paths, list):
         modules += custom_module_paths
+
+    # Load all modules
     errors = []
     for module in modules:
         try:
             importlib.import_module(module)
         except ImportError as error:
             errors.append((module, error))
+
     names, reasons = _handle_errors(errors)
 
     # Some imported packages change `logging.basicConfig`
