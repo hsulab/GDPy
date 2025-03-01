@@ -178,7 +178,6 @@ ALL_MODULES = [
     ("gdpx.data", ["interface"]),
     ("gdpx.potential", ["interface"]),
     ("gdpx.comparator", ["interface"]),
-    ("gdpx.trainer", ["interface"]),
     ("gdpx.validator", ["interface"]),
 ]
 
