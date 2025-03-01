@@ -111,9 +111,6 @@ class registers:
     #: Reactors.
     reactor: Register = Register("reactor")
 
-    #: Expeditions.
-    expedition: Register = Register("expedition")
-
     #: Comparators.
     comparator: Register = Register("comparator")
 
@@ -157,7 +154,6 @@ ALL_MODULES = [
     ("gdpx.data", ["dataset"]),
     ("gdpx", ["colvar"]),
     ("gdpx", ["comparator"]),
-    ("gdpx.expedition", ["interface"]),
     ("gdpx", ["validator"]),
     (
         "gdpx.nodes",
@@ -172,6 +168,7 @@ ALL_MODULES = [
             "computer",
             "reactor",
             "scheduler",
+            "expedition",
         ],
     ),
     ("gdpx", ["data"]),
@@ -248,7 +245,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
     names, reasons = _handle_errors(errors)
 
     # Try loading local registers
-    local_module_names = ["bias", "builder", "describer", "region", "scheduler", "selector"]
+    local_module_names = ["bias", "builder", "describer", "expedition", "region", "scheduler", "selector"]
     for module_name in local_module_names:
         try:
             module = importlib.import_module("gdpx" + "." + module_name)
