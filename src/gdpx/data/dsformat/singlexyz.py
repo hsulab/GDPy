@@ -5,17 +5,16 @@
 import copy
 import itertools
 import pathlib
-from typing import List, Tuple, Union
+from typing import Union
 
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read, write
+from ase.io import read
 
-from .. import registers
 from ..dataset import AbstractDataloader
 
 
-def group_structures_by_composition(frames: List[Atoms]):
+def group_structures_by_composition(frames: list[Atoms]):
     """"""
     # Check chemical symbols
     system_dict = {}  # {formula: [indices]}
@@ -67,7 +66,7 @@ def group_structures_by_composition(frames: List[Atoms]):
     return system_dict
 
 
-def map_atoms_data(atoms: Atoms, prop_map_keys: List[Tuple[str, str]], clean_data: bool = False) -> Atoms:
+def map_atoms_data(atoms: Atoms, prop_map_keys: list[tuple[str, str]], clean_data: bool = False) -> Atoms:
     """"""
     if atoms.calc is not None:
         assert type(atoms.calc) == SinglePointCalculator, f"Atoms {atoms} has {atoms.calc}."
@@ -87,10 +86,7 @@ def map_atoms_data(atoms: Atoms, prop_map_keys: List[Tuple[str, str]], clean_dat
         new_atoms = atoms
     else:
         new_atoms = Atoms(
-            atoms.get_chemical_symbols(),
-            positions=atoms.get_positions(),
-            cell=atoms.get_cell(),
-            pbc=atoms.get_pbc()
+            atoms.get_chemical_symbols(), positions=atoms.get_positions(), cell=atoms.get_cell(), pbc=atoms.get_pbc()
         )
         spc = SinglePointCalculator(new_atoms)
         new_atoms.calc = spc
@@ -151,8 +147,9 @@ class SingleXyzDataloader(AbstractDataloader):
                         ("forces", "dft_forces"),
                         ("initial_charges", "charge_bader"),
                     ],
-                    clean_data=True
-                ) for a in sys_frames
+                    clean_data=True,
+                )
+                for a in sys_frames
             ]
             systems.append((system, sys_frames))
         assert num_frames == acc_num_frames

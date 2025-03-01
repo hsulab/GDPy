@@ -12,10 +12,9 @@ import numpy as np
 
 from gdpx import config
 from gdpx.core.register import registers
+from gdpx.data.system import DataSystem
 from gdpx.session.operation import Operation
 from gdpx.session.variable import Variable
-
-from .system import DataSystem
 
 
 @registers.variable.register

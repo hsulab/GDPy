@@ -145,7 +145,6 @@ class registers:
 
 ALL_MODULES = [
     ("gdpx", ["potential"]),
-    ("gdpx.data", ["dataset"]),
     ("gdpx", ["colvar"]),
     (
         "gdpx.nodes",
@@ -164,8 +163,6 @@ ALL_MODULES = [
             "comparator",
         ],
     ),
-    ("gdpx", ["data"]),
-    ("gdpx.data", ["interface"]),
     ("gdpx.potential", ["interface"]),
 ]
 
@@ -240,6 +237,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
         "bias",
         "builder",
         "comparator",
+        "data",
         "describer",
         "expedition",
         "region",

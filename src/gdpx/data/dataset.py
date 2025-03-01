@@ -16,7 +16,6 @@ from ase.io import read
 
 from gdpx.core.component import BaseComponent
 
-from ..core.register import registers
 from .utils import get_composition_from_system_tree, is_a_valid_system_name
 
 #: How to map keys in structures.
@@ -72,9 +71,7 @@ def traverse_xyzdirs(wdir):
     return data_dirs
 
 
-def split_train_and_test_into_batches(
-    num_frames: int, batchsize: int, train_ratio: float, rng
-):
+def split_train_and_test_into_batches(num_frames: int, batchsize: int, train_ratio: float, rng):
     """"""
     # TODO: adjust batchsize of train and test separately
     if num_frames <= batchsize:
@@ -96,9 +93,7 @@ def split_train_and_test_into_batches(
             # - assure there is at least one batch for test
             #          and number of train frames is integer times of batchsize
             if (1.0 - train_ratio) > 1e-4:
-                ntrain = int(
-                    np.floor(num_frames * train_ratio / new_batchsize) * new_batchsize
-                )
+                ntrain = int(np.floor(num_frames * train_ratio / new_batchsize) * new_batchsize)
                 if ntrain > 0:
                     train_index = rng.choice(num_frames, ntrain, replace=False)
                     test_index = [x for x in range(num_frames) if x not in train_index]
@@ -135,7 +130,6 @@ def parse_batchsize_setting(batchsize: Union[int, str], num_atoms: int) -> int:
 class AbstractDataloader(BaseComponent): ...
 
 
-@registers.dataloader.register
 class XyzDataloader(AbstractDataloader):
 
     name = "xyz"
@@ -185,9 +179,7 @@ class XyzDataloader(AbstractDataloader):
         data_dirs = traverse_xyzdirs(self.directory)
         data_dirs = sorted(data_dirs)
 
-        names = [
-            tuple(str(x.relative_to(self.directory)).split("/")) for x in data_dirs
-        ]
+        names = [tuple(str(x.relative_to(self.directory)).split("/")) for x in data_dirs]
 
         nframes_tot, frames_list = 0, []
         for i, p in enumerate(data_dirs):
@@ -270,9 +262,7 @@ class XyzDataloader(AbstractDataloader):
             batchsizes = [batchsizes] * nsystems
         else:
             ...  # assume self.batchsize is a list
-        assert (
-            len(batchsizes) == nsystems
-        ), "Number of systems and batchsizes are inconsistent."
+        assert len(batchsizes) == nsystems, "Number of systems and batchsizes are inconsistent."
 
         # read configurations
         set_names = []
@@ -280,9 +270,7 @@ class XyzDataloader(AbstractDataloader):
         train_frames, test_frames = [], []
         adjusted_batchsizes = []  # auto-adjust batchsize based on nframes
         accumulated_batches = 0
-        for _, (curr_system_group, curr_batchsize) in enumerate(
-            zip(system_groups, batchsizes)
-        ):
+        for _, (curr_system_group, curr_batchsize) in enumerate(zip(system_groups, batchsizes)):
             curr_system = pathlib.Path(curr_system_group[0])
             set_tree = str(curr_system.relative_to(self.directory)).split("/")
             set_name = "+".join(set_tree)
@@ -347,18 +335,12 @@ class XyzDataloader(AbstractDataloader):
             # test
             test_frames.append(curr_test_frames)
             n_test_frames = sum([len(x) for x in test_frames])
-            self._print(
-                f"  Current Dataset -> ntrain: {n_train_frames} ntest: {n_test_frames}"
-            )
+            self._print(f"  Current Dataset -> ntrain: {n_train_frames} ntest: {n_test_frames}")
 
-        assert len(train_size) == len(
-            test_size
-        ), "inconsistent train_size and test_size"
+        assert len(train_size) == len(test_size), "inconsistent train_size and test_size"
         train_size = sum(train_size)
         test_size = sum(test_size)
-        self._print(
-            f"Total Dataset -> ntrain: {train_size} ntest: {test_size} nbatches: {accumulated_batches}"
-        )
+        self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size} nbatches: {accumulated_batches}")
 
         # - map keys
         should_map_keys = False

@@ -2,18 +2,17 @@
 # -*- coding: utf-8 -*-
 
 
-import pathlib
+from gdpx.core.register import BaseRegister
 
-from ..core.register import registers
-
-from .correction import correct
-registers.operation.register(correct)
-
-from .convert import convert_dataset
+REGISTER = BaseRegister("dataloader")
 
 from .dsformat.singlexyz import SingleXyzDataloader
-registers.dataloader.register("single_xyz")(SingleXyzDataloader)
 
+REGISTER.register("single_xyz")(SingleXyzDataloader)
+
+from .dataset import XyzDataloader
+
+REGISTER.register(XyzDataloader)
 
 
 if __name__ == "__main__":
