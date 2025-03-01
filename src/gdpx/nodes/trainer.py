@@ -11,7 +11,7 @@ import yaml
 
 from gdpx.core.register import registers
 from gdpx.potential.manager import BasePotentialManager
-from gdpx.potential.trainer import BasePotentialTrainer
+from gdpx.trainer.trainer import BasePotentialTrainer
 from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable

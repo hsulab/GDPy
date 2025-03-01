@@ -104,9 +104,7 @@ class BasePotentialTrainer(BaseComponent):
         """Train from the scratch."""
         command = self._resolve_train_command(init_model)
         if command is None:
-            raise TrainingFailed(
-                f"Please supply the command keyword for {self.name.upper()}."
-            )
+            raise TrainingFailed(f"Please supply the command keyword for {self.name.upper()}.")
 
         if not self.directory.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -137,9 +135,8 @@ class BasePotentialTrainer(BaseComponent):
 
         if errorcode:
             path = os.path.abspath(self.directory)
-            msg = (
-                'Trainer "{}" failed with command "{}" failed in '
-                "{} with error code {}".format(self.name, command, path, errorcode)
+            msg = 'Trainer "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+                self.name, command, path, errorcode
             )
             raise TrainingFailed(msg)
 
@@ -160,9 +157,8 @@ class BasePotentialTrainer(BaseComponent):
 
             if errorcode:
                 path = os.path.abspath(self.directory)
-                msg = (
-                    'Trainer "{}" failed with command "{}" failed in '
-                    "{} with error code {}".format(self.name, command, path, errorcode)
+                msg = 'Trainer "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+                    self.name, command, path, errorcode
                 )
                 raise FreezingFailed(msg)
         else:

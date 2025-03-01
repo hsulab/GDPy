@@ -11,7 +11,7 @@ import yaml
 from tinydb import Query, TinyDB
 
 from gdpx.nodes.data import DatasetVariable
-from gdpx.potential.trainer import BasePotentialTrainer
+from gdpx.trainer.trainer import BasePotentialTrainer
 
 from .worker import BaseWorker
 

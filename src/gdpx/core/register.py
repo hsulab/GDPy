@@ -96,12 +96,6 @@ class registers:
     #: Managers (Potentials).
     manager: Register = Register("manager")
 
-    #: Trainers (Potential Trainers).
-    trainer: Register = Register("trainer")
-
-    #: Dataloaders (Datasets).
-    dataloader: Register = Register("dataloader")
-
     #: Colvars.
     colvar: Register = Register("colvar")
 
@@ -240,6 +234,7 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
         "region",
         "scheduler",
         "selector",
+        "trainer",
         "validator",
     ]
     for module_name in local_module_names:

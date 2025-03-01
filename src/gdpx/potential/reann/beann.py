@@ -9,74 +9,14 @@ import yaml
 from ase.calculators.calculator import Calculator
 
 from ..manager import BasePotentialManager
-from ..trainer import BasePotentialTrainer
-
-
-class BeannTrainer(BasePotentialTrainer):
-
-    name = "beann"
-    command = ""
-    freeze_command = ""
-    prefix = "config"
-
-    def __init__(
-        self,
-        config: dict,
-        type_list: list[str] = None,
-        train_epochs: int = 200,
-        directory=".",
-        command="train",
-        freeze_command="freeze",
-        random_seed: int = 1112,
-        *args,
-        **kwargs,
-    ) -> None:
-        super().__init__(
-            config=config,
-            type_list=type_list,
-            train_epochs=train_epochs,
-            directory=directory,
-            command=command,
-            freeze_command=freeze_command,
-            random_seed=random_seed,
-            *args,
-            **kwargs,
-        )
-
-        return
-
-    def _resolve_train_command(self, *args, **kwargs):
-        """python -u /users/jxu/repository/EANN/eann --config ./config.yaml train"""
-
-        return
-
-    def _resolve_freeze_command(self, *args, **kwargs):
-        """python -u /users/jxu/repository/EANN/eann --config ./config.yaml freeze EANN.pth -o eann_latest_"""
-        return super()._resolve_freeze_command(*args, **kwargs)
-
-    @property
-    def frozen_name(self):
-        """"""
-        return f"{self.name}.pth"
-
-    def write_input(self, dataset, *args, **kwargs):
-        """"""
-
-        return
-
-    def read_convergence(self) -> bool:
-        """"""
-
-        return
 
 
 class BeannManager(BasePotentialManager):
 
     name = "beann"
-    implemented_backends = ["ase", "lammps"]
+    implemented_backends = ("ase", "lammps")
 
     valid_combinations = (
-        # calculator, dynamics
         ("ase", "ase"),
         ("lammps", "ase"),
         ("lammps", "lammps"),
@@ -140,9 +80,7 @@ class BeannManager(BasePotentialManager):
                 pair_coeff = calc_params.pop("pair_coeff", "double * *")
 
                 pair_style_name = pair_style.split()[0]
-                assert (
-                    pair_style_name == "eann"
-                ), "Incorrect pair_style for lammps deepmd..."
+                assert pair_style_name == "eann", "Incorrect pair_style for lammps deepmd..."
 
                 calc = Lammps(
                     command=command,
@@ -179,9 +117,7 @@ class BeannManager(BasePotentialManager):
         # - add dataset to config
         if not dataset:
             dataset = self.train_dataset
-        assert (
-            dataset
-        ), f"No dataset has been set for the potential {self.name}."
+        assert dataset, f"No dataset has been set for the potential {self.name}."
 
         # TODO: for now, only list[Atoms]
         from gdpx.computation.utils import get_composition_from_atoms
@@ -208,9 +144,7 @@ class BeannManager(BasePotentialManager):
         dataset_config = dict(
             style="auto",
             systems=systems,
-            batchsizes=[
-                [self.train_config["training"]["batchsize"], len(systems)]
-            ],
+            batchsizes=[[self.train_config["training"]["batchsize"], len(systems)]],
         )
 
         train_config = copy.deepcopy(self.train_config)
@@ -242,9 +176,7 @@ class BeannManager(BasePotentialManager):
         for p in train_dir.iterdir():
             if p.is_dir() and p.name.startswith("m"):
                 mdirs.append(p.resolve())
-        assert (
-            len(mdirs) == self.train_size
-        ), "Number of models does not equal model size..."
+        assert len(mdirs) == self.train_size, "Number of models does not equal model size..."
 
         # - find models and form committee
         models = []
@@ -271,4 +203,3 @@ class BeannManager(BasePotentialManager):
 
 if __name__ == "__main__":
     pass
-
