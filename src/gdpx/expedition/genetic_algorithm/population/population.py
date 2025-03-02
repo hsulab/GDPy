@@ -4,7 +4,7 @@
 
 import copy
 import itertools
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -24,9 +24,7 @@ def count_looks_like(a, all_cand, comp):
     return n
 
 
-def compute_population_fitness(
-    structures: List[Atoms], with_history=True
-) -> List[float]:
+def compute_population_fitness(structures: list[Atoms], with_history=True) -> list[float]:
     """Calculates the fitness."""
     scores = [x.info["key_value_pairs"]["raw_score"] for x in structures]
     min_s = min(scores)
@@ -37,10 +35,7 @@ def compute_population_fitness(
     if with_history:
         M = [float(atoms.info["n_paired"]) for atoms in structures]
         L = [float(atoms.info["looks_like"]) for atoms in structures]
-        f = [
-            f[i] * 1.0 / np.sqrt(1.0 + M[i]) * 1.0 / np.sqrt(1.0 + L[i])
-            for i in range(len(f))
-        ]
+        f = [f[i] * 1.0 / np.sqrt(1.0 + M[i]) * 1.0 / np.sqrt(1.0 + L[i]) for i in range(len(f))]
 
     return f
 
@@ -76,7 +71,7 @@ class Population:
         self.rng = rng
 
         self.pop = []
-        self.pairs: Optional[List[Tuple[int, int]]] = None
+        self.pairs: Optional[list[tuple[int, int]]] = None
         self.all_cand = None
 
         self.__initialise_population__()
@@ -89,9 +84,7 @@ class Population:
         # Get all relaxed candidates from the database
         ue = self.use_extinct
         all_cand = self.dc.get_all_relaxed_candidates(use_extinct=ue)
-        all_cand.sort(
-            key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True
-        )
+        all_cand.sort(key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True)
 
         # Fill up the population with the self.pop_size most stable
         # unique candidates.
@@ -128,11 +121,11 @@ class Population:
 
         return
 
-    def get_current_population(self) -> List[Atoms]:
+    def get_current_population(self) -> list[Atoms]:
         """Returns a copy of the current population."""
         return [a.copy() for a in self.pop]
 
-    def get_two_candidates(self, with_history=True) -> Optional[Tuple[Atoms, Atoms]]:
+    def get_two_candidates(self, with_history=True) -> Optional[tuple[Atoms, Atoms]]:
         """Returns two candidates for pairing employing the
         fitness criteria.
         """
@@ -194,8 +187,8 @@ class Population:
 
 
 def group_structures_by_chemical_symbols(
-    structures: List[Atoms],
-) -> List[Tuple[str, List[Atoms]]]:
+    structures: list[Atoms],
+) -> list[tuple[str, list[Atoms]]]:
     """Group structures by their chemical symbols.
 
     Note:
@@ -204,9 +197,7 @@ def group_structures_by_chemical_symbols(
 
     """
     tribes_ = {}
-    for k, v in itertools.groupby(
-        structures, key=lambda a: "".join(a.get_chemical_symbols())
-    ):
+    for k, v in itertools.groupby(structures, key=lambda a: "".join(a.get_chemical_symbols())):
         if k in tribes_:
             tribes_[k].extend(list(v))
         else:
@@ -222,8 +213,8 @@ def group_structures_by_chemical_symbols(
 
 
 def select_tribe_structures(
-    tribes: List[Tuple[str, List[Atoms]]], min_size: int, rng: np.random.Generator
-) -> Optional[List[Atoms]]:
+    tribes: list[tuple[str, list[Atoms]]], min_size: int, rng: np.random.Generator
+) -> Optional[list[Atoms]]:
     """Select structures from a tribe based on number probability.
 
     Args:
@@ -232,7 +223,7 @@ def select_tribe_structures(
         rng: Random number generator.
 
     Returns:
-        A List of Atoms or None if no tribe satisfies `min_size`.
+        A list of Atoms or None if no tribe satisfies `min_size`.
 
     """
     weights = []
@@ -245,13 +236,11 @@ def select_tribe_structures(
     weights = np.array(weights)
 
     wsum = np.sum(weights)
-    if wsum > 0.:
+    if wsum > 0.0:
         weights = weights / np.sum(weights)
 
         tribe_indices = list(range(len(tribes)))
-        selected_tribe_index = rng.choice(tribe_indices, size=1, replace=False, p=weights)[
-            0
-        ]
+        selected_tribe_index = rng.choice(tribe_indices, size=1, replace=False, p=weights)[0]
         tribe_structures = tribes[selected_tribe_index][1]
     else:
         tribe_structures = None
@@ -266,9 +255,7 @@ class PopulationWithVariableComposition(Population):
         # Get all relaxed candidates from the database
         ue = self.use_extinct
         all_cand = self.dc.get_all_relaxed_candidates(use_extinct=ue)
-        all_cand.sort(
-            key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True
-        )
+        all_cand.sort(key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True)
 
         # Fill up the population with the self.pop_size most stable
         # unique candidates.
@@ -295,19 +282,15 @@ class PopulationWithVariableComposition(Population):
 
         return
 
-    def get_two_candidates(self, with_history=True) -> Optional[Tuple[Atoms, Atoms]]:
+    def get_two_candidates(self, with_history=True) -> Optional[tuple[Atoms, Atoms]]:
         """Returns two candidates for pairing employing the fitness criteria."""
-        assert hasattr(
-            self, "tribes"
-        ), "No tribes due to error from population initialisation."
+        assert hasattr(self, "tribes"), "No tribes due to error from population initialisation."
 
         if len(self.pop) < 2:
             return None
 
         # Select a tribe
-        tribe_structures = select_tribe_structures(
-            self.tribes, min_size=2, rng=self.rng
-        )
+        tribe_structures = select_tribe_structures(self.tribes, min_size=2, rng=self.rng)
         if tribe_structures is not None:
             num_structures_in_tribe = len(tribe_structures)
         else:
@@ -347,9 +330,7 @@ class PopulationWithVariableComposition(Population):
         if len(self.pop) < 1:
             return c1
 
-        tribe_structures = select_tribe_structures(
-            self.tribes, min_size=1, rng=self.rng
-        )
+        tribe_structures = select_tribe_structures(self.tribes, min_size=1, rng=self.rng)
         if tribe_structures is not None:
             num_structures_in_tribe = len(tribe_structures)
         else:

@@ -109,40 +109,28 @@ class AbstractPopulationManager:
         # Get population name
         name = params.get("name", "constant")
         if name not in ["constant", "variable"]:
-            raise Exception(
-                "Population name must be `constant` or `variable`."
-            )
+            raise Exception("Population name must be `constant` or `variable`.")
         self.name = name
 
         # Get structure origins for the initial generation
         # TODO: Support mutations for seed structures?
         init_params = params.get("init", dict(size=20, seed_file=None))
         self.init_size = init_params.get("size", None)
-        self.init_seed_file: Optional[
-            Union[str, pathlib.Path, List[Atoms]]
-        ] = init_params.get("seed_file", None)
+        self.init_seed_file: Optional[Union[str, pathlib.Path, List[Atoms]]] = init_params.get("seed_file", None)
 
         # Get number of structures from different origins in one generation
         gen_params = params.get("gen", dict(size=20))
         self.gen_size = gen_params.get("size", None)
         if not isinstance(self.gen_size, int):
-            raise Exception(
-                f"The generaton size needs to be an integer instead of `{self.gen_size}`."
-            )
+            raise Exception(f"The generaton size needs to be an integer instead of `{self.gen_size}`.")
 
         self.gen_ran_size = gen_params.get("random", 0)
-        self.gen_ran_max_try = gen_params.get(
-            "max_random_try", self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER
-        )
+        self.gen_ran_max_try = gen_params.get("max_random_try", self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER)
 
         self.gen_mut_size = gen_params.get("mutate", 0)
 
-        self.gen_rep_size = gen_params.get(
-            "reprod", self.gen_size - self.gen_ran_size - self.gen_mut_size
-        )
-        self.gen_rep_max_try = gen_params.get(
-            "max_reprod_try", self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER
-        )
+        self.gen_rep_size = gen_params.get("reprod", self.gen_size - self.gen_ran_size - self.gen_mut_size)
+        self.gen_rep_max_try = gen_params.get("max_reprod_try", self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER)
 
         # Check all numbers are valid
         assert (
@@ -178,9 +166,7 @@ class AbstractPopulationManager:
         num_paired, num_mutated, num_random = 0, 0, 0
 
         # unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0"))
-        unrelaxed_strus_gen_ = list(
-            database.c.select(f"relaxed=0,generation={curr_gen}")
-        )
+        unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0,generation={curr_gen}"))
         for row in unrelaxed_strus_gen_:
             if row.formula:
                 # print(row["gaid"], row)
@@ -191,20 +177,12 @@ class AbstractPopulationManager:
                 )
                 curr_rows = [x for x in curr_rows if x.formula]
                 # - get atoms
-                curr_atoms = database.get_atoms(
-                    curr_rows[-1].id, add_info=True
-                )
+                curr_atoms = database.get_atoms(curr_rows[-1].id, add_info=True)
                 # NOTE: candidates should not have description info...
                 #       otherwise, queued row also has them and failed in
                 #       database.c.get_participation_in_pairing()
-                kvp = {
-                    k: v
-                    for k, v in curr_atoms.info["key_value_pairs"].items()
-                    if k in RETAINED_KEYS
-                }
-                data = curr_atoms.info.get(
-                    "data", {}
-                )  # not every cand has data that stores parents
+                kvp = {k: v for k, v in curr_atoms.info["key_value_pairs"].items() if k in RETAINED_KEYS}
+                data = curr_atoms.info.get("data", {})  # not every cand has data that stores parents
                 curr_atoms.info = {
                     "key_value_pairs": kvp,
                     "data": data,
@@ -243,15 +221,11 @@ class AbstractPopulationManager:
             elif isinstance(self.init_seed_file, list):  # List[Atoms]
                 seed_frames = self.init_seed_file
             else:
-                raise RuntimeError(
-                    f"Init_seed_file {self.init_seed_file} formst is unsuppoted."
-                )
+                raise RuntimeError(f"Init_seed_file {self.init_seed_file} formst is unsuppoted.")
             seed_frames = clean_seed_structures(seed_frames)
             seed_size = len(seed_frames)
             self._print(f"number of seed frames: {seed_size}")
-            assert (
-                seed_size > 0 and seed_size <= self.init_size
-            ), "The number of seed structures is invalid."
+            assert seed_size > 0 and seed_size <= self.init_size, "The number of seed structures is invalid."
         else:
             seed_size = 0
 
@@ -336,9 +310,7 @@ class AbstractPopulationManager:
                 )
                 if atoms is not None:
                     paired_structures.append(atoms)
-                    parents = " ".join(
-                        [str(x) for x in atoms.info["data"]["parents"]]
-                    )
+                    parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
                     self._print(
                         f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
                     )
@@ -347,9 +319,7 @@ class AbstractPopulationManager:
                 if len(paired_structures) == self.gen_rep_size:
                     break
             else:
-                self._print(
-                    f"There is not enough paired structures after {self.gen_rep_max_try} attempts."
-                )
+                self._print(f"There is not enough paired structures after {self.gen_rep_max_try} attempts.")
         else:
             ...
         current_candidates.extend(paired_structures)
@@ -357,12 +327,8 @@ class AbstractPopulationManager:
         # Produce random structures
         if len(paired_structures) < self.gen_rep_size:
             self._print("There is not enough reproduced (paired) structures.")
-            self._print(
-                f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly."
-            )
-            curr_ran_size = (
-                self.gen_size - len(paired_structures) - self.gen_mut_size
-            )
+            self._print(f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly.")
+            curr_ran_size = self.gen_size - len(paired_structures) - self.gen_mut_size
         else:
             curr_ran_size = self.gen_ran_size
 
@@ -405,12 +371,8 @@ class AbstractPopulationManager:
                 if len(random_structures) == curr_ran_size:
                     break
             else:
-                if (
-                    self.gen_ran_size > 0
-                ):  # NOTE: no break when random size is 0
-                    self._print(
-                        f"There is not enough random structures after {self.gen_ran_max_try} attempts."
-                    )
+                if self.gen_ran_size > 0:  # NOTE: no break when random size is 0
+                    self._print(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
         else:
             ...
         current_candidates.extend(random_structures)
@@ -418,9 +380,7 @@ class AbstractPopulationManager:
         # Produce mutated structures
         if len(current_candidates) < (self.gen_rep_size + self.gen_ran_size):
             self._print("There is not enough reproduced+random structures.")
-            self._print(
-                f"Only {len(current_candidates)} are generated. The rest would be generated by mutations."
-            )
+            self._print(f"Only {len(current_candidates)} are generated. The rest would be generated by mutations.")
             curr_mut_size = self.gen_size - len(current_candidates)
         else:
             curr_mut_size = self.gen_mut_size
@@ -433,9 +393,7 @@ class AbstractPopulationManager:
         for i in range(gen_mut_max_try):
             self._print(f"Mutation attempt {i} ->")
             parent = population.get_one_candidate(with_history=True)
-            atoms, desc = operators["mobile"]["mutations"].get_new_individual(
-                [parent]
-            )
+            atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
             if atoms is not None:
                 t, desc = desc.split(":")
                 atoms.info["key_value_pairs"]["generation"] = curr_gen
@@ -455,9 +413,7 @@ class AbstractPopulationManager:
 
                 mutated_structures.append(atoms)
 
-                parents = " ".join(
-                    [str(x) for x in atoms.info["data"]["parents"]]
-                )
+                parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
                 self._print(
                     f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
                 )
@@ -467,16 +423,12 @@ class AbstractPopulationManager:
                 break
         else:
             if self.gen_mut_size > 0:  # NOTE: no break when random size is 0
-                self._print(
-                    f"There is not enough mutated structures after {gen_mut_max_try} attempts."
-                )
+                self._print(f"There is not enough mutated structures after {gen_mut_max_try} attempts.")
         current_candidates.extend(mutated_structures)
 
         if len(current_candidates) != self.gen_size:
             self._print("Not enough candidates for the next generation.")
-            raise RuntimeError(
-                "Not enough candidates for the next generation."
-            )
+            raise RuntimeError("Not enough candidates for the next generation.")
 
         return current_candidates
 
@@ -488,16 +440,12 @@ class AbstractPopulationManager:
         for mut in mutations.oplist:
             if hasattr(mut, "update_scaling_volume"):
                 mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-                self._print(
-                    f"{mut.__class__.__name__:<32s} scaling volume: {mut.scaling_volume:>12.4f}"
-                )
+                self._print(f"{mut.__class__.__name__:<32s} scaling volume: {mut.scaling_volume:>12.4f}")
 
         # crossover
         if hasattr(pairing, "update_scaling_volume"):
             pairing.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
-            self._print(
-                f"{pairing.__class__.__name__:<32s} scaling volume: {pairing.scaling_volume:>12.4f}"
-            )
+            self._print(f"{pairing.__class__.__name__:<32s} scaling volume: {pairing.scaling_volume:>12.4f}")
 
         return
 
@@ -549,15 +497,8 @@ class AbstractPopulationManager:
                     if not is_reproduction_isolation(parents[0], parents[1]):
                         natoms_p0 = len(parents[0])
                         tags_dict = get_tags_per_species(parents[0])
-                        identities = " ".join(
-                            [
-                                k + "_" + str(len(v))
-                                for k, v in tags_dict.items()
-                            ]
-                        )
-                        self._print(
-                            f"  natoms: {natoms_p0} composition: {identities}"
-                        )
+                        identities = " ".join([k + "_" + str(len(v)) for k, v in tags_dict.items()])
+                        self._print(f"  natoms: {natoms_p0} composition: {identities}")
                         break
                 else:
                     self._print(
@@ -597,9 +538,7 @@ class AbstractPopulationManager:
                 parents[0],
                 f"pairing: {parents[0].info['confid']} {parents[0].info['confid']}",
             )
-            a3.info["data"] = dict(
-                parents=[parents[0].info["confid"], parents[0].info["confid"]]
-            )
+            a3.info["data"] = dict(parents=[parents[0].info["confid"], parents[0].info["confid"]])
             a3.info["key_value_pairs"]["origin"] = "Parthenogenesis"
 
         chem_form = a3.get_chemical_formula() if a3 is not None else None
@@ -635,9 +574,7 @@ class AbstractPopulationManager:
                 else:
                     self._print(f"  mobile: {desc}")  # Mutate failed.
                     if is_parthenogenesis:
-                        self._print(
-                            "  single-parent reproduction-mutation failed."
-                        )
+                        self._print("  single-parent reproduction-mutation failed.")
                         a3 = None  # single-parent reproduction must mustate
             else:
                 self._print(f"  mobile: {desc}")  # No mutation is applied.
@@ -646,9 +583,7 @@ class AbstractPopulationManager:
             if custom_mutations is not None:
                 curr_prob = self.rng.random()
                 if curr_prob < self.pmut_custom:
-                    a3_bmut, bmut_desc = custom_mutations.get_new_individual(
-                        [a3]
-                    )
+                    a3_bmut, bmut_desc = custom_mutations.get_new_individual([a3])
                     if a3_bmut is not None:
                         database.add_unrelaxed_step(a3_bmut, bmut_desc)
                         a3 = a3_bmut
