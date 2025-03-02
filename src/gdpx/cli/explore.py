@@ -6,7 +6,7 @@ import pathlib
 from typing import Optional, Union
 
 from gdpx import config
-from gdpx.expedition.interface import ExpeditionVariable
+from gdpx.nodes.expedition import ExpeditionVariable
 from gdpx.nodes.scheduler import SchedulerVariable
 from gdpx.utils.logio import remove_extra_stream_handlers
 from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline

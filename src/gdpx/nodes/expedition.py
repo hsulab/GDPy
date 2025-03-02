@@ -6,6 +6,7 @@ import copy
 import pathlib
 from typing import Iterable, Union
 
+import numpy as np
 import omegaconf
 
 from gdpx.core.register import registers
@@ -24,7 +25,7 @@ class ExpeditionVariable(Variable):
         """"""
         random_seed = kwargs.get("random_seed", None)
         if random_seed is None:
-            random_seed = np.random.randint(0, 1e8)  # type: ignore
+            random_seed = np.random.randint(0, 1_000_000_000_000)
 
         method = kwargs.pop("method", None)
         if "builder" in kwargs:
