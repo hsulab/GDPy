@@ -57,18 +57,22 @@ def clean_seed_structures(prev_frames: List[Atoms]) -> List[Atoms]:
     return curr_frames
 
 
-def is_reproduction_isolation(a0: Atoms, a1: Atoms) -> bool:
+def is_reproduction_isolation(candidates: Optional[tuple[Atoms, Atoms]]) -> bool:
     """"""
     is_isolation = True
-    natoms_a0, natoms_a1 = len(a0), len(a1)
-    if natoms_a0 == natoms_a1:
-        symbols_a0, symbols_a1 = (
-            a0.get_chemical_symbols(),
-            a1.get_chemical_symbols(),
-        )
-        if symbols_a0 == symbols_a1:
-            if np.array_equal(a0.get_tags(), a1.get_tags()):
-                is_isolation = False
+    if candidates is not None:
+        a0, a1 = candidates
+        natoms_a0, natoms_a1 = len(a0), len(a1)
+        if natoms_a0 == natoms_a1:
+            symbols_a0, symbols_a1 = (
+                a0.get_chemical_symbols(),
+                a1.get_chemical_symbols(),
+            )
+            if symbols_a0 == symbols_a1:
+                if np.array_equal(a0.get_tags(), a1.get_tags()):
+                    is_isolation = False
+    else:
+        is_isolation = True
 
     return is_isolation
 
@@ -494,7 +498,7 @@ class AbstractPopulationManager:
                 for _ in range(100):
                     parents = population.get_two_candidates()
                     # TODO: Move this check to population?
-                    if not is_reproduction_isolation(parents[0], parents[1]):
+                    if not is_reproduction_isolation(parents):
                         natoms_p0 = len(parents[0])
                         tags_dict = get_tags_per_species(parents[0])
                         identities = " ".join([k + "_" + str(len(v)) for k, v in tags_dict.items()])
