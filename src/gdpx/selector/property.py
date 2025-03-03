@@ -12,7 +12,7 @@ from ase import Atoms
 from ase.neighborlist import neighbor_list
 
 from gdpx.data.array import AtomsNDArray
-from gdpx.nodes.describer import DescriberVariable
+from gdpx.describer import REGISTER as DESCRIBER_REGISTER
 
 from .clustering import group_structures_by_axis
 from .selector import BaseSelector
@@ -310,8 +310,10 @@ class PropertySelector(BaseSelector):
         else:
             # Try use describer to get properties, and make sure the property
             # values are a list as some sparsify needs a list (hist, boltz).
-            desc_params = dict(name=prop_item.name, **prop_item.params)
-            describer = DescriberVariable(**desc_params).value
+            desc_name = prop_item.name
+            if desc_name not in DESCRIBER_REGISTER:
+                raise KeyError(f"Unknown describer {desc_name}.")
+            describer = DESCRIBER_REGISTER[desc_name](**prop_item.params)
             prop_vals = describer.run(frames).tolist()
 
         prop_vals = prop_item._convert_raw_(prop_vals)
