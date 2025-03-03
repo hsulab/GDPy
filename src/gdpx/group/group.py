@@ -5,6 +5,7 @@
 import ast
 import functools
 import re
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -99,13 +100,9 @@ def get_indices_by_pos(atoms: Atoms, inp: str) -> set[int]:
             elif z >= fz_max:
                 z_ -= 1.0
             wrapped_coordinates.append(z_)
-        group_indices = sorted(
-            atomic_indices, key=lambda x: wrapped_coordinates[x]
-        )[:number]
+        group_indices = sorted(atomic_indices, key=lambda x: wrapped_coordinates[x])[:number]
     else:
-        group_indices = sorted(
-            atomic_indices, key=lambda x: atoms.positions[x][2]
-        )[:number]
+        group_indices = sorted(atomic_indices, key=lambda x: atoms.positions[x][2])[:number]
 
     return set(group_indices)
 
@@ -142,14 +139,12 @@ def preprocess_group_expression(grp_expr: str) -> tuple[str, list[functools.part
         new_grp_str = new_grp_str.replace(match.group(), k + "_" + str(i))
         if k not in SUPPORTED_GROUP_FUNCTIONS:
             raise Exception(f"Unsupported group function: {k}")
-        grp_funcs.append(
-            functools.partial(SUPPORTED_GROUP_FUNCTIONS[k], inp=v)
-        )
+        grp_funcs.append(functools.partial(SUPPORTED_GROUP_FUNCTIONS[k], inp=v))
 
     return new_grp_str, grp_funcs
 
 
-def evaluate_group_expression(atoms: Atoms, grp_expr: str) -> list[int]:
+def evaluate_group_expression(atoms: Atoms, grp_expr: Optional[str] = None) -> list[int]:
     """
     Evaluate a logical expression string with and, or, not, and parentheses.
     """
@@ -173,11 +168,15 @@ def evaluate_group_expression(atoms: Atoms, grp_expr: str) -> list[int]:
         else:
             raise TypeError(f"Unsupported type: {node} of {type(node)}")
 
-    # Parse the expression into an AST
-    grp_expr, grp_funcs = preprocess_group_expression(grp_expr)
-    tree = ast.parse(grp_expr, mode="eval")
-
-    group_indices = _eval(tree)
+    if grp_expr is not None:
+        # Parse the expression into an AST
+        grp_expr, grp_funcs = preprocess_group_expression(grp_expr)
+        tree = ast.parse(grp_expr, mode="eval")
+        group_indices = _eval(tree)
+    else:
+        # Fall back to all atoms
+        num_atoms = len(atoms)
+        group_indices = range(num_atoms)
 
     return list(group_indices)  # type: ignore
 
