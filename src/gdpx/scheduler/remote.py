@@ -8,7 +8,7 @@ import re
 import shutil
 import stat
 import traceback
-from typing import List, Callable
+from typing import Callable, List, Optional
 
 import paramiko
 
@@ -32,10 +32,7 @@ def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_pa
     else:
         remote_attr = sftp.lstat(remote_file_path)
         local_stat = os.stat(local_file_path)
-        return (
-            remote_attr.st_size != local_stat.st_size
-            or remote_attr.st_mtime != local_stat.st_mtime
-        )
+        return remote_attr.st_size != local_stat.st_size or remote_attr.st_mtime != local_stat.st_mtime
 
 
 def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items):
@@ -72,9 +69,7 @@ def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_
                 os.utime(local_dir_item, times)
                 files_synced += 1
         else:
-            files_synced += _sync_r(
-                sftp, remote_dir_item, local_dir_item, skipped_items
-            )
+            files_synced += _sync_r(sftp, remote_dir_item, local_dir_item, skipped_items)
 
     return files_synced
 
@@ -168,12 +163,14 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
         return
 
-    def submit(self) -> str:
+    def submit(self, func_to_execute: Optional[Callable] = None) -> str:
         """Submit job to a remote machine."""
-        password = os.environ.get(f"{self.hostname.upper()}_PASSWORD")
+        if func_to_execute is not None and self.name == "local":
+            raise Exception("Cannot run a function on the remote machine locally.")
 
         job_id = f"REMOTE -> {self.hostname.upper()} "
         try:
+            password = os.environ.get(f"{self.hostname.upper()}_PASSWORD")
             self.ssh.connect(hostname=self.hostname, password=password)
             sftp = self.ssh.open_sftp()
 
@@ -226,9 +223,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
                     local_dir,
                     skipped_items=[f"_{self.name}_jobs.json"],
                 )
-                self._print(
-                    "synced {} file(s) from '{}'".format(files_synced, remote_dir)
-                )
+                self._print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
                 # remove_outdated (only outdated files in wdirs will be removed)
                 self._print(f"cleaning up outdated items of '{remote_dir}' starting...")
                 outdated_removed = 0
@@ -239,11 +234,9 @@ class RemoteSlurmScheduler(SlurmScheduler):
                         str(pathlib.Path(local_dir) / item_name),
                         skipped_items=[f"_{self.name}_jobs.json"],
                         print_func=self._print,
-                        debug_func=self._debug
+                        debug_func=self._debug,
                     )
-                self._print(
-                    f"removed {outdated_removed} outdated item(s) of '{remote_dir}'"
-                )
+                self._print(f"removed {outdated_removed} outdated item(s) of '{remote_dir}'")
             except:
                 ...
             finally:
@@ -264,9 +257,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
             stdin, stdout, stderr = self.ssh.exec_command(self.ENQUIRE_COMMAND)
             output = stdout.read().decode()
 
-            pattern = re.compile(
-                r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+"
-            )
+            pattern = re.compile(r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+")
             matches = pattern.findall(output)
             names = [m[1] for m in matches]
 
