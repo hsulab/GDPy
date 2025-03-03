@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 from gdpx.builder.builder import StructureBuilder
 from gdpx.core.register import registers
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 
 
 def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:

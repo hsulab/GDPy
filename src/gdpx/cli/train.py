@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 
+from gdpx import config
+from gdpx.core.register import registers
 from gdpx.nodes.trainer import TrainerVariable
-
-from .. import config
-from ..core.register import registers
-from ..utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 
 
 def run_trainer(configuration, directory) -> None:
@@ -20,9 +19,7 @@ def run_trainer(configuration, directory) -> None:
 
     # Process the dataset
     name = params["dataset"].get("name", None)
-    dataset = registers.create(
-        "dataloader", name, convert_name=True, **params["dataset"]
-    )
+    dataset = registers.create("dataloader", name, convert_name=True, **params["dataset"])
 
     # Other options
     init_model = params.get("init_model", None)
@@ -37,4 +34,3 @@ def run_trainer(configuration, directory) -> None:
 
 if __name__ == "__main__":
     ...
-  

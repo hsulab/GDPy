@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import time
 from pathlib import Path
 import pickle
-
-from typing import List
 
 import numpy as np
 
 from joblib import Parallel, delayed
 
-import networkx as nx
-
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 
 from gdpx.graph.creator import StruGraphCreator
 from gdpx.graph.sites import SiteGraphCreator

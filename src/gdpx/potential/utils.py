@@ -10,7 +10,7 @@ import omegaconf
 
 from gdpx.backend.ase import CommitteeCalculator
 from gdpx.core.register import registers
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 
 from .manager import BasePotentialManager
 

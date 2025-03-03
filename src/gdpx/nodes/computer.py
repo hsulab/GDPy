@@ -15,7 +15,7 @@ from gdpx.potential.manager import BasePotentialManager
 from gdpx.potential.utils import convert_input_to_potter
 from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.session.variable import Variable
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.grid import GridDriverBasedWorker
 from gdpx.worker.react import ReactorBasedWorker

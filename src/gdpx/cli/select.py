@@ -5,11 +5,11 @@
 import pathlib
 from typing import Union
 
+from gdpx.data.array import AtomsNDArray
 from gdpx.factory.builder import canonicalise_builder
-
-from ..data.array import AtomsNDArray
-from ..selector.interface import SelectorVariable
-from ..selector.selector import BaseSelector
+from gdpx.nodes.selector import SelectorVariable
+from gdpx.selector.selector import BaseSelector
+from gdpx.utils.parser import parse_input_file
 
 
 def run_selection(
@@ -26,8 +26,6 @@ def run_selection(
     directory = pathlib.Path(directory)
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=False)
-
-    from gdpx.utils.command import parse_input_file
 
     params = parse_input_file(param_file)
 

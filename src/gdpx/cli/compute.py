@@ -16,7 +16,7 @@ from gdpx.nodes.builder import BuilderVariable
 from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable, ReactorVariable
 from gdpx.reactor.reactor import AbstractReactor
 from gdpx.nodes.scheduler import SchedulerVariable
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.grid import GridDriverBasedWorker
 

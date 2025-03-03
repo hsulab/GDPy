@@ -10,7 +10,7 @@ import numpy as np
 
 from gdpx import config
 from gdpx.core.register import import_all_modules_for_register, registers
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 from gdpx.utils.strconv import dictionary_to_string
 
 
