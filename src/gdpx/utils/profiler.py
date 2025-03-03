@@ -36,8 +36,12 @@ class CustomTimer:
 
         return self
 
-    def __exit__(self):
-        """Store the end time and print the elapsed."""
+    def __exit__(self, *args):
+        """Store the end time and print the elapsed.
+
+        Ignore exc_type, exc_value, and traceback in args.
+
+        """
         self.et = time.time()  # end time
 
         content = f"*** {self.name} time: {self.et-self.st:>8.4f} ***"
