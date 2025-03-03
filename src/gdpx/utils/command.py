@@ -3,37 +3,37 @@
 
 
 import json
-from pathlib import Path
-from typing import Union
+import pathlib
+from typing import Any
 
 import yaml
 
 
 def parse_input_file(
-    input_fpath: Union[str, Path],
+    input_fpath: Any,
     write_json: bool = False,  # write readin dict to check if alright
 ) -> dict:
     """"""
     input_dict = None
 
-    # - parse input type
+    # Check input type
     if isinstance(input_fpath, list):
         input_dict = input_fpath
-        json_path = Path.cwd()
+        json_path = pathlib.Path.cwd()
     elif isinstance(input_fpath, dict):
         input_dict = input_fpath
-        json_path = Path.cwd()
+        json_path = pathlib.Path.cwd()
     else:
         if isinstance(input_fpath, str):
-            input_file = Path(input_fpath)
+            input_file = pathlib.Path(input_fpath)
             json_path = input_file.parent
-        elif isinstance(input_fpath, Path):
+        elif isinstance(input_fpath, pathlib.Path):
             input_file = input_fpath
             json_path = input_file.parent
         else:
             return None
 
-        # --- read dict from files
+        # Load dict from a file
         try:
             if input_file.suffix == ".json":
                 with open(input_file, "r") as fopen:
@@ -43,11 +43,11 @@ def parse_input_file(
                     input_dict = yaml.safe_load(fopen)
             else:
                 ...
-        except FileNotFoundError as e:
-            # NOTE: There is json or yaml in the string but it is not a file though.
+        except FileNotFoundError:
+            # There is json or yaml in the string but it is not a file though.
             input_dict = None
 
-    # NOTE: recursive read internal json or yaml files
+    # Recursively read internal json or yaml files
     if input_dict is not None:
         if isinstance(input_dict, dict):
             for key, value in input_dict.items():
