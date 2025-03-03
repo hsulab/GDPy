@@ -893,11 +893,19 @@ class AseDriver(AbstractDriver):
     def _read_a_single_trajectory(
         self,
         wdir: pathlib.Path,
-        archive_path: pathlib.Path = None,
+        archive_path: Optional[pathlib.Path] = None,
         *args,
         **kwargs,
-    ):
-        """"""
+    ) -> list[Atoms]:
+        """Read a single trajectory from the working directory.
+
+        No need cut frames to the checkpoint like other driver backends since we always dump the last frame
+        as a checkpoint.
+
+        Actually, if the simulation stopped in the middle, we do not have the checkpoint of the last frame
+        thus the trajectories are not consecutive. So we concatenate trajectoies by atoms.info["step"].
+
+        """
         self._debug(f"archive_path: {archive_path}")
         self._debug(f"wdir: {wdir}")
         if archive_path is None:
@@ -917,11 +925,8 @@ class AseDriver(AbstractDriver):
                 else:
                     frames = []
 
-        # HACK: No need cut frames to the checkpoint like other driver backends
-        #       as we always dump the last frame as a checkpoint
-        # NOTE: Actually, if the simulation stopped in the middle, we do not have
-        #       the checkpoint of the last frame thus the trajectories are not
-        #       consecutive. So we concatenate trajectoies by atoms.info["step"]!!!
+        if isinstance(frames, Atoms):
+            frames = [frames]
 
         return frames
 
