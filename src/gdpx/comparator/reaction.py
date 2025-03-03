@@ -72,9 +72,7 @@ class ReactionComparator(BaseComponent):
         return
 
     def _irun(self, prediction, reference, prefix):
-        dene = (
-            prediction[0].get_potential_energy() - reference[0].get_potential_energy()
-        )
+        dene = prediction[0].get_potential_energy() - reference[0].get_potential_energy()
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
         plt.suptitle("Nudged Elastic Band Calculation")

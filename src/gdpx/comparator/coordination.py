@@ -11,9 +11,9 @@ from joblib import Parallel, delayed
 from scipy.spatial import distance_matrix
 
 from gdpx.group import evaluate_group_expression
+from gdpx.utils.command import CustomTimer
 
-from ..utils.command import CustomTimer
-from .comparator import AbstractComparator
+from .comparator import BaseComparator
 
 
 def switch_function(distances, r_cut, r_shift=0.0, nn: int = 6, mm: Optional[int] = None):
@@ -38,9 +38,7 @@ def compute_self_coorditaion_number(positions):
     return coordination
 
 
-def compute_coorditaion_number(
-    positions, indices_a, indices_b, r_cut, nn=None, mm=None
-):
+def compute_coorditaion_number(positions, indices_a, indices_b, r_cut, nn=None, mm=None):
     """NOTE: This does not substract the self-coordination."""
     dmat = distance_matrix(positions[indices_a, :], positions[indices_b, :])
     # print(dmat)
@@ -53,9 +51,7 @@ def compute_coorditaion_number(
     return coordination
 
 
-def compute_coordition_number_by_neighbour(
-    nl, cell, positions, indices_a, indices_b, r_cut, nn=None, mm=None
-):
+def compute_coordition_number_by_neighbour(nl, cell, positions, indices_a, indices_b, r_cut, nn=None, mm=None):
     """"""
     # NOTE: For the two same groups, the distance matrix may not be square
     #       if self-inetraction is considered since one atom can interact with
@@ -66,9 +62,7 @@ def compute_coordition_number_by_neighbour(
         nei_indices, nei_offsets = nl.get_neighbors(i)
         for j, offset in zip(nei_indices, nei_offsets):
             if j in indices_b:
-                distance = np.linalg.norm(
-                    positions[i, :] - positions[j, :] + np.dot(offset, cell)
-                )
+                distance = np.linalg.norm(positions[i, :] - positions[j, :] + np.dot(offset, cell))
                 # print(f"ditsance {i} <-> {j}: {distance}")
                 # check if distance is nonzero (as with itself) and under r_cut.
                 if 1e-8 < distance <= r_cut:
@@ -79,9 +73,7 @@ def compute_coordition_number_by_neighbour(
     coordination = []
     for distances in dmat:
         # print(distances)
-        curr_coordination = np.sum(
-            switch_function(np.array(distances), r_cut=r_cut, nn=nn, mm=mm)
-        )
+        curr_coordination = np.sum(switch_function(np.array(distances), r_cut=r_cut, nn=nn, mm=mm))
         coordination.append(curr_coordination)
     coordination = np.array(coordination)
     # print(coordination)
@@ -89,11 +81,9 @@ def compute_coordition_number_by_neighbour(
     return coordination
 
 
-class CoordinationComparator(AbstractComparator):
+class CoordinationComparator(BaseComparator):
 
-    def __init__(
-        self, pairs=None, acn_rmse: float = 0.02, acn_max: float = 0.20, *args, **kwargs
-    ):
+    def __init__(self, pairs=None, acn_rmse: float = 0.02, acn_max: float = 0.20, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
@@ -152,8 +142,7 @@ class CoordinationComparator(AbstractComparator):
 
         with CustomTimer(name="coordination", func=self._debug):
             coordinations = Parallel(n_jobs=self.njobs)(
-                delayed(self._process_single_structure)(atoms, self.pairs)
-                for atoms in frames
+                delayed(self._process_single_structure)(atoms, self.pairs) for atoms in frames
             )
 
         coordinations = np.array(coordinations)

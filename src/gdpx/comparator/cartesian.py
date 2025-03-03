@@ -7,10 +7,10 @@ from ase.geometry import find_mic
 
 from gdpx.group import evaluate_group_expression
 
-from .comparator import AbstractComparator
+from .comparator import BaseComparator
 
 
-class CartesianComparator(AbstractComparator):
+class CartesianComparator(BaseComparator):
 
     dtol_avg: float = 0.1  # displacement tolerance tolerance, Ang
     dtol_std: float = 0.02  # displacement tolerance tolerance, Ang

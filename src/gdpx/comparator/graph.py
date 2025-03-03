@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 from gdpx.group import evaluate_group_expression
 from gdpx.utils.command import CustomTimer
 
-from .comparator import AbstractComparator
+from .comparator import BaseComparator
 
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
 
@@ -83,7 +83,7 @@ def calculate_inertia_tensor(coordinates, atomic_masses):
     return total_inertia_tensor
 
 
-class GraphComparator(AbstractComparator):
+class GraphComparator(BaseComparator):
 
     def __init__(self, group=None, *args, **kwargs):
         """Initialise the comparator.

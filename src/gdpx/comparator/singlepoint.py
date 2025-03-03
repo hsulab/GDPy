@@ -18,8 +18,7 @@ from ase.constraints import FixAtoms
 
 from gdpx.core.component import BaseComponent
 from gdpx.group import evaluate_constraint_expression
-
-from ..utils.comparision import get_properties, plot_distribution, plot_parity
+from gdpx.utils.comparision import get_properties, plot_distribution, plot_parity
 
 
 def set_constraint(atoms, cons_text):
@@ -56,9 +55,7 @@ class SinglePointComparator(BaseComponent):
         #    print(constrained_indices(a, only_include=FixAtoms))
         #    break
 
-        assert len(reference) == len(
-            prediction
-        ), "Number of structures are inconsistent."
+        assert len(reference) == len(prediction), "Number of structures are inconsistent."
 
         nframes, rmse_ret = self._plot_comparison("spc", reference, prediction)
         self.write_data([["spc", nframes, rmse_ret]])
@@ -73,13 +70,9 @@ class SinglePointComparator(BaseComponent):
             for k in rmse_ret.keys():
                 if k not in keys:
                     keys.append(k)
-        content_fmt = (
-            "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  " * len(keys) + "\n"
-        )
+        content_fmt = "{:<24s}  {:>8d}  " + "{:>8.4f}  {:>8.4f}  " * len(keys) + "\n"
 
-        header_fmt = (
-            "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  " * len(keys) + "\n"
-        )
+        header_fmt = "{:<24s}  {:>8s}  " + "{:>8s}  {:>8s}  " * len(keys) + "\n"
         header_data = ["#prefix", "nframes"]
         for k in keys:
             header_data.extend([f"{k}_rmse", f"{k}_std"])
@@ -102,26 +95,18 @@ class SinglePointComparator(BaseComponent):
 
         return
 
-    def _plot_comparison(
-        self, prefix, ref_frames: list[Atoms], pred_frames: list[Atoms]
-    ):
+    def _plot_comparison(self, prefix, ref_frames: list[Atoms], pred_frames: list[Atoms]):
         """"""
         if not (self.directory / prefix).exists():
             (self.directory / prefix).mkdir(parents=True)
 
         nframes = len(ref_frames)
-        ref_symbols, ref_energies, ref_forces = get_properties(
-            ref_frames, apply_constraint=True
-        )
+        ref_symbols, ref_energies, ref_forces = get_properties(ref_frames, apply_constraint=True)
         ref_natoms = [len(a) for a in ref_frames]
-        pred_symbols, pred_energies, pred_forces = get_properties(
-            pred_frames, apply_constraint=True
-        )
+        pred_symbols, pred_energies, pred_forces = get_properties(pred_frames, apply_constraint=True)
 
         # - figure
-        fig, axarr = plt.subplots(
-            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
-        )
+        fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
@@ -149,9 +134,7 @@ class SinglePointComparator(BaseComponent):
         plt.close()
 
         # plot distributions
-        fig, axarr = plt.subplots(
-            nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
-        )
+        fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
         axarr = axarr.flatten()
         plt.suptitle(f"{prefix} with nframes {nframes}")
 

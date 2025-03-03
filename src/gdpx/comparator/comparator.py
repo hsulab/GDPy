@@ -8,7 +8,7 @@ from ase import Atoms
 from gdpx.core.component import BaseComponent
 
 
-class AbstractComparator(BaseComponent):
+class BaseComparator(BaseComponent):
 
     def compare_composition(self, a1: Atoms, a2: Atoms) -> bool:
         """Compare two atoms based on number of atoms, chell, and chemical formula sequentially.
