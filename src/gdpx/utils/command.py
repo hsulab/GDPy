@@ -4,9 +4,8 @@
 
 import json
 import subprocess
-import time
 from pathlib import Path
-from typing import Any, Union, Mapping
+from typing import Any, Mapping, Union
 
 import yaml
 
@@ -28,57 +27,6 @@ def dictionary_to_string(d: Mapping[str, Any], indent: int = 2):
     content = _dict2str(d, 0)
 
     return content
-
-
-class CustomTimer:
-
-    def __init__(self, name="code", func=print):
-        """"""
-        self.name = name
-        self._print = func
-
-        return
-
-    def __call__(self, func) -> Any:
-        """"""
-
-        def func_timer(*args, **kwargs):
-            st = time.time()
-            ret = func(*args, **kwargs)
-            et = time.time()
-            content = (
-                "*** "
-                + self.name
-                + " time: "
-                + "{:>8.4f}".format(et - st)
-                + " ***"
-            )
-            self._print(content)
-
-            return ret
-
-        return func_timer
-
-    def __enter__(self):
-        """"""
-        self.st = time.time()  # start time
-
-        return self
-
-    def __exit__(self, *args):
-        """"""
-        self.et = time.time()  # end time
-
-        content = (
-            "*** "
-            + self.name
-            + " time: "
-            + "{:>8.4f}".format(self.et - self.st)
-            + " ***"
-        )
-        self._print(content)
-
-        return
 
 
 def find_backups(dpath, fname, prefix="bak"):

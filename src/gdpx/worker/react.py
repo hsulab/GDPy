@@ -19,7 +19,7 @@ from gdpx import config
 from gdpx.data.array import AtomsNDArray
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.reactor.reactor import AbstractReactor
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .utils import copy_minimal_frames, get_file_md5, read_cache_info
 from .worker import BaseWorker

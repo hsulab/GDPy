@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from gdpx.graph.comparison import paragroup_unique_chem_envs
 from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
 from gdpx.group import evaluate_group_expression
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from ..builder import StructureModifier
 
@@ -23,9 +23,7 @@ DEFAULT_GRAPH_PARAMS = dict(
 )
 
 
-def single_create_structure_graph(
-    graph_params: dict, target_group: list[str], atoms: Atoms
-) -> list[nx.Graph]:
+def single_create_structure_graph(graph_params: dict, target_group: list[str], atoms: Atoms) -> list[nx.Graph]:
     """Create structure graph and get selected chemical environments.
 
     Find atoms with selected chemical symbols or in the defined region.
@@ -84,9 +82,7 @@ class GraphModifier(StructureModifier):
                 write(self.directory / "enumerated.xyz", modified_structures)
             else:
                 self._print("-- use cached results --")
-                modified_structures = read(
-                    self.directory / "enumerated.xyz", ":"
-                )
+                modified_structures = read(self.directory / "enumerated.xyz", ":")
             n_structures = len(modified_structures)
             self._print(f"nframes: {n_structures}")
             curr_substrates = modified_structures
@@ -100,16 +96,11 @@ class GraphModifier(StructureModifier):
 
         raise NotImplementedError()
 
-    def _compare_structures(
-        self, ret_frames: list[Atoms], graph_params, spec_params
-    ):
+    def _compare_structures(self, ret_frames: list[Atoms], graph_params, spec_params):
         """"""
         with CustomTimer(name="create-graphs", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_create_structure_graph)(
-                    graph_params, spec_params, a
-                )
-                for a in ret_frames
+                delayed(single_create_structure_graph)(graph_params, spec_params, a) for a in ret_frames
             )
         # not unique across substrates
         # write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
@@ -152,9 +143,7 @@ class GraphModifier(StructureModifier):
             content = "# unique, indices\n"
             content += f"# ncandidates {ncandidates}\n"
             for d in unique_data:
-                content += (
-                    "{:<8s}  " + "{:<8d}  " * (len(d) - 1) + "\n"
-                ).format(*d)
+                content += ("{:<8s}  " + "{:<8d}  " * (len(d) - 1) + "\n").format(*d)
 
             unique_info_path = self.directory / f"unique-info.txt"
             with open(unique_info_path, "w") as fopen:

@@ -14,7 +14,7 @@ from gdpx.graph.comparison import get_unique_environments_based_on_bonds
 from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
 from gdpx.graph.utils import unpack_node_name
 from gdpx.group import evaluate_group_expression
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profielr import CustomTimer
 
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
@@ -59,9 +59,7 @@ def single_exchange_adsorbate(
     # NOTE: compare environments of host species
     # - get chem envs
     graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
-    chem_envs = extract_chem_envs(
-        graph, atoms, group_indices, stru_creator.graph_radius
-    )
+    chem_envs = extract_chem_envs(graph, atoms, group_indices, stru_creator.graph_radius)
     # print("ex chem envs: ", len(chem_envs))
     # print(chem_envs[0])
     # print(chem_envs[1])
@@ -163,9 +161,7 @@ class GraphExchangeModifier(GraphModifier):
                 # -- add data
                 ret_envs.extend(envs)
                 ret_frames.extend(frames)
-                self._print(
-                    f"number of sites {nenvs} to exchange for substrate {i}."
-                )
+                self._print(f"number of sites {nenvs} to exchange for substrate {i}.")
         # not unique across substrates
         write(self.directory / f"possible_frames.xyz", ret_frames)
 
@@ -173,9 +169,7 @@ class GraphExchangeModifier(GraphModifier):
         #   NOTE: if Zn atoms were to exchange with Cr, the chem envs of
         #         the rest Zn atoms are used to compare the structure difference.
         #         TODO: consider Cr as well?
-        created_frames = self._compare_structures(
-            ret_frames, graph_params, self.target_group
-        )
+        created_frames = self._compare_structures(ret_frames, graph_params, self.target_group)
 
         return created_frames
 

@@ -25,7 +25,7 @@ from gdpx.computation.driver import AbstractDriver
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 from gdpx.utils.logio import remove_extra_stream_handlers
 
 from .utils import copy_minimal_frames, get_file_md5

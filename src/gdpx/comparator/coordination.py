@@ -11,7 +11,7 @@ from joblib import Parallel, delayed
 from scipy.spatial import distance_matrix
 
 from gdpx.group import evaluate_group_expression
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .comparator import BaseComparator
 

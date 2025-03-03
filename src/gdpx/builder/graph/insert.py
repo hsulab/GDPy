@@ -11,7 +11,7 @@ from ase.io import read, write
 from joblib import Parallel, delayed
 
 from gdpx.graph.sites import SiteFinder
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
@@ -45,9 +45,7 @@ def single_insert_adsorbate(
     site_creator._debug = debug_func
     site_groups = site_creator.find(atoms, site_params)
 
-    ads_indices = [
-        a.index for a in atoms if a.symbol in site_creator.adsorbate_elements
-    ]
+    ads_indices = [a.index for a in atoms if a.symbol in site_creator.adsorbate_elements]
 
     created_frames = []
     for i, (sites, params) in enumerate(zip(site_groups, site_params)):
@@ -57,9 +55,7 @@ def single_insert_adsorbate(
             ads_frames = s.adsorb(ads, ads_indices, ads_params)
             cur_frames.extend(ads_frames)
         created_frames.extend(cur_frames)
-        print_func(
-            f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}."
-        )
+        print_func(f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}.")
 
     return created_frames
 
@@ -124,9 +120,7 @@ class GraphInsertModifier(GraphModifier):
             adsorbate = read(species["adsorbate"])  # only one structure
         symbols = list(set(adsorbate.get_chemical_symbols()))
 
-        selected_species = copy.deepcopy(
-            graph_params.get("adsorbate_elements", [])
-        )
+        selected_species = copy.deepcopy(graph_params.get("adsorbate_elements", []))
         selected_species.extend(symbols)
         selected_species = list(set(selected_species))
 
@@ -155,9 +149,7 @@ class GraphInsertModifier(GraphModifier):
         #       adsorbates are not the same as the inserted one. Otherwise,
         #       comparasion should be performed.
         target_group = ["symbol " + " ".join(selected_species)]
-        created_frames = self._compare_structures(
-            ret_frames, graph_params, target_group
-        )
+        created_frames = self._compare_structures(ret_frames, graph_params, target_group)
 
         return created_frames
 

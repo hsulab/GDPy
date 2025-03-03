@@ -18,12 +18,12 @@ try:
 except Exception as e:
     ...
 
-from gdpx.group import evaluate_group_expression
+from gdpx.data.array import AtomsNDArray
 from gdpx.geometry.align import wrap_traj
+from gdpx.group import evaluate_group_expression
+from gdpx.utils.profiler import CustomTimer
+from gdpx.utils.strconv import string_to_array
 
-from ..data.array import AtomsNDArray
-from ..utils.command import CustomTimer
-from ..utils.strconv import string_to_array
 from .validator import BaseValidator
 
 
@@ -64,9 +64,7 @@ def recenter_com_by_group(frames: list[Atoms], group_indices: list[int]):
     return frames
 
 
-def _icalc_local_lindemann_index(
-    frames, start: int, group, recenter_com: bool = False, n_jobs=1
-):
+def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool = False, n_jobs=1):
     """Calculate Lindemann Index of each atom.
 
     Returns:
@@ -89,10 +87,7 @@ def _icalc_local_lindemann_index(
     frames = frames[start:]
 
     with CustomTimer("Lindemann Index"):
-        distances = Parallel(n_jobs=n_jobs)(
-            delayed(get_distance_matrix)(atoms, group_indices)
-            for atoms in frames
-        )
+        distances = Parallel(n_jobs=n_jobs)(delayed(get_distance_matrix)(atoms, group_indices) for atoms in frames)
     distances = np.array(distances)
 
     dis2 = np.square(distances)
@@ -102,9 +97,7 @@ def _icalc_local_lindemann_index(
     masked_dis_avg = dis_avg + np.eye(num_atoms)  # avoid 0. in denominator
     # print(masked_dis_avg)
 
-    q = np.sum(np.sqrt(dis2_avg - dis_avg**2) / masked_dis_avg, axis=1) / (
-        num_atoms - 1
-    )
+    q = np.sum(np.sqrt(dis2_avg - dis_avg**2) / masked_dis_avg, axis=1) / (num_atoms - 1)
 
     return q
 
@@ -142,16 +135,12 @@ class MeltingPointValidator(BaseValidator):
 
         self.start = start
 
-        if isinstance(temperatures, list) or isinstance(
-            temperatures, omegaconf.ListConfig
-        ):
+        if isinstance(temperatures, list) or isinstance(temperatures, omegaconf.ListConfig):
             temperatures = temperatures
         elif isinstance(temperatures, str):
             temperatures = string_to_array(temperatures)
         else:
-            raise TypeError(
-                f"Unknown {temperatures} of type {type(temperatures)}."
-            )
+            raise TypeError(f"Unknown {temperatures} of type {type(temperatures)}.")
 
         self.temperatures = temperatures
 
@@ -190,18 +179,14 @@ class MeltingPointValidator(BaseValidator):
         if reference is not None:
             reference = self._process_data(reference)
             data = self._compute_melting_point(reference, prefix="ref-")
-            self._plot_figure(
-                data[:, 1], data[:, 0], prefix="ref-", run_fit=self.run_fit
-            )
+            self._plot_figure(data[:, 1], data[:, 0], prefix="ref-", run_fit=self.run_fit)
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
             prediction = self._process_data(prediction)
             data = self._compute_melting_point(prediction, prefix="pre-")
-            self._plot_figure(
-                data[:, 1], data[:, 0], prefix="pre-", run_fit=self.run_fit
-            )
+            self._plot_figure(data[:, 1], data[:, 0], prefix="pre-", run_fit=self.run_fit)
 
         return
 
@@ -237,9 +222,7 @@ class MeltingPointValidator(BaseValidator):
             np.savetxt(
                 cached_data_path,
                 qmat.T,
-                header=("{:>11s}" + "{:>12s}" * (len(qnames) - 1)).format(
-                    *qnames
-                ),
+                header=("{:>11s}" + "{:>12s}" * (len(qnames) - 1)).format(*qnames),
                 fmt="%12.4f",
             )
         else:
@@ -249,14 +232,10 @@ class MeltingPointValidator(BaseValidator):
         t = temperatures
         q = np.average(qmat, axis=1)
 
-        sorted_indices = [
-            x[0] for x in sorted(enumerate(temperatures), key=lambda x: x[1])
-        ]
+        sorted_indices = [x[0] for x in sorted(enumerate(temperatures), key=lambda x: x[1])]
         self._debug(sorted_indices)
 
-        data = np.vstack(
-            ([t[i] for i in sorted_indices], [q[i] for i in sorted_indices])
-        ).T
+        data = np.vstack(([t[i] for i in sorted_indices], [q[i] for i in sorted_indices])).T
 
         np.savetxt(
             self.directory / f"{prefix}data.txt",

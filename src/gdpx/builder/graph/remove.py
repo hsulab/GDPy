@@ -14,7 +14,7 @@ from gdpx.graph.comparison import get_unique_environments_based_on_bonds
 from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
 from gdpx.graph.utils import unpack_node_name
 from gdpx.group import evaluate_group_expression
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
@@ -51,15 +51,11 @@ def single_remove_adsorbate(
     chemical_symbols = atoms.get_chemical_symbols()
     for i in group_indices:
         if chemical_symbols[i] != species:
-            raise RuntimeError(
-                "Species to remove is inconsistent for those by indices."
-            )
+            raise RuntimeError("Species to remove is inconsistent for those by indices.")
 
     # - get chem envs
     graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
-    chem_envs = extract_chem_envs(
-        graph, atoms, group_indices, stru_creator.graph_radius
-    )
+    chem_envs = extract_chem_envs(graph, atoms, group_indices, stru_creator.graph_radius)
 
     # NOTE: for single atom adsorption,
     assert len(chem_envs) == len(
@@ -150,9 +146,7 @@ class GraphRemoveModifier(GraphModifier):
                 # -- add data
                 ret_envs.extend(envs)
                 ret_frames.extend(frames)
-                self._print(
-                    f"number of sites {nenvs} to remove for substrate {i}."
-                )
+                self._print(f"number of sites {nenvs} to remove for substrate {i}.")
         # nsites = len(ret_frames)
         # self._print(f"Total number of chemical environments: {nsites}")
 
@@ -167,9 +161,7 @@ class GraphRemoveModifier(GraphModifier):
         write(self.directory / f"possible_frames.xyz", ret_frames)
 
         # - get unique structures among substrates
-        created_frames = self._compare_structures(
-            ret_frames, graph_params, self.target_group
-        )
+        created_frames = self._compare_structures(ret_frames, graph_params, self.target_group)
 
         return created_frames
 

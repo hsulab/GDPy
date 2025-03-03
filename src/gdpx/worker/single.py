@@ -15,7 +15,7 @@ import yaml
 from ase.io import write
 from tinydb import Query, TinyDB
 
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .worker import BaseWorker
 

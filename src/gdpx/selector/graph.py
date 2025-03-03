@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 from gdpx.graph.comparison import paragroup_unique_chem_envs
 from gdpx.graph.creator import StruGraphCreator
 from gdpx.group import evaluate_group_expression
-from gdpx.utils.command import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .selector import BaseSelector
 
