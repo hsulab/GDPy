@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 import io
 
 import matplotlib.pyplot as plt
@@ -11,12 +12,12 @@ from ase.io import write
 
 try:
     USE_REPORTLAB = 1
-    from reportlab.lib.utils import ImageReader
     from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Table
 except:
     USE_REPORTLAB = 0
 
-from gdpx.core.register import registers
+from gdpx.comparator import REGISTER as COMPARATOR_REGISTER
+from gdpx.data.array import AtomsNDArray
 
 from .selector import BaseSelector
 
@@ -25,30 +26,32 @@ class CompareSelector(BaseSelector):
 
     name: str = "compare"
 
-    default_parameters: dict = dict(comparator_name=None, comparator_params={})
-
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, comparator: dict, *args, **kwargs) -> None:
         """"""
         super().__init__(*args, **kwargs)
 
         if self.group_by is not None:
             raise Exception("Grouping is not supported in comparison.")
 
-        self.comparator = registers.create(
-            "comparator",
-            self.comparator_name,
-            convert_name=True,
-            **self.comparator_params,
-        )
+        comparator_config = copy.deepcopy(comparator)
+        comparator_name = comparator_config.pop("name", "unknown")
+        if comparator_name not in COMPARATOR_REGISTER:
+            raise Exception(f"Unknown comparator: {comparator_name}")
+
+        self.comparator = COMPARATOR_REGISTER[comparator_name](**comparator_config)
+
+        if self.group_by is not None:
+            raise Exception("Group_by is not supported in compare.")
 
         return
 
-    def _mark_structures(self, data, *args, **kwargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray) -> None:
         """"""
         structures = data.get_marked_structures()
 
         # Start from the first structure and compare structures by a given comparator
         if not hasattr(self.comparator, "prepare_data"):
+            # Compare structures directly
             selected_indices, scores = [0], []
             for i, a1 in enumerate(structures[1:]):
                 # Assume structures are sorted by energy,
@@ -63,9 +66,9 @@ class CompareSelector(BaseSelector):
                     selected_indices.append(i + 1)
                     self._print(f"--->>> current indices: {selected_indices}")
         else:
+            # Compare structure based on fingerprint
             fingerprints = self.comparator.prepare_data(structures)
 
-            # Compare structural fingerprint
             selected_indices, unique_groups, scores = [], {}, []
             for i, fp in enumerate(fingerprints):
                 for j in selected_indices[::-1]:  # j -> unique_group_index

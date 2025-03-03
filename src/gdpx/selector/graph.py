@@ -10,11 +10,11 @@ import numpy as np
 from ase import Atoms
 from joblib import Parallel, delayed
 
+from gdpx.graph.comparison import paragroup_unique_chem_envs
+from gdpx.graph.creator import StruGraphCreator
 from gdpx.group import evaluate_group_expression
+from gdpx.utils.command import CustomTimer
 
-from ..graph.comparison import paragroup_unique_chem_envs
-from ..graph.creator import StruGraphCreator
-from ..utils.command import CustomTimer
 from .selector import BaseSelector
 
 
@@ -86,8 +86,7 @@ class GraphSelector(BaseSelector):
         # - create graphs
         with CustomTimer(name="create-graphs", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_create_structure_graph)(a, graph_params, group_commands)
-                for a in frames
+                delayed(single_create_structure_graph)(a, graph_params, group_commands) for a in frames
             )
 
         # - check if the ret is empty
@@ -160,9 +159,7 @@ class GraphSelector(BaseSelector):
             for d in unique_data:
                 content += ("{:<8s}  " + "{:<8d}  " * (len(d) - 1) + "\n").format(*d)
 
-            unique_info_path = self.info_fpath.parent / (
-                self.info_fpath.stem + "-extra.txt"
-            )
+            unique_info_path = self.info_fpath.parent / (self.info_fpath.stem + "-extra.txt")
             with open(unique_info_path, "w") as fopen:
                 fopen.write(content)
 
