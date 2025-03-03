@@ -8,7 +8,7 @@ import re
 import shutil
 import stat
 import traceback
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 import paramiko
 
@@ -78,7 +78,7 @@ def _remove_outdated_r(
     sftp: paramiko.SFTPClient,
     remote_dir: str,
     local_dir: str,
-    skipped_items: List[str],
+    skipped_items: list[str],
     print_func=print,
     debug_func=print,
 ):
@@ -196,7 +196,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
         return job_id
 
-    def _sync_remote(self, wdir_names: List[str]) -> None:
+    def _sync_remote(self, wdir_names: list[str]) -> None:
         """Syncronize the working directories from the remote machine.
 
         Normally, this method should be called after the remote job is finished.
