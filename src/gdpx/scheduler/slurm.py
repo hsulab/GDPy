@@ -92,8 +92,11 @@ class SlurmScheduler(BaseScheduler):
             universal_newlines=True,
         )
         output = p.stdout
-        lines = output.readlines()
-        content = "".join(lines)
+        if output is not None:
+            lines = output.readlines()
+            content = "".join(lines)
+        else:
+            content = ""
 
         pattern = re.compile(
             r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+"
