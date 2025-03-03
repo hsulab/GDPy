@@ -10,22 +10,6 @@ from typing import Union
 import yaml
 
 
-def find_backups(dpath, fname, prefix="bak"):
-    """find a series of files in a dir
-    such as fname, bak.0.fname, bak.1.fname
-    """
-    dpath = Path(dpath)
-    fpath = dpath / fname
-    if not fpath.exists():
-        raise FileNotFoundError(f"fpath does not exist.")
-
-    backups = list(dpath.glob(prefix + ".[0-9]*." + fname))
-    backups = sorted(backups, key=lambda x: int(x.name.split(".")[1]))
-    backups.append(fpath)
-
-    return backups
-
-
 def run_command(directory, command, comment="", timeout=None):
     proc = subprocess.Popen(
         command,
