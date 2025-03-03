@@ -4,13 +4,12 @@
 
 import itertools
 import operator
+from typing import Any, Mapping
 
 import numpy as np
 
 
-def string_to_integers(
-    inp: str, convention: str = "lmp", out_convention: str = "ase"
-) -> list[int]:
+def string_to_integers(inp: str, convention: str = "lmp", out_convention: str = "ase") -> list[int]:
     """Convert a string to a list of int.
 
     Args:
@@ -85,9 +84,7 @@ def integers_to_string(
     indices = sorted(indices)
     if inp_convention == "lmp":
         if 0 in indices:
-            raise Exception(
-                "The input indices should be greater than 0 in the LAMMPS convention."
-            )
+            raise Exception("The input indices should be greater than 0 in the LAMMPS convention.")
     elif inp_convention == "ase":
         indices = [i + 1 for i in indices]
 
@@ -127,6 +124,25 @@ def string_to_array(inp: str):
     ret = np.array(ret)
 
     return ret
+
+
+def dictionary_to_string(d: Mapping[str, Any], indent: int = 2):
+    """Convert a nested dict to str."""
+
+    def _dict2str(d_: Mapping[str, Any], indent_: int):
+        """Recursive function."""
+        content = ""
+        for k, v in d_.items():
+            if isinstance(v, dict):
+                content += f"{k}:\n" + _dict2str(v, indent_ + indent)
+            else:
+                content += " " * indent_ + f"{k}: {v}\n"
+
+        return content
+
+    content = _dict2str(d, 0)
+
+    return content
 
 
 if __name__ == "__main__":

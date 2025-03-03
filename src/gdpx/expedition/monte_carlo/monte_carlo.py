@@ -13,8 +13,7 @@ from ase.formula import Formula
 from ase.io import read, write
 
 from gdpx.geometry.spatial import get_bond_distance_dict
-from gdpx.utils.command import dictionary_to_string
-from gdpx.utils.strconv import integers_to_string
+from gdpx.utils.strconv import dictionary_to_string, integers_to_string
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
 

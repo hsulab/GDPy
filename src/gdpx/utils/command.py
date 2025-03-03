@@ -5,28 +5,9 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Mapping, Union
+from typing import Union
 
 import yaml
-
-
-def dictionary_to_string(d: Mapping[str, Any], indent: int = 2):
-    """Convert a nested dict to str."""
-
-    def _dict2str(d_: Mapping[str, Any], indent_: int):
-        """Recursive function."""
-        content = ""
-        for k, v in d_.items():
-            if isinstance(v, dict):
-                content += f"{k}:\n" + _dict2str(v, indent_ + indent)
-            else:
-                content += " " * indent_ + f"{k}: {v}\n"
-
-        return content
-
-    content = _dict2str(d, 0)
-
-    return content
 
 
 def find_backups(dpath, fname, prefix="bak"):

@@ -7,7 +7,7 @@ import functools
 from ase.io import write
 
 from gdpx.factory.computer import canonicalise_worker
-from gdpx.utils.command import dictionary_to_string
+from gdpx.utils.strconv import dictionary_to_string
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
 

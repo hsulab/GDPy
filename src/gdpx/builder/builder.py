@@ -11,8 +11,8 @@ from ase.io import read
 
 from gdpx.core.component import BaseComponent
 
-from ..data.array import AtomsNDArray
-from ..utils.command import dictionary_to_string
+from gdpx.data.array import AtomsNDArray
+from gdpx.utils.strconv import dictionary_to_string
 
 
 class StructureBuilder(BaseComponent):
