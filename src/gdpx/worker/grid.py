@@ -4,6 +4,7 @@
 
 import json
 import pathlib
+import subprocess
 import tempfile
 import time
 import uuid
@@ -27,6 +28,34 @@ STRU_ID_KEY: str = "identifier"
 
 #: Batch ID key used for tracking jobs.
 BATCH_ID_KEY: str = "gdir"  # FIXME: change to batch?
+
+
+def run_command(directory, command, comment="", timeout=None, print_func=print):
+    """Try to run a command in a directory."""
+    proc = subprocess.Popen(
+        command,
+        shell=True,
+        cwd=directory,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+    )
+    if timeout is None:
+        errorcode = proc.wait()
+    else:
+        errorcode = proc.wait(timeout=timeout)
+
+    output = proc.stdout
+    if output is not None:
+        msg = "Message: " + "".join(output.readlines())
+    else:
+        msg = ""
+    print_func(msg)
+
+    if errorcode:
+        raise RuntimeError("Error in %s at %s." % (comment, directory))
+
+    return msg
 
 
 class GridDriverBasedWorker(BaseWorker):
@@ -235,9 +264,7 @@ class GridDriverBasedWorker(BaseWorker):
         self.scheduler.user_commands = user_commands
 
         if self.scheduler.name == "local":
-            from ..utils.command import run_command
-
-            run_command(self.directory, self.scheduler.user_commands)
+            run_command(self.directory, self.scheduler.user_commands, print_func=self._print)
         else:
             # - save scheduler file
             self.scheduler.job_name = job_name
@@ -343,9 +370,7 @@ class GridDriverBasedWorker(BaseWorker):
                             jobid = self.scheduler.submit()
                             self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                         else:
-                            from ..utils.command import run_command
-
-                            run_command(self.directory, self.scheduler.user_commands)
+                            run_command(self.directory, self.scheduler.user_commands, print_func=self._print)
             else:
                 self._print(f"{job_name} is running...")
 
