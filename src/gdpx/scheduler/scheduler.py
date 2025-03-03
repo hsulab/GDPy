@@ -77,9 +77,6 @@ class BaseScheduler(abc.ABC):
     #: Current stored parameters.
     parameters: dict = {}
 
-    #: The path of the job script.
-    _script: Union[str, pathlib.Path] = "./run.script"
-
     #: The job name.
     _job_name: str = "scheduler"
 
@@ -122,17 +119,23 @@ class BaseScheduler(abc.ABC):
         #    self.parameters.update(parameters_)
         self.parameters.update(kwargs)
 
+        # Some default settings
+
+        #: The path of the job script.
+        self._script: pathlib.Path = pathlib.Path("./run.script")
+
         return
 
     @property
-    def script(self) -> Union[str, pathlib.Path]:
+    def script(self) -> pathlib.Path:
         """Store the path of the job script."""
 
         return self._script
 
     @script.setter
-    def script(self, script_):
-        self._script = pathlib.Path(script_)
+    def script(self, script: Union[str, pathlib.Path]) -> None:
+        self._script = pathlib.Path(script)
+
         return
 
     @property
