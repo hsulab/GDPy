@@ -11,24 +11,31 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 from joblib import Parallel, delayed
 
 from gdpx.group import evaluate_group_expression
+from gdpx.utils.command import CustomTimer
 
-from ..utils.command import CustomTimer
 from .comparator import AbstractComparator
 
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
 
 
-def create_a_graph(atoms, indices=None):
-    """"""
+def create_a_graph(atoms: Atoms, indices: Optional[list[int]] = None):
+    """Create a graph from an ASE atoms object.
+
+    This creates a graph simply based on the connectivities between atoms.
+    Thus, the spatial information is lost.
+
+    TODO: Better strategy to treat periodic boundary conditions.
+
+    """
     natoms = len(atoms)
     if indices is None:
-        indices = range(natoms)
+        indices = list(range(natoms))
+
+    chemical_symbols = atoms.get_chemical_symbols()
 
     graph = nx.Graph()
     for i in indices:
-        graph.add_node(
-            atoms.symbols[i] + "_" + str(i),
-        )
+        graph.add_node(chemical_symbols[i] + "_" + str(i))
 
     nl = NeighborList(
         cutoffs=natural_cutoffs(atoms, mult=1),
@@ -38,20 +45,18 @@ def create_a_graph(atoms, indices=None):
         bothways=False,
     )
     nl.update(atoms)
-    for i in indices:  # TODO: PBC
-        nei_indices, nei_offsets = nl.get_neighbors(i)
-        s_i = atoms.symbols[i]
+    for i in indices:
+        nei_indices, _ = nl.get_neighbors(i)
+        s_i = chemical_symbols[i]
         for j in nei_indices:
-            s_j = atoms.symbols[j]
-            graph.add_edge(
-                f"{s_i}_{i}", f"{s_j}_{j}", bond="{}{}".format(*sorted([s_i, s_j]))
-            )
+            s_j = chemical_symbols[j]
+            graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond="{}{}".format(*sorted([s_i, s_j])))
 
     return graph
 
 
-# Function to calculate the inertia tensor for a point mass
 def point_mass_inertia_tensor(mass, position):
+    """Function to calculate the inertia tensor for a point mass."""
     I = np.zeros((3, 3))
     r_squared = np.dot(position, position)
 
@@ -65,8 +70,8 @@ def point_mass_inertia_tensor(mass, position):
     return I
 
 
-# Function to calculate the total inertia tensor for the nanoparticle
 def calculate_inertia_tensor(coordinates, atomic_masses):
+    """Function to calculate the total inertia tensor for the nanoparticle."""
     total_inertia_tensor = np.zeros((3, 3))
 
     # Iterate through each copper atom and add its contribution to the total inertia tensor
@@ -80,19 +85,21 @@ def calculate_inertia_tensor(coordinates, atomic_masses):
 
 class GraphComparator(AbstractComparator):
 
-    group: Optional[str] = None
+    def __init__(self, group=None, *args, **kwargs):
+        """Initialise the comparator.
 
-    def __init__(self, mic=True, group=None, *args, **kwargs):
-        """"""
+        Args:
+            group: The group expression to select atoms to build graph for comparison.
+
+        """
         super().__init__(*args, **kwargs)
 
-        self.mic = mic
         self.group = group
 
         return
 
     @staticmethod
-    def _process_single_structure(atoms, group):
+    def _process_single_structure(atoms: Atoms, group: str) -> nx.Graph:
         """"""
         group_indices = evaluate_group_expression(atoms, group)
         graph = create_a_graph(atoms, group_indices)
@@ -101,19 +108,16 @@ class GraphComparator(AbstractComparator):
 
     def prepare_data(self, frames: list[Atoms]):
         """"""
-        with CustomTimer(name="graph", func=self._debug):
+        with CustomTimer(name="creating graphs", func=self._print):
             graphs = Parallel(n_jobs=self.njobs)(
-                delayed(self._process_single_structure)(atoms, self.group)
-                for atoms in frames
+                delayed(self._process_single_structure)(atoms, self.group) for atoms in frames
             )
 
         return graphs
 
     def looks_like(self, fp1, fp2):
         """"""
-        is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(
-            fp1, fp2, edge_match=bond_match
-        )
+        is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(fp1, fp2, edge_match=bond_match)
 
         return is_isomorphic
 
@@ -121,33 +125,30 @@ class GraphComparator(AbstractComparator):
         """"""
         is_similar = self.compare_composition(a1, a2)
         if is_similar:
-            # -
-            ainds = None
+            group_indices = list(range(len(a1)))  # number of atoms have been checked to be the same
             if self.group is not None:
                 g1 = evaluate_group_expression(a1, self.group)
                 g2 = evaluate_group_expression(a2, self.group)
                 if g1 == g2:  # can be []
-                    ainds = g1
+                    group_indices = g1
                 else:
-                    ainds = []
-                if len(ainds) > 0:
-                    self._print(f"natoms: {len(ainds)}")
-                    self._print(f"{a1[ainds].get_chemical_formula()}")
+                    group_indices = []
+                if len(group_indices) > 0:
+                    self._print(f"natoms: {len(group_indices)}")
+                    self._print(f"{a1[group_indices].get_chemical_formula()}")
                     # write("xxx.xyz", a1[ainds])
                 else:
-                    ainds = range(len(a1))  # atomic indices
+                    ...
             else:
-                ainds = range(len(a1))  # atomic indices
-            # -
-            graph_1 = create_a_graph(a1, ainds)
-            graph_2 = create_a_graph(a2, ainds)
+                ...
+            # Create graphs
+            graph_1 = create_a_graph(a1, group_indices)
+            graph_2 = create_a_graph(a2, group_indices)
             # matcher = nx.algorithms.isomorphism.GraphMatcher(
             #     graph_1, graph_2, edge_match=bond_match
             # )
             # is_isomorphic = matcher.is_isomorphic()
-            is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(
-                graph_1, graph_2, edge_match=bond_match
-            )
+            is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(graph_1, graph_2, edge_match=bond_match)
             self._print(f"  isomorphic: {is_isomorphic}")
             if is_isomorphic:
                 ...

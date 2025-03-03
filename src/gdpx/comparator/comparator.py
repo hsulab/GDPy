@@ -3,7 +3,6 @@
 
 
 import numpy as np
-
 from ase import Atoms
 
 from gdpx.core.component import BaseComponent
@@ -12,8 +11,12 @@ from gdpx.core.component import BaseComponent
 class AbstractComparator(BaseComponent):
 
     def compare_composition(self, a1: Atoms, a2: Atoms) -> bool:
-        """"""
-        # TODO: compare PBC?
+        """Compare two atoms based on number of atoms, chell, and chemical formula sequentially.
+
+        Note:
+            The periodic boundary conditions (PBC) are not considered.
+
+        """
         is_similar = False
         na1, na2 = len(a1), len(a2)
         if na1 == na2:
@@ -31,8 +34,9 @@ class AbstractComparator(BaseComponent):
 
     def looks_like(self, a1: Atoms, a2: Atoms) -> bool:
         """"""
+        is_similar = self.compare_composition(a1, a2)
 
-        raise NotImplementedError()
+        return is_similar
 
     def __call__(self, a1, a2) -> bool:
         """"""
@@ -42,4 +46,3 @@ class AbstractComparator(BaseComponent):
 
 if __name__ == "__main__":
     ...
-
