@@ -14,7 +14,7 @@ from gdpx.graph.comparison import get_unique_environments_based_on_bonds
 from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
 from gdpx.graph.utils import unpack_node_name
 from gdpx.group import evaluate_group_expression
-from gdpx.utils.profielr import CustomTimer
+from gdpx.utils.profiler import CustomTimer
 
 from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
 
