@@ -3,6 +3,7 @@
 
 
 import copy
+import itertools
 from typing import Optional
 
 import networkx as nx
@@ -10,6 +11,7 @@ import numpy as np
 import numpy.typing
 from ase import Atoms
 from ase.formula import Formula
+from ase.geometry import find_mic
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.group import evaluate_group_expression
@@ -120,8 +122,38 @@ def create_a_graph(atoms: Atoms, neighlist: NeighborList, indices: Optional[list
     return graph
 
 
+def get_minimum_distance_between_two_fragments(
+    atoms: Atoms, frag_a: list[int], frag_b: list[int], neighlist: NeighborList
+) -> float:
+    """Get the minimum distance between two fragments.
+
+    Args:
+        atoms: Atoms object.
+        fragment_indices: A list of fragment indices.
+
+    Returns:
+        The minimum distance between two fragments.
+
+    """
+    pbc = atoms.pbc
+
+    num_atoms_in_a = len(frag_a)
+
+    positions = atoms.get_positions()
+    raw_vectors = positions[frag_a] - positions[frag_b][:, np.newaxis, :].repeat(num_atoms_in_a, axis=1)
+    raw_vectors = raw_vectors.reshape(-1, 3)
+    _, mic_distances = find_mic(v=raw_vectors, cell=atoms.cell, pbc=pbc)
+
+    min_dist = np.min(mic_distances)
+
+    return min_dist
+
+
 def get_fragments_by_graph(
-    atoms: Atoms, grp_expr: Optional[str] = None, cutoff: Optional[float] = None
+    atoms: Atoms,
+    grp_expr: Optional[str] = None,
+    cutoff: Optional[float] = None,
+    inter_fragment_distance: Optional[float] = None,
 ) -> tuple[list[list[int]], list[str]]:
     """Get fragments by graph.
 
@@ -129,6 +161,7 @@ def get_fragments_by_graph(
         atoms: Atoms object.
         grp_expr: Group expression.
         cutoff: Cutoff distance.
+        inter_fragment_distance: Minimum distance between fragments.
 
     Returns:
         A tuple of fragment indices and fragment formulae.
@@ -167,6 +200,26 @@ def get_fragments_by_graph(
         # Need proper connectivity in fragments?
         # reassemble_fragment_by_depth_first_search(atoms, nl, indices[0])
 
+    # Further check if fragments are loosely connected, if so they will be merged.
+    # For example, a H2O molecule stays close with the underlying adsorbate by hydrogen bonds.
+    if inter_fragment_distance is not None:
+        frag_graph = nx.Graph()
+        num_fragments = len(fragment_indices)
+        for i in range(num_fragments):
+            frag_graph.add_node(i)
+        for i in range(num_fragments):
+            for j in range(i + 1, num_fragments):
+                min_dist = get_minimum_distance_between_two_fragments(
+                    atoms, fragment_indices[i], fragment_indices[j], nl
+                )
+                if min_dist < inter_fragment_distance:
+                    frag_graph.add_edge(i, j)
+        merged_indices, merged_formulae = [], []
+        for c in nx.connected_components(frag_graph):
+            merged_indices.append(list(itertools.chain(*[fragment_indices[i] for i in c])))
+            merged_formulae.append("+".join([fragment_formulae[i] for i in c]))
+        fragment_indices, fragment_formulae = merged_indices, merged_formulae
+
     return fragment_indices, fragment_formulae
 
 
@@ -174,11 +227,20 @@ class DissociativeDescriber(BaseDescriber):
 
     name: str = "dissociative"
 
-    def __init__(self, max_num_frag: int = 1, group: Optional[str] = None, *args, **kwargs):
+    def __init__(
+        self,
+        max_num_frag: int = 1,
+        inter_fragment_distance: Optional[float] = None,
+        group: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
         """Initialise the describer."""
         super().__init__(*args, **kwargs)
 
         self.max_num_frag = max_num_frag
+
+        self.inter_fragment_distance = inter_fragment_distance  # Ang
 
         self.group = group
 
@@ -188,7 +250,9 @@ class DissociativeDescriber(BaseDescriber):
         """"""
         dissociative_states = []
         for atoms in structures:
-            _, fragments = get_fragments_by_graph(atoms, grp_expr=self.group, cutoff=None)
+            _, fragments = get_fragments_by_graph(
+                atoms, grp_expr=self.group, cutoff=None, inter_fragment_distance=self.inter_fragment_distance
+            )
             num_fragments = len(fragments)
             if num_fragments > self.max_num_frag:
                 dissociative_states.append(True)
