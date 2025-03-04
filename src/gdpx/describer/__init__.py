@@ -22,6 +22,10 @@ from .connectivity import ConnectivityDescriber
 
 REGISTER.register("connectivity")(ConnectivityDescriber)
 
+from .dissociative import DissociativeDescriber
+
+REGISTER.register("dissociative")(DissociativeDescriber)
+
 from .formation_energy import FormationEnergyDescriber
 
 REGISTER.register("formation_energy")(FormationEnergyDescriber)
