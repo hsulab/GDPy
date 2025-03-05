@@ -18,11 +18,11 @@ def run_validation(config: dict, directory: Union[str, pathlib.Path], potter):
     if not tasks:
         raise Exception("No tasks found in the configuration.")
 
+    # Instantiate teh validators
     validators = []
     for task in tasks:
         validator = canonicalise_validator(task)
         validators.append(validator)
-    num_validators = len(validators)
 
     # run the validations sequentially
     for i, validator in enumerate(validators):
