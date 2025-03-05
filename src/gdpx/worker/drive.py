@@ -341,47 +341,44 @@ class DriverBasedWorker(BaseWorker):
         start_confid: int,
         rng_states: Union[list[int], list[dict]],
     ):
-        # - check wdir
+        # Check the computation directory for each structure,
+        # add `wdir` to atoms.info
         num_frames = len(frames)
-        # NOTE: get a list even if it only has one structure
-        # TODO: a better strategy to deal with wdirs...
-        #       conflicts:
-        #           merged trajectories from different drivers that all have cand0
-        wdirs = []  # [(confid,dynstep), ..., ()]
+        wdirs = []
         for i, atoms in enumerate(frames):
-            # -- set wdir
             wdir = "cand{}".format(int(self._info_data[i + start_confid][0]))
             wdirs.append(wdir)
             atoms.info["wdir"] = wdir
-        # - check whether each structure has a unique wdir
+
+        # Check whether each structure has a unique directory
         assert len(set(wdirs)) == num_frames, f"Found duplicated wdirs {len(set(wdirs))} vs. {num_frames}..."
 
-        # - split structures into different batches
+        # Overwrite batchsize if share_wdir is used
         if self._share_wdir:
             self._print(f"Worker overwrites batchsize to {num_frames =} as it uses share_wdir.")
             batchsize = num_frames
         else:
             batchsize = self.batchsize
 
+        # Split structures into different batches
         starts, ends = self._split_groups(num_frames, batchsize)
 
         batches = []
         for i, (s, e) in enumerate(zip(starts, ends)):
-            # - prepare structures and dirnames
+            # Prepare structures and dirnames
             global_indices = range(s, e)
-            # NOTE: get a list even if it only has one structure
-            cur_frames = [frames[x] for x in global_indices]
-            cur_wdirs = [wdirs[x] for x in global_indices]
-            curr_rs = [rng_states[x] for x in global_indices]
-            for x in cur_frames:
+            batch_frames = [frames[x] for x in global_indices]
+            batch_dirnames = [wdirs[x] for x in global_indices]
+            batch_random_states = [rng_states[x] for x in global_indices]
+            for x in batch_frames:
                 x.info["group"] = i
-            # - check whether each structure has a unique wdir
-            assert len(set(cur_wdirs)) == len(
-                cur_frames
-            ), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(cur_frames)} for group {i}..."
+            # Check whether each structure has a unique directory
+            assert len(set(batch_dirnames)) == len(
+                batch_frames
+            ), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(batch_frames)} for group {i}..."
 
-            # - set specific params
-            batches.append([global_indices, cur_wdirs, curr_rs])
+            # Make a batch
+            batches.append([global_indices, batch_dirnames, batch_random_states])
 
         return batches
 
