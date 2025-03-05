@@ -353,9 +353,13 @@ class DriverBasedWorker(BaseWorker):
         # Check whether each structure has a unique directory
         assert len(set(wdirs)) == num_frames, f"Found duplicated wdirs {len(set(wdirs))} vs. {num_frames}..."
 
-        # Overwrite batchsize if share_wdir is used
-        if self._share_wdir:
-            self._print(f"Worker overwrites batchsize to {num_frames =} as it uses share_wdir.")
+        # Overwrite batchsize if share_wdir is used or the scheduler is local
+        overwrite_batchsize = False
+        if self._share_wdir or self.scheduler.name == "local":
+            overwrite_batchsize = True
+
+        if overwrite_batchsize:
+            self._print(f"Overwrites batchsize to {num_frames =} as it uses share_wdir or local scheduler.")
             batchsize = num_frames
         else:
             batchsize = self.batchsize
