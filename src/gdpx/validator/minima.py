@@ -19,13 +19,14 @@ from gdpx.worker.drive import DriverBasedWorker
 """Validate minima and relative energies...
 """
 
+
 def make_clean_atoms(atoms_, results=None):
     """Create a clean atoms from the input."""
     atoms = Atoms(
         symbols=atoms_.get_chemical_symbols(),
         positions=atoms_.get_positions().copy(),
         cell=atoms_.get_cell().copy(),
-        pbc=copy.deepcopy(atoms_.get_pbc())
+        pbc=copy.deepcopy(atoms_.get_pbc()),
     )
     if results is not None:
         spc = SinglePointCalculator(atoms, **results)
@@ -50,42 +51,77 @@ def compare_structures(v_frames: list[Atoms], p_frames: list[Atoms]):
     p_maxfrc = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in p_frames])
 
     # displacement
-    disp = [] # displacements
+    disp = []  # displacements
     for ref_atoms, pre_atoms in zip(v_frames, p_frames):
         vector = pre_atoms.get_positions() - ref_atoms.get_positions()
         _, vlen = find_mic(vector, pre_atoms.get_cell())
         disp.append(np.linalg.norm(vlen))
 
-    results = dict(
-        natoms = v_natoms,
-        ene = (v_ene, p_ene),
-        maxfrc = (v_maxfrc, p_maxfrc),
-        disp = disp
-    )
+    results = dict(natoms=v_natoms, ene=(v_ene, p_ene), maxfrc=(v_maxfrc, p_maxfrc), disp=disp)
 
     return results
 
 
 def summarise_validation(natoms, ene, maxfrc, disp) -> str:
     """"""
-    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 6 + "\n"
+    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 7 + "\n"
 
-    content = "# Name     N_a  " + ("{:>12s}  "*6).format("E_v", "E_p", "E_d", "E_d/N_a", "Fmax_v", "Fmax_p", "Disp") + "\n"
+    content = (
+        "# Name     N_a  "
+        + ("{:>12s}  " * 7).format("E_v", "E_p", "E_d", "E_d/N_a", "Fmax_v", "Fmax_p", "Disp")
+        + "\n"
+    )
 
     num_structures = len(natoms)
     for i in range(num_structures):
         ene_diff = ene[0][i] - ene[1][i]
-        data = [ene[0][i], ene[1][i], ene_diff, ene_diff/natoms[i], maxfrc[0][i], maxfrc[1][i], disp[i]]
+        data = [ene[0][i], ene[1][i], ene_diff, ene_diff / natoms[i], maxfrc[0][i], maxfrc[1][i], disp[i]]
+        content += line_format.format(i, natoms[i], *data)
+
+    return content
+
+
+def summarise_validation_with_ranking(natoms, ene, maxfrc, disp) -> str:
+    """"""
+    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 7 + "{:>6d}  " * 2 + "\n"
+
+    content = (
+        "# Name     N_a  "
+        + ("{:>12s}  " * 7).format("E_v", "E_p", "E_d", "E_d/N_a", "Fmax_v", "Fmax_p", "Disp")
+        + ("{:>6s}  " * 2).format("Erk_v", "Erk_p")
+        + "\n"
+    )
+
+    num_structures = len(natoms)
+
+    indices = np.arange(num_structures, dtype=np.int64)
+    sort = np.argsort(ene[0])
+    v_rankings = sorted(indices, key=lambda i: sort[i])
+    sort = np.argsort(ene[1])
+    p_rankings = sorted(indices, key=lambda i: sort[i])
+
+    for i in range(num_structures):
+        ene_diff = ene[0][i] - ene[1][i]
+        data = [
+            ene[0][i],
+            ene[1][i],
+            ene_diff,
+            ene_diff / natoms[i],
+            maxfrc[0][i],
+            maxfrc[1][i],
+            disp[i],
+            v_rankings[i],
+            p_rankings[i],
+        ]
         content += line_format.format(i, natoms[i], *data)
 
     return content
 
 
 class MinimaValidator(BaseValidator):
-
     """Run minimisation on various configurations and compare relative energy.
 
-    TODO: 
+    TODO:
 
         Support the comparison of minimisation trajectories.
 
@@ -93,15 +129,20 @@ class MinimaValidator(BaseValidator):
 
     name: str = "minima"
 
-    def __init__(self, ene_shift=[], *args, **kwargs):
-        """"""
+    def __init__(self, show_ranking: bool=False, *args, **kwargs):
+        """Initialise the validator.
+
+        Args:
+            show_ranking: Show the energetic ranking of the structures.
+
+        """
         super().__init__(*args, **kwargs)
 
-        self.ene_shift = ene_shift
+        self.show_ranking = show_ranking
 
         return
 
-    def run(self, structures: Optional[Any]=None, worker: Optional[DriverBasedWorker]=None, *args, **kwargs):
+    def run(self, structures: Optional[Any] = None, worker: Optional[DriverBasedWorker] = None, *args, **kwargs):
         """"""
         super().run()
 
@@ -130,14 +171,16 @@ class MinimaValidator(BaseValidator):
         if end_frames is not None:
             results = compare_structures(v_structures, end_frames)
             if not pathlib.Path(self.directory / "v.dat").exists():
-                content = summarise_validation(**results)
+                if not self.show_ranking:
+                    content = summarise_validation(**results)
+                else:
+                    content = summarise_validation_with_ranking(**results)
                 with open(self.directory / "v.dat", "w") as fopen:
                     fopen.write(content)
         else:
-            is_finished = False 
+            is_finished = False
 
         return is_finished
-
 
     def _irun(self, frames: list[Atoms], worker: DriverBasedWorker) -> Optional[list[Atoms]]:
         """"""
