@@ -11,7 +11,7 @@ from ase.calculators.calculator import Calculator
 from gdpx import config
 from gdpx.backend.ase import DummyCalculator
 from gdpx.computation import register_drivers
-from gdpx.computation.driver import AbstractDriver
+from gdpx.computation.driver import BaseDriver
 from gdpx.core.register import registers
 
 
@@ -70,7 +70,7 @@ class BasePotentialManager(abc.ABC):
 
         return
 
-    def create_driver(self, dyn_params: dict = {}) -> AbstractDriver:
+    def create_driver(self, dyn_params: dict = {}) -> BaseDriver:
         """Create a driver for dynamics.
 
         The default dynamics backend will be the same as the calculator.

@@ -14,7 +14,7 @@ from ase import Atoms
 from ase.io import write
 from tinydb import Query, TinyDB
 
-from gdpx.computation.driver import AbstractDriver
+from gdpx.computation.driver import BaseDriver
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler.local import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
@@ -63,7 +63,7 @@ class GridDriverBasedWorker(BaseWorker):
     def __init__(
         self,
         potters: list[BasePotentialManager],
-        drivers: list[AbstractDriver],
+        drivers: list[BaseDriver],
         scheduler: BaseScheduler = LocalScheduler(),
         directory="./",
         *args,

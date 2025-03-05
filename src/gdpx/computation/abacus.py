@@ -5,11 +5,10 @@
 import dataclasses
 import pathlib
 import traceback
-from typing import List
 
 from ase import Atoms
 
-from .driver import AbstractDriver, Controller, DriverSetting
+from .driver import BaseDriver, DriverSetting
 
 
 @dataclasses.dataclass
@@ -31,7 +30,7 @@ class AbacusDriverSetting(DriverSetting):
         return run_params
 
 
-class AbacusDriver(AbstractDriver):
+class AbacusDriver(BaseDriver):
 
     name = "abacus"
 
@@ -78,7 +77,7 @@ class AbacusDriver(AbstractDriver):
 
         return
 
-    def read_trajectory(self, archive_path=None, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
         super().read_trajectory(*args, **kwargs)
 

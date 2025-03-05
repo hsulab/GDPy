@@ -25,7 +25,7 @@ from ase.optimize.optimize import Dynamics
 from gdpx import config as GDPCONFIG
 from gdpx.backend.ase import EnhancedCalculator
 
-from .driver import EARLYSTOP_KEY, AbstractDriver, Controller, DriverSetting
+from .driver import EARLYSTOP_KEY, BaseDriver, Controller, DriverSetting
 from .observer import create_an_observer
 
 
@@ -580,7 +580,7 @@ class AseDriverSetting(DriverSetting):
         return run_params
 
 
-class AseDriver(AbstractDriver):
+class AseDriver(BaseDriver):
 
     #: Driver name.
     name = "ase"

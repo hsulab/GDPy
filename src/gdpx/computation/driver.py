@@ -153,7 +153,7 @@ class DriverSetting:
         )
 
 
-class AbstractDriver(BaseComponent):
+class BaseDriver(BaseComponent):
 
     #: Driver's name.
     name: str = "abstract"

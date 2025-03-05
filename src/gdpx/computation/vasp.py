@@ -17,11 +17,12 @@ from ase.calculators.vasp import Vasp
 from ase.geometry import find_mic
 from ase.io import read, write
 
-from ..backend.vasp import read_oszicar, read_outcar_scf, read_report, write_vasp
-from ..data.extatoms import ScfErrAtoms
-from ..utils.cmdrun import run_ase_calculator
-from ..utils.strucopy import read_sort, resort_atoms_with_spc
-from .driver import AbstractDriver, Controller, DriverSetting
+from gdpx.backend.vasp import read_oszicar, read_outcar_scf, read_report, write_vasp
+from gdpx.data.extatoms import ScfErrAtoms
+from gdpx.utils.cmdrun import run_ase_calculator
+from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
+
+from .driver import BaseDriver, Controller, DriverSetting
 
 """Driver for VASP."""
 #: Ase-vasp resort fname.
@@ -366,14 +367,12 @@ class VaspDriverSetting(DriverSetting):
         steps_ = kwargs.get("steps", self.steps)
         nsw = steps_
 
-        run_params = dict(
-            constraint=kwargs.get("constraint", self.constraint), ediffg=ediffg, nsw=nsw
-        )
+        run_params = dict(constraint=kwargs.get("constraint", self.constraint), ediffg=ediffg, nsw=nsw)
 
         return run_params
 
 
-class VaspDriver(AbstractDriver):
+class VaspDriver(BaseDriver):
 
     name = "vasp"
 
@@ -417,9 +416,7 @@ class VaspDriver(AbstractDriver):
         **kwargs,
     ):
         """"""
-        assert isinstance(
-            self.calc, Vasp
-        ), "VaspDriver should use ase.calculators.vasp.Vasp."
+        assert isinstance(self.calc, Vasp), "VaspDriver should use ase.calculators.vasp.Vasp."
         if ckpt_wdir is None:  # start from the scratch
             # merge params
             run_params = self.setting.get_run_params(**kwargs)
@@ -513,9 +510,7 @@ class VaspDriver(AbstractDriver):
                 elif self.setting.task == "md":
                     steps = target_steps + dump_period - nframes * dump_period - 1
                 else:
-                    raise Exception(
-                        f"Task {self.setting.task} does not support updating `steps`."
-                    )
+                    raise Exception(f"Task {self.setting.task} does not support updating `steps`.")
                 assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
                 self.calc.set(nsw=steps)
             # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
@@ -544,9 +539,7 @@ class VaspDriver(AbstractDriver):
             run_ase_calculator("vasp", self.calc.command, self.directory)
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
-            self._debug(
-                f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
-            )
+            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
             # TODO: Deal with different exceptions...
             # If CalculationFailed and no outputs, it may not have an appropriate
             # caculation environment...
@@ -577,29 +570,21 @@ class VaspDriver(AbstractDriver):
         else:
             frames = []
             flags = [False, False, False]
-            vasprun_name = str(
-                (wdir / "vasprun.xml").relative_to(self.directory.parent)
-            )
+            vasprun_name = str((wdir / "vasprun.xml").relative_to(self.directory.parent))
             oszicar_name = str((wdir / "OSZICAR").relative_to(self.directory.parent))
             outcar_name = str((wdir / "OUTCAR").relative_to(self.directory.parent))
             with tarfile.open(archive_path, "r:gz") as tar:
                 for tarinfo in tar:
                     if tarinfo.name == vasprun_name:
-                        fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         frames = read(fobj, ":", format="vasp-xml")
                         fobj.close()
                         flags[0] = True
                     if tarinfo.name == oszicar_name:
-                        oszicar_fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        oszicar_fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         flags[1] = True
                     if tarinfo.name == outcar_name:
-                        outcar_fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        outcar_fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         flags[2] = True
                     if all(flags):
                         break
@@ -616,16 +601,12 @@ class VaspDriver(AbstractDriver):
         if outcar_fobj is not None:
             outcar_lines = outcar_fobj.readlines()
             vasp_params_from_outcar = read_outcar_scf(outcar_lines)
-            assert (
-                "ispin" in vasp_params_from_outcar
-            ), "OUTCAR must have ISPIN information."
+            assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
             if vasp_params_from_outcar["ispin"] == 2:
                 outcar_fobj.seek(0)
                 outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
                 num_outcar_frames = len(outcar_frames)
-                assert (
-                    num_frames == num_outcar_frames
-                ), f"vasprun {num_frames} != outcar {num_outcar_frames}"
+                assert num_frames == num_outcar_frames, f"vasprun {num_frames} != outcar {num_outcar_frames}"
                 for i in range(num_frames):
                     frames[i].calc.results.update(
                         magmom=outcar_frames[i].calc.results["magmom"],
@@ -638,13 +619,9 @@ class VaspDriver(AbstractDriver):
 
         # read oszicar and outcar to check scf convergence
         if oszicar_fobj is not None:
-            assert (
-                "nelm" in vasp_params_from_outcar
-            ), "OUTCAR must have NELM information."
+            assert "nelm" in vasp_params_from_outcar, "OUTCAR must have NELM information."
             nelm = vasp_params_from_outcar["nelm"]
-            assert (
-                "ediff" in vasp_params_from_outcar
-            ), "OUTCAR must have EDIFF information."
+            assert "ediff" in vasp_params_from_outcar, "OUTCAR must have EDIFF information."
             ediff = vasp_params_from_outcar["ediff"]
             oszicar_lines = oszicar_fobj.readlines()
             scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
@@ -673,9 +650,7 @@ class VaspDriver(AbstractDriver):
                 )
                 frames[-1].calc = calc
             else:
-                raise RuntimeError(
-                    f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
-                )
+                raise RuntimeError(f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}.")
             for i, is_converged in enumerate(scf_convergences):
                 if not is_converged:
                     frames[i] = ScfErrAtoms.from_atoms(frames[i])
@@ -687,9 +662,7 @@ class VaspDriver(AbstractDriver):
 
         return frames
 
-    def read_trajectory(
-        self, add_step_info=True, archive_path=None, *args, **kwargs
-    ) -> list[Atoms]:
+    def read_trajectory(self, add_step_info=True, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory.
 
         If the calculation failed, an empty atoms with errof info would be returned.
@@ -706,9 +679,7 @@ class VaspDriver(AbstractDriver):
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
-            prev_wdirs = [
-                self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)
-            ]
+            prev_wdirs = [self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)]
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
         traj_list = []
@@ -720,9 +691,7 @@ class VaspDriver(AbstractDriver):
         # If the latest calculation is not finished/converged, the ouputs will be moved to
         # a new folder 000x.run and an empty trajectory should be return.
         # Even though vasprun file may be empty, the read can give a empty list...
-        curr_frames = self._read_a_single_trajectory(
-            self.directory, archive_path=archive_path
-        )
+        curr_frames = self._read_a_single_trajectory(self.directory, archive_path=archive_path)
         if not curr_frames:  # empty trajectory
             ...
         else:
@@ -740,15 +709,11 @@ class VaspDriver(AbstractDriver):
                     # FIXME: ase complete_cell bug?
                     prev_box = traj_list[i - 1][-1].get_cell(complete=True)
                     curr_box = traj_list[i][0].get_cell(complete=True)
-                    assert np.allclose(
-                        prev_box, curr_box
-                    ), f"Traj {i-1} and traj {i} are not consecutive in cell."
+                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
 
                     prev_pos = traj_list[i - 1][-1].positions
                     curr_pos = traj_list[i][0].positions
-                    pos_vec, _ = find_mic(
-                        prev_pos - curr_pos, traj_list[i - 1][-1].get_cell()
-                    )
+                    pos_vec, _ = find_mic(prev_pos - curr_pos, traj_list[i - 1][-1].get_cell())
                     assert np.allclose(
                         pos_vec, np.zeros(pos_vec.shape)
                     ), f"Traj {i-1} and traj {i} are not consecutive."

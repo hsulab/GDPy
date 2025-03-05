@@ -21,12 +21,12 @@ from joblib import Parallel, delayed
 from tinydb import Query, TinyDB
 
 from gdpx.builder.builder import StructureBuilder
-from gdpx.computation.driver import AbstractDriver
+from gdpx.computation.driver import BaseDriver
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
-from gdpx.utils.profiler import CustomTimer
 from gdpx.utils.logio import remove_extra_stream_handlers
+from gdpx.utils.profiler import CustomTimer
 
 from .utils import copy_minimal_frames, get_file_md5
 from .worker import BaseWorker
@@ -37,7 +37,7 @@ def run_computation_in_commandline(
     structures: list[Atoms],
     computation_dirnames: list[str],
     rng_states,
-    driver: AbstractDriver,
+    driver: BaseDriver,
     directory: pathlib.Path,
     share_wdir: bool,
     print_period: int = 100,
@@ -185,13 +185,13 @@ class DriverBasedWorker(BaseWorker):
         return
 
     @property
-    def driver(self) -> AbstractDriver:
+    def driver(self) -> BaseDriver:
         return self._driver
 
     @driver.setter
     def driver(self, driver_):
         """"""
-        assert isinstance(driver_, AbstractDriver), ""
+        assert isinstance(driver_, BaseDriver), ""
         # TODO: check driver is consistent with potter
         self._driver = driver_
         return

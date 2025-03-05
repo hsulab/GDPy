@@ -11,17 +11,17 @@ import numpy as np
 from ase import Atoms, units
 from ase.calculators.cp2k import parse_input
 
-from gdpx.group import evaluate_constraint_expression
-
-from ..backend.cp2k import (
+from gdpx.backend.cp2k import (
     Cp2kFileIO,
     read_cp2k_convergence,
     read_cp2k_outputs,
     read_cp2k_spc,
     read_cp2k_spc_convergence,
 )
-from ..data.extatoms import ScfErrAtoms
-from .driver import AbstractDriver, Controller, DriverSetting
+from gdpx.data.extatoms import ScfErrAtoms
+from gdpx.group import evaluate_constraint_expression
+
+from .driver import BaseDriver, Controller, DriverSetting
 
 
 @dataclasses.dataclass
@@ -387,7 +387,7 @@ class Cp2kDriverSetting(DriverSetting):
         return run_params
 
 
-class Cp2kDriver(AbstractDriver):
+class Cp2kDriver(BaseDriver):
 
     name = "cp2k"
 
@@ -402,9 +402,7 @@ class Cp2kDriver(AbstractDriver):
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
             if self.setting.task == "spc":
-                verified = read_cp2k_spc_convergence(
-                    self.directory / "cp2k.out"
-                )
+                verified = read_cp2k_spc_convergence(self.directory / "cp2k.out")
             else:
                 checkpoints = list(self.directory.glob("*.restart"))
                 self._debug(f"checkpoints: {checkpoints}")
@@ -417,9 +415,7 @@ class Cp2kDriver(AbstractDriver):
 
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
-        assert isinstance(
-            self.calc, Cp2kFileIO
-        ), "Cp2kDriver must use Cp2kFileIO."
+        assert isinstance(self.calc, Cp2kFileIO), "Cp2kDriver must use Cp2kFileIO."
         if ckpt_wdir is None:  # start from the scratch
             # Check if there is `cp2k.out` from a previous failed calculation.
             # If there are outputs from multiple calculations, the parser for
@@ -443,9 +439,7 @@ class Cp2kDriver(AbstractDriver):
 
             # Ceck constraint
             cons_expr = run_params.pop("constraint", None)
-            _, frozen_indices = evaluate_constraint_expression(
-                atoms, cons_expr
-            )
+            _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
             # if self.setting.task == "freq" and mobile_indices:
             #     mobile_indices = sorted(mobile_indices)
             #     sec.add_keyword(
@@ -462,9 +456,7 @@ class Cp2kDriver(AbstractDriver):
                 frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
                     "MOTION/CONSTRAINT/FIXED_ATOMS",
-                    "LIST {}".format(
-                        " ".join([str(i + 1) for i in frozen_indices])
-                    ),
+                    "LIST {}".format(" ".join([str(i + 1) for i in frozen_indices])),
                 )
         else:
             with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
@@ -508,9 +500,7 @@ class Cp2kDriver(AbstractDriver):
             # - copy wavefunctions...
             restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
             for wfn in restart_wfns:
-                (self.directory / wfn.name).symlink_to(
-                    wfn, target_is_directory=False
-                )
+                (self.directory / wfn.name).symlink_to(wfn, target_is_directory=False)
 
         self.calc.parameters.inp = "\n".join(sec.write())
 
@@ -533,17 +523,13 @@ class Cp2kDriver(AbstractDriver):
         """"""
         if self.setting.task in ["spc"]:
             atoms = read_cp2k_spc(self.directory, prefix="cp2k")
-            scf_convergence = read_cp2k_convergence(
-                pathlib.Path(self.directory) / "cp2k.out"
-            )
+            scf_convergence = read_cp2k_convergence(pathlib.Path(self.directory) / "cp2k.out")
             if not scf_convergence:
                 atoms = ScfErrAtoms.from_atoms(atoms)
                 self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
             traj_frames = [atoms]
         elif self.setting.task in ["min", "cmin", "md"]:
-            prev_wdirs = sorted(
-                self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run")
-            )
+            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
             self._debug(f"prev_wdirs: {prev_wdirs}")
 
             traj_list = []
@@ -553,9 +539,7 @@ class Cp2kDriver(AbstractDriver):
 
             cp2ktraj = self.directory / "cp2k-pos-1.xyz"
             if cp2ktraj.exists() and cp2ktraj.stat().st_size != 0:
-                traj_list.append(
-                    read_cp2k_outputs(self.directory, prefix=self.name)
-                )
+                traj_list.append(read_cp2k_outputs(self.directory, prefix=self.name))
 
             # -- concatenate
             traj_frames, ntrajs = [], len(traj_list)

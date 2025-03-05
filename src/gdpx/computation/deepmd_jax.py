@@ -2,21 +2,19 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 import dataclasses
 import json
 import pathlib
 import shutil
-from typing import List, Optional, Union
+from typing import Optional, Union
 
-import jax_md
 import numpy as np
 from ase import Atoms, units
 from ase.data import atomic_masses, atomic_numbers
 from ase.io import read, write
 from deepmd_jax.md import Simulation
 
-from .driver import AbstractDriver, Controller, DriverSetting
+from .driver import BaseDriver, Controller, DriverSetting
 
 
 def save_trajectory_and_checkpoint(
@@ -92,7 +90,7 @@ def run_dynamics(
         start,
         start + ckpt_period + 1,
         dump_period,
-        end_step=start+steps,
+        end_step=start + steps,
         wdir=wdir,
         append=False,
         ckpt_number=ckpt_number,
@@ -107,7 +105,7 @@ def run_dynamics(
             start + i * ckpt_period + 1,
             start + (i + 1) * ckpt_period + 1,
             dump_period,
-            end_step=start+steps,
+            end_step=start + steps,
             wdir=wdir,
             append=True,
             ckpt_number=ckpt_number,
@@ -123,13 +121,14 @@ def run_dynamics(
             start + num_chunks * ckpt_period + 1,
             start + num_chunks * ckpt_period + remaining_steps + 1,
             dump_period,
-            end_step=start+steps,
+            end_step=start + steps,
             wdir=wdir,
             append=True,
             ckpt_number=ckpt_number,
         )
 
     return
+
 
 @dataclasses.dataclass
 class Verlet(Controller):
@@ -189,6 +188,7 @@ class NoseHooverChainThermostat(Controller):
 
         return
 
+
 @dataclasses.dataclass
 class NoseHooverChainBarostat(NoseHooverChainThermostat):
 
@@ -211,7 +211,7 @@ class NoseHooverChainBarostat(NoseHooverChainThermostat):
             tau_p=taup,
             chain_length_p=chain_length_p,
             chain_steps_p=chain_steps_p,
-            sy_steps_p=1
+            sy_steps_p=1,
         )
 
         return
@@ -250,10 +250,7 @@ class DeepmdJaxDriverSetting(DriverSetting):
         _init_params = {}
         if self.task == "md":
             suffix = self.ensemble
-            _init_params.update(
-                temperature=self.temp, pressure=self.press,
-                timestep=self.timestep
-            )
+            _init_params.update(temperature=self.temp, pressure=self.press, timestep=self.timestep)
         else:
             raise RuntimeError(f"Failed to parse task {self.task}.")
         _init_params.update(**self.controller)
@@ -283,7 +280,7 @@ class DeepmdJaxDriverSetting(DriverSetting):
         return run_params
 
 
-class DeepmdJaxDriver(AbstractDriver):
+class DeepmdJaxDriver(BaseDriver):
 
     #: Driver's name.
     name: str = "jax"
@@ -292,7 +289,7 @@ class DeepmdJaxDriver(AbstractDriver):
     default_task: str = "spc"
 
     #: Supported tasks.
-    supported_tasks: List[str] = ["spc", "min", "md"]
+    supported_tasks: list[str] = ["spc", "min", "md"]
 
     #: Class for setting.
     setting_cls: type[DriverSetting] = DeepmdJaxDriverSetting
@@ -327,7 +324,7 @@ class DeepmdJaxDriver(AbstractDriver):
             )
             start = 0
             steps = run_params["steps"]
-            with open(self.directory/"params.json", "w") as fopen:
+            with open(self.directory / "params.json", "w") as fopen:
                 json.dump(dict(init=init_params, run=run_params), fopen, indent=2)
         else:
             assert ckpt_wdir is not None
@@ -375,9 +372,7 @@ class DeepmdJaxDriver(AbstractDriver):
 
     def _find_latest_checkpoint(self, wdir: pathlib.Path) -> pathlib.Path:
         """"""
-        ckpt_dirs = sorted(
-            wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1])
-        )
+        ckpt_dirs = sorted(wdir.glob("checkpoint.*"), key=lambda x: int(x.name.split(".")[-1]))
         latest_ckpt_dir = ckpt_dirs[-1]
 
         return latest_ckpt_dir
@@ -407,9 +402,7 @@ class DeepmdJaxDriver(AbstractDriver):
 
         return frames
 
-    def read_trajectory(
-        self, archive_path: Optional[Union[str, pathlib.Path]] = None, *args, **kwargs
-    ) -> List[Atoms]:
+    def read_trajectory(self, archive_path: Optional[Union[str, pathlib.Path]] = None, *args, **kwargs) -> list[Atoms]:
         """"""
         traj_frames = self._aggregate_trajectories(archive_path=archive_path)
 

@@ -23,12 +23,12 @@ from ase.data import atomic_masses, atomic_numbers
 from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
+from gdpx import config
+from gdpx.backend.lammps import parse_thermo_data_by_pattern
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
 
-from .. import config
-from ..backend.lammps import parse_thermo_data_by_pattern
-from .driver import AbstractDriver, Controller, DriverSetting
+from .driver import BaseDriver, Controller, DriverSetting
 
 
 @dataclasses.dataclass(frozen=True)
@@ -386,7 +386,7 @@ class LmpDriverSetting(DriverSetting):
         return run_params
 
 
-class LmpDriver(AbstractDriver):
+class LmpDriver(BaseDriver):
     """Use lammps to perform dynamics.
 
     Minimisation and/or molecular dynamics.

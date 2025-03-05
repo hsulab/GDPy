@@ -23,7 +23,7 @@ from ase.io import read, write
 from gdpx.group import evaluate_constraint_expression
 from gdpx.utils.strconv import integers_to_string
 
-from .driver import AbstractDriver, DriverSetting
+from .driver import BaseDriver, DriverSetting
 
 """Driver and calculator of LaspNN.
 
@@ -111,9 +111,7 @@ def read_laspset(train_structures):
                     anumbers.append(int(data[0]))
                     positions.append([float(x) for x in data[1:4]])
                     charges.append(float(data[-1]))
-                atoms = Atoms(
-                    numbers=anumbers, positions=positions, cell=cell, pbc=True
-                )
+                atoms = Atoms(numbers=anumbers, positions=positions, cell=cell, pbc=True)
                 assert fopen.readline().strip().startswith("End one structure")
                 frames.append(atoms)
                 # break
@@ -127,9 +125,7 @@ def read_laspset(train_structures):
             line = fopen.readline()
             if line.strip().startswith("Start one structure"):
                 # - stress, voigt order
-                stress = np.array(
-                    fopen.readline().strip().split()[1:], dtype=float
-                )
+                stress = np.array(fopen.readline().strip().split()[1:], dtype=float)
                 # - symbols, forces
                 anumbers, forces = [], []
                 line = fopen.readline()
@@ -148,9 +144,7 @@ def read_laspset(train_structures):
                 break
 
     for i, atoms in enumerate(frames):
-        calc = SinglePointCalculator(
-            atoms, energy=all_energies[i], forces=all_forces[i]
-        )
+        calc = SinglePointCalculator(atoms, energy=all_energies[i], forces=all_forces[i])
         atoms.calc = calc
     write(train_structures.parent / "dataset.xyz", frames)
 
@@ -186,17 +180,11 @@ def read_lasp_structures(
             for tarinfo in tar:
                 if tarinfo.name.startswith(wdir.name):
                     if tarinfo.name == stru_tarname:
-                        stru_io = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        stru_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                     elif tarinfo.name == afrc_tarname:
-                        afrc_io = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        afrc_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                     elif tarinfo.name == lout_tarname:
-                        lout_io = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        lout_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                     else:
                         ...
                 else:
@@ -232,9 +220,7 @@ def read_lasp_structures(
                 energy = float(energy_data)
             except ValueError:
                 energy = np.inf
-                msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(
-                    wdir
-                )
+                msg = "Energy is too large at {}. The structure maybe ill-constructed.".format(wdir)
                 warnings.warn(msg, UserWarning)
             traj_energies.append(energy)
             # stress
@@ -264,9 +250,7 @@ def read_lasp_structures(
             pass
         if not line:  # if line == "":
             break
-    assert len(traj_frames) == len(
-        traj_steps
-    ), "Output number is inconsistent."
+    assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
 
     # - create traj
     for i, atoms in enumerate(traj_frames):
@@ -323,9 +307,7 @@ class LaspDriverSetting(DriverSetting):
                     "SSW.ftol": self.fmax,
                 }
             )
-            assert (
-                self.dump_period == 1
-            ), "LaspDriver/min must have dump_period ==1."
+            assert self.dump_period == 1, "LaspDriver/min must have dump_period ==1."
         elif self.task == "cmin":
             self._internals.update(
                 **{
@@ -336,9 +318,7 @@ class LaspDriverSetting(DriverSetting):
                     "SSW.strtol": self.smax,  # GPa
                 }
             )
-            assert (
-                self.dump_period == 1
-            ), "LaspDriver/cmin must have dump_period ==1."
+            assert self.dump_period == 1, "LaspDriver/cmin must have dump_period ==1."
         elif self.task == "md":
             if self.tend is None:
                 self.tend = self.temp
@@ -378,8 +358,7 @@ class LaspDriverSetting(DriverSetting):
             run_params.update(
                 **{
                     "MD.ttotal": timestep * steps_,
-                    "MD.print_freq": self.dump_period
-                    * timestep,  # freq has unit fs
+                    "MD.print_freq": self.dump_period * timestep,  # freq has unit fs
                     "MD.print_strfreq": self.dump_period * timestep,
                 }
             )
@@ -390,7 +369,7 @@ class LaspDriverSetting(DriverSetting):
         return run_params
 
 
-class LaspDriver(AbstractDriver):
+class LaspDriver(BaseDriver):
     """Driver for LASP."""
 
     name = "lasp"
@@ -451,9 +430,7 @@ class LaspDriver(AbstractDriver):
                     self._debug("use cache trajectory to restart...")
                     traj = cache_traj
                 nframes = len(traj)
-                assert (
-                    nframes > 0
-                ), "LaspDriver restarts with a zero-frame trajectory."
+                assert nframes > 0, "LaspDriver restarts with a zero-frame trajectory."
                 atoms = traj[-1]
                 target_steps = self.setting.steps
                 dump_period = self.setting.dump_period
@@ -482,15 +459,11 @@ class LaspDriver(AbstractDriver):
         self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs
     ) -> List[Atoms]:
         """"""
-        curr_frames = read_lasp_structures(
-            self.directory, wdir, archive_path=archive_path
-        )
+        curr_frames = read_lasp_structures(self.directory, wdir, archive_path=archive_path)
 
         return curr_frames
 
-    def read_trajectory(
-        self, archive_path: pathlib.Path = None, *args, **kwargs
-    ) -> List[Atoms]:
+    def read_trajectory(self, archive_path: pathlib.Path = None, *args, **kwargs) -> List[Atoms]:
         """Read trajectory in the current working directory."""
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
@@ -502,9 +475,7 @@ class LaspDriver(AbstractDriver):
 
         # Even though arc file may be empty, the read can give a empty list...
         laspstr = self.directory / "allstr.arc"
-        traj_list.append(
-            self._read_a_single_trajectory(self.directory, archive_path)
-        )
+        traj_list.append(self._read_a_single_trajectory(self.directory, archive_path))
 
         # -- concatenate
         traj_frames, ntrajs = [], len(traj_list)
@@ -618,9 +589,7 @@ class LaspNN(FileIOCalculator):
         # - potential choice
         # NOTE: only for LaspNN now
         content = "potential {}\n".format(self.parameters["potential"])
-        assert (
-            self.parameters["potential"] == "NN"
-        ), "Lasp calculator only support NN now."
+        assert self.parameters["potential"] == "NN", "Lasp calculator only support NN now."
 
         content += "%block netinfo\n"
         for atype in atomic_types:
@@ -637,9 +606,7 @@ class LaspNN(FileIOCalculator):
         cons_expr = self.parameters["constraint"]
         _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
         if frozen_indices:
-            frozen_text = integers_to_string(
-                frozen_indices, inp_convention="ase"
-            )
+            frozen_text = integers_to_string(frozen_indices, inp_convention="ase")
         else:
             frozen_text = None
 
@@ -678,15 +645,11 @@ class LaspNN(FileIOCalculator):
                 "MD.print_strfreq",
             ]
             if explore_type == "nvt":
-                required_keys.extend(
-                    ["MD.initial_T", "MD.target_T", "MD.equit"]
-                )
+                required_keys.extend(["MD.initial_T", "MD.target_T", "MD.equit"])
             if explore_type == "npt":
                 required_keys.extend(["MD.target_P"])
 
-            self.parameters["MD.ttotal"] = (
-                self.parameters["MD.dt"] * self.parameters["SSW.MaxOptstep"]
-            )
+            self.parameters["MD.ttotal"] = self.parameters["MD.dt"] * self.parameters["SSW.MaxOptstep"]
 
             for k, v in self.parameters.items():
                 if k == "MD.target_P":
@@ -722,9 +685,7 @@ class LaspNN(FileIOCalculator):
         if lasp_out.exists():
             with open(lasp_out, "r") as fopen:
                 lines = fopen.readlines()
-            if lines[-1].strip().startswith(  # NOTE: its a typo in LASP!!
-                "elapse_time"
-            ) or lines[  # v3.3.4
+            if lines[-1].strip().startswith("elapse_time") or lines[  # NOTE: its a typo in LASP!!  # v3.3.4
                 -1
             ].strip().startswith(
                 "Elapse_time"

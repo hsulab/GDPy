@@ -20,7 +20,7 @@ from ase.md.velocitydistribution import (
     ZeroRotation,
 )
 
-from .driver import AbstractDriver, Controller, DriverSetting
+from .driver import BaseDriver, Controller, DriverSetting
 
 #: This makes the kinetic energy has a unit of eV and velocity Ang/fs.
 MASS_CONVERTOR: float = 1.036427e2
@@ -137,7 +137,7 @@ class JarexDriverSetting(DriverSetting):
         return run_params
 
 
-class JarexDriver(AbstractDriver):
+class JarexDriver(BaseDriver):
 
     #: Driver's name.
     name: str = "jax"
