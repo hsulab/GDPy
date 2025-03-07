@@ -605,21 +605,23 @@ class DriverBasedWorker(BaseWorker):
 
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in running_jobs:
-                self._print(f">> inspect {job_name}")
+                # Get batch information
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
                 curr_batch = doc_data["group_number"]
 
-                # self.scheduler.set(**{"job-name": job_name})
+                self._print(f">> inspect batch [[{curr_batch:>2d}]]  jobid [[{uid}]]")
+
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory / f"run-{uid}.script"
 
-                # check if the job is still running (or in the queue)
+                # Check if the job is still running (or in the queue)
                 # True if the task finished correctly not due to time-limit
                 if self.scheduler.is_finished():
-                    is_finished = False  # whether all calculations are correctly finished
+                    is_finished = False
                     wdir_names = doc_data["wdir_names"]  # cand0 cand1 ... cand{N-1} cand{N}
+                    # Sync computation folders if the jobs are done in remote
                     if hasattr(self.scheduler, "_sync_remote"):
                         self.scheduler._sync_remote(wdir_names=wdir_names)
                     else:
@@ -656,7 +658,6 @@ class DriverBasedWorker(BaseWorker):
                         else:
                             ...
                     if is_finished:
-                        # -- finished correctly
                         self._print(f"{job_name} is finished...")
                         doc_data = database.get(Query().gdir == job_name)
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
