@@ -62,18 +62,26 @@ class DeepmdManager(BasePotentialManager):
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             try:
-                from deepmd._version import version as dp_version
-
-                if dp_version.startswith("2"):
-                    from .calculator import DP
-                elif dp_version.startswith("3"):
-                    from .calculator_v3 import DP
-                else:
-                    raise Exception(f"Unknown deepmd version {dp_version}.")
-
-                remove_extra_stream_handlers()
+                import deepmd
             except:
                 raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
+
+            try:
+                from deepmd._version import version as dp_version
+            except:
+                # Some releases do not have _version, thus, fall back to v2,
+                # for example, v2.2.10
+                dp_version = "2"
+
+            if dp_version.startswith("2"):
+                from .calculator import DP
+            elif dp_version.startswith("3"):
+                from .calculator_v3 import DP
+            else:
+                raise Exception(f"Unknown deepmd version {dp_version}.")
+
+            remove_extra_stream_handlers()
+
             shared_params = dict(type_dict=type_map)
             if head is not None:
                 shared_params["head"] = head
