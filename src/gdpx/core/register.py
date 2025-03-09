@@ -144,6 +144,7 @@ ALL_MODULES = [
             "scheduler",
             "expedition",
             "comparator",
+            "potential",
         ],
     ),
 ]
