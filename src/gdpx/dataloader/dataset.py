@@ -222,8 +222,7 @@ class XyzDataloader(AbstractDataloader):
         data_dirs = self.load()
         self._debug(data_dirs)
 
-        # - aggregate data folders
-        # dir_indices = list(range(data_dirs))
+        # Aggregate data folders into systems
         system_paths = []
         for d in data_dirs:
             d_tree = d.parts
@@ -249,13 +248,13 @@ class XyzDataloader(AbstractDataloader):
             else:
                 system_groups[k].extend([data_dirs[e[0]] for e in v])
 
-        # -- convert to tuple
+        # Convert to tuple
         system_groups_ = []
         for k, v in system_groups.items():
             system_groups_.append([k, v])
         system_groups = system_groups_
 
-        # check batchsize
+        # Check batchsize
         batchsizes = self.batchsize
         nsystems = len(system_groups)
         if isinstance(batchsizes, int) or isinstance(batchsizes, str):
@@ -264,7 +263,7 @@ class XyzDataloader(AbstractDataloader):
             ...  # assume self.batchsize is a list
         assert len(batchsizes) == nsystems, "Number of systems and batchsizes are inconsistent."
 
-        # read configurations
+        # Load configurations
         set_names = []
         train_size, test_size = [], []
         train_frames, test_frames = [], []
@@ -342,7 +341,10 @@ class XyzDataloader(AbstractDataloader):
         test_size = sum(test_size)
         self._print(f"Total Dataset -> ntrain: {train_size} ntest: {test_size} nbatches: {accumulated_batches}")
 
-        # - map keys
+        if train_size == 0:
+            raise Exception("The dataset must have at least one structure.")
+
+        # Map property keys
         should_map_keys = False
         for mapping_pairs in self.prop_keys:
             dst_key, src_key = mapping_pairs
