@@ -26,8 +26,14 @@ class CompareSelector(BaseSelector):
 
     name: str = "compare"
 
-    def __init__(self, comparator: dict, *args, **kwargs) -> None:
-        """"""
+    def __init__(self, comparator: dict, write_report: bool=False, *args, **kwargs) -> None:
+        """Initialise the selector.
+
+        Args:
+            comparator: The comparator configuration.
+            write_report: Whether to write a report. Defaults to False.
+
+        """
         super().__init__(*args, **kwargs)
 
         if self.group_by is not None:
@@ -39,6 +45,8 @@ class CompareSelector(BaseSelector):
             raise Exception(f"Unknown comparator: {comparator_name}")
 
         self.comparator = COMPARATOR_REGISTER[comparator_name](**comparator_config)
+
+        self.write_report = write_report
 
         if self.group_by is not None:
             raise Exception("Group_by is not supported in compare.")
@@ -122,7 +130,7 @@ class CompareSelector(BaseSelector):
             # selected_indices = new_selected_indices
             # unique_groups = new_unique_groups
 
-            if USE_REPORTLAB:
+            if USE_REPORTLAB and self.write_report:
                 self.report(structures, unique_groups)
             else:
                 self._print("Please install `reportlab` to report comparison.")
