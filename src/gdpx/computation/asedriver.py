@@ -423,6 +423,40 @@ class NoseHooverThermostat(MDController):
 
 
 @dataclasses.dataclass
+class NoseHooverChainThermostat(MDController):
+
+    name: str = "nose_hoover_chain"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        taut = self.params.get("Tdamp", 100.0)  # fs
+        taut *= units.fs
+        assert taut is not None
+
+        chain_length = self.params.get("chain_length", 3)
+        assert chain_length is not None
+
+        chain_steps = self.params.get("chain_steps", 1)
+        assert chain_steps is not None
+
+        from ase.md.nose_hoover_chain import NoseHooverChainNVT
+
+        driver_cls = functools.partial(
+            NoseHooverChainNVT,
+            timestep=self.timestep,  # ase units
+            temperature_K=self.temperature,  # K
+            tdamp=taut,  # ase units
+            tchain=chain_length,
+            tloop=chain_steps,
+        )
+        self.params.update(driver_cls=driver_cls)
+
+        return
+
+
+@dataclasses.dataclass
 class BerendsenBarostat(MDController):
 
     name: str = "berendsen"
@@ -502,6 +536,7 @@ controllers = dict(
     berendsen_nvt=BerendsenThermostat,
     langevin_nvt=LangevinThermostat,
     nose_hoover_nvt=NoseHooverThermostat,
+    nose_hoover_chain_nvt=NoseHooverChainThermostat,
     monte_carlo_nvt=MonteCarloController,
     # - npt
     berendsen_npt=BerendsenBarostat,
