@@ -187,8 +187,9 @@ class BasePotentialTrainer(BaseComponent):
         trainer_params["command"] = self.command
         trainer_params["freeze_command"] = self.freeze_command
         trainer_params["train_epochs"] = self.train_epochs
+        trainer_params["print_epochs"] = self.print_epochs
 
-        # NOTE: self.random_seed may be changed thus we save the init one
+        # We better save the init one as self.random_seed may be changed
         trainer_params["random_seed"] = self.init_random_seed
 
         trainer_params = copy.deepcopy(trainer_params)
