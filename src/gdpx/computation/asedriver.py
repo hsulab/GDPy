@@ -471,7 +471,7 @@ class BerendsenBarostat(MDController):
         taut *= units.fs
         assert taut is not None
 
-        taup = self.params.get("Pdamp", 100.0)  # fs
+        taup = self.params.get("Pdamp", 1000.0)  # fs
         taup *= units.fs
         assert taup is not None
 
