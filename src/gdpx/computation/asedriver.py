@@ -735,6 +735,8 @@ class AseDriver(BaseDriver):
                 json.dump(curr_params, fopen, indent=2)
         else:  # restart ...
             ckpt_wdir = self._find_latest_checkpoint(ckpt_wdir)
+            if ckpt_wdir is None:
+                raise Exception(f"No checkpoint found in {str(self.directory)}.")
             atoms, rng_state = self._load_checkpoint(ckpt_wdir)
             write(self.directory / self.xyz_fname, atoms)
             start_step = atoms.info["step"]
@@ -742,7 +744,7 @@ class AseDriver(BaseDriver):
                 for calc in self.calc.calcs:
                     if hasattr(calc, "_load_checkpoint"):
                         calc._load_checkpoint(ckpt_wdir, start_step=start_step)
-            # --- update run_params in settings
+            # Update run_params in settings
             target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
             if target_steps > 0:
                 if self.setting.task == "md":
@@ -750,16 +752,18 @@ class AseDriver(BaseDriver):
                 else:
                     # ase v3.22.1 opt will reset max_steps to steps in run
                     steps = target_steps
-            assert steps > 0, "Steps should be greater than 0."
+            else:
+                raise Exception("The remaining steps should be greater than 0.")
+
             kwargs.update(steps=steps)
 
             # To restart, velocities are always retained
             self.setting.ignore_atoms_velocities = False
 
-        # - set calculator
+        # Set calculator
         atoms.calc = self.calc
 
-        # - set dynamics
+        # Set dynamics
         dynamics, run_params = self._create_dynamics(atoms, start_step=start_step, *args, **kwargs)
         dynamics.nsteps = start_step
         dynamics.max_steps = self.setting.steps
