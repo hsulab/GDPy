@@ -686,7 +686,10 @@ class compute_chain(Operation):
                 print_func=self._print,
             )
             chain_status.append(status)
-            chain_outputs.append(output.tolist())
+            if output is not None:
+                chain_outputs.append(output.tolist())
+            else:
+                chain_outputs.append(output)
 
         if all([s == "finished" for s in chain_status]):
             output = AtomsNDArray(chain_outputs)
