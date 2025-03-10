@@ -74,7 +74,7 @@ class ComputerChainVariable(Variable):
         value = self._canonicalise_input_nodes([computers])
         super().__init__(value)
 
-        self._init_params = copy.deepcopy([c.as_dict() for c in value])
+        self._init_params = copy.deepcopy([[w.as_dict() for w in c] for c in value])
 
         return
 
@@ -97,12 +97,19 @@ class ComputerChainVariable(Variable):
                 computers_.append(computer_)
             computers = computers_
         else:
-            raise RuntimeError()
+            raise Exception()
 
-        value = []  # list[list[Worker]]
-        for i, computer in enumerate(computers):
-            assert len(computer.value) == 1, f"ChainStep.{str(i).zfill(2)} has more than one workers."
-            value.append(computer.value[0])
+        # TODO: We'd better make computer_chain as a class?
+        num_workers_per_chain = len(computers[0].value)
+
+        # Add the first chain
+        value = [[] for _ in range(num_workers_per_chain)]  # size (num_chainsteps, num_chains)
+        for i, computer in enumerate(computers):  # i -> chainstep index
+            num = len(computer.value)
+            if num != num_workers_per_chain:
+                raise Exception(f"chainstep.{i:>02d} need {num_workers_per_chain:>2d} workers but got {num:>2d}.")
+            for j, worker in enumerate(computer.value):  # j -> chain index
+                value[j].append(worker)
 
         return value
 

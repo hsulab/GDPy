@@ -506,6 +506,132 @@ class compute(Operation):
 class ChainStepEarlystop(Exception): ...
 
 
+def run_chain_step(
+    structures,
+    workers,
+    directory: pathlib.Path,
+    observers,
+    batchsize: Optional[int] = None,
+    use_archive: bool = True,
+    extract_data: bool = True,
+    print_func=print,
+):
+    """Run workers as a chain."""
+    # Adjust worker directory and batchsize
+    num_structures = len(structures)
+    for i, worker in enumerate(workers):
+        worker.directory = directory / f"chainstep.{str(i).zfill(2)}"
+        if batchsize is not None:
+            worker.batchsize = batchsize
+        else:
+            worker.batchsize = num_structures
+
+    # Overwrite worker directory if there is only one worker
+    num_workers = len(workers)
+    if num_workers == 1:
+        workers[0].directory = directory
+    else:
+        ...
+
+    def run_one_step(worker, structures) -> bool:
+        """"""
+        _ = worker.run(structures)
+        worker.inspect(resubmit=True)
+
+        is_finished = False
+        if worker.get_number_of_running_jobs() == 0:
+            is_finished = True
+        else:
+            ...
+
+        return is_finished
+
+    is_finished, is_earlystopped = False, False
+
+    curr_structures = structures
+    for istep, worker in enumerate(workers):
+        step_suffix = f"{istep:>02d}"
+        print_func(f"<- ComputerChainStep.{step_suffix} ->")
+        flag_fpath = worker.directory / f"FINISHED.{step_suffix}"
+        stop_fpath = worker.directory / f"EARLYSTOP.{step_suffix}"
+        if not flag_fpath.exists():
+            is_step_finished = run_one_step(worker, curr_structures)
+            if is_step_finished:
+                config._print("chainstep is finished.")
+                results = worker.retrieve(include_retrieved=True, use_archive=use_archive)
+                (worker.directory / "extracted").mkdir(exist_ok=True)
+                AtomsNDArray(results).save_file(worker.directory / "extracted" / "results.h5")
+                curr_structures = [res[-1] for res in results]
+                write(worker.directory / "end_frames.xyz", curr_structures)
+                with open(flag_fpath, "w") as fopen:
+                    fopen.write(f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}.")
+                # Check whether we should stop at this chainstep
+                try:
+                    for i, observer in enumerate(observers):
+                        for j, atoms in enumerate(curr_structures):
+                            if observer.run(atoms):
+                                raise ChainStepEarlystop(f"{observer.__class__.__name__} stops at candidate {j}")
+                except ChainStepEarlystop as e:
+                    print_func(str(e))
+                    is_finished, is_earlystopped = True, True
+                    content = f"{stop_fpath} AT {time.asctime( time.localtime(time.time()) )}."
+                    with open(stop_fpath, "w") as fopen:
+                        fopen.write(content)
+                    print_func(content)
+                    break
+            else:
+                break
+        else:
+            curr_structures = read(worker.directory / "end_frames.xyz", ":")
+            with open(flag_fpath, "r") as fopen:
+                content = fopen.readlines()
+            print_func(content)
+            if stop_fpath.exists():
+                with open(stop_fpath, "r") as fopen:
+                    content = fopen.readlines()
+                print_func(content)
+                is_finished, is_earlystopped = True, True
+                break
+    else:
+        is_finished = True
+
+    # Check status and extract data
+    status = "unfinished"
+    if is_finished:
+        if extract_data:
+            print_func("--- extract results ---")
+            new_results = []
+            for i, worker in enumerate(workers):
+                curr_results = AtomsNDArray.from_file(worker.directory / "extracted" / "results.h5")
+                # TODO: inhomogeneous trajectories?
+                #       some candidates maybe stopped but some are not?
+                if i == 0:
+                    for res in curr_results:
+                        new_results.append(res)
+                else:  # i > 0:
+                    num_candidates = len(new_results)
+                    for j in range(num_candidates):
+                        new_results[j].extend(curr_results[j][1:])
+                if is_earlystopped:
+                    if (worker.directory / f"EARLYSTOP.{str(i).zfill(2)}").exists():
+                        with open(
+                            worker.directory / f"EARLYSTOP.{str(i).zfill(2)}",
+                            "r",
+                        ) as fopen:
+                            content = fopen.readlines()
+                        print_func(content)
+                        break
+            output = AtomsNDArray(new_results)
+            print_func(f"{output =}")
+        else:
+            output = workers
+        status = "finished"
+    else:
+        output = None
+
+    return status, output
+
+
 @registers.operation.register
 class compute_chain(Operation):
 
@@ -523,14 +649,17 @@ class compute_chain(Operation):
         """"""
         super().__init__(input_nodes=[structures, worker], directory=directory)
 
-        # other params
+        # Other parameters
         self.observers = []
         if observers is not None:
             for ob_params in observers:
                 self.observers.append(create_an_observer(ob_params))
         self.batchsize = batchsize
         self.use_archive = use_archive
+
         self.extract_data = extract_data
+        if not self.extract_data:
+            raise Exception("compute_chain cannot forward workers for now.")
 
         return
 
@@ -538,109 +667,31 @@ class compute_chain(Operation):
         """"""
         super().forward()
 
-        num_workers = len(workers)
-        self._print(f"{num_workers =}")
+        num_chains = len(workers)
 
-        num_frames = len(structures)
+        chain_status, chain_outputs = [], []
+        for ichain, chain in enumerate(workers):
+            chain_suffix = f"{ichain:>02d}"
+            chain_directory = self.directory / f"w.{chain_suffix}"
+            if num_chains == 1:
+                chain_directory = self.directory
+            self._print(f"! Running ComputerChain.{chain_suffix}")
+            status, output = run_chain_step(
+                structures=structures,
+                workers=chain,
+                directory=chain_directory,
+                observers=self.observers,
+                batchsize=self.batchsize,
+                use_archive=self.use_archive,
+                print_func=self._print,
+            )
+            chain_status.append(status)
+            chain_outputs.append(output.tolist())
 
-        for i, worker in enumerate(workers):
-            worker.directory = self.directory / f"chainstep.{str(i).zfill(2)}"
-            if self.batchsize is not None:
-                worker.batchsize = self.batchsize
-            else:
-                worker.batchsize = num_frames
-        if num_workers == 1:
-            workers[0].directory = self.directory
-
-        def run_one_step(worker, structures) -> bool:
-            """"""
-            _ = worker.run(structures)
-            worker.inspect(resubmit=True)
-
-            is_finished = False
-            if worker.get_number_of_running_jobs() == 0:
-                is_finished = True
-            else:
-                ...
-
-            return is_finished
-
-        is_finished, is_earlystopped = False, False
-
-        curr_structures = structures
-        for istep, worker in enumerate(workers):
-            self._print(f"<- ComputerChainStep.{str(istep).zfill(2)} ->")
-            flag_fpath = worker.directory / f"FINISHED.{str(istep).zfill(2)}"
-            stop_fpath = worker.directory / f"EARLYSTOP.{str(istep).zfill(2)}"
-            if not flag_fpath.exists():
-                is_step_finished = run_one_step(worker, curr_structures)
-                if is_step_finished:
-                    config._print("chainstep is finished.")
-                    results = worker.retrieve(include_retrieved=True, use_archive=self.use_archive)
-                    (worker.directory / "extracted").mkdir(exist_ok=True)
-                    AtomsNDArray(results).save_file(worker.directory / "extracted" / "results.h5")
-                    curr_structures = [res[-1] for res in results]
-                    write(worker.directory / "end_frames.xyz", curr_structures)
-                    with open(flag_fpath, "w") as fopen:
-                        fopen.write(f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}.")
-                    # earlystop?
-                    try:
-                        for i, observer in enumerate(self.observers):
-                            for j, atoms in enumerate(curr_structures):
-                                if observer.run(atoms):
-                                    raise ChainStepEarlystop(f"{observer.__class__.__name__} stops at candidate {j}")
-                    except ChainStepEarlystop as e:
-                        self._print(str(e))
-                        is_finished, is_earlystopped = True, True
-                        content = f"{stop_fpath} AT {time.asctime( time.localtime(time.time()) )}."
-                        with open(stop_fpath, "w") as fopen:
-                            fopen.write(content)
-                        self._print(content)
-                        break
-                else:
-                    break
-            else:
-                curr_structures = read(worker.directory / "end_frames.xyz", ":")
-                with open(flag_fpath, "r") as fopen:
-                    content = fopen.readlines()
-                self._print(content)
-                if stop_fpath.exists():
-                    with open(stop_fpath, "r") as fopen:
-                        content = fopen.readlines()
-                    self._print(content)
-                    is_finished, is_earlystopped = True, True
-                    break
-        else:
-            is_finished = True
-
-        if is_finished:
-            if self.extract_data:
-                self._print("--- extract results ---")
-                new_results = []
-                for i, worker in enumerate(workers):
-                    curr_results = AtomsNDArray.from_file(worker.directory / "extracted" / "results.h5")
-                    # TODO: inhomogeneous trajectories?
-                    if i == 0:
-                        for res in curr_results:
-                            new_results.append(res)
-                    else:  # i > 0:
-                        num_candidates = len(new_results)
-                        for j in range(num_candidates):
-                            new_results[j].extend(curr_results[j][1:])
-                    if is_earlystopped:
-                        if (worker.directory / f"EARLYSTOP.{str(i).zfill(2)}").exists():
-                            with open(
-                                worker.directory / f"EARLYSTOP.{str(i).zfill(2)}",
-                                "r",
-                            ) as fopen:
-                                content = fopen.readlines()
-                            self._print(content)
-                            break
-                output = AtomsNDArray(new_results)
-                self._print(f"{output =}")
-            else:
-                output = workers
+        if all([s == "finished" for s in chain_status]):
+            output = AtomsNDArray(chain_outputs)
             self.status = "finished"
+            self._print(f"compute_chain results: {output}")
         else:
             output = None
 
