@@ -18,6 +18,7 @@ def run_session(
     config_filepath: Union[str, pathlib.Path],
     feed_command: Optional[list[str]] = None,
     timewait: float = -1.0,
+    num_repeats: int = 1000,
     directory: Union[str, pathlib.Path] = "./",
 ):
     """Configure session with omegaconfig."""
@@ -43,7 +44,7 @@ def run_session(
     # We may not use an explicit daemon here as it may be killed by the
     # administrator.
     if timewait > 0:
-        for i in range(1000):
+        for i in range(num_repeats):
             SessionInitialiser.cache_nodes = (
                 {}
             )  # Clear cache before a new run.

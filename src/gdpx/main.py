@@ -59,6 +59,12 @@ def main():
         type=float,
         help="waiting time between repeated running",
     )
+    parser_session.add_argument(
+        "--repeats",
+        default=1000,
+        type=int,
+        help="number of repeat times"
+    )
 
     # - build structures
     parser_build = subparsers.add_parser(
@@ -226,7 +232,7 @@ def main():
     if args.subcommand == "session":
         from .cli.session import run_session
 
-        run_session(args.SESSION, args.feed, args.timewait, args.directory)
+        run_session(args.SESSION, args.feed, args.timewait, args.repeats, args.directory)
     elif args.subcommand == "convert":
         from .cli.convert import convert_dataset
 
