@@ -48,7 +48,7 @@ def run_session(
             SessionInitialiser.cache_nodes = (
                 {}
             )  # Clear cache before a new run.
-            config._print(f"... Daemon is running step {i:>04d} ...")
+            config._print("\x1b[1;32;40m" + f"... Daemon is running step {i:>04d} ..." + "\x1b[0m")
             config_dict = copy.deepcopy(raw_config_dict)
             is_finished = run_session_from_dict(
                 config_dict, feed_command, directory
