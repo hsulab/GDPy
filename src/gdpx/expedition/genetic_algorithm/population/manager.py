@@ -4,12 +4,13 @@
 
 import copy
 import pathlib
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.ga.data import DataConnection
+from ase.geometry import find_mic
 from ase.io import read
 
 from gdpx.utils.atoms_tags import get_tags_per_species
@@ -57,11 +58,49 @@ def clean_seed_structures(prev_frames: List[Atoms]) -> List[Atoms]:
     return curr_frames
 
 
-def is_reproduction_isolation(candidates: Optional[tuple[Atoms, Atoms]]) -> bool:
+def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20, print_func: Callable = print) -> bool:
+    """Compare two atoms by substrates.
+
+    Args:
+        a0: The first structure.
+        a1: The second structure.
+        dtol: The distance tolerance.
+
+    """
+    similar = True
+
+    # Find the substrate in the atoms, which always has zero tags.
+    a0_substrate_indices = [i for i, tag in enumerate(a0.get_tags()) if tag == 0]
+    num_a0_substrate = len(a0_substrate_indices)
+
+    a1_substrate_indices = [i for i, tag in enumerate(a1.get_tags()) if tag == 0]
+    num_a1_substrate = len(a1_substrate_indices)
+
+    if num_a0_substrate == num_a1_substrate:
+        # Check the positions of the substrate atoms. The cell should be checked before.
+        a0_substrate_positions = a0.get_positions()[a0_substrate_indices]
+        a1_substrate_positions = a1.get_positions()[a1_substrate_indices]
+        mic_vectors, mic_distances = find_mic(a1_substrate_positions - a0_substrate_positions, a0.get_cell())
+        dmax = np.max(mic_distances)
+        a0.info["dmax"] = dmax
+        if dmax <= dtol:
+            similar = True
+        else:
+            similar = False
+    else:
+        similar = False
+
+    return similar
+
+
+def is_reproduction_isolation(
+    candidates: Optional[tuple[Atoms, Atoms]], dtol: float = 0.20, print_func: Callable = print
+) -> bool:
     """"""
     is_isolation = True
     if candidates is not None:
         a0, a1 = candidates
+        print_func(f"  compare candidates: {a0.info['confid']:>6d} {a1.info['confid']:>6d}")
         natoms_a0, natoms_a1 = len(a0), len(a1)
         if natoms_a0 == natoms_a1:
             symbols_a0, symbols_a1 = (
@@ -70,7 +109,9 @@ def is_reproduction_isolation(candidates: Optional[tuple[Atoms, Atoms]]) -> bool
             )
             if symbols_a0 == symbols_a1:
                 if np.array_equal(a0.get_tags(), a1.get_tags()):
-                    is_isolation = False
+                    is_isolation = not compare_two_atoms_by_substrates(a0, a1, dtol=dtol, print_func=print_func)
+                    dmax = a0.info.pop("dmax", -1.0)
+                    print_func(f"    substrate consistency: {dmax=:>4.2f} ({dtol:>4.2f})")
     else:
         is_isolation = True
 
@@ -152,7 +193,11 @@ class AbstractPopulationManager:
 
         # Mutation probabilities
         self.pmut = params.get("pmut", 0.5)
-        self.pmut_custom = params.get("params", 0.5)
+        self.pmut_custom = params.get("pmut_custom", 0.5)
+
+        # Get the tolerance for comparing two atoms by substrates
+        substrate_params = params.get("substrate", dict(dtol=0.20))
+        self.substrate_dtol = substrate_params.get("dtol", 0.20)  # Ang
 
         return
 
@@ -498,7 +543,7 @@ class AbstractPopulationManager:
                 for _ in range(100):
                     parents = population.get_two_candidates()
                     # TODO: Move this check to population?
-                    if not is_reproduction_isolation(parents):
+                    if not is_reproduction_isolation(parents, dtol=self.substrate_dtol, print_func=self._print):
                         natoms_p0 = len(parents[0])
                         tags_dict = get_tags_per_species(parents[0])
                         identities = " ".join([k + "_" + str(len(v)) for k, v in tags_dict.items()])
