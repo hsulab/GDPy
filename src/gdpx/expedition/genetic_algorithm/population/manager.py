@@ -4,11 +4,10 @@
 
 import copy
 import pathlib
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 from ase.ga.data import DataConnection
 from ase.geometry import find_mic
 from ase.io import read
@@ -18,10 +17,10 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from .population import Population
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
-RETAINED_KEYS: List[str] = ["extinct", "origin"]
+RETAINED_KEYS: list[str] = ["extinct", "origin"]
 
 
-def clean_seed_structures(prev_frames: List[Atoms]) -> List[Atoms]:
+def clean_seed_structures(prev_frames: list[Atoms]) -> list[Atoms]:
     """"""
     curr_frames = []
     energies, forces = [], []
@@ -161,7 +160,7 @@ class AbstractPopulationManager:
         # TODO: Support mutations for seed structures?
         init_params = params.get("init", dict(size=20, seed_file=None))
         self.init_size = init_params.get("size", None)
-        self.init_seed_file: Optional[Union[str, pathlib.Path, List[Atoms]]] = init_params.get("seed_file", None)
+        self.init_seed_file: Optional[Union[str, pathlib.Path, list[Atoms]]] = init_params.get("seed_file", None)
 
         # Get number of structures from different origins in one generation
         gen_params = params.get("gen", dict(size=20))
@@ -253,7 +252,7 @@ class AbstractPopulationManager:
 
         return candidate_groups, num_paired, num_mutated, num_random
 
-    def _prepare_initial_population(self, generator) -> List[Atoms]:
+    def _prepare_initial_population(self, generator) -> list[Atoms]:
         self._print("===== Prepare Initial Population =====")
         starting_population = []
 
@@ -267,7 +266,7 @@ class AbstractPopulationManager:
                 seed_frames = read(self.init_seed_file, ":")
             elif isinstance(self.init_seed_file, pathlib.Path):
                 seed_frames = read(self.init_seed_file, ":")
-            elif isinstance(self.init_seed_file, list):  # List[Atoms]
+            elif isinstance(self.init_seed_file, list):  # list[Atoms]
                 seed_frames = self.init_seed_file
             else:
                 raise RuntimeError(f"Init_seed_file {self.init_seed_file} formst is unsuppoted.")
@@ -315,7 +314,7 @@ class AbstractPopulationManager:
         num_paired: int = 0,
         num_mutated: int = 0,
         num_random: int = 0,
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Prepare current population.
 
         Usually, it should be the same as the initial size. However, for variable
