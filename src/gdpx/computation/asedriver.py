@@ -644,13 +644,13 @@ class AseDriver(BaseDriver):
         Respect `steps` and `fmax` as restart.
 
         """
-        # - overwrite
+        # Update run-time parameters from args and kwargs
         run_params = self.setting.get_run_params(*args, **kwargs)
 
-        # -
+        # Add constraints
         self._preprocess_constraints(atoms, run_params)
 
-        # - init driver
+        # Instantiate the driver
         if self.setting.task == "min":
             driver = self.setting.driver_cls(atoms, logfile=self.log_fpath, trajectory=None)
         elif self.setting.task == "cmin":
@@ -671,7 +671,9 @@ class AseDriver(BaseDriver):
             )
 
             # construct the driver
-            driver = self.setting.driver_cls(atoms=atoms, logfile=self.log_fpath, trajectory=None)
+            driver = self.setting.driver_cls(
+                atoms=atoms, logfile=self.log_fpath, loginterval=self.setting.dump_period, trajectory=None
+            )
 
             # check if the simulation is annealing
             if self.setting.tend is not None:
