@@ -136,6 +136,8 @@ class seqrun(Operation):
         """"""
         super().forward()
 
+        self.status = "finished"
+
         return
 
 
