@@ -3,7 +3,6 @@
 
 
 import pathlib
-from typing import List
 
 import numpy as np
 from ase import Atoms, units
@@ -14,9 +13,10 @@ def read_cp2k_xyz(fpath):
     """Read xyz-like file by cp2k.
 
     Accept prefix-pos-1.xyz or prefix-frc-1.xyz.
+
     """
-    # - read properties
-    frame_steps, frame_times, frame_energies = [], [], []
+    # Read properties
+    frame_energies = []
     frame_symbols = []
     frame_properties = []  # coordinates or forces
     with open(fpath, "r") as fopen:
@@ -29,7 +29,7 @@ def read_cp2k_xyz(fpath):
             line = fopen.readline()  # energy line
             info_data = line.strip().split()
             frame_energies.append(info_data[-1])
-            for i in range(natoms):
+            for _ in range(natoms):
                 line = fopen.readline()
                 data_line = line.strip().split()
                 symbols.append(data_line[0])
@@ -63,9 +63,7 @@ def check_input_structure_section(line):
 
 def check_input_pbc_section(line):
     """"""
-    return line.strip().startswith("POISSON| Periodicity") or line.strip().startswith(
-        "CELL_TOP| Periodicity"
-    )
+    return line.strip().startswith("POISSON| Periodicity") or line.strip().startswith("CELL_TOP| Periodicity")
 
 
 def read_cp2k_spc(wdir, prefix: str = "cp2k"):
@@ -117,9 +115,7 @@ def read_cp2k_spc(wdir, prefix: str = "cp2k"):
     else:
         raise RuntimeError()
 
-    coordinates = np.array(
-        [c.strip().split()[4:7] for c in structure[3:]], dtype=np.float64
-    )
+    coordinates = np.array([c.strip().split()[4:7] for c in structure[3:]], dtype=np.float64)
     symbols = [c.strip().split()[2] for c in structure[3:]]
 
     atoms = Atoms(symbols, positions=coordinates, cell=cell, pbc=pbc)
@@ -168,7 +164,7 @@ def read_cp2k_energy_force(wdir, prefix: str = "cp2k"):
     return results
 
 
-def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> List[Atoms]:
+def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> list[Atoms]:
     """"""
     wdir = pathlib.Path(wdir)
 
@@ -186,9 +182,7 @@ def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> List[Atoms]:
     _, _, frame_forces = read_cp2k_xyz(frc_fpath)
     # cp2k uses a.u. and we use eV/AA
     frame_forces = np.array(frame_forces, dtype=np.float64)
-    frame_forces *= (
-        units.Hartree / units.Bohr
-    )  # (2.72113838565563E+01/5.29177208590000E-01)
+    frame_forces *= units.Hartree / units.Bohr  # (2.72113838565563E+01/5.29177208590000E-01)
 
     # - simulation box
     # parse cell from inp or out
@@ -234,6 +228,7 @@ UNCONVERGED_SCF_FLAG: str = "*** WARNING in qs_scf.F:598 :: SCF run NOT converge
 #: Test on cp2k:v2022.1
 ABORT_FLAG: str = "ABORT"
 
+
 def read_cp2k_convergence(out_fpath: pathlib.Path) -> bool:
     """Read SCF convergence."""
     cp2kout = out_fpath
@@ -253,7 +248,9 @@ def read_cp2k_convergence(out_fpath: pathlib.Path) -> bool:
 
     return converged
 
+
 CP2K_PROGRAM_END_FLAG: str = "PROGRAM ENDED AT"
+
 
 def read_cp2k_spc_convergence(out_fpath: pathlib.Path) -> bool:
     """"""
