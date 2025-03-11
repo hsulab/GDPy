@@ -402,7 +402,13 @@ class Cp2kDriver(BaseDriver):
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
             if self.setting.task == "spc":
-                verified = read_cp2k_spc_convergence(self.directory / "cp2k.out")
+                # No restart files are generated in a spc calculation.
+                # We need check the computation actually creates an output file.
+                cp2kout_fpath = self.directory / "cp2k.out"
+                if cp2kout_fpath.exists():
+                    verified = read_cp2k_spc_convergence(cp2kout_fpath)
+                else:
+                    verified = False
             else:
                 checkpoints = list(self.directory.glob("*.restart"))
                 self._debug(f"checkpoints: {checkpoints}")
