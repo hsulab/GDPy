@@ -14,6 +14,7 @@ from ase.ga.soft_mutation import SoftMutation
 from ase.ga.standardmutations import RattleMutation, StrainMutation
 
 from .comparator.interatomic_distance import InteratomicDistanceComparator
+from .mutation.bounce import BounceMutation
 from .mutation.exchange import ExchangeMutation
 from .mutation.mirror import MirrorMutation
 from .mutation.rattle import RattleBufferMutation
@@ -40,9 +41,10 @@ MUTATIONS: dict[str, Any] = dict(
     soft=SoftMutation,
     strain=StrainMutation,
     # Custom mutations
+    bounce=BounceMutation,
     exchange=ExchangeMutation,
-    swap=SwapMutation,
     rattle_buffer=RattleBufferMutation,
+    swap=SwapMutation,
 )
 
 GENETIC_OPERATORS: dict[str, dict[str, Any]] = dict(
@@ -67,9 +69,7 @@ def instantiate_a_genetic_operator(
         An instance of an operator that can be used in the genetic.
 
     """
-    assert (
-        category in GENETIC_OPERATORS
-    ), f"Genetic operator category {category} is not found."
+    assert category in GENETIC_OPERATORS, f"Genetic operator category {category} is not found."
 
     op_params = copy.deepcopy(op_params)
     method = op_params.pop("method", None)
