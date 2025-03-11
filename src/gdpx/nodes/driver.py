@@ -519,8 +519,8 @@ def run_chain_step(
     """Run workers as a chain."""
     # Adjust worker directory and batchsize
     num_structures = len(structures)
-    for i, worker in enumerate(workers):
-        worker.directory = directory / f"chainstep.{str(i).zfill(2)}"
+    for istep, worker in enumerate(workers):
+        worker.directory = directory / f"chainstep.{str(istep).zfill(2)}"
         if batchsize is not None:
             worker.batchsize = batchsize
         else:
@@ -565,9 +565,10 @@ def run_chain_step(
                 write(worker.directory / "end_frames.xyz", curr_structures)
                 with open(flag_fpath, "w") as fopen:
                     fopen.write(f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}.")
-                # Check whether we should stop at this chainstep
+                # Check whether we should stop at this chainstep.
+                # The chain stops when there is one structure statisfying one of the observers.
                 try:
-                    for i, observer in enumerate(observers):
+                    for istep, observer in enumerate(observers):
                         for j, atoms in enumerate(curr_structures):
                             if observer.run(atoms):
                                 raise ChainStepEarlystop(f"{observer.__class__.__name__} stops at candidate {j}")
@@ -601,11 +602,12 @@ def run_chain_step(
         if extract_data:
             print_func("--- extract results ---")
             new_results = []
-            for i, worker in enumerate(workers):
+            for istep, worker in enumerate(workers):
+                step_suffix = f"{istep:>02d}"
                 curr_results = AtomsNDArray.from_file(worker.directory / "extracted" / "results.h5")
                 # TODO: inhomogeneous trajectories?
                 #       some candidates maybe stopped but some are not?
-                if i == 0:
+                if istep == 0:
                     for res in curr_results:
                         new_results.append(res)
                 else:  # i > 0:
@@ -613,9 +615,9 @@ def run_chain_step(
                     for j in range(num_candidates):
                         new_results[j].extend(curr_results[j][1:])
                 if is_earlystopped:
-                    if (worker.directory / f"EARLYSTOP.{str(i).zfill(2)}").exists():
+                    if (worker.directory / f"EARLYSTOP.{step_suffix}").exists():
                         with open(
-                            worker.directory / f"EARLYSTOP.{str(i).zfill(2)}",
+                            worker.directory / f"EARLYSTOP.{step_suffix}",
                             "r",
                         ) as fopen:
                             content = fopen.readlines()
