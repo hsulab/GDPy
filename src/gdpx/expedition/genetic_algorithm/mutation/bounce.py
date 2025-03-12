@@ -11,6 +11,7 @@ from ase.ga.offspring_creator import OffspringCreator
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.bounce import bounce_one_atom
+from gdpx.group import evaluate_group_expression
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 
@@ -24,6 +25,7 @@ class BounceMutation(OffspringCreator):
         direction="",
         max_disp=2.0,
         covalent_ratio=[0.8, 2.0],
+        apply_on_buffer=False,
         num_muts=1,
         use_tags=True,
         rng=np.random.default_rng(),
@@ -35,6 +37,8 @@ class BounceMutation(OffspringCreator):
 
         # The particles that can bounce
         self.particles = particles
+
+        self.apply_on_buffer = apply_on_buffer
 
         # Bounce parameters
         self.direction = direction
@@ -80,30 +84,47 @@ class BounceMutation(OffspringCreator):
         """
         mutant = copy.deepcopy(atoms)
 
-        # Find valid particles to bounce
-        identities = get_tags_per_species(mutant)
-        valid_identities = {}
-        for k, v in identities.items():
-            found_substrate = any([x[0] == 0 for x in v])
-            if found_substrate:
-                assert len(v) == 1, "We must have only one substrate."
+        # Find a particle to bounce
+        if not self.apply_on_buffer:
+            # Find particles in the search region that particles have non-zero tags
+            identities = get_tags_per_species(mutant)
+            valid_identities = {}
+            for k, v in identities.items():
+                found_substrate = any([x[0] == 0 for x in v])
+                if found_substrate:
+                    assert len(v) == 1, "We must have only one substrate."
+                else:
+                    valid_identities[k] = v
+
+            num_particle_types = len(valid_identities.keys())
+
+            if num_particle_types > 0:
+                # Get one particle to bounce
+                # TODO: Support only atoms for now, thus, atomic_indices for each tag are extended
+                valid_atomic_indices = []
+                for identity_list in valid_identities.values():
+                    for v in identity_list:
+                        valid_atomic_indices.extend(v[1])
+
+                num_valid_atomic_indices = len(valid_atomic_indices)
+                if num_valid_atomic_indices > 0:
+                    particle_index = self.rng.choice(valid_atomic_indices)
+                else:
+                    particle_index = None
             else:
-                valid_identities[k] = v
-
-        num_particle_types = len(valid_identities.keys())
-
-        if num_particle_types > 0:
-            # Get one particle to bounce
-            # TODO: Support only atoms for now, thus, atomic_indices for each tag are extended
-            valid_atomic_indices = []
-            for identity_list in valid_identities.values():
-                for v in identity_list:
-                    valid_atomic_indices.extend(v[1])
-
+                num_valid_atomic_indices = 0
+                particle_index = None
+        else:
+            # Find particles in the buffer region (the substrate) by a group expression
+            valid_atomic_indices = evaluate_group_expression(mutant, self.particles)
             num_valid_atomic_indices = len(valid_atomic_indices)
-            assert num_valid_atomic_indices > 0, "No valid atomic indices found."
-            particle_index = self.rng.choice(valid_atomic_indices)
+            if num_valid_atomic_indices > 0:
+                particle_index = self.rng.choice(valid_atomic_indices)
+            else:
+                num_valid_atomic_indices = 0
+                particle_index = None
 
+        if particle_index is not None:
             # Instantiate the neighbour list
             cov_max = self.covalent_ratio[1]
             nlist = self.nlist_prototype(cov_max * np.array(natural_cutoffs(mutant)))
