@@ -67,7 +67,7 @@ class MirrorMutation(OffspringCreator):
 
         indi = self.mutate(f)
         if indi is None:
-            return indi, "mutation: mirror"
+            return indi, "mutation: mirror_none"
 
         indi = self.initialize_individual(f, indi)
         indi.info["data"]["parents"] = [f.info["confid"]]
@@ -86,6 +86,14 @@ class MirrorMutation(OffspringCreator):
 
         top = atoms[len(atoms) - self.n_top : len(atoms)]
         assert isinstance(top, Atoms)
+
+        # The mirror mutation can be applied only to atoms with the same type.
+        # TODO: We need figure out how to properly handle the tags if there are
+        #       several atom types and the number of atoms are uneven in the 
+        #       search region.
+        num_atom_types = len(set(top.numbers))
+        if num_atom_types > 1:
+            return None
 
         num = top.numbers
         unique_types = list(set(num))
