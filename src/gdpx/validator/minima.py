@@ -68,7 +68,7 @@ def compare_structures(
     for ref_atoms, pre_atoms in zip(v_frames, p_frames):
         vector = pre_atoms.get_positions() - ref_atoms.get_positions()
         _, vlen = find_mic(vector, pre_atoms.get_cell())
-        disp.append(np.linalg.norm(vlen))
+        disp.append(np.mean(vlen))
 
     results = dict(natoms=v_natoms, ene=ene_data, maxfrc=(v_maxfrc, p_maxfrc), disp=disp)
 
