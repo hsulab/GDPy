@@ -703,7 +703,7 @@ class VaspDriver(BaseDriver):
         traj_frames_, num_trajs = [], len(traj_list)
         if num_trajs > 0:
             traj_frames_.extend(traj_list[0])
-            if self.setting.task == "min":
+            if self.setting.task == "min" or self.setting.task == "cmin":
                 for i in range(1, num_trajs):
                     # FIXME: ase does not always give a 3x3 array for the box?
                     prev_box = traj_list[i - 1][-1].get_cell(complete=True)
