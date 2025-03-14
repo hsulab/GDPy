@@ -668,8 +668,7 @@ class VaspDriver(BaseDriver):
         If the calculation failed, an empty atoms with errof info would be returned.
 
         """
-        # - read structures
-        # -- read backups
+        # Read trajectories from all previous calculations
         prev_wdirs = []
         if archive_path is None:
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
@@ -697,49 +696,49 @@ class VaspDriver(BaseDriver):
         else:
             traj_list.append(curr_frames)
 
-        # -- concatenate
-        # NOTE: Some spin systems may give different scf convergence on the same
-        #       structure. Sometimes, the preivous failed but the next run converged,
-        #       The concat below uses the previous one...
-        traj_frames_, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
+        # Concatenate trajectories
+        # Some spin-polarised systems may give different total energies even on the same structure due to the SCF
+        # convergence. Sometimes, the preivous failed but the next run converged. Thus, no energy is compared.
+        # Here, we always use the previous structure to concatenate.
+        traj_frames_, num_trajs = [], len(traj_list)
+        if num_trajs > 0:
             traj_frames_.extend(traj_list[0])
             if self.setting.task == "min":
-                for i in range(1, ntrajs):
-                    # FIXME: ase complete_cell bug?
+                for i in range(1, num_trajs):
+                    # FIXME: ase does not always give a 3x3 array for the box?
                     prev_box = traj_list[i - 1][-1].get_cell(complete=True)
                     curr_box = traj_list[i][0].get_cell(complete=True)
-                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
+                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell at {str(self.directory)}."
 
                     prev_pos = traj_list[i - 1][-1].positions
                     curr_pos = traj_list[i][0].positions
                     pos_vec, _ = find_mic(prev_pos - curr_pos, traj_list[i - 1][-1].get_cell())
                     assert np.allclose(
                         pos_vec, np.zeros(pos_vec.shape)
-                    ), f"Traj {i-1} and traj {i} are not consecutive."
+                    ), f"Traj {i-1} and traj {i} are not consecutive at {str(self.directory)}."
                     traj_frames_.extend(traj_list[i][1:])
             elif self.setting.task == "md":
-                # NOTE: vasp md restart is not from the last frame
-                #       as it addes the velocities in contcar to get a new frame to restart.
-                for i in range(1, ntrajs):
+                # Vasp md does restart from the last frame as the velocities in CONTCAR will give a new structure
+                # for the first SCF calculation. Thus, we do not skip the first frame of the next trajectory.
+                for i in range(1, num_trajs):
                     traj_frames_.extend(traj_list[i][:])
             else:
-                ...
+                raise Exception(f"Task {self.setting.task} does not support concatenating trajectories.")
         else:
             ...
 
-        nframes = len(traj_frames_)
+        num_frames = len(traj_frames_)
 
-        # - sort frames
+        # Sort frames based on the sort file if it exists
         traj_frames = []
-        if nframes > 0:
+        if num_frames > 0:
             num_atoms = len(traj_frames_[0])
             if (self.directory / ASE_VASP_SORT_FNAME).exists():
                 sort, resort = read_sort(self.directory)
             else:  # without sort file, use default order
                 sort, resort = list(range(num_atoms)), list(range(num_atoms))
             for i, sorted_atoms in enumerate(traj_frames_):
-                # NOTE: calculation with only one unfinished step does not have forces
+                # The calculation with only one unfinished step does not have forces
                 input_atoms = resort_atoms_with_spc(
                     sorted_atoms,
                     resort,
