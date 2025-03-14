@@ -79,8 +79,31 @@ def _remove_outdated_r(
     skipped_items: list[str],
     print_func=print,
     debug_func=print,
-):
-    """Remove outdated items."""
+) -> int:
+    """Remove outdated items.
+
+    Since the sync process may leave behind files that are no longer present on the remote machine,
+    we need remove items that do not exist on the remote machine.
+    For example, one calculation on remote moves previous outputs to a new directory but the sync process
+    downloads the new directory and keep the previous outputs, which may make the read_convergence fail 
+    due to inconsistency between the last frame of the previous trajectory and the initial structure of 
+    the current trajectory.
+    The above error will not occur if the previous outputs are overwritten by the new calculation but
+    sometimes the calculation failed to restart and the previous outputs are still there and will not 
+    be update by sync as they are the same. 
+
+    Args:
+        sftp:            Connection to the sftp server.
+        remote_dir:      Remote dir to check for outdated items.
+        local_dir:       Local dir to check for outdated items.
+        skipped_items:   List of items to skip during removal.
+        print_func:      Function to print messages (default is print).
+        debug_func:      Function to print debug messages (default is print).
+
+    Returns:
+        The number of items removed.
+
+    """
     items_removed = 0
     for item in os.listdir(local_dir):
         remote_dir_item = os.path.join(remote_dir, item)
@@ -97,15 +120,19 @@ def _remove_outdated_r(
                     print_func=print_func,
                     debug_func=debug_func,
                 )
+            # Check if the remote item exists.
+            # If it does not exist, the sftp.stat will throw a FileNotFoundError,
+            # which is a subclass of IOError.
+            _ = sftp.stat(remote_dir_item)
         except IOError:
             print_func("removing {}".format(local_dir_item))
-            _remove(local_dir_item, print_func=print_func, debug_func=debug_func)
+            _remove(local_dir_item, print_func=print_func)
             items_removed += 1
 
     return items_removed
 
 
-def _remove(path, print_func=print, debug_func=print):
+def _remove(path: str, print_func=print):
     """param <path> could either be relative or absolute."""
     try:
         if os.path.isfile(path):
@@ -113,7 +140,7 @@ def _remove(path, print_func=print, debug_func=print):
         else:
             shutil.rmtree(path)  # remove directory
     except Exception as e:
-        print_func("could not remove {}, error {0}".format(path, str(e)))
+        print_func(f"could not remove {path}, error {str(e)}")
 
 
 class RemoteSlurmScheduler(SlurmScheduler):
