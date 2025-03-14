@@ -55,12 +55,10 @@ def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_
         local_dir_item = os.path.join(local_dir, item.filename)
         if item.filename in skipped_items:
             continue
-        # print("check {} => {}".format(remote_dir_item, local_dir_item))
         if stat.S_ISREG(item.st_mode):
             if not os.path.exists(local_dir):
                 os.makedirs(local_dir)
             if _should_sync_file(sftp, remote_dir_item, local_dir_item):
-                # print("sync {} => {}".format(remote_dir_item, local_dir_item))
                 sftp.get(remote_dir_item, local_dir_item)
                 times = (
                     sftp.lstat(remote_dir_item).st_atime,
@@ -90,7 +88,6 @@ def _remove_outdated_r(
         if item in skipped_items:
             continue
         try:
-            rdir_stat = sftp.stat(str(remote_dir))
             if os.path.isdir(local_dir_item):
                 items_removed += _remove_outdated_r(
                     sftp,
@@ -169,6 +166,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
             raise Exception("Cannot run a function on the remote machine locally.")
 
         job_id = f"REMOTE -> {self.hostname.upper()} "
+        sftp = None
         try:
             password = os.environ.get(f"{self.hostname.upper()}_PASSWORD")
             self.ssh.connect(hostname=self.hostname, password=password)
@@ -179,20 +177,21 @@ class RemoteSlurmScheduler(SlurmScheduler):
             self._transfer(sftp, remote_dir, [f"_{self.name}_jobs.json"])
 
             command = f"cd {str(remote_dir)}; {self.SUBMIT_COMMAND} {self.script.name}"
-            stdin, stdout, stderr = self.ssh.exec_command(command)
+            _, stdout, stderr = self.ssh.exec_command(command)
 
             output = stdout.read().decode()
-            error = stderr.read().decode()
+            _ = stderr.read().decode()
             if not output:
                 raise RuntimeError("Job submission failed.")
 
             job_id += output.strip().split()[-1]
         except Exception:
             self._print(f"{traceback.format_exc()}")
-            job_id += f"FAILED: {error}"
+            job_id += f"FAILED: sshconnection"
         finally:
             self.ssh.close()
-            sftp.close()
+            if sftp is not None:
+                sftp.close()
 
         return job_id
 
@@ -215,8 +214,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
             remote_dir = str(pathlib.Path(self.remote_wdir) / juid)
 
             try:
-                rdir_stat = sftp.stat(str(remote_dir))
-
+                # download all the files from the remote machine
                 files_synced = _sync_r(
                     sftp,
                     remote_dir,
@@ -224,6 +222,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
                     skipped_items=[f"_{self.name}_jobs.json"],
                 )
                 self._print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
+
                 # remove_outdated (only outdated files in wdirs will be removed)
                 self._print(f"cleaning up outdated items of '{remote_dir}' starting...")
                 outdated_removed = 0
@@ -254,7 +253,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
         try:
             self.ssh.connect(hostname=self.hostname, password=password)
 
-            stdin, stdout, stderr = self.ssh.exec_command(self.ENQUIRE_COMMAND)
+            _, stdout, _ = self.ssh.exec_command(self.ENQUIRE_COMMAND)
             output = stdout.read().decode()
 
             pattern = re.compile(r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+")
