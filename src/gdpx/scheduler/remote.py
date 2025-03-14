@@ -15,7 +15,7 @@ import paramiko
 from .slurm import SlurmScheduler
 
 
-def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_path):
+def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_path) -> bool:
     """
     If the remote_file should be synced - if it was not downloaded or it is out of sync with the remote version.
 
@@ -25,6 +25,7 @@ def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_pa
         local_file_path:     Local file path.
 
     Returns:
+        True if the remote file should be synced, False otherwise.
 
     """
     if not os.path.exists(local_file_path):
@@ -35,7 +36,7 @@ def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_pa
         return remote_attr.st_size != local_stat.st_size or remote_attr.st_mtime != local_stat.st_mtime
 
 
-def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items):
+def _sync_latest_recursive(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items) -> int:
     """
     Recursively sync the sftp contents starting at remote dir to the local dir,
     and return the number of files synced.
@@ -67,12 +68,12 @@ def _sync_r(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_
                 os.utime(local_dir_item, times)
                 files_synced += 1
         else:
-            files_synced += _sync_r(sftp, remote_dir_item, local_dir_item, skipped_items)
+            files_synced += _sync_latest_recursive(sftp, remote_dir_item, local_dir_item, skipped_items=skipped_items)
 
     return files_synced
 
 
-def _remove_outdated_r(
+def _remove_outdated_recursive(
     sftp: paramiko.SFTPClient,
     remote_dir: str,
     local_dir: str,
@@ -85,12 +86,12 @@ def _remove_outdated_r(
     Since the sync process may leave behind files that are no longer present on the remote machine,
     we need remove items that do not exist on the remote machine.
     For example, one calculation on remote moves previous outputs to a new directory but the sync process
-    downloads the new directory and keep the previous outputs, which may make the read_convergence fail 
-    due to inconsistency between the last frame of the previous trajectory and the initial structure of 
+    downloads the new directory and keep the previous outputs, which may make the read_convergence fail
+    due to inconsistency between the last frame of the previous trajectory and the initial structure of
     the current trajectory.
     The above error will not occur if the previous outputs are overwritten by the new calculation but
-    sometimes the calculation failed to restart and the previous outputs are still there and will not 
-    be update by sync as they are the same. 
+    sometimes the calculation failed to restart and the previous outputs are still there and will not
+    be update by sync as they are the same.
 
     Args:
         sftp:            Connection to the sftp server.
@@ -112,11 +113,11 @@ def _remove_outdated_r(
             continue
         try:
             if os.path.isdir(local_dir_item):
-                items_removed += _remove_outdated_r(
+                items_removed += _remove_outdated_recursive(
                     sftp,
                     remote_dir_item,
                     local_dir_item,
-                    skipped_items,
+                    skipped_items=skipped_items,
                     print_func=print_func,
                     debug_func=debug_func,
                 )
@@ -126,21 +127,16 @@ def _remove_outdated_r(
             _ = sftp.stat(remote_dir_item)
         except IOError:
             print_func("removing {}".format(local_dir_item))
-            _remove(local_dir_item, print_func=print_func)
+            try:
+                if os.path.isfile(local_dir_item):
+                    os.remove(local_dir_item)  # remove file
+                else:
+                    shutil.rmtree(local_dir_item)  # remove directory
+            except Exception as e:
+                print_func(f"could not remove {local_dir_item}, error {str(e)}")
             items_removed += 1
 
     return items_removed
-
-
-def _remove(path: str, print_func=print):
-    """param <path> could either be relative or absolute."""
-    try:
-        if os.path.isfile(path):
-            os.remove(path)  # remove file
-        else:
-            shutil.rmtree(path)  # remove directory
-    except Exception as e:
-        print_func(f"could not remove {path}, error {str(e)}")
 
 
 class RemoteSlurmScheduler(SlurmScheduler):
@@ -201,7 +197,10 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
             juid = self.script.name.split(".")[0][4:]  # run-{uid}.script
             remote_dir = pathlib.Path(self.remote_wdir) / juid
-            self._transfer(sftp, remote_dir, [f"_{self.name}_jobs.json"])
+
+            # The jobs.json file is used to keep track of the jobs submitted to the remote machine,
+            # thus, we do not need upload it.
+            self._transfer(sftp, remote_dir, skipped_items=[f"_{self.name}_jobs.json"])
 
             command = f"cd {str(remote_dir)}; {self.SUBMIT_COMMAND} {self.script.name}"
             _, stdout, stderr = self.ssh.exec_command(command)
@@ -242,7 +241,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
             try:
                 # download all the files from the remote machine
-                files_synced = _sync_r(
+                files_synced = _sync_latest_recursive(
                     sftp,
                     remote_dir,
                     local_dir,
@@ -254,7 +253,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
                 self._print(f"cleaning up outdated items of '{remote_dir}' starting...")
                 outdated_removed = 0
                 for item_name in wdir_names:
-                    outdated_removed += _remove_outdated_r(
+                    outdated_removed += _remove_outdated_recursive(
                         sftp,
                         str(pathlib.Path(remote_dir) / item_name),
                         str(pathlib.Path(local_dir) / item_name),
