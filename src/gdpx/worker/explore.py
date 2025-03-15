@@ -46,6 +46,21 @@ def run_expedition_in_commandline(wdir, expedition, timewait: Optional[float] = 
     return
 
 
+def get_expedition_function(
+    expedition, working_directory: pathlib.Path, timewait: Optional[float] = None, print_func=print
+):
+    """"""
+    exp_func = functools.partial(
+        run_expedition_in_commandline,
+        wdir=working_directory,
+        expedition=expedition,
+        timewait=timewait,
+        print_func=print_func,
+    )
+
+    return exp_func
+
+
 def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
     """"""
     exp_params = expedition.as_dict()
@@ -126,12 +141,8 @@ class ExpeditionBasedWorker(BaseWorker):
             save_expedition_input_parameters(inp_fpath, expedition)
 
             # Submit expedition to queue
-            exp_func = functools.partial(
-                run_expedition_in_commandline,
-                wdir=wdir,
-                expedition=expedition,
-                timewait=self.timewait,
-                print_func=self._print,
+            exp_func = get_expedition_function(
+                expedition=expedition, working_directory=wdir, timewait=self.timewait, print_func=self._print
             )
 
             self.scheduler.job_name = job_name
@@ -158,7 +169,7 @@ class ExpeditionBasedWorker(BaseWorker):
 
         return
 
-    def inspect(self, resubmit=False, *args, **kwargs):
+    def inspect(self, resubmit: bool = False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
         self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
@@ -175,11 +186,15 @@ class ExpeditionBasedWorker(BaseWorker):
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
 
+                # Update scheduler with job information
                 self.scheduler.job_name = job_name
                 self.scheduler.script = self.directory / f"{self._script_name}-{uid}"
 
                 # Get expedition indices
                 wdir_names = doc_data["wdir_names"]
+
+                # We only support one expedition per job for now
+                assert len(wdir_names) == 1, f"More than one working directory found for {job_name}."
 
                 if self.scheduler.is_finished():
                     # Check if the job finished properly
@@ -205,10 +220,22 @@ class ExpeditionBasedWorker(BaseWorker):
                     if is_finished:
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
-                        warnings.warn(
-                            "Exploration does not support re-submit.",
-                            UserWarning,
-                        )
+                        if resubmit:
+                            # Get the expedition
+                            batch_index = int(wdir_names[0][len("expedition-") :])
+                            batch_fpath = self.directory / (f"{EXP_DIR_PREFIX}-{batch_index}")
+                            exp_func = get_expedition_function(
+                                expedition=expeditions[batch_index],
+                                working_directory=batch_fpath,
+                                timewait=self.timewait,
+                                print_func=self._print,
+                            )
+                            # Update the scheduler
+                            self.scheduler.script = batch_fpath / f"{self._script_name}-{uid}"
+                            job_id = self.scheduler.submit(func_to_execute=exp_func)
+                            self._print(f"{job_name} is re-submitted with JOBID: {job_id}...")
+                        else:
+                            self._print(f"Resubmit is disabled.")
                 else:
                     self._print(f"{job_name} is running...")
 
