@@ -137,7 +137,7 @@ class explore(Operation):
 
         worker = ExpeditionBasedWorker(expeditions, scheduler)
         worker.directory = self.directory
-        worker.wait_time = self.wait_time
+        worker.timewait = self.wait_time
 
         worker.run()
         worker.inspect(resubmit=True)

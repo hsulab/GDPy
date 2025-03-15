@@ -8,10 +8,11 @@ import pathlib
 import time
 import uuid
 import warnings
-from typing import Optional
+from typing import Optional, Union
 
 from tinydb import Query, TinyDB
 
+from gdpx.expedition.expedition import BaseExpedition
 from gdpx.scheduler.scheduler import BaseScheduler
 
 from .worker import BaseWorker
@@ -22,6 +23,9 @@ Since an expedition is made up of several basic workers, this worker is a monito
 tracks its progress.
 
 """
+
+#: Prefix of the expedition folder name.
+EXP_DIR_PREFIX: str = "expedition"
 
 
 def run_expedition_in_commandline(wdir, expedition, timewait: Optional[float] = None, print_func=print) -> None:
@@ -53,35 +57,33 @@ def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
 
 class ExpeditionBasedWorker(BaseWorker):
 
-    #: Prefix of the expedition folder name.
-    EXP_INDEX: str = "expedition"
-
     batchsize: int = 1
 
     _script_name: str = "run.script"
 
     def __init__(
         self,
-        expedition,
+        expedition: Union[BaseExpedition, list[BaseExpedition]],
         scheduler: BaseScheduler,
         batchsize: int = 1,
-        directory=None,
+        timewait: Optional[float] = 60.0,
+        directory: Optional[Union[str, pathlib.Path]] = None,
     ) -> None:
         """"""
-        super().__init__(directory)
+        super().__init__(directory=directory)
 
         self.expedition = expedition
         self.scheduler = scheduler
 
         self.batchsize = batchsize
-        self.wait_time = 60
+        self.timewait = timewait
 
         if self.batchsize != 1:
             raise Exception("Currently, expedition worker only supports batchsize of 1.")
 
         return
 
-    def run(self, builder=None, *args, **kwargs) -> None:
+    def run(self, *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
 
@@ -101,24 +103,23 @@ class ExpeditionBasedWorker(BaseWorker):
         num_expeditions = len(expeditions)
         for i in range(num_expeditions):
             # Check if the job is already submitted and get a new uuid if not
-            batch_name = f"{self.EXP_INDEX}-{i}"
+            batch_name = f"{EXP_DIR_PREFIX}-{i}"
             if batch_name in queued_names:
                 uid = queued_uuids[i]
-                job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
+                job_name = uid + "-" + EXP_DIR_PREFIX + "-" + f"{i}"
                 self._print(f"{job_name} at {self.directory.name} was submitted.")
                 continue
             else:
                 uid = str(uuid.uuid1())
-                job_name = uid + "-" + self.EXP_INDEX + "-" + f"{i}"
-            wdir = self.directory / (self.EXP_INDEX + "-" + f"{i}")
+                job_name = uid + "-" + EXP_DIR_PREFIX + "-" + f"{i}"
+
+            wdir = self.directory / (EXP_DIR_PREFIX + "-" + f"{i}")
             wdir.mkdir(parents=True, exist_ok=True)
 
             # Get expedition
             expedition = expeditions[i]
-            self._print(f"{expedition=}")
 
             # Save input file
-            # TODO: move input files to a centrilised metadata folder
             metadata_dpath = wdir / "_data"
             metadata_dpath.mkdir(parents=True, exist_ok=True)
             inp_fpath = (metadata_dpath / f"exp-{uid}.json").resolve()
@@ -129,7 +130,7 @@ class ExpeditionBasedWorker(BaseWorker):
                 run_expedition_in_commandline,
                 wdir=wdir,
                 expedition=expedition,
-                timewait=None,
+                timewait=self.timewait,
                 print_func=self._print,
             )
 
@@ -138,7 +139,7 @@ class ExpeditionBasedWorker(BaseWorker):
             relative_inp_fpath = str(inp_fpath.relative_to(wdir.resolve()))
             batch_index_str = ",".join([str(i)])
             self.scheduler.user_commands = (
-                f"gdp explore {relative_inp_fpath} --wait {self.wait_time} --spawn {batch_index_str}\n"
+                f"gdp explore {relative_inp_fpath} --wait {self.timewait} --spawn {batch_index_str}\n"
             )
             job_status = self.scheduler.submit(func_to_execute=exp_func)
             self._print(f"{wdir.name}: {job_status}")

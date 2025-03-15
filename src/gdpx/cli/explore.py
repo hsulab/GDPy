@@ -19,7 +19,16 @@ def run_expedition(
     potter=None,
     spawn: Optional[str] = None,
 ):
-    """"""
+    """Run an expedition.
+
+    Args:
+        exp_params: Expedition parameters.
+        wait: Time to wait between runs. Defaults to None.
+        directory: Directory for the expedition. Defaults to "./".
+        potter: Optional worker parameters. If None, it will be taken from `exp_params`.
+        spawn: Comma-separated indices of expeditions to run in commandline. Defaults to None.
+
+    """
     directory = pathlib.Path(directory)
 
     if potter is not None:
