@@ -7,7 +7,7 @@ from typing import Optional, Union
 
 from gdpx import config
 from gdpx.nodes.expedition import ExpeditionVariable
-from gdpx.nodes.scheduler import SchedulerVariable
+from gdpx.factory.scheduler import canonicalise_scheduler
 from gdpx.utils.logio import remove_extra_stream_handlers
 from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
@@ -32,7 +32,7 @@ def run_expedition(
 
     # Pop scheduler as expedition does not have it as an argument
     scheduler_params = exp_params.pop("scheduler", {})
-    scheduler = SchedulerVariable(**scheduler_params).value
+    scheduler = canonicalise_scheduler(scheduler_params)
 
     # Create expeditions
     expedition = ExpeditionVariable(directory=directory, **exp_params).value
