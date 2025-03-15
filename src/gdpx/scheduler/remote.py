@@ -241,19 +241,20 @@ class RemoteSlurmScheduler(SlurmScheduler):
 
             try:
                 # download all the files from the remote machine
-                files_synced = _sync_latest_recursive(
+                self._print(f"start syncing '{remote_dir}'...")
+                num_files_synced = _sync_latest_recursive(
                     sftp,
                     remote_dir,
                     local_dir,
                     skipped_items=[f"_{self.name}_jobs.json"],
                 )
-                self._print("synced {} file(s) from '{}'".format(files_synced, remote_dir))
+                self._print(f"synced {num_files_synced} files.")
 
                 # remove_outdated (only outdated files in wdirs will be removed)
-                self._print(f"cleaning up outdated items of '{remote_dir}' starting...")
-                outdated_removed = 0
+                self._print(f"start removing outdated items...")
+                num_outdated_removed = 0
                 for item_name in wdir_names:
-                    outdated_removed += _remove_outdated_recursive(
+                    num_outdated_removed += _remove_outdated_recursive(
                         sftp,
                         str(pathlib.Path(remote_dir) / item_name),
                         str(pathlib.Path(local_dir) / item_name),
@@ -261,7 +262,7 @@ class RemoteSlurmScheduler(SlurmScheduler):
                         print_func=self._print,
                         debug_func=self._debug,
                     )
-                self._print(f"removed {outdated_removed} outdated item(s) of '{remote_dir}'")
+                self._print(f"removed {num_outdated_removed} outdated items.")
             except:
                 ...
             finally:
