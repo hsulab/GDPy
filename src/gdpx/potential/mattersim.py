@@ -14,9 +14,15 @@ class MatterSimManager(BasePotentialManager):
 
     name = "mattersim"
 
-    implemented_backends = ("ase",)
+    implemented_backends = (
+        "ase",
+        "graph_pes",
+    )
 
-    valid_combinations = (("ase", "ase"),)
+    valid_combinations = (
+        ("ase", "ase"),
+        ("graph_pes", "ase"),
+    )
 
     def register_calculator(self, calc_params: dict, *agrs, **kwargs):
         """Register the calculator."""
@@ -42,6 +48,17 @@ class MatterSimManager(BasePotentialManager):
             except:
                 raise ModuleNotFoundError("Please install mattersim and torch to use the ase interface.")
             calc = MatterSimCalculator.from_checkpoint(load_path=models[0], device=device)
+        elif self.calc_backend == "graph_pes":
+            try:
+                import torch
+                from graph_pes.interfaces import mattersim
+                from graph_pes.utils.calculator import GraphPESCalculator
+
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+            except:
+                raise ModuleNotFoundError("Please install mattersim and graph_pes to use the graph_pes interface.")
+
+            calc = GraphPESCalculator(mattersim(load_path=models[0]), device=device, skin=1.0)
         else:
             ...  # Backend has already been checked.
 
