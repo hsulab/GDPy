@@ -35,6 +35,9 @@ class MatterSimManager(BasePotentialManager):
         models = canonicalise_input_models(calc_params.pop("model", []))
         self.calc_params.update(model=models)
 
+        # Whether compute stress
+        compute_stress = calc_params.pop("compute_stress", True)
+
         # Set the default device and update it when torch is available.
         device = calc_params.pop("device", "cpu")
 
@@ -47,7 +50,9 @@ class MatterSimManager(BasePotentialManager):
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             except:
                 raise ModuleNotFoundError("Please install mattersim and torch to use the ase interface.")
-            calc = MatterSimCalculator.from_checkpoint(load_path=models[0], device=device)
+            calc = MatterSimCalculator.from_checkpoint(
+                load_path=models[0], compute_stress=compute_stress, device=device
+            )
         elif self.calc_backend == "graph_pes":
             try:
                 import torch
