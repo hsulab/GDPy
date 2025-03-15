@@ -108,9 +108,12 @@ def is_reproduction_isolation(
             )
             if symbols_a0 == symbols_a1:
                 if np.array_equal(a0.get_tags(), a1.get_tags()):
-                    is_isolation = not compare_two_atoms_by_substrates(a0, a1, dtol=dtol, print_func=print_func)
-                    dmax = a0.info.pop("dmax", -1.0)
-                    print_func(f"    substrate consistency: {dmax=:>4.2f} ({dtol:>4.2f})")
+                    if dtol > 0.0:
+                        is_isolation = not compare_two_atoms_by_substrates(a0, a1, dtol=dtol, print_func=print_func)
+                        dmax = a0.info.pop("dmax", -1.0)
+                        print_func(f"    substrate consistency: {dmax=:>4.2f} ({dtol:>4.2f})")
+                    else:
+                        is_isolation = False
     else:
         is_isolation = True
 
@@ -195,8 +198,8 @@ class AbstractPopulationManager:
         self.pmut_custom = params.get("pmut_custom", 0.5)
 
         # Get the tolerance for comparing two atoms by substrates
-        substrate_params = params.get("substrate", dict(dtol=0.20))
-        self.substrate_dtol = substrate_params.get("dtol", 0.20)  # Ang
+        substrate_params = params.get("substrate", dict(dtol=-1.0))
+        self.substrate_dtol = substrate_params.get("dtol", -1.0)  # Ang
 
         return
 
