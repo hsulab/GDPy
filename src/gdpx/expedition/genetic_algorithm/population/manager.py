@@ -518,12 +518,6 @@ class AbstractPopulationManager:
         if operators.get("custom", None) is not None:
             custom_mutations = operators["custom"]["mutations"]
 
-        # HACK: In the end, it should not be None.
-        if hasattr(pairing, "n_top"):
-            prev_ntop = pairing.n_top
-        else:
-            prev_ntop = None
-
         # Check if we have enough structures for pairing
         num_structures_in_population = len(population.pop)
         if not (num_structures_in_population > 0):
@@ -575,7 +569,8 @@ class AbstractPopulationManager:
             parents = [copy.deepcopy(population.pop[0])]
             natoms_p0 = len(parents[0])
 
-        # We need adjust n_top of some operators for comptability.
+        # HACK: We need adjust n_top of some operators for comptability.
+
         curr_ntop = natoms_p0 - num_atoms_substrate
         if hasattr(pairing, "n_top"):
             prev_ntop = pairing.n_top
@@ -584,6 +579,12 @@ class AbstractPopulationManager:
             assert natoms_p0 == pairing.n_top + num_atoms_substrate
         else:
             prev_ntop = curr_ntop
+
+        for mutation in mutations.oplist:
+            if hasattr(mutation, "n_top"):
+                self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
+                mutation.n_top = curr_ntop
+                assert natoms_p0 == mutation.n_top + num_atoms_substrate
 
         # Perform the crossover and the mutations.
         a3 = None
@@ -605,22 +606,13 @@ class AbstractPopulationManager:
         chem_form = a3.get_chemical_formula() if a3 is not None else None
         self._print(f"  {is_parthenogenesis=}  {chem_form=}")
 
-        # Adjust mutation n_tops
-        for mutation in mutations.oplist:
-            if hasattr(mutation, "n_top"):
-                self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
-                mutation.n_top = curr_ntop
-                assert natoms_p0 == mutation.n_top + num_atoms_substrate
-
         if a3 is not None:
-            # We need update curr_ntop as a variable crossover may be performed.
-            curr_ntop = len(a3) - num_atoms_substrate
-
+            # Add the paired or mutated structure to the database
             a3.info["key_value_pairs"]["generation"] = curr_gen
             database.add_unrelaxed_candidate(
                 a3,
                 description=desc,  # here, desc is used to add "pairing": 1 to database
-            )  # if mutation happens, it will not be relaxed
+            )
             self._print(f"  confid= {a3.info['confid']} ")
 
             # mutate atoms in the mobile group
