@@ -575,6 +575,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     population_size=self.pop_manager.gen_size,
                     comparator=self.operators["mobile"]["comparing"],
                     rng=self.rng,
+                    print_func=self._print,
+                    debug_func=self._debug,
                 )
                 self._print(f"population number: {len(current_population.pop)}")
             else:
@@ -584,6 +586,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     population_size=self.pop_manager.gen_size,
                     comparator=self.operators["mobile"]["comparing"],
                     rng=self.rng,
+                    print_func=self._print,
+                    debug_func=self._debug,
                 )
                 for tribe in current_population.tribes:
                     self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")

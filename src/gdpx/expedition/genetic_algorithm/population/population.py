@@ -4,6 +4,7 @@
 
 import copy
 import itertools
+import time
 from typing import Optional
 
 import numpy as np
@@ -11,6 +12,7 @@ from ase import Atoms
 from ase.ga.data import DataConnection
 
 from gdpx.utils.atoms_tags import get_tags_per_species
+from gdpx.utils.profiler import CustomTimer
 
 
 def count_looks_like(a, all_cand, comp):
@@ -58,8 +60,13 @@ class Population:
         comparator=None,
         use_extinct: bool = False,
         rng=np.random.default_rng(),
+        print_func=print,
+        debug_func=print,
     ):
         """"""
+        self._print = print_func
+        self._debug = debug_func
+
         self.dc = data_connection
         self.pop_size = population_size
         if comparator is None:
@@ -79,17 +86,28 @@ class Population:
         return
 
     def __initialise_population__(self) -> None:
-        """Private method that initialises the population when the
-        population is created."""
+        """Private method that initialises the population when the population is created."""
         # Get all relaxed candidates from the database
         ue = self.use_extinct
         all_cand = self.dc.get_all_relaxed_candidates(use_extinct=ue)
         all_cand.sort(key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True)
 
-        # Fill up the population with the self.pop_size most stable
-        # unique candidates.
+        # Precompute fingerprints and cache them in the atoms.info,
+        # the first cache size is set to 2 times the population size.
+        cache_size = min(self.pop_size * 2, len(all_cand))
+        self._print(f"Caching fingerprints with a size of {cache_size}")
+        cache_fingerprints(all_cand[:cache_size], self.comparator, self._print)
+
+        # Fill up the population with the self.pop_size most stable unique candidates.
+        st = time.time()
         i = 0
         while i < len(all_cand) and len(self.pop) < self.pop_size:
+            # Add the candidate if it does not look like any in the population
+            # show progress every 100 structures
+            if i % 50 == 0:
+                et = time.time()
+                self._print(f"Used {et - st:.2f} seconds to check {i:>4d} candidates and add {len(self.pop):>4d}.")
+                st = time.time()
             c = all_cand[i]
             i += 1
             eq = False
@@ -99,10 +117,20 @@ class Population:
                     break
             if not eq:
                 self.pop.append(c)
+            # Compute more fingerprints if the population is not full
+            if i >= cache_size:
+                cache_size = min(cache_size * 2, len(all_cand))
+                self._print(f"Caching fingerprints with an increased size of {cache_size}")
+                cache_fingerprints(all_cand[i:cache_size], self.comparator, self._print)
 
+        # Add the looks_like information to each candidate in the population
         for a in self.pop:
             a.info["looks_like"] = count_looks_like(a, all_cand, self.comparator)
 
+        # Delete the fingerprints for saving memory
+        delete_fingerprints(all_cand[:cache_size], self.comparator, self._print)
+
+        # Calculate the participation of each candidate in the pairing
         self.all_cand = all_cand
         self.__calc_participation__()
 
@@ -248,34 +276,31 @@ def select_tribe_structures(
     return tribe_structures
 
 
+def cache_fingerprints(structures: list[Atoms], comparator, print_func) -> None:
+    """"""
+    num_structures = len(structures)
+    if hasattr(comparator, "_precompute_fingerprint"):
+        with CustomTimer(f"Precomputing fingerprints for {num_structures} structures", print_func):
+            comparator._precompute_fingerprint(structures)
+
+    return
+
+
+def delete_fingerprints(structures: list[Atoms], comparator, print_func) -> None:
+    """"""
+    num_structures = len(structures)
+    if hasattr(comparator, "_delete_fingerprint"):
+        with CustomTimer(f"Deleting fingerprints for {num_structures} structures", print_func):
+            comparator._delete_fingerprint(structures)
+
+    return
+
+
 class PopulationWithVariableComposition(Population):
 
     def __initialise_population__(self) -> None:
         """Private method that initialises the population when the population is created."""
-        # Get all relaxed candidates from the database
-        ue = self.use_extinct
-        all_cand = self.dc.get_all_relaxed_candidates(use_extinct=ue)
-        all_cand.sort(key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True)
-
-        # Fill up the population with the self.pop_size most stable
-        # unique candidates.
-        i = 0
-        while i < len(all_cand) and len(self.pop) < self.pop_size:
-            c = all_cand[i]
-            i += 1
-            eq = False
-            for a in self.pop:
-                if self.comparator.looks_like(a, c):
-                    eq = True
-                    break
-            if not eq:
-                self.pop.append(c)
-
-        for a in self.pop:
-            a.info["looks_like"] = count_looks_like(a, all_cand, self.comparator)
-
-        self.all_cand = all_cand
-        self.__calc_participation__()
+        super().__initialise_population__()
 
         # Get tribes and select one tribe (composition) to get two structures
         self.tribes = group_structures_by_chemical_symbols(self.pop)

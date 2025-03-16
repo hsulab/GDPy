@@ -6,8 +6,11 @@ from typing import Mapping
 
 import numpy as np
 import numpy.typing
-
 from ase import Atoms
+from joblib import Parallel, delayed
+
+#: The name of the fingerprint.
+FINGERPRINT_NAME = "interatomic_distance"
 
 
 def get_sorted_dist_list(atoms: Atoms, mic: bool = False) -> Mapping[int, numpy.typing.NDArray]:
@@ -40,9 +43,7 @@ class InteratomicDistanceComparator:
 
     """
 
-    def __init__(
-        self, n_top=None, pair_cor_cum_diff=0.015, pair_cor_max=0.7, dE=0.02, mic=False
-    ):
+    def __init__(self, n_top=None, pair_cor_cum_diff=0.015, pair_cor_max=0.7, dE=0.02, mic=False, n_jobs=1):
         """
 
         Args:
@@ -61,6 +62,34 @@ class InteratomicDistanceComparator:
         self.dE = dE
         self.n_top = n_top or 0
         self.mic = mic
+
+        self.n_jobs = n_jobs
+
+        return
+
+    def _precompute_fingerprint(self, frames: list[Atoms]) -> None:
+        """Precompute the fingerprints for all structures in the list.
+
+        The fingerprint is stored in the `info` dictionary of each `Atoms` object.
+
+        """
+        fingerprints = Parallel(n_jobs=self.n_jobs)(
+            delayed(get_sorted_dist_list)(atoms, mic=self.mic) for atoms in frames
+        )
+        for atoms, fingerprint in zip(frames, fingerprints):
+            atoms.info[FINGERPRINT_NAME] = fingerprint
+
+        return
+
+    def _delete_fingerprint(self, frames: list[Atoms]) -> None:
+        """Delete the fingerprints from all structures in the list.
+
+        This is useful to free memory after comparison.
+
+        """
+        for atoms in frames:
+            if FINGERPRINT_NAME in atoms.info:
+                del atoms.info[FINGERPRINT_NAME]
 
         return
 
@@ -96,8 +125,20 @@ class InteratomicDistanceComparator:
 
     def __compare_structure__(self, a1: Atoms, a2: Atoms):
         """Private method for calculating the structural difference."""
-        p1 = get_sorted_dist_list(a1, mic=self.mic)
-        p2 = get_sorted_dist_list(a2, mic=self.mic)
+        # Get the sorted distance list for both structures.
+        # Use cache to avoid recalculating the same fingerprint.
+        if FINGERPRINT_NAME not in a1.info:
+            p1 = get_sorted_dist_list(a1, mic=self.mic)
+            a1.info[FINGERPRINT_NAME] = p1
+        else:
+            p1 = a1.info[FINGERPRINT_NAME]
+        if FINGERPRINT_NAME not in a2.info:
+            p2 = get_sorted_dist_list(a2, mic=self.mic)
+            a2.info[FINGERPRINT_NAME] = p2
+        else:
+            p2 = a2.info[FINGERPRINT_NAME]
+
+        # Compare the two fingerprints.
         numbers = a1.numbers
         total_cum_diff = 0.0
         max_diff = 0
@@ -114,6 +155,7 @@ class InteratomicDistanceComparator:
             max_diff = np.max(d)
             ntype = float(sum(i == n for i in numbers))
             total_cum_diff += cum_diff / t_size * ntype / float(len(numbers))
+
         return (total_cum_diff, max_diff)
 
 
