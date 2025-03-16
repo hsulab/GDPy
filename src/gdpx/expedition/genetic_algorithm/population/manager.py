@@ -597,7 +597,7 @@ class AbstractPopulationManager:
             if hasattr(mutation, "slab") and curr_substrate is not None:
                 mutation.slab = curr_substrate
 
-        # Perform the crossover and the mutations.
+        # Perform the crossover.
         a3 = None
         if len(parents) == 2:
             # This also adds key_value_pairs to a.info
@@ -617,7 +617,9 @@ class AbstractPopulationManager:
         chem_form = a3.get_chemical_formula() if a3 is not None else None
         self._print(f"  {is_parthenogenesis=}  {chem_form=}")
 
-        if a3 is not None:
+        # Perform mutations.
+        num_mutations = len(mutations.oplist)
+        if a3 is not None and num_mutations > 0:
             # Add the paired or mutated structure to the database
             a3.info["key_value_pairs"]["generation"] = curr_gen
             database.add_unrelaxed_candidate(

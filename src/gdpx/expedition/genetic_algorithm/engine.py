@@ -988,7 +988,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 )
             mutations = OperationSelector(probs, mutations, rng=np.random)
         else:
-            mutations = None
+            mutations = OperationSelector([], [], rng=np.random)
 
         return dict(comparing=comparing, pairing=pairing, mutations=mutations)
 
