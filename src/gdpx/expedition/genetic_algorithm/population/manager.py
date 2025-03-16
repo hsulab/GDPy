@@ -570,6 +570,12 @@ class AbstractPopulationManager:
             natoms_p0 = len(parents[0])
 
         # HACK: We need adjust n_top of some operators for comptability.
+        prev_substrate = None
+        curr_substrate = None
+        if self.substrate_dtol > 0.0:
+            prev_substrate = database.get_slab()
+            substrate_indices = [i for i, tag in enumerate(parents[0].get_tags()) if tag == 0]
+            curr_substrate = copy.deepcopy(parents[0][substrate_indices])
 
         curr_ntop = natoms_p0 - num_atoms_substrate
         if hasattr(pairing, "n_top"):
@@ -580,11 +586,16 @@ class AbstractPopulationManager:
         else:
             prev_ntop = curr_ntop
 
+        if hasattr(pairing, "slab") and curr_substrate is not None:
+            pairing.slab = curr_substrate
+
         for mutation in mutations.oplist:
             if hasattr(mutation, "n_top"):
                 self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
                 mutation.n_top = curr_ntop
                 assert natoms_p0 == mutation.n_top + num_atoms_substrate
+            if hasattr(mutation, "slab") and curr_substrate is not None:
+                mutation.slab = curr_substrate
 
         # Perform the crossover and the mutations.
         a3 = None
@@ -653,10 +664,15 @@ class AbstractPopulationManager:
         # restorre n_top, custom mutations should not have n_top...
         if hasattr(pairing, "n_top"):
             pairing.n_top = prev_ntop
+        
+        if hasattr(pairing, "slab") and prev_substrate is not None:
+            pairing.slab = prev_substrate
 
         for mutation in mutations.oplist:
             if hasattr(mutation, "n_top"):
                 mutation.n_top = prev_ntop
+            if hasattr(mutation, "slab") and prev_substrate is not None:
+                mutation.slab = prev_substrate
 
         return a3
 
