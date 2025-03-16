@@ -54,6 +54,9 @@ def run_expedition(
         if hasattr(curr_expedition, "register_worker"):
             curr_expedition.register_worker(worker_params)
 
+    # Remove extra stream handlers to avoid duplicate logging
+    remove_extra_stream_handlers()
+
     num_expeditions = len(expedition)
     if spawn:  # Run expedition in commandline as input files are prepared by worker
         exp_indices = spawn.split(",")
@@ -77,8 +80,6 @@ def run_expedition(
                     print_func=config._print,
                 )
     else:
-        remove_extra_stream_handlers()
-
         worker = ExpeditionBasedWorker(expedition=expedition, scheduler=scheduler, directory=directory)
         worker.run()
         worker.inspect(resubmit=True)
