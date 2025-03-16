@@ -578,6 +578,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     comparator=self.operators["mobile"]["comparing"],
                     rng=self.rng,
                 )
+                self._print(f"population number: {len(current_population.pop)}")
             else:
                 assert self.pop_manager.name == "variable"
                 current_population = PopulationWithVariableComposition(
