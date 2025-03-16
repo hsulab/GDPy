@@ -57,7 +57,7 @@ def clean_seed_structures(prev_frames: list[Atoms]) -> list[Atoms]:
     return curr_frames
 
 
-def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20, print_func: Callable = print) -> bool:
+def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20) -> bool:
     """Compare two atoms by substrates.
 
     Args:
@@ -92,14 +92,11 @@ def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20, pr
     return similar
 
 
-def is_reproduction_isolation(
-    candidates: Optional[tuple[Atoms, Atoms]], dtol: float = 0.20, print_func: Callable = print
-) -> bool:
+def is_reproduction_isolation(candidates: Optional[tuple[Atoms, Atoms]]) -> bool:
     """"""
     is_isolation = True
     if candidates is not None:
         a0, a1 = candidates
-        print_func(f"  compare candidates: {a0.info['confid']:>6d} {a1.info['confid']:>6d}")
         natoms_a0, natoms_a1 = len(a0), len(a1)
         if natoms_a0 == natoms_a1:
             symbols_a0, symbols_a1 = (
@@ -108,12 +105,7 @@ def is_reproduction_isolation(
             )
             if symbols_a0 == symbols_a1:
                 if np.array_equal(a0.get_tags(), a1.get_tags()):
-                    if dtol > 0.0:
-                        is_isolation = not compare_two_atoms_by_substrates(a0, a1, dtol=dtol, print_func=print_func)
-                        dmax = a0.info.pop("dmax", -1.0)
-                        print_func(f"    substrate consistency: {dmax=:>4.2f} ({dtol:>4.2f})")
-                    else:
-                        is_isolation = False
+                    is_isolation = False
     else:
         is_isolation = True
 
@@ -517,6 +509,7 @@ class AbstractPopulationManager:
             An atoms.
 
         """
+        # Get pairing and mutations from operators
         pairing = operators["mobile"]["pairing"]
         mutations = operators["mobile"]["mutations"]
 
@@ -524,12 +517,13 @@ class AbstractPopulationManager:
         if operators.get("custom", None) is not None:
             custom_mutations = operators["custom"]["mutations"]
 
+        # HACK: In the end, it should not be None.
         if hasattr(pairing, "n_top"):
             prev_ntop = pairing.n_top
         else:
-            prev_ntop = None  # HACK: In the end, it should not be None.
+            prev_ntop = None
 
-        # check if we have enough structures for pairing
+        # Check if we have enough structures for pairing
         num_structures_in_population = len(population.pop)
         if not (num_structures_in_population > 0):
             raise RuntimeError(
@@ -545,7 +539,22 @@ class AbstractPopulationManager:
                 for _ in range(100):
                     parents = population.get_two_candidates()
                     # TODO: Move this check to population?
-                    if not is_reproduction_isolation(parents, dtol=self.substrate_dtol, print_func=self._print):
+                    if parents is not None:
+                        self._print(
+                            f"  compare candidates: {parents[0].info['confid']:>6d} {parents[1].info['confid']:>6d}"
+                        )
+                    if not is_reproduction_isolation(parents):
+                        if self.substrate_dtol > 0.0:
+                            is_substrate_similar = compare_two_atoms_by_substrates(
+                                parents[0],
+                                parents[1],
+                                dtol=self.substrate_dtol,
+                            )
+                            dmax = parents[0].info.pop("dmax", -1.0)
+                            self._print(f"    substrate consistency: {dmax=:>4.2f} ({self.substrate_dtol:>4.2f})")
+                            if not is_substrate_similar:
+                                continue
+                        # get two candidates that are both consistent in composition and substrate
                         natoms_p0 = len(parents[0])
                         tags_dict = get_tags_per_species(parents[0])
                         identities = " ".join([k + "_" + str(len(v)) for k, v in tags_dict.items()])
@@ -595,7 +604,7 @@ class AbstractPopulationManager:
         chem_form = a3.get_chemical_formula() if a3 is not None else None
         self._print(f"  {is_parthenogenesis=}  {chem_form=}")
 
-        # adjust mutation n_tops
+        # Adjust mutation n_tops
         for mutation in mutations.oplist:
             if hasattr(mutation, "n_top"):
                 self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
@@ -651,6 +660,7 @@ class AbstractPopulationManager:
         # restorre n_top, custom mutations should not have n_top...
         if hasattr(pairing, "n_top"):
             pairing.n_top = prev_ntop
+
         for mutation in mutations.oplist:
             if hasattr(mutation, "n_top"):
                 mutation.n_top = prev_ntop
