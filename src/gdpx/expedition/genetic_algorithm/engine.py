@@ -558,17 +558,15 @@ class GeneticAlgorithmEngine(BaseExpedition):
         else:
             # --- update population
             self._print("===== Update Population =====")
-            # - create the population used for crossover and mutation
+            # Check candidate origin for the current generation
             candidate_groups, num_paired, num_mutated, num_random = (
                 self.pop_manager._get_current_candidates(
                     database=self.da, curr_gen=self.cur_gen
                 )
             )
-            # candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-            #    database=self.da, curr_gen=self.cur_gen-1
-            # )
-            # for a in candidate_groups["paired"]:
-            #    print(a.info)
+            self._print("candidate origin distribution:")
+            for k, v in candidate_groups.items():
+                self._print(f"  {k:<8s}: {len(v):<8d}")
 
             # TODO: random seed...
             if self.pop_manager.name == "constant":
@@ -657,12 +655,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 else:
                     ...
 
-            # -- validate current candidates
+            # Validate candidate origins for the current generation
             # candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
             #    database=self.da, curr_gen=self.cur_gen
             # )
-            # for ia, a in enumerate(candidate_groups["paired"]):
-            #    self._print(f"{ia} {a.info}")
+            # self._print("candidate origin distribution:")
+            # for k, v in candidate_groups.items():
+            #     self._print(f"  {k}: {len(v)}")
 
             # TODO: send candidates directly to worker that respects the batchsize
             self._print("===== Optimisation =====")
@@ -974,6 +973,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     raise RuntimeError(
                         f"Mutation `{mut}` cannot be used in a search with tags."
                     )
+                assert "Mutation" in mut.descriptor, f"{mut} must have `Mutation` in its descriptor."
                 mutations.append(mut)
 
             self._print("  --- mutations ---")

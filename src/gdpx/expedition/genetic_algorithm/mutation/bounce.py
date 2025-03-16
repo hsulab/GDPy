@@ -32,7 +32,7 @@ class BounceMutation(OffspringCreator):
     ):
         """"""
         super().__init__(num_muts=num_muts)
-        self.descriptor = "BnMut"
+        self.descriptor = "BnMutation"
         self.min_inputs = 1
 
         # The particles that can bounce

@@ -4,7 +4,7 @@
 
 import copy
 import pathlib
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -13,6 +13,7 @@ from ase.geometry import find_mic
 from ase.io import read
 
 from gdpx.utils.atoms_tags import get_tags_per_species
+from gdpx.utils.profiler import CustomTimer
 
 from .population import Population
 
@@ -208,18 +209,17 @@ class AbstractPopulationManager:
         candidate_groups = {"paired": [], "random": [], "mutated": []}
         num_paired, num_mutated, num_random = 0, 0, 0
 
-        # unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0"))
-        unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0,generation={curr_gen}"))
+        with CustomTimer(name="getting canidates in the current genection", func=self._print):
+            unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0,generation={curr_gen}"))
         for row in unrelaxed_strus_gen_:
             if row.formula:
-                # print(row["gaid"], row)
                 confid = row["gaid"]
                 curr_rows = sorted(
                     database.c.select(f"relaxed=0,gaid={confid}"),
                     key=lambda x: x.mtime,
                 )
                 curr_rows = [x for x in curr_rows if x.formula]
-                # - get atoms
+                # get latest atoms, if pairing+mutation, the latest atoms should be the mutated one
                 curr_atoms = database.get_atoms(curr_rows[-1].id, add_info=True)
                 # NOTE: candidates should not have description info...
                 #       otherwise, queued row also has them and failed in
@@ -231,15 +231,16 @@ class AbstractPopulationManager:
                     "data": data,
                     "confid": confid,
                 }
-                # print(curr_atoms)
-                # - count and add atoms
-                if "Pairing" in curr_rows[0]["origin"]:
+                # we use the first row to determine the origin as the pairing may be followed by a mutation
+                # but it should be considered still from the pairing.
+                origin = curr_rows[0]["origin"]
+                if "Pairing" in origin:
                     num_paired += 1
                     candidate_groups["paired"].append(curr_atoms)
-                elif "Mutation" in curr_rows[0]["origin"]:
+                elif "Mutation" in origin:
                     num_mutated += 1
                     candidate_groups["mutated"].append(curr_atoms)
-                elif "Random" in curr_rows[0]["origin"]:
+                elif "Random" in origin:
                     num_random += 1
                     candidate_groups["random"].append(curr_atoms)
                 else:

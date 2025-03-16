@@ -27,7 +27,7 @@ class SwapMutation(OffspringCreator):
     ):
         """"""
         super().__init__(num_muts=num_muts)
-        self.descriptor = "SwMut"
+        self.descriptor = "SwMutation"
         self.min_inputs = 1
 
         self.bond_distance_dict = bond_distance_dict
