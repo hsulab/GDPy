@@ -133,7 +133,7 @@ class validate(Operation):
         if status is None:
             status = "unfinished"
         else:
-            ...
+            status = "finished" if status else "unfinished"
 
         self.status = status
 
