@@ -13,6 +13,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.geometry import find_mic
 from ase.io import read, write
 
+from gdpx.data.array import AtomsNDArray
 from gdpx.builder.builder import StructureBuilder
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.validator.validator import BaseValidator
@@ -231,28 +232,64 @@ class MinimaValidator(BaseValidator):
         """"""
         super().run()
 
-        if worker is not None:
-            v_worker = worker
-            self._print("Use the worker at run time.")
-        else:
-            v_worker = self.worker
-        assert v_worker is not None, "Worker must be provided either init or run time."
-        v_worker.directory = self.directory / "_run"
-
+        # Check what input structures we have
         if structures is not None:
-            v_structures = structures
+            structure_sets = structures
             self._print("Use the structures at run time.")
         else:
-            v_structures = self.structures
-        self._print(f"{v_structures=}")
-        assert v_structures is not None, "Structures must be provided either init or run time."
+            if isinstance(self.structures, (list, tuple)):
+                structure_sets = self.structures
+            else:
+                # Assume it is a builder
+                structure_sets = [self.structures, None]
+            self._print("Use the structures at init time.")
+
+        num_structure_sets = len(structure_sets)
+        if num_structure_sets == 1:
+            v_structures = structure_sets[0]
+            p_structures = None
+        elif num_structure_sets == 2:
+            v_structures, p_structures = structure_sets
+        else:
+            raise Exception(f"{self.__class__.__name__} requires one or two sets of structures.")
+
+        assert v_structures is not None, "Structures to validate must be provided either init or run time."
 
         if isinstance(v_structures, StructureBuilder):
             v_structures = v_structures.run()
 
+        if isinstance(p_structures, StructureBuilder):
+            p_structures = p_structures.run()
+
+        # Make sure we have a worker to do the minimisations
+        if p_structures is None:
+            if worker is not None:
+                v_worker = worker
+                self._print("Use the worker at run time.")
+            else:
+                v_worker = self.worker
+            assert v_worker is not None, "Worker must be provided either init or run time."
+            v_worker.directory = self.directory / "_run"
+
+            end_frames = self._irun(v_structures, v_worker)
+        else:
+            if isinstance(p_structures, AtomsNDArray):
+                self._print(f"The minimised structures {p_structures=}.")
+                if p_structures.ndim != 2:
+                    raise Exception(f"Invalid prediction structures with ndim {p_structures.ndim}.")
+                end_frames = []
+                for traj in p_structures.tolist():
+                    for atoms in traj[::-1]:
+                        if atoms is not None:
+                            end_frames.append(atoms)
+                            break
+            else:
+                # Assume it is just a list of Atoms
+                end_frames = p_structures
+
+        # Run the minimisation and compare the results
         is_finished = False
 
-        end_frames = self._irun(v_structures, v_worker)
         if end_frames is not None:
             results = compare_structures(v_structures, end_frames, energy_references=self.reference_energies)
             if not pathlib.Path(self.directory / "v.dat").exists():
