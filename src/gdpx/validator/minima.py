@@ -13,8 +13,8 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.geometry import find_mic
 from ase.io import read, write
 
-from gdpx.data.array import AtomsNDArray
 from gdpx.builder.builder import StructureBuilder
+from gdpx.data.array import AtomsNDArray
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.validator.validator import BaseValidator
 from gdpx.worker.drive import DriverBasedWorker
@@ -40,122 +40,99 @@ def make_clean_atoms(atoms_, results=None):
 
 def compare_structures(
     v_frames: list[Atoms],
-    p_frames: list[Atoms],
+    p_frames_ini: list[Atoms],
+    p_frames_end: list[Atoms],
     energy_references: Optional[tuple[numpy.typing.NDArray, numpy.typing.NDArray]] = None,
 ):
     """"""
     # number of atoms
     v_natoms = np.array([len(a) for a in v_frames])
-    p_natoms = np.array([len(a) for a in p_frames])
+    p_natoms = np.array([len(a) for a in p_frames_end])
     assert np.allclose(v_natoms, p_natoms), "Number of atoms are not consistent."
 
     # total energies
     v_ene = np.array([a.get_potential_energy() for a in v_frames])
-    p_ene = np.array([a.get_potential_energy() for a in p_frames])
+    p_ene_ini = np.array([a.get_potential_energy() for a in p_frames_ini])
+    p_ene_end = np.array([a.get_potential_energy() for a in p_frames_end])
 
-    if energy_references is None:
-        ene_data = (v_ene, p_ene)
-    else:
+    ene_data = [v_ene, p_ene_ini, p_ene_end]
+
+    if energy_references is not None:
         v_f_ene = v_ene - energy_references[0]  # validation formation energy
-        p_f_ene = p_ene - energy_references[1]  # prediction formation energy
-        ene_data = (v_ene, p_ene, v_f_ene, p_f_ene)
+        p_f_ene_ini = p_ene_ini - energy_references[1]  # prediction formation energy at initial
+        p_f_ene_end = p_ene_end - energy_references[1]  # prediction formation energy
+        ene_data.extend([v_f_ene, p_f_ene_ini, p_f_ene_end])
 
     # maximum forces TODO: constraints?
     v_maxfrc = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in v_frames])
-    p_maxfrc = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in p_frames])
+    p_maxfrc_ini = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in p_frames_ini])
+    p_maxfrc_end = np.array([np.max(np.fabs(a.get_forces(apply_constraint=True))) for a in p_frames_end])
+
+    frc_data = [v_maxfrc, p_maxfrc_ini, p_maxfrc_end]
 
     # displacement
     disp = []  # displacements
-    for ref_atoms, pre_atoms in zip(v_frames, p_frames):
+    for ref_atoms, pre_atoms in zip(v_frames, p_frames_end):
         vector = pre_atoms.get_positions() - ref_atoms.get_positions()
         _, vlen = find_mic(vector, pre_atoms.get_cell())
-        disp.append(np.mean(vlen))
+        disp.append(vlen.max())
 
-    results = dict(natoms=v_natoms, ene=ene_data, maxfrc=(v_maxfrc, p_maxfrc), disp=disp)
+    results = dict(natoms=v_natoms, ene=ene_data, maxfrc=frc_data, disp=disp)
 
     return results
 
 
-def summarise_validation(natoms, ene, maxfrc, disp) -> str:
+def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool=False) -> str:
     """"""
+    content = "# Name     N_a  " + ("{:>12s}  " * 9).format(
+        "E_v", "E_p_ini", "E_p_end", "E_d_ini", "E_d_end", "Fmax_v", "Fmax_p_ini", "Fmax_p_end", "Disp"
+    )
+    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 9
+
     num_ene_columns = len(ene)
-
-    if num_ene_columns == 2:
-        line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 7 + "\n"
-
-        content = (
-            "# Name     N_a  "
-            + ("{:>12s}  " * 7).format("E_v", "E_p", "E_d", "E_d/N_a", "Fmax_v", "Fmax_p", "Disp")
-            + "\n"
-        )
-
-        num_structures = len(natoms)
-        for i in range(num_structures):
-            ene_diff = ene[0][i] - ene[1][i]
-            data = [ene[0][i], ene[1][i], ene_diff, ene_diff / natoms[i], maxfrc[0][i], maxfrc[1][i], disp[i]]
-            content += line_format.format(i, natoms[i], *data)
-    elif num_ene_columns == 4:
-        line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 9 + "\n"
-
-        content = (
-            "# Name     N_a  "
-            + ("{:>12s}  " * 9).format("E_v", "E_p", "E_d", "E_d/N_a", "Ef_v", "Ef_p", "Fmax_v", "Fmax_p", "Disp")
-            + "\n"
-        )
-
-        num_structures = len(natoms)
-        for i in range(num_structures):
-            ene_diff = ene[0][i] - ene[1][i]
-            data = [
-                ene[0][i],
-                ene[1][i],
-                ene_diff,
-                ene_diff / natoms[i],
-                ene[2][i],
-                ene[3][i],
-                maxfrc[0][i],
-                maxfrc[1][i],
-                disp[i],
-            ]
-            content += line_format.format(i, natoms[i], *data)
+    if num_ene_columns == 3:
+        ...
+    elif num_ene_columns == 6:
+        content += ("{:>12s}  " * 3).format("Ef_v", "Ef_p_ini", "Ef_p_end")
+        line_format += "{:>12.4f}  " * 3
     else:
         raise Exception(f"Unknown number of energy columns: {num_ene_columns}.")
 
-    return content
-
-
-def summarise_validation_with_ranking(natoms, ene, maxfrc, disp) -> str:
-    """"""
-    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 7 + "{:>6d}  " * 2 + "\n"
-
-    content = (
-        "# Name     N_a  "
-        + ("{:>12s}  " * 7).format("E_v", "E_p", "E_d", "E_d/N_a", "Fmax_v", "Fmax_p", "Disp")
-        + ("{:>6s}  " * 2).format("Erk_v", "Erk_p")
-        + "\n"
-    )
-
     num_structures = len(natoms)
 
-    indices = np.arange(num_structures, dtype=np.int64)
-    sort = np.argsort(ene[0])
-    v_rankings = sorted(indices, key=lambda i: sort[i])
-    sort = np.argsort(ene[1])
-    p_rankings = sorted(indices, key=lambda i: sort[i])
+    if show_ranking:
+        indices = np.arange(num_structures, dtype=np.int64)
+        sort = np.argsort(ene[0])
+        v_rankings = sorted(indices, key=lambda i: sort[i])
+        sort = np.argsort(ene[1])
+        p_rankings_ini = sorted(indices, key=lambda i: sort[i])
+        sort = np.argsort(ene[2])
+        p_rankings_end = sorted(indices, key=lambda i: sort[i])
+        
+        content += ("{:>6s}  " * 3).format("Erk_v", "Erk_p_ini", "Erk_p_end")
+        line_format += "{:>6d}  " * 3
+
+    content += "\n"
+    line_format += "\n"
 
     for i in range(num_structures):
-        ene_diff = ene[0][i] - ene[1][i]
+        ene_diff_ini = ene[1][i] - ene[0][i]
+        ene_diff_end = ene[2][i] - ene[0][i]
         data = [
             ene[0][i],
             ene[1][i],
-            ene_diff,
-            ene_diff / natoms[i],
+            ene[2][i],
+            ene_diff_ini,
+            ene_diff_end,
             maxfrc[0][i],
             maxfrc[1][i],
+            maxfrc[2][i],
             disp[i],
-            v_rankings[i],
-            p_rankings[i],
         ]
+        if num_ene_columns == 6:
+            data.extend([ene[3][i], ene[4][i], ene[5][i]])  # formation energies
+        if show_ranking:
+            data.extend([v_rankings[i], p_rankings_ini[i], p_rankings_end[i]])
         content += line_format.format(i, natoms[i], *data)
 
     return content
@@ -271,32 +248,32 @@ class MinimaValidator(BaseValidator):
             assert v_worker is not None, "Worker must be provided either init or run time."
             v_worker.directory = self.directory / "_run"
 
-            end_frames = self._irun(v_structures, v_worker)
+            ini_frames, end_frames = self._irun(v_structures, v_worker)
         else:
             if isinstance(p_structures, AtomsNDArray):
                 self._print(f"The minimised structures {p_structures=}.")
                 if p_structures.ndim != 2:
                     raise Exception(f"Invalid prediction structures with ndim {p_structures.ndim}.")
-                end_frames = []
+                ini_frames, end_frames = [], []
                 for traj in p_structures.tolist():
+                    ini_frames.append(traj[0])
                     for atoms in traj[::-1]:
                         if atoms is not None:
                             end_frames.append(atoms)
                             break
             else:
                 # Assume it is just a list of Atoms
-                end_frames = p_structures
+                ini_frames, end_frames = p_structures, p_structures
 
         # Run the minimisation and compare the results
         is_finished = False
 
-        if end_frames is not None:
-            results = compare_structures(v_structures, end_frames, energy_references=self.reference_energies)
+        if ini_frames is not None and end_frames is not None:
+            results = compare_structures(
+                v_structures, ini_frames, end_frames, energy_references=self.reference_energies
+            )
             if not pathlib.Path(self.directory / "v.dat").exists():
-                if not self.show_ranking:
-                    content = summarise_validation(**results)
-                else:
-                    content = summarise_validation_with_ranking(**results)
+                content = summarise_validation(**results, show_ranking=self.show_ranking)
                 with open(self.directory / "v.dat", "w") as fopen:
                     fopen.write(content)
                 is_finished = True
@@ -305,25 +282,30 @@ class MinimaValidator(BaseValidator):
 
         return is_finished
 
-    def _irun(self, frames: list[Atoms], worker: DriverBasedWorker) -> Optional[list[Atoms]]:
+    def _irun(
+        self, frames: list[Atoms], worker: DriverBasedWorker
+    ) -> tuple[Optional[list[Atoms]], Optional[list[Atoms]]]:
         """"""
         assert isinstance(worker, DriverBasedWorker), "Worker must be a DriverBasedWorker."
 
         cache_fpath = self.directory / "pred.xyz"
         if cache_fpath.exists():
+            ini_frames = read(self.directory / "pred_ini.xyz", ":")
             end_frames = read(cache_fpath, ":")
-            return end_frames
+            return ini_frames, end_frames
 
         _ = worker.run(frames)
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
             trajectories = worker.retrieve(include_retrieved=True)
+            ini_frames = [t[0] for t in trajectories]
+            write(self.directory / "pred_ini.xyz", ini_frames)
             end_frames = [t[-1] for t in trajectories]
             write(cache_fpath, end_frames)
         else:
-            end_frames = None
+            ini_frames, end_frames = None, None
 
-        return end_frames  # type: ignore
+        return ini_frames, end_frames  # type: ignore
 
 
 if __name__ == "__main__":
