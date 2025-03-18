@@ -77,12 +77,11 @@ class validate(Operation):
     def _convert_dataset(self, structures):
         """Validator can accept various formats of input structures.
 
-        We convert all formats into one.
+        In an active session, the dataset is dynamic, thus,
+        we need load the dataset before run...
+        Validator accepts dict(reference=[], prediction=[])
 
         """
-        # NOTE: In an active session, the dataset is dynamic, thus,
-        #       we need load the dataset before run...
-        #       Validator accepts dict(reference=[], prediction=[])
         dataset_ = {}
         if hasattr(structures, "items"):  # check if the input is a dict-like object
             stru_dict = structures
@@ -116,7 +115,7 @@ class validate(Operation):
         """
         super().forward()
 
-        # - create a worker
+        # Get a worker if the validator requires some computations
         if workers is not None:
             num_workers = len(workers)
             assert num_workers == 1, f"Validator only accepts one worker but {num_workers} were given."
@@ -125,10 +124,10 @@ class validate(Operation):
         else:
             worker = None
 
-        # - convert dataset
+        # Convert the input structures to an object with a proper format
         dataset = self._convert_dataset(structures)
 
-        # - run validation
+        # Run the validation
         validator.directory = self.directory
         status = validator.run(dataset, worker, **self.run_params)
         if status is None:
@@ -138,7 +137,7 @@ class validate(Operation):
 
         self.status = status
 
-        return  # TODO: forward a reference-prediction pair?
+        return
 
     def report_convergence(self, *args, **kwargs) -> bool:
         """"""
