@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
-from typing import List, NoReturn, Optional, Union
+from typing import List, Optional, Union
 
 from ase import Atoms
 from ase.constraints import FixAtoms
-from ase.io import read, write
+from ase.io import read
+
+from gdpx.data.array import AtomsNDArray
 
 from .builder import StructureBuilder
 
@@ -139,9 +142,16 @@ class ReadStruBuilder(StructureBuilder):
 
     def run(self, *args, **kwargs):
         """"""
-        frames = read(self.fname, self.index, self.format)
-        if isinstance(frames, Atoms):
-            frames = [frames]
+        if self.fname.suffix != ".h5":
+            frames = read(self.fname, self.index, self.format)
+            if isinstance(frames, Atoms):
+                frames = [frames]
+        else:
+            if self.index != ":":
+                raise Exception("HDF5 file only supports index `:`")
+            if not (self.format is None or self.format == "h5"):
+                raise Exception("HDF5 file only supports format `h5`")
+            frames = AtomsNDArray.from_file(self.fname)
 
         return frames
 
