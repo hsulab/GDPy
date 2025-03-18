@@ -262,6 +262,7 @@ class MinimaValidator(BaseValidator):
                     content = summarise_validation_with_ranking(**results)
                 with open(self.directory / "v.dat", "w") as fopen:
                     fopen.write(content)
+                is_finished = True
         else:
             is_finished = False
 
