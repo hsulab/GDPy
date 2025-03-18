@@ -65,7 +65,18 @@ class BaseValidator(BaseComponent):
         """
         super().__init__(directory=directory, random_seed=random_seed)
 
-        self.structures = canonicalise_builder(structures)
+        if structures is not None:
+            if isinstance(structures, (list, tuple)):
+                # Form a list of builders from list of str or dict
+                # The first one will be used as the reference structure,
+                # and the second one will be used as the prediction structures.
+                self.structures = [canonicalise_builder(s) for s in structures]
+                assert len(self.structures) == 2, "Validator requires two sets of structures."
+            else:
+                # Form one builder from str or dict
+                self.structures = canonicalise_builder(structures)
+        else:
+            self.structures = None
 
         self.worker = canonicalise_worker(worker)
 
