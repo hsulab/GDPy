@@ -197,9 +197,11 @@ class MinimaValidator(BaseValidator):
         self.show_ranking = show_ranking
 
         if formation_energy is not None:
-            validation_energies = read_reference_structures(formation_energy["validation"])
-            prediction_energies = read_reference_structures(formation_energy["prediction"])
-            self.reference_energies = (validation_energies, prediction_energies)
+            reference_energies = []
+            for structures in formation_energy:
+                energies = read_reference_structures(structures)
+                reference_energies.append(energies)
+            self.reference_energies = reference_energies
         else:
             self.reference_energies = None
 
