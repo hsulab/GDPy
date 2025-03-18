@@ -60,9 +60,7 @@ def read_xsd2(fd) -> Atoms:
 
                 restriction = atom.get("RestrictedProperties", None)
                 if restriction:
-                    if restriction.startswith(
-                        "FractionalXYZ"
-                    ):  # TODO: may have 1-3 flags
+                    if restriction.startswith("FractionalXYZ"):  # TODO: may have 1-3 flags
                         restrictions.append(True)
                     else:
                         raise ValueError("unknown RestrictedProperties")
@@ -86,9 +84,7 @@ def read_xsd2(fd) -> Atoms:
             atoms.set_constraint(FixAtoms(indices=fixed_indices))
 
         # add two atoms constrained optimisation
-        constrained_indices = [
-            idx for idx, name in enumerate(names) if name.endswith("_c")
-        ]
+        constrained_indices = [idx for idx, name in enumerate(names) if name.endswith("_c")]
         if constrained_indices:
             assert len(constrained_indices) == 2
             atoms.info["copt"] = constrained_indices
@@ -166,8 +162,6 @@ class DirectBuilder(StructureBuilder):
     #: Builder's name.
     name: str = "direct"
 
-    default_parameters: dict = {}
-
     #: Stored structures.
     _frames: Optional[List[Atoms]] = None
 
@@ -181,7 +175,6 @@ class DirectBuilder(StructureBuilder):
         self,
         frames: Union[str, pathlib.Path, List[Atoms]],
         indices: Optional[Union[str, List[int]]] = None,
-        directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
     ):
@@ -192,7 +185,7 @@ class DirectBuilder(StructureBuilder):
             directory: Working directory.
 
         """
-        super().__init__(directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         if isinstance(frames, (str, pathlib.Path)):
             fdata = frames.strip().split("::")
@@ -209,9 +202,7 @@ class DirectBuilder(StructureBuilder):
             except:
                 self.ornaments = 0
         else:
-            assert all(
-                isinstance(x, Atoms) for x in frames
-            ), "Input should be a list of atoms."
+            assert all(isinstance(x, Atoms) for x in frames), "Input should be a list of atoms."
             self._frames = frames
             self.ornaments = 0
 
@@ -242,9 +233,7 @@ class DirectBuilder(StructureBuilder):
         else:
             indices_ = self.indices
 
-        assert bool(self._frames) ^ bool(
-            self.fpath
-        ), "Cant have frames and fpath at the same time."
+        assert bool(self._frames) ^ bool(self.fpath), "Cant have frames and fpath at the same time."
 
         # - read frames if it is a path
         if self.fpath:
@@ -284,9 +273,7 @@ class DirectBuilder(StructureBuilder):
         """Return generator parameters"""
         params = dict(
             method="direct",
-            frames=str(
-                self._fpath.resolve()
-            ),  # TODO: if not exists, and only have _frames
+            frames=str(self._fpath.resolve()),  # TODO: if not exists, and only have _frames
             indices=self.indices,
             ornaments=self.ornaments,
         )
