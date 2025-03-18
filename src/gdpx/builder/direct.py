@@ -3,7 +3,7 @@
 
 
 import pathlib
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from ase import Atoms
 from ase.constraints import FixAtoms
@@ -173,18 +173,18 @@ class DirectBuilder(StructureBuilder):
     name: str = "direct"
 
     #: Stored structures.
-    _frames: Optional[List[Atoms]] = None
+    _frames: Optional[list[Atoms]] = None
 
     #: The file path of stored structures.
     _fpath: Optional[Union[str, pathlib.Path]] = None
 
     #: Selected structure indices.
-    _indices: Optional[Union[str, List[int]]] = None
+    _indices: Optional[Union[str, list[int]]] = None
 
     def __init__(
         self,
-        frames: Union[str, pathlib.Path, List[Atoms]],
-        indices: Optional[Union[str, List[int]]] = None,
+        frames: Union[str, pathlib.Path, list[Atoms]],
+        indices: Optional[Union[str, list[int]]] = None,
         *args,
         **kwargs,
     ):
@@ -226,11 +226,11 @@ class DirectBuilder(StructureBuilder):
         return self._fpath
 
     @property
-    def indices(self) -> Union[str, List[int]]:
+    def indices(self) -> Union[str, list[int]]:
         """Return selected indices."""
         return self._indices
 
-    def run(self, indices: Union[str, List[int]] = [], *args, **kwargs) -> List[Atoms]:
+    def run(self, indices: Union[str, list[int]] = [], *args, **kwargs) -> list[Atoms]:
         """Return stored structures.
 
         Args:
