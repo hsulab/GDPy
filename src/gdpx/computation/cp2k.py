@@ -528,16 +528,24 @@ class Cp2kDriver(BaseDriver):
     def read_trajectory(self, *args, **kwargs) -> list[Atoms]:
         """"""
         if self.setting.task in ["spc"]:
-            atoms = read_cp2k_spc(self.directory, prefix="cp2k")
-            scf_convergence = read_cp2k_convergence(pathlib.Path(self.directory) / "cp2k.out")
-            if not scf_convergence:
-                atoms = ScfErrAtoms.from_atoms(atoms)
-                self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
-            traj_frames = [atoms]
+            out_fpath = pathlib.Path(self.directory) / "cp2k.out"
+            if out_fpath.exists():
+                atoms = read_cp2k_spc(self.directory, prefix="cp2k")
+                scf_convergence = read_cp2k_convergence(out_fpath)
+                if not scf_convergence:
+                    atoms = ScfErrAtoms.from_atoms(atoms)
+                    self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
+                traj_frames = [atoms]
+            else:
+                self._print(f"No output @ {str(self.directory)}")
+                traj_frames = []
         elif self.setting.task in ["min", "cmin", "md"]:
+            # Find previous calculations, where we have pos, frc, and cell.
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
             self._debug(f"prev_wdirs: {prev_wdirs}")
 
+            # Since we always restart from a valid checkpoint (restart),
+            # a trajectory can be read if a previous calculation exists.
             traj_list = []
             for w in prev_wdirs:
                 curr_frames = self._read_a_single_trajectory(w)
@@ -547,7 +555,7 @@ class Cp2kDriver(BaseDriver):
             if cp2ktraj.exists() and cp2ktraj.stat().st_size != 0:
                 traj_list.append(read_cp2k_outputs(self.directory, prefix=self.name))
 
-            # -- concatenate
+            # Concatenate the trajectories by verifying only the positions
             traj_frames, ntrajs = [], len(traj_list)
             if ntrajs > 0:
                 traj_frames.extend(traj_list[0])
