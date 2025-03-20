@@ -47,7 +47,7 @@ class SinglepointValidator(BaseValidator):
 
         return
 
-    def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
+    def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs) -> bool:
         """"""
         super().run()
 
@@ -134,11 +134,7 @@ class SinglepointValidator(BaseValidator):
         # if group_params is not None:
         #     run_selection()
 
-        status = "unfinished"
-        if is_spc_finished:
-            status = "finished"
-
-        return status
+        return is_spc_finished
 
     def write_data(self, data, fname: str = "rmse.dat"):
         """"""
