@@ -236,6 +236,17 @@ class MinimaValidator(BaseValidator):
 
         if isinstance(v_structures, StructureBuilder):
             v_structures = v_structures.run()
+            if isinstance(v_structures, AtomsNDArray):
+                ini_frames, end_frames = [], []
+                for traj in v_structures.tolist():
+                    ini_frames.append(traj[0])
+                    for atoms in traj[::-1]:
+                        if atoms is not None:
+                            end_frames.append(atoms)
+                            break
+                v_structures = end_frames
+            else:
+                ...  # assume it is a list of Atoms
 
         if isinstance(p_structures, StructureBuilder):
             p_structures = p_structures.run()
