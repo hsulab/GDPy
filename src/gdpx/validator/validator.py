@@ -71,6 +71,8 @@ class BaseValidator(BaseComponent):
                 # The first one will be used as the reference structure,
                 # and the second one will be used as the prediction structures.
                 self.structures = [canonicalise_builder(s) for s in structures]
+                if len(self.structures) == 1:
+                    self.structures.append(None)
                 assert len(self.structures) == 2, "Validator requires two sets of structures."
             else:
                 # Form one builder from str or dict
