@@ -3,11 +3,12 @@
 
 
 import pathlib
+from typing import Union
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read, write
+from ase.io import write
 
 from .. import config
 
@@ -43,42 +44,47 @@ def convert_dataset(pinp, custom_type_list=None):
     matched_dirs = traverse_matched_dirs(pinp, "set.*")
     config._print(f"{matched_dirs =}")
 
-    odir = pathlib.Path.cwd() / "converted" # FIXME: usd gdp -d ?
+    odir = pathlib.Path.cwd() / "converted"  # FIXME: usd gdp -d ?
     if not odir.exists():
         odir.mkdir(parents=True)
     else:
         raise FileExistsError("")
 
-    custom_type_list = ["O", "H"] # FIXME: ...
+    custom_type_list = ["O", "H"]  # FIXME: ...
 
     num_frames = 0
     for p in matched_dirs:
         curr_frames = convert_dpset(p, custom_type_list)
         num_curr_frames = len(curr_frames)
         config._print(f"{num_curr_frames =} at {p.relative_to(pinp)}")
-        ppp = odir/f"{p.parent.parent.name}_{p.parent.name}.xyz"
+        ppp = odir / f"{p.parent.parent.name}_{p.parent.name}.xyz"
         config._print(ppp.name)
         write(ppp, curr_frames)
 
     return
 
 
-def convert_dpset(pinp, custom_type_list=None):
-    """Convert dataset..."""
+def convert_dpset(pinp: Union[str,pathlib.Path], custom_type_list=None):
+    """Convert a deepmd set to a list of ASE Atoms objects."""
     pinp = pathlib.Path(pinp).resolve()
 
-    # type.raw type_map.raw nopbc
+    # Check type.raw and type_map.raw
     type_digits = np.loadtxt(pinp / "type.raw", dtype=int)
     if not (pinp / "type_map.raw").exists():
         # Use custom type_list
         if custom_type_list is not None:
             type_list = custom_type_list
         else:
-            raise RuntimeError(f"No type_map.raw in `{str(pinp)}`.")
+            raise Exception(f"No type_map.raw in `{str(pinp)}`.")
     else:
-        type_list = np.loadtxt(pinp / "type_map.raw", dtype=str)
+        type_list = np.loadtxt(pinp / "type_map.raw", dtype=str).tolist()
+        # For systems with only one type
+        if isinstance(type_list, str):
+            type_list = [type_list]
     chemical_symbols = [type_list[x] for x in type_digits]
-    # print(chemical_symbols)
+
+    # Check if periodic boundary condition (pbc) is used
+    pbc = True if not (pinp / "nopbc").exists() else False
 
     # box.npy  coord.npy  energy.npy  force.npy  virial.npy
     frames = []
@@ -99,7 +105,7 @@ def convert_dpset(pinp, custom_type_list=None):
                 chemical_symbols,
                 positions=coord[i].reshape(-1, 3),
                 cell=box[i].reshape(3, 3),
-                pbc=True,
+                pbc=pbc,
             )
             results = dict(
                 energy=energy[i],
@@ -111,9 +117,7 @@ def convert_dpset(pinp, custom_type_list=None):
             calc = SinglePointCalculator(atoms, **results)
             atoms.calc = calc
             curr_frames.append(atoms)
-        # write("./xxx.xyz", frames)
         frames.extend(curr_frames)
-    # write("./xxx.xyz", frames)
 
     return frames
 
