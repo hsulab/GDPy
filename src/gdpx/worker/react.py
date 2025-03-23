@@ -50,13 +50,13 @@ def run_reaction_in_commandline(
         prev_machine_prefix = driver.setting.machine_prefix
         if machine_prefix:
             driver.setting.machine_prefix = machine_prefix
-        for i, dirname in zip(structure_indices, reaction_dirnames):
+        for group_indices, dirname in zip(structure_indices, reaction_dirnames):
             driver.directory = directory / dirname
             print_func(
                 f"{time.asctime( time.localtime(time.time()) )} {str(dirname)} {driver.directory.name} is running..."
             )
             driver.reset()
-            driver.run(structures[i], read_ckpt=True)
+            driver.run([structures[i] for i in group_indices], read_ckpt=True)
 
         # restore machine prefix
         driver.setting.machine_prefix = prev_machine_prefix
@@ -94,31 +94,43 @@ class ReactorBasedWorker(BaseWorker):
 
     def _preprocess(self, structures: Union[list[Atoms], AtomsNDArray]):
         """"""
-        # TODO: For now, this only support double-ended methods,
-        #       which means the number of input structures should be even.
+        # Group structures into pairs or bands
         if isinstance(structures, list):
-            nstructures = len(structures)
-            assert nstructures % 2 == 0, "The number of structures should be even."
-            pairs = list(
-                zip(
-                    [structures[i] for i in range(0, nstructures, 2)],
-                    [structures[i] for i in range(1, nstructures, 2)],
-                )
-            )
-        elif isinstance(structures, AtomsNDArray):
-            if structures.ndim == 3:  # from extract
-                assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
-                pairs = []
-                for p in structures:
-                    p = [[a for a in s if a is not None][-1] for s in p]
-                    pairs.append(p)
-                pairs = list(zip(pairs[0], pairs[1]))
-            elif structures.ndim == 2:  # from extract
-                pairs = list(zip(structures[0], structures[1]))
-                # raise RuntimeError()
+            # Get reaction groups from atoms.info["rxn_grp"]
+            reaction_groups = []
+            for atoms in structures:
+                rxn_grp = atoms.info.get("rxn_grp", "-1")
+                if not isinstance(rxn_grp, str):
+                    rxn_grp = str(rxn_grp)  # If there is only one number, it will be np.int64
+                reaction_groups.append([int(x) for x in rxn_grp.split(",")])
+            rxn_indices = list(itertools.chain(*reaction_groups))
+            have_only_one_reaction = all([x == -1 for x in rxn_indices])
+            if not have_only_one_reaction:
+                min_idx, max_idx = min(rxn_indices), max(rxn_indices)
+                num_reactions = max_idx - min_idx + 1
+                # Group structures by their reaction group
+                groups = [[] for _ in range(num_reactions)]
+                for i, rxn_grp in enumerate(reaction_groups):
+                    for rg in rxn_grp:
+                        groups[rg - min_idx].append(i)
             else:
-                pairs = []
-                raise RuntimeError()
+                # For compatibility, the input are just images for one neb calculation
+                groups = [list(range(len(structures)))]
+        elif isinstance(structures, AtomsNDArray):
+            # if structures.ndim == 3:  # from extract
+            #     assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
+            #     pairs = []
+            #     for p in structures:
+            #         p = [[a for a in s if a is not None][-1] for s in p]
+            #         pairs.append(p)
+            #     pairs = list(zip(pairs[0], pairs[1]))
+            # elif structures.ndim == 2:  # from extract
+            #     pairs = list(zip(structures[0], structures[1]))
+            #     # raise RuntimeError()
+            # else:
+            #     pairs = []
+            #     raise RuntimeError()
+            raise NotImplementedError("AtomsNDArray is not supported yet.")
         else:
             raise Exception(f"Unsupported input structure type `{type(structures)}`.")
 
@@ -126,20 +138,27 @@ class ReactorBasedWorker(BaseWorker):
         metadata_dpath = self.directory / "_data"
         metadata_dpath.mkdir(exist_ok=True)
 
-        curr_frames, curr_info = copy_minimal_frames(itertools.chain(*pairs))
+        frames, curr_info = copy_minimal_frames(structures)
 
         # Some reactors need energies for IS and FS...
-        for i, a in enumerate(itertools.chain(*pairs)):
-            try:
-                ene = a.get_potential_energy()
-                curr_frames[i].info["energy"] = ene
-            except:
-                ...
+        for grp in groups:
+            num_frames_in_group = len(grp)
+            if num_frames_in_group >= 2:
+                try:
+                    ene = frames[grp[0]].get_potential_energy()
+                    frames[grp[0]].info["energy"] = ene
+                except:
+                    ...
+                try:
+                    ene = frames[grp[-1]].get_potential_energy()
+                    frames[grp[-1]].info["energy"] = ene
+                except:
+                    ...
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
             write(
                 tmp.name,
-                curr_frames,
+                frames,
                 columns=["symbols", "positions", "move_mask"],
             )
 
@@ -160,7 +179,7 @@ class ReactorBasedWorker(BaseWorker):
         else:
             write(
                 metadata_dpath / cache_fname,
-                curr_frames,
+                frames,
             )
             # Save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
@@ -175,13 +194,13 @@ class ReactorBasedWorker(BaseWorker):
             with open(metadata_dpath / f"{identifier}_info.txt", "w") as fopen:
                 fopen.write(content)
 
-        return identifier, pairs, start_confid
+        return identifier, frames, groups
 
     def prepare_batches(self, structures):
         """"""
-        identifier, pairs, start_pairid = self._preprocess(structures)
+        identifier, frames, groups = self._preprocess(structures)
 
-        num_reactions = len(pairs)
+        num_reactions = len(groups)
 
         wdirs = [f"{self.wdir_prefix}{i}" for i in range(num_reactions)]
 
@@ -190,18 +209,19 @@ class ReactorBasedWorker(BaseWorker):
 
         batches = []
         for _, (s, e) in enumerate(zip(starts, ends)):
-            curr_indices = range(s, e)
-            curr_wdirs = [wdirs[x] for x in curr_indices]
-            batches.append([curr_indices, curr_wdirs])
+            batch_indices = range(s, e)
+            batch_dirnames = [wdirs[x] for x in batch_indices]
+            batch_structure_indices = [groups[x] for x in batch_indices]
+            batches.append([batch_dirnames, batch_structure_indices])
 
-        return identifier, pairs, batches
+        return identifier, frames, batches
 
     def run(self, structures: list[list[Atoms]], *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
 
         # Prepare batches
-        identifier, pairs, batches = self.prepare_batches(structures)
+        identifier, frames, batches = self.prepare_batches(structures)
 
         # Some optional arguments
         target_batch = kwargs.get("batch", None)
@@ -209,14 +229,14 @@ class ReactorBasedWorker(BaseWorker):
         if not self.is_spawned:
             self._run_by_scheduler(
                 identifier,
-                pairs,
+                frames,
                 batches,
                 target_batch=target_batch,
             )
         else:
             self._run_by_commandline(
                 identifier,
-                pairs,
+                frames,
                 batches,
                 target_batch=target_batch,
             )
@@ -226,15 +246,14 @@ class ReactorBasedWorker(BaseWorker):
     def _run_by_commandline(self, identifier: str, pairs, batches, target_batch) -> None:
         """"""
         # Load metadata for the target batch
-        batch_data = batches[target_batch]
-        curr_indices, curr_wdirs = batch_data
+        batch = batches[target_batch]
 
         # Run reactions
         run_reaction_in_commandline(
             identifier=identifier,
             structures=pairs,
-            structure_indices=curr_indices,
-            reaction_dirnames=curr_wdirs,
+            structure_indices=batch[1],
+            reaction_dirnames=batch[0],
             driver=self.driver,
             directory=self.directory,
             print_func=self._print,
@@ -242,7 +261,7 @@ class ReactorBasedWorker(BaseWorker):
 
         return
 
-    def _run_by_scheduler(self, identifier: str, pairs, batches, target_batch: Optional[int] = None) -> None:
+    def _run_by_scheduler(self, identifier: str, frames, batches, target_batch: Optional[int] = None) -> None:
         """"""
         # Load metadata for previous submitted batches
         database_path = (self.directory / f"_{self.scheduler.name}_jobs.json").resolve()
@@ -253,7 +272,7 @@ class ReactorBasedWorker(BaseWorker):
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
         queued_input = [q["md5"] for q in queued_jobs]
 
-        for ig, (curr_indices, curr_wdirs) in enumerate(batches):
+        for ig, batch in enumerate(batches):
             # Set job name
             batch_name = f"group-{ig}"
             uid = str(uuid.uuid1())
@@ -281,6 +300,7 @@ class ReactorBasedWorker(BaseWorker):
 
             # Save this batch job to the database
             if identifier not in queued_input:
+                batch_dirnames = batch[0]
                 with TinyDB(database_path, indent=2) as database:
                     _ = database.insert(
                         dict(
@@ -288,7 +308,7 @@ class ReactorBasedWorker(BaseWorker):
                             md5=identifier,
                             gdir=job_name,
                             group_number=ig,
-                            wdir_names=curr_wdirs,
+                            wdir_names=batch_dirnames,
                             queued=True,
                         )
                     )
@@ -309,9 +329,8 @@ class ReactorBasedWorker(BaseWorker):
                 batch_name=batch_name,
                 uid=uid,
                 identifier=identifier,
-                structures=pairs,
-                curr_indices=curr_indices,
-                curr_wdirs=curr_wdirs,
+                frames=frames,
+                batch=batch,
             )
 
         return
@@ -321,9 +340,8 @@ class ReactorBasedWorker(BaseWorker):
         batch_name: str,
         uid: str,
         identifier: str,
-        structures,
-        curr_indices,
-        curr_wdirs,
+        frames: list[Atoms],
+        batch,
     ) -> None:
         """Submit one batch either to the queue or to the commandline."""
         batch_number = int(batch_name.split("-")[-1])
@@ -349,9 +367,9 @@ class ReactorBasedWorker(BaseWorker):
         func_to_execute = functools.partial(
             run_reaction_in_commandline,
             identifier=identifier,
-            structures=structures,
-            structure_indices=curr_indices,
-            reaction_dirnames=curr_wdirs,
+            structures=frames,
+            structure_indices=batch[1],
+            reaction_dirnames=batch[0],
             driver=self.driver,
             directory=self.directory,
             print_func=self._print,
@@ -429,13 +447,13 @@ class ReactorBasedWorker(BaseWorker):
         )
         cache_identifier, cache_pairs, cache_batches = self.prepare_batches(frames)
         assert cache_identifier == identifier, "Inconsistent identifiers for the input structure."
-        batch_indices, batch_dirnames = cache_batches[target_batch]
+        batch = cache_batches[target_batch]
         func_to_execute = functools.partial(
             run_reaction_in_commandline,
             identifier=identifier,
             structures=cache_pairs,
-            structure_indices=batch_indices,
-            reaction_dirnames=batch_dirnames,
+            structure_indices=batch[1],
+            reaction_dirnames=batch[0],
             driver=self.driver,
             directory=self.directory,
             print_func=self._print,
