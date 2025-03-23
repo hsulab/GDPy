@@ -12,6 +12,7 @@ import time
 import uuid
 from typing import Optional, Union
 
+import numpy as np
 import omegaconf
 from ase import Atoms
 from ase.io import read, write
@@ -100,9 +101,11 @@ class ReactorBasedWorker(BaseWorker):
             reaction_groups = []
             for atoms in structures:
                 rxn_grp = atoms.info.get("rxn_grp", "-1")
-                if not isinstance(rxn_grp, str):
-                    rxn_grp = str(rxn_grp)  # If there is only one number, it will be np.int64
-                reaction_groups.append([int(x) for x in rxn_grp.split(",")])
+                if isinstance(rxn_grp, np.ndarray):
+                    rxn_grp = rxn_grp.tolist()  # Convert numpy array to list
+                else:
+                    rxn_grp = [rxn_grp]  # If there is only one number, it will be np.int64
+                reaction_groups.append(rxn_grp)
             rxn_indices = list(itertools.chain(*reaction_groups))
             have_only_one_reaction = all([x == -1 for x in rxn_indices])
             if not have_only_one_reaction:
