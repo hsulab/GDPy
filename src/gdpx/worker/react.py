@@ -15,7 +15,6 @@ from ase.io import read, write
 from joblib import Parallel, delayed
 from tinydb import Query, TinyDB
 
-from gdpx import config
 from gdpx.data.array import AtomsNDArray
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.reactor.reactor import BaseReactor
@@ -34,25 +33,20 @@ class ReactorBasedWorker(BaseWorker):
 
     def __init__(
         self,
-        potter_,
-        driver_: BaseReactor = None,
-        scheduler_=None,
-        directory_=None,
+        potter,
+        driver: BaseReactor,
+        scheduler=None,
         *args,
         **kwargs,
     ):
         """"""
-        self.batchsize = kwargs.pop("batchsize", 1)
+        super().__init__(*args, **kwargs)
 
-        assert isinstance(potter_, BasePotentialManager), ""
+        assert isinstance(potter, BasePotentialManager)
 
-        self.potter = potter_
-        self.driver = driver_
-        self.scheduler = scheduler_
-        if directory_:
-            self.directory = directory_
-
-        self.n_jobs = config.NJOBS
+        self.potter = potter
+        self.driver = driver
+        self.scheduler = scheduler
 
         return
 
@@ -165,11 +159,11 @@ class ReactorBasedWorker(BaseWorker):
         """"""
         super().run(*args, **kwargs)
 
-        # - check if the same input structures are provided
+        # Check if the same input structures are provided
         identifier, pairs, start_pairid = self._preprocess(structures)
         batches = self._prepare_batches(pairs, start_confid=start_pairid)
 
-        # - read metadata
+        # Read metadata
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
