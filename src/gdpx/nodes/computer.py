@@ -32,8 +32,9 @@ def broadcast_and_adjust_potter(
     print_func: Callable = print,
 ) -> list[BasePotentialManager]:
     """Convert an input to a potter and adjust its behaviour."""
-    # convert everything into potter
+    # Convert anything into potter
     potter = convert_input_to_potter(inp)
+    assert isinstance(potter, BasePotentialManager), f"{potter} is not a `BasePotentialManager` but `{type(potter)}`."
 
     # HACK: broadcast potters
     if hasattr(potter, "broadcast"):
@@ -44,7 +45,7 @@ def broadcast_and_adjust_potter(
     for p in potters:
         assert isinstance(p.calc, BaseCalculator), f"{p.calc} is not `Calculator`."
 
-    # adjust potter behaviour
+    # Adjust potter behaviour
     for i, potter in enumerate(potters):
         print_func(f"potter-{i} {potter.name}")
         if hasattr(potter, "switch_uncertainty_estimation"):
@@ -162,8 +163,8 @@ class ComputerVariable(Variable):
             switch_backend=switch_backend,
             print_func=self._print,
         )
-        self.driver = self._load_driver(driver)
-        self.scheduler = self._load_scheduler(scheduler)
+        self.driver = self._canonicalise_driver(driver)
+        self.scheduler = self._canonicalise_scheduler(scheduler)
 
         # NOTE: This can be updated in the compute operation.
         self.batchsize = batchsize
@@ -184,7 +185,7 @@ class ComputerVariable(Variable):
 
         return
 
-    def _load_driver(self, inp) -> list[dict]:
+    def _canonicalise_driver(self, inp) -> list[dict]:
         """Load drivers from a Variable or a dict."""
         # print("driver: ", inp)
         drivers = []  # params
@@ -203,7 +204,7 @@ class ComputerVariable(Variable):
 
         return drivers
 
-    def _load_scheduler(self, inp):
+    def _canonicalise_scheduler(self, inp):
         """"""
         scheduler = None
         if isinstance(inp, BaseScheduler):
