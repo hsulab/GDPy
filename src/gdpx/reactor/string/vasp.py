@@ -12,7 +12,9 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
-from .. import read_sort, resort_atoms_with_spc, run_ase_calculator
+from gdpx.utils.cmdrun import run_ase_calculator
+from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
+
 from .string import AbstractStringReactor, StringReactorSetting
 
 #: Ase-vasp sort fname.

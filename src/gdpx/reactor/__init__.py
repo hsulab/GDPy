@@ -2,25 +2,15 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
-
-from .. import config
-from ..core.register import registers
-from ..utils.cmdrun import run_ase_calculator
-from ..utils.strucopy import read_sort, resort_atoms_with_spc
+from gdpx.core.register import registers
 
 """ This submodule is for exploring, sampling, 
     and performing (chemical) reactions with
     various advanced algorithms.
 """
 
-# - string methods...
-from .string import (
-    AseStringReactor,
-    Cp2kStringReactor,
-    VaspStringReactor,
-    ZeroStringReactor,
-)
+# String methods
+from .string import AseStringReactor, Cp2kStringReactor, VaspStringReactor, ZeroStringReactor
 
 registers.reactor.register("ase")(AseStringReactor)
 registers.reactor.register("cp2k")(Cp2kStringReactor)
