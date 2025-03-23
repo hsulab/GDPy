@@ -100,7 +100,7 @@ class ZeroStringReactor(BaseStringReactor):
 
         return
 
-    def run(self, structures, read_cache: bool = True, *args, **kwargs):
+    def run(self, structures, read_ckpt: bool = True, *args, **kwargs):
         """"""
         self.directory.mkdir(parents=True, exist_ok=True)
 

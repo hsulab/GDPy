@@ -44,7 +44,7 @@ class BaseReactor(BaseComponent):
         return
 
     @abc.abstractmethod
-    def run(self, structures, read_cache: bool = True, *args, **kwargs):
+    def run(self, structures, read_ckpt: bool = True, *args, **kwargs):
         """"""
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
