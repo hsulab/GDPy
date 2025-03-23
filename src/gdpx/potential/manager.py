@@ -4,6 +4,7 @@
 
 import abc
 import copy
+from typing import Union
 
 import numpy as np
 from ase.calculators.calculator import Calculator
@@ -12,8 +13,8 @@ from gdpx import config
 from gdpx.backend.ase import DummyCalculator
 from gdpx.computation import register_drivers
 from gdpx.computation.driver import BaseDriver
-from gdpx.core.register import registers
 from gdpx.reactor import register_reactors
+from gdpx.reactor.reactor import BaseReactor
 
 DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "md", "freq"]
 DYNAMICS_REACTOR_TASKS: list[str] = ["neb"]
@@ -74,7 +75,7 @@ class BasePotentialManager(abc.ABC):
 
         return
 
-    def create_driver(self, dyn_params: dict = {}) -> BaseDriver:
+    def create_driver(self, dyn_params: dict = {}) -> Union[BaseDriver, BaseReactor]:
         """Create a driver for dynamics.
 
         The default dynamics backend will be the same as the calculator.

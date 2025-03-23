@@ -10,9 +10,11 @@ from typing import Callable, Optional
 import omegaconf
 from ase.calculators.calculator import BaseCalculator
 
+from gdpx.computation.driver import BaseDriver
 from gdpx.core.register import registers
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.potential.utils import convert_input_to_potter
+from gdpx.reactor.reactor import BaseReactor
 from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.session.variable import Variable
 from gdpx.utils.parser import parse_input_file
@@ -135,7 +137,6 @@ class ComputerVariable(Variable):
         share_wdir: bool = False,
         use_single: bool = False,
         retain_info: bool = False,
-        directory=pathlib.Path.cwd(),
     ):
         """"""
         # Save input parameters
@@ -164,8 +165,8 @@ class ComputerVariable(Variable):
         self.driver = self._load_driver(driver)
         self.scheduler = self._load_scheduler(scheduler)
 
-        # - ...
-        self.batchsize = batchsize  # NOTE: This can be updated in drive operation.
+        # NOTE: This can be updated in the compute operation.
+        self.batchsize = batchsize
 
         workers = self._broadcast_workers(
             self.potter,
@@ -247,17 +248,21 @@ class ComputerVariable(Variable):
 
             # create workers
             workers = []
-            # for i, (p_i, d_i) in enumerate(pairs):
             for i, (d_i, p_i) in enumerate(pairs):
                 # workers share calculator in potter
                 driver = potters[p_i].create_driver(drivers[d_i])
-                if not use_single:
-                    worker = DriverBasedWorker(potters[p_i], driver, scheduler)
+                if isinstance(driver, BaseDriver):
+                    if not use_single:
+                        worker = DriverBasedWorker(potters[p_i], driver, scheduler)
+                    else:
+                        worker = SingleWorker(potters[d_i], driver, scheduler)
+                    worker._share_wdir = share_wdir
+                    worker._retain_info = retain_info
+                elif isinstance(driver, BaseReactor):
+                    worker = ReactorBasedWorker(potters[p_i], driver, scheduler)
                 else:
-                    worker = SingleWorker(potters[d_i], driver, scheduler)
-                worker._share_wdir = share_wdir
-                worker._retain_info = retain_info
-                # wdir is temporary as it may be reset by drive operation
+                    raise Exception()  # Driver should already be checked by create_driver.
+                # wdir is temporary as it may be reset by the compute operation
                 worker.directory = wdirs[i]
                 workers.append(worker)
 
@@ -281,103 +286,6 @@ class ComputerVariable(Variable):
         """"""
 
         return self._init_params
-
-
-@registers.variable.register
-class ReactorVariable(Variable):
-    """Create a ReactorBasedWorker.
-
-    TODO:
-        Broadcast driver params to give several workers?
-
-    """
-
-    def __init__(
-        self,
-        potter,
-        driver: dict,
-        scheduler={},
-        *,
-        estimate_uncertainty: Optional[bool] = None,
-        switch_backend: Optional[str] = None,
-        batchsize=1,
-        directory="./",
-    ):
-        """"""
-        # Save state by all nodes
-        self.potter = broadcast_and_adjust_potter(
-            potter,
-            estimate_uncertainty=estimate_uncertainty,
-            switch_backend=switch_backend,
-            print_func=self._print,
-        )
-        self.driver = self._load_driver(driver)
-        self.scheduler = self._load_scheduler(scheduler)
-
-        self.batchsize = batchsize
-
-        # Create a reactor
-        workers = self._create_workers(self.potter, self.driver, self.scheduler, batchsize=self.batchsize)
-
-        super().__init__(initial_value=workers, directory=directory)
-
-        return
-
-    def _load_driver(self, inp) -> list[dict]:
-        """Load drivers from a Variable or a dict."""
-        # print("driver: ", inp)
-        drivers = []  # params
-        if isinstance(inp, Variable):
-            drivers = inp.value
-        elif isinstance(inp, list):  # assume it contains a list of dicts
-            drivers = inp
-        elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
-            driver_params = copy.deepcopy(inp)
-            # driver = self.potter.create_driver(driver_params) # use external backend
-            drivers = [driver_params]
-        else:
-            raise RuntimeError(f"Unknown {inp} for drivers.")
-
-        return drivers
-
-    def _load_scheduler(self, inp):
-        """"""
-        scheduler = None
-        if isinstance(inp, Variable):
-            scheduler = inp.value
-        elif isinstance(inp, dict) or isinstance(inp, omegaconf.DictConfig):
-            scheduler_params = copy.deepcopy(inp)
-            backend = scheduler_params.pop("backend", "local")
-            scheduler = registers.create("scheduler", backend, convert_name=True, **scheduler_params)
-        else:
-            raise RuntimeError(f"Unknown {inp} for the scheduler.")
-
-        return scheduler
-
-    def _create_workers(
-        self,
-        potters,
-        drivers: list[dict],
-        scheduler,
-        *,
-        batchsize: int = 1,
-    ):
-        """"""
-        # FIXME: Support several potters?
-        num_potters = len(potters)
-        assert num_potters == 1, "Reactor only supports one potter."
-        potter = potters[0]
-
-        workers = []
-        for driver_params in drivers:
-            driver = potter.create_driver(driver_params)
-            worker = ReactorBasedWorker(potter, driver, scheduler)
-            workers.append(worker)
-
-        for worker in workers:
-            worker.batchsize = batchsize
-
-        return workers
 
 
 if __name__ == "__main__":

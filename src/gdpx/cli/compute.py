@@ -13,7 +13,7 @@ from ase.io import read, write
 from gdpx import config
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.builder import BuilderVariable
-from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable, ReactorVariable
+from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable
 from gdpx.nodes.scheduler import SchedulerVariable
 from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.parser import parse_input_file
@@ -29,9 +29,8 @@ CompState = enum.Enum("CompState", ("QUEUED", "FINISHED"))
 def convert_input_to_computer(config):
     """Convert an input configuration to a computer.
 
-    The `computer` can be ComputerVariable, ReactorVariable, and
-    ComputerChainVariable. This function should only be called in
-    the `main.py`.
+    The `computer` can be ComputerVariable and ComputerChainVariable.
+    This function should only be called in the `main.py`.
 
     """
     if isinstance(config, str) or isinstance(config, pathlib.Path):
@@ -82,41 +81,9 @@ def convert_config_to_computer(config):
     else:
         params["potter"] = potter_params
 
-    # Check whether the driver is for dynamics or reaction
-    # FIXME: This is a workaround for the current implementation of ReactorVariable.
-    #        We'd better unify the driver interface for both ComputerVariable and ReactorVariable.
-    driver_params = params.get("driver", {})
-    task = driver_params.get("task", "min")
-    if task in ("spc", "min", "md", "freq"):
-        computer = ComputerVariable(**params)
-    elif task in ("neb",):
-        computer = ReactorVariable(
-            potter=params["potter"],
-            driver=params.get("driver", None),
-            scheduler=params.get("scheduler", {}),
-            batchsize=params.get("batchsize", 1),
-        )
-    else:
-        raise Exception(f"Unknown computer with task {task}.")
+    computer = ComputerVariable(**params)
 
     return computer
-
-
-def convert_config_to_potter(config):
-    """Convert a configuration file or a dict to a potter/reactor.
-
-    This function is only called in tests.
-
-    """
-    computer = convert_config_to_computer(config)
-    if isinstance(computer, ComputerVariable):
-        potter = computer.value
-    elif isinstance(computer, ReactorVariable):
-        potter = computer.value[0]
-    else:
-        raise RuntimeError()
-
-    return potter
 
 
 def run_one_worker(structures, worker, directory, batch, spawn, archive):
@@ -187,7 +154,7 @@ def run_worker(
 
     # Find input frames
     comp_states = []
-    if isinstance(computer, ComputerVariable) or isinstance(computer, ReactorVariable):
+    if isinstance(computer, ComputerVariable):
         workers: List[DriverBasedWorker] = computer.value
         num_workers = len(workers)
         if num_workers == 1:
