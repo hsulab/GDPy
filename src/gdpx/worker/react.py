@@ -24,7 +24,7 @@ from gdpx.potential.manager import BasePotentialManager
 from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.profiler import CustomTimer
 
-from .utils import copy_minimal_frames, get_file_md5, read_cache_info
+from .utils import copy_minimal_frames, get_file_md5, read_cache_info, split_batches
 from .worker import BaseWorker
 
 
@@ -205,10 +205,21 @@ class ReactorBasedWorker(BaseWorker):
 
         num_reactions = len(groups)
 
+        # Overwrite batchsize if share_wdir is used or the scheduler is local
+        overwrite_batchsize = False
+        if self.scheduler.name == "local":
+            overwrite_batchsize = True
+
+        if overwrite_batchsize:
+            self._print(f"Overwrites batchsize to {num_reactions=} as it uses local scheduler.")
+            batchsize = num_reactions
+        else:
+            batchsize = self.batchsize
+
         wdirs = [f"{self.wdir_prefix}{i}" for i in range(num_reactions)]
 
         # Split structures into different batches
-        starts, ends = self._split_groups(num_reactions)
+        starts, ends = split_batches(num_reactions, batchsize)
 
         batches = []
         for _, (s, e) in enumerate(zip(starts, ends)):
