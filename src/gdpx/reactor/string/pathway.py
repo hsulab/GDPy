@@ -19,7 +19,7 @@ from ase.optimize.optimize import Dynamics
 from gdpx import config as GDPCONFIG
 from gdpx.backend.ase import EnhancedCalculator
 
-from .string import AbstractStringReactor, Controller, StringReactorSetting
+from .string import BaseStringReactor, Controller, StringReactorSetting
 
 
 def update_atoms_info(
@@ -202,7 +202,7 @@ class AseStringReactorSetting(StringReactorSetting):
         return run_params
 
 
-class AseStringReactor(AbstractStringReactor):
+class AseStringReactor(BaseStringReactor):
     """Find the minimum energy path based on input structures.
 
     Methods based on the number of input structures such as single, double, multi...

@@ -15,7 +15,7 @@ from ase.io import read, write
 from gdpx.utils.cmdrun import run_ase_calculator
 from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
 
-from .string import AbstractStringReactor, StringReactorSetting
+from .string import BaseStringReactor, StringReactorSetting
 
 #: Ase-vasp sort fname.
 ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
@@ -80,7 +80,7 @@ class VaspStringReactorSetting(StringReactorSetting):
         return run_params
 
 
-class VaspStringReactor(AbstractStringReactor):
+class VaspStringReactor(BaseStringReactor):
 
     name: str = "vasp"
 

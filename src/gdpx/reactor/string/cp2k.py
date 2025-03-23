@@ -14,7 +14,7 @@ from ase.io import read, write
 
 from gdpx.group import evaluate_constraint_expression
 
-from .string import AbstractStringReactor, StringReactorSetting
+from .string import BaseStringReactor, StringReactorSetting
 
 
 def run_cp2k(name, command, directory):
@@ -138,7 +138,7 @@ class Cp2kStringReactorSetting(StringReactorSetting):
         return run_params
 
 
-class Cp2kStringReactor(AbstractStringReactor):
+class Cp2kStringReactor(BaseStringReactor):
 
     name: str = "cp2k"
 

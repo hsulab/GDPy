@@ -100,7 +100,7 @@ class StringReactorSetting:
         raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
-class AbstractStringReactor(AbstractReactor):
+class BaseStringReactor(AbstractReactor):
 
     name: str = "string"
 
