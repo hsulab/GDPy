@@ -12,7 +12,7 @@ from gdpx.core.component import BaseComponent
 """
 
 
-class AbstractReactor(BaseComponent):
+class BaseReactor(BaseComponent):
     """Base class of an arbitrary reactor.
 
     A valid reactor may contain the following components:

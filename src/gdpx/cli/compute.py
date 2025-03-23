@@ -14,8 +14,8 @@ from gdpx import config
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.builder import BuilderVariable
 from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable, ReactorVariable
-from gdpx.reactor.reactor import AbstractReactor
 from gdpx.nodes.scheduler import SchedulerVariable
+from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.parser import parse_input_file
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.grid import GridDriverBasedWorker
@@ -134,7 +134,7 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
             if not res_dir.exists():
                 res_dir.mkdir()
                 ret = worker.retrieve(include_retrieved=True, use_archive=archive)
-                if not isinstance(worker.driver, AbstractReactor):
+                if not isinstance(worker.driver, BaseReactor):
                     end_frames = [traj[-1] for traj in ret]
                     write(res_dir / "end_frames.xyz", end_frames)
                     config._print(f"{directory.name} has already been retrieved.")

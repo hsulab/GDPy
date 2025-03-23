@@ -18,7 +18,7 @@ from tinydb import Query, TinyDB
 from gdpx import config
 from gdpx.data.array import AtomsNDArray
 from gdpx.potential.manager import BasePotentialManager
-from gdpx.reactor.reactor import AbstractReactor
+from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.profiler import CustomTimer
 
 from .utils import copy_minimal_frames, get_file_md5, read_cache_info
@@ -35,7 +35,7 @@ class ReactorBasedWorker(BaseWorker):
     def __init__(
         self,
         potter_,
-        driver_: AbstractReactor = None,
+        driver_: BaseReactor = None,
         scheduler_=None,
         directory_=None,
         *args,

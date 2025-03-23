@@ -21,7 +21,7 @@ from ase.mep import idpp_interpolate, interpolate
 
 from gdpx.group import evaluate_constraint_expression
 
-from ..reactor import AbstractReactor
+from ..reactor import BaseReactor
 from ..utils import compute_rxn_coords, plot_mep
 
 
@@ -100,7 +100,7 @@ class StringReactorSetting:
         raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
-class BaseStringReactor(AbstractReactor):
+class BaseStringReactor(BaseReactor):
 
     name: str = "string"
 
@@ -134,7 +134,7 @@ class BaseStringReactor(AbstractReactor):
 
         return
 
-    @AbstractReactor.directory.setter
+    @BaseReactor.directory.setter
     def directory(self, directory: Union[str, pathlib.Path]):
         self._directory = pathlib.Path(directory)
         # ASE calculator uses a string as path
