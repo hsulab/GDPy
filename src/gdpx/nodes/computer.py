@@ -166,7 +166,7 @@ class ComputerVariable(Variable):
         self.driver = self._canonicalise_driver(driver)
         self.scheduler = self._canonicalise_scheduler(scheduler)
 
-        # NOTE: This can be updated in the compute operation.
+        # This can be updated in the compute operation.
         self.batchsize = batchsize
 
         workers = self._broadcast_workers(
