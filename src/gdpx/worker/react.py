@@ -179,27 +179,22 @@ class ReactorBasedWorker(BaseWorker):
 
         return curr_md5, pairs, start_confid
 
-    def _prepare_batches(self, pairs: list[list[Atoms]], start_confid: int):
-        """"""
-        nreactions = len(pairs)
-
-        wdirs = [f"{self.wdir_prefix}{i}" for i in range(nreactions)]
-
-        # Split structures into different batches
-        starts, ends = self._split_groups(nreactions)
-
-        batches = []
-        for i, (s, e) in enumerate(zip(starts, ends)):
-            curr_indices = range(s, e)
-            curr_wdirs = [wdirs[x] for x in curr_indices]
-            batches.append([curr_indices, curr_wdirs])
-
-        return batches
-
     def prepare_batches(self, structures):
         """"""
         identifier, pairs, start_pairid = self._preprocess(structures)
-        batches = self._prepare_batches(pairs, start_confid=start_pairid)
+
+        num_reactions = len(pairs)
+
+        wdirs = [f"{self.wdir_prefix}{i}" for i in range(num_reactions)]
+
+        # Split structures into different batches
+        starts, ends = self._split_groups(num_reactions)
+
+        batches = []
+        for _, (s, e) in enumerate(zip(starts, ends)):
+            curr_indices = range(s, e)
+            curr_wdirs = [wdirs[x] for x in curr_indices]
+            batches.append([curr_indices, curr_wdirs])
 
         return identifier, pairs, batches
 
