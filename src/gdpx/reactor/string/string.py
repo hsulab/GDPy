@@ -25,6 +25,19 @@ from ..utils import compute_rxn_coords, plot_bands, plot_mep
 
 
 @dataclasses.dataclass
+class Controller:
+
+    #: Thermostat name.
+    name: str = "controller"  # thermostat or barostat
+
+    #: Parameter unit type (see ase.lammps).
+    units: str = "metal"
+
+    #: Parameters.
+    params: dict = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass
 class StringReactorSetting:
 
     #: Machine-related prefix added before executable (e.g. mpirun).
@@ -83,9 +96,7 @@ class StringReactorSetting:
     def get_run_params(self):
         """"""
 
-        raise NotImplementedError(
-            f"{self.__class__.__name__} has no function for run params."
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
 class AbstractStringReactor(AbstractReactor):
@@ -124,19 +135,13 @@ class AbstractStringReactor(AbstractReactor):
         # backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
 
-        if hasattr(
-            self.calc, "command"
-        ):  # CommitteeCalculator has no command.
+        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
             prev_command = self.calc.command
-            self.calc.command = (
-                self.setting.machine_prefix + " " + prev_command
-            )
+            self.calc.command = self.setting.machine_prefix + " " + prev_command
 
         # -
         if not self._verify_checkpoint():
-            self._debug(
-                f"... start from the scratch @ {self.directory.name} ..."
-            )
+            self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True, exist_ok=True)
             self._irun([ini_atoms, fin_atoms], *args, **kwargs)
         else:
@@ -176,22 +181,15 @@ class AbstractStringReactor(AbstractReactor):
                 energies = [a.get_potential_energy() for a in curr_band]
                 imax = 1 + np.argsort(energies[1:-1])[-1]
                 # NOTE: maxforce in cp2k is norm(atomic_forces)
-                maxfrc = np.max(
-                    curr_band[imax].get_forces(apply_constraint=True)
-                )
+                maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
 
-                self._print(
-                    f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
-                    + f"-> {rxn_coords[-1]:.2f}"
-                )
+                self._print(f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} " + f"-> {rxn_coords[-1]:.2f}")
                 self._print(
                     f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
                     + f"dE: {energies[-1]-energies[0]:<8.4f}"
                 )
             else:
-                self._debug(
-                    f"... CANNOT read bands @ {self.directory.name} ..."
-                )
+                self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
                 ...
         else:
             self._debug(f"... 2. unconverged @ {self.directory.name} ...")
@@ -246,9 +244,7 @@ class AbstractStringReactor(AbstractReactor):
 
         return
 
-    def _align_structures(
-        self, structures: List[Atoms], run_params: dict, *args, **kwargs
-    ) -> List[Atoms]:
+    def _align_structures(self, structures: List[Atoms], run_params: dict, *args, **kwargs) -> List[Atoms]:
         """Create a reaction pathway based on two structures.
 
         Args:
@@ -264,9 +260,7 @@ class AbstractStringReactor(AbstractReactor):
             self._print("Interpolate a pathway.")
             # - check lattice consistency
             ini_atoms, fin_atoms = structures
-            c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(
-                complete=True
-            )
+            c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(complete=True)
             assert np.allclose(c1, c2), "Inconsistent unit cell..."
 
             cons_text = run_params.get("constraint", None)
@@ -275,28 +269,17 @@ class AbstractStringReactor(AbstractReactor):
 
             # TODO: We only support one constraint (FixAtoms) for NEB now.
             num_constraints = len(ini_atoms.constraints)
-            assert (
-                len(ini_atoms.constraints)
-                == len(fin_atoms.constraints)
-                == num_constraints
-            )
+            assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == num_constraints
             if num_constraints == 0:
                 ...
             elif num_constraints == 1:
-                sorted_constrained_indices_ini = np.array(
-                    sorted(ini_atoms.constraints[0].index)
-                )
-                sorted_constrained_indices_fin = np.array(
-                    sorted(fin_atoms.constraints[0].index)
-                )
+                sorted_constrained_indices_ini = np.array(sorted(ini_atoms.constraints[0].index))
+                sorted_constrained_indices_fin = np.array(sorted(fin_atoms.constraints[0].index))
                 assert np.all(
-                    sorted_constrained_indices_ini
-                    == sorted_constrained_indices_fin
+                    sorted_constrained_indices_ini == sorted_constrained_indices_fin
                 ), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
             else:
-                raise RuntimeError(
-                    f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`."
-                )
+                raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`.")
 
             # get interpolation parameters
             use_mic = self.setting.interpolation.get("mic", True)
@@ -328,13 +311,18 @@ class AbstractStringReactor(AbstractReactor):
 
             if idpp_params:
                 # FIXME: make idpp a manager?
-                idpp_interpolate(
-                    images=images,
-                    traj=str(self.directory / "idpp_images.traj"),
-                    log=str(self.directory / "idpp.log"),
-                    mic=use_mic,
-                    **idpp_params,
-                )
+                idpp_traj_cache = self.directory / "idpp_images.traj"
+                if not idpp_traj_cache.exists():
+                    idpp_interpolate(
+                        images=images,
+                        traj=str(idpp_traj_cache),
+                        log=str(self.directory / "idpp.log"),
+                        mic=use_mic,
+                        **idpp_params,
+                    )
+                else:
+                    self._print(f"Use cached idpp images from `{idpp_traj_cache}`.")
+                    images = read(idpp_traj_cache, index=f"-{self.setting.nimages}:")
         else:
             self._print("Use a pre-defined pathway.")
             images = [a.copy() for a in structures]
@@ -354,9 +342,7 @@ class AbstractStringReactor(AbstractReactor):
 
         cache_nebtraj = self.directory / self.traj_name
         if cache_nebtraj.exists() and cache_nebtraj.stat().st_size != 0:
-            traj_list.append(
-                self._read_a_single_trajectory(wdir=self.directory)
-            )
+            traj_list.append(self._read_a_single_trajectory(wdir=self.directory))
 
         # - concatenate
         traj_frames, ntrajs = [], len(traj_list)
@@ -390,13 +376,9 @@ class AbstractStringReactor(AbstractReactor):
             maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
 
             self._print(f"imax: {imax}")
+            self._print(f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} " + f"-> {rxn_coords[-1]:.2f}")
             self._print(
-                f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
-                + f"-> {rxn_coords[-1]:.2f}"
-            )
-            self._print(
-                f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
-                + f"dE: {energies[-1]-energies[0]:<8.4f}"
+                f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} " + f"dE: {energies[-1]-energies[0]:<8.4f}"
             )
 
         return traj_frames

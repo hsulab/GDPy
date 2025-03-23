@@ -4,6 +4,7 @@
 
 import copy
 import dataclasses
+import functools
 import pathlib
 import traceback
 from typing import Callable
@@ -18,7 +19,7 @@ from ase.optimize.optimize import Dynamics
 from gdpx import config as GDPCONFIG
 from gdpx.backend.ase import EnhancedCalculator
 
-from .string import AbstractStringReactor, StringReactorSetting
+from .string import AbstractStringReactor, Controller, StringReactorSetting
 
 
 def update_atoms_info(
@@ -98,24 +99,96 @@ def save_nebtraj(neb: NEB, nebtraj_fpath: pathlib.Path) -> None:
 
 
 @dataclasses.dataclass
+class BFGSMinimiser(Controller):
+
+    name: str = "bfgs"
+
+    def __post_init__(self):
+        """"""
+        # BFGS takes considerate time for solving hessian.
+        from ase.optimize import BFGS
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.params.update(driver_cls=functools.partial(BFGS, maxstep=maxstep))
+
+        return
+
+
+@dataclasses.dataclass
+class FireMinimiser(Controller):
+
+    name: str = "fire"
+
+    def __post_init__(self):
+        """"""
+        # BUG: Strange behaviour for neb.
+        from ase.optimize import FIRE
+
+        dt = self.params.get("timestep", 0.1)
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.params.update(driver_cls=functools.partial(FIRE, dt=dt, maxstep=maxstep))
+
+        return
+
+
+@dataclasses.dataclass
+class MDMinimiser(Controller):
+
+    name: str = "mdmin"
+
+    def __post_init__(self):
+        """"""
+        from ase.optimize import MDMin
+
+        dt = self.params.get("timestep", 0.1)
+
+        maxstep = self.params.get("maxstep", 0.2)
+        assert maxstep is not None
+
+        self.params.update(driver_cls=functools.partial(MDMin, dt=dt, maxstep=maxstep))
+
+        return
+
+
+controllers = dict(
+    bfgs=BFGSMinimiser,
+    fire=FireMinimiser,
+    mdmin=MDMinimiser,
+)
+
+
+@dataclasses.dataclass
 class AseStringReactorSetting(StringReactorSetting):
 
     backend: str = "ase"
 
+    controller: dict = dataclasses.field(default_factory=dict)
+
     def __post_init__(self):
         """"""
-        # - ...
-        opt_cls = None
-        if self.optimiser == "bfgs":  # Takes a lot of time to solve hessian.
-            from ase.optimize import BFGS as opt_cls
-        elif self.optimiser == "fire":  # BUG: STRANGE BEHAVIOUR.
-            from ase.optimize import FIRE as opt_cls
-        elif self.optimiser == "mdmin":
-            from ase.optimize import MDMin as opt_cls
-        else:
-            ...
+        _init_params = {}
+        _init_params.update(**self.controller)
 
-        self.opt_cls = opt_cls
+        if self.controller:
+            cont_cls_name = self.controller.get("name", "bfgs")
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = controllers["bfgs"]
+
+        cont = cont_cls(**_init_params)
+        self.driver_cls = cont.params.pop("driver_cls")
+
+        # There is a bug in ASE as it checks `if steps` then fails when spc.
+        if self.steps == 0:
+            self.steps = -1
 
         return
 
@@ -140,6 +213,8 @@ class AseStringReactor(AbstractStringReactor):
 
     traj_name: str = "nebtraj.xyz"
 
+    setting_cls = AseStringReactorSetting
+
     def __init__(
         self,
         calc=None,
@@ -159,8 +234,8 @@ class AseStringReactor(AbstractStringReactor):
         self.directory = directory
         self.cache_nebtraj = self.directory / self.traj_name
 
-        # - parse params
-        self.setting = AseStringReactorSetting(**params)
+        # Initialise the setting
+        self.setting = self.setting_cls(**params)
         self._debug(self.setting)
 
         return
@@ -216,10 +291,8 @@ class AseStringReactor(AbstractStringReactor):
             precon=None,
         )
 
-        dynamics = self.setting.opt_cls(
-            neb, logfile=self.directory / "neb.log", trajectory=None, maxstep=0.05  # 0.20, 0.10, 0.05
-        )
-        self._print(f"{dynamics=}  {dynamics.maxstep=}")
+        dynamics = self.setting.driver_cls(neb, logfile=self.directory / "neb.log", trajectory=None)
+        self._print(f"{dynamics.__class__.__name__} with a maxstep of {dynamics.maxstep}")
         dynamics.attach(
             update_atoms_info,
             interval=self.setting.dump_period,
