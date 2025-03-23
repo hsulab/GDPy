@@ -120,16 +120,15 @@ class ReactorBasedWorker(BaseWorker):
                 pairs = []
                 raise RuntimeError()
         else:
-            ...
+            raise Exception(f"Unsupported input structure type `{type(structures)}`.")
 
-        # - check difference
-        processed_dpath = self.directory / "_data"
-        processed_dpath.mkdir(exist_ok=True)
+        # Compare the input structures
+        metadata_dpath = self.directory / "_data"
+        metadata_dpath.mkdir(exist_ok=True)
 
         curr_frames, curr_info = copy_minimal_frames(itertools.chain(*pairs))
 
-        # NOTE: handle atoms.info as some codes need energies for IS and FS...
-        energies = []
+        # Some reactors need energies for IS and FS...
         for i, a in enumerate(itertools.chain(*pairs)):
             try:
                 ene = a.get_potential_energy()
@@ -145,39 +144,38 @@ class ReactorBasedWorker(BaseWorker):
             )
 
             with open(tmp.name, "rb") as fopen:
-                curr_md5 = get_file_md5(fopen)
+                identifier = get_file_md5(fopen)
 
         _info_data = read_cache_info(self.directory, self.UUIDLEN)
 
-        cache_fname = f"{curr_md5}.xyz"
-        if (processed_dpath / cache_fname).exists():
-            self._print(f"Found file with md5 {curr_md5}")
+        cache_fname = f"{identifier}.xyz"
+        if (metadata_dpath / cache_fname).exists():
+            self._print(f"Found file with md5 {identifier}")
             self._info_data = _info_data
             start_confid = 0
             for x in self._info_data:
-                if x[1] == curr_md5:
+                if x[1] == identifier:
                     break
                 start_confid += 1
         else:
             write(
-                processed_dpath / cache_fname,
+                metadata_dpath / cache_fname,
                 curr_frames,
-                # columns=["symbols", "positions", "momenta", "tags", "move_mask"]
             )
-            # - save current atoms.info and append curr_info to _info_data
+            # Save current atoms.info and append curr_info to _info_data
             start_confid = len(_info_data)
             content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}\n".format("#id", "MD5", "confid", "step", "wdir")
             for i, (confid, step, wdir) in enumerate(curr_info):
                 line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}\n".format(
-                    i + start_confid, curr_md5, confid, step, wdir
+                    i + start_confid, identifier, confid, step, wdir
                 )
                 content += line
                 _info_data.append(line.strip().split())
             self._info_data = _info_data
-            with open(processed_dpath / f"{curr_md5}_info.txt", "w") as fopen:
+            with open(metadata_dpath / f"{identifier}_info.txt", "w") as fopen:
                 fopen.write(content)
 
-        return curr_md5, pairs, start_confid
+        return identifier, pairs, start_confid
 
     def prepare_batches(self, structures):
         """"""
