@@ -151,35 +151,36 @@ class BaseStringReactor(BaseReactor):
         """"""
         super().run(structures=structures, *args, **kwargs)
 
-        # - compatibility
-        read_cache = kwargs.get("read_cache", None)
-        if read_cache is not None:
-            read_ckpt = read_cache
+        # String method is double-ended, so we need at least two structures.
+        num_structures = len(structures)
+        if num_structures < 2:
+            raise RuntimeError(f"String method requires at least two structures. Got {num_structures}.")
+        self._print(f"num_strucutures_provided_for_string: {num_structures}")
 
-        # - Double-Ended Methods...
-        ini_atoms, fin_atoms = structures
+        ini_atoms = structures[0]
+        fin_atoms = structures[-1]
         try:
-            self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-            self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
+            ini_ene = ini_atoms.get_potential_energy()
+            fin_ene = fin_atoms.get_potential_energy()
+            self._print(f"E: {ini_ene:>16.4f}  " + f"E: {fin_ene:>16.4f}  " + f"dE: {fin_ene - ini_ene:>16.4f}")
         except RuntimeError:
-            # RuntimeError: Atoms object has no calculator.
-            self._print("Not energies attached to IS and FS.")
+            self._print("No energies attached to IS and FS.")
 
-        # backup old parameters
+        # Backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
 
+        prev_command = None
         if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
             prev_command = self.calc.command
             self.calc.command = self.setting.machine_prefix + " " + prev_command
 
-        # -
+        # Run calculation
         if not self._verify_checkpoint():
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True, exist_ok=True)
-            self._irun([ini_atoms, fin_atoms], *args, **kwargs)
+            self._irun(structures, *args, **kwargs)
         else:
             self._debug(f"... restart @ {self.directory.name} ...")
-            # - check if converged
             converged = self.read_convergence()
             if not converged:
                 self._debug(f"... unconverged @ {self.directory.name} ...")
@@ -189,12 +190,14 @@ class BaseStringReactor(BaseReactor):
             else:
                 self._debug(f"... converged @ {self.directory.name} ...")
 
+        # Restore the calculator parameters
         if hasattr(self.calc, "command"):
             self.calc.command = prev_command
+
         self.calc.parameters = prev_params
         self.calc.reset()
 
-        # - check again
+        # Check convergence again and postprocess
         curr_band, converged = None, self.read_convergence()
         if converged:
             self._debug(f"... 2. converged @ {self.directory.name} ...")
@@ -288,8 +291,8 @@ class BaseStringReactor(BaseReactor):
             A list of Atoms structures.
 
         """
-        nstructures = len(structures)
-        if nstructures == 2:
+        num_structures = len(structures)
+        if num_structures == 2:
             self._print("Interpolate a pathway.")
             # - check lattice consistency
             ini_atoms, fin_atoms = structures
@@ -357,8 +360,23 @@ class BaseStringReactor(BaseReactor):
                     self._print(f"Use cached idpp images from `{idpp_traj_cache}`.")
                     images = read(idpp_traj_cache, index=f"-{self.setting.nimages}:")
         else:
-            self._print("Use a pre-defined pathway.")
+            self._print("Use a pre-defined pathway and reset constraints.")
             images = [a.copy() for a in structures]
+
+            # Some constraints such as zbot/lowest may be different for each image due to minimisation,
+            # thus, we reset the constraints based on the first image.
+            cons_text = run_params.get("constraint", None)
+            self._preprocess_constraints(images[0], cons_text)
+            num_constraints = len(images[0].constraints)
+
+            for atoms in images[1:]:
+                atoms._del_constraints()
+                if num_constraints == 0:
+                    ...
+                elif num_constraints == 1:
+                    atoms.set_constraint(FixAtoms(indices=images[0].constraints[0].index))
+                else:
+                    raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{atoms.constraints=}`.")
 
         return images
 
