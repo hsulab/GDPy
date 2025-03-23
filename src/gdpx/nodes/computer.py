@@ -138,6 +138,7 @@ class ComputerVariable(Variable):
         share_wdir: bool = False,
         use_single: bool = False,
         retain_info: bool = False,
+        directory = "./",
     ):
         """"""
         # Save input parameters
@@ -179,7 +180,7 @@ class ComputerVariable(Variable):
             use_single=use_single,
             retain_info=retain_info,
         )
-        super().__init__(workers)
+        super().__init__(workers, directory=directory)
 
         self.use_single = use_single
 
