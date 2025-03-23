@@ -375,7 +375,8 @@ class BaseStringReactor(BaseReactor):
             ...
 
         # Postprocess the trajectory and show the pathway information
-        if traj_frames:
+        have_mep_results = (self.directory/"neb.png").exists()
+        if not have_mep_results and traj_frames:
             plot_mep(self.directory, traj_frames[-1])
 
             curr_band = traj_frames[-1]
