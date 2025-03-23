@@ -147,7 +147,7 @@ class BaseStringReactor(BaseReactor):
 
         return
 
-    def run(self, structures: list[Atoms], read_ckpt=True, *args, **kwargs):
+    def run(self, structures: list[Atoms], read_ckpt=True, *args, **kwargs) -> None:
         """"""
         super().run(structures=structures, *args, **kwargs)
 
@@ -197,40 +197,7 @@ class BaseStringReactor(BaseReactor):
         self.calc.parameters = prev_params
         self.calc.reset()
 
-        # Check convergence again and postprocess
-        curr_band, converged = None, self.read_convergence()
-        if converged:
-            self._debug(f"... 2. converged @ {self.directory.name} ...")
-            band_frames = self.read_trajectory()  # (nbands, nimages)
-            if band_frames:
-                # FIXME: make below a function
-                plot_mep(self.directory, band_frames[-1])
-                write(
-                    self.directory / "temptraj.xyz",
-                    itertools.chain(*band_frames),
-                )
-
-                curr_band = band_frames[-1]
-
-                rxn_coords = compute_rxn_coords(curr_band)
-
-                energies = [a.get_potential_energy() for a in curr_band]
-                imax = 1 + np.argsort(energies[1:-1])[-1]
-                # NOTE: maxforce in cp2k is norm(atomic_forces)
-                maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
-
-                self._print(f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} " + f"-> {rxn_coords[-1]:.2f}")
-                self._print(
-                    f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
-                    + f"dE: {energies[-1]-energies[0]:<8.4f}"
-                )
-            else:
-                self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
-                ...
-        else:
-            self._debug(f"... 2. unconverged @ {self.directory.name} ...")
-
-        return curr_band
+        return
 
     @abc.abstractmethod
     def _irun(self, structures: list[Atoms], *args, **kwargs):
@@ -248,7 +215,7 @@ class BaseStringReactor(BaseReactor):
 
     def _save_checkpoint(self, *args, **kwargs):
         """"""
-        # - find previous runs...
+        # Find the previous computation folders
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
         curr_index = len(prev_wdirs)
@@ -256,15 +223,10 @@ class BaseStringReactor(BaseReactor):
         curr_wdir = self.directory / f"{str(curr_index).zfill(4)}.run"
         self._debug(f"curr_wdir: {curr_wdir}")
 
-        # - backup files
+        # Move everything to a new folder
         curr_wdir.mkdir()
         for x in self.directory.iterdir():
             if not re.match(r"[0-9]{4}\.run", x.name):
-                # NOTE: default is to move everything to the new folder
-                # if x.name in self.saved_fnames:
-                #    shutil.move(x, curr_wdir)
-                # else:
-                #    x.unlink()
                 shutil.move(x, curr_wdir)
             else:
                 ...
@@ -382,7 +344,7 @@ class BaseStringReactor(BaseReactor):
 
     def read_trajectory(self, *args, **kwargs):
         """"""
-        # - find previous runs...
+        # Find previous computation folders
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
@@ -395,7 +357,7 @@ class BaseStringReactor(BaseReactor):
         if cache_nebtraj.exists() and cache_nebtraj.stat().st_size != 0:
             traj_list.append(self._read_a_single_trajectory(wdir=self.directory))
 
-        # - concatenate
+        # Concatenate all the trajectories
         traj_frames, ntrajs = [], len(traj_list)
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
@@ -412,12 +374,17 @@ class BaseStringReactor(BaseReactor):
         else:
             ...
 
+        # Postprocess the trajectory and show the pathway information
         if traj_frames:
-            # FIXME: make below a function
             plot_mep(self.directory, traj_frames[-1])
 
             curr_band = traj_frames[-1]
             write(self.directory / "last_band.xyz", curr_band)
+
+            write(
+                self.directory / "temptraj.xyz",
+                itertools.chain(*traj_frames),
+            )
 
             rxn_coords = compute_rxn_coords(curr_band)
 
@@ -426,7 +393,7 @@ class BaseStringReactor(BaseReactor):
             # NOTE: maxforce in cp2k is norm(atomic_forces)
             maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
 
-            self._print(f"imax: {imax}")
+            self._print(f"The transition state image index: {imax}")
             self._print(f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} " + f"-> {rxn_coords[-1]:.2f}")
             self._print(
                 f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} " + f"dE: {energies[-1]-energies[0]:<8.4f}"
