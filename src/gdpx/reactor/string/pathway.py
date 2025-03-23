@@ -215,40 +215,6 @@ class AseStringReactor(AbstractStringReactor):
 
     setting_cls = AseStringReactorSetting
 
-    def __init__(
-        self,
-        calc=None,
-        params={},
-        ignore_convergence=False,
-        directory="./",
-        *args,
-        **kwargs,
-    ) -> None:
-        """"""
-        self.calc = calc
-        if self.calc is not None:
-            self.calc.reset()
-
-        self.ignore_convergence = ignore_convergence
-
-        self.directory = directory
-        self.cache_nebtraj = self.directory / self.traj_name
-
-        # Initialise the setting
-        self.setting = self.setting_cls(**params)
-        self._debug(self.setting)
-
-        return
-
-    @AbstractStringReactor.directory.setter
-    def directory(self, directory_):
-        self._directory = pathlib.Path(directory_)
-        self.calc.directory = str(self.directory)  # NOTE: avoid inconsistent in ASE
-
-        self.cache_nebtraj = self.directory / self.traj_name
-
-        return
-
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """"""
         verified = super()._verify_checkpoint(*args, **kwargs)

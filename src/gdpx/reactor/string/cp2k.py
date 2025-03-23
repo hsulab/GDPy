@@ -42,9 +42,8 @@ def run_cp2k(name, command, directory):
 
     if errorcode:
         path = os.path.abspath(directory)
-        msg = (
-            'Calculator "{}" failed with command "{}" failed in '
-            "{} with error code {}".format(name, command, path, errorcode)
+        msg = 'Calculator "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+            name, command, path, errorcode
         )
         raise CalculationFailed(msg)
 
@@ -107,9 +106,7 @@ class Cp2kStringReactorSetting(StringReactorSetting):
         steps_ = kwargs.get("steps", self.steps)
 
         run_pairs = []
-        run_pairs.append(
-            ("MOTION/BAND/OPTIMIZE_BAND/DIIS", f"MAX_STEPS {steps_}")
-        )
+        run_pairs.append(("MOTION/BAND/OPTIMIZE_BAND/DIIS", f"MAX_STEPS {steps_}"))
         if fmax_ is not None:
             run_pairs.extend(
                 [
@@ -147,29 +144,7 @@ class Cp2kStringReactor(AbstractStringReactor):
 
     traj_name: str = "cp2k.out"
 
-    def __init__(
-        self,
-        calc=None,
-        params={},
-        ignore_convergence=False,
-        directory="./",
-        *args,
-        **kwargs,
-    ) -> None:
-        """"""
-        self.calc = calc
-        if self.calc is not None:
-            self.calc.reset()
-
-        self.ignore_convergence = ignore_convergence
-
-        self.directory = directory
-
-        # - parse params
-        self.setting = Cp2kStringReactorSetting(**params)
-        self._debug(self.setting)
-
-        return
+    setting_cls: type[StringReactorSetting] = Cp2kStringReactorSetting
 
     def _verify_checkpoint(self):
         """Check if the current directory has any valid outputs or
@@ -219,9 +194,7 @@ class Cp2kStringReactor(AbstractStringReactor):
                 frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
                     "MOTION/CONSTRAINT/FIXED_ATOMS",
-                    "LIST {}".format(
-                        " ".join([str(i + 1) for i in frozen_indices])
-                    ),
+                    "LIST {}".format(" ".join([str(i + 1) for i in frozen_indices])),
                 )
 
             # -- add replica information
@@ -229,9 +202,7 @@ class Cp2kStringReactor(AbstractStringReactor):
             for replica in images:
                 cur_rep = InputSection(name="REPLICA")
                 for pos in replica.positions:
-                    cur_rep.add_keyword(
-                        "COORD", ("{:.18e} " * 3).format(*pos), unique=False
-                    )
+                    cur_rep.add_keyword("COORD", ("{:.18e} " * 3).format(*pos), unique=False)
                 band_section.subsections.append(cur_rep)
         else:  # start from a checkpoint
             atoms = read(ckpt_wdir / "images.xyz", "0")
@@ -276,9 +247,7 @@ class Cp2kStringReactor(AbstractStringReactor):
             # - copy wavefunctions...
             restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
             for wfn in restart_wfns:
-                (self.directory / wfn.name).symlink_to(
-                    wfn, target_is_directory=False
-                )
+                (self.directory / wfn.name).symlink_to(wfn, target_is_directory=False)
 
         # update input
         self.calc.parameters.inp = "\n".join(sec.write())
@@ -416,8 +385,7 @@ class Cp2kStringReactor(AbstractStringReactor):
                         found_replica_forces = True
                     if found_replica_forces:
                         curr_energies = [
-                            float(curr_data[i].strip().split()[-1])
-                            for i in range(1, len(curr_data), natoms + 3)
+                            float(curr_data[i].strip().split()[-1]) for i in range(1, len(curr_data), natoms + 3)
                         ]
                         temp_energies.append(curr_energies)
                         curr_forces = []
@@ -435,9 +403,7 @@ class Cp2kStringReactor(AbstractStringReactor):
                     else:
                         break
                 if "BAND TOTAL ENERGY" in line:
-                    if (
-                        temp_energies and temp_forces
-                    ):  # if the step completed...
+                    if temp_energies and temp_forces:  # if the step completed...
                         # print("temp_energies: ", len(temp_energies))
                         # print("temp_forces: ", np.array(temp_forces, dtype=np.float64).shape)
                         energies.append(temp_energies[-1])
@@ -453,14 +419,10 @@ class Cp2kStringReactor(AbstractStringReactor):
             nbands = int(shape[0] / nimages)
             forces = forces[: nbands * nimages]
             self._debug(f"truncated forces: {forces.shape} nbands: {nbands}")
-            forces = np.reshape(
-                forces, (nbands, nimages, natoms, -1)
-            )  # shape (nbands, nimages, natoms, 3)
+            forces = np.reshape(forces, (nbands, nimages, natoms, -1))  # shape (nbands, nimages, natoms, 3)
             forces *= units.Hartree / units.Bohr
 
-            energies = np.array(energies)[: nbands * nimages].reshape(
-                nbands, nimages
-            )
+            energies = np.array(energies)[: nbands * nimages].reshape(nbands, nimages)
             energies *= units.Hartree
             self._debug(f"energies: {energies.shape} nbands: {nbands}")
 
@@ -472,18 +434,12 @@ class Cp2kStringReactor(AbstractStringReactor):
             if nimages < 10:
                 for i in range(nimages):
                     curr_xyzfile = wdir / f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
-                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[
-                        :nbands
-                    ]
+                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
                     frames_.append(curr_frames)
             else:
                 for i in range(nimages):
-                    curr_xyzfile = (
-                        wdir / f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
-                    )
-                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[
-                        :nbands
-                    ]
+                    curr_xyzfile = wdir / f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
+                    curr_frames = read(curr_xyzfile, index=":", format="xyz")[:nbands]
                     frames_.append(curr_frames)
             for j in range(nbands):
                 curr_band = []

@@ -4,22 +4,19 @@
 
 import dataclasses
 import os
-import re
 import pathlib
+import re
 import traceback
-
-from typing import Union, List
+from typing import List, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.vasp import Vasp
+from ase.io import read, write
 
 from .. import read_sort, resort_atoms_with_spc, run_ase_calculator
 from .string import AbstractStringReactor, StringReactorSetting
-
 
 #: Ase-vasp sort fname.
 ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
@@ -90,29 +87,7 @@ class VaspStringReactor(AbstractStringReactor):
 
     traj_name: str = "01/OUTCAR"
 
-    def __init__(
-        self,
-        calc: Vasp = None,
-        params: dict = {},
-        ignore_convergence: bool = False,
-        directory: Union[str, pathlib.Path] = "./",
-        *args,
-        **kwargs,
-    ) -> None:
-        """"""
-        self.calc = calc
-        if self.calc is not None:
-            self.calc.reset()
-
-        self.ignore_convergence = ignore_convergence
-
-        self.directory = directory
-
-        # - parse params
-        self.setting = VaspStringReactorSetting(**params)
-        self._debug(self.setting)
-
-        return
+    setting_cls: type[StringReactorSetting] = VaspStringReactorSetting
 
     def _verify_checkpoint(self):
         """Check if the current directory has any valid outputs or it just created
@@ -148,9 +123,7 @@ class VaspStringReactor(AbstractStringReactor):
         else:
             self._print("update input images...")
             # - update structures
-            rep_dirs = sorted(
-                ckpt_wdir.glob(r"[0-9][0-9]"), key=lambda x: int(x.name)
-            )
+            rep_dirs = sorted(ckpt_wdir.glob(r"[0-9][0-9]"), key=lambda x: int(x.name))
 
             frames_ = []
             for x in rep_dirs[1:-1]:
@@ -169,9 +142,7 @@ class VaspStringReactor(AbstractStringReactor):
 
             intermediates = []
             for a in intermediates_:
-                sorted_atoms = resort_atoms_with_spc(
-                    a, resort, "vasp", print_func=self._print, debug_func=self._debug
-                )
+                sorted_atoms = resort_atoms_with_spc(a, resort, "vasp", print_func=self._print, debug_func=self._debug)
                 intermediates.append(sorted_atoms)
 
             images = [structures[0]] + intermediates + [structures[-1]]
@@ -285,9 +256,7 @@ class VaspStringReactor(AbstractStringReactor):
             curr_frames = read(wdir / f"{str(i).zfill(2)}" / "OUTCAR", ":")
             sorted_frames = []
             for a in curr_frames:
-                sorted_atoms = resort_atoms_with_spc(
-                    a, resort, "vasp", print_func=self._print, debug_func=self._debug
-                )
+                sorted_atoms = resort_atoms_with_spc(a, resort, "vasp", print_func=self._print, debug_func=self._debug)
                 sorted_frames.append(sorted_atoms)
             frames_.append(sorted_frames)
 
@@ -298,11 +267,7 @@ class VaspStringReactor(AbstractStringReactor):
 
         frames = []
         for i in range(nsteps):
-            curr_frames = (
-                [ini_atoms]
-                + [frames_[j][i] for j in range(self.setting.nimages - 2)]
-                + [fin_atoms]
-            )
+            curr_frames = [ini_atoms] + [frames_[j][i] for j in range(self.setting.nimages - 2)] + [fin_atoms]
             frames.append(curr_frames)
 
         return frames

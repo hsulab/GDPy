@@ -13,6 +13,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 from ase import Atoms
+from ase.calculators.calculator import Calculator
 from ase.constraints import FixAtoms
 from ase.geometry import find_mic
 from ase.io import read, write
@@ -105,12 +106,41 @@ class AbstractStringReactor(AbstractReactor):
 
     traj_name: str = "nebtraj.xyz"
 
+    def __init__(
+        self,
+        calc: Calculator,
+        params: dict = {},
+        ignore_convergence: bool = False,
+        directory: Union[str, pathlib.Path] = "./",
+        *args,
+        **kwargs,
+    ):
+        """"""
+        self.calc = calc
+        self.calc.reset()
+
+        self.ignore_convergence = ignore_convergence
+
+        self.directory = directory
+        self.cache_nebtraj = self.directory / self.traj_name
+
+        # Initialize the setting.
+        if hasattr(self, "setting_cls"):
+            self.setting = self.setting_cls(**params)  # type: ignore
+        else:
+            ...
+
+        assert isinstance(self.setting, StringReactorSetting)
+
+        return
+
     @AbstractReactor.directory.setter
-    def directory(self, directory_: Union[str, pathlib.Path]):
-        self._directory = pathlib.Path(directory_)
-        # avoid inconsistent in ASE
-        # the actual calc directory will be set in _irun
+    def directory(self, directory: Union[str, pathlib.Path]):
+        self._directory = pathlib.Path(directory)
+        # ASE calculator uses a string as path
         self.calc.directory = str(self.directory)
+
+        self.cache_nebtraj = self.directory / self.traj_name
 
         return
 
