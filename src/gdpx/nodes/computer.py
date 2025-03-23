@@ -304,7 +304,7 @@ class ReactorVariable(Variable):
         directory="./",
     ):
         """"""
-        # - save state by all nodes
+        # Save state by all nodes
         self.potter = broadcast_and_adjust_potter(
             potter,
             estimate_uncertainty=estimate_uncertainty,
@@ -316,8 +316,7 @@ class ReactorVariable(Variable):
 
         self.batchsize = batchsize
 
-        # - create a reactor
-        # reactor = self.potter.create_reactor(kwargs)
+        # Create a reactor
         workers = self._create_workers(self.potter, self.driver, self.scheduler, batchsize=self.batchsize)
 
         super().__init__(initial_value=workers, directory=directory)
@@ -371,7 +370,7 @@ class ReactorVariable(Variable):
 
         workers = []
         for driver_params in drivers:
-            driver = potter.create_reactor(driver_params)
+            driver = potter.create_driver(driver_params)
             worker = ReactorBasedWorker(potter, driver, scheduler)
             workers.append(worker)
 

@@ -47,6 +47,9 @@ class StringReactorSetting:
     #: Reactor setting.
     backend: str = "external"
 
+    #: Simulation task.
+    task: str = "neb"
+
     #: Period to save the trajectory.
     dump_period: int = 1
 

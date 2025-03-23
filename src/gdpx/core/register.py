@@ -93,9 +93,6 @@ class registers:
     #: Session placeholder
     placeholder: Register = Register("placeholder")
 
-    #: Reactors.
-    reactor: Register = Register("reactor")
-
     def __init__(self):
         raise RuntimeError("The registers is not intended to be instantiated")
 
@@ -140,7 +137,6 @@ ALL_MODULES = [
             "describer",
             "driver",
             "computer",
-            "reactor",
             "scheduler",
             "expedition",
             "comparator",

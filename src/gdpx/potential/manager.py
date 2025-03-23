@@ -13,6 +13,10 @@ from gdpx.backend.ase import DummyCalculator
 from gdpx.computation import register_drivers
 from gdpx.computation.driver import BaseDriver
 from gdpx.core.register import registers
+from gdpx.reactor import register_reactors
+
+DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "md", "freq"]
+DYNAMICS_REACTOR_TASKS: list[str] = ["neb"]
 
 
 class BasePotentialManager(abc.ABC):
@@ -121,7 +125,13 @@ class BasePotentialManager(abc.ABC):
         random_seed = merged_params.pop("random_seed", int(config.GRNG.integers(0, 1_000_000_000_000)))
 
         # Create the driver instance
-        driver_cls = register_drivers[dynamics]  # The dynamics backend has already been checked.
+        task = merged_params.get("task", "min")
+        if task in DYNAMICS_DRIVER_TASKS:
+            driver_cls = register_drivers[dynamics]  # The dynamics backend has already been checked.
+        elif task in DYNAMICS_REACTOR_TASKS:
+            driver_cls = register_reactors[dynamics]
+        else:
+            raise Exception(f"Unknown task {task} for dynamics backend {dynamics}.")
 
         driver = driver_cls(
             self.calc,
@@ -130,54 +140,6 @@ class BasePotentialManager(abc.ABC):
             ignore_convergence=ignore_convergence,
             random_seed=random_seed,
         )
-        driver.pot_params = self.as_dict()
-
-        return driver
-
-    def create_reactor(self, rxn_params: dict = {}, *args, **kwargs):
-        """Create a reactor for reaction.
-
-        Default the reaction backend will be the same as calc. However,
-        ase-based dynamics can be used for all calculators.
-
-        """
-        # - check whether there is a calc
-        if not hasattr(self, "calc"):
-            raise AttributeError("Cant create reactor before a calculator has been properly registered.")
-
-        # parse backends
-        self.rxn_params = rxn_params
-        reaction = rxn_params.get("backend", self.calc_backend)
-        if reaction == "external":
-            reaction = self.calc_backend
-
-        if (self.calc_backend, reaction) not in self.valid_combinations:
-            raise RuntimeError(
-                f"Invalid reaction backend {reaction} based on {self.calc_backend} calculator."
-                + f"Valid combinations are {self.valid_combinations}."
-            )
-
-        # - merge params for compat
-        merged_params = {}
-        if "task" in rxn_params:
-            merged_params.update(task=rxn_params.get("task", "min"))
-        if "init" in rxn_params or "run" in rxn_params:
-            merged_params.update(**rxn_params.get("init", {}))
-            merged_params.update(**rxn_params.get("run", {}))
-        else:
-            merged_params.update(**rxn_params)
-
-        # - other params
-        ignore_convergence = merged_params.pop("ignore_convergence", False)
-
-        # - construct driver params
-        inp_params = dict(
-            calc=self.calc,
-            params=merged_params,
-            ignore_convergence=ignore_convergence,
-        )
-
-        driver = registers.create("reactor", reaction, convert_name=False, **inp_params)
         driver.pot_params = self.as_dict()
 
         return driver
