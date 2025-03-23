@@ -185,10 +185,9 @@ class ReactorBasedWorker(BaseWorker):
 
         wdirs = [f"{self.wdir_prefix}{i}" for i in range(nreactions)]
 
-        # - split reactions into different batches
+        # Split structures into different batches
         starts, ends = self._split_groups(nreactions)
 
-        # -
         batches = []
         for i, (s, e) in enumerate(zip(starts, ends)):
             curr_indices = range(s, e)
@@ -197,13 +196,19 @@ class ReactorBasedWorker(BaseWorker):
 
         return batches
 
+    def prepare_batches(self, structures):
+        """"""
+        identifier, pairs, start_pairid = self._preprocess(structures)
+        batches = self._prepare_batches(pairs, start_confid=start_pairid)
+
+        return identifier, pairs, batches
+
     def run(self, structures: list[list[Atoms]], *args, **kwargs) -> None:
         """"""
         super().run(*args, **kwargs)
 
         # Prepare batches
-        identifier, pairs, start_pairid = self._preprocess(structures)
-        batches = self._prepare_batches(pairs, start_confid=start_pairid)
+        identifier, pairs, batches = self.prepare_batches(structures)
 
         # Some optional arguments
         target_batch = kwargs.get("batch", None)
@@ -383,53 +388,67 @@ class ReactorBasedWorker(BaseWorker):
 
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             for job_name in running_jobs:
-                group_directory = self.directory
                 doc_data = database.get(Query().gdir == job_name)
                 uid = doc_data["uid"]
                 identifier = doc_data["md5"]
-                batch = doc_data["group_number"]
+                curr_batch = doc_data["group_number"]
 
-                # self.scheduler.set(**{"job-name": job_name})
                 self.scheduler.job_name = job_name
-                self.scheduler.script = group_directory / f"run-{uid}.script"
+                self.scheduler.script = self.directory / f"run-{uid}.script"
 
-                # -- check whether the jobs if running
-                if self.scheduler.is_finished():  # if it is still in the queue
-                    # -- valid if the task finished correctly not due to time-limit
+                # Check if the job is still running (or in the queue)
+                # True if the task finished correctly not due to time-limit
+                if self.scheduler.is_finished():
                     is_finished = False
                     wdir_names = doc_data["wdir_names"]
-                    for x in wdir_names:
-                        if not (group_directory / x).exists():
-                            # even not start
-                            break
-                        else:
-                            # not converged
-                            self.driver.directory = group_directory / x
+                    # first a quick check if all wdirs exist
+                    wdir_existence = [(self.directory / x).exists() for x in wdir_names]
+                    nwdir_exists = sum(1 for x in wdir_existence if x)
+                    if all(wdir_existence):
+                        for x in wdir_names:
+                            curr_wdir = self.directory / x
+                            self.driver.directory = curr_wdir
                             if not self.driver.read_convergence():
+                                self._print(f"Found unfinished computation at {curr_wdir.name}")
                                 break
+                        else:
+                            is_finished = True
                     else:
-                        is_finished = True
+                        self._print("NOT ALL wdirs exist.")
+                    self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
                     if is_finished:
-                        # -- finished correctly
                         self._print(f"{job_name} is finished...")
                         doc_data = database.get(Query().gdir == job_name)
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
-                        # NOTE: no need to remove unfinished structures
-                        #       since the driver would check it
                         if resubmit:
-                            if self.scheduler.name != "local":
-                                jobid = self.scheduler.submit()
-                                self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                            else:
-                                # warnings.warn("Local scheduler does not support re-submit.", UserWarning)
-                                frames = read(
-                                    self.directory / "_data" / f"{identifier}.xyz",
-                                    ":",
-                                )
-                                self.run(frames, batch=batch)
+                            self._resubmit_by_scheduler(identifier, curr_batch, job_name)
                 else:
                     self._print(f"{job_name} is running...")
+
+        return
+
+    def _resubmit_by_scheduler(self, identifier: str, target_batch: int, job_name: str):
+        """Load cache and resubmit the job to the scheduler."""
+        frames = read(
+            self.directory / "_data" / f"{identifier}.xyz",
+            ":",
+        )
+        cache_identifier, cache_pairs, cache_batches = self.prepare_batches(frames)
+        assert cache_identifier == identifier, "Inconsistent identifiers for the input structure."
+        batch_indices, batch_dirnames = cache_batches[target_batch]
+        func_to_execute = functools.partial(
+            run_reaction_in_commandline,
+            identifier=identifier,
+            structures=cache_pairs,
+            structure_indices=batch_indices,
+            reaction_dirnames=batch_dirnames,
+            driver=self.driver,
+            directory=self.directory,
+            print_func=self._print,
+        )
+        job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+        self._print(f"{job_name} is re-submitted with JOBID: {job_id}...")
 
         return
 
