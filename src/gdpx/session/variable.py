@@ -14,7 +14,7 @@ class Variable:
     identifier: str = "vx"
 
     #: Working directory for the operation.
-    _directory: Union[str, pathlib.Path] = pathlib.Path.cwd()
+    _directory: pathlib.Path = pathlib.Path.cwd()
 
     #: Working status that should be always finished.
     status = "finished"
@@ -30,6 +30,8 @@ class Variable:
         self._value = initial_value
         self.consumers = []
 
+        # We need _directory as a class attribute since some variables may access the 
+        # directory before the __init__ method is called.
         self.directory = directory
 
         return
@@ -41,15 +43,15 @@ class Variable:
         return self._value
 
     @property
-    def directory(self):
+    def directory(self) -> pathlib.Path:
         """"""
 
         return self._directory
 
     @directory.setter
-    def directory(self, directory_) -> None:
+    def directory(self, directory) -> None:
         """"""
-        self._directory = pathlib.Path(directory_)
+        self._directory = pathlib.Path(directory)
 
         return
 
