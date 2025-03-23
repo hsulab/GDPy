@@ -9,7 +9,7 @@ import itertools
 import pathlib
 import re
 import shutil
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -22,7 +22,7 @@ from ase.mep import idpp_interpolate, interpolate
 from gdpx.group import evaluate_constraint_expression
 
 from ..reactor import AbstractReactor
-from ..utils import compute_rxn_coords, plot_bands, plot_mep
+from ..utils import compute_rxn_coords, plot_mep
 
 
 @dataclasses.dataclass
@@ -144,7 +144,7 @@ class AbstractStringReactor(AbstractReactor):
 
         return
 
-    def run(self, structures: List[Atoms], read_ckpt=True, *args, **kwargs):
+    def run(self, structures: list[Atoms], read_ckpt=True, *args, **kwargs):
         """"""
         super().run(structures=structures, *args, **kwargs)
 
@@ -227,7 +227,7 @@ class AbstractStringReactor(AbstractReactor):
         return curr_band
 
     @abc.abstractmethod
-    def _irun(self, structures: List[Atoms], *args, **kwargs):
+    def _irun(self, structures: list[Atoms], *args, **kwargs):
         """"""
 
         return
@@ -274,7 +274,7 @@ class AbstractStringReactor(AbstractReactor):
 
         return
 
-    def _align_structures(self, structures: List[Atoms], run_params: dict, *args, **kwargs) -> List[Atoms]:
+    def _align_structures(self, structures: list[Atoms], run_params: dict, *args, **kwargs) -> list[Atoms]:
         """Create a reaction pathway based on two structures.
 
         Args:
@@ -282,7 +282,7 @@ class AbstractStringReactor(AbstractReactor):
             run_params: We need thet latest `constraint` information.
 
         Returns:
-            A List of Atoms structures.
+            A list of Atoms structures.
 
         """
         nstructures = len(structures)

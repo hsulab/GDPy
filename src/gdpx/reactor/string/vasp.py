@@ -4,15 +4,12 @@
 
 import dataclasses
 import os
-import pathlib
 import re
 import traceback
-from typing import List, Union
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.calculators.vasp import Vasp
 from ase.io import read, write
 
 from .. import read_sort, resort_atoms_with_spc, run_ase_calculator
@@ -23,7 +20,7 @@ ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 
 def read_vaspout(
-    lines: List[str],
+    lines: list[str],
 ) -> int:
     """"""
     pattern = re.compile("[0-9]+ F=")
@@ -111,7 +108,7 @@ class VaspStringReactor(AbstractStringReactor):
 
         return verified
 
-    def _irun(self, structures: List[Atoms], ckpt_wdir=None, *args, **kwargs):
+    def _irun(self, structures: list[Atoms], ckpt_wdir=None, *args, **kwargs):
         """"""
         # get params
         run_params = self.setting.get_run_params(**kwargs)
