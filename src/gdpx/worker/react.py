@@ -2,14 +2,17 @@
 # -*- coding: utf-8 -*
 
 
+import copy
+import functools
 import itertools
+import json
 import pathlib
 import tempfile
 import time
 import uuid
-from typing import Union
+from typing import Optional, Union
 
-import yaml
+import omegaconf
 from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
@@ -24,12 +27,51 @@ from .utils import copy_minimal_frames, get_file_md5, read_cache_info
 from .worker import BaseWorker
 
 
+def run_reaction_in_commandline(
+    identifier: str,
+    structures,
+    structure_indices,
+    reaction_dirnames: list[str],
+    driver: BaseReactor,
+    directory: pathlib.Path,
+    print_func=print,
+) -> None:
+    """"""
+    # Check machine-specific prefix
+    machine_prefix_fpath = directory / "_data" / f"MACHINE_{identifier}"
+    if machine_prefix_fpath.exists():
+        with open(machine_prefix_fpath, "r") as fopen:
+            machine_prefix = "".join(fopen.readlines()).strip()
+    else:
+        machine_prefix = ""
+
+    # Run reactions
+    with CustomTimer(name="run-reactor", func=print_func):
+        prev_machine_prefix = driver.setting.machine_prefix
+        if machine_prefix:
+            driver.setting.machine_prefix = machine_prefix
+        for i, dirname in zip(structure_indices, reaction_dirnames):
+            driver.directory = directory / dirname
+            print_func(
+                f"{time.asctime( time.localtime(time.time()) )} {str(dirname)} {driver.directory.name} is running..."
+            )
+            driver.reset()
+            driver.run(structures[i], read_ckpt=True)
+
+        # restore machine prefix
+        driver.setting.machine_prefix = prev_machine_prefix
+
+    return
+
+
 class ReactorBasedWorker(BaseWorker):
+    """Monitor driver-based jobs."""
 
-    wdir_prefix: str = "pair"  # TODO: cand?
+    #: The prefix of the computation directory for each reaction.
+    wdir_prefix: str = "pair"
 
-    """Perform the computation of several reactions.
-    """
+    #: Whether the worker is spawned.
+    is_spawned: bool = False
 
     def __init__(
         self,
@@ -159,151 +201,171 @@ class ReactorBasedWorker(BaseWorker):
         """"""
         super().run(*args, **kwargs)
 
-        # Check if the same input structures are provided
+        # Prepare batches
         identifier, pairs, start_pairid = self._preprocess(structures)
         batches = self._prepare_batches(pairs, start_confid=start_pairid)
 
-        # Read metadata
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+        # Some optional arguments
+        target_batch = kwargs.get("batch", None)
+
+        if not self.is_spawned:
+            self._run_by_scheduler(
+                identifier,
+                pairs,
+                batches,
+                target_batch=target_batch,
+            )
+        else:
+            self._run_by_commandline(
+                identifier,
+                pairs,
+                batches,
+                target_batch=target_batch,
+            )
+
+        return
+
+    def _run_by_commandline(self, identifier: str, pairs, batches, target_batch) -> None:
+        """"""
+        # Load metadata for the target batch
+        batch_data = batches[target_batch]
+        curr_indices, curr_wdirs = batch_data
+
+        # Run reactions
+        run_reaction_in_commandline(
+            identifier=identifier,
+            structures=pairs,
+            structure_indices=curr_indices,
+            reaction_dirnames=curr_wdirs,
+            driver=self.driver,
+            directory=self.directory,
+            print_func=self._print,
+        )
+
+        return
+
+    def _run_by_scheduler(self, identifier: str, pairs, batches, target_batch: Optional[int] = None) -> None:
+        """"""
+        # Load metadata for previous submitted batches
+        database_path = (self.directory / f"_{self.scheduler.name}_jobs.json").resolve()
+        self._print(f"database_path: {database_path.relative_to(pathlib.Path.cwd())}")
+
+        with TinyDB(database_path, indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
         queued_input = [q["md5"] for q in queued_jobs]
 
-        # -
-        for i, (curr_indices, curr_wdirs) in enumerate(batches):
-            # -- set job name
-            batch_name = f"group-{i}"
+        for ig, (curr_indices, curr_wdirs) in enumerate(batches):
+            # Set job name
+            batch_name = f"group-{ig}"
             uid = str(uuid.uuid1())
             job_name = uid + "-" + batch_name
 
-            # -- whether store job info
-            if self.scheduler.name != "local":
-                if batch_name in queued_names and identifier in queued_input:
-                    self._print(f"{batch_name} at {self.directory.name} was submitted.")
-                    continue
-            else:
-                # NOTE: If use local scheduler, always run it again if re-submit
-                ...
+            # Check whether the job is submitted
+            if batch_name in queued_names and identifier in queued_input:
+                self._print(f"{batch_name} at {self.directory.name} was submitted.")
+                continue
 
-            # -- specify which group this worker is responsible for
-            #   if not, then skip
-            #   Skip batch here assures the skipped batches will not recorded and
-            #   thus will not affect their execution if several batches run at the same time.
-            target_number = kwargs.get("batch", None)
-            if isinstance(target_number, int):
-                if i != target_number:
-                    with CustomTimer(name="run-driver", func=self._print):
-                        self._print(
-                            f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} batch {i} is skipped..."
-                        )
-                        continue
+            # Specify which group this worker is responsible for if not, then skip
+            # Skip batch here assures the skipped batches will not recorded and
+            # thus will not affect their execution if several batches run at the same time.
+            if isinstance(target_batch, int):
+                if ig != target_batch:
+                    self._print(
+                        f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} "
+                        + f"batch {ig} is skipped..."
+                    )
+                    continue
                 else:
                     ...
             else:
                 ...
 
-            # -- run batch
-            self._irun(
-                batch_name,
-                uid,
-                identifier,
-                pairs,
-                curr_indices,
-                curr_wdirs,
-                *args,
-                **kwargs,
-            )
-
-            # - save this batch job to the database
+            # Save this batch job to the database
             if identifier not in queued_input:
-                with TinyDB(
-                    self.directory / f"_{self.scheduler.name}_jobs.json",
-                    indent=2,
-                ) as database:
+                with TinyDB(database_path, indent=2) as database:
                     _ = database.insert(
                         dict(
                             uid=uid,
                             md5=identifier,
                             gdir=job_name,
-                            group_number=i,
+                            group_number=ig,
                             wdir_names=curr_wdirs,
                             queued=True,
                         )
                     )
+                # save worker input for later review
+                worker_input_fpath = self.directory / "_data" / f"worker-{identifier}.json"
+                if not worker_input_fpath.exists():
+                    # TODO: We make sure the dict is python primitive since they may be
+                    #       from session nodes, or we should convert it in operations?
+                    worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
+                    worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
+                    with open(worker_input_fpath, "w") as fopen:
+                        json.dump(worker_input_dict, fopen, indent=2)
+                    with open(self.directory / "_data" / f"MACHINE_{identifier}", "w") as fopen:
+                        fopen.write(self.scheduler.machine_prefix)
+
+            # Run batch
+            self._irun(
+                batch_name=batch_name,
+                uid=uid,
+                identifier=identifier,
+                structures=pairs,
+                curr_indices=curr_indices,
+                curr_wdirs=curr_wdirs,
+            )
 
         return
 
     def _irun(
         self,
-        name: str,
+        batch_name: str,
         uid: str,
         identifier: str,
         structures,
         curr_indices,
         curr_wdirs,
-        *args,
-        **kwargs,
     ) -> None:
-        """"""
-        batch_number = int(name.split("-")[-1])
-        if self.scheduler.name == "local":
-            machine_prefix = ""
-            if (self.directory / "MACHINE").exists():
-                with open(self.directory / "MACHINE", "r") as fopen:
-                    machine_prefix = "".join(fopen.readlines()).strip()
+        """Submit one batch either to the queue or to the commandline."""
+        batch_number = int(batch_name.split("-")[-1])
 
-            with CustomTimer(name="run-reactor", func=self._print):
-                prev_machine_prefix = self.driver.setting.machine_prefix
-                if machine_prefix:
-                    self.driver.setting.machine_prefix = machine_prefix
-                # - here the driver is the reactor
-                for i, wdir in zip(curr_indices, curr_wdirs):
-                    self._print(
-                        f"{time.asctime( time.localtime(time.time()) )} {str(wdir)} {self.driver.directory.name} is running..."
-                    )
-                    self.driver.directory = self.directory / wdir
-                    self.driver.reset()
-                    _ = self.driver.run(structures[i], read_cache=True)
-                # restore machine prefix
-                self.driver.setting.machine_prefix = prev_machine_prefix
+        # Use structure-specific input worker file
+        worker_input_fpath = str((self.directory / "_data" / f"worker-{identifier}.json").relative_to(self.directory))
+
+        # Check the filepath of the input structures
+        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
+
+        # Update scheduler
+        jobscript_fname = f"run-{uid}.script"
+        self.scheduler.job_name = uid + "-" + batch_name
+        self.scheduler.script = self.directory / jobscript_fname
+
+        self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
+            worker_input_fpath,
+            dataset_path,
+            batch_number,
+        )
+
+        # Update function to execute
+        func_to_execute = functools.partial(
+            run_reaction_in_commandline,
+            identifier=identifier,
+            structures=structures,
+            structure_indices=curr_indices,
+            reaction_dirnames=curr_wdirs,
+            driver=self.driver,
+            directory=self.directory,
+            print_func=self._print,
+        )
+
+        # TODO: check whether params for scheduler is changed
+        self.scheduler.write()
+        if self._submit:
+            job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+            self._print(f"{self.directory.name} JOBID: {job_id}")
         else:
-            # - save worker file
-            worker_params = {}
-            worker_params["type"] = "reactor"
-            worker_params["driver"] = self.driver.as_dict()
-            worker_params["potter"] = self.potter.as_dict()
-            worker_params["batchsize"] = self.batchsize
-
-            with open(self.directory / f"worker-{uid}.yaml", "w") as fopen:
-                yaml.dump(worker_params, fopen)
-
-            # TODO: MACHINE file will be overwritten by different batches
-            #       even though they are the same.
-            with open(self.directory / f"MACHINE", "w") as fopen:
-                fopen.write(self.scheduler.machine_prefix)
-
-            # - save structures
-            dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").resolve())
-
-            # - save scheduler file
-            jobscript_fname = f"run-{uid}.script"
-            self.scheduler.job_name = uid + "-" + name
-            self.scheduler.script = self.directory / jobscript_fname
-
-            self.scheduler.user_commands = "gdp -p {} compute {} --batch {}\n".format(
-                (self.directory / f"worker-{uid}.yaml").name,
-                # (self.directory/structure_fname).name
-                dataset_path,
-                batch_number,
-            )
-
-            # - TODO: check whether params for scheduler is changed
-            self.scheduler.write()
-            if self._submit:
-                self._print(f"{self.directory.name} JOBID: {self.scheduler.submit()}")
-            else:
-                self._print(f"{self.directory.name} waits to submit.")
-                ...
+            self._print(f"{self.directory.name} waits to submit.")
 
         return
 
@@ -499,7 +561,13 @@ class ReactorBasedWorker(BaseWorker):
 
     def as_dict(self) -> dict:
         """"""
-        worker_params = super().as_dict()
+        worker_params = {}
+        worker_params["potter"] = self.potter.as_dict()
+        worker_params["driver"] = self.driver.as_dict()
+        worker_params["scheduler"] = self.scheduler.as_dict()
+
+        worker_params = copy.deepcopy(worker_params)
+
         worker_params["batchsize"] = self.batchsize
 
         return worker_params
