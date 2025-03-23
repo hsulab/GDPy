@@ -71,7 +71,7 @@ def convert_config_to_computer(config):
 
     assert isinstance(params, dict)
 
-    # NOTE: compatibility
+    # For compatibility
     potter_params = params.pop("potter", None)
     potential_params = params.pop("potential", None)
     if potter_params is None:
@@ -82,10 +82,14 @@ def convert_config_to_computer(config):
     else:
         params["potter"] = potter_params
 
-    ptype = params.pop("type", "computer")
-    if ptype == "computer":
+    # Check whether the driver is for dynamics or reaction
+    # FIXME: This is a workaround for the current implementation of ReactorVariable.
+    #        We'd better unify the driver interface for both ComputerVariable and ReactorVariable.
+    driver_params = params.get("driver", {})
+    task = driver_params.get("task", "min")
+    if task in ("spc", "min", "md", "freq"):
         computer = ComputerVariable(**params)
-    elif ptype == "reactor":
+    elif task in ("neb",):
         computer = ReactorVariable(
             potter=params["potter"],
             driver=params.get("driver", None),
@@ -93,7 +97,7 @@ def convert_config_to_computer(config):
             batchsize=params.get("batchsize", 1),
         )
     else:
-        raise RuntimeError(f"Unknown computer type {ptype}.")
+        raise Exception(f"Unknown computer with task {task}.")
 
     return computer
 
