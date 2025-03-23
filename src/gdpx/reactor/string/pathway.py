@@ -308,7 +308,7 @@ class AseStringReactor(BaseStringReactor):
     def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """"""
         cache_nebtraj = wdir / self.traj_name
-        nimages_per_band = self.setting.nimages
+        nimages_per_band = int(np.loadtxt(self.directory / "nimages"))
         if cache_nebtraj.exists():
             images = read(cache_nebtraj, ":")
         else:

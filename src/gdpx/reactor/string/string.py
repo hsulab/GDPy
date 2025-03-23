@@ -283,18 +283,31 @@ class BaseStringReactor(BaseReactor):
             use_mic = self.setting.interpolation.get("mic", True)
             idpp_params = self.setting.interpolation.get("idpp", {})
 
-            # - linear interpolate
+            #: The displacement between two adjacent images, Angstrom.
+            image_delta = self.setting.interpolation.get("image_delta", None)
+
+            # Check the displacement between IS and FS
             shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
             if use_mic:
                 self._print("Align IS and FS based on MIC.")
-                curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
-                # self._debug(f"curr_vectors: {curr_vectors}")
-                self._print(f"disp: {np.linalg.norm(curr_vectors)}")
-                fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+                vectors, _ = find_mic(shifts, c1, pbc=True)
+                disp = np.linalg.norm(vectors)
+                fin_atoms.positions = ini_atoms.get_positions() + vectors
             else:
-                self._print(f"disp: {np.linalg.norm(shifts)}")
+                disp = np.linalg.norm(shifts)
 
-            nimages = self.setting.nimages
+            if image_delta is None:
+                nimages = self.setting.nimages
+            else:
+                nimages = int(disp / image_delta / 2.0) * 2
+                if nimages < 4:
+                    nimages = 4
+                if nimages > 20:
+                    nimages = 20
+            np.savetxt(self.directory / "nimages", [nimages], fmt="%d")
+
+            self._print(f"Displacement between IS and FS: {disp:.2f} Angstrom with {nimages} images.")
+
             images = [ini_atoms]
             images += [ini_atoms.copy() for i in range(nimages - 2)]
             images.append(fin_atoms)
@@ -320,10 +333,13 @@ class BaseStringReactor(BaseReactor):
                     )
                 else:
                     self._print(f"Use cached idpp images from `{idpp_traj_cache}`.")
-                    images = read(idpp_traj_cache, index=f"-{self.setting.nimages}:")
+                    images = read(idpp_traj_cache, index=f"-{nimages}:")
         else:
             self._print("Use a pre-defined pathway and reset constraints.")
             images = [a.copy() for a in structures]
+
+            nimages = len(images)
+            np.savetxt(self.directory / "nimages", [nimages], fmt="%d")
 
             # Some constraints such as zbot/lowest may be different for each image due to minimisation,
             # thus, we reset the constraints based on the first image.
@@ -375,7 +391,7 @@ class BaseStringReactor(BaseReactor):
             ...
 
         # Postprocess the trajectory and show the pathway information
-        have_mep_results = (self.directory/"neb.png").exists()
+        have_mep_results = (self.directory / "neb.png").exists()
         if not have_mep_results and traj_frames:
             plot_mep(self.directory, traj_frames[-1])
 
