@@ -583,6 +583,12 @@ def run_chain_step(
                 # Check whether we should stop at this chainstep.
                 # The chain stops when there is one structure statisfying one of the observers.
                 try:
+                    # Check if the driver throws an earlystop, for example, lammps
+                    num_structures = len(structures)
+                    for i in range(num_structures):
+                        if (worker.directory/f"cand{i}"/"EARLYSTOP").exists():
+                            raise ChainStepEarlystop(f"Driver stops at candidate {i}")
+                    # Check custom observers
                     for istep, observer in enumerate(observers):
                         for j, atoms in enumerate(curr_structures):
                             if observer.run(atoms):
