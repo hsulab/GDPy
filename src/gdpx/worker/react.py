@@ -95,6 +95,10 @@ class ReactorBasedWorker(BaseWorker):
 
     def _preprocess(self, structures: Union[list[Atoms], AtomsNDArray]):
         """"""
+        # The metadata directory
+        metadata_dpath = self.directory / "_data"
+        metadata_dpath.mkdir(exist_ok=True)
+
         # Group structures into pairs or bands
         if isinstance(structures, list):
             # Get reaction groups from atoms.info["rxn_grp"]
@@ -138,25 +142,7 @@ class ReactorBasedWorker(BaseWorker):
             raise Exception(f"Unsupported input structure type `{type(structures)}`.")
 
         # Compare the input structures
-        metadata_dpath = self.directory / "_data"
-        metadata_dpath.mkdir(exist_ok=True)
-
         frames, curr_info = copy_minimal_frames(structures)
-
-        # Some reactors need energies for IS and FS...
-        for grp in groups:
-            num_frames_in_group = len(grp)
-            if num_frames_in_group >= 2:
-                try:
-                    ene = frames[grp[0]].get_potential_energy()
-                    frames[grp[0]].info["energy"] = ene
-                except:
-                    ...
-                try:
-                    ene = frames[grp[-1]].get_potential_energy()
-                    frames[grp[-1]].info["energy"] = ene
-                except:
-                    ...
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
             write(
@@ -179,7 +165,11 @@ class ReactorBasedWorker(BaseWorker):
                 if x[1] == identifier:
                     break
                 start_confid += 1
+            if (metadata_dpath / f"{identifier}_reactions.json").exists():
+                with open(metadata_dpath / f"{identifier}_reactions.json", "r") as fopen:
+                    groups = json.load(fopen)
         else:
+            # Save structures
             write(
                 metadata_dpath / cache_fname,
                 frames,
@@ -196,6 +186,24 @@ class ReactorBasedWorker(BaseWorker):
             self._info_data = _info_data
             with open(metadata_dpath / f"{identifier}_info.txt", "w") as fopen:
                 fopen.write(content)
+            # Save reaction groups
+            with open(metadata_dpath / f"{identifier}_reactions.json", "w") as fopen:
+                json.dump(groups, fopen, indent=2)
+
+        # Some reactors need energies for IS and FS...
+        for grp in groups:
+            num_frames_in_group = len(grp)
+            if num_frames_in_group >= 2:
+                try:
+                    ene = frames[grp[0]].get_potential_energy()
+                    frames[grp[0]].info["energy"] = ene
+                except:
+                    ...
+                try:
+                    ene = frames[grp[-1]].get_potential_energy()
+                    frames[grp[-1]].info["energy"] = ene
+                except:
+                    ...
 
         return identifier, frames, groups
 
