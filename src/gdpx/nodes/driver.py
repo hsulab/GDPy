@@ -27,29 +27,44 @@ from gdpx.utils.strconv import string_to_array
 from gdpx.worker.drive import DriverBasedWorker
 
 
+def merge_driver_params(params: dict):
+    """"""
+    copied_params = copy.deepcopy(params)
+    merged_params = dict(
+        backend=copied_params.get("backend", "external"),
+        ignore_convergence=copied_params.get("ignore_convergence", False),
+    )
+    merged_params.update(**copied_params.get("init", {}))
+    merged_params.update(**copied_params.get("run", {}))
+
+    # HACK: Computer and Reactor both use this variable
+    #       but Reactor does not have task keyword for now
+    #       we need update it later.
+    task = copied_params.get("task", "")
+    if task:
+        merged_params.update(task=task)
+    else:
+        ...
+
+    return merged_params
+
+
 @registers.variable.register
 class DriverVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""
-        copied_params = copy.deepcopy(kwargs)
-        merged_params = dict(
-            backend=copied_params.get("backend", "external"),
-            ignore_convergence=copied_params.get("ignore_convergence", False),
-        )
-        merged_params.update(**copied_params.get("init", {}))
-        merged_params.update(**copied_params.get("run", {}))
-
-        # HACK: Computer and Reactor both use this variable
-        #       but Reactor does not have task keyword for now
-        #       we need update it later.
-        task = copied_params.get("task", "")
-        if task:
-            merged_params.update(task=task)
+        if "drivers" in kwargs:
+            driver_params = []
+            for params in kwargs["drivers"]:
+                driver_params.extend(
+                    self._broadcast_drivers(merge_driver_params(params))
+                )
         else:
-            ...
+            merged_params = merge_driver_params(kwargs)
+            driver_params = self._broadcast_drivers(merged_params)
 
-        initial_value = self._broadcast_drivers(merged_params)
+        initial_value = driver_params
 
         super().__init__(initial_value)
 
