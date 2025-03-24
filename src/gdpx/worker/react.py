@@ -104,7 +104,7 @@ class ReactorBasedWorker(BaseWorker):
             # Get reaction groups from atoms.info["rxn_grp"]
             reaction_groups = []
             for atoms in structures:
-                rxn_grp = atoms.info.get("rxn_grp", "-1")
+                rxn_grp = atoms.info.get("rxn_grp", -1)
                 if isinstance(rxn_grp, np.ndarray):
                     rxn_grp = rxn_grp.tolist()  # Convert numpy array to list
                 else:
