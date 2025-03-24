@@ -5,6 +5,7 @@
 import copy
 
 from ase.calculators.calculator import Calculator
+from ase.data import atomic_numbers, covalent_radii
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 from gdpx.utils.logio import remove_extra_stream_handlers
@@ -106,6 +107,8 @@ class DeepmdManager(BasePotentialManager):
             if command is None:
                 command = "lmp"
 
+            use_pair_repulsion = calc_params.pop("pair_repulsion", False)
+
             if models:
                 if len(models) == 1:
                     pair_style = "deepmd {}".format(" ".join(models))
@@ -121,6 +124,23 @@ class DeepmdManager(BasePotentialManager):
 
                 pair_style_name = pair_style.split()[0]
                 assert pair_style_name == "deepmd", "Incorrect pair_style for lammps deepmd..."
+
+                # TODO: This is a temporary workaround for pair repulsion,
+                #       it is better we use mixer to deal with a more general case.
+                if use_pair_repulsion:
+                    d0, alpha = 1.0, 6.0  # [eV] and [1/Ang]
+                    pair_style = "hybrid/overlay " + pair_style + " morse 3.0"
+                    pair_coeff = "* * deepmd {type_list}\n"
+                    # Lammps calculator uses an alphabetically order to map element to digits
+                    sorted_type_list = sorted(type_list)
+                    num_atypes = len(sorted_type_list)
+                    for i in range(1, num_atypes + 1):
+                        for j in range(i, num_atypes + 1):
+                            r0 = (
+                                covalent_radii[atomic_numbers[sorted_type_list[i - 1]]]
+                                + covalent_radii[atomic_numbers[sorted_type_list[j - 1]]]
+                            )
+                            pair_coeff += f"pair_coeff  {i} {j} morse {d0} {alpha} {r0:>.2f} {r0*0.8:>.2f}\n"
 
                 calc = Lammps(
                     command=command,
