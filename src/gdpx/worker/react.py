@@ -123,6 +123,20 @@ class ReactorBasedWorker(BaseWorker):
             else:
                 # For compatibility, the input are just images for one neb calculation
                 groups = [list(range(len(structures)))]
+            energies = []
+            for grp in groups:
+                ini_ene, fin_ene = None, None
+                num_frames_in_group = len(grp)
+                if num_frames_in_group >= 2:
+                    try:
+                        ini_ene = structures[grp[0]].get_potential_energy()
+                    except:
+                        ...
+                    try:
+                        fin_ene = structures[grp[-1]].get_potential_energy()
+                    except:
+                        ...
+                energies.append((ini_ene, fin_ene))
         elif isinstance(structures, AtomsNDArray):
             # if structures.ndim == 3:  # from extract
             #     assert structures.shape[0] == 2, "Structures must have a shape of (2, ?, ?)."
@@ -167,7 +181,9 @@ class ReactorBasedWorker(BaseWorker):
                 start_confid += 1
             if (metadata_dpath / f"{identifier}_reactions.json").exists():
                 with open(metadata_dpath / f"{identifier}_reactions.json", "r") as fopen:
-                    groups = json.load(fopen)
+                    cache_reactions = json.load(fopen)
+                groups = cache_reactions["groups"]
+                energies = cache_reactions["energies"]
         else:
             # Save structures
             write(
@@ -188,22 +204,15 @@ class ReactorBasedWorker(BaseWorker):
                 fopen.write(content)
             # Save reaction groups
             with open(metadata_dpath / f"{identifier}_reactions.json", "w") as fopen:
-                json.dump(groups, fopen, indent=2)
+                json.dump(dict(groups=groups, energies=energies), fopen, indent=2)
 
         # Some reactors need energies for IS and FS...
-        for grp in groups:
-            num_frames_in_group = len(grp)
-            if num_frames_in_group >= 2:
-                try:
-                    ene = frames[grp[0]].get_potential_energy()
-                    frames[grp[0]].info["energy"] = ene
-                except:
-                    ...
-                try:
-                    ene = frames[grp[-1]].get_potential_energy()
-                    frames[grp[-1]].info["energy"] = ene
-                except:
-                    ...
+        for grp, ene in zip(groups, energies):
+            ini_ene, fin_ene = ene
+            if ini_ene is not None:
+                frames[grp[0]].info["energy"] = ini_ene
+            if fin_ene is not None:
+                frames[grp[-1]].info["energy"] = fin_ene
 
         return identifier, frames, groups
 

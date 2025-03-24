@@ -160,8 +160,8 @@ class BaseStringReactor(BaseReactor):
         ini_atoms = structures[0]
         fin_atoms = structures[-1]
         try:
-            ini_ene = ini_atoms.get_potential_energy()
-            fin_ene = fin_atoms.get_potential_energy()
+            ini_ene = ini_atoms.info["energy"]
+            fin_ene = fin_atoms.info["energy"]
             self._print(f"E: {ini_ene:>16.4f}  " + f"E: {fin_ene:>16.4f}  " + f"dE: {fin_ene - ini_ene:>16.4f}")
         except RuntimeError:
             self._print("No energies attached to IS and FS.")
@@ -256,7 +256,7 @@ class BaseStringReactor(BaseReactor):
         num_structures = len(structures)
         if num_structures == 2:
             self._print("Interpolate a pathway.")
-            # - check lattice consistency
+            # Check structure consistency
             ini_atoms, fin_atoms = structures
             c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(complete=True)
             assert np.allclose(c1, c2), "Inconsistent unit cell..."
@@ -278,6 +278,10 @@ class BaseStringReactor(BaseReactor):
                 ), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
             else:
                 raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`.")
+
+            # Cache energy for the initial and final states
+            ini_ene = ini_atoms.info["energy"]
+            fin_ene = fin_atoms.info["energy"]
 
             # get interpolation parameters
             use_mic = self.setting.interpolation.get("mic", True)
@@ -321,7 +325,7 @@ class BaseStringReactor(BaseReactor):
             )
 
             if idpp_params:
-                # FIXME: make idpp a manager?
+                # TODO: Check IDPP convergence
                 idpp_traj_cache = self.directory / "idpp_images.traj"
                 if not idpp_traj_cache.exists():
                     idpp_interpolate(
@@ -334,9 +338,17 @@ class BaseStringReactor(BaseReactor):
                 else:
                     self._print(f"Use cached idpp images from `{idpp_traj_cache}`.")
                     images = read(idpp_traj_cache, index=f"-{nimages}:")
+
+            # Set energies for the IS and the FS
+            images[0].info["energy"] = ini_ene
+            images[-1].info["energy"] = fin_ene
         else:
             self._print("Use a pre-defined pathway and reset constraints.")
             images = [a.copy() for a in structures]
+
+            # Cache energy for the initial and final states
+            ini_ene = images[0].info["energy"]
+            fin_ene = images[-1].info["energy"]
 
             nimages = len(images)
             np.savetxt(self.directory / "nimages", [nimages], fmt="%d")
@@ -355,6 +367,10 @@ class BaseStringReactor(BaseReactor):
                     atoms.set_constraint(FixAtoms(indices=images[0].constraints[0].index))
                 else:
                     raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{atoms.constraints=}`.")
+
+            # Set energies for the IS and the FS
+            images[0].info["energy"] = ini_ene
+            images[-1].info["energy"] = fin_ene
 
         return images
 
