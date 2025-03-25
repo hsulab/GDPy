@@ -15,7 +15,7 @@ from ase.io import read, write
 from gdpx.utils.cmdrun import run_ase_calculator
 from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
 
-from .string import BaseStringReactor, StringReactorSetting
+from .string import BaseStringReactor, Controller, StringReactorSetting
 
 #: Ase-vasp sort fname.
 ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
@@ -41,27 +41,115 @@ def read_vaspout(
 
 
 @dataclasses.dataclass
+class BFGSMinimiser(Controller):
+
+    name: str = "bfgs"
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.params.update(iopt=1, maxmove=maxstep)
+
+        return
+
+
+@dataclasses.dataclass
+class CGMinimiser(Controller):
+
+    name: str = "cg"
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", 0.2)
+
+        self.params.update(iopt=2, maxmove=maxstep)
+
+        return
+
+
+@dataclasses.dataclass
+class FireMinimiser(Controller):
+
+    name: str = "fire"
+
+    def __post_init__(self):
+        """"""
+        dt = self.params.get("timestep", 0.1)
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.params.update(iopt=7, maxmove=maxstep, timestep=dt)
+
+        return
+
+
+@dataclasses.dataclass
+class MDMinimiser(Controller):
+
+    name: str = "mdmin"
+
+    def __post_init__(self):
+        """"""
+        dt = self.params.get("timestep", 0.1)
+
+        maxstep = self.params.get("maxstep", 0.2)
+        assert maxstep is not None
+
+        self.params.update(iopt=3, maxmove=maxstep, timestep=dt)
+
+        return
+
+
+controllers = dict(
+    bfgs=BFGSMinimiser,
+    cg=CGMinimiser,
+    fire=FireMinimiser,
+    mdmin=MDMinimiser,
+    quickmin=MDMinimiser,  # alias for mdmin
+)
+
+
+@dataclasses.dataclass
 class VaspStringReactorSetting(StringReactorSetting):
 
     backend: str = "vasp"
+
+    controller: dict = dataclasses.field(default_factory=dict)
 
     #: Number of tasks/processors/cpus for each image.
     ntasks_per_image: int = 1
 
     def __post_init__(self):
         """"""
+        _init_params = {}
+        _init_params.update(**self.controller)
+
+        if self.controller:
+            cont_cls_name = self.controller.get("name", "mdmin")
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = controllers["mdmin"]
+
+        cont = cont_cls(**_init_params)
+
         self._internals.update(
-            # ---
+            # Parameters enable VTST optimisers.
             ibrion=3,
             potim=0,
             isif=2,
-            # ---
-            lclimb=self.climb,
+            # Parameters for the constant-volume NEB calculation.
             ichain=0,
+            lclimb=self.climb,
             images=self.nimages - 2,
-            iopt=1,
-            spring=-5,
+            spring=self.kspring * -1,
         )
+        self._internals.update(**cont.params)
 
         return
 
@@ -150,7 +238,7 @@ class VaspStringReactor(BaseStringReactor):
             run_params.update(nsw=self.setting.steps + 1 - nframes)
 
         # Update nimages
-        run_params.update(images=len(images)-2)
+        run_params.update(images=len(images) - 2)
 
         # From scratch, constraint should be removed as vasp calc does have it.
         # From restart, constraint info has already been in OUTCAR.
