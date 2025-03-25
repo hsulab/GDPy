@@ -25,10 +25,12 @@ from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
 from gdpx.backend.lammps import parse_thermo_data_by_pattern
-from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
+from gdpx.group import (evaluate_constraint_expression,
+                        evaluate_group_expression)
 from gdpx.utils.strconv import integers_to_string
 
 from .driver import BaseDriver, Controller, DriverSetting
+from .observer import create_an_observer
 
 
 @dataclasses.dataclass(frozen=True)
@@ -540,7 +542,16 @@ class LmpDriver(BaseDriver):
         self.setting.temp = prev_temperature
         self.setting.press = prev_pressure
 
-        # - check constraint
+        halt = ""
+        if self.setting.observers is not None:
+            observers = []
+            for ob_params in self.setting.observers:
+                observers.append(create_an_observer(ob_params))
+            for i, ob in enumerate(observers):
+                if hasattr(ob, "get_lammps_command"):
+                    halt += ob.get_lammps_command(f"observer_{i:>02d}", "all", dump_period=self.setting.dump_period)
+
+        # Update calculator parameters
         self.calc.set(
             task=self.setting.task,
             dump_period=self.setting.dump_period,
@@ -555,6 +566,7 @@ class LmpDriver(BaseDriver):
             extra_fix=run_params["extra_fix"],  # e.g. fixcm
             neighbor=run_params["neighbor"],
             neigh_modify=run_params["neigh_modify"],
+            halt=halt,  # for earlystop
         )
         atoms.calc = self.calc
 
@@ -820,6 +832,7 @@ class Lammps(FileIOCalculator):
         neigh_modify="every 10 check yes",
         mass="* 1.0",
         # extra fix
+        halt="",
         extra_fix=[],
         # externals
         plumed=None,
@@ -1129,6 +1142,11 @@ class Lammps(FileIOCalculator):
                 )
         content += "\n"
 
+        # Add earlystop fixes
+        if self.halt:
+            content += self.halt
+            content += "\n"
+
         # Simulation tasks
         if self.task == "min":
             content += "\n".join(self.dynamics) + "\n"
@@ -1149,7 +1167,8 @@ class Lammps(FileIOCalculator):
             if self.plumed is not None:
                 # TODO: We should better move this to driver setting.
                 try:
-                    from ..potential.managers.plumed.calculators.plumed2 import update_stride_and_file
+                    from ..potential.managers.plumed.calculators.plumed2 import \
+                        update_stride_and_file
 
                     plumed_inp = update_stride_and_file(
                         self.plumed,

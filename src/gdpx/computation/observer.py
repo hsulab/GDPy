@@ -82,19 +82,13 @@ class SmallDistanceObserver(Observer):
                 bothways=True,
             )
 
-            self._dmin_dict = closest_distances_generator(
-                set(atoms.get_atomic_numbers()), self.cov_min
-            )
+            self._dmin_dict = closest_distances_generator(set(atoms.get_atomic_numbers()), self.cov_min)
             self._dmin_dict.update(self.custom_dmin_dict)
 
-            self._dmax_dict = closest_distances_generator(
-                set(atoms.get_atomic_numbers()), self.cov_max
-            )
+            self._dmax_dict = closest_distances_generator(set(atoms.get_atomic_numbers()), self.cov_max)
             self._dmax_dict.update(self.custom_dmax_dict)
 
-            selected_indices = [
-                i for i, a in enumerate(atoms) if a.symbol in self.symbols
-            ]
+            selected_indices = [i for i, a in enumerate(atoms) if a.symbol in self.symbols]
             self._included_indices = selected_indices
             self._included_pairs = list(itertools.permutations(selected_indices, 2))
         else:
@@ -131,9 +125,7 @@ class SmallDistanceObserver(Observer):
             nei_indices, nei_offsets = neighlist.get_neighbors(i)
             for j, offset in zip(nei_indices, nei_offsets):
                 if (i, j) in included_pairs and (i, j) not in excluded_pairs:
-                    distance = np.linalg.norm(
-                        atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell))
-                    )
+                    distance = np.linalg.norm(atoms.positions[i] - (atoms.positions[j] + np.dot(offset, cell)))
                     atomic_pair = (atomic_numbers[i], atomic_numbers[j])
                     if distance < dmin_dict[atomic_pair]:
                         is_valid = False
@@ -155,16 +147,12 @@ class IsolatedAtomObserver(SmallDistanceObserver):
     def _irun(self, atoms: Atoms) -> bool:
         """"""
         should_stop = False
-        if self._check_whether_atom_is_isolated(
-            atoms, self._neighlist, included_indices=self._included_indices
-        ):
+        if self._check_whether_atom_is_isolated(atoms, self._neighlist, included_indices=self._included_indices):
             should_stop = True
 
         return should_stop
 
-    def _check_whether_atom_is_isolated(
-        self, atoms: Atoms, neighlist, included_indices: List[int]
-    ) -> bool:
+    def _check_whether_atom_is_isolated(self, atoms: Atoms, neighlist, included_indices: List[int]) -> bool:
         """use neighbour list to check newly added atom is neither too close or too
         far from other atoms
         """
@@ -238,18 +226,36 @@ class VolumeObserver(Observer):
         self.use_atomic = use_atomic
 
         return
-    
+
     def run(self, atoms: Atoms):
         """"""
         should_stop = False
         v = atoms.get_volume()
-        v = v/len(atoms) if self.use_atomic else v
+        v = v / len(atoms) if self.use_atomic else v
         if self.vmin is not None and v < self.vmin:
             should_stop = True
         if self.vmax is not None and v > self.vmax:
             should_stop = True
 
         return should_stop
+
+    def get_lammps_command(self, command_id: str, group_id: str, dump_period: int):
+        """Get a lammps halt command."""
+        if self.use_atomic:
+            raise Exception("VolumeObserver does not support atomic volume in lammps.")
+        content = ""
+        if self.vmin is not None:
+            content += "variable  box_volume equal vol\n"
+            content += (
+                f"fix  {command_id}_volume_min  {group_id}  halt  "
+                + f"{dump_period}  v_box_volume < {self.vmin}  error hard\n"
+            )
+            content += (
+                f"fix  {command_id}_volume_max  {group_id}  halt  "
+                + f"{dump_period}  v_box_volume > {self.vmax}  error hard\n"
+            )
+
+        return content
 
 
 registers.observer.register("small_distance")(SmallDistanceObserver)
