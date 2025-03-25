@@ -107,7 +107,7 @@ class DeepmdManager(BasePotentialManager):
             if command is None:
                 command = "lmp"
 
-            use_pair_repulsion = calc_params.pop("pair_repulsion", False)
+            pair_repulsion = calc_params.pop("pair_repulsion", {})
 
             if models:
                 if len(models) == 1:
@@ -127,9 +127,16 @@ class DeepmdManager(BasePotentialManager):
 
                 # TODO: This is a temporary workaround for pair repulsion,
                 #       it is better we use mixer to deal with a more general case.
-                if use_pair_repulsion:
-                    d0, alpha = 1.0, 6.0  # [eV] and [1/Ang]
-                    pair_style = "hybrid/overlay " + pair_style + " morse 3.0"
+                if pair_repulsion:
+                    # See https://docs.lammps.org/pair_morse.html
+                    pair_repulsion_name = pair_repulsion.get("name", "morse")
+                    if pair_repulsion_name != "morse":
+                        raise Exception("Only morse is supported for now.")
+                    pair_repulsion_params = pair_repulsion.get("params", {})
+                    d0 = pair_repulsion_params.get("d0", 1.0) # D0, [eV]
+                    alpha = pair_repulsion_params.get("alpha", 6.0) # [1/Ang]
+                    bond_ratio = pair_repulsion_params.get("cov_min", 0.8)  # the minimum ratio for the covalent bond
+                    pair_style = "hybrid/overlay " + pair_style + f" {pair_repulsion_name} 3.0"
                     pair_coeff = "* * deepmd {type_list}\n"
                     # Lammps calculator uses an alphabetically order to map element to digits
                     sorted_type_list = sorted(type_list)
@@ -139,8 +146,10 @@ class DeepmdManager(BasePotentialManager):
                             r0 = (
                                 covalent_radii[atomic_numbers[sorted_type_list[i - 1]]]
                                 + covalent_radii[atomic_numbers[sorted_type_list[j - 1]]]
+                            ) * bond_ratio
+                            pair_coeff += (
+                                f"pair_coeff  {i} {j} morse {d0} {alpha} {r0:>.2f} {r0:>.2f}\n"
                             )
-                            pair_coeff += f"pair_coeff  {i} {j} morse {d0} {alpha} {r0:>.2f} {r0*0.8:>.2f}\n"
 
                 calc = Lammps(
                     command=command,
