@@ -149,6 +149,9 @@ class VaspStringReactor(BaseStringReactor):
             # the param keys have been proprocessed to vasp ones
             run_params.update(nsw=self.setting.steps + 1 - nframes)
 
+        # Update nimages
+        run_params.update(images=len(images)-2)
+
         # From scratch, constraint should be removed as vasp calc does have it.
         # From restart, constraint info has already been in OUTCAR.
         run_params.pop("constraint")
@@ -250,8 +253,10 @@ class VaspStringReactor(BaseStringReactor):
             natoms = len(ini_atoms)
             sort, resort = list(range(natoms)), list(range(natoms))
 
+        nimages_per_band = int(np.loadtxt(self.directory / "nimages"))
+
         frames_ = []
-        for i in range(1, self.setting.nimages - 1):
+        for i in range(1, nimages_per_band - 1):
             curr_frames = read(wdir / f"{str(i).zfill(2)}" / "OUTCAR", ":")
             sorted_frames = []
             for a in curr_frames:
@@ -266,7 +271,7 @@ class VaspStringReactor(BaseStringReactor):
 
         frames = []
         for i in range(nsteps):
-            curr_frames = [ini_atoms] + [frames_[j][i] for j in range(self.setting.nimages - 2)] + [fin_atoms]
+            curr_frames = [ini_atoms] + [frames_[j][i] for j in range(nimages_per_band - 2)] + [fin_atoms]
             frames.append(curr_frames)
 
         return frames
