@@ -65,8 +65,8 @@ class StringReactorSetting:
     #: Optimiser.
     optimiser: str = "bfgs"
 
-    #: Spring constant, eV/Ang2.
-    k: float = 5.0
+    #: Spring constant, eV/Ang^2.
+    kspring: float = 5.0
 
     #: Whether use CI-NEB.
     climb: bool = False

@@ -70,7 +70,7 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 ("MOTION/BAND", f"NUMBER_OF_REPLICA {self.nimages}"),
                 (
                     "MOTION/BAND",
-                    f"K_SPRING {self.k/(units.Hartree/units.Bohr**2)}",
+                    f"K_SPRING {self.kspring/(units.Hartree/units.Bohr**2)}",
                 ),
                 ("MOTION/BAND", "ROTATE_FRAMES F"),
                 ("MOTION/BAND", "ALIGN_FRAMES F"),

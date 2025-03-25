@@ -249,7 +249,7 @@ class AseStringReactor(BaseStringReactor):
 
         neb = NEB(
             images=images,
-            k=self.setting.k,
+            k=self.setting.kspring,
             climb=self.setting.climb,
             remove_rotation_and_translation=False,
             method="aseneb",
