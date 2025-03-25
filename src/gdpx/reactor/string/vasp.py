@@ -207,9 +207,12 @@ class VaspStringReactor(BaseStringReactor):
         if ckpt_wdir is None:  # start from the scratch
             self._print("interpolate input images...")
             images = self._align_structures(structures, run_params)
+            # The energies are stored in the info dict.
+            ini_ene = images[0].info["energy"]
+            fin_ene = images[-1].info["energy"]
         else:
             self._print("update input images...")
-            # - update structures
+            # Read images from OUTCARs
             rep_dirs = sorted(ckpt_wdir.glob(r"[0-9][0-9]"), key=lambda x: int(x.name))
 
             frames_ = []
@@ -220,7 +223,7 @@ class VaspStringReactor(BaseStringReactor):
             assert nframes > 0, "At least one step finished before resume..."
             intermediates_ = [x[nframes - 1] for x in frames_]
 
-            # -- sort frames from outcar
+            # Sort atoms in images
             if (ckpt_wdir / ASE_VASP_SORT_FNAME).exists():
                 sort, resort = read_sort(ckpt_wdir, ASE_VASP_SORT_FNAME)
             else:
@@ -237,8 +240,14 @@ class VaspStringReactor(BaseStringReactor):
             # the param keys have been proprocessed to vasp ones
             run_params.update(nsw=self.setting.steps + 1 - nframes)
 
-        # Update nimages
+        # The energies are stored in the info dict both start from scratch or restart as
+        # the initial state and the final state are from the input structures.
+        ini_ene = images[0].info["energy"]
+        fin_ene = images[-1].info["energy"]
+
+        # Update some system-dependent parameters
         run_params.update(images=len(images) - 2)
+        run_params.update(efirst=ini_ene, elast=fin_ene)
 
         # From scratch, constraint should be removed as vasp calc does have it.
         # From restart, constraint info has already been in OUTCAR.
