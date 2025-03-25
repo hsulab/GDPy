@@ -65,7 +65,7 @@ class StringReactorSetting:
     #: Optimiser.
     optimiser: str = "bfgs"
 
-    #: Spring constant, eV/Ang^2.
+    #: Spring constant [eV/Ang^2], various codes use different defaults, we use the one in VASP.
     kspring: float = 5.0
 
     #: Whether use CI-NEB.
