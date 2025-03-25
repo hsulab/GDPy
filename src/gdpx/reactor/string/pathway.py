@@ -175,13 +175,13 @@ class AseStringReactorSetting(StringReactorSetting):
         _init_params.update(**self.controller)
 
         if self.controller:
-            cont_cls_name = self.controller.get("name", "bfgs")
+            cont_cls_name = self.controller.get("name", "mdmin")
             if cont_cls_name in controllers:
                 cont_cls = controllers[cont_cls_name]
             else:
                 raise RuntimeError(f"Unknown controller {cont_cls_name}.")
         else:
-            cont_cls = controllers["bfgs"]
+            cont_cls = controllers["mdmin"]
 
         cont = cont_cls(**_init_params)
         self.driver_cls = cont.params.pop("driver_cls")
