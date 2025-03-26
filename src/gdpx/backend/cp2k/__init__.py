@@ -5,7 +5,7 @@
 from .parser import (
     read_cp2k_energy_force,
     read_cp2k_outputs,
-    read_cp2k_spc,
+    read_cp2k_output_from_energy_force,
     read_cp2k_xyz,
     read_cp2k_convergence,
     read_cp2k_spc_convergence
@@ -16,7 +16,7 @@ __all__ = [
     "Cp2kFileIO",
     "read_cp2k_energy_force",
     "read_cp2k_outputs",
-    "read_cp2k_spc",
+    "read_cp2k_output_from_energy_force",
     "read_cp2k_xyz",
     "read_cp2k_convergence",
     "read_cp2k_spc_convergence",

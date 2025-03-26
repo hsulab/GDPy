@@ -3,6 +3,7 @@
 
 
 import pathlib
+from typing import Optional
 
 import numpy as np
 from ase import Atoms, units
@@ -66,10 +67,26 @@ def check_input_pbc_section(line):
     return line.strip().startswith("POISSON| Periodicity") or line.strip().startswith("CELL_TOP| Periodicity")
 
 
-def read_cp2k_spc(wdir, prefix: str = "cp2k"):
-    """"""
-    wdir = pathlib.Path(wdir)
-    with open(wdir / f"{prefix}.out", "r") as fopen:
+def read_cp2k_output_from_energy_force(wdir: pathlib.Path, prefix: str = "cp2k") -> Optional[Atoms]:
+    """Read the cp2k output from a calculation with `RUN_TYPE ENERGY_FORCE`.
+
+    This function is tested on CP2K v2022.1 but should be able to work across various versions.
+    It tries to read the cell, pbc, natoms, positions, energy, and forces from the output.
+    Sometimes, the calculation stops in the middle of the SCF and no energy and forces are written,
+    thus, we return None that can be checked in read_trajectory and make read_convergence gives false.
+
+    The `wdir/f"{prefix}.out"` must exist and not be empty.
+
+    Args:
+        wdir: The cp2k calculation directory.
+        prefix: The name of the output file.
+
+    Returns:
+        An atoms object if the single-point calculation finished successfully, otherwise, None.
+
+    """
+    cp2k_out_fpath = wdir / f"{prefix}.out"
+    with open(cp2k_out_fpath, "r") as fopen:
         lines = fopen.readlines()
 
     num_atoms = -1
@@ -87,7 +104,7 @@ def read_cp2k_spc(wdir, prefix: str = "cp2k"):
             if num_atoms < 0:
                 num_atoms = int(line.strip().split()[-1])
             else:
-                raise RuntimeError(f"Failed to read `- Atoms:` in {str(wdir)}.")
+                raise RuntimeError(f"Cannot read `- Atoms:` at {str(wdir)}.")
         # coordinates
         if check_input_structure_section(line):
             is_coord = True
@@ -100,7 +117,13 @@ def read_cp2k_spc(wdir, prefix: str = "cp2k"):
         # energy
         if line.strip().startswith("ENERGY| Total FORCE_EVAL"):
             energy = float(line.strip().split()[-1])
-        # forces
+        # The forces section is as follows:
+        # ATOMIC FORCES in [a.u.]
+        #
+        # # Atom   Kind   Element          X              Y              Z
+        #      1      1      C          -0.02038329    -0.02023729     0.01704284
+        #      2      1      C           0.04225810    -0.00166965    -0.01513970
+        #      3      2      O          -0.00234658    -0.04231827     0.00729175
         if line.strip().startswith("ATOMIC FORCES in [a.u.]"):
             is_force = True
         if line.strip().startswith("SUM OF ATOMIC FORCES"):
@@ -108,27 +131,34 @@ def read_cp2k_spc(wdir, prefix: str = "cp2k"):
         if is_force:
             forces.append(line)
 
+    # The calculation did not event start if num_atoms is not properly read.
+    if num_atoms < 0:
+        return None
+
     cell = np.array([c.strip().split()[4:7] for c in cell], dtype=np.float64)
 
     if pbc == "XYZ":
         pbc = True
     else:
-        raise RuntimeError()
+        raise RuntimeError(f"Cannot read a calculation with pbc != XYZ.")
 
     coordinates = np.array([c.strip().split()[4:7] for c in structure[3:]], dtype=np.float64)
     symbols = [c.strip().split()[2] for c in structure[3:]]
 
     atoms = Atoms(symbols, positions=coordinates, cell=cell, pbc=pbc)
 
-    assert isinstance(energy, float)
-    energy *= units.Hartree
-    forces = np.array([frc.strip().split()[3:] for frc in forces[3:]], dtype=np.float64)
-    forces *= units.Hartree / units.Bohr
+    # assert isinstance(energy, float), f"Cannot convert energy `{energy}` to a float at `{str(wdir)}`."
+    if energy is not None and len(forces) == num_atoms + 3:
+        energy *= units.Hartree
+        forces = np.array([frc.strip().split()[3:] for frc in forces[3:]], dtype=np.float64)
+        forces *= units.Hartree / units.Bohr
 
-    results = dict(energy=energy, free_energy=energy, forces=forces)
+        results = dict(energy=energy, free_energy=energy, forces=forces)
 
-    calc = SinglePointCalculator(atoms, **results)
-    atoms.calc = calc
+        calc = SinglePointCalculator(atoms, **results)
+        atoms.calc = calc
+    else:
+        atoms = None
 
     return atoms
 

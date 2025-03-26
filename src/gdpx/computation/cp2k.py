@@ -15,7 +15,7 @@ from gdpx.backend.cp2k import (
     Cp2kFileIO,
     read_cp2k_convergence,
     read_cp2k_outputs,
-    read_cp2k_spc,
+    read_cp2k_output_from_energy_force,
     read_cp2k_spc_convergence,
 )
 from gdpx.data.extatoms import ScfErrAtoms
@@ -405,7 +405,7 @@ class Cp2kDriver(BaseDriver):
                 # No restart files are generated in a spc calculation.
                 # We need check the computation actually creates an output file.
                 cp2kout_fpath = self.directory / "cp2k.out"
-                if cp2kout_fpath.exists():
+                if cp2kout_fpath.exists() and cp2kout_fpath.stat().st_size != 0:
                     verified = read_cp2k_spc_convergence(cp2kout_fpath)
                 else:
                     verified = False
@@ -528,14 +528,18 @@ class Cp2kDriver(BaseDriver):
     def read_trajectory(self, *args, **kwargs) -> list[Atoms]:
         """"""
         if self.setting.task in ["spc"]:
-            out_fpath = pathlib.Path(self.directory) / "cp2k.out"
-            if out_fpath.exists():
-                atoms = read_cp2k_spc(self.directory, prefix="cp2k")
-                scf_convergence = read_cp2k_convergence(out_fpath)
-                if not scf_convergence:
-                    atoms = ScfErrAtoms.from_atoms(atoms)
-                    self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
-                traj_frames = [atoms]
+            # The spc should not have any previous calculations.
+            cp2kout_fpath = pathlib.Path(self.directory) / "cp2k.out"
+            if cp2kout_fpath.exists() and cp2kout_fpath.stat().st_size != 0:
+                atoms = read_cp2k_output_from_energy_force(self.directory, prefix="cp2k")
+                if atoms is not None:
+                    scf_convergence = read_cp2k_convergence(cp2kout_fpath)
+                    if not scf_convergence:
+                        atoms = ScfErrAtoms.from_atoms(atoms)
+                        self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
+                    traj_frames = [atoms]
+                else:
+                    traj_frames = []
             else:
                 self._print(f"No output @ {str(self.directory)}")
                 traj_frames = []
