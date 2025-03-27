@@ -310,7 +310,7 @@ class MinimaValidator(BaseValidator):
         _ = worker.run(frames)
         _ = worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
-            trajectories = worker.retrieve(include_retrieved=True)
+            trajectories = worker.retrieve(include_retrieved=True, use_archive=True)
             ini_frames = [t[0] for t in trajectories]
             write(self.directory / "pred_ini.xyz", ini_frames)
             end_frames = [t[-1] for t in trajectories]
