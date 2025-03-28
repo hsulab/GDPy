@@ -62,6 +62,8 @@ def build_a_committee_calculator(calc_cls, params_list: list[dict], estimate_unc
 def potter_from_dict(inp_dict: dict) -> "BasePotentialManager":
     """"""
     name = inp_dict.get("name", None)
+    if name is None:
+        raise Exception(f"The input dictionary `{inp_dict}` does not define a valid potter.")
     potter = registers.create(
         "manager",
         name,
