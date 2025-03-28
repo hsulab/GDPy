@@ -78,7 +78,7 @@ class AbstractOperator(abc.ABC):
     def _check_region(self, atoms: Atoms) -> None:
         """Set _curr_tags_dict."""
         if self.region.__class__.__name__ == "AutoRegion":
-            self.region._curr_atoms = atoms
+            self.region._atoms = atoms
 
         tags_dict = self.region.get_tags_dict(atoms)
         content = "species within system:\n"
