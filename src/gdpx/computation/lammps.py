@@ -130,11 +130,26 @@ class MDController(Controller):
 
         # convert temperature from Kelvin to units
         self.temperature = unitconvert.convert(self.temperature, "temperature", "real", self.units)
-        self.temperature_end = unitconvert.convert(self.temperature_end, "temperature", "real", self.units)
+
+        if self.temperature_end is not None:
+            self.temperature_end = unitconvert.convert(self.temperature_end, "temperature", "real", self.units)
+        else:
+            self.temperature_end = self.temperature
+
+        if not (self.temperature > 0.):
+            raise Exception(f"MDController temperature `{self.temperature}` must be greater than 0.")
+
+        assert self.temperature_end is not None
+        if not (self.temperature_end > 0.):
+            raise Exception(f"MDController temperature_end `{self.temperature_end}` must be greater than 0.")
 
         # convert pressure from bar to units
         self.pressure = unitconvert.convert(self.pressure, "pressure", "metal", self.units)
-        self.pressure_end = unitconvert.convert(self.pressure_end, "pressure", "metal", self.units)
+
+        if self.pressure_end is not None:
+            self.pressure_end = unitconvert.convert(self.pressure_end, "pressure", "metal", self.units)
+        else:
+            self.pressure_end = self.pressure
 
         input_line = ""
         if self.fix_com:
