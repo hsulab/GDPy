@@ -35,7 +35,7 @@ class DescriptorSelector(BaseSelector):
             # metric_params = {}
         ),
         number=[4, 0.2],
-        verbose=False,
+        use_cache=False,
     )
 
     def __init__(self, *args, **kwargs):
@@ -59,25 +59,33 @@ class DescriptorSelector(BaseSelector):
         """
         features_path = self.directory / "features.npy"
 
-        self._print(f"start calculating features with {self.njobs} processes...")
-        desc_params = copy.deepcopy(self.descriptor)
-        desc_name = desc_params.pop("name", None)
+        if not features_path.exists():
+            self._print(f"start calculating features with {self.njobs} processes...")
+            desc_params = copy.deepcopy(self.descriptor)
+            desc_name = desc_params.pop("name", None)
 
-        features = None
-        if desc_name == "soap":
-            soap = SOAP(**desc_params)
-            ndim = soap.get_number_of_features()
-            self._print(f"soap descriptor dimension: {ndim}")
-            features = soap.create(frames, n_jobs=self.njobs)
+            features = None
+            if desc_name == "soap":
+                soap = SOAP(**desc_params)
+                ndim = soap.get_number_of_features()
+                self._print(f"soap descriptor dimension: {ndim}")
+                features = soap.create(frames, n_jobs=self.njobs)
+            else:
+                raise RuntimeError(f"Unknown descriptor {desc_name}.")
+            self._print("finished calculating features...")
+
+            features = features.reshape(-1, ndim)
+
+            # Save calculated features only when we need features for further analysis
+            # It is not worthy to do with the number of structures is smaller than 100_000 as
+            # it takes a lot of disk space even for a small number.
+            if self.use_cache:
+                np.save(features_path, features)
         else:
-            raise RuntimeError(f"Unknown descriptor {desc_name}.")
-        self._print("finished calculating features...")
+            self._print("load cache features...")
+            features = np.load(features_path)
 
-        # Save calculated features
-        features = features.reshape(-1, ndim)
-        if self.verbose:
-            np.save(features_path, features)
-            self._print(f"number of soap instances {len(features)}")
+        self._print(f"The shape of features is {features.shape}.")
 
         return features
 
