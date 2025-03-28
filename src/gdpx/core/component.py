@@ -33,6 +33,7 @@ class BaseComponent(abc.ABC):
         self,
         directory: Union[str, pathlib.Path] = "./",
         random_seed: Optional[Union[int, dict]] = None,
+        n_jobs: Optional[int] = None,
     ):
         """"""
         # Set the working directory.
@@ -43,8 +44,8 @@ class BaseComponent(abc.ABC):
 
         self.set_rng(seed=random_seed)
 
-        # Set number of processors
-        self.njobs = config.NJOBS
+        # Set number of processors that can run some functions in parallel
+        self.njobs = config.NJOBS if n_jobs is None else n_jobs
 
         return
 
