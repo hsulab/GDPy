@@ -408,11 +408,8 @@ class ReactorBasedWorker(BaseWorker):
 
         # TODO: check whether params for scheduler is changed
         self.scheduler.write()
-        if self._submit:
-            job_id = self.scheduler.submit(func_to_execute=func_to_execute)
-            self._print(f"{self.directory.name} JOBID: {job_id}")
-        else:
-            self._print(f"{self.directory.name} waits to submit.")
+        job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+        self._print(f"{self.directory.name} JOBID: {job_id}")
 
         return
 

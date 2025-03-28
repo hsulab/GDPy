@@ -110,10 +110,7 @@ class SingleWorker(BaseWorker):
 
             # - TODO: check whether params for scheduler is changed
             self.scheduler.write()
-            if self._submit:
-                self._print(f"{wdir.name} JOBID: {self.scheduler.submit()}")
-            else:
-                self._print(f"{wdir.name} waits to submit.")
+            self._print(f"{wdir.name} JOBID: {self.scheduler.submit()}")
 
         # - save this batch job to the database
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
