@@ -17,16 +17,14 @@ from gdpx.data.array import AtomsNDArray
 
 def save_cache(fpath, data, random_seed: Optional[int] = None):
     """"""
-    header = (
-        "#{:>11s}  {:>8s}  {:>8s}  {:>8s}  " + "{:>12s}" * 4 + "\n"
-    ).format(*"index confid step natoms ene aene maxfrc score".split())
+    header = ("#{:>11s}  {:>8s}  {:>8s}  {:>8s}  " + "{:>12s}" * 4 + "\n").format(
+        *"index confid step natoms ene aene maxfrc score".split()
+    )
     footer = f"random_seed {random_seed}"
 
     content = header
     for x in data:
-        content += (
-            "{:>12s}  {:>8d}  {:>8d}  {:>8d}  " + "{:>12.4f}" * 4 + "\n"
-        ).format(*x)
+        content += ("{:>12s}  {:>8d}  {:>8d}  {:>8d}  " + "{:>12.4f}" * 4 + "\n").format(*x)
     content += footer
 
     with open(fpath, "w") as fopen:
@@ -51,9 +49,7 @@ def load_cache(fpath, random_seed: Optional[int] = None):
         # NOTE: new_markers looks like [(0,1),(0,2),(1,0)]
         #       If no structures are selected, the info file should only contain
         #       the header and the footer
-        new_markers = [
-            [int(x) for x in (d.strip().split()[0]).split(",")] for d in data
-        ]
+        new_markers = [[int(x) for x in (d.strip().split()[0]).split(",")] for d in data]
         # new_markers = []
         # for d in data:
         #    curr_marker = []
@@ -81,10 +77,7 @@ def group_markers(new_markers_unsorted):
         raw_markers_unsorted.append([k, [x[1] for x in v]])
 
     # traj markers are sorted when set
-    raw_markers = [
-        [x[0], sorted(x[1])]
-        for x in sorted(raw_markers_unsorted, key=lambda x: x[0])
-    ]
+    raw_markers = [[x[0], sorted(x[1])] for x in sorted(raw_markers_unsorted, key=lambda x: x[0])]
 
     return raw_markers
 
@@ -99,15 +92,13 @@ class BaseSelector(BaseComponent):
     group_by: Optional[int] = None
 
     #: Default parameters.
-    default_parameters: dict = dict(
-        number=[4, 0.2], verbose=False
-    )  # number & ratio
+    default_parameters: dict = dict(number=[4, 0.2], verbose=False)  # number & ratio
 
     #: Output file name.
     _fname: str = "info.txt"
 
     def __init__(
-        self, group_by: Optional[int]=None, directory="./", random_seed=None, **kwargs
+        self, group_by: Optional[int] = None, n_jobs: Optional[int] = None, directory="./", random_seed=None, **kwargs
     ) -> None:
         """Initialise a selector.
 
@@ -119,7 +110,7 @@ class BaseSelector(BaseComponent):
             **kwargs: Arbitrary keyword arguments.
 
         """
-        super().__init__(directory=directory, random_seed=random_seed)
+        super().__init__(directory=directory, random_seed=random_seed, n_jobs=n_jobs)
 
         self.group_by = group_by
 
@@ -203,9 +194,7 @@ class BaseSelector(BaseComponent):
             structures.markers = raw_markers
 
         num_out_structures = len(structures.markers)
-        self._print(
-            f"{self.name} num_structures {num_inp_strucutures} -> num_selected {num_out_structures}"
-        )
+        self._print(f"{self.name} num_structures {num_inp_strucutures} -> num_selected {num_out_structures}")
 
         # TODO: Improve selection history records.
         marked_structures = structures.get_marked_structures()
@@ -265,17 +254,13 @@ class BaseSelector(BaseComponent):
             except:
                 ene, ae = np.NaN, np.NaN
             try:
-                maxforce = np.max(
-                    np.fabs(atoms.get_forces(apply_constraint=True))
-                )
+                maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             except:
                 maxforce = np.NaN
             score = atoms.info.get("score", np.nan)
             # - add info
             ind_str = ",".join([str(x) for x in ind])
-            data.append(
-                [f"{ind_str}", confid, step, natoms, ene, ae, maxforce, score]
-            )
+            data.append([f"{ind_str}", confid, step, natoms, ene, ae, maxforce, score])
 
         if data:
             save_cache(self.info_fpath, data, self.random_seed)

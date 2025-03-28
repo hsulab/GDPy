@@ -59,7 +59,7 @@ class DescriptorSelector(BaseSelector):
         """
         features_path = self.directory / "features.npy"
 
-        self._print("start calculating features...")
+        self._print(f"start calculating features with {self.njobs} processes...")
         desc_params = copy.deepcopy(self.descriptor)
         desc_name = desc_params.pop("name", None)
 
@@ -73,7 +73,7 @@ class DescriptorSelector(BaseSelector):
             raise RuntimeError(f"Unknown descriptor {desc_name}.")
         self._print("finished calculating features...")
 
-        # - save calculated features
+        # Save calculated features
         features = features.reshape(-1, ndim)
         if self.verbose:
             np.save(features_path, features)
