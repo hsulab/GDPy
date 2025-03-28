@@ -332,9 +332,9 @@ class LmpDriverSetting(DriverSetting):
             _init_params.update(
                 timestep=self.timestep,
                 temperature=self.temp,
-                temperature_end=self.tend if self.tend else self.temp,
+                temperature_end=self.tend if self.tend is not None else self.temp,
                 pressure=self.press,
-                pressure_end=self.pend if self.pend else self.press,
+                pressure_end=self.pend if self.pend is not None else self.press,
                 fix_com=self.fix_com,
             )
         else:
