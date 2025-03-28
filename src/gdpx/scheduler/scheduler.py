@@ -12,26 +12,27 @@ from gdpx import config
 
 
 def submit_job_script(
-    script_fpath: pathlib.Path, submit_command: str, submit_timeout: float
+    script_fpath: pathlib.Path, submit_command: str, submit_timeout: float, is_dry_run: bool = False
 ) -> str:
     """Submit job script."""
     command = f"{submit_command} {script_fpath.name}"
-    proc = subprocess.Popen(
-        command,
-        shell=True,
-        cwd=script_fpath.parent,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        encoding="utf-8",
-    )
-    errorcode = proc.wait(timeout=submit_timeout)
-    if errorcode:
-        raise RuntimeError(
-            f"Error in submitting job script {str(script_fpath)}"
+    if not is_dry_run:
+        proc = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=script_fpath.parent,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
         )
+        errorcode = proc.wait(timeout=submit_timeout)
+        if errorcode:
+            raise RuntimeError(f"Error in submitting job script {str(script_fpath)}")
 
-    output = "".join(proc.stdout.readlines())  # type: ignore
-    job_id = output.strip().split()[-1]
+        output = "".join(proc.stdout.readlines())  # type: ignore
+        job_id = output.strip().split()[-1]
+    else:
+        job_id = f"Attempt to submit the job script `{script_fpath.name}` with command `{command}`."
 
     return job_id
 
@@ -92,17 +93,19 @@ class BaseScheduler(abc.ABC):
     #: The tags that a job may have in the queue.
     running_status: list[str] = []
 
-    def __init__(self, submit_timeout: float = 10.0, *args, **kwargs):
+    def __init__(self, submit_timeout: float = 10.0, is_dry_run: bool = False, *args, **kwargs):
         """Init an abstract scheduler.
 
         Args:
             submit_timeout: Timeout for running the submit command.
+            is_dry_run: Whether submit the job (for test).
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
         """
         # basic params
         self.submit_timeout = submit_timeout
+        self.is_dry_run = is_dry_run
 
         # update params
         self.environs = kwargs.pop("environs", "")
@@ -180,9 +183,7 @@ class BaseScheduler(abc.ABC):
                 for env in self.environs:
                     content += env.strip() + "\n"
             else:
-                raise RuntimeError(
-                    f"Fail to convert environs `{self.environs}`."
-                )
+                raise RuntimeError(f"Fail to convert environs `{self.environs}`.")
         else:
             ...
         content += "\n\n"
@@ -208,6 +209,7 @@ class BaseScheduler(abc.ABC):
                 self.script,
                 submit_command=self.SUBMIT_COMMAND,
                 submit_timeout=self.submit_timeout,
+                is_dry_run=self.is_dry_run,
             )
         else:
             job_id = "local"
@@ -223,6 +225,7 @@ class BaseScheduler(abc.ABC):
                     self.script,
                     submit_command=self.SUBMIT_COMMAND,
                     submit_timeout=self.submit_timeout,
+                    is_dry_run=self.is_dry_run,
                 )
 
         return job_id
@@ -240,9 +243,7 @@ class BaseScheduler(abc.ABC):
     def as_dict(self) -> dict:
         """"""
         sch_params = {}
-        sch_params = {
-            k: v for k, v in self.parameters.items() if v is not None
-        }
+        sch_params = {k: v for k, v in self.parameters.items() if v is not None}
         sch_params["environs"] = self.environs
         sch_params["backend"] = self.name
 
