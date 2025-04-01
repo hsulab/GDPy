@@ -3,17 +3,17 @@
 
 
 import pathlib
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.session.operation import Operation
 from gdpx.core.register import registers
-from gdpx.session.variable import Variable
 from gdpx.data.array import AtomsNDArray
+from gdpx.session.operation import Operation
+from gdpx.session.variable import Variable
 
 
 @registers.variable.register
@@ -23,9 +23,7 @@ class BuilderVariable(Variable):
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
         method = kwargs.pop("method", "direct")
-        builder = registers.create(
-            "builder", method, convert_name=False, **kwargs
-        )
+        builder = registers.create("builder", method, convert_name=False, **kwargs)
 
         super().__init__(initial_value=builder, directory=directory)
 
@@ -89,13 +87,9 @@ class read_stru(Operation):
         frames = []
         for curr_fname in fname_:
             self._print(f"read {curr_fname}")
-            curr_frames = read(
-                curr_fname, format=self.format, index=self.index, **self.kwargs
-            )
+            curr_frames = read(curr_fname, format=self.format, index=self.index, **self.kwargs)
             if isinstance(curr_frames, Atoms):
-                curr_frames = [
-                    curr_frames
-                ]  # if index is single, then read will give Atoms
+                curr_frames = [curr_frames]  # if index is single, then read will give Atoms
             frames.extend(curr_frames)
 
         frames = AtomsNDArray(frames)
@@ -112,19 +106,31 @@ class write_stru(Operation):
     def __init__(
         self,
         structures,
-        fname=None,
-        format="extxyz",
+        fname: Optional[str] = None,
+        format: str = "extxyz",
+        dump_last: bool = True,
         directory="./",
         *args,
         **kwargs,
     ) -> None:
-        """"""
+        """Initialise the write_stru operation.
+        
+        Args:
+            structures: AtomsNDArray or Atoms.
+            fname: The file name to save the structures.
+            format: The format of the output file.
+            dump_last: Whether save the last frame for a 2D AtomsNDArray.
+            directory: The directory to save the structures.
+
+        """
         input_nodes = [structures]
         super().__init__(input_nodes, directory)
 
         self.fname = fname
         self.format = format
         self.kwargs = kwargs
+
+        self.dump_last = dump_last
 
         return
 
@@ -133,14 +139,23 @@ class write_stru(Operation):
         super().forward()
 
         if isinstance(structures, AtomsNDArray):
-            structures = structures.get_marked_structures()
+            if self.dump_last:
+                if structures.ndim == 2:
+                    # TODO: Check markers?
+                    frames = []
+                    for traj in structures.tolist():
+                        for atoms in traj[::-1]:
+                            if atoms is not None:
+                                frames.append(atoms)
+                                break
+                    structures = frames
+                else:
+                    raise Exception("`dump_last` only supports 2D AtomsNDArray.")
+            else:
+                structures = structures.get_marked_structures()
 
-        self._print(
-            f"write structures to {str(self.directory/'structures.xyz')}"
-        )
-        write(
-            self.directory / "structures.xyz", structures, format=self.format
-        )
+        self._print(f"write structures to {str(self.directory/'structures.xyz')}")
+        write(self.directory / "structures.xyz", structures, format=self.format)
 
         if self.fname is not None:
             fpath = pathlib.Path(self.fname)
@@ -196,12 +211,8 @@ class build(Operation):
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         builder = input_nodes[0]
-        if isinstance(builder, dict) or isinstance(
-            builder, omegaconf.dictconfig.DictConfig
-        ):
-            builder = BuilderVariable(
-                directory=self.directory / "builder", **builder
-            )
+        if isinstance(builder, dict) or isinstance(builder, omegaconf.dictconfig.DictConfig):
+            builder = BuilderVariable(directory=self.directory / "builder", **builder)
 
         return [builder]
 
@@ -218,9 +229,7 @@ class modify(Operation):
         directory="./",
     ) -> None:
         """"""
-        super().__init__(
-            input_nodes=[substrates, modifier], directory=directory
-        )
+        super().__init__(input_nodes=[substrates, modifier], directory=directory)
 
         self.size = size  # create number of new structures
         self.repeat = repeat  # repeat modification times for one structure
@@ -249,20 +258,12 @@ class modify(Operation):
                     fname=substrates,
                 )
             )
-        if isinstance(modifier, dict) or isinstance(
-            modifier, omegaconf.dictconfig.DictConfig
-        ):
-            modifier = BuilderVariable(
-                directory=self.directory / "modifier", **modifier
-            )
-        elif isinstance(modifier, list) or isinstance(
-            modifier, omegaconf.ListConfig
-        ):
+        if isinstance(modifier, dict) or isinstance(modifier, omegaconf.dictconfig.DictConfig):
+            modifier = BuilderVariable(directory=self.directory / "modifier", **modifier)
+        elif isinstance(modifier, list) or isinstance(modifier, omegaconf.ListConfig):
             modifiers_ = []
             for modifier_ in modifier:
-                modifier_ = BuilderVariable(
-                    directory=self.directory / "modifier", **modifier_
-                ).value
+                modifier_ = BuilderVariable(directory=self.directory / "modifier", **modifier_).value
                 modifiers_.append(modifier_)
             modifier = BuilderVariable(
                 directory=self.directory / "modifier",
@@ -270,9 +271,7 @@ class modify(Operation):
                 modifiers=modifiers_,
             )
         else:
-            raise RuntimeError(
-                f"Unknown modifier {modifier} with a type of `{type(modifier)}`."
-            )
+            raise RuntimeError(f"Unknown modifier {modifier} with a type of `{type(modifier)}`.")
 
         return substrates, modifier
 
@@ -301,9 +300,7 @@ class remove_vacuum(Operation):
 
     cache: str = "cache_frames.xyz"
 
-    def __init__(
-        self, structures, thickness: float = 20.0, directory="./"
-    ) -> None:
+    def __init__(self, structures, thickness: float = 20.0, directory="./") -> None:
         """"""
         input_nodes = [structures]
         super().__init__(input_nodes, directory)
