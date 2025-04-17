@@ -62,10 +62,17 @@ class Cp2kStringReactorSetting(StringReactorSetting):
         """"""
         pairs = []
 
+        method_section = [("GLOBAL", "RUN_TYPE BAND")]
+        if not self.climb:
+            method_section.append(("MOTION/BAND", "BAND_TYPE IT-NEB"))
+        else:
+            method_section.append(("MOTION/BAND", "BAND_TYPE CI-NEB"))
+            # Number of IT-NEB steps before CI-NEB
+            method_section.append(("MOTION/BAND/CI_NEB", "NSTEPS_IT 2"))
+        pairs.extend(method_section)
+
         pairs.extend(
             [
-                ("GLOBAL", "RUN_TYPE BAND"),
-                ("MOTION/BAND", "BAND_TYPE CI-NEB"),
                 ("MOTION/BAND", f"NPROC_REP {self.ntasks_per_image}"),
                 ("MOTION/BAND", f"NUMBER_OF_REPLICA {self.nimages}"),
                 (
@@ -74,7 +81,6 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 ),
                 ("MOTION/BAND", "ROTATE_FRAMES F"),
                 ("MOTION/BAND", "ALIGN_FRAMES F"),
-                ("MOTION/BAND/CI_NEB", "NSTEPS_IT 2"),
                 ("MOTION/BAND/OPTIMIZE_BAND", "OPT_TYPE DIIS"),
                 ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "NO_LS T"),
                 ("MOTION/BAND/OPTIMIZE_BAND/DIIS", "N_DIIS 3"),
