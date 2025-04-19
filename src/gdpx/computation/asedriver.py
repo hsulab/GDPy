@@ -903,6 +903,11 @@ class AseDriver(BaseDriver):
         # e.g. VaspInteractive...
         if hasattr(self.calc, "finalize"):
             self.calc.finalize()
+        if isinstance(self.calc, EnhancedCalculator):
+            for calc in self.calc.mixer.calcs:
+                if hasattr(calc, "finalize"):
+                    calc.finalize()
+
         # To restart, velocities are always retained
         self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
 
