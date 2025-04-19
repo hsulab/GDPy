@@ -34,8 +34,8 @@ def set_calc_state(calc: Calculator, timestep: float, stride: int):
     if calc.name == "plumed":
         calc.timestep = timestep
         calc.stride = stride
-    if hasattr(calc, "calcs"):
-        for subcalc in calc.calcs:
+    if hasattr(calc, "mixer"):
+        for subcalc in calc.mixer.calcs:
             set_calc_state(subcalc, timestep, stride)
     else:
         ...
@@ -194,8 +194,8 @@ def save_checkpoint(dyn: Dynamics, atoms: Atoms, wdir: pathlib.Path, ckpt_number
                 json.dump(dyn.rng.bit_generator.state, fopen, indent=2)
 
         # For some mixed calculator, save information, for example, PLUMED...
-        if hasattr(atoms.calc, "calcs"):
-            for calc in atoms.calc.calcs:
+        if hasattr(atoms.calc, "mixer"):
+            for calc in atoms.calc.mixer.calcs:
                 if hasattr(calc, "_save_checkpoint"):
                     calc._save_checkpoint(ckpt_wdir)
 
@@ -777,8 +777,8 @@ class AseDriver(BaseDriver):
             atoms, rng_state = self._load_checkpoint(ckpt_wdir)
             write(self.directory / self.xyz_fname, atoms)
             start_step = atoms.info["step"]
-            if hasattr(self.calc, "calcs"):
-                for calc in self.calc.calcs:
+            if hasattr(self.calc, "mixer"):
+                for calc in self.calc.mixer.calcs:
                     if hasattr(calc, "_load_checkpoint"):
                         calc._load_checkpoint(ckpt_wdir, start_step=start_step)
             # Update run_params in settings
