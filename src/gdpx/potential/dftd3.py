@@ -19,7 +19,7 @@ class Dftd3Manager(BasePotentialManager):
 
     name = "dftd3"
 
-    implemented_backends = ["ase"]
+    implemented_backends = ("ase",)
     valid_combinations = ("ase", "ase")
 
     """See ASE documentation for calculator parameters.
