@@ -79,25 +79,10 @@ class VaspManager(BasePotentialManager):
 
         calc = DummyCalculator()
         if self.calc_backend == "vasp":
-            # return ase calculator
             from ase.calculators.vasp import Vasp
 
             calc = Vasp(directory=directory, command=command)
 
-            # - set some default electronic parameters
-            calc.set_xc_params("PBE")  # incar may not set GGA
-            calc.set(lorbit=10)
-            calc.set(gamma=True)
-            calc.set(lreal="Auto")
-            if not is_remote and inp_fdict["incar"] is not None:
-                calc.read_incar(inp_fdict["incar"])
-            self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
-            # - update residual params
-            calc.set(**calc_params)
-        elif self.calc_backend == "vasp_interactive":
-            from vasp_interactive import VaspInteractive
-
-            calc = VaspInteractive(directory=directory, command=command)
             # Set some default electronic parameters
             calc.set_xc_params("PBE")  # incar may not set GGA
             calc.set(lorbit=10)
@@ -105,12 +90,33 @@ class VaspManager(BasePotentialManager):
             calc.set(lreal="Auto")
             if not is_remote and inp_fdict["incar"] is not None:
                 calc.read_incar(inp_fdict["incar"])
+            self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
+
+            # Update residual params
+            calc.set(**calc_params)
+        elif self.calc_backend == "vasp_interactive":
+            from vasp_interactive import VaspInteractive
+
+            # Command must contain the machine prefix, otherwise,
+            # the vasp process will fail.
+            calc = VaspInteractive(directory=directory, command=command)
+
+            # Set some default electronic parameters
+            calc.set_xc_params("PBE")  # incar may not set GGA
+            calc.set(lorbit=10)
+            calc.set(gamma=True)
+            calc.set(lreal="Auto")
+            if not is_remote and inp_fdict["incar"] is not None:
+                calc.read_incar(inp_fdict["incar"])
+
             # Set some vasp_interactive parameters
             calc.set(potim=0.0)
             calc.set(ibrion=-1)
             calc.set(ediffg=0)
             # calc.set(isif=3) # Does not support stress for now...
+
             self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
+
             # Update residual params
             calc.set(**calc_params)
         else:
