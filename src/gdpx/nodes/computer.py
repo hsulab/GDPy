@@ -33,7 +33,11 @@ def broadcast_and_adjust_potter(
 ) -> list[BasePotentialManager]:
     """Convert an input to a potter and adjust its behaviour."""
     # Convert anything into potter
-    potter = convert_input_to_potter(inp)
+    if isinstance(inp, Variable):
+        potter = inp.value
+    else:
+        potter = convert_input_to_potter(inp)
+
     assert isinstance(potter, BasePotentialManager), f"{potter} is not a `BasePotentialManager` but `{type(potter)}`."
 
     # HACK: broadcast potters
