@@ -110,6 +110,13 @@ except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
 
 try:
+    from .dftd4 import Dftd4Manager
+
+    REGISTER.register("dftd4")(Dftd4Manager)
+except ImportError as e:
+    config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
+
+try:
     from .bias import BiasManager
 
     REGISTER.register("bias")(BiasManager)
