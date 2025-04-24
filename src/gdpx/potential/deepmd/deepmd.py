@@ -109,6 +109,8 @@ class DeepmdManager(BasePotentialManager):
 
             pair_repulsion = calc_params.pop("pair_repulsion", {})
 
+            pair_dispersion = calc_params.pop("pair_dispersion", {})
+
             if models:
                 if len(models) == 1:
                     pair_style = "deepmd {}".format(" ".join(models))
@@ -128,13 +130,15 @@ class DeepmdManager(BasePotentialManager):
                 # TODO: This is a temporary workaround for pair repulsion,
                 #       it is better we use mixer to deal with a more general case.
                 if pair_repulsion:
+                    if pair_dispersion:
+                        raise Exception("Cannot use both pair_repulsion and pair_dispersion.")
                     # See https://docs.lammps.org/pair_morse.html
                     pair_repulsion_name = pair_repulsion.get("name", "morse")
                     if pair_repulsion_name != "morse":
                         raise Exception("Only morse is supported for now.")
                     pair_repulsion_params = pair_repulsion.get("params", {})
-                    d0 = pair_repulsion_params.get("d0", 1.0) # D0, [eV]
-                    alpha = pair_repulsion_params.get("alpha", 6.0) # [1/Ang]
+                    d0 = pair_repulsion_params.get("d0", 1.0)  # D0, [eV]
+                    alpha = pair_repulsion_params.get("alpha", 6.0)  # [1/Ang]
                     bond_ratio = pair_repulsion_params.get("cov_min", 0.8)  # the minimum ratio for the covalent bond
                     pair_style = "hybrid/overlay " + pair_style + f" {pair_repulsion_name} 3.0"
                     pair_coeff = "* * deepmd {type_list}\n"
@@ -147,9 +151,23 @@ class DeepmdManager(BasePotentialManager):
                                 covalent_radii[atomic_numbers[sorted_type_list[i - 1]]]
                                 + covalent_radii[atomic_numbers[sorted_type_list[j - 1]]]
                             ) * bond_ratio
-                            pair_coeff += (
-                                f"pair_coeff  {i} {j} morse {d0} {alpha} {r0:>.2f} {r0:>.2f}\n"
-                            )
+                            pair_coeff += f"pair_coeff  {i} {j} morse {d0} {alpha} {r0:>.2f} {r0:>.2f}\n"
+
+                if pair_dispersion:
+                    if pair_repulsion:
+                        raise Exception("Cannot use both pair_repulsion and pair_dispersion.")
+                    # See https://docs.lammps.org/pair_dispersion_d3.html
+                    dispersion_name = pair_dispersion.get("name", "d3")
+                    if dispersion_name != "d3":
+                        raise Exception("Only d3 is supported for now.")
+                    method = pair_dispersion.get("method", "pbe")  # functional
+                    damping = pair_dispersion.get("damping", "bj")  # damping, original, zerom, bj, bjm
+                    r_cut = pair_dispersion.get("r_cut", 30.0)  # [Ang]
+                    r_cn_cut = pair_dispersion.get("r_cn_cut", 20.0)  # [Ang]
+                    # To construct,
+                    pair_style = "hybrid/overlay " + pair_style + f" dispersion/{dispersion_name} {damping} {method} {r_cut} {r_cn_cut}"
+                    pair_coeff = "* * deepmd {type_list}\n"
+                    pair_coeff += f"pair_coeff  * * dispersion/{dispersion_name}" + " {type_list}\n"
 
                 calc = Lammps(
                     command=command,
