@@ -205,6 +205,7 @@ class SinglepointValidator(BaseValidator):
         if not (self.directory / prefix).exists():
             (self.directory / prefix).mkdir(parents=True)
 
+        # FIXME: Check if reference structures have properties such as energies and forces
         nframes = len(ref_frames)
         ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
         ref_natoms = [len(a) for a in ref_frames]
