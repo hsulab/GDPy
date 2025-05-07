@@ -167,14 +167,13 @@ def calc_rdf(
     return results
 
 
-def plot_rdf(fig_path, data=None, ref_data=None, title="RDF"):
+def plot_radial_distribution_function(fig_path, data=None, ref_data=None, title: str = "RDF"):
     """"""
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
+    fig = plt.figure(figsize=(12, 9))
+    ax: plt.Axes = fig.subplots(1, 1)  # type: ignore
 
-    plt.suptitle("Radial Distribution Function")
     ax.set_xlabel("r [Å]")
     ax.set_ylabel("g(r)")
-
     ax.set_title(title)
 
     if data is not None:
@@ -187,9 +186,9 @@ def plot_rdf(fig_path, data=None, ref_data=None, title="RDF"):
         bincentres_, rdf_ = smooth_curve(bincentres, rdf)
         ax.plot(bincentres_, rdf_, ls="-.", label="reference")
 
-    plt.legend()
+    ax.legend()
 
-    plt.savefig(fig_path)
+    fig.savefig(fig_path, bbox_inches="tight")
 
     return
 
@@ -295,12 +294,12 @@ class RdfValidator(BaseValidator):
             if reference is not None:
                 r = reference.get(pair, None)
             if not (p is None and r is None):
-                plot_rdf(self.directory / f"{pair}_rdf.png", p, r, title=pair)
+                plot_radial_distribution_function(self.directory / f"{pair}_rdf.png", p, r, title=pair)
             else:
                 if p is not None:
-                    plot_rdf(self.directory / f"{pair}_rdf.png", p, None, title=pair)
+                    plot_radial_distribution_function(self.directory / f"{pair}_rdf.png", p, None, title=pair)
                 else:  # if r is not None:
-                    plot_rdf(self.directory / f"{pair}_rdf.png", None, r, title=pair)
+                    plot_radial_distribution_function(self.directory / f"{pair}_rdf.png", None, r, title=pair)
 
         return
 
