@@ -6,7 +6,7 @@ import copy
 import itertools
 import pathlib
 import time
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import h5py
 import numpy as np
@@ -54,15 +54,19 @@ class DriverVariable(Variable):
 
     def __init__(self, **kwargs):
         """"""
+        # Check broadcast method either product or bijection
+        _broadcast_method = kwargs.get("_broadcast_method", "product")
+
+        # Check driver definitions
         if "drivers" in kwargs:
             driver_params = []
             for params in kwargs["drivers"]:
                 driver_params.extend(
-                    self._broadcast_drivers(merge_driver_params(params))
+                    self._broadcast_drivers(merge_driver_params(params), broadcast_method=_broadcast_method)
                 )
         else:
             merged_params = merge_driver_params(kwargs)
-            driver_params = self._broadcast_drivers(merged_params)
+            driver_params = self._broadcast_drivers(merged_params, broadcast_method=_broadcast_method)
 
         initial_value = driver_params
 
@@ -70,7 +74,9 @@ class DriverVariable(Variable):
 
         return
 
-    def _broadcast_drivers(self, params: dict) -> list[dict]:
+    def _broadcast_drivers(
+        self, params: dict, broadcast_method: Literal["product", "bijection"] = "product"
+    ) -> list[dict]:
         """Broadcast parameters if there were any parameter is a list."""
         # Find parameters with list values
         params_, plengths = {}, []
@@ -91,17 +97,27 @@ class DriverVariable(Variable):
         # Get parameter names with more than one value
         keys_to_broadcast = sorted([k for k, n in plengths if n > 1])
 
-        values_to_broadcast = list(itertools.product(*[params_[k] for k in keys_to_broadcast]))
-
         params = params_
 
         # Broadcast parameters
         params_list = []
-
-        for values in values_to_broadcast:
-            new_params = copy.deepcopy(params)
-            new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
-            params_list.append(new_params)
+        if broadcast_method == "product":
+            values_to_broadcast = list(itertools.product(*[params_[k] for k in keys_to_broadcast]))
+            for values in values_to_broadcast:
+                new_params = copy.deepcopy(params)
+                new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
+                params_list.append(new_params)
+        elif broadcast_method == "bijection":
+            values_to_broadcast = [params_[k] for k in keys_to_broadcast]
+            num_values_list = [len(values) for values in values_to_broadcast]
+            if len(set(num_values_list)) != 1:
+                raise RuntimeError("Broadcast method bijection requires all parameters to have the same length.")
+            for values in zip(*values_to_broadcast):
+                new_params = copy.deepcopy(params)
+                new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
+                params_list.append(new_params)
+        else:
+            raise RuntimeError(f"Unknown broadcast method: {broadcast_method}")
 
         return params_list
 
@@ -586,7 +602,7 @@ def run_chain_step(
                     # Check if the driver throws an earlystop, for example, lammps
                     num_structures = len(structures)
                     for i in range(num_structures):
-                        if (worker.directory/f"cand{i}"/"EARLYSTOP").exists():
+                        if (worker.directory / f"cand{i}" / "EARLYSTOP").exists():
                             raise ChainStepEarlystop(f"Driver stops at candidate {i}")
                     # Check custom observers
                     for istep, observer in enumerate(observers):
