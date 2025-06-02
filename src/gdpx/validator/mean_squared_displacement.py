@@ -302,7 +302,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     )
                     for frames in mdtrajs
                 )
-                data = raw_data
+                data = np.array(raw_data)
             else:
                 raw_data = compute_mean_squared_displacement_over_trajectories(
                     [[a for a in frames if a is not None] for frames in mdtrajs],
