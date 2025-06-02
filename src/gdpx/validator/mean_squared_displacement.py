@@ -49,9 +49,7 @@ def plot_msd(
 
         # compute diffusion coefficient
         if not (start_step < 0 or start_step >= end_step):
-            linear_model = linregress(
-                x[start_step:end_step], y[start_step:end_step]
-            )
+            linear_model = linregress(x[start_step:end_step], y[start_step:end_step])
             ax.plot(
                 x[[start_step, end_step]],
                 y[[start_step, end_step]],
@@ -79,9 +77,7 @@ def plot_msd(
     return
 
 
-def compute_msd(
-    frames, group_indices, lagmax, start, end, timeintv: float, prefix=""
-):
+def compute_msd(frames, group_indices, lagmax, start, end, timeintv: float, prefix=""):
     """Compute MSD ...
 
     Args:
@@ -205,9 +201,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         if not cache_msd.exists():
             data = Parallel(n_jobs=self.njobs)(
                 delayed(compute_msd)(
-                    [
-                        a for a in frames if a is not None
-                    ],  # AtomsNDArray may have None...
+                    [a for a in frames if a is not None],  # AtomsNDArray may have None...
                     group_indices,
                     lagmax=self.lagmax,
                     start=self.start,
