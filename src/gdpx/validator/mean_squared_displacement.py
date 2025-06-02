@@ -78,17 +78,27 @@ def plot_msd(
     return
 
 
-def compute_msd(frames, group_indices, lagmax, start, end, timeintv: float, prefix=""):
-    """Compute MSD ...
+def compute_mean_squared_displacement(
+    frames: list[Atoms], group_indices: list[int], lagmax: int, start: int, end: int, timeintv: float
+):
+    """Compute mean squared displacement (MSD) for a group of atoms.
 
     Args:
-        group_func: Function used to get a group of atoms.
+        frames: List of ASE Atoms objects representing the trajectory frames.
+        group_indices: Indices of atoms in the group for which to compute the MSD.
+        lagmax: Maximum lag time for MSD calculation.
+        start: Start index for the trajectory frames.
+        end: End index for the trajectory frames.
+        timeintv: Time interval between frames in femtoseconds.
+
+    Returns:
+        lagtimes: Array of lag times in picoseconds.
+        timeseries: Array of mean squared displacements for each lag time.
 
     """
-    # -
+    # Wrap the trajectory to avoid jump across periodic boundaries.
     frames = wrap_traj(frames)
     frames = frames[start:end:]
-    # print("nframes: ", len(frames))
 
     positions = []
     for atoms in frames:
@@ -96,15 +106,13 @@ def compute_msd(frames, group_indices, lagmax, start, end, timeintv: float, pref
     positions = np.array(positions)
 
     nframes, natoms, _ = positions.shape
-    # print("shape: ", positions.shape)
 
-    # -
+    # Compute the mean squared displacement (MSD) for each lag time.
     msds_by_particle = np.zeros((lagmax, natoms))
 
     lagtimes = np.arange(1, lagmax)
     for lag in lagtimes:
         disp = positions[:-lag, :, :] - positions[lag:, :, :]
-        # print("disp: ", disp.shape)
         sqdist = np.square(disp).sum(axis=-1)
         msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
     timeseries = msds_by_particle.mean(axis=1)
@@ -203,14 +211,13 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         cache_msd = self.directory / f"{prefix}msd.npy"
         if not cache_msd.exists():
             data = Parallel(n_jobs=self.njobs)(
-                delayed(compute_msd)(
+                delayed(compute_mean_squared_displacement)(
                     [a for a in frames if a is not None],  # AtomsNDArray may have None...
                     group_indices,
                     lagmax=self.lagmax,
                     start=self.start,
                     end=self.end,
                     timeintv=self.timeintv,
-                    prefix=prefix,
                 )
                 for frames in mdtrajs
             )
