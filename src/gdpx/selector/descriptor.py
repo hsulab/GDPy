@@ -3,6 +3,7 @@
 
 
 import copy
+import pathlib
 
 import numpy as np
 import numpy.typing
@@ -14,6 +15,52 @@ from gdpx.data.array import AtomsNDArray
 from .clustering import group_structures_by_axis
 from .selector import BaseSelector
 from .sparsification import cur_selection, fps_selection
+
+
+def plot_configuration_map(png_fpath: pathlib.Path, group_features: list) -> None:
+    """"""
+    import matplotlib.pyplot as plt
+
+    try:
+        plt.style.use("presentation")
+    except Exception:
+        ...
+
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_subplot(111)
+    for grp_name, a_x, a_y, s_x, s_y in group_features:
+        num_candidates = len(a_x)
+        num_selected = len(s_x)
+        # Plot all candidates
+        _ = ax.scatter(
+            a_x,
+            a_y,
+            marker="o",
+            s=100,
+            alpha=0.4,
+            label=f"grp-{grp_name} {num_candidates} -> {num_selected}",
+        )
+        # Plot selected ones
+        ax.scatter(
+            s_x,
+            s_y,
+            marker="*",
+            s=50,
+            alpha=0.8,
+            color="k",
+            facecolor="none",
+        )
+
+    ax.legend(fontsize="small")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+
+    fig.savefig(png_fpath, bbox_inches="tight")
+    plt.close()
+
+    return
 
 
 class DescriptorSelector(BaseSelector):
@@ -74,7 +121,7 @@ class DescriptorSelector(BaseSelector):
                 raise RuntimeError(f"Unknown descriptor {desc_name}.")
             self._print("finished calculating features...")
 
-            features = features.reshape(-1, ndim)
+            features = features.reshape((-1, ndim))
 
             # Save calculated features only when we need features for further analysis
             # It is not worthy to do with the number of structures is smaller than 100_000 as
@@ -104,9 +151,7 @@ class DescriptorSelector(BaseSelector):
         for grp_name, markers in marker_groups.items():
             frames = data.get_marked_structures(markers)
 
-            curr_features, curr_selected_indices = self._select_structures(
-                frames
-            )
+            curr_features, curr_selected_indices = self._select_structures(frames)
             curr_selected_markers = [markers[i] for i in curr_selected_indices]
             selected_markers.extend(curr_selected_markers)
 
@@ -119,13 +164,9 @@ class DescriptorSelector(BaseSelector):
                     curr_nframes = features.shape[0]
                     features = np.vstack((features, curr_features))
                 # Selected ones
-                sind_grps[grp_name] = [
-                    x + curr_nframes for x in curr_selected_indices
-                ]
+                sind_grps[grp_name] = [x + curr_nframes for x in curr_selected_indices]
                 # Other ones
-                oind_grps[grp_name] = [
-                    x + curr_nframes for x in range(len(markers))
-                ]
+                oind_grps[grp_name] = [x + curr_nframes for x in range(len(markers))]
 
         if any([len(v) for k, v in sind_grps.items()]):
             self._plot_results(features, sind_grps, oind_grps)
@@ -161,61 +202,37 @@ class DescriptorSelector(BaseSelector):
         criteria_params = copy.deepcopy(self.sparsify)
         method = criteria_params.pop("method", "cur")
         if method == "cur":
-            scores, selected_indices = cur_selection(
-                features, num_fixed, **criteria_params, rng=self.rng
-            )
+            scores, selected_indices = cur_selection(features, num_fixed, **criteria_params, rng=self.rng)
         elif method == "fps":
-            scores, selected_indices = fps_selection(
-                features, num_fixed, **criteria_params, rng=self.rng
-            )
+            scores, selected_indices = fps_selection(features, num_fixed, **criteria_params, rng=self.rng)
         else:
             raise Exception(f"Unknown sparsification {method}.")
 
         return scores, selected_indices
 
     def _plot_results(self, features, groups: dict, others: dict):
-        """"""
-        # - plot selection
-        import matplotlib.pyplot as plt
+        """Perform PCA and show the configuration map."""
         from sklearn.decomposition import PCA
-
-        try:
-            plt.style.use("presentation")
-        except Exception:
-            ...
 
         if features.shape[0] > 1:
             reducer = PCA(n_components=2)
             reducer.fit(features)
             proj = reducer.transform(features)
 
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-
+            group_features = []
             for grp_name, inds in groups.items():
-                sc = ax.scatter(
-                    proj[others[grp_name], 0],
-                    proj[others[grp_name], 1],
-                    marker="o",
-                    alpha=0.25,
-                    label=f"grp-{grp_name} {len(others[grp_name])} -> {len(inds)}",
+                selected_proj = reducer.transform(np.array([features[i] for i in inds]))
+                group_features.append(
+                    [
+                        grp_name,
+                        proj[others[grp_name], 0],
+                        proj[others[grp_name], 1],
+                        selected_proj[:, 0],
+                        selected_proj[:, 1],
+                    ]
                 )
-                # --
-                selected_proj = reducer.transform(
-                    np.array([features[i] for i in inds])
-                )
-                ax.scatter(
-                    selected_proj[:, 0],
-                    selected_proj[:, 1],
-                    marker="*",
-                    alpha=0.5,
-                    color="r",
-                )
-            ax.legend(fontsize=12)
-            ax.axis("off")
-            fig.savefig(
-                self.info_fpath.parent / (self.info_fpath.stem + ".png")
-            )
-            plt.close()
+
+            plot_configuration_map(self.info_fpath.parent / (self.info_fpath.stem + ".png"), group_features)
         else:
             ...  # Cannot plot PCA with only one structure...
 
