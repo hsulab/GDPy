@@ -5,7 +5,7 @@
 import enum
 import logging
 import pathlib
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from ase import Atoms
 from ase.io import read, write
@@ -120,7 +120,7 @@ def run_one_worker(structures, worker, directory, batch, spawn, archive):
 
 
 def run_worker(
-    structure: List[str],
+    structure: list[str],
     computer,
     *,
     batch: Optional[int] = None,
@@ -155,7 +155,7 @@ def run_worker(
     # Find input frames
     comp_states = []
     if isinstance(computer, ComputerVariable):
-        workers: List[DriverBasedWorker] = computer.value
+        workers: list[DriverBasedWorker] = computer.value
         num_workers = len(workers)
         if num_workers == 1:
             comp_state = run_one_worker(frames, workers[0], directory, batch, spawn, archive)
@@ -165,7 +165,7 @@ def run_worker(
                 comp_state = run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
                 comp_states.append(comp_state)
     elif isinstance(computer, ComputerChainVariable):
-        chains: List[DriverBasedWorker] = computer.value
+        chains: list[DriverBasedWorker] = computer.value
         num_chains = len(chains)
         if num_chains != 1:  # TODO: Unify the code below with compute_chain operation
             raise Exception(f"ComputerChain supports only one chain for now, but got {num_chains} chains.")
