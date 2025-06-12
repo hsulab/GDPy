@@ -165,7 +165,11 @@ def run_worker(
                 comp_state = run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
                 comp_states.append(comp_state)
     elif isinstance(computer, ComputerChainVariable):
-        workers: List[DriverBasedWorker] = computer.value
+        chains: List[DriverBasedWorker] = computer.value
+        num_chains = len(chains)
+        if num_chains != 1:  # TODO: Unify the code below with compute_chain operation
+            raise Exception(f"ComputerChain supports only one chain for now, but got {num_chains} chains.")
+        workers = chains[0]
         num_workers = len(workers)
         curr_frames = frames
         for i, worker in enumerate(workers):
