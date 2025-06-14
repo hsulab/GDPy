@@ -8,6 +8,7 @@ from typing import List, Union
 import ase
 import numpy as np
 from ase import Atoms
+from ase.io import read
 from ase.build import molecule
 from ase.collections import g2
 from ase.data import atomic_numbers
@@ -23,6 +24,10 @@ def convert_string_to_atoms(species: str) -> Atoms:
         atoms = Atoms(species, positions=[[0.0, 0.0, 0.0]])
     elif species in g2.names:
         atoms = molecule(species)
+    elif species.endswith(".xyz"):
+        frames = read(species, ":")  # TODO: check non-pbc molecule only?
+        assert len(frames) == 1, f"Only one frame is expected in `{species}`."
+        atoms = frames[0]
     else:
         raise RuntimeError(f"Cannot create species `{species}`.")
 
@@ -86,9 +91,10 @@ class CompositionSpace:
         """Get possible chemical symbols in the composition space."""
         chemical_symbols = []
         for comp in self._compositions:
-            for name, numb in comp:
+            for name, _ in comp:  # (name, numb)
                 if name not in chemical_symbols:
-                    chemical_symbols.extend(Formula(name).count().keys())
+                    name_ = name.strip(".xyz")
+                    chemical_symbols.extend(Formula(name_).count().keys())
         chemical_symbols = list(set(chemical_symbols))
 
         return chemical_symbols
