@@ -37,13 +37,9 @@ class Cp2kFileIO(FileIOCalculator):
     """This calculator is consistent with v9.1 and v2022.1.
     """
 
-    def __init__(
-        self, restart=None, label="cp2k", atoms=None, command="cp2k.psmp", **kwargs
-    ):
+    def __init__(self, restart=None, label="cp2k", atoms=None, command="cp2k.psmp", **kwargs):
         """Construct CP2K-calculator object"""
-        super().__init__(
-            restart=restart, label=label, atoms=atoms, command=command, **kwargs
-        )
+        super().__init__(restart=restart, label=label, atoms=atoms, command=command, **kwargs)
 
         # complete command
         command_ = self.profile.command
@@ -68,23 +64,17 @@ class Cp2kFileIO(FileIOCalculator):
             trajectory = read_cp2k_outputs(self.directory, prefix=label_name)
             atoms = trajectory[-1]
             self.results["energy"] = atoms.get_potential_energy()
-            self.results["free_energy"] = atoms.get_potential_energy(
-                force_consistent=True
-            )
+            self.results["free_energy"] = atoms.get_potential_energy(force_consistent=True)
             self.results["forces"] = atoms.get_forces()
         elif run_type in ["ENERGY_FORCE"]:
             atoms = self.atoms
             self.results = read_cp2k_energy_force(self.directory, prefix=label_name)
             assert self.results["energy"] is not None, f"{self.results['energy'] =}"
-            assert self.results["forces"].shape[0] == len(
-                atoms
-            ), f"{self.results['forces'] =}"
+            assert self.results["forces"].shape[0] == len(atoms), f"{self.results['forces'] =}"
         else:
             raise RuntimeError()
 
-        scf_convergence = read_cp2k_convergence(
-            pathlib.Path(self.directory) / "cp2k.out"
-        )
+        scf_convergence = read_cp2k_convergence(pathlib.Path(self.directory) / "cp2k.out")
         atoms.info["scf_convergence"] = scf_convergence
         if not scf_convergence:
             atoms.info["error"] = f"Unconverged SCF at {self.directory}."
@@ -98,9 +88,7 @@ class Cp2kFileIO(FileIOCalculator):
         # Support mixed basis_set
         prev_basis_set = self.parameters.basis_set
         if isinstance(prev_basis_set, str):
-            curr_basis_set = {
-                k: prev_basis_set for k in list(set(atoms.get_chemical_symbols()))
-            }
+            curr_basis_set = {k: prev_basis_set for k in list(set(atoms.get_chemical_symbols()))}
         elif isinstance(prev_basis_set, dict):
             for k in list(set(atoms.get_chemical_symbols())):
                 if k not in prev_basis_set:
@@ -158,17 +146,11 @@ class Cp2kFileIO(FileIOCalculator):
             root.add_keyword("FORCE_EVAL", "METHOD " + p.force_eval_method)
         if p.stress_tensor:
             root.add_keyword("FORCE_EVAL", "STRESS_TENSOR ANALYTICAL")
-            root.add_keyword(
-                "FORCE_EVAL/PRINT/STRESS_TENSOR", "_SECTION_PARAMETERS_ ON"
-            )
+            root.add_keyword("FORCE_EVAL/PRINT/STRESS_TENSOR", "_SECTION_PARAMETERS_ ON")
         if p.basis_set_file:
-            root.add_keyword(
-                "FORCE_EVAL/DFT", "BASIS_SET_FILE_NAME " + p.basis_set_file
-            )
+            root.add_keyword("FORCE_EVAL/DFT", "BASIS_SET_FILE_NAME " + p.basis_set_file)
         if p.potential_file:
-            root.add_keyword(
-                "FORCE_EVAL/DFT", "POTENTIAL_FILE_NAME " + p.potential_file
-            )
+            root.add_keyword("FORCE_EVAL/DFT", "POTENTIAL_FILE_NAME " + p.potential_file)
         if p.cutoff:
             root.add_keyword("FORCE_EVAL/DFT/MGRID", "CUTOFF [eV] %.18e" % p.cutoff)
         if p.max_scf:
