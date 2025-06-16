@@ -56,7 +56,7 @@ class ThermoStructure:
     # Pressure in [bar].
     pressure: Optional[float] = None
 
-    energy_shift: float = 0.
+    energy_shift: float = 0.0
 
     def __post_init__(self):
         """"""
@@ -83,9 +83,7 @@ class ThermoStructure:
             if isinstance(self.frequency, str):
                 vib_energies = read_vibrations(self.frequency)
                 thermo = HarmonicThermo(vib_energies)
-                free_energy_correction = thermo.get_helmholtz_energy(
-                    temperature=temperature
-                )
+                free_energy_correction = thermo.get_helmholtz_energy(temperature=temperature)
             else:  # dict
                 if self.pressure is None:
                     raise Exception("Molecule free energy correction must have pressure.")
@@ -102,9 +100,7 @@ class ThermoStructure:
                     symmetrynumber=sigma,
                     spin=spin,
                 )
-                free_energy_correction = thermo.get_gibbs_energy(
-                    temperature=temperature, pressure=self.pressure * 1e5
-                )
+                free_energy_correction = thermo.get_gibbs_energy(temperature=temperature, pressure=self.pressure * 1e5)
         else:
             free_energy_correction = 0.0
 
@@ -143,9 +139,7 @@ class ReactionData:
     def __post_init__(self):
         """"""
         if self.trajectory:
-            self.structures = read(
-                self.trajectory["filename"], self.trajectory["index"]
-            )
+            self.structures = read(self.trajectory["filename"], self.trajectory["index"])
             self._convert_structures()
         else:
             self.free_energies = copy.deepcopy(self.energies)
@@ -202,9 +196,7 @@ class ReactionData:
     def append(self, other: "ReactionData", shift: bool = False):
         """"""
         # print(self.names, other.names)
-        assert (
-            self.names[-1] == other.names[0]
-        ), f"Names are inconsistent. {self.names[-1]} vs. {other.names[0]}."
+        assert self.names[-1] == other.names[0], f"Names are inconsistent. {self.names[-1]} vs. {other.names[0]}."
 
         # - concat
         self.names += other.names[1:]
@@ -272,8 +264,6 @@ class ReactionData:
 
 class EnergyDiagram:
 
-    eps: float = 0.25
-
     def __init__(self, units: str = "eV") -> None:
         """"""
         self.units = units
@@ -289,17 +279,20 @@ class EnergyDiagram:
         label="reaction pathway",
         start=0.0,
         end=None,
+        eps: float = 0.25,
         cshift: float = 0,
-        ylim = None,
+        ylim=None,
         color="k",
         add_text: bool = True,
         add_ticks: bool = False,
         smooth_curve: bool = True,
+        text_shift_kw: dict = {},
     ):
         """Add a reaction profile to the figure.
 
         Args:
             cshift: Coordinate shift that does not affect energy results.
+            eps: The length of the line segment of each state.
 
         """
         num_points = len(names)
@@ -311,7 +304,7 @@ class EnergyDiagram:
         coordinates = np.linspace(start, end, num=num_points, endpoint=True)
         step = abs(coordinates[0] - coordinates[1])
 
-        eps = step * self.eps
+        eps = step * eps
 
         # --- group elementary steps
         # groups = [
@@ -376,35 +369,40 @@ class EnergyDiagram:
 
         energies = np.array(energies)
         if ylim is None:
-            ene_min, ene_max = np.min(energies+cshift), np.max(energies+cshift)
-            ylow = (ene_min//0.5)*0.5
+            ene_min, ene_max = np.min(energies + cshift), np.max(energies + cshift)
+            ylow = (ene_min // 0.5) * 0.5
             if -1e8 <= ylow < 1e-8:
                 ylow -= 0.5
-            yhigh = (ene_max//0.5+1)*0.5
-            if (yhigh-ene_max-0.5) < 0:
+            yhigh = (ene_max // 0.5 + 1) * 0.5
+            if (yhigh - ene_max - 0.5) < 0:
                 yhigh += 0.5
         else:
             ylow, yhigh = ylim
         ylimit = yhigh - ylow
         ax.set_ylim([ylow, yhigh])
 
+
         mediates = set(mediates)
         lines = []
         for i in mediates:
             pos = coordinates[i]
             ene = energies[i]
-            l = ax.plot(
-                [pos - eps, pos + eps], [ene + cshift, ene + cshift], color=color
-            )
+            l = ax.plot([pos - eps, pos + eps], [ene + cshift, ene + cshift], color=color)
             lines.append(l)
+
+        text_intermediate_yshift = text_shift_kw.get("intermediate_yshift", -0.08)
+        text_intermediate_xshift = text_shift_kw.get("intermediate_xshift", +0.00)
+        for i in mediates:
+            pos = coordinates[i]
+            ene = energies[i]
             ax.text(
-                pos,
-                (ene + cshift - ylow)/ylimit-0.08,
+                pos + text_intermediate_xshift,
+                (ene + cshift - ylow) / ylimit + text_intermediate_yshift,
                 f"{ene:.2f}",
                 transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                 horizontalalignment="center",
                 verticalalignment="bottom",
-                fontsize="x-large"
+                fontsize="x-large",
             )
 
         # Add points for transition states
@@ -420,25 +418,27 @@ class EnergyDiagram:
             ene = energies[i]
             ax.text(
                 pos,
-                (ene + cshift - ylow)/ylimit+0.02,
+                (ene + cshift - ylow) / ylimit + 0.02,
                 f"{ene:.2f}",
                 transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                 color="r",
                 horizontalalignment="center",
                 verticalalignment="bottom",
-                fontsize="x-large"
+                fontsize="x-large",
             )
 
         if add_text:
+            text_shift_for_minimum = -0.1
             for i in range(num_points):
                 pos = coordinates[i]
                 ax.text(
                     pos,
-                    energies[i] + cshift - 0.02,
+                    (energies[i] + cshift) / ylimit + text_shift_for_minimum,
                     names[i],
+                    transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                     horizontalalignment="center",
                     verticalalignment="top",
-                    # fontsize=12
+                    fontsize="x-large"
                 )
 
         if add_ticks:
