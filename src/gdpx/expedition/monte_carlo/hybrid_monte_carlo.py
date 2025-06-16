@@ -100,6 +100,7 @@ class HybridMonteCarlo(MonteCarlo):
                     break
 
                 step_state = MCStepState.UNFINISHED
+                self._print(f"===== MC Step {curr_step} =====")
                 for subproc_name, subproc_func in procedure_steps:
                     step_state = subproc_func(name=subproc_name, step=curr_step)
                     if step_state == MCStepState.UNFINISHED:
@@ -130,7 +131,7 @@ class HybridMonteCarlo(MonteCarlo):
 
     def _irun_dynamics(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
         """"""
-        self._print(f"===== MC Step {step} {name.upper()} =====")
+        self._print(f">>>>> {name.upper()} ")
         worker.wdir_name = f"{self.WDIR_PREFIX}{step}"
 
         curr_atoms = self.atoms
@@ -160,7 +161,7 @@ class HybridMonteCarlo(MonteCarlo):
         Each step has three status as FINISHED, UNFINISHED, and FAILED.
 
         """
-        self._print(f"===== MC Step {step} {name.upper()} =====")
+        self._print(f">>>>> {name.upper()} ")
         self._print(f"RANDOM_SEED:  {self.random_seed}")
         for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
             self._print(l)
