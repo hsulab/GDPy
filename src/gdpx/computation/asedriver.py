@@ -607,7 +607,7 @@ class AseDriverSetting(DriverSetting):
             steps=kwargs.get("steps", self.steps),
             constraint=kwargs.get("constraint", self.constraint),
         )
-        if self.task == "min" or self.task == "ts":
+        if self.task == "min" or self.task == "cmin" or self.task == "ts":
             run_params.update(
                 fmax=kwargs.get("fmax", self.fmax),
             )
