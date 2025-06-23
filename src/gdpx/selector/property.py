@@ -93,6 +93,7 @@ class PropertyItem:
     def __post_init__(self):
         """"""
         # Map meteric functions
+        self._metric_functions = []
         if self.metric is not None:
             if isinstance(self.metric, str):
                 metric_config = [self.metric]
@@ -111,7 +112,7 @@ class PropertyItem:
                     raise NotImplementedError(f"Unknown metric function {metric_name}.")
                 self._metric_functions.append(metric_func)
         else:
-            self._metric_functions = []
+            ...
 
         # Check sparsification method
         sparsify_params = copy.deepcopy(self.sparsify)
@@ -312,7 +313,7 @@ class PropertySelector(BaseSelector):
             # values are a list as some sparsify needs a list (hist, boltz).
             desc_name = prop_item.name
             if desc_name not in DESCRIBER_REGISTER:
-                raise KeyError(f"Unknown describer {desc_name}.")
+                raise KeyError(f"Unknown describer {desc_name} in {DESCRIBER_REGISTER.keys()}.")
             describer = DESCRIBER_REGISTER[desc_name](**prop_item.params)
             prop_vals = describer.run(frames).tolist()
 
