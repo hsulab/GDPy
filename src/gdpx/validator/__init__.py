@@ -55,6 +55,10 @@ from .rxn import PathwayValidator
 
 REGISTER.register("mep")(PathwayValidator)
 
+from .uncertainty import UncertaintyValidator
+
+REGISTER.register("uncertainty")(UncertaintyValidator)
+
 
 if __name__ == "__main__":
     ...
