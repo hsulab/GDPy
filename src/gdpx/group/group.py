@@ -5,7 +5,7 @@
 import ast
 import functools
 import re
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 from ase import Atoms
@@ -64,7 +64,7 @@ def get_indices_by_tag(atoms: Atoms, inp: str) -> set[int]:
     return set(group_indices)
 
 
-def get_indices_by_pos(atoms: Atoms, inp: str) -> set[int]:
+def get_indices_by_pos(atoms: Atoms, inp: str, component: Literal["x", "y", "z"], reverse: bool) -> set[int]:
     """Get indices by fractional coordinates along the z-axis.
 
     Note:
@@ -73,10 +73,12 @@ def get_indices_by_pos(atoms: Atoms, inp: str) -> set[int]:
     Args:
         atoms: The ASE atoms object.
         inp: The group expression.
+        component: The component to use, must be one of "x", "y", or "z".
+        reverse: If True, the top atoms are selected, otherwise the bottom atoms.
 
     Examples:
-        >>> get_indices_by_pos(atoms, "zbot 16")  # The bottom 16 atoms.
-        >>> get_indices_by_pos(atoms, "zbot 16 0.0 1.0")  # The frac is wrapped to [0.0, 1.0).
+        >>> get_indices_by_pos(atoms, "16")  # The bottom 16 atoms.
+        >>> get_indices_by_pos(atoms, "16 0.0 1.0")  # The frac is wrapped to [0.0, 1.0).
 
     Returns:
         The integer indices.
@@ -89,9 +91,11 @@ def get_indices_by_pos(atoms: Atoms, inp: str) -> set[int]:
     else:
         fz_min, fz_max = -0.1, 0.9
 
+    axis = {"x": 0, "y": 1, "z": 2}.get(component)
+
     atomic_indices = list(range(len(atoms)))
-    if atoms.pbc[2]:
-        z_frac_coords = atoms.get_scaled_positions()[:, 2]
+    if atoms.pbc[axis]:
+        z_frac_coords = atoms.get_scaled_positions()[:, axis]
         wrapped_coordinates = []
         for z in z_frac_coords:
             z_ = np.modf(z)[0]
@@ -100,9 +104,10 @@ def get_indices_by_pos(atoms: Atoms, inp: str) -> set[int]:
             elif z >= fz_max:
                 z_ -= 1.0
             wrapped_coordinates.append(z_)
-        group_indices = sorted(atomic_indices, key=lambda x: wrapped_coordinates[x])[:number]
     else:
-        group_indices = sorted(atomic_indices, key=lambda x: atoms.positions[x][2])[:number]
+        wrapped_coordinates = atoms.positions[:, axis]
+
+    group_indices = sorted(atomic_indices, key=lambda x: wrapped_coordinates[x], reverse=reverse)[:number]
 
     return set(group_indices)
 
@@ -123,7 +128,8 @@ SUPPORTED_GROUP_FUNCTIONS = dict(
     id=get_indices_by_id,
     tag=get_indices_by_tag,
     symbol=get_indices_by_symbol,
-    zbot=get_indices_by_pos,
+    zbot=functools.partial(get_indices_by_pos, component="z", reverse=False),
+    ztop=functools.partial(get_indices_by_pos, component="z", reverse=True),
     region=get_indices_by_region,
 )
 
