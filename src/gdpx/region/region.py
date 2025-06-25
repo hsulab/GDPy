@@ -71,9 +71,7 @@ class BaseRegion(abc.ABC):
 
         return get_tags_per_species(atoms)
 
-    def get_contained_tags_dict(
-        self, atoms: Atoms, tags_dict: Optional[dict] = None
-    ) -> Mapping[str, list[int]]:
+    def get_contained_tags_dict(self, atoms: Atoms, tags_dict: Optional[dict] = None) -> Mapping[str, list[int]]:
         """"""
         # - find tags and compute cops
         if tags_dict is None:
@@ -125,19 +123,10 @@ class BaseRegion(abc.ABC):
         tags_within_region = []
         for key, tags in tags_dict.items():
             tags_within_region.extend(tags)
-        atomic_indices = [
-            i
-            for i, t in enumerate(atoms.get_tags())
-            if t in tags_within_region
-        ]
+        atomic_indices = [i for i, t in enumerate(atoms.get_tags()) if t in tags_within_region]
 
         # Get atoms' radii
-        radii = np.array(
-            [
-                data.covalent_radii[data.atomic_numbers[atoms[i].symbol]]
-                for i in atomic_indices
-            ]
-        )
+        radii = np.array([data.covalent_radii[data.atomic_numbers[atoms[i].symbol]] for i in atomic_indices])
         radii *= ratio
 
         atoms_volume = np.sum([4.0 / 3.0 * np.pi * r**3 for r in radii])
@@ -181,9 +170,7 @@ class AutoRegion(BaseRegion):
     def _get_a_random_position(self, rng=np.random):
         """"""
         if self._atoms is None:
-            raise RuntimeError(
-                f"No atoms is attached to {self.__class__.__name__}."
-            )
+            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}.")
 
         frac_pos = rng.uniform(0, 1, 3)
         ran_pos = np.dot(frac_pos, self._atoms.get_cell())
@@ -193,9 +180,7 @@ class AutoRegion(BaseRegion):
     def _is_within_region(self, position) -> bool:
         """"""
         if self._atoms is None:
-            raise RuntimeError(
-                f"No atoms is attached to {self.__class__.__name__}"
-            )
+            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
 
         is_in = False
         pos_ = position - self._origin
@@ -212,9 +197,7 @@ class AutoRegion(BaseRegion):
     def get_volume(self) -> float:
         """"""
         if self._atoms is None:
-            raise RuntimeError(
-                f"No atoms is attached to {self.__class__.__name__}"
-            )
+            raise RuntimeError(f"No atoms is attached to {self.__class__.__name__}")
 
         return self._atoms.get_volume()
 
@@ -228,9 +211,7 @@ class AutoRegion(BaseRegion):
 
 class CubeRegion(BaseRegion):
 
-    def __init__(
-        self, origin: list[float], boundary: list[float], *args, **kwargs
-    ):
+    def __init__(self, origin: list[float], boundary: list[float], *args, **kwargs):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
         boundaries_ = np.array(boundary, dtype=np.float64)
@@ -254,11 +235,7 @@ class CubeRegion(BaseRegion):
         boundaries_ = np.reshape(boundaries_, (2, 3))
 
         ran_frac_pos = rng.uniform(0, 1, 3)
-        ran_pos = (
-            self._origin
-            + boundaries_[0, :]
-            + (boundaries_[0, :] - boundaries_[1, :]) * ran_frac_pos
-        )
+        ran_pos = self._origin + boundaries_[0, :] + (boundaries_[0, :] - boundaries_[1, :]) * ran_frac_pos
 
         return ran_pos
 
@@ -325,7 +302,7 @@ class SphereRegion(BaseRegion):
     def _get_a_random_position(self, rng):
         """"""
         ran_coord = rng.uniform(0, 1, 3)
-        polar = np.array([self._radius, np.pi, 2*np.pi]) * ran_coord
+        polar = np.array([self._radius, np.pi, 2 * np.pi]) * ran_coord
         r, theta, phi = polar
 
         ran_pos = np.array(
@@ -448,9 +425,7 @@ class CylinderRegion(BaseRegion):
 
 class LatticeRegion(BaseRegion):
 
-    def __init__(
-        self, origin: list[float], cell: list[float], *args, **kwargs
-    ):
+    def __init__(self, origin: list[float], cell: list[float], *args, **kwargs):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
         self._cell = np.reshape(cell, (3, 3))
@@ -512,9 +487,7 @@ class LatticeRegion(BaseRegion):
         content += f"origin\n"
         content += ("  " + "{:<12.8f}  " * 3 + "\n").format(*self._origin)
         content += f"cell\n"
-        content += (("  " + "{:<12.8f}  " * 3 + "\n") * 3).format(
-            *self._cell.flatten()
-        )
+        content += (("  " + "{:<12.8f}  " * 3 + "\n") * 3).format(*self._cell.flatten())
 
         return content
 
@@ -530,18 +503,12 @@ class LatticeRegion(BaseRegion):
 
 class SurfaceLatticeRegion(LatticeRegion):
 
-    def __init__(
-        self, origin: list[float], cell: list[float], *args, **kwargs
-    ):
+    def __init__(self, origin: list[float], cell: list[float], *args, **kwargs):
         """"""
         super().__init__(origin, cell, *args, **kwargs)
 
-        assert (
-            self._origin[0] == 0.0 and self._origin[1] == 0.0
-        ), "The x and y of origin should be ZERO."
-        assert (
-            self._cell[2][0] == 0.0 and self._cell[2][1] == 0.0
-        ), "The x and y of cell 3rd vec should be ZERO."
+        assert self._origin[0] == 0.0 and self._origin[1] == 0.0, "The x and y of origin should be ZERO."
+        assert self._cell[2][0] == 0.0 and self._cell[2][1] == 0.0, "The x and y of cell 3rd vec should be ZERO."
 
         return
 
@@ -659,16 +626,12 @@ class IntersectRegion(BaseRegion):
 
         # NOTE: Can sub-regions be intersect ones?
         self.regions = regions
-        assert len(
-            self.regions
-        ), "IntersectRegion supports only twp sub-regions."
+        assert len(self.regions), "IntersectRegion supports only twp sub-regions."
 
         self._regions = []
         for r in copy.deepcopy(regions):
             shape = r.pop("method", None)
-            curr_region = registers.create(
-                "region", shape, convert_name=True, **r
-            )
+            curr_region = registers.create("region", shape, convert_name=True, **r)
             self._regions.append(curr_region)
 
         return
@@ -686,9 +649,7 @@ class IntersectRegion(BaseRegion):
             if not r2._is_within_region(ran_pos):
                 break
         else:
-            raise RuntimeError(
-                "Fail to get a random position in the IntersectRegion."
-            )
+            raise RuntimeError("Fail to get a random position in the IntersectRegion.")
 
         return ran_pos
 
