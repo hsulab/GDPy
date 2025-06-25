@@ -184,7 +184,9 @@ class AutoRegion(BaseRegion):
 
         is_in = False
         pos_ = position - self._origin
-        frac_pos_ = np.dot(np.linalg.inv(self._atoms.get_cell().T), pos_)
+        # Make sure the fractional coordinates are positive by adding a large number,
+        # otherwise, some may be negative and make the modf() function fail.
+        frac_pos_ = np.dot(np.linalg.inv(self._atoms.get_cell().T), pos_) + 1e8
         if (
             0.0 <= np.modf(frac_pos_[0])[0] < 1.0
             and 0.0 <= np.modf(frac_pos_[1])[0] < 1.0
