@@ -33,10 +33,10 @@ def load_operator(p):
     return op
 
 
-def select_operator(operators: list, probs: list, rng=np.random):
+def select_operator(operators: list, probs: list[float], rng: np.random.Generator = np.random.default_rng()):
     """Select an operator based on the relative probabilities."""
-    noperators = len(operators)
-    op_idx = rng.choice(noperators, 1, probs)[0]
+    num_operators = len(operators)
+    op_idx = rng.choice(num_operators, 1, p=probs)[0]
     op = operators[op_idx]
 
     return op
