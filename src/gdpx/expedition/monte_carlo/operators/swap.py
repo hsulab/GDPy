@@ -3,7 +3,7 @@
 
 
 import copy
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -12,40 +12,37 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 from gdpx.geometry.particle import translate_then_rotate
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .move import MoveOperator
+from .operator import BaseMCOperator, metropolis_by_energy_difference
 
 
-class SwapOperator(MoveOperator):
+class SwapOperator(BaseMCOperator):
 
     name: str = "swap"
 
     def __init__(
         self,
-        particles: List[str],
+        particles: list[str],
         *args,
         **kwargs,
     ):
         """"""
         super().__init__(
-            particles=particles,
             *args,
             **kwargs,
         )
 
+        self.particles = particles
+
         # Prohibit swapping the same type of particles.
         if len(set(self.particles)) != 2:
-            raise Exception(
-                f"{self.__class__.__name__} needs two different types of particles."
-            )
+            raise Exception(f"{self.__class__.__name__} needs two different types of particles.")
 
         return
 
-    def run(
-        self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()
-    ) -> Optional[Atoms]:
+    def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
-        # We only need check region without other in move_operator.
-        self._check_region(atoms)
+        # Check particles in the region
+        super().run(atoms)
         self._extra_info = "-"
 
         # We need covalent bond distanes for neighbour check
@@ -60,7 +57,7 @@ class SwapOperator(MoveOperator):
             bothways=True,
         )
 
-        # Swap the species
+        # Swap the particles
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             # Get a new copy
             new_atoms = copy.deepcopy(atoms)
@@ -68,7 +65,7 @@ class SwapOperator(MoveOperator):
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [self.particles[0]], rng=rng)
             pick_two = self._select_species(new_atoms, [self.particles[1]], rng=rng)
-            self._print(f"1->{pick_one} 2->{pick_two}")
+            self._print(self.indent + f"1->{pick_one} 2->{pick_two}")
 
             # Find particles by picked tags before swap
             particle_one = new_atoms[pick_one]  # default copy
@@ -81,21 +78,20 @@ class SwapOperator(MoveOperator):
             cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
 
             self._print(
-                f"before: {particle_one.get_chemical_formula():>24s} "
+                self.indent
+                + f"before: {particle_one.get_chemical_formula():>24s} "
                 + ("{:>12.4f}" * 3).format(*cop_one)
             )
             self._print(
-                f"before: {particle_two.get_chemical_formula():>24s} "
+                self.indent
+                + f"before: {particle_two.get_chemical_formula():>24s} "
                 + ("{:>12.4f}" * 3).format(*cop_two)
             )
 
             # Swap two positions with rotatation
-            particle_one_ = translate_then_rotate(
-                particle_one, position=cop_one, use_com=False, rng=rng
-            )
-            particle_two_ = translate_then_rotate(
-                particle_two, position=cop_two, use_com=False, rng=rng
-            )
+            # TODO: how about velocity, charge, and magnetic moment?
+            particle_one_ = translate_then_rotate(particle_one, position=cop_one, use_com=False, rng=rng)
+            particle_two_ = translate_then_rotate(particle_two, position=cop_two, use_com=False, rng=rng)
 
             new_atoms.positions[pick_one] = particle_two_.positions
             new_atoms.positions[pick_two] = particle_one_.positions
@@ -111,11 +107,13 @@ class SwapOperator(MoveOperator):
             cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
 
             self._print(
-                f"actual: {particle_one.get_chemical_formula():>24s} "
+                self.indent
+                + f"actual: {particle_one.get_chemical_formula():>24s} "
                 + ("{:>12.4f}" * 3).format(*cop_one)
             )
             self._print(
-                f"actual: {particle_two.get_chemical_formula():>24s} "
+                self.indent
+                + f"actual: {particle_two.get_chemical_formula():>24s} "
                 + ("{:>12.4f}" * 3).format(*cop_two)
             )
 
@@ -129,7 +127,7 @@ class SwapOperator(MoveOperator):
                 bond_distance_dict=self.bond_distance_dict,  # type: ignore
                 allow_isolated=False,
             ):
-                self._print(f"succeed to random after {i+1} attempts...")
+                self._print(self.indent + f"succeed to random after {i+1} attempts...")
                 self._extra_info = f"S_{particle_one.get_chemical_formula()}_{pick_one}^{particle_two.get_chemical_formula()}_{pick_two}"
                 break
         else:
@@ -137,6 +135,18 @@ class SwapOperator(MoveOperator):
             self._extra_info = f"Swap_Failed"
 
         return new_atoms
+
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
+
+        return metropolis_by_energy_difference(
+            prev_ene=prev_ene,
+            curr_ene=curr_ene,
+            temperature=self.temperature,
+            region=self.region,
+            rng=rng,
+            indent=self.indent,
+            print_func=self._print,
+        )
 
     def as_dict(self) -> dict:
         """"""
@@ -148,13 +158,14 @@ class SwapOperator(MoveOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"swapped groups: \n"
         content += f"  {self.particles[0]} <-> {self.particles[1]}\n"
+
+        # add indent
+        content = self.indent + content.replace("\n", "\n" + self.indent)
 
         return content
 
