@@ -36,6 +36,10 @@ class HybridMonteCarlo(MonteCarlo):
         # set init worker
         self.worker.directory = self.directory / "init"
 
+        # Format indent
+        for op in self.operators:
+            op.indent = "  "
+
         # check if subprocedures in the procedure are all valid
         procedure_steps = []
         for subprocedure in self.procedure:
@@ -176,15 +180,13 @@ class HybridMonteCarlo(MonteCarlo):
         # TODO: Maybe we can group all spcs into one job by a socket-based calculator
         #       if one spc is expensive, for example, a DFT calculation.
         for i in range(self.num_mcmoves):
-            self._print(f"  >>> mcmove.{i:>04d} ")
             # Update worker calculation folder name
             worker.wdir_name = f"{self.WDIR_PREFIX}{i}"
 
             # Run mcmove
             curr_op = select_operator(self.operators, self.op_probs, self.rng)
 
-            op_name = curr_op.__class__.__name__
-            self._print(f"  >>> mcmove.{i:>04d}  {op_name} ")
+            self._print(f"  >>> mcmove.{i:>04d}  {curr_op.name} ")
             curr_atoms = curr_op.run(self.atoms, self.rng)
             if curr_atoms:  # is not None
                 # Add info to atoms and remove step info from driver
@@ -217,9 +219,9 @@ class HybridMonteCarlo(MonteCarlo):
                     if success:
                         self.energy_stored = self.energy_operated
                         self.atoms = curr_atoms
-                        self._print("  success...")
+                        self._print("  <<< success")
                     else:
-                        self._print("  failure...")
+                        self._print("  <<< failure")
 
                     # check earlystopping
                     step_state = self._check_earlystop(self.atoms)
