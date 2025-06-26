@@ -98,13 +98,14 @@ class SwapTypeOperator(AbstractOperator):
         second_ptype = self.particles[second_ptype_index]
 
         # Change selected particles to another type based on chemical potential difference
+        self._print(self.indent + "--> mcattempt")
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [first_ptype], rng=rng)
             assert len(pick_one) == 1, "Only one atom should be selected for swap type operator."
             new_atoms[pick_one[0]].symbol = second_ptype
             # TODO: renormalise other properties such as velocity, charge, and magnetic moment
-            self._print(f"succeed to random after {i+1} attempts...")
+            self._print(self.indent + f"succeed to random after {i+1} attempts...")
             self._extra_info = f"ST_{first_ptype}_{second_ptype}_{pick_one[0]}"
             # Compute concentration
             num_first_ptype = len(self._curr_tags_dict.get(first_ptype, []))
@@ -156,16 +157,16 @@ class SwapTypeOperator(AbstractOperator):
         ran_ratio = rng.uniform()
 
         # Some log information
-        content = ">>> Metropolis\n"
-        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f}\n"
+        content = "--> mcstate\n"
+        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
         content += f"Prefactor {prefactor:>12.4f}\n"
         content += f"Particle One: {first_ptype:<4s} ({num_first_ptype})\n"
         content += f"Particle Two: {second_ptype:<4s} ({num_second_ptype})\n"
         content += f"dMu {mu_diff:>11.4f} [eV]\n"
         content += f"dE {ene_diff:>12.4f} [eV]  " + f"dF {ene_sgce:>12.4f} [eV]\n"
-        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}\n"
+        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
         for x in content.split("\n"):
-            self._print(x)
+            self._print(self.indent + x)
 
         # Clear the state information
         self._state = {}
@@ -175,15 +176,16 @@ class SwapTypeOperator(AbstractOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"particles: \n"
         content += f"  {self.particles}\n"
         content += f"chempots: \n"
         content += f"  {self.chempots}\n"
+
+        # add indent
+        content = self.indent + content.replace("\n", "\n" + self.indent)
 
         return content
 

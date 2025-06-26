@@ -73,6 +73,21 @@ class AbstractOperator(abc.ABC):
         # - neighbour setting
         self.allow_isolated = allow_isolated
 
+        # indent before any print or string
+        self._indent = ""
+
+        return
+
+    @property
+    def indent(self) -> str:
+        """Get the indent string."""
+        return self._indent
+
+    @indent.setter
+    def indent(self, indent: str) -> None:
+        """Set the indent string."""
+        self._indent = indent
+
         return
 
     def _check_region(self, atoms: Atoms) -> None:
@@ -81,16 +96,16 @@ class AbstractOperator(abc.ABC):
             self.region._atoms = atoms
 
         tags_dict = self.region.get_tags_dict(atoms)
-        content = "species within system:\n"
-        content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in tags_dict.items()]) + "\n"
+        content = "particles in system:  "
+        content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in tags_dict.items()])
         for x in content.split("\n"):
-            self._print(x)
+            self._print(self.indent + x)
 
         self._curr_tags_dict = self.region.get_contained_tags_dict(atoms, tags_dict)
-        content = "species within region:\n"
-        content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in self._curr_tags_dict.items()]) + "\n"
+        content = "          in region:  "
+        content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in self._curr_tags_dict.items()])
         for x in content.split("\n"):
-            self._print(x)
+            self._print(self.indent + x)
 
         return
 
@@ -104,13 +119,15 @@ class AbstractOperator(abc.ABC):
             if particles is not None and k not in particles:
                 continue
             tags_within_region.extend(v)
-        self._print(f"ntags of {particles}: {len(tags_within_region)}")
+        self._print(self.indent + f"ntags of {particles}: {len(tags_within_region)}")
 
         if len(tags_within_region) > 0:
             picked_tag = rng.choice(tags_within_region)
             tags = atoms.get_tags()
             species_indices = [i for i, t in enumerate(tags) if t == picked_tag]
-            self._print(f"selected tag: {picked_tag} species: {atoms[species_indices].get_chemical_formula()}")
+            self._print(
+                self.indent + f"selected tag: {picked_tag} species: {atoms[species_indices].get_chemical_formula()}"
+            )
         else:
             picked_tag = None
             species_indices = None
