@@ -24,6 +24,7 @@ class MoveOperator(BaseMCOperator):
         self,
         particles: list[str],
         max_disp: float = 2.0,
+        skip_distance_check: bool = False,
         *args,
         **kwargs,
     ) -> None:
@@ -42,6 +43,8 @@ class MoveOperator(BaseMCOperator):
         self.particles = particles
 
         self.max_disp = max_disp
+
+        self.skip_distance_check = skip_distance_check
 
         return
 
@@ -82,13 +85,14 @@ class MoveOperator(BaseMCOperator):
         org_positions = species.positions.copy()
 
         # Move the species and use neighbour list to check atomic distances
+        self._print(self.indent + f"check distance: {not self.skip_distance_check}")
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             rvec = get_a_random_direction(rng)
             ran_pos = org_cop + rvec * self.max_disp
             species_ = copy.deepcopy(species)
             species_ = translate_then_rotate(species_, position=ran_pos, use_com=False, rng=rng)
             new_atoms.positions[species_indices] = species_.positions.copy()
-            if check_atomic_distances_by_neighbour_list(
+            if self.skip_distance_check or check_atomic_distances_by_neighbour_list(
                 new_atoms,
                 neighlist=nl,
                 atomic_indices=species_indices,
@@ -142,6 +146,7 @@ class MoveOperator(BaseMCOperator):
         params = super().as_dict()
         params["particles"] = self.particles
         params["max_disp"] = self.max_disp
+        params["skip_distance_check"] = self.skip_distance_check
 
         return params
 
