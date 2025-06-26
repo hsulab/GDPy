@@ -173,6 +173,14 @@ class SwapTypeOperator(BaseMCOperator):
 
         return ran_ratio < acc_ratio
 
+    def as_dict(self) -> dict:
+        """Convert the operator to a dictionary."""
+        params = super().as_dict()
+        params["particles"] = self.particles
+        params["chempots"] = self.chempots
+
+        return params
+
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
