@@ -12,10 +12,10 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.bounce import bounce_one_atom
 
-from .operator import AbstractOperator
+from .operator import BaseMCOperator
 
 
-class BounceOperator(AbstractOperator):
+class BounceOperator(BaseMCOperator):
 
     name: str = "bounce"
 

@@ -9,10 +9,10 @@ import numpy as np
 from ase import Atoms, units
 from ase.data import chemical_symbols
 
-from .operator import AbstractOperator
+from .operator import BaseMCOperator
 
 
-class SwapTypeOperator(AbstractOperator):
+class SwapTypeOperator(BaseMCOperator):
     """Monte Carlo operator for swapping particle types.
 
     NOTE:

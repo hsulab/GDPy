@@ -12,7 +12,7 @@ from ase import Atoms, data
 from gdpx.core.register import registers
 
 
-class AbstractOperator(abc.ABC):
+class BaseMCOperator(abc.ABC):
 
     #: Operator name.
     name: str = "abstract"

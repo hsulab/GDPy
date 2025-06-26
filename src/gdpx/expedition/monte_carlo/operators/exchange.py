@@ -15,10 +15,10 @@ from gdpx.geometry.composition import convert_string_to_atoms
 from gdpx.geometry.exchange import insert_one_particle
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .operator import AbstractOperator
+from .operator import BaseMCOperator
 
 
-class BasicExchangeOperator(AbstractOperator):
+class BasicExchangeOperator(BaseMCOperator):
 
     MIN_RANDOM_TAG: int = 10000
 

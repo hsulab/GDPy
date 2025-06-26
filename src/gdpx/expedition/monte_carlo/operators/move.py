@@ -13,10 +13,10 @@ from gdpx.geometry.bounce import get_a_random_direction
 from gdpx.geometry.particle import translate_then_rotate
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .operator import AbstractOperator
+from .operator import BaseMCOperator
 
 
-class MoveOperator(AbstractOperator):
+class MoveOperator(BaseMCOperator):
 
     name: str = "move"
 
@@ -28,7 +28,7 @@ class MoveOperator(AbstractOperator):
         **kwargs,
     ) -> None:
         """Initialise a MC move operator.
-        
+
         Args:
             particles: The particles that can move.
             max_disp: The maximum displacement in [Ang].
@@ -83,9 +83,7 @@ class MoveOperator(AbstractOperator):
             rvec = get_a_random_direction(rng)
             ran_pos = org_cop + rvec * self.max_disp
             species_ = copy.deepcopy(species)
-            species_ = translate_then_rotate(
-                species_, position=ran_pos, use_com=False, rng=rng
-            )
+            species_ = translate_then_rotate(species_, position=ran_pos, use_com=False, rng=rng)
             new_atoms.positions[species_indices] = species_.positions.copy()
             if check_atomic_distances_by_neighbour_list(
                 new_atoms,
@@ -108,7 +106,7 @@ class MoveOperator(AbstractOperator):
 
         return new_atoms
 
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator=np.random.default_rng()) -> bool:
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """"""
         # - acceptance ratio
         kBT_eV = units.kB * self.temperature
@@ -147,9 +145,7 @@ class MoveOperator(AbstractOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"max disp: {self.max_disp}\n"
