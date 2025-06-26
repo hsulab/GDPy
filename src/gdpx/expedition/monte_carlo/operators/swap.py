@@ -22,6 +22,7 @@ class SwapOperator(BaseMCOperator):
     def __init__(
         self,
         particles: list[str],
+        skip_distance_check: bool = False,
         *args,
         **kwargs,
     ):
@@ -36,6 +37,8 @@ class SwapOperator(BaseMCOperator):
         # Prohibit swapping the same type of particles.
         if len(set(self.particles)) != 2:
             raise Exception(f"{self.__class__.__name__} needs two different types of particles.")
+
+        self.skip_distance_check = skip_distance_check
 
         return
 
@@ -58,6 +61,7 @@ class SwapOperator(BaseMCOperator):
         )
 
         # Swap the particles
+        self._print(self.indent + f"check distance: {not self.skip_distance_check}")
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             # Get a new copy
             new_atoms = copy.deepcopy(atoms)
@@ -119,7 +123,7 @@ class SwapOperator(BaseMCOperator):
 
             # Use neighbour list
             atomic_indices = [*pick_one, *pick_two]
-            if check_atomic_distances_by_neighbour_list(
+            if self.skip_distance_check or check_atomic_distances_by_neighbour_list(
                 new_atoms,
                 neighlist=nl,
                 atomic_indices=atomic_indices,
@@ -152,6 +156,7 @@ class SwapOperator(BaseMCOperator):
         """"""
         params = super().as_dict()
         params["particles"] = self.particles
+        params["skip_distance_check"] = self.skip_distance_check
 
         return params
 
