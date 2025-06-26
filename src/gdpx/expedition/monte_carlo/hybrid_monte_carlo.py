@@ -58,12 +58,12 @@ class HybridMonteCarlo(MonteCarlo):
                 worker_params = self.extra_workers.get(worker_name, None)
                 if worker_params is not None:
                     subworker = canonicalise_worker(worker_params)
-                    if isinstance(subworker, DriverBasedWorker):
-                        self._print("Convert a DriverBasedWorker to a SingleWorker.")
-                        subworker = SingleWorker.from_a_worker(subworker)
-                    assert isinstance(
-                        subworker, SingleWorker
-                    ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
+                    # if isinstance(subworker, DriverBasedWorker):
+                    #     self._print("Convert a DriverBasedWorker to a SingleWorker.")
+                    #     subworker = SingleWorker.from_a_worker(subworker)
+                    # assert isinstance(
+                    #     subworker, SingleWorker
+                    # ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
                     subworker.directory = self.directory / worker_name
                     subproc_func = functools.partial(self._irun_dynamics, worker=subworker)
                     procedure_steps.append((worker_name, subproc_func))
@@ -100,8 +100,8 @@ class HybridMonteCarlo(MonteCarlo):
                     break
 
                 step_state = MCStepState.UNFINISHED
-                self._print(f"===== MC Step {curr_step} =====")
-                for subproc_name, subproc_func in procedure_steps:
+                self._print(f"===== Hybrid MC Step {curr_step} =====")
+                for subproc_name, subproc_func in procedure_steps:  # [dynamics, mcmove]
                     step_state = subproc_func(name=subproc_name, step=curr_step)
                     if step_state == MCStepState.UNFINISHED:
                         self._print("Wait MC step to finish.")
@@ -129,11 +129,12 @@ class HybridMonteCarlo(MonteCarlo):
 
         return
 
-    def _irun_dynamics(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
+    def _irun_dynamics(self, step: int, name: str, worker: DriverBasedWorker) -> MCStepState:
         """"""
         self._print(f">>>>> {name.upper()} ")
-        worker.wdir_name = f"{self.WDIR_PREFIX}{step}"
+        worker.directory = self.directory / f"step.{step:>04d}" / "excurs"
 
+        # Get tags as it is not stored by the worker.
         curr_atoms = self.atoms
         curr_tags = curr_atoms.get_tags()
 
@@ -166,7 +167,8 @@ class HybridMonteCarlo(MonteCarlo):
         for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
             self._print(l)
 
-        worker.wdir_name = f"{self.WDIR_PREFIX}{step}"
+        worker.directory = self.directory / f"step.{step:>04d}" / "mcmove"
+        worker.wdir_name = f"{self.WDIR_PREFIX}0"
 
         # - operate atoms
         curr_op = select_operator(self.operators, self.op_probs, self.rng)
