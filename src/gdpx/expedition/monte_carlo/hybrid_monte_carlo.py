@@ -19,11 +19,14 @@ MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
 class HybridMonteCarlo(MonteCarlo):
 
-    def __init__(self, procedure, extra_workers={}, *args, **kwargs):
+    def __init__(self, procedure, num_mcmoves: int, extra_workers={}, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
         self.procedure = procedure
+
+        self.num_mcmoves = num_mcmoves
+
         self.extra_workers = extra_workers
 
         return
@@ -110,6 +113,7 @@ class HybridMonteCarlo(MonteCarlo):
                         # post worker compute with MC
                         ...
                     elif step_state == MCStepState.FAILED:
+                        # This should not happen as many mcmoves are done consecutively.
                         self._print(f"RETRY STEP {curr_step}.")
                         break
                     elif step_state == MCStepState.EARLYSTOPPED:
@@ -145,7 +149,7 @@ class HybridMonteCarlo(MonteCarlo):
             curr_atoms.set_tags(curr_tags)
 
             self.energy_operated = curr_atoms.get_potential_energy()
-            self._print(f"post ene: {self.energy_operated}")
+            self._print(f"  ene {self.energy_stored:>18.4f} -> {self.energy_operated:>18.4f}")
 
             self.energy_stored = self.energy_operated
             self.atoms = curr_atoms
@@ -168,63 +172,68 @@ class HybridMonteCarlo(MonteCarlo):
             self._print(l)
 
         worker.directory = self.directory / f"step.{step:>04d}" / "mcmove"
-        worker.wdir_name = f"{self.WDIR_PREFIX}0"
 
-        # - operate atoms
-        curr_op = select_operator(self.operators, self.op_probs, self.rng)
-        self._print(f"operator {curr_op.__class__.__name__}")
-        curr_atoms = curr_op.run(self.atoms, self.rng)
-        if curr_atoms:  # is not None
-            # --- add info
-            curr_atoms.info["confid"] = int(f"{step}")
-            curr_atoms.info["step"] = -1  # NOTE: remove step info from driver
-        else:
-            self._print("FAILED to run operation...")
+        # TODO: Maybe we can group all spcs into one job by a socket-based calculator
+        #       if one spc is expensive, for example, a DFT calculation.
+        for i in range(self.num_mcmoves):
+            self._print(f"  >>> mcmove.{i:>04d} ")
+            # Update worker calculation folder name
+            worker.wdir_name = f"{self.WDIR_PREFIX}{i}"
 
-        # - run postprocess
-        if curr_atoms is not None:
-            # - TODO: save some info not stored by driver
-            curr_tags = curr_atoms.get_tags()
+            # Run mcmove
+            curr_op = select_operator(self.operators, self.op_probs, self.rng)
 
-            # - run postprocess (spc, min or md)
-            _ = worker.run([curr_atoms], read_ckpt=True)
-            worker.inspect(resubmit=True)
-            if worker.get_number_of_running_jobs() == 0:
-                curr_atoms = worker.retrieve()[0][-1]
-                curr_atoms.set_tags(curr_tags)
-
-                self.energy_operated = curr_atoms.get_potential_energy()
-                self._print(f"post ene: {self.energy_operated}")
-
-                # -- metropolis
-                success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-
-                self._save_step_info(curr_op, success)
-
-                # -- update atoms
-                if success:
-                    self.energy_stored = self.energy_operated
-                    self.atoms = curr_atoms
-                    self._print("success...")
-                else:
-                    self._print("failure...")
-
-                # FIXME: Save unaccepted structures as well?
-                write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
-
-                # -- check earlystopping
-                # We earlystop the simulation at the end of each step and use
-                # the MC-updated atoms, which may be unaccepted (failure) and
-                # further lead the inconsistency in the final saved structure.
-                # After several tests, it is better to check on accepted structures
-                # so ignore the below comment
-                step_state = self._check_earlystop(self.atoms)
-
+            op_name = curr_op.__class__.__name__
+            self._print(f"  >>> mcmove.{i:>04d}  {op_name} ")
+            curr_atoms = curr_op.run(self.atoms, self.rng)
+            if curr_atoms:  # is not None
+                # Add info to atoms and remove step info from driver
+                curr_atoms.info["confid"] = int(f"{step}")
+                curr_atoms.info["step"] = -1
             else:
-                step_state = MCStepState.UNFINISHED
+                self._print(
+                    "  FAILED to run operation..."
+                )  # Due to absence of particles in the region or neighbour distance restraints
+
+            # Run single-point-calculation and metropolis
+            if curr_atoms is not None:
+                # Save tags
+                curr_tags = curr_atoms.get_tags()
+
+                # single-point calculation
+                _ = worker.run([curr_atoms], read_ckpt=True)
+                worker.inspect(resubmit=True)
+                if worker.get_number_of_running_jobs() == 0:
+                    curr_atoms = worker.retrieve()[0][-1]
+                    curr_atoms.set_tags(curr_tags)
+
+                    self.energy_operated = curr_atoms.get_potential_energy()
+                    self._print(f"  ene {self.energy_stored:>18.4f} -> {self.energy_operated:>18.4f}")
+
+                    # run metropolis
+                    success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
+                    self._save_step_info(curr_op, success)  # TODO: save step info in step folder only
+
+                    if success:
+                        self.energy_stored = self.energy_operated
+                        self.atoms = curr_atoms
+                        self._print("  success...")
+                    else:
+                        self._print("  failure...")
+
+                    # check earlystopping
+                    step_state = self._check_earlystop(self.atoms)
+                else:
+                    step_state = MCStepState.UNFINISHED
+                    break
+            else:
+                # save the previous structure as the current operation gives no structure.
+                step_state = MCStepState.FAILED
         else:
-            # save the previous structure as the current operation gives no structure.
-            step_state = MCStepState.FAILED
+            ...  # If we reach here, all mcmoves are finished
+
+        # Save the final structure only
+        write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
         return step_state
 
