@@ -7,7 +7,7 @@ import copy
 from typing import Callable, Optional
 
 import numpy as np
-from ase import Atoms, data
+from ase import Atoms, data, units
 
 from gdpx.core.register import registers
 
@@ -251,6 +251,43 @@ class BaseMCOperator(abc.ABC):
         params = copy.deepcopy(params)
 
         return params
+
+
+def metropolis_by_energy_difference(
+    prev_ene: float,
+    curr_ene: float,
+    temperature: float,
+    region,
+    rng: np.random.Generator = np.random.default_rng(),
+    indent: str = "",
+    print_func: Callable = print,
+) -> bool:
+    """"""
+    # Temperature parameters
+    kBT_eV = units.kB * temperature
+    beta = 1.0 / kBT_eV  # 1/(kb*T), eV
+
+    # Compute the prefactor
+    prefactor = 1.0
+    region_volume = region.get_volume()
+
+    # Propability of acceptance
+    ene_diff = curr_ene - prev_ene
+    acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_diff))])
+    ran_ratio = rng.uniform()
+
+    # Some log information
+    content = "--> mcstate\n"
+    content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
+    content += f"Prefactor {prefactor:>12.4f}\n"
+    content += f"dE {ene_diff:>12.4f} [eV]\n"
+    content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
+    for s in content.split("\n"):
+        print_func(indent + s)
+
+    # Clear the state information
+
+    return ran_ratio < acc_ratio
 
 
 if __name__ == "__main__":
