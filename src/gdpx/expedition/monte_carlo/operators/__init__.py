@@ -14,6 +14,7 @@ from .exchange import ExchangeOperator
 from .move import MoveOperator
 from .react import ReactOperator
 from .swap import SwapOperator
+from .swap_type import SwapTypeOperator
 
 
 def save_operator(op, p):
@@ -57,6 +58,8 @@ def parse_operators(op_params: dict):
             op = BounceOperator(**param)
         elif name == "swap":
             op = SwapOperator(**param)
+        elif name == "swap_type":
+            op = SwapTypeOperator(**param)
         elif name == "exchange":
             op = ExchangeOperator(**param)
         elif name == "react":
