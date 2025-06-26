@@ -54,8 +54,11 @@ class MoveOperator(BaseMCOperator):
         # We need covalent bond distanes for neighbour check
         assert hasattr(self, "bond_distance_dict")
 
-        # BUG: If there is no species in the system...
+        # Check if the particles are in the atoms
         species_indices = self._select_species(atoms, self.particles, rng=rng)
+        if len(species_indices) == 0:
+            # Skip if no particles found
+            return None
 
         # Get some basic stuff
         new_atoms = copy.deepcopy(atoms)
@@ -93,11 +96,11 @@ class MoveOperator(BaseMCOperator):
                 bond_distance_dict=self.bond_distance_dict,  # type: ignore
                 allow_isolated=False,
             ):
-                self._print(f"succeed to random after {i+1} attempts...")
-                self._print("before pos: " + ("{:>12.4f} " * 3).format(*org_cop))
-                self._print("random pos: " + ("{:>12.4f} " * 3).format(*ran_pos))
+                self._print(self.indent + f"succeed to random after {i+1} attempts...")
+                self._print(self.indent + "before pos: " + ("{:>12.4f} " * 3).format(*org_cop))
+                self._print(self.indent + "random pos: " + ("{:>12.4f} " * 3).format(*ran_pos))
                 new_cop = np.average(new_atoms.positions[species_indices], axis=0)
-                self._print("actual pos: " + ("{:>12.4f} " * 3).format(*new_cop))
+                self._print(self.indent + "actual pos: " + ("{:>12.4f} " * 3).format(*new_cop))
                 break
             # Move failed and fallback to the original positions
             new_atoms.positions[species_indices] = org_positions
@@ -108,31 +111,31 @@ class MoveOperator(BaseMCOperator):
 
     def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """"""
-        # - acceptance ratio
+        # Temperature parameters
         kBT_eV = units.kB * self.temperature
         beta = 1.0 / kBT_eV  # 1/(kb*T), eV
 
-        coef = 1.0
+        # Compute the prefactor
+        prefactor = 1.0
+        region_volume = self.region.get_volume()
+
+        # Propability of acceptance
         ene_diff = curr_ene - prev_ene
-        acc_ratio = np.min([1.0, coef * np.exp(-beta * (ene_diff))])
+        acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_diff))])
+        ran_ratio = rng.uniform()
 
-        # content = "\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n" %(
-        #    self.acc_volume, len(self.tag_list[expart]), cubic_wavelength, coef
-        # )
-        content = "\nVolume %.4f Beta %.4f Coefficient %.4f\n" % (
-            self.region.get_volume(),
-            beta,
-            coef,
-        )
-        content += "Energy Difference %.4f [eV]\n" % ene_diff
-        content += "Accept Ratio %.4f\n" % acc_ratio
-        for x in content.split("\n"):
-            self._print(x)
+        # Some log information
+        content = "--> mcstate\n"
+        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
+        content += f"Prefactor {prefactor:>12.4f}\n"
+        content += f"dE {ene_diff:>12.4f} [eV]\n"
+        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
+        for s in content.split("\n"):
+            self._print(self.indent + s)
 
-        rn_move = rng.uniform()
-        self._print(f"{self.__class__.__name__} Probability %.4f" % rn_move)
+        # Clear the state information
 
-        return rn_move < acc_ratio
+        return ran_ratio < acc_ratio
 
     def as_dict(self) -> dict:
         """"""
@@ -151,6 +154,9 @@ class MoveOperator(BaseMCOperator):
         content += f"max disp: {self.max_disp}\n"
         content += f"particles: \n"
         content += f"  {self.particles}\n"
+
+        # add indent
+        content = self.indent + content.replace("\n", "\n" + self.indent)
 
         return content
 
