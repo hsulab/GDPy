@@ -51,8 +51,10 @@ class SwapOperator(BaseMCOperator):
         # We need covalent bond distanes for neighbour check
         assert hasattr(self, "bond_distance_dict")
 
-        # Build neighbour list
+        # Use the reference to avoid copying?
         new_atoms = copy.deepcopy(atoms)
+
+        # Build neighbour list
         nl = NeighborList(
             self.covalent_max * np.array(natural_cutoffs(new_atoms)),
             skin=0.0,
@@ -63,9 +65,6 @@ class SwapOperator(BaseMCOperator):
         # Swap the particles
         self._print(self.indent + f"check distance: {not self.skip_distance_check}")
         for i in range(self.MAX_RANDOM_ATTEMPTS):
-            # Get a new copy
-            new_atoms = copy.deepcopy(atoms)
-
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [self.particles[0]], rng=rng)
             pick_two = self._select_species(new_atoms, [self.particles[1]], rng=rng)
@@ -74,12 +73,15 @@ class SwapOperator(BaseMCOperator):
             # Find particles by picked tags before swap
             particle_one = new_atoms[pick_one]  # default copy
             assert isinstance(particle_one, Atoms)
+            positions_one = particle_one.get_positions()
+
             particle_two = new_atoms[pick_two]
             assert isinstance(particle_two, Atoms)
+            positions_two = particle_two.get_positions()
 
             # TODO: Deal with pbc for molecules
-            cop_one = copy.deepcopy(np.average(particle_one.get_positions(), axis=0))
-            cop_two = copy.deepcopy(np.average(particle_two.get_positions(), axis=0))
+            cop_one = copy.deepcopy(np.average(positions_one, axis=0))
+            cop_two = copy.deepcopy(np.average(positions_two, axis=0))
 
             self._print(
                 self.indent
@@ -134,6 +136,10 @@ class SwapOperator(BaseMCOperator):
                 self._print(self.indent + f"succeed to random after {i+1} attempts...")
                 self._extra_info = f"S_{particle_one.get_chemical_formula()}_{pick_one}^{particle_two.get_chemical_formula()}_{pick_two}"
                 break
+            else:
+                # restore original positions
+                new_atoms.positions[pick_one] = positions_one
+                new_atoms.positions[pick_two] = positions_two
         else:
             new_atoms = None
             self._extra_info = f"Swap_Failed"
