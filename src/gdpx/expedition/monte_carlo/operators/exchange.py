@@ -124,9 +124,6 @@ class ExchangeOperator(BasicExchangeOperator):
 
     name: str = "exchange"
 
-    #: The current suboperation (insert or remove).
-    _curr_operation: Optional[str] = None  # insert or remove
-
     #: The current tags dict.
     _curr_tags_dict: Optional[dict] = None
 
@@ -184,6 +181,10 @@ class ExchangeOperator(BasicExchangeOperator):
 
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
+        # Some state information after mc attempts and before energy evaluation
+        self._atoms = None
+        self._state = {}
+
         return
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
@@ -215,15 +216,15 @@ class ExchangeOperator(BasicExchangeOperator):
             rn_ex = rng.uniform()
             if rn_ex < 0.5:
                 self._print(self.indent + "...insert...")
-                self._curr_operation = "insert"
+                self._state["operation"]= "insert"
                 new_atoms = self._insert(atoms, particle, particle_instance, rng)
             else:
                 self._print(self.indent + "...remove...")
-                self._curr_operation = "remove"
+                self._state["operations"] = "remove"
                 new_atoms = self._remove(atoms, particle, rng)
         else:
             self._print(self.indent + "...insert...")
-            self._curr_operation = "insert"
+            self._state["operations"] = "insert"
             new_atoms = self._insert(atoms, particle, particle_instance, rng)
 
         return new_atoms
@@ -249,15 +250,15 @@ class ExchangeOperator(BasicExchangeOperator):
         region_volume = self._curr_volume
 
         ene_diff = curr_ene - prev_ene
-        if self._curr_operation == "insert":
+        if self._state["operations"] == "insert":
             assert isinstance(region_volume, float)
             prefactor = region_volume / (nexatoms + 1) / cubic_wavelength
             ene_gcmc = ene_diff - chempot
-        elif self._curr_operation == "remove":
+        elif self._state["operations"] == "remove":
             prefactor = nexatoms * cubic_wavelength / region_volume
             ene_gcmc = ene_diff + chempot
         else:
-            raise RuntimeError(f"Unknown exchange operation {self._curr_operation}.")
+            raise RuntimeError(f"Unknown exchange operation {self._state['operations']}.")
 
         acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_gcmc))])
         ran_ratio = rng.uniform()
@@ -276,7 +277,7 @@ class ExchangeOperator(BasicExchangeOperator):
         success = ran_ratio < acc_ratio
 
         # Clear state
-        self._curr_operation = None
+        self._state = {}
         self._curr_tags_dict = None
         self._curr_volume = None
 
