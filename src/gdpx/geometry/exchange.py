@@ -5,7 +5,7 @@
 import copy
 import functools
 import itertools
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 import numpy as np
 from ase import Atoms
@@ -22,7 +22,7 @@ def remove_one_particle(
     species: str,
     sort_tags: bool = True,
     rng: np.random.Generator = np.random.default_rng(),
-) -> Tuple[Atoms, str]:
+) -> tuple[Atoms, str]:
     """Remove one particle from the given atoms.
 
     Args:
@@ -58,7 +58,7 @@ def insert_one_particle(
     max_attempts: int = 100,
     check_distance_func: Optional[Callable] = check_atomic_distances,
     rng: np.random.Generator = np.random.default_rng(),
-) -> Tuple[Optional[Atoms], str]:
+) -> tuple[Optional[Atoms], str]:
     """"""
     # Set the tag for the inserted particle,
     # which should not be used in atoms.
