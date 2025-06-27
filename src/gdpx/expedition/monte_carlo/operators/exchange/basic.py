@@ -79,11 +79,13 @@ class BasicExchangeOperator(BaseMCOperator):
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check state
+        assert self._state == {}, "State should be empty before running the operator."
+        assert self._atoms is None, "Atoms should be None before running the operator."
+
         # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"
-
-        self._state["volume"] = self._update_volume(atoms)
 
         # Choose a particle to exchange
         particle = self.particles[0]
@@ -91,6 +93,9 @@ class BasicExchangeOperator(BaseMCOperator):
 
         assert isinstance(self._curr_tags_dict, dict)
         num_particles = len(self._curr_tags_dict.get(particle, []))
+
+        self._state["num_particles"] = num_particles
+        self._state["volume"] = self._update_volume(atoms)
 
         # Choose insert or remove
         self._print(self.indent + "--> mcattempt")
@@ -132,26 +137,20 @@ class BasicExchangeOperator(BaseMCOperator):
         beta = 1.0 / kBT_eV  # 1/(kb*T), eV
 
         # Get particle properties
-        particle = self.particles[0]
         chempot = self.chempots[0]
         cubic_wavelength = self._cubic_wavelengths[0]
 
         # Compute the prefactor
-        # Determine number of exchangeable particles
-        assert isinstance(self._curr_tags_dict, dict)
-        if particle not in self._curr_tags_dict:
-            self._curr_tags_dict[particle] = []
-        nexatoms = len(self._curr_tags_dict[particle])
-
+        num_particles = self._state["num_particles"]
         region_volume = self._state["volume"]
 
         ene_diff = curr_ene - prev_ene
         if self._state["operation"] == "insert":
             assert isinstance(region_volume, float)
-            prefactor = region_volume / (nexatoms + 1) / cubic_wavelength
+            prefactor = region_volume / (num_particles + 1) / cubic_wavelength
             ene_gcmc = ene_diff - chempot
         elif self._state["operation"] == "remove":
-            prefactor = nexatoms * cubic_wavelength / region_volume
+            prefactor = num_particles * cubic_wavelength / region_volume
             ene_gcmc = ene_diff + chempot
         else:
             raise RuntimeError(f"Unknown exchange operation {self._state['operation']}.")
@@ -164,7 +163,7 @@ class BasicExchangeOperator(BaseMCOperator):
         content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
         content += f"Prefactor {prefactor:>12.4f}\n"
         content += f"CubicWavelength {cubic_wavelength:>12.4f} [A^3]\n"
-        content += f"Nexatoms {nexatoms:>12d}\n"
+        content += f"N  {num_particles:>12d}\n"
         content += f"dE {ene_diff:>12.4f} [eV]  " + f"dF {ene_gcmc:>12.4f} [eV]\n"
         content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
         for x in content.split("\n"):
