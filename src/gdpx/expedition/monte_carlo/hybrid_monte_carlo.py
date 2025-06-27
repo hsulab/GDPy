@@ -270,6 +270,7 @@ class HybridMonteCarlo(MonteCarlo):
     def as_dict(self) -> dict:
         """Return a dictionary representation of the object."""
         d = super().as_dict()
+        d["method"] = "hybrid_monte_carlo"
         d.update(
             {
                 "procedure": self.procedure,
