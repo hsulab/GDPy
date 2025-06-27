@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 import functools
+from typing import Union
 
 from ase import Atoms
 from ase.io import write
@@ -42,7 +44,7 @@ class HybridMonteCarlo(MonteCarlo):
             op.indent = "  "
 
         # check if subprocedures in the procedure are all valid
-        procedure_steps = []
+        prototype_workers, procedure_steps = [], []
         for subprocedure in self.procedure:
             if isinstance(subprocedure, list):
                 assert len(subprocedure) == 2 and subprocedure[0] == "monte_carlo", ""
@@ -59,6 +61,7 @@ class HybridMonteCarlo(MonteCarlo):
                     subworker.directory = self.directory / "mc"
                     subproc_func = functools.partial(self._irun_metropolis, worker=subworker)
                     procedure_steps.append(("mc", subproc_func))
+                    prototype_workers.append(subworker)
                 else:
                     raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
             elif subprocedure.startswith("worker"):
@@ -76,10 +79,13 @@ class HybridMonteCarlo(MonteCarlo):
                     subworker.directory = self.directory / worker_name
                     subproc_func = functools.partial(self._irun_dynamics, worker=subworker)
                     procedure_steps.append((worker_name, subproc_func))
+                    prototype_workers.append(subworker)
                 else:
                     raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
             else:
                 raise RuntimeError(f"Unknown subprocedure {subprocedure}.")
+
+        self._protype_workers = prototype_workers
 
         # enter the main loop
         converged = self.read_convergence()
@@ -241,6 +247,25 @@ class HybridMonteCarlo(MonteCarlo):
         write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
         return step_state
+
+    def get_workers(self):
+        """Get all workers used by this expedition."""
+        assert self._protype_workers is not None, "Prototype workers are not parsed from procedure."
+
+        target_worker = self._protype_workers[0]  # dynamics
+        if hasattr(target_worker.potter, "remove_loaded_models"):
+            target_worker.potter.remove_loaded_models()
+
+        # Find all directories start with step
+        working_directories = sorted(self.directory.glob("step.*"), key=lambda x: int(x.name.split(".")[1]))
+
+        workers = []
+        for directory in working_directories:
+            worker = copy.deepcopy(target_worker)
+            worker.directory = directory / "excurs"
+            workers.append(worker)
+
+        return workers
 
     def as_dict(self) -> dict:
         """Return a dictionary representation of the object."""
