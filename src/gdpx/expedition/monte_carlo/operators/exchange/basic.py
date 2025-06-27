@@ -27,7 +27,6 @@ class BasicExchangeOperator(BaseMCOperator):
         self,
         particles: list[str],
         chempots: list[float],
-        skip_distance_check: bool = False,
         *args,
         **kwargs,
     ):
@@ -66,9 +65,7 @@ class BasicExchangeOperator(BaseMCOperator):
             _cubic_wavelengths.append(_cubic_wavelength)
         self._cubic_wavelengths = _cubic_wavelengths
 
-        # Check if neighbour distances should be checked
-        self.skip_distance_check = skip_distance_check
-
+        # Neighbor list prototype
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
         return
@@ -174,7 +171,6 @@ class BasicExchangeOperator(BaseMCOperator):
         params = super().as_dict()
         params["particles"] = self.particles
         params["chempots"] = self.chempots
-        params["skip_distance_check"] = self.skip_distance_check
 
         return params
 

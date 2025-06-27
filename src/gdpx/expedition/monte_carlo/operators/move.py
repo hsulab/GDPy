@@ -24,7 +24,6 @@ class MoveOperator(BaseMCOperator):
         self,
         particles: list[str],
         max_disp: float = 2.0,
-        skip_distance_check: bool = False,
         *args,
         **kwargs,
     ) -> None:
@@ -43,8 +42,6 @@ class MoveOperator(BaseMCOperator):
         self.particles = particles
 
         self.max_disp = max_disp
-
-        self.skip_distance_check = skip_distance_check
 
         return
 
@@ -155,7 +152,6 @@ class MoveOperator(BaseMCOperator):
         params = super().as_dict()
         params["particles"] = self.particles
         params["max_disp"] = self.max_disp
-        params["skip_distance_check"] = self.skip_distance_check
 
         return params
 

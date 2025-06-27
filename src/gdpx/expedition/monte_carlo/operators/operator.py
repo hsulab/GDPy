@@ -33,9 +33,10 @@ class BaseMCOperator(abc.ABC):
         temperature: float = 300.0,
         pressure: float = 1.0,
         covalent_ratio=[0.8, 2.0],
+        allow_isolated: bool = False,
+        skip_distance_check: bool = False,
         use_rotation=True,
         prob: float = 1.0,
-        allow_isolated: bool = False,
     ) -> None:
         """Initialise the modification operator.
 
@@ -67,6 +68,8 @@ class BaseMCOperator(abc.ABC):
         self.covalent_max = covalent_ratio[1]
 
         self.allow_isolated = allow_isolated
+
+        self.skip_distance_check = skip_distance_check
 
         # Molecular rotation
         self.use_rotation = use_rotation
@@ -251,8 +254,10 @@ class BaseMCOperator(abc.ABC):
         params["group"] = self.group
         params["temperature"] = self.temperature
         params["pressure"] = self.pressure
-        params["covalent_ratio"] = [self.covalent_min, self.covalent_max]
         params["use_rotation"] = self.use_rotation
+        params["covalent_ratio"] = [self.covalent_min, self.covalent_max]
+        params["allow_isolated"] = self.allow_isolated
+        params["skip_distance_check"] = self.skip_distance_check
         params["prob"] = self.prob
 
         params = copy.deepcopy(params)
