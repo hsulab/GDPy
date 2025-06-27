@@ -107,16 +107,21 @@ class ExchangeOperator(BasicExchangeOperator):
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
         self._atoms = atoms
-        new_atoms = atoms.copy()
+        new_atoms = atoms
 
         # Pick one random particle
-        species_indices = self._select_species(new_atoms, [particle], rng)
+        atomic_indices = self._select_species(new_atoms, [particle], rng)
 
-        # The tags for atoms in the particle should be the same, we need check this?
-        particle_tag = new_atoms.get_tags()[species_indices][0]
+        removed_particle = new_atoms[atomic_indices]
+        assert isinstance(removed_particle, Atoms), "Removed particle should be an Atoms object."
+        tags = removed_particle.get_tags()
+        assert len(set(tags)) == 1, "All tags for the selected atoms should be the same."
+        particle_tag = tags[0]
+
+        self._state["removed_particle"] = removed_particle
 
         # Remove then
-        del new_atoms[species_indices]
+        del new_atoms[atomic_indices]
 
         # Update info
         self._extra_info = f"Remove_{particle}_{particle_tag}"  # type: ignore
@@ -129,7 +134,10 @@ class ExchangeOperator(BasicExchangeOperator):
         if operation == "insert":
             ...
         elif operation == "remove":
-            ...
+            # The removed particle will be added to the end of the atoms,
+            # the order of atoms has changed but the tags are preserved.
+            removed_particle = self._state.get("removed_particle")
+            atoms.extend(removed_particle)
         else:
             raise ValueError(f"Unknown operation: {operation}")
 
