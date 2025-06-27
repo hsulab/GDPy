@@ -57,6 +57,7 @@ def insert_one_particle(
     sort_tags: bool = True,
     max_attempts: int = 100,
     check_distance_func: Optional[Callable] = check_atomic_distances,
+    copy_atoms: bool = True,
     rng: np.random.Generator = np.random.default_rng(),
 ) -> tuple[Optional[Atoms], str]:
     """"""
@@ -90,10 +91,16 @@ def insert_one_particle(
 
     # Try inserting
     num_attempts = 0
-    candidate = atoms + particle
+    if copy_atoms:
+        candidate = atoms + particle
+    else:  # A revert is necessary if insert is used in MC.
+        candidate = atoms
+        candidate.extend(particle)
     region.preprocess(candidate)
     for iattempt in range(max_attempts):
-        assert len(atoms) == num_atoms  # Make sure we have not messed up with the substrate
+        if copy_atoms and (len(atoms) == num_atoms):
+            # Make sure we have not messed up with the substrate
+            raise Exception(f"Expecting {num_atoms} but got {len(atoms)}.")
         position = region.get_random_positions(size=1, rng=rng)[0]
         new_particle = copy.deepcopy(particle)
         new_particle = translate_then_rotate(new_particle, position=position, use_com=True, rng=rng)
