@@ -47,35 +47,35 @@ class BaseMCOperator(abc.ABC):
         """
         super().__init__()
 
-        # - region
+        # Propability to be selected
+        self.prob = prob
+
+        # Check region
         region_params = copy.deepcopy(region)
         region_method = region_params.pop("method", "auto")
         self.region = registers.create("region", region_method, convert_name=True, **region_params)
 
+        # Check group
         self.group = group
 
-        # - thermostat
+        # Check thermodynamic parameters
         self.temperature = temperature
         self.pressure = pressure
 
-        # - restraint on atomic distance
+        # Neighour settings
         self.covalent_min = covalent_ratio[0]
         self.covalent_max = covalent_ratio[1]
 
-        # - molecule
-        self.use_rotation = use_rotation
-
-        # - probability
-        self.prob = prob
-
-        # - neighbour setting
         self.allow_isolated = allow_isolated
+
+        # Molecular rotation
+        self.use_rotation = use_rotation
 
         # Some state information after mc attempts and before energy evaluation
         self._atoms = None
         self._state = {}
 
-        # indent before any print or string
+        # Indent before any print or string
         self._indent = ""
 
         return
