@@ -344,6 +344,7 @@ def run_monte_carlo_steps(
     for istep in range(1, mcsteps + 1):
         op = select_operator(operators, probabilities, rng=rng)  # type: ignore
         op._print(f"----- MCSTEP.{istep:>04d} -----")
+        atoms.calc = None  # Clear calc as exchange may break atoms arrays such as forces.
         new_atoms = op.run(atoms, rng=rng)
         if new_atoms is not None:
             ...

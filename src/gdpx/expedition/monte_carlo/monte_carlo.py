@@ -333,6 +333,7 @@ class MonteCarlo(BaseExpedition):
         # Operate atoms
         curr_op = select_operator(self.operators, self.op_probs, self.rng)
         self._print(f"  operator {curr_op.name}")
+        self.atoms.calc = None  # Clear calc as exchange may break atoms arrays such as forces.
         curr_atoms = curr_op.run(self.atoms, self.rng)
         if curr_atoms:  # is not None
             # Add info to atoms and remove step info from driver
