@@ -251,11 +251,11 @@ class ReactOperator(BasicExchangeOperator):
         # - remove products
         atoms = atoms_
         for p in self.reaction.products:
-            atoms = self._remove(atoms, species=p, rng=rng)
+            atoms = self._remove(atoms, particle=p, rng=rng)
 
         # - insert reactants
         for r in self.reaction.reactants:
-            atoms = self._insert(atoms, species=r, rng=rng)
+            atoms = self._insert(atoms, particle=r, rng=rng)
             if atoms is None:
                 break
 
