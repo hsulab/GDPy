@@ -6,14 +6,14 @@ import copy
 from typing import Optional
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.bounce import get_a_random_direction
 from gdpx.geometry.particle import translate_then_rotate
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .operator import BaseMCOperator
+from .operator import BaseMCOperator, metropolis_by_energy_difference
 
 
 class MoveOperator(BaseMCOperator):
@@ -46,10 +46,18 @@ class MoveOperator(BaseMCOperator):
 
         self.skip_distance_check = skip_distance_check
 
+        # Some state information after mc attempts and before energy evaluation
+        self._atoms = None
+        self._state = {}
+
         return
 
     def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check state
+        assert self._state == {}, "State should be empty before running the operator."
+        assert self._atoms is None, "Atoms should be None before running the operator."
+
         # Check species in the region
         super().run(atoms)
         self._extra_info = "-"
@@ -114,32 +122,28 @@ class MoveOperator(BaseMCOperator):
         return new_atoms
 
     def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-        """"""
-        # Temperature parameters
-        kBT_eV = units.kB * self.temperature
-        beta = 1.0 / kBT_eV  # 1/(kb*T), eV
+        """Metropolis criterion for the move operator."""
+        success = metropolis_by_energy_difference(
+            prev_ene=prev_ene,
+            curr_ene=curr_ene,
+            temperature=self.temperature,
+            region=self.region,
+            rng=rng,
+            indent=self.indent,
+            print_func=self._print,
+        )
 
-        # Compute the prefactor
-        prefactor = 1.0
-        region_volume = self.region.get_volume()
+        if not success:
+            # assert self._atoms is not None, "Atoms should not be None when reverting state."
+            # self.revert_state(self._atoms)
+            ...
+        else:
+            ...
 
-        # Propability of acceptance
-        ene_diff = curr_ene - prev_ene
-        acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_diff))])
-        ran_ratio = rng.uniform()
+        self._state = {}
+        self._atoms = None
 
-        # Some log information
-        content = "--> mcstate\n"
-        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
-        content += f"Prefactor {prefactor:>12.4f}\n"
-        content += f"dE {ene_diff:>12.4f} [eV]\n"
-        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
-        for s in content.split("\n"):
-            self._print(self.indent + s)
-
-        # Clear the state information
-
-        return ran_ratio < acc_ratio
+        return success
 
     def as_dict(self) -> dict:
         """"""
