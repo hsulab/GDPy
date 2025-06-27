@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 import functools
 from typing import Optional
 
@@ -16,6 +17,7 @@ from gdpx.geometry.exchange import insert_one_particle
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
 from .operator import BaseMCOperator
+from .statmech import compute_thermo_wavelength
 
 
 class BasicExchangeOperator(BaseMCOperator):
@@ -28,6 +30,7 @@ class BasicExchangeOperator(BaseMCOperator):
         self,
         atoms: Atoms,
         particle: str,
+        particle_instance: Atoms,
         rng: np.random.Generator = np.random.default_rng(),
     ):
         """"""
@@ -39,7 +42,7 @@ class BasicExchangeOperator(BaseMCOperator):
         new_atoms = atoms.copy()
 
         # Prepare particle to add
-        adpart = convert_string_to_atoms(particle)
+        adpart = copy.deepcopy(particle_instance)
 
         # Add velocity in case the mixed MC/MD is performed
         MaxwellBoltzmannDistribution(adpart, temperature_K=self.temperature, rng=rng)
@@ -151,6 +154,25 @@ class ExchangeOperator(BasicExchangeOperator):
         self.particles = particles
         self.chempots = chempots
 
+        # Get exchangeable particle atoms based on its name
+        _particle_instances = []
+        for particle in self.particles:
+            _particle_instance = convert_string_to_atoms(particle)
+            if _particle_instance is None:
+                raise Exception(f"Particle {particle} is not a valid chemical symbol or a molecule formula.")
+            _particle_instances.append(_particle_instance)
+        self._particle_instances = _particle_instances
+
+        _cubic_wavelengths = []
+        for _particle_instance in self._particle_instances:
+            _cubic_wavelength = compute_thermo_wavelength(
+                mass=_particle_instance.get_masses().sum(),
+                temperature=self.temperature,
+            )
+            _cubic_wavelengths.append(_cubic_wavelength)
+        self._cubic_wavelengths = _cubic_wavelengths
+
+        # Check if the exchange is biased
         self.use_bias = use_bias
 
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
@@ -174,6 +196,7 @@ class ExchangeOperator(BasicExchangeOperator):
 
         # Choose a particle to exchange
         particle = self.particles[0]
+        particle_instance = self._particle_instances[0]
 
         assert isinstance(self._curr_tags_dict, dict)
         num_particles = len(self._curr_tags_dict.get(particle, []))
@@ -185,7 +208,7 @@ class ExchangeOperator(BasicExchangeOperator):
             if rn_ex < 0.5:
                 self._print(self.indent + "...insert...")
                 self._curr_operation = "insert"
-                new_atoms = self._insert(atoms, particle, rng)
+                new_atoms = self._insert(atoms, particle, particle_instance, rng)
             else:
                 self._print(self.indent + "...remove...")
                 self._curr_operation = "remove"
@@ -193,7 +216,7 @@ class ExchangeOperator(BasicExchangeOperator):
         else:
             self._print(self.indent + "...insert...")
             self._curr_operation = "insert"
-            new_atoms = self._insert(atoms, particle, rng)
+            new_atoms = self._insert(atoms, particle, particle_instance, rng)
 
         return new_atoms
 
@@ -203,16 +226,10 @@ class ExchangeOperator(BasicExchangeOperator):
         kBT_eV = units.kB * self.temperature
         beta = 1.0 / kBT_eV  # 1/(kb*T), eV
 
-        # Compute the cubic thermo de broglie
+        # Get particle properties
         particle = self.particles[0]
         chempot = self.chempots[0]
-
-        hplanck = units._hplanck  # J/Hz = kg*m2*s-1
-        _species = convert_string_to_atoms(particle)
-        _species_mass = np.sum(_species.get_masses())
-        _mass = _species_mass * units._amu
-        kbT_J = kBT_eV * units._e  # J = kg*m2*s-2
-        cubic_wavelength = (hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10) ** 3  # thermal de broglie wavelength
+        cubic_wavelength = self._cubic_wavelengths[0]
 
         # Compute the prefactor
         # Determine number of exchangeable particles
@@ -235,7 +252,6 @@ class ExchangeOperator(BasicExchangeOperator):
             raise RuntimeError(f"Unknown exchange operation {self._curr_operation}.")
 
         acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_gcmc))])
-
         ran_ratio = rng.uniform()
 
         # Some log information

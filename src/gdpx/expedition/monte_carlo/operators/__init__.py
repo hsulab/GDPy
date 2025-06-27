@@ -5,9 +5,6 @@
 import pickle
 
 import numpy as np
-from ase import units
-
-from gdpx.geometry.composition import convert_string_to_atoms
 
 from .bounce import BounceOperator
 from .exchange import ExchangeOperator
@@ -73,24 +70,6 @@ def parse_operators(op_params: list[dict]):
     probs = (np.array(probs) / np.sum(probs)).tolist()
 
     return operators, probs
-
-
-def compute_thermo_wavelength(expart: str, temperature: float):
-    # - beta
-    kBT_eV = units.kB * temperature
-    beta = 1.0 / kBT_eV  # 1/(kb*T), eV
-
-    # - cubic thermo de broglie
-    hplanck = units._hplanck  # J/Hz = kg*m2*s-1
-    # _mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
-    _species = convert_string_to_atoms(expart)
-    _species_mass = np.sum(_species.get_masses())
-    # print("species mass: ", _mass)
-    _mass = _species_mass * units._amu
-    kbT_J = kBT_eV * units._e  # J = kg*m2*s-2
-    cubic_wavelength = (hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10) ** 3  # thermal de broglie wavelength
-
-    return _species_mass, beta, cubic_wavelength
 
 
 if __name__ == "__main__":
