@@ -71,8 +71,9 @@ class MoveOperator(BaseMCOperator):
             # Skip if no particles found
             return None
 
-        # Get some basic stuff
-        new_atoms = copy.deepcopy(atoms)
+        # Use the reference to avoid copying?
+        self._atoms = atoms
+        new_atoms = atoms
 
         # Initialise the neighbour list
         nl = NeighborList(
@@ -91,6 +92,11 @@ class MoveOperator(BaseMCOperator):
         # TODO: Deal with pbc for molecules
         org_cop = np.mean(species.positions, axis=0)
         org_positions = species.positions.copy()
+
+        self._state = {
+            "picked_indices": species_indices,
+            "before_positions": org_positions,
+        }
 
         # Move the species and use neighbour list to check atomic distances
         self._print(self.indent + f"check distance: {not self.skip_distance_check}")
@@ -121,6 +127,15 @@ class MoveOperator(BaseMCOperator):
 
         return new_atoms
 
+    def revert_state(self, atoms: Atoms) -> Atoms:
+        """Revert the state of atoms."""
+        picked_indices = self._state.get("picked_indices")
+        before_positions = self._state.get("before_positions")
+
+        atoms.positions[picked_indices] = before_positions
+
+        return atoms
+
     def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """Metropolis criterion for the move operator."""
         success = metropolis_by_energy_difference(
@@ -134,9 +149,8 @@ class MoveOperator(BaseMCOperator):
         )
 
         if not success:
-            # assert self._atoms is not None, "Atoms should not be None when reverting state."
-            # self.revert_state(self._atoms)
-            ...
+            assert self._atoms is not None, "Atoms should not be None when reverting state."
+            self.revert_state(self._atoms)
         else:
             ...
 
