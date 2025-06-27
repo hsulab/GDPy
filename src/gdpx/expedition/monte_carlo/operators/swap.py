@@ -40,6 +40,9 @@ class SwapOperator(BaseMCOperator):
 
         self.skip_distance_check = skip_distance_check
 
+        # Some state information after mc attempts and before energy evaluation
+        self._state = {}
+
         return
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
@@ -52,7 +55,7 @@ class SwapOperator(BaseMCOperator):
         assert hasattr(self, "bond_distance_dict")
 
         # Use the reference to avoid copying?
-        new_atoms = copy.deepcopy(atoms)
+        new_atoms = atoms
 
         # Build neighbour list
         nl = NeighborList(
@@ -78,6 +81,13 @@ class SwapOperator(BaseMCOperator):
             particle_two = new_atoms[pick_two]
             assert isinstance(particle_two, Atoms)
             positions_two = particle_two.get_positions()
+
+            self._state = {
+                "pick_one": pick_one,
+                "pick_two": pick_two,
+                "positions_one": positions_one,
+                "positions_two": positions_two,
+            }
 
             # TODO: Deal with pbc for molecules
             cop_one = copy.deepcopy(np.average(positions_one, axis=0))
@@ -145,6 +155,21 @@ class SwapOperator(BaseMCOperator):
             self._extra_info = f"Swap_Failed"
 
         return new_atoms
+
+    def revert_state(self, atoms: Atoms) -> Atoms:
+        """"""
+        pick_one = self._state.get("pick_one")
+        pick_two = self._state.get("pick_two")
+        positions_one = self._state.get("positions_one")
+        positions_two = self._state.get("positions_two")
+
+        atoms.positions[pick_one] = positions_one
+        atoms.positions[pick_two] = positions_two
+
+        # clear state
+        self._state = {}
+
+        return atoms
 
     def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
 

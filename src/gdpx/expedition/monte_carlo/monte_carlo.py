@@ -358,20 +358,23 @@ class MonteCarlo(BaseExpedition):
                 curr_atoms.set_tags(curr_tags)
 
                 self.energy_operated = curr_atoms.get_potential_energy()
-                self._print(f"post ene: {self.energy_operated}")
+                self._print(f"  ene {self.energy_stored:>18.4f} -> {self.energy_operated:>18.4f}")
 
-                # -- metropolis
+                # run metropolis
                 success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-
                 self._save_step_info(curr_op, success)
 
-                # -- update atoms
                 if success:
                     self.energy_stored = self.energy_operated
                     self.atoms = curr_atoms
-                    self._print("success...")
+                    self._print("  <<< success")
                 else:
-                    self._print("failure...")
+                    # revert state to avoid copying atoms
+                    if hasattr(curr_op, "revert_state"):
+                        self.atoms = curr_op.revert_state(self.atoms)
+                        self._print("  <<< revert")
+                    else:
+                        self._print("  <<< failure")
 
                 write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
