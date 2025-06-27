@@ -11,9 +11,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import write
 
-from gdpx.session.operation import Operation
 from gdpx.core.register import registers
 from gdpx.data.array import AtomsNDArray
+from gdpx.session.operation import Operation
 
 
 def split_structures_by_ratio(
@@ -42,9 +42,7 @@ def split_structures_by_ratio(
     return datasets  # type: ignore
 
 
-def transfer_structures_to_dataset(
-    dataset, system_dirpath, structures, version: str, print_func
-) -> None:
+def transfer_structures_to_dataset(dataset, system_dirpath, structures, version: str, print_func) -> None:
     """"""
     root_dirpath = dataset.directory.resolve()
 
@@ -55,9 +53,7 @@ def transfer_structures_to_dataset(
     num_structures = len(structures)
     if not target_destination.exists():
         write(target_destination, structures)
-        print_func(
-            f"num_structures {num_structures} -> {str(relative_desination)}"
-        )
+        print_func(f"num_structures {num_structures} -> {str(relative_desination)}")
     else:
         print_func(f"{str(relative_desination)} exists.")
 
@@ -142,9 +138,7 @@ class transfer(Operation):
             system_type = self.system  # currently, use user input one
             dirname = "-".join([self.prefix, formula, system_type])
 
-            split_structures = split_structures_by_ratio(
-                curr_structures, self.split_ratio, rng=dataset.rng
-            )
+            split_structures = split_structures_by_ratio(curr_structures, self.split_ratio, rng=dataset.rng)
             for target_dirpath, target_structures in zip(target_dirpaths, split_structures):
                 dataset.directory = target_dirpath
                 target_subdir = dataset.directory.resolve() / dirname
