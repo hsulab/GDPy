@@ -36,8 +36,6 @@ class BaseMCOperator(abc.ABC):
         use_rotation=True,
         prob: float = 1.0,
         allow_isolated: bool = False,
-        *args,
-        **kwargs,
     ) -> None:
         """Initialise the modification operator.
 
