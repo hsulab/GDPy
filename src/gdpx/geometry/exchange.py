@@ -3,8 +3,9 @@
 
 
 import copy
+import functools
 import itertools
-from typing import Optional, Tuple, Callable
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 from ase import Atoms
@@ -55,7 +56,7 @@ def insert_one_particle(
     particle_tag: Optional[int] = None,
     sort_tags: bool = True,
     max_attempts: int = 100,
-    check_distance_func: Callable=check_atomic_distances,
+    check_distance_func: Optional[Callable] = check_atomic_distances,
     rng: np.random.Generator = np.random.default_rng(),
 ) -> Tuple[Optional[Atoms], str]:
     """"""
@@ -65,16 +66,27 @@ def insert_one_particle(
         particle_tag = int(np.max(atoms.get_tags()) + 17)
     particle.set_tags(particle_tag)
 
-    # Avoid distance check in the substrate and the particle to insert
+    # Check if we should check neighbour distances
     num_atoms = len(atoms)
-    intra_bond_pairs = list(itertools.permutations(range(0, num_atoms), 2))
-    intra_bond_pairs.extend(
-        list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2))
-    )
 
-    # We only check bond distances form by atoms in the particle,
-    # since the existing atoms may not statisfy our distance criteria.
-    atomic_indices = list(range(num_atoms, num_atoms + len(particle)))
+    if check_distance_func is not None:
+        # Avoid distance check in the substrate and the particle to insert
+        intra_bond_pairs = list(itertools.permutations(range(0, num_atoms), 2))
+        intra_bond_pairs.extend(list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2)))
+        # We only check bond distances form by atoms in the particle,
+        # since the existing atoms may not statisfy our distance criteria.
+        atomic_indices = list(range(num_atoms, num_atoms + len(particle)))
+        # Build the function
+        post_func = functools.partial(
+            check_distance_func,
+            covalent_ratio=covalent_ratio,
+            bond_distance_dict=bond_distance_dict,
+            atomic_indices=atomic_indices,
+            excluded_pairs=intra_bond_pairs,
+            allow_isolated=False,
+        )
+    else:
+        post_func = lambda _: True
 
     # Try inserting
     num_attempts = 0
@@ -84,18 +96,9 @@ def insert_one_particle(
         assert len(atoms) == num_atoms  # Make sure we have not messed up with the substrate
         position = region.get_random_positions(size=1, rng=rng)[0]
         new_particle = copy.deepcopy(particle)
-        new_particle = translate_then_rotate(
-            new_particle, position=position, use_com=True, rng=rng
-        )
+        new_particle = translate_then_rotate(new_particle, position=position, use_com=True, rng=rng)
         candidate.positions[num_atoms:] = new_particle.positions
-        if check_distance_func(
-            candidate,
-            covalent_ratio=covalent_ratio,
-            bond_distance_dict=bond_distance_dict,
-            atomic_indices=atomic_indices,
-            excluded_pairs=intra_bond_pairs,
-            allow_isolated=False,
-        ):
+        if post_func(candidate):
             num_attempts = iattempt + 1
             break
     else:
