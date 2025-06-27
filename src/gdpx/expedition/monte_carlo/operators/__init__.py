@@ -3,8 +3,9 @@
 
 
 from .bounce import BounceOperator
-from .exchange import ExchangeOperator, ReactOperator
+from .exchange import ExchangeOperator
 from .move import MoveOperator
+from .react import ReactOperator
 from .swap import SwapOperator
 from .swap_type import SwapTypeOperator
 

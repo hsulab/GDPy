@@ -13,7 +13,7 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.composition import convert_string_to_atoms
 
-from .basic import BasicExchangeOperator
+from .operator import BaseMCOperator
 
 
 @dataclasses.dataclass
@@ -66,7 +66,7 @@ class ElementaryReaction:
         return
 
 
-class ReactOperator(BasicExchangeOperator):
+class ReactOperator(BaseMCOperator):
 
     name: str = "react"
 
