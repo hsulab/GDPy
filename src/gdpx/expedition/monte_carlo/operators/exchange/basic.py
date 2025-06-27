@@ -119,6 +119,11 @@ class BasicExchangeOperator(BaseMCOperator):
     @abc.abstractmethod
     def _remove(self, atoms: Atoms, particle: str, rng: np.random.Generator = np.random.default_rng()) -> Atoms: ...
 
+    @abc.abstractmethod
+    def revert_state(self, atoms: Atoms) -> None:
+        """Revert the state of the atoms."""
+        ...
+
     def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """"""
         # Temperature parameters
@@ -159,8 +164,12 @@ class BasicExchangeOperator(BaseMCOperator):
             self._print(self.indent + x)
 
         success = ran_ratio < acc_ratio
+        if not success:
+            assert self._atoms is not None, "Atoms should not be None when reverting state."
+            self.revert_state(self._atoms)
+        else:
+            ...
 
-        # Clear state
         self._state = {}
         self._atoms = None
 

@@ -42,6 +42,7 @@ class ExchangeOperator(BasicExchangeOperator):
 
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
+        self._atoms = atoms
         new_atoms = atoms.copy()
 
         # Prepare particle to add
@@ -105,6 +106,7 @@ class ExchangeOperator(BasicExchangeOperator):
         """"""
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
+        self._atoms = atoms
         new_atoms = atoms.copy()
 
         # Pick one random particle
@@ -120,6 +122,18 @@ class ExchangeOperator(BasicExchangeOperator):
         self._extra_info = f"Remove_{particle}_{particle_tag}"  # type: ignore
 
         return new_atoms
+
+    def revert_state(self, atoms: Atoms) -> None:
+        """"""
+        operation = self._state.get("operation")
+        if operation == "insert":
+            ...
+        elif operation == "remove":
+            ...
+        else:
+            raise ValueError(f"Unknown operation: {operation}")
+
+        return
 
 
 class BiasedVolumeExchangeOperator(ExchangeOperator):
