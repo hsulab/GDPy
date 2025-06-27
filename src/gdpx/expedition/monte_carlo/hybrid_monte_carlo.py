@@ -4,6 +4,7 @@
 
 import functools
 
+from ase import Atoms
 from ase.io import write
 
 from gdpx.factory.computer import canonicalise_worker
@@ -31,7 +32,7 @@ class HybridMonteCarlo(MonteCarlo):
 
         return
 
-    def _run(self, *args, **kwargs):
+    def _run(self):
         """"""
         # set init worker
         self.worker.directory = self.directory / "init"
@@ -65,6 +66,7 @@ class HybridMonteCarlo(MonteCarlo):
                 worker_params = self.extra_workers.get(worker_name, None)
                 if worker_params is not None:
                     subworker = canonicalise_worker(worker_params)
+                    assert subworker is not None, f"Unknown worker {worker_name} in extra_workers."
                     # if isinstance(subworker, DriverBasedWorker):
                     #     self._print("Convert a DriverBasedWorker to a SingleWorker.")
                     #     subworker = SingleWorker.from_a_worker(subworker)
@@ -149,7 +151,7 @@ class HybridMonteCarlo(MonteCarlo):
         _ = worker.run([curr_atoms])
         worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
-            curr_atoms = worker.retrieve()[0][-1]
+            curr_atoms: Atoms = worker.retrieve()[0][-1]
             curr_atoms.set_tags(curr_tags)
 
             self.energy_operated = curr_atoms.get_potential_energy()
@@ -233,12 +235,24 @@ class HybridMonteCarlo(MonteCarlo):
                 # save the previous structure as the current operation gives no structure.
                 step_state = MCStepState.FAILED
         else:
-            ...  # If we reach here, all mcmoves are finished
+            step_state = MCStepState.FINISHED  # If we reach here, all mcmoves are finished
 
         # Save the final structure only
         write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
 
         return step_state
+
+    def as_dict(self) -> dict:
+        """Return a dictionary representation of the object."""
+        d = super().as_dict()
+        d.update(
+            {
+                "procedure": self.procedure,
+                "num_mcmoves": self.num_mcmoves,
+                "extra_workers": self.extra_workers,
+            }
+        )
+        return d
 
 
 if __name__ == "__main__":
