@@ -95,6 +95,7 @@ class HybridMonteCarlo(MonteCarlo):
             if not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
+                raise Exception("Checkpoint exists but hybrid_monte_carlo does not support restart.")
                 step_converged = True
                 self._load_checkpoint()
 
