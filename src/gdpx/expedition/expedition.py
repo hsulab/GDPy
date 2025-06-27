@@ -5,10 +5,13 @@
 import abc
 import copy
 import logging
+from typing import Union
 
 from gdpx.core.component import BaseComponent
 from gdpx.core.register import registers
 from gdpx.factory.computer import canonicalise_worker
+from gdpx.worker.drive import DriverBasedWorker
+from gdpx.worker.single import SingleWorker
 
 
 class BaseExpedition(BaseComponent):
@@ -20,9 +23,7 @@ class BaseExpedition(BaseComponent):
     def read_convergence(self) -> bool: ...
 
     @abc.abstractmethod
-    def get_workers(self):
-
-        return
+    def get_workers(self) -> list[Union[DriverBasedWorker, SingleWorker]]: ...
 
     def run(self, *args, **kwargs) -> None:
         """"""
