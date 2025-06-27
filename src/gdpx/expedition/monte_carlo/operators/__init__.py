@@ -3,9 +3,8 @@
 
 
 from .bounce import BounceOperator
-from .exchange import ExchangeOperator
+from .exchange import ExchangeOperator, ReactOperator
 from .move import MoveOperator
-from .react import ReactOperator
 from .swap import SwapOperator
 from .swap_type import SwapTypeOperator
 
@@ -14,8 +13,8 @@ __all__ = [
     "BounceOperator",
     "SwapOperator",
     "SwapTypeOperator",
-    "ExchangeOperator",
     "ReactOperator",
+    "ExchangeOperator",
 ]
 
 

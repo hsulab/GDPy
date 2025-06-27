@@ -16,8 +16,8 @@ from gdpx.geometry.composition import convert_string_to_atoms
 from gdpx.geometry.exchange import insert_one_particle
 from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .operator import BaseMCOperator
-from .statmech import compute_thermo_wavelength
+from ..operator import BaseMCOperator
+from ..statmech import compute_thermo_wavelength
 
 
 class BasicExchangeOperator(BaseMCOperator):

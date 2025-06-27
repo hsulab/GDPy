@@ -13,7 +13,7 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.composition import convert_string_to_atoms
 
-from .exchange import BasicExchangeOperator
+from .basic import BasicExchangeOperator
 
 
 @dataclasses.dataclass
