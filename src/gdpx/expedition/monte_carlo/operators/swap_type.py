@@ -53,6 +53,7 @@ class SwapTypeOperator(BaseMCOperator):
             raise Exception("Number of particles and chemical potentials must match.")
 
         # Some state information after mc attempts and before energy evaluation
+        self._atoms = None
         self._state = {}
 
         return
@@ -64,6 +65,10 @@ class SwapTypeOperator(BaseMCOperator):
 
     def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check state
+        assert self._state == {}, "State should be empty before running the operator."
+        assert self._atoms is None, "Atoms should be None before running the operator."
+
         # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"
@@ -71,8 +76,9 @@ class SwapTypeOperator(BaseMCOperator):
         # We need covalent bond distances for neighbour check
         assert hasattr(self, "bond_distance_dict")
 
-        # Get a new copy of the atoms
-        new_atoms = copy.deepcopy(atoms)
+        # Use the reference to avoid copying?
+        self._atoms = atoms
+        new_atoms = atoms
 
         # Find two particle types that can swap, particles of the first type should exist
         ptypes_in_region = set(self._curr_tags_dict.keys()) & set(self.particles)
@@ -127,6 +133,15 @@ class SwapTypeOperator(BaseMCOperator):
 
         return new_atoms
 
+    def revert_state(self, atoms: Atoms) -> Atoms:
+        """Revert the state of atoms."""
+        picked_atom_index = self._state.get("picked_atom_index")
+        first_ptype = self._state.get("first_ptype")
+
+        atoms[picked_atom_index].symbol = first_ptype
+
+        return atoms
+
     def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random.default_rng()) -> bool:
         """Metropolis criterion for the swap type operator."""
         # Temperature parameters
@@ -168,10 +183,17 @@ class SwapTypeOperator(BaseMCOperator):
         for x in content.split("\n"):
             self._print(self.indent + x)
 
-        # Clear the state information
-        self._state = {}
+        success = ran_ratio < acc_ratio
+        if not success:
+            assert self._atoms is not None, "Atoms should not be None when reverting state."
+            self.revert_state(self._atoms)
+        else:
+            ...
 
-        return ran_ratio < acc_ratio
+        self._state = {}
+        self._atoms = None
+
+        return success
 
     def as_dict(self) -> dict:
         """Convert the operator to a dictionary."""

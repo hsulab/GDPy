@@ -363,9 +363,9 @@ def run_monte_carlo_steps(
                 energy_before = energy_after
                 write(mctraj_fpath, atoms, append=True)
             else:
-                if hasattr(op, "revert_state"):
-                    atoms = op.revert_state(atoms)
-                    op._print("  <<< revert")
+                # atoms should be reverted in metropolis
+                ...
+
             # Remove the computation results.
             shutil.rmtree(driver.directory)
         else:

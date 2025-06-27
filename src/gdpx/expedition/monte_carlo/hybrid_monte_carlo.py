@@ -221,12 +221,8 @@ class HybridMonteCarlo(MonteCarlo):
                         self.atoms = curr_atoms
                         self._print("  <<< success")
                     else:
-                        # revert state to avoid copying atoms
-                        if hasattr(curr_op, "revert_state"):
-                            self.atoms = curr_op.revert_state(self.atoms)
-                            self._print("  <<< revert")
-                        else:
-                            self._print("  <<< failure")
+                        # atoms should be reverted in metropolis
+                        self._print("  <<< revert")
 
                     # check earlystopping
                     step_state = self._check_earlystop(self.atoms)
