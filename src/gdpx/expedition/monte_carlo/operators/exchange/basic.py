@@ -28,7 +28,6 @@ class BasicExchangeOperator(BaseMCOperator):
         particles: list[str],
         chempots: list[float],
         skip_distance_check: bool = False,
-        use_bias: bool = True,
         *args,
         **kwargs,
     ):
@@ -67,9 +66,7 @@ class BasicExchangeOperator(BaseMCOperator):
             _cubic_wavelengths.append(_cubic_wavelength)
         self._cubic_wavelengths = _cubic_wavelengths
 
-        # Check if the exchange is biased
-        self.use_bias = use_bias
-
+        # Check if neighbour distances should be checked
         self.skip_distance_check = skip_distance_check
 
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
@@ -86,15 +83,7 @@ class BasicExchangeOperator(BaseMCOperator):
         super().run(atoms)
         self._extra_info = "-"
 
-        # Compute acceptable volume for biased exchange
-        if self.use_bias:
-            # Determine the exchange volume on-the-fly
-            acc_volume = self.region.get_empty_volume(atoms)
-        else:
-            # Get the volume of the normal region
-            acc_volume = self.region.get_volume()
-
-        self._state["volume"] = acc_volume
+        self._state["volume"] = self._update_volume(atoms)
 
         # Choose a particle to exchange
         particle = self.particles[0]
@@ -122,6 +111,11 @@ class BasicExchangeOperator(BaseMCOperator):
             new_atoms = self._insert(atoms, particle, particle_instance, rng)
 
         return new_atoms
+
+    @abc.abstractmethod
+    def _update_volume(self, atoms: Atoms) -> float:
+        """Update the volume of the region based on the current atoms."""
+        ...
 
     @abc.abstractmethod
     def _insert(
@@ -190,7 +184,6 @@ class BasicExchangeOperator(BaseMCOperator):
         params["particles"] = self.particles
         params["chempots"] = self.chempots
         params["skip_distance_check"] = self.skip_distance_check
-        params["use_bias"] = self.use_bias
 
         return params
 

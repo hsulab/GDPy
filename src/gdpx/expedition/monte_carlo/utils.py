@@ -6,7 +6,15 @@ import pickle
 
 import numpy as np
 
-from .operators import BounceOperator, ExchangeOperator, MoveOperator, ReactOperator, SwapOperator, SwapTypeOperator
+from .operators import (
+    BiasedVolumeExchangeOperator,
+    BounceOperator,
+    ExchangeOperator,
+    MoveOperator,
+    ReactOperator,
+    SwapOperator,
+    SwapTypeOperator,
+)
 
 
 def save_operator(op, p):
@@ -54,6 +62,8 @@ def parse_operators(op_params: list[dict]):
             op = SwapTypeOperator(**param)
         elif name == "exchange":
             op = ExchangeOperator(**param)
+        elif name == "biased_volume_exchange":
+            op = BiasedVolumeExchangeOperator(**param)
         elif name == "react":
             op = ReactOperator(**param)
         else:

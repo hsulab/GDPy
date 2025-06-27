@@ -22,6 +22,13 @@ class ExchangeOperator(BasicExchangeOperator):
 
     MAX_RANDOM_TAG: int = 100000
 
+    def _update_volume(self, atoms: Atoms) -> float:
+        """Update the volume of the region based on the current atoms."""
+        # Determine the exchange volume on-the-fly
+        acc_volume = self.region.get_volume()
+
+        return acc_volume
+
     def _insert(
         self,
         atoms: Atoms,
@@ -113,6 +120,24 @@ class ExchangeOperator(BasicExchangeOperator):
         self._extra_info = f"Remove_{particle}_{particle_tag}"  # type: ignore
 
         return new_atoms
+
+
+class BiasedVolumeExchangeOperator(ExchangeOperator):
+    """Biased volume exchange operator.
+
+    This operator is used to insert or remove particles in a biased volume.
+    The biased volume is defined by the region volume not occupied by existing particles.
+
+    """
+
+    name: str = "biased_volume_exchange"
+
+    def _update_volume(self, atoms: Atoms) -> float:
+        """Update the volume of the region based on the current atoms."""
+        # Determine the exchange volume on-the-fly
+        acc_volume = self.region.get_empty_volume(atoms)
+
+        return acc_volume
 
 
 if __name__ == "__main__":
