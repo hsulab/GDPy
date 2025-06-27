@@ -56,14 +56,18 @@ class BasicExchangeOperator(BaseMCOperator):
         self._print(self.indent + f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}")
 
         # Use neighbour list
-        chemicl_numbers = np.hstack([new_atoms.get_atomic_numbers(), adpart.get_atomic_numbers()])
-        nlist = self.nlist_prototype(  # type: ignore
-            self.covalent_max * np.array([covalent_radii[c] for c in chemicl_numbers])
-        )
-        check_distance_func = functools.partial(
-            check_atomic_distances_by_neighbour_list,
-            neighlist=nlist,
-        )
+        assert hasattr(self, "skip_distance_check")
+        if not self.skip_distance_check:
+            chemicl_numbers = np.hstack([new_atoms.get_atomic_numbers(), adpart.get_atomic_numbers()])
+            nlist = self.nlist_prototype(  # type: ignore
+                self.covalent_max * np.array([covalent_radii[c] for c in chemicl_numbers])
+            )
+            check_distance_func = functools.partial(
+                check_atomic_distances_by_neighbour_list,
+                neighlist=nlist,
+            )
+        else:
+            check_distance_func = None
 
         # Insert the particle
         new_atoms, info = insert_one_particle(
@@ -133,6 +137,7 @@ class ExchangeOperator(BasicExchangeOperator):
         self,
         particles: list[str],
         chempots: list[float],
+        skip_distance_check: bool = False,
         use_bias: bool = True,
         *args,
         **kwargs,
@@ -175,6 +180,8 @@ class ExchangeOperator(BasicExchangeOperator):
         # Check if the exchange is biased
         self.use_bias = use_bias
 
+        self.skip_distance_check = skip_distance_check
+
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
         return
@@ -203,6 +210,7 @@ class ExchangeOperator(BasicExchangeOperator):
 
         # Choose insert or remove
         self._print(self.indent + "--> mcattempt")
+        self._print(self.indent + f"check distance: {not self.skip_distance_check}")
         if num_particles > 0:
             rn_ex = rng.uniform()
             if rn_ex < 0.5:
@@ -279,6 +287,7 @@ class ExchangeOperator(BasicExchangeOperator):
         params = super().as_dict()
         params["particles"] = self.particles
         params["chempots"] = self.chempots
+        params["skip_distance_check"] = self.skip_distance_check
         params["use_bias"] = self.use_bias
 
         return params
