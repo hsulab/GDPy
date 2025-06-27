@@ -103,11 +103,11 @@ class BasicExchangeOperator(BaseMCOperator):
                 new_atoms = self._insert(atoms, particle, particle_instance, rng)
             else:
                 self._print(self.indent + "...remove...")
-                self._state["operations"] = "remove"
+                self._state["operation"] = "remove"
                 new_atoms = self._remove(atoms, particle, rng)
         else:
             self._print(self.indent + "...insert...")
-            self._state["operations"] = "insert"
+            self._state["operation"] = "insert"
             new_atoms = self._insert(atoms, particle, particle_instance, rng)
 
         return new_atoms
@@ -146,15 +146,15 @@ class BasicExchangeOperator(BaseMCOperator):
         region_volume = self._state["volume"]
 
         ene_diff = curr_ene - prev_ene
-        if self._state["operations"] == "insert":
+        if self._state["operation"] == "insert":
             assert isinstance(region_volume, float)
             prefactor = region_volume / (nexatoms + 1) / cubic_wavelength
             ene_gcmc = ene_diff - chempot
-        elif self._state["operations"] == "remove":
+        elif self._state["operation"] == "remove":
             prefactor = nexatoms * cubic_wavelength / region_volume
             ene_gcmc = ene_diff + chempot
         else:
-            raise RuntimeError(f"Unknown exchange operation {self._state['operations']}.")
+            raise RuntimeError(f"Unknown exchange operation {self._state['operation']}.")
 
         acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_gcmc))])
         ran_ratio = rng.uniform()
