@@ -43,10 +43,13 @@ class ExchangeOperator(BasicExchangeOperator):
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
         self._atoms = atoms
-        new_atoms = atoms.copy()
+        new_atoms = atoms
 
         # Prepare particle to add
         adpart = copy.deepcopy(particle_instance)
+
+        atomic_indices = list(range(len(new_atoms), len(new_atoms) + len(adpart)))
+        self._state["atomic_indices"] = atomic_indices
 
         # Add velocity in case the mixed MC/MD is performed
         MaxwellBoltzmannDistribution(adpart, temperature_K=self.temperature, rng=rng)
@@ -73,7 +76,7 @@ class ExchangeOperator(BasicExchangeOperator):
             check_distance_func = None
 
         # Insert the particle
-        new_atoms, info = insert_one_particle(
+        _, info = insert_one_particle(
             atoms=new_atoms,
             particle=adpart,
             region=self.region,
@@ -83,6 +86,7 @@ class ExchangeOperator(BasicExchangeOperator):
             sort_tags=False,
             max_attempts=self.MAX_RANDOM_ATTEMPTS,
             check_distance_func=check_distance_func,
+            copy_atoms=False,  # Save time for large systems and we need revert if failed.
             rng=rng,
         )
 
@@ -92,6 +96,8 @@ class ExchangeOperator(BasicExchangeOperator):
             self._extra_info = f"Insert_{particle}_{adpart_tag}"  # type: ignore
         elif state == "failure":
             self._print(self.indent + f"failed to insert after {num_attempts} attempts...")
+            # If insert failed, an immediate revert is necessary.
+            del new_atoms[atomic_indices]
         else:
             raise Exception("This should not happen.")
 
@@ -132,7 +138,8 @@ class ExchangeOperator(BasicExchangeOperator):
         """"""
         operation = self._state.get("operation")
         if operation == "insert":
-            ...
+            atomic_indices = self._state.get("atomic_indices")
+            del atoms[atomic_indices]
         elif operation == "remove":
             # The removed particle will be added to the end of the atoms,
             # the order of atoms has changed but the tags are preserved.
