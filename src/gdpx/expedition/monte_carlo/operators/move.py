@@ -58,7 +58,7 @@ class MoveOperator(BaseMCOperator):
         assert self._state == {}, "State should be empty before running the operator."
         assert self._atoms is None, "Atoms should be None before running the operator."
 
-        # Check species in the region
+        # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"
 
@@ -66,8 +66,8 @@ class MoveOperator(BaseMCOperator):
         assert hasattr(self, "bond_distance_dict")
 
         # Check if the particles are in the atoms
-        species_indices = self._select_species(atoms, self.particles, rng=rng)
-        if len(species_indices) == 0:
+        particle_indices = self._select_species(atoms, self.particles, rng=rng)
+        if len(particle_indices) == 0:
             # Skip if no particles found
             return None
 
@@ -84,32 +84,31 @@ class MoveOperator(BaseMCOperator):
         )
 
         # Find tag atoms
-        # record original position of species_indices
-        species = new_atoms[species_indices]
-        assert isinstance(species, Atoms)
-        self._extra_info = f"Move_{species.get_chemical_formula()}_{species_indices}"
+        particle = new_atoms[particle_indices]
+        assert isinstance(particle, Atoms)
+        self._extra_info = f"Move_{particle.get_chemical_formula()}_{particle_indices}"
 
         # TODO: Deal with pbc for molecules
-        org_cop = np.mean(species.positions, axis=0)
-        org_positions = species.positions.copy()
+        org_cop = np.mean(particle.positions, axis=0)
+        org_positions = particle.positions.copy()
 
         self._state = {
-            "picked_indices": species_indices,
+            "picked_indices": particle_indices,
             "before_positions": org_positions,
         }
 
-        # Move the species and use neighbour list to check atomic distances
+        # Move the particle and use neighbour list to check atomic distances
         self._print(self.indent + f"check distance: {not self.skip_distance_check}")
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             rvec = get_a_random_direction(rng)
             ran_pos = org_cop + rvec * self.max_disp
-            species_ = copy.deepcopy(species)
-            species_ = translate_then_rotate(species_, position=ran_pos, use_com=False, rng=rng)
-            new_atoms.positions[species_indices] = species_.positions.copy()
+            particle_ = copy.deepcopy(particle)
+            particle_ = translate_then_rotate(particle_, position=ran_pos, use_com=False, rng=rng)
+            new_atoms.positions[particle_indices] = particle_.positions.copy()
             if self.skip_distance_check or check_atomic_distances_by_neighbour_list(
                 new_atoms,
                 neighlist=nl,
-                atomic_indices=species_indices,
+                atomic_indices=particle_indices,
                 covalent_ratio=[self.covalent_min, self.covalent_max],
                 bond_distance_dict=self.bond_distance_dict,  # type: ignore
                 allow_isolated=False,
@@ -117,11 +116,11 @@ class MoveOperator(BaseMCOperator):
                 self._print(self.indent + f"succeed to random after {i+1} attempts...")
                 self._print(self.indent + "before pos: " + ("{:>12.4f} " * 3).format(*org_cop))
                 self._print(self.indent + "random pos: " + ("{:>12.4f} " * 3).format(*ran_pos))
-                new_cop = np.average(new_atoms.positions[species_indices], axis=0)
+                new_cop = np.average(new_atoms.positions[particle_indices], axis=0)
                 self._print(self.indent + "actual pos: " + ("{:>12.4f} " * 3).format(*new_cop))
                 break
             # Move failed and fallback to the original positions
-            new_atoms.positions[species_indices] = org_positions
+            new_atoms.positions[particle_indices] = org_positions
         else:
             new_atoms = None
 
