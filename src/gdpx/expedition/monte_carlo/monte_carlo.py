@@ -6,6 +6,7 @@ import copy
 import enum
 import pickle
 import shutil
+from typing import Union
 
 import numpy as np
 from ase import Atoms, data
@@ -78,8 +79,6 @@ class MonteCarlo(BaseExpedition):
         ignore_atoms_tags: bool = True,
         restart: bool = False,
         directory="./",
-        *args,
-        **kwargs,
     ) -> None:
         """Parameters for Monte Carlo.
 
@@ -99,16 +98,13 @@ class MonteCarlo(BaseExpedition):
 
         self.restart = restart
 
-        # - check system type
+        # Check system type
         self.register_builder(builder)
 
-        # - create worker
-        self.worker = None
-
-        # - parse operators
+        # Parse operators
         self.operators, self.op_probs = parse_operators(operators)
 
-        # - parse convergence
+        # Parse convergence
         self.convergence = convergence
         if self.convergence.get("steps", None) is None:
             self.convergence["steps"] = 1
@@ -229,7 +225,7 @@ class MonteCarlo(BaseExpedition):
         # Thus, we create a new one every run time.
         frames = self.builder.run()
         assert len(frames) == 1, f"{self.__class__.__name__} only accepts one structure."
-        self.atoms = frames[0]
+        self.atoms: Atoms = frames[0]
 
         # Prepare logger and output some basic info...
         if not self.directory.exists():
@@ -267,7 +263,7 @@ class MonteCarlo(BaseExpedition):
 
         return
 
-    def _run(self, *args, **kwargs):
+    def _run(self):
         """"""
         converged = self.read_convergence()
         if not converged:
@@ -480,7 +476,7 @@ class MonteCarlo(BaseExpedition):
         )
 
         saved_operators = []
-        for i, op_file in enumerate(op_files):
+        for op_file in enumerate(op_files):
             saved_operator = load_operator(op_file)
             saved_operators.append(saved_operator)
         self.operators = saved_operators
@@ -603,7 +599,9 @@ class MonteCarlo(BaseExpedition):
         curr_worker.directory = self.directory
         curr_worker._retrieve_mode = "all"
 
-        return [curr_worker]
+        workers: list[Union[SingleWorker, DriverBasedWorker]] = [curr_worker]
+
+        return workers
 
     def as_dict(self) -> dict:
         """"""
