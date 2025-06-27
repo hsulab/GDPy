@@ -127,9 +127,6 @@ class ExchangeOperator(BasicExchangeOperator):
     #: The current tags dict.
     _curr_tags_dict: Optional[dict] = None
 
-    #: The current accpetable volume.
-    _curr_volume: Optional[float] = None
-
     def __init__(
         self,
         particles: list[str],
@@ -200,7 +197,8 @@ class ExchangeOperator(BasicExchangeOperator):
         else:
             # Get the volume of the normal region
             acc_volume = self.region.get_volume()
-        self._curr_volume = acc_volume
+
+        self._state["volume"] = acc_volume
 
         # Choose a particle to exchange
         particle = self.particles[0]
@@ -216,7 +214,7 @@ class ExchangeOperator(BasicExchangeOperator):
             rn_ex = rng.uniform()
             if rn_ex < 0.5:
                 self._print(self.indent + "...insert...")
-                self._state["operation"]= "insert"
+                self._state["operation"] = "insert"
                 new_atoms = self._insert(atoms, particle, particle_instance, rng)
             else:
                 self._print(self.indent + "...remove...")
@@ -247,7 +245,7 @@ class ExchangeOperator(BasicExchangeOperator):
             self._curr_tags_dict[particle] = []
         nexatoms = len(self._curr_tags_dict[particle])
 
-        region_volume = self._curr_volume
+        region_volume = self._state["volume"]
 
         ene_diff = curr_ene - prev_ene
         if self._state["operations"] == "insert":
@@ -278,8 +276,7 @@ class ExchangeOperator(BasicExchangeOperator):
 
         # Clear state
         self._state = {}
-        self._curr_tags_dict = None
-        self._curr_volume = None
+        self._atoms = None
 
         return success
 
