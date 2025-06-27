@@ -27,7 +27,7 @@ class BasicExchangeOperator(BaseMCOperator):
     def _insert(
         self,
         atoms: Atoms,
-        species: str,
+        particle: str,
         rng: np.random.Generator = np.random.default_rng(),
     ):
         """"""
@@ -39,7 +39,7 @@ class BasicExchangeOperator(BaseMCOperator):
         new_atoms = atoms.copy()
 
         # Prepare particle to add
-        adpart = convert_string_to_atoms(species)
+        adpart = convert_string_to_atoms(particle)
 
         # Add velocity in case the mixed MC/MD is performed
         MaxwellBoltzmannDistribution(adpart, temperature_K=self.temperature, rng=rng)
@@ -79,7 +79,7 @@ class BasicExchangeOperator(BaseMCOperator):
         _, _, state, num_attempts = info.split("_")
         if state == "success":
             self._print(self.indent + f"succeed to insert after {num_attempts} attempts...")
-            self._extra_info = f"Insert_{species}_{adpart_tag}"  # type: ignore
+            self._extra_info = f"Insert_{particle}_{adpart_tag}"  # type: ignore
         elif state == "failure":
             self._print(self.indent + f"failed to insert after {num_attempts} attempts...")
         else:
@@ -90,7 +90,7 @@ class BasicExchangeOperator(BaseMCOperator):
     def _remove(
         self,
         atoms: Atoms,
-        species: str,
+        particle: str,
         rng: np.random.Generator = np.random.default_rng(),
     ) -> Atoms:
         """"""
@@ -99,17 +99,16 @@ class BasicExchangeOperator(BaseMCOperator):
         new_atoms = atoms.copy()
 
         # Pick one random particle
-        species_indices = self._select_species(new_atoms, [species], rng)
+        species_indices = self._select_species(new_atoms, [particle], rng)
 
-        # The tags for atoms in the species should be the same,
-        # we need check this?
+        # The tags for atoms in the particle should be the same, we need check this?
         particle_tag = new_atoms.get_tags()[species_indices][0]
 
         # Remove then
         del new_atoms[species_indices]
 
         # Update info
-        self._extra_info = f"Remove_{self.species}_{particle_tag}"  # type: ignore
+        self._extra_info = f"Remove_{particle}_{particle_tag}"  # type: ignore
 
         return new_atoms
 
@@ -129,7 +128,8 @@ class ExchangeOperator(BasicExchangeOperator):
 
     def __init__(
         self,
-        reservoir: dict,
+        particles: list[str],
+        chempots: list[float],
         use_bias: bool = True,
         *args,
         **kwargs,
@@ -140,8 +140,16 @@ class ExchangeOperator(BasicExchangeOperator):
             **kwargs,
         )
 
-        self.species = reservoir["species"]
-        self.mu = reservoir["mu"]
+        num_particles = len(particles)
+        if num_particles != 1:
+            raise Exception(f"Exchange operator requires exactly one particle, got {num_particles}.")
+
+        num_chempots = len(chempots)
+        if num_chempots != 1:
+            raise Exception(f"Exchange operator requires exactly one chemical potential, got {num_chempots}.")
+
+        self.particles = particles
+        self.chempots = chempots
 
         self.use_bias = use_bias
 
@@ -151,7 +159,7 @@ class ExchangeOperator(BasicExchangeOperator):
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
-        # Check species in the region
+        # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"
 
@@ -164,10 +172,11 @@ class ExchangeOperator(BasicExchangeOperator):
             acc_volume = self.region.get_volume()
         self._curr_volume = acc_volume
 
-        # Choose a species to exchange
-        # valid_species = [k for k, v in tag_dict.items() if len(v) > 0]
+        # Choose a particle to exchange
+        particle = self.particles[0]
+
         assert isinstance(self._curr_tags_dict, dict)
-        num_particles = len(self._curr_tags_dict.get(self.species, []))
+        num_particles = len(self._curr_tags_dict.get(particle, []))
 
         # Choose insert or remove
         self._print(self.indent + "--> mcattempt")
@@ -176,35 +185,31 @@ class ExchangeOperator(BasicExchangeOperator):
             if rn_ex < 0.5:
                 self._print(self.indent + "...insert...")
                 self._curr_operation = "insert"
-                new_atoms = self._insert(atoms, self.species, rng)
+                new_atoms = self._insert(atoms, particle, rng)
             else:
                 self._print(self.indent + "...remove...")
                 self._curr_operation = "remove"
-                new_atoms = self._remove(atoms, self.species, rng)
+                new_atoms = self._remove(atoms, particle, rng)
         else:
             self._print(self.indent + "...insert...")
             self._curr_operation = "insert"
-            new_atoms = self._insert(atoms, self.species, rng)
+            new_atoms = self._insert(atoms, particle, rng)
 
         return new_atoms
 
-    def metropolis(
-        self,
-        prev_ene: float,
-        curr_ene: float,
-        rng: np.random.Generator = np.random.default_rng(),
-    ) -> bool:
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """"""
         # Temperature parameters
         kBT_eV = units.kB * self.temperature
         beta = 1.0 / kBT_eV  # 1/(kb*T), eV
 
         # Compute the cubic thermo de broglie
+        particle = self.particles[0]
+        chempot = self.chempots[0]
+
         hplanck = units._hplanck  # J/Hz = kg*m2*s-1
-        # _mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
-        _species = convert_string_to_atoms(self.species)
+        _species = convert_string_to_atoms(particle)
         _species_mass = np.sum(_species.get_masses())
-        # print("species mass: ", _mass)
         _mass = _species_mass * units._amu
         kbT_J = kBT_eV * units._e  # J = kg*m2*s-2
         cubic_wavelength = (hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10) ** 3  # thermal de broglie wavelength
@@ -212,9 +217,9 @@ class ExchangeOperator(BasicExchangeOperator):
         # Compute the prefactor
         # Determine number of exchangeable particles
         assert isinstance(self._curr_tags_dict, dict)
-        if self.species not in self._curr_tags_dict:
-            self._curr_tags_dict[self.species] = []
-        nexatoms = len(self._curr_tags_dict[self.species])
+        if particle not in self._curr_tags_dict:
+            self._curr_tags_dict[particle] = []
+        nexatoms = len(self._curr_tags_dict[particle])
 
         region_volume = self._curr_volume
 
@@ -222,10 +227,10 @@ class ExchangeOperator(BasicExchangeOperator):
         if self._curr_operation == "insert":
             assert isinstance(region_volume, float)
             prefactor = region_volume / (nexatoms + 1) / cubic_wavelength
-            ene_gcmc = ene_diff - self.mu
+            ene_gcmc = ene_diff - chempot
         elif self._curr_operation == "remove":
             prefactor = nexatoms * cubic_wavelength / region_volume
-            ene_gcmc = ene_diff + self.mu
+            ene_gcmc = ene_diff + chempot
         else:
             raise RuntimeError(f"Unknown exchange operation {self._curr_operation}.")
 
@@ -256,7 +261,8 @@ class ExchangeOperator(BasicExchangeOperator):
     def as_dict(self) -> dict:
         """"""
         params = super().as_dict()
-        params["reservoir"] = dict(species=self.species, mu=self.mu)
+        params["particles"] = self.particles
+        params["chempots"] = self.chempots
         params["use_bias"] = self.use_bias
 
         return params
@@ -267,9 +273,11 @@ class ExchangeOperator(BasicExchangeOperator):
         content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
-        content += f"reservoir: "
-        content += f"  species {self.species} with chemical potential {self.mu} [eV]\n"
-        content += f"  within the region {self.region}\n"
+        content += f"particles: \n"
+        content += f"  {self.particles}\n"
+        content += f"chempots: \n"
+        content += f"  {self.chempots}\n"
+        content += f"within the region {self.region}\n"
 
         return content
 
