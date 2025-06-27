@@ -50,7 +50,7 @@ class BasicExchangeOperator(BaseMCOperator):
         while adpart_tag in used_tags:
             adpart_tag = rng.integers(self.MIN_RANDOM_TAG, self.MAX_RANDOM_TAG)
         adpart_tag = int(adpart_tag)
-        self._print(f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}")
+        self._print(self.indent + f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}")
 
         # Use neighbour list
         chemicl_numbers = np.hstack([new_atoms.get_atomic_numbers(), adpart.get_atomic_numbers()])
@@ -78,10 +78,10 @@ class BasicExchangeOperator(BaseMCOperator):
 
         _, _, state, num_attempts = info.split("_")
         if state == "success":
-            self._print(f"succeed to insert after {num_attempts} attempts...")
+            self._print(self.indent + f"succeed to insert after {num_attempts} attempts...")
             self._extra_info = f"Insert_{species}_{adpart_tag}"  # type: ignore
         elif state == "failure":
-            self._print(f"failed to insert after {num_attempts} attempts...")
+            self._print(self.indent + f"failed to insert after {num_attempts} attempts...")
         else:
             raise Exception("This should not happen.")
 
@@ -170,18 +170,19 @@ class ExchangeOperator(BasicExchangeOperator):
         num_particles = len(self._curr_tags_dict.get(self.species, []))
 
         # Choose insert or remove
+        self._print(self.indent + "--> mcattempt")
         if num_particles > 0:
             rn_ex = rng.uniform()
             if rn_ex < 0.5:
-                self._print("...insert...")
+                self._print(self.indent + "...insert...")
                 self._curr_operation = "insert"
                 new_atoms = self._insert(atoms, self.species, rng)
             else:
-                self._print("...remove...")
+                self._print(self.indent + "...remove...")
                 self._curr_operation = "remove"
                 new_atoms = self._remove(atoms, self.species, rng)
         else:
-            self._print("...insert...")
+            self._print(self.indent + "...insert...")
             self._curr_operation = "insert"
             new_atoms = self._insert(atoms, self.species, rng)
 
@@ -194,11 +195,11 @@ class ExchangeOperator(BasicExchangeOperator):
         rng: np.random.Generator = np.random.default_rng(),
     ) -> bool:
         """"""
-        # - acceptance ratio
+        # Temperature parameters
         kBT_eV = units.kB * self.temperature
         beta = 1.0 / kBT_eV  # 1/(kb*T), eV
 
-        # - cubic thermo de broglie
+        # Compute the cubic thermo de broglie
         hplanck = units._hplanck  # J/Hz = kg*m2*s-1
         # _mass = np.sum([data.atomic_masses[data.atomic_numbers[e]] for e in expart]) # g/mol
         _species = convert_string_to_atoms(self.species)
@@ -208,49 +209,57 @@ class ExchangeOperator(BasicExchangeOperator):
         kbT_J = kBT_eV * units._e  # J = kg*m2*s-2
         cubic_wavelength = (hplanck / np.sqrt(2 * np.pi * _mass * kbT_J) * 1e10) ** 3  # thermal de broglie wavelength
 
-        # Compute coefficient
+        # Compute the prefactor
         # Determine number of exchangeable particles
         assert isinstance(self._curr_tags_dict, dict)
         if self.species not in self._curr_tags_dict:
             self._curr_tags_dict[self.species] = []
         nexatoms = len(self._curr_tags_dict[self.species])
 
-        # Compute composed coefficient
+        region_volume = self._curr_volume
+
+        ene_diff = curr_ene - prev_ene
         if self._curr_operation == "insert":
-            assert isinstance(self._curr_volume, float)
-            coef = self._curr_volume / (nexatoms + 1) / cubic_wavelength
-            ene_diff = curr_ene - self.mu - prev_ene
+            assert isinstance(region_volume, float)
+            prefactor = region_volume / (nexatoms + 1) / cubic_wavelength
+            ene_gcmc = ene_diff - self.mu
         elif self._curr_operation == "remove":
-            coef = nexatoms * cubic_wavelength / self._curr_volume
-            ene_diff = curr_ene + self.mu - prev_ene
+            prefactor = nexatoms * cubic_wavelength / region_volume
+            ene_gcmc = ene_diff + self.mu
         else:
             raise RuntimeError(f"Unknown exchange operation {self._curr_operation}.")
 
-        acc_ratio = np.min([1.0, coef * np.exp(-beta * (ene_diff))])
+        acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_gcmc))])
 
-        content = "\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n" % (
-            self._curr_volume,
-            nexatoms,
-            cubic_wavelength,
-            coef,
-        )
-        # content = "\nVolume %.4f Beta %.4f Coefficient %.4f\n" %(
-        #    0., beta, coef
-        # )
-        content += "Energy Difference %.4f [eV]\n" % ene_diff
-        content += "Accept Ratio %.4f\n" % acc_ratio
+        ran_ratio = rng.uniform()
+
+        # Some log information
+        content = "--> mcstate\n"
+        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
+        content += f"Prefactor {prefactor:>12.4f}\n"
+        content += f"CubicWavelength {cubic_wavelength:>12.4f} [A^3]\n"
+        content += f"Nexatoms {nexatoms:>12d}\n"
+        content += f"dE {ene_diff:>12.4f} [eV]  " + f"dF {ene_gcmc:>12.4f} [eV]\n"
+        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
         for x in content.split("\n"):
-            self._print(x)
+            self._print(self.indent + x)
 
-        rn_move = rng.uniform()
-        self._print(f"{self.__class__.__name__} Probability %.4f" % rn_move)
+        success = ran_ratio < acc_ratio
 
-        # - reset stored temp data
+        # Clear state
         self._curr_operation = None
         self._curr_tags_dict = None
         self._curr_volume = None
 
-        return rn_move < acc_ratio
+        return success
+
+    def as_dict(self) -> dict:
+        """"""
+        params = super().as_dict()
+        params["reservoir"] = dict(species=self.species, mu=self.mu)
+        params["use_bias"] = self.use_bias
+
+        return params
 
     def __repr__(self) -> str:
         """"""
@@ -263,14 +272,6 @@ class ExchangeOperator(BasicExchangeOperator):
         content += f"  within the region {self.region}\n"
 
         return content
-
-    def as_dict(self) -> dict:
-        """"""
-        params = super().as_dict()
-        params["reservoir"] = dict(species=self.species, mu=self.mu)
-        params["use_bias"] = self.use_bias
-
-        return params
 
 
 if __name__ == "__main__":
