@@ -144,13 +144,17 @@ class transfer(Operation):
                 target_subdir = dataset.directory.resolve() / dirname
                 target_subdir.mkdir(parents=True, exist_ok=True)
 
-                transfer_structures_to_dataset(
-                    dataset,
-                    target_subdir,
-                    target_structures,
-                    self.version,
-                    self._print,
-                )
+                num_target_structures = len(target_structures)
+                if num_target_structures == 0:
+                    self._print(f"Skip {dirname} as it has no structures.")
+                else:
+                    transfer_structures_to_dataset(
+                        dataset,
+                        target_subdir,
+                        target_structures,
+                        self.version,
+                        self._print,
+                    )
 
             acc_num_structures += curr_num_frames
 
