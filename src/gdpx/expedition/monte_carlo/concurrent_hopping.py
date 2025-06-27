@@ -23,7 +23,7 @@ from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 from ..expedition import BaseExpedition
-from .operators import parse_operators, select_operator
+from .utils import parse_operators, select_operator
 
 GenerationState = enum.Enum("GenerationState", ("BEG_OF_GEN", "MID_OF_GEN", "END_OF_GEN"))
 

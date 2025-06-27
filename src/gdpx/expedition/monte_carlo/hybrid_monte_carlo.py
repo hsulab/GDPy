@@ -4,7 +4,6 @@
 
 import copy
 import functools
-from typing import Union
 
 from ase import Atoms
 from ase.io import write
@@ -15,7 +14,7 @@ from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
 
 from .monte_carlo import MCStepState, MonteCarlo
-from .operators import select_operator
+from .utils import select_operator
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 

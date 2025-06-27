@@ -19,7 +19,7 @@ from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
 
 from ..expedition import BaseExpedition
-from .operators import load_operator, parse_operators, save_operator, select_operator
+from .utils import load_operator, parse_operators, save_operator, select_operator
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
