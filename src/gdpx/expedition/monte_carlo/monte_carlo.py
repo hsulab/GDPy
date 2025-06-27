@@ -215,7 +215,7 @@ class MonteCarlo(BaseExpedition):
         """Run MonteCarlo simulation."""
         super().run(*args, **kwargs)
 
-        # - check if it has a valid worker..
+        # Check if it has a valid worker
         if isinstance(self.worker, DriverBasedWorker):
             self._print("Convert a DriverBasedWorker to a SingleWorker.")
             self.worker = SingleWorker.from_a_worker(self.worker)
@@ -224,21 +224,21 @@ class MonteCarlo(BaseExpedition):
         ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
         self.worker.directory = self.directory
 
-        # - create an atoms during the run-time
-        #   If it is created in init, it will be re-used in active-learning loop.
-        #   Thus, we create a new one every run time.
+        # Create an atoms during the run-time
+        # If it is created in init, it will be re-used in active-learning loop.
+        # Thus, we create a new one every run time.
         frames = self.builder.run()
         assert len(frames) == 1, f"{self.__class__.__name__} only accepts one structure."
         self.atoms = frames[0]
 
-        # - prepare logger and output some basic info...
+        # Prepare logger and output some basic info...
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
-        # - show operator information
-        self._print("===== MonteCarlo Operators (Modifiers) =====\n")
+        # Show operator information
+        self._print("===== MonteCarlo Operators (Modifiers) =====")
 
-        # -- register bond list
+        # Register bond list
         self._attach_bond_length_minimum_list()
 
         for op in self.operators:
@@ -248,10 +248,11 @@ class MonteCarlo(BaseExpedition):
                 self._print(l)
         self._print(f"normalised probabilities {self.op_probs}\n")
 
-        # -- add print function to operators
+        # Add print function to operators
         for op in self.operators:
             op._print = self._print
             op._debug = self._debug
+            op.indent = "  "  # indent before any print or string
 
         # NOTE: check if operators' regions are consistent
         #       though it works, unexpected results may occur
@@ -330,24 +331,24 @@ class MonteCarlo(BaseExpedition):
         for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
             self._print(l)
 
-        step_wdir = self.directory / f"{self.WDIR_PREFIX}{istep}"
-        self.worker.wdir_name = step_wdir.name
+        self.worker: SingleWorker
+        self.worker.wdir_name = f"{self.WDIR_PREFIX}{istep}"
 
         # Operate atoms
         curr_op = select_operator(self.operators, self.op_probs, self.rng)
-        self._print(f"operator {curr_op.__class__.__name__}")
+        self._print(f"  operator {curr_op.name}")
         curr_atoms = curr_op.run(self.atoms, self.rng)
         if curr_atoms:  # is not None
-            # --- add info
+            # Add info to atoms and remove step info from driver
             curr_atoms.info["confid"] = int(f"{istep}")
-            curr_atoms.info["step"] = -1  # NOTE: remove step info from driver
+            curr_atoms.info["step"] = -1
             write(self.directory / "mc_attempts.xyz", curr_atoms, append=True)
         else:
-            self._print("FAILED to run operation...")
+            self._print("  FAILED to run operation...")
 
         # Run postprocess
         if curr_atoms is not None:
-            # - TODO: save some info not stored by driver
+            # Save tags
             curr_tags = curr_atoms.get_tags()
 
             # Run postprocess (spc, min or md)
