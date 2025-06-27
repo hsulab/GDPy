@@ -42,7 +42,7 @@ def select_operator(operators: list, probs: list[float], rng: np.random.Generato
     return op
 
 
-def parse_operators(op_params: dict):
+def parse_operators(op_params: list[dict]):
     """Parse parameters for various operators.
 
     Currently, we have move, swap, and exchange (insert/remove).
