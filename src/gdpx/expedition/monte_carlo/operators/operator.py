@@ -71,10 +71,19 @@ class BaseMCOperator(abc.ABC):
         # - neighbour setting
         self.allow_isolated = allow_isolated
 
+        # Some state information after mc attempts and before energy evaluation
+        self._atoms = None
+        self._state = {}
+
         # indent before any print or string
         self._indent = ""
 
         return
+
+    @property
+    def state(self) -> dict:
+        """Get the state of the operator."""
+        return self._state
 
     @property
     def indent(self) -> str:

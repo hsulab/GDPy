@@ -40,18 +40,10 @@ class SwapOperator(BaseMCOperator):
 
         self.skip_distance_check = skip_distance_check
 
-        # Some state information after mc attempts and before energy evaluation
-        self._atoms = None
-        self._state = {}
-
         return
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
-        # Check state
-        assert self._state == {}, "State should be empty before running the operator."
-        assert self._atoms is None, "Atoms should be None before running the operator."
-
         # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"

@@ -52,16 +52,7 @@ class SwapTypeOperator(BaseMCOperator):
         if len(self.particles) != len(self.chempots):
             raise Exception("Number of particles and chemical potentials must match.")
 
-        # Some state information after mc attempts and before energy evaluation
-        self._atoms = None
-        self._state = {}
-
         return
-
-    @property
-    def state(self) -> dict:
-        """Get the state of the operator."""
-        return self._state
 
     def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
