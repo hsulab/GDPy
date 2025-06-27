@@ -41,12 +41,17 @@ class SwapOperator(BaseMCOperator):
         self.skip_distance_check = skip_distance_check
 
         # Some state information after mc attempts and before energy evaluation
+        self._atoms = None
         self._state = {}
 
         return
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check state
+        assert self._state == {}, "State should be empty before running the operator."
+        assert self._atoms is None, "Atoms should be None before running the operator."
+
         # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"
@@ -55,6 +60,7 @@ class SwapOperator(BaseMCOperator):
         assert hasattr(self, "bond_distance_dict")
 
         # Use the reference to avoid copying?
+        self._atoms = atoms
         new_atoms = atoms
 
         # Build neighbour list
@@ -157,7 +163,7 @@ class SwapOperator(BaseMCOperator):
         return new_atoms
 
     def revert_state(self, atoms: Atoms) -> Atoms:
-        """"""
+        """Revert the state of atoms."""
         pick_one = self._state.get("pick_one")
         pick_two = self._state.get("pick_two")
         positions_one = self._state.get("positions_one")
@@ -166,14 +172,11 @@ class SwapOperator(BaseMCOperator):
         atoms.positions[pick_one] = positions_one
         atoms.positions[pick_two] = positions_two
 
-        # clear state
-        self._state = {}
-
         return atoms
 
     def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-
-        return metropolis_by_energy_difference(
+        """Metropolis criterion for the swap operator."""
+        success = metropolis_by_energy_difference(
             prev_ene=prev_ene,
             curr_ene=curr_ene,
             temperature=self.temperature,
@@ -182,6 +185,17 @@ class SwapOperator(BaseMCOperator):
             indent=self.indent,
             print_func=self._print,
         )
+
+        if not success:
+            assert self._atoms is not None, "Atoms should not be None when reverting state."
+            self.revert_state(self._atoms)
+        else:
+            ...
+
+        self._state = {}
+        self._atoms = None
+
+        return success
 
     def as_dict(self) -> dict:
         """"""
