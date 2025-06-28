@@ -41,6 +41,7 @@ class HybridMonteCarlo(MonteCarlo):
                 assert len(subprocedure) == 2 and subprocedure[0] == "monte_carlo", ""
                 worker_name = subprocedure[1].split("_")[1]
                 worker_params = self.extra_workers.get(worker_name, None)
+                worker_params["potter"] = self.worker.potter  # use potter from the main worker
                 if worker_params is not None:
                     subworker = canonicalise_worker(worker_params)
                     if isinstance(subworker, DriverBasedWorker):
@@ -58,6 +59,7 @@ class HybridMonteCarlo(MonteCarlo):
             elif subprocedure.startswith("worker"):
                 worker_name = subprocedure.split("_")[1]
                 worker_params = self.extra_workers.get(worker_name, None)
+                worker_params["potter"] = self.worker.potter  # use potter from the main worker
                 if worker_params is not None:
                     subworker = canonicalise_worker(worker_params)
                     assert subworker is not None, f"Unknown worker {worker_name} in extra_workers."
