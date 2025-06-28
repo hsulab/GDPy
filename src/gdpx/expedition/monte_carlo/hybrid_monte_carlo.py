@@ -33,16 +33,8 @@ class HybridMonteCarlo(MonteCarlo):
 
         return
 
-    def _run(self):
-        """"""
-        # set init worker
-        self.worker.directory = self.directory / "init"
-
-        # Format indent
-        for op in self.operators:
-            op.indent = "  "
-
-        # check if subprocedures in the procedure are all valid
+    def _parse_procedure(self):
+        """Parse the procedure for workers and steps."""
         prototype_workers, procedure_steps = [], []
         for subprocedure in self.procedure:
             if isinstance(subprocedure, list):
@@ -84,7 +76,19 @@ class HybridMonteCarlo(MonteCarlo):
             else:
                 raise RuntimeError(f"Unknown subprocedure {subprocedure}.")
 
-        self._protype_workers = prototype_workers
+        return procedure_steps, prototype_workers
+
+    def _run(self):
+        """"""
+        # set init worker
+        self.worker.directory = self.directory / "init"
+
+        # Format indent
+        for op in self.operators:
+            op.indent = "  "
+
+        # check if subprocedures in the procedure are all valid
+        procedure_steps, self._protype_workers = self._parse_procedure()
 
         # enter the main loop
         converged = self.read_convergence()
@@ -251,7 +255,10 @@ class HybridMonteCarlo(MonteCarlo):
 
     def get_workers(self):
         """Get all workers used by this expedition."""
-        assert self._protype_workers is not None, "Prototype workers are not parsed from procedure."
+        # This function can be called without running the expedition, 
+        # so we need to check if _protype_workers is None.
+        if not hasattr(self, "_protype_workers"):
+            _, self._protype_workers = self._parse_procedure()
 
         target_worker = self._protype_workers[0]  # dynamics
         if hasattr(target_worker.potter, "remove_loaded_models"):
