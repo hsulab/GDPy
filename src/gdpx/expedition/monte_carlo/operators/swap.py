@@ -52,6 +52,14 @@ class SwapOperator(BaseMCOperator):
         self._atoms = atoms
         new_atoms = atoms
 
+        # Find two particle types that can swap, particles of both two types should exist
+        ptypes_in_region = set(self._curr_tags_dict.keys()) & set(self.particles)
+        num_ptypes_in_region = len(ptypes_in_region)
+        if num_ptypes_in_region < 2:
+            # Skip if no particles in the region and try later if other operators such as
+            # exchange can insert particles
+            return None
+
         # Build neighbour list
         nl = NeighborList(
             self.covalent_max * np.array(natural_cutoffs(new_atoms)),
