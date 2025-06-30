@@ -72,9 +72,9 @@ class SwapTypeOperator(BaseMCOperator):
         new_atoms = atoms
 
         # Find two particle types that can swap, particles of the first type should exist
-        ptypes_in_region = set(self._curr_tags_dict.keys()) & set(self.particles)
+        ptypes_in_region = list(set(self._curr_tags_dict.keys()) & set(self.particles))
         num_ptypes_in_region = len(ptypes_in_region)
-        if num_ptypes_in_region < 2:
+        if num_ptypes_in_region < 1:
             # Skip if no particles in the region and try later if other operators such as
             # exchange can insert particles
             self._atoms = None
@@ -84,9 +84,11 @@ class SwapTypeOperator(BaseMCOperator):
         num_particles = len(self.particles)
 
         first_ptype_index = rng.choice(num_ptypes_in_region, 1)[0]
+        first_ptype = ptypes_in_region[first_ptype_index]
         for _ in range(100):
             second_ptype_index = rng.choice(num_particles, 1)[0]
-            if second_ptype_index != first_ptype_index:
+            second_ptype = self.particles[second_ptype_index]
+            if second_ptype != first_ptype:
                 break
         else:
             # If we cannot find a second type, we cannot swap
@@ -94,9 +96,6 @@ class SwapTypeOperator(BaseMCOperator):
             self._atoms = None
             self._state = {}
             return None
-
-        first_ptype = self.particles[first_ptype_index]
-        second_ptype = self.particles[second_ptype_index]
 
         # Change selected particles to another type based on chemical potential difference
         self._print(self.indent + "--> mcattempt")
