@@ -58,6 +58,8 @@ class SwapOperator(BaseMCOperator):
         if num_ptypes_in_region < 2:
             # Skip if no particles in the region and try later if other operators such as
             # exchange can insert particles
+            self._atoms = None
+            self._state = {}
             return None
 
         # Build neighbour list

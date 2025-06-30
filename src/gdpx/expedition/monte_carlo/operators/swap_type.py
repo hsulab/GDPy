@@ -77,6 +77,8 @@ class SwapTypeOperator(BaseMCOperator):
         if num_ptypes_in_region < 2:
             # Skip if no particles in the region and try later if other operators such as
             # exchange can insert particles
+            self._atoms = None
+            self._state = {}
             return None
 
         num_particles = len(self.particles)
@@ -89,6 +91,8 @@ class SwapTypeOperator(BaseMCOperator):
         else:
             # If we cannot find a second type, we cannot swap
             self._print("Cannot find a second particle type to swap with.")
+            self._atoms = None
+            self._state = {}
             return None
 
         first_ptype = self.particles[first_ptype_index]
