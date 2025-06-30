@@ -9,6 +9,7 @@ import numpy as np
 from .operators import (
     BiasedVolumeExchangeOperator,
     BounceOperator,
+    CavityExchangeOperator,
     ExchangeOperator,
     MoveOperator,
     ReactOperator,
@@ -64,6 +65,8 @@ def parse_operators(op_params: list[dict]):
             op = ExchangeOperator(**param)
         elif name == "biased_volume_exchange":
             op = BiasedVolumeExchangeOperator(**param)
+        elif name == "cavity_exchange":
+            op = CavityExchangeOperator(**param)
         elif name == "react":
             op = ReactOperator(**param)
         else:

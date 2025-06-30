@@ -3,7 +3,7 @@
 
 
 from .bounce import BounceOperator
-from .exchange import ExchangeOperator, BiasedVolumeExchangeOperator
+from .exchange import BiasedVolumeExchangeOperator, CavityExchangeOperator, ExchangeOperator
 from .move import MoveOperator
 from .react import ReactOperator
 from .swap import SwapOperator

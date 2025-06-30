@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
-from .naive import ExchangeOperator, BiasedVolumeExchangeOperator
+from .cavity import CavityExchangeOperator
+from .naive import BiasedVolumeExchangeOperator, ExchangeOperator
 
 __all__ = [
+    "CavityExchangeOperator",
     "ExchangeOperator",
     "BiasedVolumeExchangeOperator",
 ]
