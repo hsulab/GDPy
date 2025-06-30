@@ -151,6 +151,8 @@ class CavityExchangeOperator(BasicExchangeOperator):
         adpart_tag = int(adpart_tag)
         self._print(self.indent + f"adpart {adpart.get_chemical_formula()} tag: {adpart_tag} {type(adpart_tag)}")
 
+        adpart.set_tags(adpart_tag)
+
         # Add all trial particles
         num_atoms = len(new_atoms)
         num_atoms_in_particle = len(adpart)
