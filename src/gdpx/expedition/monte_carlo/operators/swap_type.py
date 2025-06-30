@@ -74,7 +74,7 @@ class SwapTypeOperator(BaseMCOperator):
         # Find two particle types that can swap, particles of the first type should exist
         ptypes_in_region = set(self._curr_tags_dict.keys()) & set(self.particles)
         num_ptypes_in_region = len(ptypes_in_region)
-        if num_ptypes_in_region < 1:
+        if num_ptypes_in_region < 2:
             # Skip if no particles in the region and try later if other operators such as
             # exchange can insert particles
             return None
