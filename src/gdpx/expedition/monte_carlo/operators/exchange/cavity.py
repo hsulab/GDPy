@@ -95,6 +95,8 @@ class CavityExchangeOperator(BasicExchangeOperator):
     violate any distance constraints.
     """
 
+    name: str = "cavity_exchange"
+
     MIN_RANDOM_TAG: int = 10_000
 
     MAX_RANDOM_TAG: int = 100_000
