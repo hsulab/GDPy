@@ -397,8 +397,16 @@ class BaseDriver(BaseComponent):
 
         return
 
-    def read_convergence_from_trajectory(self, frames: list[Atoms], *args, **kwargs):
-        """"""
+    def read_convergence_from_trajectory(self, frames: list[Atoms]) -> bool:
+        """Check convergence based on the trajectory.
+
+        Args:
+            frames: List of Atoms objects.
+
+        Returns:
+            Whether the simulation is converged.
+
+        """
         converged = False
 
         num_frames = len(frames)
@@ -409,8 +417,8 @@ class BaseDriver(BaseComponent):
             step = frames[-1].info["step"]
             self._debug(f"nframes: {num_frames}")
             if self.setting.task == "min" or self.setting.task == "cmin":
-                # NOTE: check geometric convergence (forces)...
-                #       some drivers does not store constraints in trajectories
+                # check geometric convergence (forces) with constraints that are loaded from settings
+                # since some drivers does not store constraints in trajectories.
                 cons_expr = self.setting.get_run_params().get("constraint", None)
                 if cons_expr is not None:
                     is_constraint_consistent = check_constraint_consistency(cons_expr, frames[0], frames[-1])
@@ -421,12 +429,12 @@ class BaseDriver(BaseComponent):
                 if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
                     converged = True
                 self._debug(
-                    f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
+                    f"min convergence: {converged} step: {step+1} >=? {self.setting.steps} maxfrc: {maxfrc} <=? {self.setting.fmax}"
                 )
             elif self.setting.task == "md":
                 if step + 1 >= self.setting.steps:  # step startswith 0
                     converged = True
-                self._debug(f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}")
+                self._debug(f"md convergence: {converged} step: {step+1} >=? {self.setting.steps}")
             else:
                 raise NotImplementedError("Unknown task in read_convergence.")
             # check if simulation stops early
@@ -438,10 +446,11 @@ class BaseDriver(BaseComponent):
             # just spc, only need to check force convergence
             if num_frames == 1:
                 converged = True
+            self._debug(f"spc convergence: {converged} num_frames: {num_frames} ==? 1")
 
         return converged
 
-    def read_convergence(self, *args, **kwargs) -> bool:
+    def read_convergence(self) -> bool:
         """Read output to check whether the simulation is converged.
 
         TODO:
@@ -457,13 +466,13 @@ class BaseDriver(BaseComponent):
         if not self.setting.check_trajectory_convergence and hasattr(self, "read_convergence_from_logfile"):
             converged = self.read_convergence_from_logfile()
         else:
-            # - check whether the driver is coverged
+            # check whether the driver is coverged
             if self.cache_traj is None:
                 traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
             else:
                 traj_frames = self.cache_traj
 
-            # - check if this structure is bad
+            # check if this structure is bad
             is_badstru = False
             for a in traj_frames:
                 curr_is_badstru = a.info.get("is_badstru", False)
