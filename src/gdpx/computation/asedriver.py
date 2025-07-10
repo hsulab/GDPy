@@ -227,6 +227,27 @@ def monit_and_intervene(atoms: Atoms, dynamics: Dynamics, observer, print_func=p
 
 
 @dataclasses.dataclass
+class SinglePointController(Controller):
+    """A controller for single point calculation.
+
+    This controller is used to run a single point calculation
+    with ASE calculator. It is not a dynamics controller.
+
+    """
+
+    #: Controller name.
+    name: str = "spc"
+
+    def __post_init__(self):
+        """"""
+        from ase.optimize import BFGS
+
+        self.params.update(driver_cls=BFGS)
+
+        return
+
+
+@dataclasses.dataclass
 class BFGSMinimiser(Controller):
 
     name: str = "bfgs"
@@ -543,6 +564,7 @@ controllers = dict(
 )
 
 default_controllers = dict(
+    spc=SinglePointController,
     min=BFGSMinimiser,
     cmin=BFGSCellMinimiser,
     nve=Verlet,
@@ -553,6 +575,9 @@ default_controllers = dict(
 
 @dataclasses.dataclass
 class AseDriverSetting(DriverSetting):
+
+    #: Default simulation task.
+    task: str = "spc"
 
     #: MD ensemble.
     ensemble: str = "nve"
@@ -595,7 +620,7 @@ class AseDriverSetting(DriverSetting):
         cont = cont_cls(**_init_params)
         self.driver_cls = cont.params.pop("driver_cls")
 
-        # NOTE: There is a bug in ASE as it checks `if steps` then fails when spc.
+        # There is a bug in ASE v3.23.0 as it checks `if steps` then fails when spc.
         if self.steps == 0:
             self.steps = -1
 
@@ -607,6 +632,11 @@ class AseDriverSetting(DriverSetting):
             steps=kwargs.get("steps", self.steps),
             constraint=kwargs.get("constraint", self.constraint),
         )
+
+        if self.task == "spc":
+            if run_params["steps"] > 0:
+                raise Exception("Single point calculation must have `steps` smaller than 0.")
+
         if self.task == "min" or self.task == "cmin" or self.task == "ts":
             run_params.update(
                 fmax=kwargs.get("fmax", self.fmax),
@@ -651,7 +681,9 @@ class AseDriver(BaseDriver):
         self._preprocess_constraints(atoms, run_params)
 
         # Instantiate the driver
-        if self.setting.task == "min":
+        if self.setting.task == "spc":
+            driver = self.setting.driver_cls(atoms, logfile=self.log_fpath, trajectory=None)
+        elif self.setting.task == "min":
             driver = self.setting.driver_cls(atoms, logfile=self.log_fpath, trajectory=None)
         elif self.setting.task == "cmin":
             driver = self.setting.driver_cls(atoms, logfile=self.log_fpath, trajectory=None)
@@ -978,56 +1010,41 @@ class AseDriver(BaseDriver):
 
     def read_trajectory(self, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
-        # - read trajectory
+        # Read trajectory
         traj_frames = self._aggregate_trajectories(archive_path=archive_path)
 
-        # - add some info
+        # Add some info
         init_params = self.setting.get_init_params()
         if self.setting.task == "md":
             # Time[ps]      Etot[eV]     Epot[eV]     Ekin[eV]    T[K]
             # 0.0000           3.4237       2.8604       0.5633   272.4
-            # data = np.loadtxt(self.directory/"dyn.log", dtype=float, skiprows=1)
-            # if len(data.shape) == 1:
-            #    data = data[np.newaxis,:]
-            # timesteps = data[:, 0] # ps
-            # steps = [int(s) for s in timesteps*1000/init_params["timestep"]]
-            # ... infer from input settings
             for i, atoms in enumerate(traj_frames):
                 atoms.info["time"] = i * self.setting.timestep * self.setting.dump_period
         elif self.setting.task == "min":
             # Method - Step - Time - Energy - fmax
             # BFGS:    0 22:18:46    -1024.329999        3.3947
-            # data = np.loadtxt(self.directory/"dyn.log", dtype=str, skiprows=1)
-            # if len(data.shape) == 1:
-            #    data = data[np.newaxis,:]
-            # steps = [int(s) for s in data[:, 1]]
-            # fmaxs = [float(fmax) for fmax in data[:, 4]]
             for atoms in traj_frames:
                 atoms.info["fmax"] = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
         # assert len(steps) == len(traj_frames), f"Number of steps {len(steps)} and number of frames {len(traj_frames)} are inconsistent..."
 
-        # - deviation stored in traj, no need to read from file
-
-        nframes = len(traj_frames)
-
-        # calculation happens but some errors in calculation
+        # Calculation happens but some errors in calculation
+        num_frames = len(traj_frames)
         if self.directory.exists():
-            # - check the convergence of the force evaluation
+            # check the convergence of the force evaluation
             try:
                 scf_convergence = self.calc.read_convergence()
             except:
-                # -- cannot read scf convergence then assume it is ok
+                # cannot read scf convergence then assume it is ok
                 scf_convergence = True
             if not scf_convergence:
                 warnings.warn(
                     f"{self.name} at {self.directory.name} failed to converge at SCF.",
                     RuntimeWarning,
                 )
-                if nframes > 0:  # for compat
+                if num_frames > 0:  # for compat
                     traj_frames[0].info["error"] = f"Unconverged SCF at {self.directory}."
                 traj_frames.error = True
         else:
-            # TODO: How about archived data?
             ...
 
         return traj_frames
