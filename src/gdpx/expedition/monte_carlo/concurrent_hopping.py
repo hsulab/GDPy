@@ -473,12 +473,13 @@ class ConcurrentHopping(BaseExpedition):
 
     def __init__(
         self,
-        monte_carlo,
+        operators: list[dict],
+        num_mcmoves: int,
+        mcworker: dict,
         population: dict,
         convergence: dict,
         property: dict,
         builder=None,
-        worker=None,
         *args,
         **kwargs,
     ) -> None:
@@ -495,10 +496,11 @@ class ConcurrentHopping(BaseExpedition):
         # Store initial parameters
         self._init_params = copy.deepcopy(
             dict(
-                monte_carlo=monte_carlo,
+                num_mcmoves=num_mcmoves,
+                operators=operators,
+                mcworker=mcworker,
                 population=population,
                 builder=builder,
-                worker=worker,
                 convergence=convergence,
                 property=property,
             )
@@ -512,11 +514,9 @@ class ConcurrentHopping(BaseExpedition):
             self.population.random_offspring_generator = builder
             self._print("Overwrite random_offspring_generator externally.")
 
-        # Parse operators
-        self.mcsteps = monte_carlo.get("mcsteps")
-        operators = monte_carlo.get("operators")
+        # Parse monte carlo settings
+        self.num_mcmoves = num_mcmoves
         self.operators, self.op_probs = parse_operators(operators)
-        mcworker = monte_carlo.get("mcworker")
         self.mcworker = canonicalise_worker(mcworker)
 
         # Some convergence criteria
@@ -525,13 +525,11 @@ class ConcurrentHopping(BaseExpedition):
         # The target optimised property
         self.property = property
 
-        # Worker should be lazy initialised before run
-        self.worker = convert_input_to_computer(worker)
-
         return
 
     def register_worker(self, worker: dict, *args, **kwargs) -> None:  # type: ignore
         """Overwrite this function as we need computer in this expedition."""
+        self.worker = convert_input_to_computer(worker)
 
         return
 
@@ -626,7 +624,7 @@ class ConcurrentHopping(BaseExpedition):
                     driver=self.mcworker.driver,
                     operators=self.operators,
                     probabilities=self.op_probs,
-                    mcsteps=self.mcsteps,
+                    mcsteps=self.num_mcmoves,
                     rng=self.rng,
                 )
                 database.add_unrelaxed_candidate(atoms_after_mc)
