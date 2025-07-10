@@ -343,7 +343,7 @@ def run_monte_carlo_steps(
     write(mctraj_fpath, atoms, append=False)
     for istep in range(1, mcsteps + 1):
         op = select_operator(operators, probabilities, rng=rng)  # type: ignore
-        op._print(f"----- MCSTEP.{istep:>04d} -----")
+        op._print(f"  >>> mcmove.{istep:>04d}")
         atoms.calc = None  # Clear calc as exchange may break atoms arrays such as forces.
         new_atoms = op.run(atoms, rng=rng)
         if new_atoms is not None:
@@ -355,17 +355,17 @@ def run_monte_carlo_steps(
             _ = driver.run(new_atoms, read_ckpt=True)
             relaxed_atoms = driver.read_trajectory()[-1]
             energy_after = relaxed_atoms.get_potential_energy()
-            op._print(f"{energy_before=}  {energy_after=}")
+            op._print(f"  ene {energy_before:>18.4f}  {energy_after:>18.4f}")
             success = op.metropolis(energy_before, energy_after, rng=rng)
-            op._print(f"mcstep.{istep:>04d} {success=}")
             if success:
                 atoms = relaxed_atoms
                 atoms.info["mcstep"] = istep
                 energy_before = energy_after
                 write(mctraj_fpath, atoms, append=True)
+                op._print(f"  <<< success")
             else:
                 # atoms should be reverted in metropolis
-                ...
+                op._print(f"  <<< revert")
 
             # Remove the computation results.
             shutil.rmtree(driver.directory)
@@ -551,6 +551,7 @@ class ConcurrentHopping(BaseExpedition):
         for op in self.operators:
             op._print = self._print
             op._debug = self._debug
+            op.indent = "  "
 
         # Register minimum covalent bond distance used by operators
         # TODO: Maker a better interface?
