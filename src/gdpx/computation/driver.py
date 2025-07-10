@@ -16,11 +16,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import compare_atoms
 from ase.constraints import FixAtoms
-from ase.md.velocitydistribution import (
-    MaxwellBoltzmannDistribution,
-    Stationary,
-    ZeroRotation,
-)
+from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary, ZeroRotation
 
 from gdpx.core.component import BaseComponent
 from gdpx.group import evaluate_constraint_expression
@@ -32,22 +28,16 @@ from .md.md_utils import force_temperature
 EARLYSTOP_KEY: str = "earlystop"
 
 
-def check_constraint_consistency(
-    cons_expr: str, beg_atoms: Atoms, end_atoms: Atoms
-) -> bool:
+def check_constraint_consistency(cons_expr: str, beg_atoms: Atoms, end_atoms: Atoms) -> bool:
     """"""
     is_consistent = True
 
-    _, beg_frozen_indices = evaluate_constraint_expression(
-        beg_atoms, cons_expr
-    )
+    _, beg_frozen_indices = evaluate_constraint_expression(beg_atoms, cons_expr)
     if beg_frozen_indices:
-        _, end_frozen_indices = evaluate_constraint_expression(
-            end_atoms, cons_expr
-        )
-        if integers_to_string(
-            end_frozen_indices, inp_convention="ase"
-        ) != integers_to_string(beg_frozen_indices, inp_convention="ase"):
+        _, end_frozen_indices = evaluate_constraint_expression(end_atoms, cons_expr)
+        if integers_to_string(end_frozen_indices, inp_convention="ase") != integers_to_string(
+            beg_frozen_indices, inp_convention="ase"
+        ):
             is_consistent = False
         end_atoms._del_constraints()
         end_atoms.set_constraint(FixAtoms(indices=beg_frozen_indices))
@@ -148,9 +138,7 @@ class DriverSetting:
 
     def get_run_params(self, *args, **kwargs):
         """"""
-        raise NotImplementedError(
-            f"{self.__class__.__name__} has no function for run params."
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
 class BaseDriver(BaseComponent):
@@ -191,9 +179,7 @@ class BaseDriver(BaseComponent):
             directory: Working directory.
 
         """
-        super().__init__(
-            directory=directory, random_seed=random_seed, *args, **kwargs
-        )
+        super().__init__(directory=directory, random_seed=random_seed, *args, **kwargs)
 
         self.calc = calc
         self.calc.reset()
@@ -248,9 +234,7 @@ class BaseDriver(BaseComponent):
         # set driver's atoms to the current one
         if isinstance(self.atoms, Atoms):
             warnings.warn("Driver has attached atoms object.", RuntimeWarning)
-            system_changes = compare_atoms(
-                atoms1=self.atoms, atoms2=atoms, tol=1e-15
-            )
+            system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
             self._debug(f"system_changes: {system_changes}")
             self._debug(f"atoms to compare: {self.atoms} {atoms}")
             if len(system_changes) > 0:
@@ -264,13 +248,9 @@ class BaseDriver(BaseComponent):
         prev_params = copy.deepcopy(self.calc.parameters)
 
         # run step
-        if hasattr(
-            self.calc, "command"
-        ):  # CommitteeCalculator has no command.
+        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
             prev_command = self.calc.command
-            self.calc.command = (
-                self.setting.machine_prefix + " " + prev_command
-            )
+            self.calc.command = self.setting.machine_prefix + " " + prev_command
         else:
             prev_command = ""
 
@@ -290,23 +270,17 @@ class BaseDriver(BaseComponent):
         self.cache_traj: Optional[list[Atoms]] = None
         if not self._verify_checkpoint():
             # If there is no valid checkpoint, just run the simulation from the scratch
-            self._debug(
-                f"... start from the scratch @ {self.directory.name} ..."
-            )
+            self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True, exist_ok=True)
             self._irun(atoms, *args, **kwargs)
         else:
             # If there is any valid checkpoint...
             if not system_changed:
-                self._debug(
-                    f"... system not changed @ {self.directory.name} ..."
-                )
+                self._debug(f"... system not changed @ {self.directory.name} ...")
                 converged = self.read_convergence()
                 self._debug(f"... convergence {converged} ...")
                 if not converged:
-                    self._debug(
-                        f"... continue from unconverged @ {self.directory.name} ..."
-                    )
+                    self._debug(f"... continue from unconverged @ {self.directory.name} ...")
                     ckpt_wdir = self._save_checkpoint() if read_ckpt else None
                     self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
                     self._irun(
@@ -320,9 +294,7 @@ class BaseDriver(BaseComponent):
                 else:
                     self._debug(f"... converged @ {self.directory.name} ...")
             else:
-                self._debug(
-                    f"... start after clean up @ {self.directory.name} ..."
-                )
+                self._debug(f"... start after clean up @ {self.directory.name} ...")
                 self._irun(atoms, *args, **kwargs)
 
         return
@@ -364,9 +336,7 @@ class BaseDriver(BaseComponent):
                     ...
         else:
             curr_wdir = prev_wdirs[-1].resolve()
-            self._debug(
-                f"No outputs in {str(self.directory)} and they may be backed up before."
-            )
+            self._debug(f"No outputs in {str(self.directory)} and they may be backed up before.")
 
         return curr_wdir
 
@@ -416,9 +386,7 @@ class BaseDriver(BaseComponent):
             # nve does not have temp in dyn_params so we use setting.temp
             # for all ensembles just for consistency
             target_temperature = self.setting.temp
-            MaxwellBoltzmannDistribution(
-                atoms, temperature_K=target_temperature, rng=vrng
-            )
+            MaxwellBoltzmannDistribution(atoms, temperature_K=target_temperature, rng=vrng)
             if self.setting.remove_rotation:
                 ZeroRotation(atoms, preserve_temperature=False)
             if self.setting.remove_translation:
@@ -429,9 +397,7 @@ class BaseDriver(BaseComponent):
 
         return
 
-    def read_convergence_from_trajectory(
-        self, frames: list[Atoms], *args, **kwargs
-    ):
+    def read_convergence_from_trajectory(self, frames: list[Atoms], *args, **kwargs):
         """"""
         converged = False
 
@@ -445,25 +411,14 @@ class BaseDriver(BaseComponent):
             if self.setting.task == "min" or self.setting.task == "cmin":
                 # NOTE: check geometric convergence (forces)...
                 #       some drivers does not store constraints in trajectories
-                cons_expr = self.setting.get_run_params().get(
-                    "constraint", None
-                )
+                cons_expr = self.setting.get_run_params().get("constraint", None)
                 if cons_expr is not None:
-                    is_constraint_consistent = check_constraint_consistency(
-                        cons_expr, frames[0], frames[-1]
-                    )
+                    is_constraint_consistent = check_constraint_consistency(cons_expr, frames[0], frames[-1])
                     if not is_constraint_consistent:
-                        self._print(
-                            f"Constraint changes after calculation due to {cons_expr}. Most times it is fine."
-                        )
+                        self._print(f"Constraint changes after calculation due to {cons_expr}. Most times it is fine.")
                 # TODO: Different codes have different definition for the max force
-                maxfrc = np.max(
-                    np.fabs(frames[-1].get_forces(apply_constraint=True))
-                )
-                if (
-                    maxfrc <= self.setting.fmax
-                    or step + 1 >= self.setting.steps
-                ):
+                maxfrc = np.max(np.fabs(frames[-1].get_forces(apply_constraint=True)))
+                if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
                     converged = True
                 self._debug(
                     f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
@@ -471,9 +426,7 @@ class BaseDriver(BaseComponent):
             elif self.setting.task == "md":
                 if step + 1 >= self.setting.steps:  # step startswith 0
                     converged = True
-                self._debug(
-                    f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}"
-                )
+                self._debug(f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}")
             else:
                 raise NotImplementedError("Unknown task in read_convergence.")
             # check if simulation stops early
@@ -501,16 +454,12 @@ class BaseDriver(BaseComponent):
         # For some large simulations, the convergence check by reading the trajectory
         # can be very time-consuming. Thus, we implement another way to check convergence
         # by reading some lines in the logfile for some driver backends.
-        if not self.setting.check_trajectory_convergence and hasattr(
-            self, "read_convergence_from_logfile"
-        ):
+        if not self.setting.check_trajectory_convergence and hasattr(self, "read_convergence_from_logfile"):
             converged = self.read_convergence_from_logfile()
         else:
             # - check whether the driver is coverged
             if self.cache_traj is None:
-                traj_frames = (
-                    self.read_trajectory()
-                )  # NOTE: DEAL WITH EMPTY FILE ERROR
+                traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
             else:
                 traj_frames = self.cache_traj
 
@@ -548,34 +497,25 @@ class BaseDriver(BaseComponent):
 
         raise NotImplementedError()
 
-    def _aggregate_trajectories(
-        self, check_energy: bool = False, archive_path=None, *args, **kwargs
-    ) -> list[Atoms]:
+    def _aggregate_trajectories(self, check_energy: bool = False, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """"""
         prev_wdirs = []
         if archive_path is None:
-            prev_wdirs = sorted(
-                self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run")
-            )
+            prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         else:
             pattern = self.directory.name + "/" + r"[0-9][0-9][0-9][0-9][.]run"
             with tarfile.open(archive_path, "r:gz") as tar:
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
-            prev_wdirs = [
-                self.directory / pathlib.Path(p).name
-                for p in sorted(prev_wdirs)
-            ]
+            prev_wdirs = [self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)]
         self._debug(f"prev_wdirs@{self.directory.name}: {prev_wdirs}")
 
         all_wdirs = prev_wdirs + [self.directory]
 
         traj_list = []
         for w in all_wdirs:
-            curr_frames = self._read_a_single_trajectory(
-                w, archive_path=archive_path, **kwargs
-            )
+            curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path, **kwargs)
             if curr_frames:
                 traj_list.append(curr_frames)
 
@@ -593,9 +533,7 @@ class BaseDriver(BaseComponent):
                 curr_beg_frame = traj_list[i][0]
                 curr_beg_step = curr_beg_frame.info["step"]
                 prev_steps = [a.info["step"] for a in traj_list[i - 1]]
-                prev_traj = traj_list[i - 1][
-                    : prev_steps.index(curr_beg_step) + 1
-                ]
+                prev_traj = traj_list[i - 1][: prev_steps.index(curr_beg_step) + 1]
                 prev_end_frame = prev_traj[-1]
                 assert np.allclose(
                     prev_end_frame.positions, curr_beg_frame.positions
