@@ -14,8 +14,8 @@ from ase.calculators.cp2k import parse_input
 from gdpx.backend.cp2k import (
     Cp2kFileIO,
     read_cp2k_convergence,
-    read_cp2k_outputs,
     read_cp2k_output_from_energy_force,
+    read_cp2k_outputs,
     read_cp2k_spc_convergence,
 )
 from gdpx.data.extatoms import ScfErrAtoms
@@ -521,7 +521,7 @@ class Cp2kDriver(BaseDriver):
 
     def _read_a_single_trajectory(self, wdir, *args, **kwargs):
         """"""
-        frames = read_cp2k_outputs(wdir, prefix=self.name)
+        frames = read_cp2k_outputs(wdir, prefix=self.name, task=self.setting.task)
 
         return frames
 
@@ -557,7 +557,7 @@ class Cp2kDriver(BaseDriver):
 
             cp2ktraj = self.directory / "cp2k-pos-1.xyz"
             if cp2ktraj.exists() and cp2ktraj.stat().st_size != 0:
-                traj_list.append(read_cp2k_outputs(self.directory, prefix=self.name))
+                traj_list.append(read_cp2k_outputs(self.directory, prefix=self.name, task=self.setting.task))
 
             # Concatenate the trajectories by verifying only the positions
             traj_frames, ntrajs = [], len(traj_list)

@@ -194,11 +194,9 @@ def read_cp2k_energy_force(wdir, prefix: str = "cp2k"):
     return results
 
 
-def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> list[Atoms]:
-    """"""
-    wdir = pathlib.Path(wdir)
-
-    # positions
+def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min") -> list[Atoms]:
+    """Read the cp2k outputs from a calculation with run_type of `GEO_OPT`, `CELL_OPT` or `MD`."""
+    # Read positions
     pos_fpath = wdir / (prefix + "-pos-1.xyz")
     frame_symbols, frame_energies, frame_positions = read_cp2k_xyz(pos_fpath)
     # cp2k uses a.u. and we use eV
@@ -206,29 +204,49 @@ def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> list[Atoms]:
     frame_energies *= units.Hartree  # 2.72113838565563E+01
     # cp2k uses AA the same as we do
     frame_positions = np.array(frame_positions, dtype=np.float64)
+    num_frames_by_pos = frame_positions.shape[0]
 
-    # forces
+    # Read forces
     frc_fpath = wdir / (prefix + "-frc-1.xyz")
     _, _, frame_forces = read_cp2k_xyz(frc_fpath)
     # cp2k uses a.u. and we use eV/AA
     frame_forces = np.array(frame_forces, dtype=np.float64)
     frame_forces *= units.Hartree / units.Bohr  # (2.72113838565563E+01/5.29177208590000E-01)
+    num_frames_by_frc = frame_forces.shape[0]
 
-    # - simulation box
-    # parse cell from inp or out
+    # Read cells
     box_fpath = wdir / (prefix + "-1.cell")
     with open(box_fpath, "r") as fopen:
+        # Each row contains:
+        # """
         # Step   Time [fs]
         # Ax [Angstrom]       Ay [Angstrom]       Az [Angstrom]
         # Bx [Angstrom]       By [Angstrom]       Bz [Angstrom]
         # Cx [Angstrom]       Cy [Angstrom]       Cz [Angstrom]      Volume [Angstrom^3]
+        # """
         lines = fopen.readlines()
         data = np.array([line.strip().split() for line in lines[1:]], dtype=np.float64)
     steps = data[:, 0]
     boxes = data[:, 2:-1]
+    num_frames_by_box = boxes.shape[0]
 
-    # TODO: step must be int?
-    # attach forces to frames, zip the shortest
+    # Check consistency in num_frames
+    num_frames = min((num_frames_by_pos, num_frames_by_frc, num_frames_by_box))
+    if task == "min" or task == "cmin":
+        # The cp2k optimisation will reevaluate the structure when converged,
+        # thus, positions and forces are written for the reevaluated one but cell is not,
+        # which means we have equal or greater number of frames in positions and forces.
+        # TODO: Replace the last frame with the reevaluated one?
+        if not (num_frames >= num_frames_by_box):
+            raise Exception(
+                f"Inconsistent number of frames in positions ({num_frames_by_pos}), forces ({num_frames_by_frc}), and boxes ({num_frames_by_box})."
+            )
+        else:
+            ...
+    else:  # md
+        ...
+
+    # Take the shortest number of frames by zip
     frames = []
     for step, symbols, box, positions, energy, forces in zip(
         steps, frame_symbols, boxes, frame_positions, frame_energies, frame_forces
@@ -248,6 +266,10 @@ def read_cp2k_outputs(wdir, prefix: str = "cp2k") -> list[Atoms]:
         )
         atoms.calc = spc
         frames.append(atoms)
+    num_frames_ret = len(frames)  # returned num of frames
+    assert (
+        num_frames_ret == num_frames
+    ), f"Inconsistent number of frames returned ({num_frames_ret}) and expected ({num_frames})."
 
     return frames
 
