@@ -425,6 +425,7 @@ class BaseDriver(BaseComponent):
                     if not is_constraint_consistent:
                         self._print(f"Constraint changes after calculation due to {cons_expr}. Most times it is fine.")
                 # TODO: Different codes have different definition for the max force
+                # TODO: Check criterion more than fmax, such as structure displacement in cp2k.
                 maxfrc = np.max(np.fabs(frames[-1].get_forces(apply_constraint=True)))
                 if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
                     converged = True
