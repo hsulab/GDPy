@@ -10,7 +10,7 @@ from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 
 
-def read_cp2k_xyz(fpath):
+def read_cp2k_xyz(fpath: pathlib.Path):
     """Read xyz-like file by cp2k.
 
     Accept prefix-pos-1.xyz or prefix-frc-1.xyz.
@@ -22,21 +22,31 @@ def read_cp2k_xyz(fpath):
     frame_properties = []  # coordinates or forces
     with open(fpath, "r") as fopen:
         while True:
+            # read the first line with the number of atoms
             line = fopen.readline()
             if not line:
                 break
-            natoms = int(line.strip().split()[0])
-            symbols, properties = [], []
+            num_atoms = int(line.strip().split()[0])
+            # read the second line with step `i` and energy `E`
             line = fopen.readline()  # energy line
+            if not line:
+                break
             info_data = line.strip().split()
-            frame_energies.append(info_data[-1])
-            for _ in range(natoms):
+            energy = float(info_data[-1])  # energy in a.u.
+            # read the next `num_atoms` lines with symbols and properties
+            symbols, properties = [], []
+            for _ in range(num_atoms):
                 line = fopen.readline()
+                if not line:
+                    break
                 data_line = line.strip().split()
                 symbols.append(data_line[0])
                 properties.append(data_line[1:])
-            frame_symbols.append(symbols)
-            frame_properties.append(properties)
+            else:
+                # only when all `num_atoms` lines are read then the results are appended
+                frame_energies.append(energy)
+                frame_symbols.append(symbols)
+                frame_properties.append(properties)
 
     return frame_symbols, frame_energies, frame_properties
 
