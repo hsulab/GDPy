@@ -186,6 +186,7 @@ class BasePotentialTrainer(BaseComponent):
         trainer_params["config"] = self.config
         trainer_params["command"] = self.command
         trainer_params["freeze_command"] = self.freeze_command
+        trainer_params["train_batches"] = self.train_batches
         trainer_params["train_epochs"] = self.train_epochs
         trainer_params["print_epochs"] = self.print_epochs
 
