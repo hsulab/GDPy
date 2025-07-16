@@ -79,6 +79,7 @@ class SwapTypeOperator(BaseMCOperator):
             # exchange can insert particles
             self._atoms = None
             self._state = {}
+            self._extra_info = f"SwapType_Skipped"
             return None
 
         num_particles = len(self.particles)
@@ -95,6 +96,7 @@ class SwapTypeOperator(BaseMCOperator):
             self._print("Cannot find a second particle type to swap with.")
             self._atoms = None
             self._state = {}
+            self._extra_info = f"SwapType_Skipped"
             return None
 
         # Change selected particles to another type based on chemical potential difference

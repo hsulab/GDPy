@@ -60,6 +60,7 @@ class SwapOperator(BaseMCOperator):
             # exchange can insert particles
             self._atoms = None
             self._state = {}
+            self._extra_info = f"Swap_Skipped"
             return None
 
         # Build neighbour list

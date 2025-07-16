@@ -58,6 +58,7 @@ class MoveOperator(BaseMCOperator):
         particle_indices = self._select_species(atoms, self.particles, rng=rng)
         if len(particle_indices) == 0:
             # Skip if no particles found
+            self._extra_info = "Move_Skipped"
             return None
 
         # Use the reference to avoid copying?
@@ -112,6 +113,7 @@ class MoveOperator(BaseMCOperator):
             new_atoms.positions[particle_indices] = org_positions
         else:
             new_atoms = None
+            self._extra_info = f"Move_Failed"
 
         return new_atoms
 
