@@ -208,6 +208,7 @@ class HybridMonteCarlo(MonteCarlo):
                 curr_atoms.info["confid"] = int(f"{step}")
                 curr_atoms.info["step"] = -1
             else:
+                self._save_step_info(curr_op, False)
                 self._print(
                     "  FAILED to run operation..."
                 )  # Due to absence of particles in the region or neighbour distance restraints
