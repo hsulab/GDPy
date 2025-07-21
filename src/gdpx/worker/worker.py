@@ -113,7 +113,7 @@ class BaseWorker(abc.ABC):
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
-        self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
+        self._print(f"<<-- {self.__class__.__name__}+inspect -->>")
 
         return
 
