@@ -22,7 +22,14 @@ from gdpx.utils.profiler import CustomTimer
 from .worker import BaseWorker
 
 
-def run_computation_in_commandline(structure: Atoms, driver: BaseDriver, dirname: str, directory: pathlib.Path, share_wdir: bool=False, print_func=print) -> None:
+def run_computation_in_commandline(
+    structure: Atoms,
+    driver: BaseDriver,
+    dirname: str,
+    directory: pathlib.Path,
+    share_wdir: bool = False,
+    print_func=print,
+) -> None:
     """"""
     if not share_wdir:
         with CustomTimer(name="run-driver", func=print_func):
@@ -185,7 +192,7 @@ class SingleWorker(BaseWorker):
 
         """
         self.inspect(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+retrieve")
+        self._print(f"<<-- {self.__class__.__name__}+retrieve -->>")
 
         unretrieved_wdirs_ = []
         if not include_retrieved:
@@ -203,16 +210,12 @@ class SingleWorker(BaseWorker):
             elif self._retrieve_mode == "single":
                 unretrieved_wdirs = [p for p in unretrieved_wdirs_ if p.name == self.wdir_name]
             else:
-                ...  # The retreive mode shoul be checked before.
+                # The retreive mode should be checked before.
+                raise Exception(f"Invalid retrieve mode: {self._retrieve_mode}.")
 
-        # NOTE: Computation folders should have the same name convention here!
+        # Computation folders should have the same name convention here!
         existed_wdirs = list([x.resolve() for x in self.directory.glob(f"{self.COMP_PREFIX}*")])
         unretrieved_wdirs = [x for x in unretrieved_wdirs if x in existed_wdirs]
-
-        self._debug(f"{existed_wdirs = }")
-        self._debug(f"{unretrieved_wdirs = }")
-        self._debug(f"{self.directory = }")
-        self._debug(f"{self.wdir_name = }")
 
         results = []
         if unretrieved_wdirs:
@@ -227,7 +230,7 @@ class SingleWorker(BaseWorker):
                     unretrieved_wdirs,
                 )
             else:
-                # NOTE: Find previously archived wdirs
+                # Find previously archived wdirs
                 archived_wdirs = []
                 with tarfile.open(archive_path, "r:gz") as tar:
                     for tarinfo in tar:
@@ -237,8 +240,7 @@ class SingleWorker(BaseWorker):
                             ...
                 archived_wdirs = sorted(archived_wdirs, key=lambda x: int(x.name[len(self.COMP_PREFIX) :]))
                 self._debug(f"{archived_wdirs = }")
-                # TODO: Let driver determines when the computation folder is archived or
-                #       not...
+                # TODO: Let driver determines when the computation folder is archived or not.
                 # TODO: Deal with a situation where archived and unarchived ones are mixed?
                 unretrieved_and_unarchived_wdirs = [x for x in unretrieved_wdirs if x not in archived_wdirs]
                 if len(unretrieved_and_unarchived_wdirs) > 0:
@@ -249,7 +251,7 @@ class SingleWorker(BaseWorker):
                     results = self._read_results(unretrieved_wdirs, archive_path)
                 else:
                     results = self._read_results(unretrieved_wdirs)
-            # - archive results if it has not been done
+            # Archive results if it has not been done yet.
             if use_archive and not is_archived:
                 self._print("archive computation folders...")
                 if not archive_path.exists():
