@@ -31,9 +31,9 @@ class SingleWorker(BaseWorker):
     #: How to retrieve computation results, which should be `single` or `all`.
     _retrieve_mode: str = "single"
 
-    def __init__(self, potter, driver, scheduler, directory="./", *args, **kwargs) -> None:
+    def __init__(self, potter, driver, scheduler, directory="./") -> None:
         """"""
-        super().__init__(directory)
+        super().__init__(directory=directory)
 
         self.potter = potter
         self.driver = driver
@@ -69,8 +69,9 @@ class SingleWorker(BaseWorker):
             frames = builder
         else:  # assume it is a builder
             frames = builder.run()
-        nframes = len(frames)
-        assert len(frames) == 1, f"{self.__class__.__name__} accepts only a single structure."
+
+        num_frames = len(frames)
+        assert num_frames == 1, f"{self.__class__.__name__} accepts only a single structure."
 
         uid = str(uuid.uuid1())
         assert self.wdir_name is not None, "Computation folder is not set."
@@ -95,11 +96,11 @@ class SingleWorker(BaseWorker):
             with open(wdir / f"worker-{uid}.yaml", "w") as fopen:
                 yaml.dump(worker_params, fopen)
 
-            # - save structures
+            # Check the filepath of the input structures
             dataset_path = str((wdir / f"_gdp_inp.xyz").resolve())
             write(dataset_path, frames[0])
 
-            # - save scheduler file
+            # Update scheduler
             jobscript_fname = f"run-{uid}.script"
             self.scheduler.job_name = job_name
             self.scheduler.script = wdir / jobscript_fname
@@ -108,11 +109,11 @@ class SingleWorker(BaseWorker):
                 (wdir / f"worker-{uid}.yaml").name, dataset_path
             )
 
-            # - TODO: check whether params for scheduler is changed
+            # TODO: check whether params for scheduler is changed
             self.scheduler.write()
             self._print(f"{wdir.name} JOBID: {self.scheduler.submit()}")
 
-        # - save this batch job to the database
+        # Save this batch job to the database
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             _ = database.insert(
                 dict(
@@ -129,8 +130,7 @@ class SingleWorker(BaseWorker):
 
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
-        self._initialise(*args, **kwargs)
-        self._debug(f"<<-- {self.__class__.__name__}+inspect -->>")
+        super().inspect(*args, **kwargs)
 
         running_jobs = self._get_running_jobs()  # Always return one job
         self._debug(f"running_jobs: {running_jobs}")
