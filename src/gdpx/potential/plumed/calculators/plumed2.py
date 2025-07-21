@@ -5,16 +5,13 @@ import copy
 import os
 import pathlib
 import shutil
-
 from typing import List
 
 import numpy as np
-
-from ase import units
-from ase.units import fs, mol, kJ, nm
-from ase.calculators.calculator import Calculator, all_changes
-
 import plumed
+from ase import units
+from ase.calculators.calculator import Calculator, all_changes
+from ase.units import fs, kJ, mol, nm
 
 """A plumed wrapper for ase.
 
@@ -60,12 +57,8 @@ def update_stride_and_file(input_lines: List[str], wdir: str, stride: int) -> Li
     """"""
     input_lines, parsed_lines = copy.deepcopy(input_lines), []
     for line in input_lines:
-        parsed_line = update_input_value(
-            line, "FILE", wdir, func=lambda x, y: os.path.join(y, x)
-        )
-        parsed_line = update_input_value(
-            parsed_line, "STRIDE", stride, func=lambda x, y: str(y)
-        )
+        parsed_line = update_input_value(line, "FILE", wdir, func=lambda x, y: os.path.join(y, x))
+        parsed_line = update_input_value(parsed_line, "STRIDE", stride, func=lambda x, y: str(y))
         parsed_lines.append(parsed_line)
 
     return parsed_lines
@@ -176,6 +169,18 @@ class Plumed(Calculator):
 
         return self._stride
 
+    def set(self, **kwargs):
+        """"""
+        changed_parameters = {}
+
+        if "timestep" in kwargs:
+            self._timestep = kwargs["timestep"]
+
+        if "stride" in kwargs:
+            self._stride = kwargs["stride"]
+
+        return changed_parameters
+
     def _prepare(
         self,
         natoms: int,
@@ -206,15 +211,9 @@ class Plumed(Calculator):
         # - parse lines, update FILE and STRIDE
         input_lines, parsed_lines = copy.deepcopy(input_lines), []
         for line in input_lines:
-            parsed_line = update_input_value(
-                line, "FILE", self.directory, func=lambda x, y: os.path.join(y, x)
-            )
-            parsed_line = update_input_value(
-                parsed_line, "STRIDE", self.stride, func=lambda x, y: str(y)
-            )
-            parsed_line = update_input_value(
-                parsed_line, "PACE", self.stride, func=lambda x, y: str(y)
-            )
+            parsed_line = update_input_value(line, "FILE", self.directory, func=lambda x, y: os.path.join(y, x))
+            parsed_line = update_input_value(parsed_line, "STRIDE", self.stride, func=lambda x, y: str(y))
+            parsed_line = update_input_value(parsed_line, "PACE", self.stride, func=lambda x, y: str(y))
             parsed_lines.append(parsed_line)
 
         for line in parsed_lines:
@@ -236,9 +235,7 @@ class Plumed(Calculator):
 
         return
 
-    def _load_checkpoint(
-        self, ckpt_wdir: pathlib.Path, dst_wdir=None, start_step: int = 0
-    ):
+    def _load_checkpoint(self, ckpt_wdir: pathlib.Path, dst_wdir=None, start_step: int = 0):
         """"""
         calc_wdir = list(ckpt_wdir.glob(f"*Plumed"))[0]
         if dst_wdir is None:
@@ -256,23 +253,17 @@ class Plumed(Calculator):
 
         return
 
-    def calculate(
-        self, atoms=None, properties=["energy", "forces"], system_changes=all_changes
-    ):
+    def calculate(self, atoms=None, properties=["energy", "forces"], system_changes=all_changes):
         """"""
         Calculator.calculate(self, atoms, properties, system_changes)
 
         if self.timestep is None:
-            raise RuntimeError(
-                "Plumed needs a valid timestep set by an external class."
-            )
+            raise RuntimeError("Plumed needs a valid timestep set by an external class.")
 
         if not hasattr(self, "plumed"):
             self._prepare(len(atoms), self.input, self.timestep, self.restart, self.kT)
 
-        energy_bias, forces_bias = self.compute_bias(
-            self.atoms.get_positions(), self.istep
-        )
+        energy_bias, forces_bias = self.compute_bias(self.atoms.get_positions(), self.istep)
 
         self.results["energy"], self.results["forces"] = energy_bias, forces_bias
         self.istep += 1

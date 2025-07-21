@@ -33,8 +33,8 @@ def set_calc_state(calc: Calculator, steps: int, timestep: float, stride: int):
     """Some calculators need driver information e.g. PLUMED."""
     # PLUMED needs MD information to add bias or dump collective variables.
     if calc.name == "plumed":
-        calc.timestep = timestep
-        calc.stride = stride
+        calc.set(timestep=timestep)
+        calc.set(stride=stride)
 
     # VaspInteractive needs nsw more than steps since a new vasp process will start if nsw is 0.
     if calc.name == "VaspInteractive":
