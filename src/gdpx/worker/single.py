@@ -12,21 +12,36 @@ import uuid
 from typing import Optional, Union
 
 import yaml
+from ase import Atoms
 from ase.io import write
 from tinydb import Query, TinyDB
 
+from gdpx.computation.driver import BaseDriver
 from gdpx.utils.profiler import CustomTimer
 
 from .worker import BaseWorker
+
+
+def run_computation_in_commandline(structure: Atoms, driver: BaseDriver, dirname: str, directory: pathlib.Path, share_wdir: bool=False, print_func=print) -> None:
+    """"""
+    if not share_wdir:
+        with CustomTimer(name="run-driver", func=print_func):
+            driver.directory = directory / dirname
+            print_func(
+                f"{time.asctime( time.localtime(time.time()) )} {dirname} {driver.directory.name} is running..."
+            )
+            driver.reset()
+            driver.run(structure, read_ckpt=True, extra_info=None)
+    else:
+        raise NotImplementedError("Sharing working directory is not implemented yet.")
+
+    return
 
 
 class SingleWorker(BaseWorker):
 
     #: Prefix of the computation folder.
     COMP_PREFIX: str = "cand"
-
-    #: TODO: Current working directory name...
-    _wdir_name: Optional[Union[str, pathlib.Path]] = None
 
     #: How to retrieve computation results, which should be `single` or `all`.
     _retrieve_mode: str = "single"
@@ -39,6 +54,8 @@ class SingleWorker(BaseWorker):
         self.driver = driver
         self.scheduler = scheduler
 
+        self._wdir_name = ""
+
         return
 
     @staticmethod
@@ -49,7 +66,7 @@ class SingleWorker(BaseWorker):
         return single_worker
 
     @property
-    def wdir_name(self):
+    def wdir_name(self) -> str:
         """"""
 
         return self._wdir_name
@@ -74,19 +91,20 @@ class SingleWorker(BaseWorker):
         assert num_frames == 1, f"{self.__class__.__name__} accepts only a single structure."
 
         uid = str(uuid.uuid1())
-        assert self.wdir_name is not None, "Computation folder is not set."
+        assert self.wdir_name, "Computation folder is not set."
         wdir = self.directory / self.wdir_name
         job_name = uid + "-" + "single"
 
         scheduler = self.scheduler
         if scheduler.name == "local":
-            with CustomTimer(name="run-driver", func=self._print):
-                self.driver.directory = wdir
-                self._print(
-                    f"{time.asctime( time.localtime(time.time()) )} {wdir.name} {self.driver.directory.name} is running..."
-                )
-                self.driver.reset()
-                self.driver.run(frames[0], read_ckpt=True, extra_info=None)
+            run_computation_in_commandline(
+                frames[0],
+                self.driver,
+                self.wdir_name,
+                self.directory,
+                share_wdir=False,
+                print_func=self._print,
+            )
         else:
             worker_params = {}
             worker_params["use_single"] = True
