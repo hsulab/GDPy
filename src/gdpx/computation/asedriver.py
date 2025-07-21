@@ -29,14 +29,20 @@ from .driver import EARLYSTOP_KEY, BaseDriver, Controller, DriverSetting
 from .observer import create_an_observer
 
 
-def set_calc_state(calc: Calculator, timestep: float, stride: int):
+def set_calc_state(calc: Calculator, steps: int, timestep: float, stride: int):
     """Some calculators need driver information e.g. PLUMED."""
+    # PLUMED needs MD information to add bias or dump collective variables.
     if calc.name == "plumed":
         calc.timestep = timestep
         calc.stride = stride
+
+    # VaspInteractive needs nsw more than steps since a new vasp process will start if nsw is 0.
+    if calc.name == "VaspInteractive":
+        calc.set(nsw=steps)
+
     if hasattr(calc, "mixer"):
         for subcalc in calc.mixer.calcs:
-            set_calc_state(subcalc, timestep, stride)
+            set_calc_state(subcalc, steps, timestep, stride)
     else:
         ...
 
@@ -695,13 +701,6 @@ class AseDriver(BaseDriver):
                 self.setting.ignore_atoms_velocities,
             )
 
-            # other callbacks
-            set_calc_state(
-                self.calc,
-                timestep=self.setting.timestep,
-                stride=self.setting.dump_period,
-            )
-
             # construct the driver
             driver = self.setting.driver_cls(
                 atoms=atoms, logfile=self.log_fpath, loginterval=self.setting.dump_period, trajectory=None
@@ -731,6 +730,14 @@ class AseDriver(BaseDriver):
                 driver.rng = self.rng
         else:
             raise NotImplementedError(f"Unknown task {self.setting.task}.")
+
+        # other callbacks
+        set_calc_state(
+            self.calc,
+            steps=run_params["steps"],
+            timestep=self.setting.timestep,
+            stride=self.setting.dump_period,
+        )
 
         return driver, run_params
 
