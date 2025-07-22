@@ -72,7 +72,8 @@ class SwapTypeOperator(BaseMCOperator):
         new_atoms = atoms
 
         # Find two particle types that can swap, particles of the first type should exist
-        ptypes_in_region = list(set(self._curr_tags_dict.keys()) & set(self.particles))
+        # Sort ptypes as set does not guarantee order
+        ptypes_in_region = sorted(list(set(self._curr_tags_dict.keys()) & set(self.particles)))
         num_ptypes_in_region = len(ptypes_in_region)
         if num_ptypes_in_region < 1:
             # Skip if no particles in the region and try later if other operators such as
@@ -90,6 +91,7 @@ class SwapTypeOperator(BaseMCOperator):
             second_ptype_index = rng.choice(num_particles, 1)[0]
             second_ptype = self.particles[second_ptype_index]
             if second_ptype != first_ptype:
+                self._debug(f"Find second particle type {second_ptype} to swap with {first_ptype} at attempt {_}.")
                 break
         else:
             # If we cannot find a second type, we cannot swap

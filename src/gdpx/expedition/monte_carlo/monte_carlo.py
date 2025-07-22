@@ -183,7 +183,7 @@ class MonteCarlo(BaseExpedition):
         """Find possible elements in the simulation and build a bond-distance list."""
         type_list = []
         for op in self.operators:
-            # TODO: wee need further unify the names here
+            # TODO: we need further unify the names here
             if hasattr(op, "particles"):
                 for p in op.particles:
                     type_list.extend(list(Formula(p).count().keys()))
@@ -191,7 +191,7 @@ class MonteCarlo(BaseExpedition):
                 type_list.extend(list(Formula(op.species).count().keys()))
             else:
                 ...
-        type_list = list(set(type_list + self.atoms.get_chemical_symbols()))
+        type_list = sorted(list(set(type_list + self.atoms.get_chemical_symbols())))
         self._print(f"possible atomic types in simulation: {' '.join(type_list)}")
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
 
