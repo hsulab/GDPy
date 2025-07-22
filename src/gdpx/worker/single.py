@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*
 
 
+import functools
 import gzip
 import io
+import json
 import pathlib
 import shutil
 import tarfile
@@ -78,6 +80,9 @@ class SingleWorker(BaseWorker):
         #: Whether share calc dir for each candidate.
         self._share_wdir: bool = False
 
+        #: Whether the worker is spawned.
+        self.is_spawned: bool = False
+
         return
 
     @staticmethod
@@ -105,6 +110,7 @@ class SingleWorker(BaseWorker):
         """This worker accepts only a single structure."""
         super().run(*args, **kwargs)
 
+        # Prepare batches
         if isinstance(builder, list):  # assume list[Atoms]
             frames = builder
         else:  # assume it is a builder
@@ -113,46 +119,57 @@ class SingleWorker(BaseWorker):
         num_frames = len(frames)
         assert num_frames == 1, f"{self.__class__.__name__} accepts only a single structure."
 
+        # Run computations
+        if not self.is_spawned:
+            self._run_by_scheduler(
+                frames,
+            )
+        else:
+            self._run_by_commandline(
+                frames,
+            )
+
+        return
+
+    def _run_by_commandline(self, frames: list[Atoms]) -> None:
+        """"""
+        # Run computations
+        run_computation_in_commandline(
+            frames[0],
+            self.driver,
+            self.wdir_name,
+            self.directory,
+            share_wdir=self._share_wdir,
+            print_func=self._print,
+        )
+
+        return
+
+    def _run_by_scheduler(self, frames: list[Atoms]) -> None:
+        """"""
         uid = str(uuid.uuid1())
         assert self.wdir_name, "Computation folder is not set."
         wdir = self.directory / self.wdir_name
         job_name = uid + "-" + "single"
 
-        scheduler = self.scheduler
-        if scheduler.name == "local":
-            run_computation_in_commandline(
-                frames[0],
-                self.driver,
-                self.wdir_name,
-                self.directory,
-                share_wdir=self._share_wdir,
-                print_func=self._print,
-            )
-        else:
-            worker_params = {}
-            worker_params["use_single"] = True
-            worker_params["driver"] = self.driver.as_dict()
-            worker_params["potential"] = self.potter.as_dict()
+        metadata_dirpath = self.directory / "_data"
+        metadata_dirpath.mkdir(parents=True, exist_ok=True)
 
-            with open(wdir / f"worker-{uid}.yaml", "w") as fopen:
-                yaml.dump(worker_params, fopen)
+        # save worker input for later review
+        worker_input_fpath = metadata_dirpath / f"worker.json"
 
-            # Check the filepath of the input structures
-            dataset_path = str((wdir / f"_gdp_inp.xyz").resolve())
-            write(dataset_path, frames[0])
+        if not worker_input_fpath.exists():
+            worker_input_dict = {}
+            worker_input_dict["use_single"] = True
+            worker_input_dict["driver"] = self.driver.as_dict()
+            worker_input_dict["potential"] = self.potter.as_dict()
 
-            # Update scheduler
-            jobscript_fname = f"run-{uid}.script"
-            self.scheduler.job_name = job_name
-            self.scheduler.script = wdir / jobscript_fname
+            with open(worker_input_fpath, "w") as fopen:
+                json.dump(worker_input_dict, fopen, indent=2)
 
-            self.scheduler.user_commands = "gdp -p {} compute {}\n".format(
-                (wdir / f"worker-{uid}.yaml").name, dataset_path
-            )
-
-            # TODO: check whether params for scheduler is changed
-            self.scheduler.write()
-            self._print(f"{wdir.name} JOBID: {self.scheduler.submit()}")
+        # Check the filepath of the input structures
+        dataset_path = str((metadata_dirpath / f"_gdp_inp.xyz").resolve())
+        write(dataset_path, frames[0])
 
         # Save this batch job to the database
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
@@ -166,6 +183,46 @@ class SingleWorker(BaseWorker):
                     queued=True,
                 )
             )
+
+        # Run batch
+        self._irun(
+            uid=uid,
+            identifier="_gdp_inp",
+            frames=frames,
+        )
+
+        return
+
+    def _irun(self, uid: str, identifier: str, frames: list[Atoms]):
+        """"""
+        # Use structure-specific input worker file
+        worker_input_fpath = str((self.directory / "_data" / f"worker-{uid}.json").relative_to(self.directory))
+
+        # Check the filepth of the input structures
+        dataset_path = str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory))
+
+        # Update scheduler
+        jobscript_fname = f"run-{uid}.script"
+        self.scheduler.job_name = uid + "-" + "single"
+        self.scheduler.script = self.directory / jobscript_fname
+
+        self.scheduler.user_commands = "gdp -p {} compute {} --spawn\n".format(worker_input_fpath, dataset_path)
+
+        # Update function to execute
+        func_to_execute = functools.partial(
+            run_computation_in_commandline,
+            structure=frames[0],
+            driver=self.driver,
+            dirname=self.wdir_name,
+            directory=self.directory,
+            share_wdir=self._share_wdir,
+            print_func=self._print,
+        )
+
+        # TODO: check whether params for scheduler is changed
+        self.scheduler.write()
+        job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+        self._print(f"{self.wdir_name} JOBID: {job_id}")
 
         return
 
@@ -246,8 +303,6 @@ class SingleWorker(BaseWorker):
             else:
                 # The retreive mode should be checked before.
                 raise Exception(f"Invalid retrieve mode: {self._retrieve_mode}.")
-
-        self._print(f"unretrieved_wdirs: {unretrieved_wdirs_}")
 
         results = []
         if unretrieved_wdirs:
