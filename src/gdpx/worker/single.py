@@ -213,7 +213,10 @@ class SingleWorker(BaseWorker):
                 # The retreive mode should be checked before.
                 raise Exception(f"Invalid retrieve mode: {self._retrieve_mode}.")
 
-        # Computation folders should have the same name convention here!
+        self._print(f"unretrieved_wdirs: {unretrieved_wdirs_}")
+
+        # Check if the computation folder exists, 
+        # and the computation folders should have the same name convention starts with cand!
         existed_wdirs = list([x.resolve() for x in self.directory.glob(f"{self.COMP_PREFIX}*")])
         unretrieved_wdirs = [x for x in unretrieved_wdirs if x in existed_wdirs]
 
