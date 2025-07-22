@@ -809,6 +809,10 @@ class AseDriver(BaseDriver):
 
             with open(self.directory / "params.json", "w") as fopen:
                 json.dump(curr_params, fopen, indent=2)
+
+            # cleanup old files if any
+            (self.directory / "dyn.log").unlink(missing_ok=True)
+            (self.directory / "traj.xyz").unlink(missing_ok=True)
         else:  # restart ...
             ckpt_wdir = self._find_latest_checkpoint(ckpt_wdir)
             if ckpt_wdir is None:
