@@ -267,9 +267,21 @@ class SingleWorker(BaseWorker):
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
                         if resubmit:
-                            # jobid = self.scheduler.submit()
-                            # self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                            raise NotImplementedError("Resubmit is not implemented for SingleWorker.")
+                            frames = read(self.directory / "_data" / "_gdp_inp.xyz", ":")
+                            num_frames = len(frames)
+                            assert num_frames == 1, "SingleWorker accepts only a single structure in resubmit."
+                            # Update function to execute
+                            func_to_execute = functools.partial(
+                                run_computation_in_commandline,
+                                structure=frames[0],
+                                driver=self.driver,
+                                dirname=wdir_name,
+                                directory=self.directory,
+                                share_wdir=self._share_wdir,
+                                print_func=self._print,
+                            )
+                            job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+                            self._print(f"{job_name} is re-submitted with JOBID: {job_id}...")
                 else:
                     self._print(f"{job_name} is running...")
 
