@@ -488,22 +488,22 @@ class Cp2kDriver(BaseDriver):
                     "GLOBAL/PROJECT",
                     "GLOBAL/PRINT_LEVEL",
                     "FORCE_EVAL/METHOD",
+                    "FORCE_EVAL/DFT/SCF/SCF_GUESS",
                     "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME",
                     "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
-                    "FORCE_EVAL/SUBSYS/CELL/PERIODIC",
-                    "FORCE_EVAL/SUBSYS/CELL/A",
-                    "FORCE_EVAL/SUBSYS/CELL/B",
-                    "FORCE_EVAL/SUBSYS/CELL/C",
                 ],
             )
 
+            # Make cp2k takes CELL, POS, VEL, THERMOSTAT and ... from the restart file.
             sec.add_keyword(
-                "EXT_RESTART/RESTART_FILE_NAME",
-                str(ckpt_wdir / "cp2k-1.restart"),
+                "EXT_RESTART",
+                "RESTART_FILE_NAME " + str(ckpt_wdir / "cp2k-1.restart"),
             )
+
+            # Make cp2k initialise the wavefunction from the restart file.
             sec.add_keyword("FORCE_EVAL/DFT/SCF", "SCF_GUESS RESTART")
 
-            # - copy wavefunctions...
+            # Copy wavefunctions...
             restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
             for wfn in restart_wfns:
                 (self.directory / wfn.name).symlink_to(wfn, target_is_directory=False)
