@@ -576,6 +576,22 @@ class Cp2kDriver(BaseDriver):
 
         return traj_frames
 
+    def read_convergence_from_logfile(self) -> bool:
+        """Read convergence from the log file.
+
+        Check if the cp2k finishes normally by reading a line in the output file.
+        The read_convergence_from_trajectory only checks fmax that may not be enough to determine the convergence of 
+        a cp2k minimisation with other criteria such as the geometric convergence.
+
+        """
+        cp2kout_fpath = self.directory / "cp2k.out"
+        if cp2kout_fpath.exists():
+            converged = read_cp2k_spc_convergence(cp2kout_fpath)
+        else:
+            converged = False
+
+        return converged
+
 
 if __name__ == "__main__":
     ...
