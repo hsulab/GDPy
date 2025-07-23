@@ -17,6 +17,7 @@ def read_cp2k_xyz(fpath: pathlib.Path):
 
     """
     # Read properties
+    frame_steps = []
     frame_energies = []
     frame_symbols = []
     frame_properties = []  # coordinates or forces
@@ -32,6 +33,7 @@ def read_cp2k_xyz(fpath: pathlib.Path):
             if not line:
                 break
             info_data = line.strip().split()
+            step = int(info_data[2][:-1])  # step number, remove the comma
             energy = float(info_data[-1])  # energy in a.u.
             # read the next `num_atoms` lines with symbols and properties
             symbols, properties = [], []
@@ -44,11 +46,12 @@ def read_cp2k_xyz(fpath: pathlib.Path):
                 properties.append(data_line[1:])
             else:
                 # only when all `num_atoms` lines are read then the results are appended
+                frame_steps.append(step)
                 frame_energies.append(energy)
                 frame_symbols.append(symbols)
                 frame_properties.append(properties)
 
-    return frame_symbols, frame_energies, frame_properties
+    return frame_steps, frame_symbols, frame_energies, frame_properties
 
 
 INPUT_STRUCTURE_FLAG = (
@@ -205,10 +208,15 @@ def read_cp2k_energy_force(wdir, prefix: str = "cp2k"):
 
 
 def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min") -> list[Atoms]:
-    """Read the cp2k outputs from a calculation with run_type of `GEO_OPT`, `CELL_OPT` or `MD`."""
+    """Read the cp2k outputs from a calculation with run_type of `GEO_OPT`, `CELL_OPT` or `MD`.
+
+    The GEO_OPT does not write positions and forces for the input structure to xyz files, thus, the trajectory starts
+    with the first frame of the optimisation.
+
+    """
     # Read positions
     pos_fpath = wdir / (prefix + "-pos-1.xyz")
-    frame_symbols, frame_energies, frame_positions = read_cp2k_xyz(pos_fpath)
+    frame_steps, frame_symbols, frame_energies, frame_positions = read_cp2k_xyz(pos_fpath)
     # cp2k uses a.u. and we use eV
     frame_energies = np.array(frame_energies, dtype=np.float64)
     frame_energies *= units.Hartree  # 2.72113838565563E+01
@@ -218,7 +226,7 @@ def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min
 
     # Read forces
     frc_fpath = wdir / (prefix + "-frc-1.xyz")
-    _, _, frame_forces = read_cp2k_xyz(frc_fpath)
+    _, _, _, frame_forces = read_cp2k_xyz(frc_fpath)
     # cp2k uses a.u. and we use eV/AA
     frame_forces = np.array(frame_forces, dtype=np.float64)
     frame_forces *= units.Hartree / units.Bohr  # (2.72113838565563E+01/5.29177208590000E-01)
@@ -236,7 +244,7 @@ def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min
         # """
         lines = fopen.readlines()
         data = np.array([line.strip().split() for line in lines[1:]], dtype=np.float64)
-    steps = data[:, 0]
+    steps = np.array(data[:, 0], dtype=np.int64)  # step numbers
     boxes = data[:, 2:-1]
     num_frames_by_box = boxes.shape[0]
 
@@ -258,8 +266,8 @@ def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min
 
     # Take the shortest number of frames by zip
     frames = []
-    for step, symbols, box, positions, energy, forces in zip(
-        steps, frame_symbols, boxes, frame_positions, frame_energies, frame_forces
+    for i, (step, symbols, box, positions, energy, forces) in enumerate(
+        zip(steps, frame_symbols, boxes, frame_positions, frame_energies, frame_forces)
     ):
         atoms = Atoms(
             symbols,
@@ -268,6 +276,7 @@ def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min
             pbc=[1, 1, 1],  # TODO: should determine in the cp2k input file
         )
         atoms.info["step"] = int(step)
+        assert step == frame_steps[i], f"Step {step} does not match the expected step {frame_steps[i]}."
         spc = SinglePointCalculator(
             atoms=atoms,
             energy=energy,
