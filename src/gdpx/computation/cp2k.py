@@ -13,10 +13,10 @@ from ase.calculators.cp2k import parse_input
 
 from gdpx.backend.cp2k import (
     Cp2kFileIO,
-    read_cp2k_convergence,
     read_cp2k_output_from_energy_force,
     read_cp2k_outputs,
-    read_cp2k_spc_convergence,
+    read_cp2k_program_convergence,
+    read_cp2k_scf_convergence,
 )
 from gdpx.data.extatoms import ScfErrAtoms
 from gdpx.group import evaluate_constraint_expression
@@ -406,7 +406,7 @@ class Cp2kDriver(BaseDriver):
                 # We need check the computation actually creates an output file.
                 cp2kout_fpath = self.directory / "cp2k.out"
                 if cp2kout_fpath.exists() and cp2kout_fpath.stat().st_size != 0:
-                    verified = read_cp2k_spc_convergence(cp2kout_fpath)
+                    verified = read_cp2k_program_convergence(cp2kout_fpath)
                 else:
                     verified = False
             else:
@@ -533,7 +533,7 @@ class Cp2kDriver(BaseDriver):
             if cp2kout_fpath.exists() and cp2kout_fpath.stat().st_size != 0:
                 atoms = read_cp2k_output_from_energy_force(self.directory, prefix="cp2k")
                 if atoms is not None:
-                    scf_convergence = read_cp2k_convergence(cp2kout_fpath)
+                    scf_convergence = read_cp2k_scf_convergence(cp2kout_fpath)
                     if not scf_convergence:
                         atoms = ScfErrAtoms.from_atoms(atoms)
                         self._print(f"ScfErrAtoms Step {0} @ {str(self.directory)}")
@@ -580,13 +580,13 @@ class Cp2kDriver(BaseDriver):
         """Read convergence from the log file.
 
         Check if the cp2k finishes normally by reading a line in the output file.
-        The read_convergence_from_trajectory only checks fmax that may not be enough to determine the convergence of 
+        The read_convergence_from_trajectory only checks fmax that may not be enough to determine the convergence of
         a cp2k minimisation with other criteria such as the geometric convergence.
 
         """
         cp2kout_fpath = self.directory / "cp2k.out"
         if cp2kout_fpath.exists():
-            converged = read_cp2k_spc_convergence(cp2kout_fpath)
+            converged = read_cp2k_program_convergence(cp2kout_fpath)
         else:
             converged = False
 

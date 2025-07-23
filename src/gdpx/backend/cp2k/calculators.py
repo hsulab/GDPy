@@ -9,7 +9,7 @@ from ase import Atoms, units
 from ase.calculators.calculator import FileIOCalculator
 from ase.calculators.cp2k import InputSection, parse_input
 
-from .parser import read_cp2k_convergence, read_cp2k_energy_force, read_cp2k_outputs
+from .parser import read_cp2k_scf_convergence, read_cp2k_energy_force, read_cp2k_outputs
 
 
 class Cp2kFileIO(FileIOCalculator):
@@ -74,7 +74,7 @@ class Cp2kFileIO(FileIOCalculator):
         else:
             raise RuntimeError()
 
-        scf_convergence = read_cp2k_convergence(pathlib.Path(self.directory) / "cp2k.out")
+        scf_convergence = read_cp2k_scf_convergence(pathlib.Path(self.directory) / "cp2k.out")
         atoms.info["scf_convergence"] = scf_convergence
         if not scf_convergence:
             atoms.info["error"] = f"Unconverged SCF at {self.directory}."

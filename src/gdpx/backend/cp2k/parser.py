@@ -291,8 +291,12 @@ UNCONVERGED_SCF_FLAG: str = "*** WARNING in qs_scf.F:598 :: SCF run NOT converge
 ABORT_FLAG: str = "ABORT"
 
 
-def read_cp2k_convergence(out_fpath: pathlib.Path) -> bool:
-    """Read SCF convergence."""
+def read_cp2k_scf_convergence(out_fpath: pathlib.Path) -> bool:
+    """Read SCF convergence.
+
+    Check if there is any unconverged SCF flag in the output file.
+
+    """
     cp2kout = out_fpath
 
     converged = True
@@ -314,8 +318,12 @@ def read_cp2k_convergence(out_fpath: pathlib.Path) -> bool:
 CP2K_PROGRAM_END_FLAG: str = "PROGRAM ENDED AT"
 
 
-def read_cp2k_spc_convergence(out_fpath: pathlib.Path) -> bool:
-    """"""
+def read_cp2k_program_convergence(out_fpath: pathlib.Path) -> bool:
+    """Read the end of the cp2k program.
+
+    Check the end of the cp2k output file to see if the program ended successfully.
+
+    """
     converged = False
     with open(out_fpath, "r") as fopen:
         while True:

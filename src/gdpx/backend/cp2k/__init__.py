@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 
 
+from .calculators import Cp2kFileIO
 from .parser import (
     read_cp2k_energy_force,
-    read_cp2k_outputs,
     read_cp2k_output_from_energy_force,
+    read_cp2k_outputs,
+    read_cp2k_program_convergence,
+    read_cp2k_scf_convergence,
     read_cp2k_xyz,
-    read_cp2k_convergence,
-    read_cp2k_spc_convergence
 )
-from .calculators import Cp2kFileIO
 
 __all__ = [
     "Cp2kFileIO",
@@ -18,8 +18,8 @@ __all__ = [
     "read_cp2k_outputs",
     "read_cp2k_output_from_energy_force",
     "read_cp2k_xyz",
-    "read_cp2k_convergence",
-    "read_cp2k_spc_convergence",
+    "read_cp2k_scf_convergence",
+    "read_cp2k_program_convergence",
 ]
 
 
