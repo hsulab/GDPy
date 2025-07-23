@@ -564,10 +564,9 @@ class Cp2kDriver(BaseDriver):
             if ntrajs > 0:
                 traj_frames.extend(traj_list[0])
                 for i in range(1, ntrajs):
-                    assert np.allclose(
-                        traj_list[i - 1][-1].positions,
-                        traj_list[i][0].positions,
-                    ), f"Traj {i-1} and traj {i} are not consecutive."
+                    assert (
+                        traj_list[i - 1][-1].info["step"] + 1 == traj_list[i][0].info["step"]
+                    ), f"Traj {i-1} and traj {i} are not consecutive at {self.directory}."
                     traj_frames.extend(traj_list[i][1:])
             else:
                 ...
