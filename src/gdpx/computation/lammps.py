@@ -25,8 +25,7 @@ from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
 from gdpx.backend.lammps import parse_thermo_data_by_pattern
-from gdpx.group import (evaluate_constraint_expression,
-                        evaluate_group_expression)
+from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
 
 from .driver import BaseDriver, Controller, DriverSetting
@@ -136,11 +135,11 @@ class MDController(Controller):
         else:
             self.temperature_end = self.temperature
 
-        if not (self.temperature > 0.):
+        if not (self.temperature > 0.0):
             raise Exception(f"MDController temperature `{self.temperature}` must be greater than 0.")
 
         assert self.temperature_end is not None
-        if not (self.temperature_end > 0.):
+        if not (self.temperature_end > 0.0):
             raise Exception(f"MDController temperature_end `{self.temperature_end}` must be greater than 0.")
 
         # convert pressure from bar to units
@@ -1182,8 +1181,7 @@ class Lammps(FileIOCalculator):
             if self.plumed is not None:
                 # TODO: We should better move this to driver setting.
                 try:
-                    from ..potential.managers.plumed.calculators.plumed2 import \
-                        update_stride_and_file
+                    from ..potential.managers.plumed.calculators.plumed2 import update_stride_and_file
 
                     plumed_inp = update_stride_and_file(
                         self.plumed,
