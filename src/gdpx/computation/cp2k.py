@@ -501,7 +501,7 @@ class Cp2kDriver(BaseDriver):
                 "EXT_RESTART/RESTART_FILE_NAME",
                 str(ckpt_wdir / "cp2k-1.restart"),
             )
-            sec.add_keyword("FORCE_EVAL/DFT/SCF/SCF_GUESS", "RESTART")
+            sec.add_keyword("FORCE_EVAL/DFT/SCF", "SCF_GUESS RESTART")
 
             # - copy wavefunctions...
             restart_wfns = sorted(list(ckpt_wdir.glob("*.wfn")))
