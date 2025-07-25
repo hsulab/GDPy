@@ -263,8 +263,8 @@ class RemoteSlurmScheduler(SlurmScheduler):
                         debug_func=self._debug,
                     )
                 self._print(f"removed {num_outdated_removed} outdated items.")
-            except:
-                ...
+            except Exception as e:
+                self._print(f"error syncing: {str(e)}")
             finally:
                 sftp.close()
         finally:
