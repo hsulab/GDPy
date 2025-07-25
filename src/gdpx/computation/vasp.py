@@ -285,6 +285,9 @@ default_controllers = dict(
 @dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
 
+    #: Simulation task.
+    task: str = "spc"
+
     #: MD ensemble.
     ensemble: str = "nve"
 
@@ -312,7 +315,9 @@ class VaspDriverSetting(DriverSetting):
         # - update internals that are specific for each calculator...
 
         _init_params = {}
-        if self.task == "min":
+        if self.task == "spc":
+            suffix = self.task
+        elif self.task == "min":
             suffix = self.task
         elif self.task == "cmin":
             suffix = self.task
@@ -703,12 +708,17 @@ class VaspDriver(BaseDriver):
         traj_frames_, num_trajs = [], len(traj_list)
         if num_trajs > 0:
             traj_frames_.extend(traj_list[0])
-            if self.setting.task == "min" or self.setting.task == "cmin":
+            if self.setting.task == "spc":
+                # SPC should not have any previous calculations.
+                assert num_trajs == 1, f"SPC should not have more than one trajectory but got `{num_trajs}`."
+            elif self.setting.task == "min" or self.setting.task == "cmin":
                 for i in range(1, num_trajs):
                     # FIXME: ase does not always give a 3x3 array for the box?
                     prev_box = traj_list[i - 1][-1].get_cell(complete=True)
                     curr_box = traj_list[i][0].get_cell(complete=True)
-                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell at {str(self.directory)}."
+                    assert np.allclose(
+                        prev_box, curr_box
+                    ), f"Traj {i-1} and traj {i} are not consecutive in cell at {str(self.directory)}."
 
                     prev_pos = traj_list[i - 1][-1].positions
                     curr_pos = traj_list[i][0].positions
