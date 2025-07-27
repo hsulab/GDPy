@@ -103,6 +103,8 @@ class BFGSMinimiser(MotionController):
         """"""
         super().__post_init__()
 
+        trust_radius = self.params.get("trust_radius", None)  # [Ang]
+
         more_params = [
             ("GLOBAL", "RUN_TYPE GEO_OPT"),
             ("MOTION/GEO_OPT", "TYPE MINIMIZATION"),
@@ -112,6 +114,11 @@ class BFGSMinimiser(MotionController):
                 f"GEO_OPT {self.ckpt_period}",
             ),
         ]
+
+        if trust_radius is not None:
+            more_params.append(
+                ("MOTION/GEO_OPT/BFGS", f"TRUST_RADIUS {trust_radius}"),
+            )
 
         self.conv_params.extend(more_params)
 
