@@ -638,7 +638,7 @@ class DriverBasedWorker(BaseWorker):
                                 is_finished = True
                         else:
                             self._print("NOT ALL wdirs exist.")
-                        self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
+                        self._print(f"progress: {nwdir_exists}/{len(wdir_existence)} {is_finished=}")
                     else:
                         # We need first check if cache file exists,
                         # sometimes due to unexpected errors (e.g. OOM)
@@ -682,6 +682,8 @@ class DriverBasedWorker(BaseWorker):
                             )
                             job_id = self.scheduler.submit(func_to_execute=func_to_execute)
                             self._print(f"{job_name} is re-submitted with JOBID: {job_id}...")
+                        else:
+                            self._print(f"{job_name} should be re-submitted manually...")
                 else:
                     self._print(f"{job_name} is running...")
 
