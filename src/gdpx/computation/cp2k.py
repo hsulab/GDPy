@@ -498,6 +498,7 @@ class Cp2kDriver(BaseDriver):
                     "FORCE_EVAL/DFT/SCF/SCF_GUESS",
                     "FORCE_EVAL/DFT/BASIS_SET_FILE_NAME",
                     "FORCE_EVAL/DFT/POTENTIAL_FILE_NAME",
+                    "EXT_RESTART/RESTART_FILE_NAME",
                 ],
             )
 
