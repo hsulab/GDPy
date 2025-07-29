@@ -315,8 +315,17 @@ class Cp2kDriverSetting(DriverSetting):
     #: MD Ensemble.
     ensemble: str = "nve"
 
+    #: Geometric change root mean squared.
+    rrms: Optional[float] = 1.5e-3 * units.Bohr
+
+    #: Geometric change maximum.
+    rmax: Optional[float] = 3.0e-3 * units.Bohr
+
     #: Dynamics controller.
     controller: dict = dataclasses.field(default_factory=dict)
+
+    #: Force root mean squred.
+    frms: Optional[float] = 3.0e-4 * (units.Hartree / units.Bohr)
 
     #: Force tolerance, [eV/Ang] -> [Hartree/Bohr], 0.0231 -> 4.5e-4, 0.0103 -> 2.0e-4.
     fmax: Optional[float] = 4.5e-4 * (units.Hartree / units.Bohr)
@@ -365,7 +374,6 @@ class Cp2kDriverSetting(DriverSetting):
     def get_run_params(self, *args, **kwargs):
         """"""
         # - convergence criteria
-        fmax_ = kwargs.get("fmax", self.fmax)
         steps_ = kwargs.get("steps", self.steps)
 
         run_pairs = []
@@ -373,6 +381,7 @@ class Cp2kDriverSetting(DriverSetting):
             run_pairs.append(
                 ("MOTION/GEO_OPT", f"MAX_ITER {steps_}"),
             )
+            fmax_ = kwargs.get("fmax", self.fmax)
             if fmax_ is not None:
                 run_pairs.append(
                     (
@@ -380,6 +389,25 @@ class Cp2kDriverSetting(DriverSetting):
                         f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}",
                     )
                 )
+            frms_ = kwargs.get("frms", self.frms)
+            if frms_ is not None:
+                run_pairs.append(
+                    (
+                        "MOTION/GEO_OPT",
+                        f"RMS_FORCE {frms_/(units.Hartree/units.Bohr)}",
+                    )
+                )
+            rmax_ = kwargs.get("rmax", self.rmax)
+            if rmax_ is not None:
+                run_pairs.append(
+                    ("MOTION/GEO_OPT", f"MAX_DR {rmax_/(units.Bohr)}"),
+                )
+            rrms_ = kwargs.get("rrms", self.rrms)
+            if rrms_ is not None:
+                run_pairs.append(
+                    ("MOTION/GEO_OPT", f"RMS_DR {rrms_/(units.Bohr)}"),
+                )
+
         if self.task == "md":
             run_pairs.append(
                 ("MOTION/MD", f"STEPS {steps_}"),
