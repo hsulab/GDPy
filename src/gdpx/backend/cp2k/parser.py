@@ -301,7 +301,7 @@ def read_cp2k_output_from_band(wdir: pathlib.Path, prefix: str="cp2k", print_fun
     CP2K does not save forces to the xyz files, thus, we read forces from the output file.
 
     """
-    debug_func(f"***** read_trajectory at {str(wdir)} *****")
+    print_func(f"***** read_trajectory at {str(wdir)} *****")
     cell = None  # TODO: if no pbc?
     num_atoms = None
     num_images = None
@@ -327,7 +327,7 @@ def read_cp2k_output_from_band(wdir: pathlib.Path, prefix: str="cp2k", print_fun
                 if found_cell:
                     try:
                         cell = [x.strip().split()[4:7] for x in cell_data]
-                    except Exception as e:
+                    except Exception:
                         debug_func("cell is not found.")
                         break
             # read natoms
@@ -343,7 +343,7 @@ def read_cp2k_output_from_band(wdir: pathlib.Path, prefix: str="cp2k", print_fun
                     try:
                         num_atoms = int(line.strip().split()[-1])
                         debug_func(f"{num_atoms=}")
-                    except Exception as e:
+                    except Exception:
                         debug_func("num_atoms is not found.")
                         break
                 else:
@@ -356,7 +356,7 @@ def read_cp2k_output_from_band(wdir: pathlib.Path, prefix: str="cp2k", print_fun
                     num_images = int(line.strip().split()[-2])
                     debug_func(line)
                     debug_func(f"{num_images=}")
-                except Exception as e:
+                except Exception:
                     debug_func("num_images is not found.")
             # NOTE: For method with LineSearch, several SCF may be performed at one step
             if "Computing Energies and Forces" in line:
