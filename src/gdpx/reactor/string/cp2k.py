@@ -321,7 +321,24 @@ class Cp2kStringReactor(BaseStringReactor):
             traj_frames.extend(traj_list[0])
             for i in range(1, ntrajs):
                 # TODO: We should check step info if we have.
-                traj_frames.extend(traj_list[i])
+                prev_end_band, curr_beg_band = (
+                    traj_list[i - 1][-1],
+                    traj_list[i][0],
+                )
+                is_continuous, discontinuous_index = False, -1
+                for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
+                    if not np.allclose(a.positions, b.positions):
+                        discontinuous_index = j
+                        break
+                else:
+                    is_continuous = True
+                if not is_continuous:
+                    raise Exception(
+                        f"Traj {i-1} and traj {i} are not consecutive in positions at image {discontinuous_index}."
+                    )  # This should not happen if the output is correct.
+                # If the restart file is written correctly, the first image of the next trajectory should be the last 
+                # image of the previous trajectory.
+                traj_frames.extend(traj_list[i][1:])
         else:
             ...
 
