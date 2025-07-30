@@ -374,7 +374,7 @@ class BaseStringReactor(BaseReactor):
 
         return images
 
-    def _read_a_single_trajectory(self, *args, **kwargs) -> list[Atoms]:
+    def _read_a_single_trajectory(self, *args, **kwargs) -> list[list[Atoms]]:
         """"""
 
         raise NotImplementedError()
