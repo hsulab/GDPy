@@ -9,6 +9,8 @@ import numpy as np
 from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 
+from ase.io import read
+
 
 def read_cp2k_xyz(fpath: pathlib.Path):
     """Read xyz-like file by cp2k.
@@ -289,6 +291,170 @@ def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min
     assert (
         num_frames_ret == num_frames
     ), f"Inconsistent number of frames returned ({num_frames_ret}) and expected ({num_frames})."
+
+    return frames
+
+
+def read_cp2k_output_from_band(wdir: pathlib.Path, prefix: str="cp2k", print_func=print, debug_func=print) -> list[list[Atoms]]:
+    """Read the cp2k output from a calculation with `RUN_TYPE BAND`.
+
+    CP2K does not save forces to the xyz files, thus, we read forces from the output file.
+
+    """
+    debug_func(f"***** read_trajectory at {str(wdir)} *****")
+    cell = None  # TODO: if no pbc?
+    num_atoms = None
+    num_images = None
+    temp_forces, temp_energies = [], []
+    energies, forces = [], []
+    with open(wdir / f"{prefix}.out", "r") as fopen:
+        while True:
+            line = fopen.readline()
+            if not line:
+                break
+            # read cell
+            if "CELL| Volume" in line:
+                found_cell = False
+                cell_data = []
+                for i in range(3):
+                    line = fopen.readline()
+                    if line:
+                        cell_data.append(line)
+                    else:
+                        break
+                else:
+                    found_cell = True
+                if found_cell:
+                    try:
+                        cell = [x.strip().split()[4:7] for x in cell_data]
+                    except Exception as e:
+                        debug_func("cell is not found.")
+                        break
+            # read natoms
+            if "TOTAL NUMBERS AND MAXIMUM NUMBERS" in line:
+                found_natoms = False
+                for i in range(3):
+                    line = fopen.readline()
+                    if not line:
+                        break
+                else:
+                    found_natoms = True
+                if found_natoms:
+                    try:
+                        num_atoms = int(line.strip().split()[-1])
+                        debug_func(f"{num_atoms=}")
+                    except Exception as e:
+                        debug_func("num_atoms is not found.")
+                        break
+                else:
+                    break
+            if "Number of Images" in line:
+                # line = fopen.readline() # BUG: inconsistent Images and Replicas?
+                if not line:
+                    break
+                try:
+                    num_images = int(line.strip().split()[-2])
+                    debug_func(line)
+                    debug_func(f"{num_images=}")
+                except Exception as e:
+                    debug_func("num_images is not found.")
+            # NOTE: For method with LineSearch, several SCF may be performed at one step
+            if "Computing Energies and Forces" in line:
+                assert num_atoms is not None, "num_atoms is not read properly."
+                assert num_images is not None, "num_images is not read properly."
+                # NEB| REPLICA Nr.    1- Energy and Forces
+                # NEB|                                     Total energy:       -2940.286865478840
+                # NEB|    ATOM                            X                Y                Z
+                curr_data = []
+                found_replica_forces = False
+                for i in range((num_atoms + 3) * num_images):
+                    line = fopen.readline()
+                    if line:
+                        curr_data.append(line)
+                    else:
+                        break
+                else:
+                    # current replica's forces are complete...
+                    found_replica_forces = True
+                if found_replica_forces:
+                    curr_energies = [
+                        float(curr_data[i].strip().split()[-1]) for i in range(1, len(curr_data), num_atoms + 3)
+                    ]
+                    temp_energies.append(curr_energies)
+                    curr_forces = []
+                    for ir in range(num_images):
+                        curr_forces.append(
+                            [
+                                curr_data[i].strip().split()[2:]
+                                for i in range(
+                                    (num_atoms + 3) * ir + 3,
+                                    (num_atoms + 3) * ir + 3 + num_atoms,
+                                )
+                            ]
+                        )
+                    temp_forces.append(curr_forces)
+                else:
+                    break
+            if "BAND TOTAL ENERGY" in line:
+                if temp_energies and temp_forces:  # if the step completed...
+                    energies.append(temp_energies[-1])
+                    forces.extend(temp_forces[-1])
+                    temp_forces, temp_energies = [], []
+
+    # truncate to the last complete band
+    assert num_atoms is not None, "num_atoms is not read properly."
+    assert num_images is not None, "num_images is not read properly."
+
+    frames = []  # shape (nbands, nimages)
+    if forces:
+        forces = np.array(forces, dtype=np.float64)
+        shape = forces.shape
+        debug_func(f"forces: {shape}")
+        num_bands = int(shape[0] / num_images)
+        forces = forces[: num_bands * num_images]
+        debug_func(f"truncated forces: {forces.shape} nbands: {num_bands}")
+        forces = np.reshape(forces, (num_bands, num_images, num_atoms, -1))  # shape (nbands, nimages, natoms, 3)
+        forces *= units.Hartree / units.Bohr
+
+        energies = np.array(energies)[: num_bands * num_images].reshape(num_bands, num_images)
+        energies *= units.Hartree
+        debug_func(f"energies: {energies.shape} nbands: {num_bands}")
+
+        cell = np.array(cell, dtype=np.float64)
+        debug_func(f"cell: {cell}")
+
+        # read positions
+        band_frames = []  # shape (nimages, nbands)
+        for i in range(num_images):
+            if num_images < 10:
+                curr_xyzfile = wdir / f"cp2k-pos-Replica_nr_{i+1}-1.xyz"
+            else:
+                curr_xyzfile = wdir / f"cp2k-pos-Replica_nr_{str(i+1).zfill(2)}-1.xyz"
+            curr_frames = read(curr_xyzfile, index=":", format="xyz")[:num_bands]
+            band_frames.append(curr_frames)
+
+        # reshape frames_ to (num_bands, num_images)
+        for j in range(num_bands):
+            curr_band = []
+            for i in range(num_images):
+                curr_band.append(band_frames[i][j])
+            frames.append(curr_band)
+
+        # update calc results
+        for i in range(num_bands):
+            for j in range(num_images):
+                atoms = frames[i][j]
+                atoms.set_cell(cell)
+                atoms.pbc = True
+                spc = SinglePointCalculator(
+                    atoms,
+                    energy=energies[i, j],
+                    free_energy=energies[i, j],
+                    forces=forces[i, j].copy(),
+                )
+                atoms.calc = spc
+    else:
+        ...  # no forces available indicating that not even on band step is finished.
 
     return frames
 
