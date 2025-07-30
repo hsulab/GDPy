@@ -450,7 +450,6 @@ def read_cp2k_output_from_band(
         # check if all replicas have the same number of frames
         num_bands_in_replicas = [len(band_frames[i]) for i in range(num_images)]
         num_bands_in_pos = min(num_bands_in_replicas)
-        print(f"{num_bands_in_out=}  {num_bands_in_pos=}")
         num_bands = num_bands_in_pos
         if all([nb == num_bands_in_pos for nb in num_bands_in_replicas]):
             ...
