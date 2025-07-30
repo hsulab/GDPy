@@ -9,7 +9,7 @@ import itertools
 import pathlib
 import re
 import shutil
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -374,7 +374,56 @@ class BaseStringReactor(BaseReactor):
 
         return images
 
-    def read_trajectory(self, *args, **kwargs):
+    def _read_a_single_trajectory(self, *args, **kwargs) -> list[Atoms]:
+        """"""
+
+        raise NotImplementedError()
+
+    def concatenate_trajectories(self, traj_list: list[list[Atoms]]) -> list[list[Atoms]]:
+        """Concatenate a list of trajectories.
+
+        This assumes that the trajectories are continuous, i.e., the last image of the previous trajectory is the same
+        as the first image of the next trajectory by checking the positions.
+        For different codes, the last image of the previous trajectory may not be the same as the first image of the
+        next trajectory, and this function should be overridden in the derived class.
+
+        In case of some calculations, the energetic continuity is not guaranteed, for example, the spin-polarised
+        calculation can give slightly different energies for the same structure due to the random initialisation of the
+        wavefunction.
+
+        Args:
+            traj_list: A list of trajectories, each trajectory is a list of Atoms objects.
+
+        Returns:
+            A list of Atoms objects that are concatenated from the input list of trajectories.
+
+        """
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                prev_end_band, curr_beg_band = (
+                    traj_list[i - 1][-1],
+                    traj_list[i][0],
+                )
+                is_continuous, discontinuous_index = False, -1
+                for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
+                    if not np.allclose(a.positions, b.positions):
+                        discontinuous_index = j
+                        break
+                else:
+                    is_continuous = True
+                if not is_continuous:
+                    raise Exception(
+                        f"Traj {i-1} and traj {i} are not consecutive in positions at image {discontinuous_index}."
+                    )  # This should not happen if the output is correct.
+                traj_frames.extend(traj_list[i][1:])
+        else:
+            ...
+
+        return traj_frames
+
+    def read_trajectory(self) -> list[list[Atoms]]:
         """"""
         # Find previous computation folders
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
@@ -390,21 +439,7 @@ class BaseStringReactor(BaseReactor):
             traj_list.append(self._read_a_single_trajectory(wdir=self.directory))
 
         # Concatenate all the trajectories
-        traj_frames, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
-            traj_frames.extend(traj_list[0])
-            for i in range(1, ntrajs):
-                prev_end_band, curr_beg_band = (
-                    traj_list[i - 1][-1],
-                    traj_list[i][0],
-                )
-                for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
-                    assert np.allclose(
-                        a.positions, b.positions
-                    ), f"Traj {i-1} and traj {i} are not consecutive in positions."
-                traj_frames.extend(traj_list[i][1:])
-        else:
-            ...
+        traj_frames = self.concatenate_trajectories(traj_list)
 
         # Postprocess the trajectory and show the pathway information
         have_mep_results = (self.directory / "neb.png").exists()
@@ -416,14 +451,15 @@ class BaseStringReactor(BaseReactor):
 
             write(
                 self.directory / "temptraj.xyz",
-                itertools.chain(*traj_frames),
+                list(itertools.chain(*traj_frames)),
             )
 
             rxn_coords = compute_rxn_coords(curr_band)
 
             energies = [a.get_potential_energy() for a in curr_band]
             imax = 1 + np.argsort(energies[1:-1])[-1]
-            # NOTE: maxforce in cp2k is norm(atomic_forces)
+
+            # The max force in cp2k is norm(atomic_forces).
             maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
 
             self._print(f"The transition state image index: {imax}")
@@ -437,8 +473,6 @@ class BaseStringReactor(BaseReactor):
     def as_dict(self) -> dict:
         """"""
         params = {}
-
-        # self._print(f"{self.setting.backend = }")
 
         for k, v in dataclasses.asdict(self.setting).items():
             if not k.startswith("_"):

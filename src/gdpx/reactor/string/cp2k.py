@@ -470,6 +470,34 @@ class Cp2kStringReactor(BaseStringReactor):
 
         return frames
 
+    def concatenate_trajectories(self, traj_list: list[list[Atoms]]) -> list[list[Atoms]]:
+        """Concatenate a list of trajectories.
+
+        CP2K starts the new trajectory from the next image of the previous trajectory, therefore, we do not check
+        continuity in positions here.
+
+        In case of some calculations, the energetic continuity is not guaranteed, for example, the spin-polarised
+        calculation can give slightly different energies for the same structure due to the random initialisation of the
+        wavefunction.
+
+        Args:
+            traj_list: A list of trajectories, each trajectory is a list of Atoms objects.
+
+        Returns:
+            A list of Atoms objects that are concatenated from the input list of trajectories.
+
+        """
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                # TODO: We should check step info if we have.
+                traj_frames.extend(traj_list[i])
+        else:
+            ...
+
+        return traj_frames
+
 
 if __name__ == "__main__":
     ...
