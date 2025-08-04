@@ -58,7 +58,14 @@ class DeepmdJaxTrainer(BasePotentialTrainer):
         train_config["model_type"] = "energy"
         train_config["save_path"] = str(self.directory / self.frozen_name)
         train_config["train_data_path"] = [[x] for x in dataset.train_sys_dirs]
-        train_config["val_data_path"] = [[x] for x in dataset.valid_sys_dirs]
+
+        # The None is str("None") in DeepmdDataloader.
+        valid_validation_set_paths = [x for x in dataset.valid_sys_dirs if x != "None"]
+
+        if len(valid_validation_set_paths) == 0:
+            train_config["val_data_path"] = None
+        else:
+            train_config["val_data_path"] = [[x] for x in dataset.valid_sys_dirs]
 
         if isinstance(dataset.batchsize, int):
             train_config["batch_size"] = dataset.batchsize
