@@ -12,6 +12,7 @@ from gdpx.dataloader.deepmd import DeepmdDataloader
 
 from ..trainer import BasePotentialTrainer
 from .convert import convert_groups
+from .utils import compute_num_training_batches
 
 
 class DeepmdJaxTrainer(BasePotentialTrainer):
@@ -80,16 +81,17 @@ class DeepmdJaxTrainer(BasePotentialTrainer):
         else:
             raise RuntimeError(f"Unknown batchszie `{dataset.batchsize}`.")
 
-        min_freq_unit = 100.0
-        save_freq = int(np.ceil(dataset.cum_batchsizes * self.print_epochs / min_freq_unit) * min_freq_unit)
+        numb_steps, save_freq = compute_num_training_batches(
+            dataset.cum_batchsizes,
+            train_epochs=self.train_epochs,
+            print_epochs=self.print_epochs,
+            train_batches=self.train_batches,
+            min_freq_unit=100,
+        )
         train_config["print_every"] = save_freq
-
-        numb_steps = dataset.cum_batchsizes * self.train_epochs
-        n_checkpoints = int(np.ceil(dataset.cum_batchsizes * self.train_epochs / save_freq))
-        numb_steps = n_checkpoints * save_freq
         train_config["step"] = numb_steps
 
-        train_config["seed"] = self.rng.integers(0, 1e8, dtype=int)
+        train_config["seed"] = self.rng.integers(0, 100_000_000, dtype=int)
 
         with open(self.directory / "deepmd_jax.json", "w") as fopen:
             json.dump(train_config, fopen, indent=2)
