@@ -16,7 +16,7 @@ REGISTER.register("deepmd")(DeepmdManager)
 try:
     from .deepmd import DeepmdJaxManager
 
-    REGISTER.register("deepmd-jax")(DeepmdJaxManager)
+    REGISTER.register("deepmd_jax")(DeepmdJaxManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
 
