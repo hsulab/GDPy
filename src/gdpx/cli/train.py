@@ -18,7 +18,7 @@ def run_trainer(configuration, directory) -> None:
     trainer.directory = directory
 
     # Process the dataset
-    name = params["dataset"].get("name", None)
+    name = params["dataset"].pop("name", None)
     dataset = registers.create("dataloader", name, convert_name=True, **params["dataset"])
 
     # Other options

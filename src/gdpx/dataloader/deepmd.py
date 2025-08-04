@@ -63,8 +63,6 @@ class DeepmdDataloader:
         cum_batchsizes,
         train_sys_dirs,
         valid_sys_dirs,
-        *args,
-        **kwargs,
     ) -> None:
         """"""
         self.batchsize = batchsize

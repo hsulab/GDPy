@@ -16,8 +16,6 @@ class MaceDataloader:
         test_file: Union[str, pathlib.Path],
         batchsize: int,
         directory: Union[str, pathlib.Path] = "./",
-        *args,
-        **kwargs,
     ) -> None:
         """"""
         self.train_file = pathlib.Path(train_file).resolve()
