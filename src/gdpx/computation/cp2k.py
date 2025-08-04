@@ -603,7 +603,7 @@ class Cp2kDriver(BaseDriver):
                     assert (
                         traj_list[i - 1][-1].info["step"] + 1 == traj_list[i][0].info["step"]
                     ), f"Traj {i-1} and traj {i} are not consecutive at {self.directory}."
-                    traj_frames.extend(traj_list[i][1:])
+                    traj_frames.extend(traj_list[i])  # GEO_OPT restart saves from the next step
             else:
                 ...
         else:
