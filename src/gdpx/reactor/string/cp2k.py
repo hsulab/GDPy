@@ -213,7 +213,7 @@ class Cp2kStringReactor(BaseStringReactor):
                     cur_rep.add_keyword("COORD", ("{:.18e} " * 3).format(*pos), unique=False)
                 band_section.subsections.append(cur_rep)
         else:  # start from a checkpoint
-            atoms = read(ckpt_wdir / "images.xyz", "0")
+            atoms = read(self.directory / "0000.run" / "images.xyz", "0")  # The images are saved only in the first run.
             with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
                 inp = "".join(fopen.readlines())
             sec = parse_input(inp)
@@ -336,7 +336,7 @@ class Cp2kStringReactor(BaseStringReactor):
                     raise Exception(
                         f"Traj {i-1} and traj {i} are not consecutive in positions at image {discontinuous_index}."
                     )  # This should not happen if the output is correct.
-                # If the restart file is written correctly, the first image of the next trajectory should be the last 
+                # If the restart file is written correctly, the first image of the next trajectory should be the last
                 # image of the previous trajectory.
                 traj_frames.extend(traj_list[i][1:])
         else:
