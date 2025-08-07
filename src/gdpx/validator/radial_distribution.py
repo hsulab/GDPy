@@ -9,6 +9,7 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing
 from scipy.interpolate import make_interp_spline
 
 try:
@@ -25,17 +26,35 @@ from gdpx.data.array import AtomsNDArray
 from .validator import BaseValidator
 
 
-def smooth_curve(bins, points):
-    """"""
-    spl = make_interp_spline(bins, points, k=3)
-    bins = np.linspace(bins.min(), bins.max(), 300)
-    points = spl(bins)
+def smooth_curve(
+    bins: numpy.typing.NDArray,
+    points: numpy.typing.NDArray,
+    bspline_degree: int = 3,
+    smooth_bin_interval: float = 0.01,
+) -> tuple[numpy.typing.NDArray, numpy.typing.NDArray]:
+    """Smooth the curve using B-spline interpolation.
 
-    for i, d in enumerate(points):
-        if d < 1e-6:
-            points[i] = 0.0
+    Args:
+        bins: The bin centers.
+        points: The values at the bin centers.
+        bspline_degree: Degree of the B-spline.
+        smooth_bin_interval: Interval for the smoothed bins.
 
-    return bins, points
+    Returns:
+        A tuple of smoothed bins and corresponding points.
+
+    """
+    # Get the spline representation of the data
+    spl = make_interp_spline(bins, points, k=bspline_degree)
+
+    # Create new bins with the specified interval
+    new_bins = np.arange(bins.min(), bins.max() + smooth_bin_interval, smooth_bin_interval)
+
+    # Evaluate the spline at the new bins
+    new_points = spl(new_bins)
+    new_points = np.where(new_points < 1e-6, 0, new_points)  # avoid very small values
+
+    return new_bins, new_points
 
 
 def calc_rdf(
