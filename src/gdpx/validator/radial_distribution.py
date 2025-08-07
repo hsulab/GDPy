@@ -186,8 +186,26 @@ def calc_rdf(
     return results
 
 
-def plot_radial_distribution_function(fig_path, data=None, ref_data=None, title: str = "RDF"):
-    """"""
+def plot_radial_distribution_function(
+    fig_path: pathlib.Path,
+    prd_data: Optional[numpy.typing.NDArray] = None,
+    ref_data: Optional[numpy.typing.NDArray] = None,
+    title: str = "RDF",
+    smooth_kwargs: Optional[dict] = None,
+) -> None:
+    """Plot radial distribution function.
+
+    Args:
+        fig_path: Path to save the figure.
+        prd_data: Prediction data, shape (nbins, 2).
+        ref_data: Reference data, shape (nbins, 2).
+        title: Title of the plot.
+        smooth_kwargs: Keyword arguments for smoothing.
+
+    Returns:
+        None.
+
+    """
     fig = plt.figure(figsize=(12, 9))
     ax: plt.Axes = fig.subplots(1, 1)  # type: ignore
 
@@ -195,14 +213,17 @@ def plot_radial_distribution_function(fig_path, data=None, ref_data=None, title:
     ax.set_ylabel("g(r)")
     ax.set_title(title)
 
-    if data is not None:
-        bincentres, rdf = data[:, 0], data[:, 1]
-        bincentres_, rdf_ = smooth_curve(bincentres, rdf)
-        ax.plot(bincentres_, rdf_, label="prediction")
+    if smooth_kwargs is None:
+        smooth_kwargs = {}
+
+    if prd_data is not None:
+        bincentres, rdf = prd_data[:, 0], prd_data[:, 1]
+        bincentres_, rdf_ = smooth_curve(bincentres, rdf, **smooth_kwargs)
+        ax.plot(bincentres_, rdf_, ls="-", label="prediction")
 
     if ref_data is not None:
         bincentres, rdf = ref_data[:, 0], ref_data[:, 1]
-        bincentres_, rdf_ = smooth_curve(bincentres, rdf)
+        bincentres_, rdf_ = smooth_curve(bincentres, rdf, **smooth_kwargs)
         ax.plot(bincentres_, rdf_, ls="-.", label="reference")
 
     ax.legend()
@@ -215,21 +236,33 @@ def plot_radial_distribution_function(fig_path, data=None, ref_data=None, title:
 class RdfValidator(BaseValidator):
 
     def __init__(
-        self, pairs: list[str], cutoff: float = 6.0, nbins: int = 60, directory="./", *args, **kwargs
+        self,
+        pairs: list[str],
+        cutoff: float = 6.0,
+        nbins: int = 60,
+        smooth_kwargs: Optional[dict] = None,
+        directory="./",
+        *args,
+        **kwargs,
     ) -> None:
         """Radial Distribution.
 
         Args:
             paris: A list of species pairs [Cu-Cu, ..., ...].
+            cutoff: The radial cutoff radius in Angstrom.
+            nbins: Number of bins.
+            smooth_kwargs: Keyword arguments for smoothing the curve.
 
         """
         super().__init__(directory=directory, *args, **kwargs)
 
         self.pairs = pairs
-        # assert len(self.pair), f"{self.__class__.__name__} requires two elements."
-
         self.cutoff = cutoff
         self.nbins = nbins
+
+        if smooth_kwargs is None:
+            smooth_kwargs = {}
+        self.smooth_kwargs = smooth_kwargs
 
         return
 
@@ -313,12 +346,18 @@ class RdfValidator(BaseValidator):
             if reference is not None:
                 r = reference.get(pair, None)
             if not (p is None and r is None):
-                plot_radial_distribution_function(self.directory / f"{pair}_rdf.png", p, r, title=pair)
+                plot_radial_distribution_function(
+                    self.directory / f"{pair}_rdf.png", p, r, title=pair, smooth_kwargs=self.smooth_kwargs
+                )
             else:
                 if p is not None:
-                    plot_radial_distribution_function(self.directory / f"{pair}_rdf.png", p, None, title=pair)
+                    plot_radial_distribution_function(
+                        self.directory / f"{pair}_rdf.png", p, None, title=pair, smooth_kwargs=self.smooth_kwargs
+                    )
                 else:  # if r is not None:
-                    plot_radial_distribution_function(self.directory / f"{pair}_rdf.png", None, r, title=pair)
+                    plot_radial_distribution_function(
+                        self.directory / f"{pair}_rdf.png", None, r, title=pair, smooth_kwargs=self.smooth_kwargs
+                    )
 
         return
 
