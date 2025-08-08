@@ -70,7 +70,7 @@ class transfer(Operation):
         dataset,
         version,
         prefix: str = "",
-        system: str = "mixed",
+        suffix: str = "mixed",
         side_dataset: Optional[str] = None,
         split_ratio: float = 1.0,
         clean_info: bool = False,
@@ -84,7 +84,7 @@ class transfer(Operation):
         self.version = version
 
         self.prefix = prefix
-        self.system = system  # molecule/cluster, surface, bulk
+        self.suffix = suffix  # molecule/cluster, surface, bulk
 
         self.side_dataset = side_dataset
         self.split_ratio = split_ratio
@@ -135,7 +135,7 @@ class transfer(Operation):
             if self.clean_info:
                 self._clean_structures(curr_structures)
 
-            system_type = self.system  # currently, use user input one
+            system_type = self.suffix  # currently, use user input one
             dirname = "-".join([self.prefix, formula, system_type])
 
             split_structures = split_structures_by_ratio(curr_structures, self.split_ratio, rng=dataset.rng)
