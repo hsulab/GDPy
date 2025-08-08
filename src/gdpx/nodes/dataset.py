@@ -17,24 +17,38 @@ from gdpx.session.operation import Operation
 
 
 def split_structures_by_ratio(
-    structures: list[Atoms], ratio: float = 1.0, rng=np.random.default_rng()
+    structures: list[Atoms], splits: list[float] = [1.0], rng=np.random.default_rng()
 ) -> tuple[tuple[list[Atoms], ...], list[np.ndarray]]:
     """"""
-    whether_split = not np.isclose(ratio, 1.0)
+    num_splits = len(splits)
+    whether_split = num_splits > 1
 
     if whether_split:
         num_structures = len(structures)
         indices = np.arange(num_structures)
         rng.shuffle(indices)
 
-        split_idx = int(num_structures * ratio)
-        train_indices = indices[:split_idx]
-        test_indices = indices[split_idx:]
-        split_indices = [train_indices, test_indices]
+        split_numbers = np.zeros(num_splits, dtype=int).tolist()
+        for i, ratio in enumerate(splits[:-1]):
+            split_number = int(num_structures * ratio)
+            split_numbers_sum = sum(split_numbers)
+            if split_numbers_sum + split_number > num_structures:
+                split_number = num_structures - split_numbers_sum
+            split_numbers[i] = split_number
+        last_split_number = num_structures - sum(split_numbers)
+        assert last_split_number >= 0, f"num_structures {num_structures}, split_numbers {split_numbers}"
+        split_numbers[-1] = last_split_number
 
-        train_structures = [structures[i] for i in train_indices]
-        test_structures = [structures[i] for i in test_indices]
-        datasets = [train_structures, test_structures]
+        split_numbers.insert(0, 0)
+        edges = np.cumsum(split_numbers)
+
+        datasets, split_indices = [], []
+        for i in range(len(edges) - 1):
+            start, end = edges[i], edges[i + 1]
+            curr_indices = indices[start:end]
+            curr_structures = [structures[j] for j in curr_indices]
+            datasets.append(curr_structures)
+            split_indices.append(curr_indices)
     else:
         datasets = [structures]
         split_indices = [np.arange(len(structures))]
@@ -114,8 +128,6 @@ class transfer(Operation):
             sorted_datasets.append(dataset)
 
         num_datasets, num_ratios = len(sorted_datasets), len(split_ratio)
-        if num_datasets > 2:  # TODO: support more datasets
-            raise Exception(f"At most two datasets are supported, but got {num_datasets}.")
         if num_datasets == num_ratios:
             sorted_ratios = [split_ratio[name] for name in dataset_names]
         else:
@@ -187,7 +199,7 @@ class transfer(Operation):
 
             cache_info = dict(rng_state=main_dataset.rng.bit_generator.state)
             split_structures, split_indices = split_structures_by_ratio(
-                curr_structures, self.splits[0], rng=main_dataset.rng
+                curr_structures, self.splits, rng=main_dataset.rng
             )
             cache_info["index"] = [indices.tolist() for indices in split_indices]
             for dataset, target_structures in zip(datasets, split_structures):
