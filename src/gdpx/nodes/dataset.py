@@ -123,6 +123,11 @@ class transfer(Operation):
                 f"Number of datasets `{num_datasets}` does not match number of split ratios `{num_ratios}`."
             )
 
+        # Check if datasets have different directories
+        dirpaths = [dataset.directory for dataset in sorted_datasets]
+        if len(set(dirpaths)) != len(dirpaths):
+            raise Exception("All datasets must have different directories.")
+
         ratio_sum = sum(sorted_ratios)
         if not np.isclose(ratio_sum, 1.0):
             raise Exception(f"Split ratios must sum to 1.0, but got {ratio_sum}.")
