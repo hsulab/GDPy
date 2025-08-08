@@ -4,8 +4,8 @@
 
 import copy
 import itertools
-import pathlib
-from typing import Optional
+import json
+from typing import Mapping, Union
 
 import numpy as np
 from ase import Atoms
@@ -18,7 +18,7 @@ from gdpx.session.operation import Operation
 
 def split_structures_by_ratio(
     structures: list[Atoms], ratio: float = 1.0, rng=np.random.default_rng()
-) -> tuple[list[Atoms], ...]:
+) -> tuple[tuple[list[Atoms], ...], list[np.ndarray]]:
     """"""
     whether_split = not np.isclose(ratio, 1.0)
 
@@ -30,16 +30,16 @@ def split_structures_by_ratio(
         split_idx = int(num_structures * ratio)
         train_indices = indices[:split_idx]
         test_indices = indices[split_idx:]
-        print(train_indices)
-        print(test_indices)
+        split_indices = [train_indices, test_indices]
 
         train_structures = [structures[i] for i in train_indices]
         test_structures = [structures[i] for i in test_indices]
         datasets = [train_structures, test_structures]
     else:
         datasets = [structures]
+        split_indices = [np.arange(len(structures))]
 
-    return datasets  # type: ignore
+    return datasets, split_indices  # type: ignore
 
 
 def transfer_structures_to_dataset(dataset, system_dirpath, structures, version: str, print_func) -> None:
@@ -53,9 +53,9 @@ def transfer_structures_to_dataset(dataset, system_dirpath, structures, version:
     num_structures = len(structures)
     if not target_destination.exists():
         write(target_destination, structures)
-        print_func(f"num_structures {num_structures} -> {str(relative_desination)}")
+        print_func(f"-> {dataset.directory.name:<21s} num_structures {num_structures} -> {str(relative_desination)}")
     else:
-        print_func(f"{str(relative_desination)} exists.")
+        print_func(f"-> {dataset.directory.name:<21s} {str(relative_desination)} exists.")
 
     return
 
@@ -67,18 +67,19 @@ class transfer(Operation):
     def __init__(
         self,
         structures,
-        dataset,
         version,
         prefix: str = "",
         suffix: str = "mixed",
-        side_dataset: Optional[str] = None,
-        split_ratio: float = 1.0,
         clean_info: bool = False,
         set_pbc: bool = True,
         directory="./",
+        split_ratio: Union[float, Mapping[str, float]] = 1.0,
+        **datasets,
     ) -> None:
         """"""
-        input_nodes = [structures, dataset]
+        datasets, splits = self._canonicalise_datasets(datasets, split_ratio=split_ratio)
+
+        input_nodes = [structures, *datasets]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
         self.version = version
@@ -86,15 +87,49 @@ class transfer(Operation):
         self.prefix = prefix
         self.suffix = suffix  # molecule/cluster, surface, bulk
 
-        self.side_dataset = side_dataset
-        self.split_ratio = split_ratio
+        self.splits = splits
 
         self.clean_info = clean_info  # whether clean atoms info
         self.set_pbc = set_pbc  # Whether set structures to full pbc
 
         return
 
-    def forward(self, structures: list[Atoms], dataset):
+    def _canonicalise_datasets(self, datasets: dict, split_ratio: Union[float, Mapping[str, float]]):
+        """"""
+        if not isinstance(split_ratio, Mapping):
+            split_ratio = dict(dataset=split_ratio)
+
+        if "dataset" not in datasets:
+            raise Exception("At least one dataset must be provided with the name `dataset`.")
+
+        dataset_names = list(datasets.keys())
+        dataset_names.insert(
+            0, dataset_names.pop(dataset_names.index("dataset"))
+        )  # Ensure the first dataset is named `dataset`
+
+        sorted_datasets = []
+        for name, dataset in datasets.items():
+            if not name.startswith("dataset"):
+                raise Exception(f"Dataset name `{name}` must start with `dataset`, but got `{name}` for `{dataset}`.")
+            sorted_datasets.append(dataset)
+
+        num_datasets, num_ratios = len(sorted_datasets), len(split_ratio)
+        if num_datasets > 2:  # TODO: support more datasets
+            raise Exception(f"At most two datasets are supported, but got {num_datasets}.")
+        if num_datasets == num_ratios:
+            sorted_ratios = [split_ratio[name] for name in dataset_names]
+        else:
+            raise Exception(
+                f"Number of datasets `{num_datasets}` does not match number of split ratios `{num_ratios}`."
+            )
+
+        ratio_sum = sum(sorted_ratios)
+        if not np.isclose(ratio_sum, 1.0):
+            raise Exception(f"Split ratios must sum to 1.0, but got {ratio_sum}.")
+
+        return sorted_datasets, sorted_ratios
+
+    def forward(self, structures: list[Atoms], *datasets):
         """"""
         super().forward()
 
@@ -103,12 +138,17 @@ class transfer(Operation):
         num_structures = len(structures)
         self._print(f"{num_structures = }")
 
-        target_dirpaths = [dataset.directory.resolve()]
-        if self.side_dataset is not None:
-            target_dirpaths.append(pathlib.Path(self.side_dataset).resolve())
-
+        self._print("target datasets:")
+        target_dirpaths = [dataset.directory.resolve() for dataset in datasets]
         for target_dirpath in target_dirpaths:
-            self._print(f"target dir: {str(target_dirpath)}")
+            self._print(f"-> dataset: {str(target_dirpath)}")
+        main_dataset = datasets[0]
+
+        # Skip transfer if cache_splits.json exists
+        if (self.directory / "cache_splits.json").exists():
+            self._print("cache_splits.json exists, skip transfer.")
+            self.status = "finished"
+            return main_dataset
 
         # Check chemical symbols
         system_dict = {}  # {formula: [indices]}
@@ -123,8 +163,10 @@ class transfer(Operation):
                 system_dict[k].extend([x[0] for x in v])
 
         # Transfer data
+        cache_splits = {}
         acc_num_structures = 0
         for formula, curr_indices in system_dict.items():
+            self._print(f"{formula:<24s} has {len(curr_indices):>4d} structures.")
             curr_structures = [structures[i] for i in curr_indices]
             curr_num_frames = len(curr_structures)
 
@@ -138,15 +180,18 @@ class transfer(Operation):
             system_type = self.suffix  # currently, use user input one
             dirname = "-".join([self.prefix, formula, system_type])
 
-            split_structures = split_structures_by_ratio(curr_structures, self.split_ratio, rng=dataset.rng)
-            for target_dirpath, target_structures in zip(target_dirpaths, split_structures):
-                dataset.directory = target_dirpath
+            cache_info = dict(rng_state=main_dataset.rng.bit_generator.state)
+            split_structures, split_indices = split_structures_by_ratio(
+                curr_structures, self.splits[0], rng=main_dataset.rng
+            )
+            cache_info["index"] = [indices.tolist() for indices in split_indices]
+            for dataset, target_structures in zip(datasets, split_structures):
                 target_subdir = dataset.directory.resolve() / dirname
                 target_subdir.mkdir(parents=True, exist_ok=True)
 
                 num_target_structures = len(target_structures)
                 if num_target_structures == 0:
-                    self._print(f"Skip {dirname} as it has no structures.")
+                    self._print(f"-> {dataset.directory.name:<24s} skips {dirname} as it has no structures.")
                 else:
                     transfer_structures_to_dataset(
                         dataset,
@@ -155,15 +200,19 @@ class transfer(Operation):
                         self.version,
                         self._print,
                     )
-
+            assert formula not in cache_splits, f"Formula {formula} already exists in cache_split_indices."
+            cache_splits[formula] = cache_info
             acc_num_structures += curr_num_frames
 
-        dataset.directory = target_dirpaths[0]
+        with open(self.directory / "cache_splits.json", "w") as fopen:
+            json.dump(cache_splits, fopen, indent=2)
+        self._print("save cache_splits.json")
+
         assert num_structures == acc_num_structures
 
         self.status = "finished"
 
-        return dataset
+        return main_dataset
 
     def _clean_structures(self, structures: list[Atoms]):
         """"""
