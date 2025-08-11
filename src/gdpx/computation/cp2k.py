@@ -436,7 +436,7 @@ class Cp2kDriver(BaseDriver):
         """"""
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
-            if self.setting.task == "spc":
+            if self.setting.task == "spc" or self.setting.task == "freq":
                 # No restart files are generated in a spc calculation.
                 # We need check the computation actually creates an output file.
                 cp2kout_fpath = self.directory / "cp2k.out"
