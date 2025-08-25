@@ -60,10 +60,13 @@ class FrequencyController(Controller):
 
     def __post_init__(self):
         """"""
+        num_cpus_per_replica = self.params.get("num_cpus_per_replica", 16)  # The number of cpus per replica
+        maxstep = self.params.get("maxstep", 0.01)  # [Bohr]
+
         self.conv_params = [
             ("GLOBAL", "RUN_TYPE VIBRATIONAL_ANALYSIS"),
-            ("VIBRATIONAL_ANALYSIS", f"DX {self.maxstep}"),
-            ("VIBRATIONAL_ANALYSIS", "NPROC_REP 16"),
+            ("VIBRATIONAL_ANALYSIS", f"DX {maxstep}"),
+            ("VIBRATIONAL_ANALYSIS", f"NPROC_REP {num_cpus_per_replica}"),
             # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "INITIAL_GUESS ATOMIC"),
             # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_NORM 1.0E-5"),
             # ("VIBRATIONAL_ANALYSIS/MODE_SELECTIVE", "EPS_MAX_VAL 1.0E-6"),
