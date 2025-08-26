@@ -11,7 +11,10 @@ class Cp2kManager(BasePotentialManager):
 
     name = "cp2k"
 
-    implemented_backends = ["cp2k", "cp2k_shell"]
+    implemented_backends = (
+        "cp2k",
+        "cp2k_shell",
+    )
     valid_combinations = (
         # calculator, dynamics
         ("cp2k", "ase"),
@@ -65,9 +68,7 @@ class Cp2kManager(BasePotentialManager):
         elif self.calc_backend == "cp2k_shell":
             from ase.calculators.cp2k import CP2K as CP2K
         else:
-            raise NotImplementedError(
-                f"Unimplemented backend {self.calc_backend} for vasp."
-            )
+            raise NotImplementedError(f"Unimplemented backend {self.calc_backend} for vasp.")
 
         # Set some parameters
         calc = CP2K(
