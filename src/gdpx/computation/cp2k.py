@@ -153,6 +153,53 @@ class CGMinimiser(MotionController):
 
 
 @dataclasses.dataclass
+class DimerController(MotionController):
+
+    name: str = "dimer"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        dimer_vector = self.params.get("dimer_vector", None)  # Non-weighted cartesian coordinates [Ang]
+
+        more_params = [
+            ("GLOBAL", "RUN_TYPE GEO_OPT"),
+            ("MOTION/GEO_OPT", "TYPE TRANSITION_STATE"),
+            ("MOTION/GEO_OPT", "OPTIMIZER CG"),
+            # dimer translation only supports cg
+            ("MOTION/GEO_OPT/CG", "MAX_STEEP_STEPS 0"),
+            ("MOTION/GEO_OPT/CG/LINE_SEARCH", "TYPE 2PNT"),
+            ("MOTION/GEO_OPT/CG/LINE_SEARCH/2PNT", "MAX_ALLOWED_STEP 0.2"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE", "METHOD DIMER"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER", "DR [angstrom] 0.01"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER", "ANGLE_TOLERANCE [deg] 2.0"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER", "INTERPOLATE_GRADIENT T"),
+            # dimer rotation only supports cg
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER/ROT_OPT", "OPTIMIZER CG"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER/ROT_OPT", "MAX_ITER 12"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER/ROT_OPT/CG", "MAX_STEEP_STEPS 0"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER/ROT_OPT/CG/LINE_SEARCH", "TYPE 2PNT"),
+            ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER/ROT_OPT/CG/LINE_SEARCH/2PNT", "MAX_ALLOWED_STEP 0.1"),
+            (
+                "MOTION/PRINT/RESTART_HISTORY/EACH",
+                f"GEO_OPT {self.ckpt_period}",
+            ),
+        ]
+
+        if dimer_vector is not None:
+            with open(dimer_vector, "r") as fopen:
+                dimer_vector_values = "".join(fopen.readlines())
+            more_params.append(
+                ("MOTION/GEO_OPT/TRANSITION_STATE/DIMER/DIMER_VECTOR", dimer_vector_values),
+            )
+
+        self.conv_params.extend(more_params)
+
+        return
+
+
+@dataclasses.dataclass
 class MDController(MotionController):
 
     #: Controller name.
@@ -289,6 +336,8 @@ controllers = dict(
     # - min
     cg_min=CGMinimiser,
     bfgs_min=BFGSMinimiser,
+    # - transition state
+    dimer_ts=DimerController,
     # - md
     verlet_nve=Verlet,
     csvr_nvt=CSVRThermostat,
@@ -301,6 +350,7 @@ controllers = dict(
 default_controllers = dict(
     spc=SinglePointController,
     min=BFGSMinimiser,
+    ts=DimerController,
     nve=Verlet,
     nvt=CSVRThermostat,
     npt=MartynaBarostat,
@@ -342,6 +392,9 @@ class Cp2kDriverSetting(DriverSetting):
         if self.task == "min":
             # fmax and steps can be set on-the-fly, see get_run_params
             suffix = self.task
+        elif self.task == "ts":
+            # fmax and steps can be set on-the-fly, see get_run_params
+            suffix = self.task
         elif self.task == "md":
             # steps can be set on-the-fly, see get_run_params
             suffix = self.ensemble
@@ -380,7 +433,7 @@ class Cp2kDriverSetting(DriverSetting):
         steps_ = kwargs.get("steps", self.steps)
 
         run_pairs = []
-        if self.task == "min":
+        if self.task == "min" or self.task == "ts":
             run_pairs.append(
                 ("MOTION/GEO_OPT", f"MAX_ITER {steps_}"),
             )
@@ -430,10 +483,23 @@ class Cp2kDriver(BaseDriver):
     name = "cp2k"
 
     default_task = "spc"
-    supported_tasks = ["spc", "min", "md", "freq"]
+    supported_tasks = ["spc", "min", "ts", "md", "freq"]
 
     #: Class for setting.
     setting_cls: type[DriverSetting] = Cp2kDriverSetting
+
+    def canonicalise_parameters(self):
+        """"""
+        # HACK: Update path-like parameters to absolute paths
+        if "controller" in self._org_params:
+            if "params" in self._org_params["controller"]:
+                if "dimer_vector" in self._org_params["controller"]["params"]:
+                    dimer_vector_fpath = self._org_params["controller"]["params"]["dimer_vector"]
+                    self._org_params["controller"]["params"]["dimer_vector"] = str(
+                        pathlib.Path(dimer_vector_fpath).resolve()
+                    )
+
+        return
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """"""

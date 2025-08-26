@@ -189,6 +189,7 @@ class BaseDriver(BaseComponent):
         self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
+        self.canonicalise_parameters()
 
         if hasattr(self, "setting_cls"):
             self.setting = self.setting_cls(**params)  # type: ignore
@@ -197,6 +198,11 @@ class BaseDriver(BaseComponent):
             ...
 
         assert isinstance(self.setting, DriverSetting)
+
+        return
+
+    def canonicalise_parameters(self) -> None:
+        """"Canonicalise parameters especially for path-like inputs."""
 
         return
 
