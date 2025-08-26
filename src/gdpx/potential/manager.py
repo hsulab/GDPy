@@ -16,7 +16,7 @@ from gdpx.computation.driver import BaseDriver
 from gdpx.reactor import register_reactors
 from gdpx.reactor.reactor import BaseReactor
 
-DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "cmin", "md", "freq"]
+DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "ts", "cmin", "md", "freq"]
 DYNAMICS_REACTOR_TASKS: list[str] = ["neb"]
 
 
