@@ -648,7 +648,7 @@ class Cp2kDriver(BaseDriver):
             else:
                 self._print(f"No output @ {str(self.directory)}")
                 traj_frames = []
-        elif self.setting.task in ["min", "cmin", "md"]:
+        elif self.setting.task in ["min", "ts", "cmin", "md"]:
             # Find previous calculations, where we have pos, frc, and cell.
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
             self._debug(f"prev_wdirs: {prev_wdirs}")
