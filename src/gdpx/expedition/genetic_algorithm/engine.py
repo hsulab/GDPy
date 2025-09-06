@@ -154,7 +154,7 @@ class GeneticAlgorithmBroadcaster:
         if target == "energy":
             new_params = copy.deepcopy(params)
             new_params_list.append(new_params)
-        elif target == "formation_energy":
+        elif target == "cohesive_energy" or target == "formation_energy":
             chempot = []
             for k, v in property_setting.get("chempot").items():
                 if isinstance(v, list):
@@ -167,7 +167,7 @@ class GeneticAlgorithmBroadcaster:
                 new_params["property"]["chempot"] = {k: v for k, v in chempot}
                 new_params_list.append(new_params)
         else:
-            ...
+            raise Exception(f"Cannot broadcast unknown target {target}.")
 
         return new_params_list
 
@@ -259,11 +259,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Sanity check on target property
         self.prop_dict = ga_dict.get("property", dict(target="energy"))
         target = self.prop_dict.get("target", None)
-        assert target in [
+        assert target in (
             "energy",
+            "cohesive_energy",
             "formation_energy",
-        ], f"Target `{target}` is not supported yet."
-        if target == "formation_energy":
+        ), f"Target `{target}` is not supported yet."
+        if target == "cohesive_energy" or target == "formation_energy":
             if "chempot" not in self.prop_dict:
                 raise RuntimeError(
                     "The `chempot` is not provided in the property section."
@@ -1055,15 +1056,15 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def evaluate_candidate(self, atoms: Atoms) -> None:
         """Evaluate the candidate's fitness.
 
-        The fitness is stored in atoms.infop['raw_score']. The candidate
-        is better with a larger raw_score.
+        The fitness is stored in atoms.infop['raw_score']. The candidate is better with a larger raw_score.
 
         The supported properties are
 
-            1. energy (potential energy)
-            2. enthalpy (potential energy plus pressure correction)
-            3. formation_energy (grand canonical)
-            4. reaction_energy (TODO)
+            - energy (potential energy)
+            - enthalpy (potential energy plus pressure correction)
+            - cohesive energy (grand canonical)
+            - formation_energy (grand canonical)
+            - reaction_energy (TODO)
 
         Args:
             atoms: The candidate with calculated properties.
@@ -1081,6 +1082,15 @@ class GeneticAlgorithmEngine(BaseExpedition):
             energy = atoms.get_potential_energy()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
             atoms.info["key_value_pairs"]["target"] = energy
+        elif self.target == "cohesive_energy":
+            chempot_dict = self.prop_dict["chempot"]
+
+            energy = atoms.get_potential_energy()
+            cohesive_energy = energy - np.sum(
+                [chempot_dict[s] for s in atoms.get_chemical_symbols()]
+            )
+            atoms.info["key_value_pairs"]["raw_score"] = -cohesive_energy
+            atoms.info["key_value_pairs"]["target"] = cohesive_energy
         elif self.target == "formation_energy":
             identity_stats = atoms.info.get("identity_stats", None)
             assert (
