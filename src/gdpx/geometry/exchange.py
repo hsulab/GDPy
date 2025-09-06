@@ -98,7 +98,7 @@ def insert_one_particle(
         candidate.extend(particle)
     region.preprocess(candidate)
     for iattempt in range(max_attempts):
-        if copy_atoms and (len(atoms) == num_atoms):
+        if copy_atoms and (len(atoms) != num_atoms):
             # Make sure we have not messed up with the substrate
             raise Exception(f"Expecting {num_atoms} but got {len(atoms)}.")
         position = region.get_random_positions(size=1, rng=rng)[0]
