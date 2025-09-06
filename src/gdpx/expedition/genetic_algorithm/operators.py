@@ -78,7 +78,7 @@ def instantiate_a_genetic_operator(
 
     op_cls = GENETIC_OPERATORS[category].get(method, None)
     if op_cls is None:
-        raise Exception(f"Operator {method} is not found in {category}.")
+        raise Exception(f"Operator {method} is not found in {category} if {GENETIC_OPERATORS[category].keys()}.")
 
     init_args = inspect.getargspec(op_cls.__init__).args[1:]  # skip self
     for k, v in specific_params.items():
