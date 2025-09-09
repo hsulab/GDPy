@@ -236,9 +236,9 @@ class PropertySelector(BaseSelector):
         """Mark a group of structures based on a structure's own property."""
         selected_markers = []
         for grp_name, curr_markers in marker_groups.items():
+            prop_item._sparsify.reset()
             curr_frames = data.get_marked_structures(curr_markers)
             curr_nframes = len(curr_frames)
-
             if curr_nframes > 0:
                 scores, selected_indices = self._sparsify(grp_name, prop_item, curr_frames)
                 self._print(f"group: {grp_name} -> number of structures: {len(selected_indices)}")

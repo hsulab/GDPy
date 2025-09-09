@@ -328,9 +328,14 @@ class Sparsification:
 
     method: str
 
+    def reset(self):
+        """Reset runtime parameters such as extremum."""
+
+        return
+
 
 @dataclasses.dataclass
-class ScalarSparsification:
+class ScalarSparsification(Sparsification):
     """Sparsification based on scalar properties."""
 
     method: str
@@ -359,6 +364,18 @@ class ScalarSparsification:
     def get_sparsify_params(self):
         """"""
         raise NotImplementedError
+
+    def reset(self):
+        """Reset _pmin and _pmax based on range."""
+        bounds_ = self.range
+        if bounds_[0] is None:
+            bounds_[0] = "min"
+        if bounds_[1] is None:
+            bounds_[1] = "max"
+
+        self._pmin, self._pmax = bounds_
+
+        return
 
 
 @dataclasses.dataclass
