@@ -6,7 +6,7 @@ import numpy as np
 
 from gdpx.data.array import AtomsNDArray
 
-from .clustering import group_structures_by_axis
+from .clustering import group_structures
 from .selector import BaseSelector
 
 
@@ -24,7 +24,7 @@ class RandomSelector(BaseSelector):
 
     def _mark_structures(self, data: AtomsNDArray) -> None:
         """"""
-        marker_groups = group_structures_by_axis(data, self.group_by)
+        marker_groups = group_structures(data, group_by=self.group_by)
 
         selected_markers = []
         for grp_name, markers in marker_groups.items():

@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
+import collections
 from typing import Union
 
 import numpy as np
+from ase import Atoms
 
 
 def stat_str2val(stat: Union[str, float], values: list[float]) -> float:
@@ -43,6 +45,19 @@ def stat_str2val(stat: Union[str, float], values: list[float]) -> float:
             v = stat
 
     return float(v)
+
+
+def get_aligned_chemical_formula(atoms: Atoms, symbol_list: list[str], padding_width: int = 4):
+    """"""
+    chemical_symbols = atoms.get_chemical_symbols()
+    counter = collections.Counter(chemical_symbols)
+
+    chemical_formula = ""
+    for s in symbol_list:
+        n = counter.get(s, 0)
+        chemical_formula += f"{s}{n:>0{padding_width}d}"
+
+    return chemical_formula
 
 
 if __name__ == "__main__":

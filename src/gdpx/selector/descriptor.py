@@ -12,7 +12,7 @@ from dscribe.descriptors import SOAP
 
 from gdpx.data.array import AtomsNDArray
 
-from .clustering import group_structures_by_axis
+from .clustering import group_structures
 from .selector import BaseSelector
 from .sparsification import cur_selection, fps_selection
 
@@ -143,7 +143,7 @@ class DescriptorSelector(BaseSelector):
 
         """
         # Group markers
-        marker_groups = group_structures_by_axis(data, axis=self.group_by)
+        marker_groups = group_structures(data, group_by=self.group_by)
         self._debug(f"marker_groups: {marker_groups}")
 
         selected_markers = []

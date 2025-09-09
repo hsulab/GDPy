@@ -14,10 +14,10 @@ from ase.neighborlist import neighbor_list
 from gdpx.data.array import AtomsNDArray
 from gdpx.describer import REGISTER as DESCRIBER_REGISTER
 
-from .clustering import group_structures_by_axis
+from .clustering import group_structures
 from .selector import BaseSelector
 from .sparsification import IMPLEMENTED_SPARSIFY_METHODS, ScalarSparsification
-from .utils import stat_str2val
+from .utils import stat_str2val, get_aligned_chemical_formula
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy",
@@ -57,19 +57,6 @@ def compute_minimum_distance(atoms: Atoms, cutoff: float):
     # pair specific?
 
     return np.min(d)
-
-
-def get_aligned_chemical_formula(atoms: Atoms, symbol_list: list[str], padding_width: int = 4):
-    """"""
-    chemical_symbols = atoms.get_chemical_symbols()
-    counter = collections.Counter(chemical_symbols)
-
-    chemical_formula = ""
-    for s in symbol_list:
-        n = counter.get(s, 0)
-        chemical_formula += f"{s}{n:>0{padding_width}d}"
-
-    return chemical_formula
 
 
 @dataclasses.dataclass
@@ -174,7 +161,7 @@ class PropertySelector(BaseSelector):
         self._print(f"property -> {self._property.name}")
 
         # Group markers by certain criteria (axis for now)
-        marker_groups = group_structures_by_axis(data, self.group_by)
+        marker_groups = group_structures(data, group_by=self.group_by)
         self._debug(f"marker_groups: {marker_groups}")
 
         num_groups = len(marker_groups)

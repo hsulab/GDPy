@@ -88,8 +88,8 @@ class BaseSelector(BaseComponent):
     #: Selector name.
     name: str = "base"
 
-    #: Target axis to select.
-    group_by: Optional[int] = None
+    #: Group structures by axis or other criteria before selection.
+    group_by: Optional[str] = None
 
     #: Default parameters.
     default_parameters: dict = dict(number=[4, 0.2], verbose=False)  # number & ratio
@@ -98,7 +98,7 @@ class BaseSelector(BaseComponent):
     _fname: str = "info.txt"
 
     def __init__(
-        self, group_by: Optional[int] = None, n_jobs: Optional[int] = None, directory="./", random_seed=None, **kwargs
+        self, group_by: Optional[str] = None, n_jobs: Optional[int] = None, directory="./", random_seed=None, **kwargs
     ) -> None:
         """Initialise a selector.
 
