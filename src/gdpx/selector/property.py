@@ -17,7 +17,7 @@ from gdpx.describer import REGISTER as DESCRIBER_REGISTER
 from .clustering import group_structures
 from .selector import BaseSelector
 from .sparsification import IMPLEMENTED_SPARSIFY_METHODS, ScalarSparsification
-from .utils import stat_str2val, get_aligned_chemical_formula
+from .utils import get_aligned_chemical_formula, stat_str2val
 
 IMPLEMENTED_SCALAR_PROPERTIES: list[str] = [
     "atomic_energy",
@@ -213,7 +213,7 @@ class PropertySelector(BaseSelector):
         rep_frames = [x[1] for x in rep_groups]
 
         selected_markers = []
-        scores, selected_indices = self._sparsify(prop_item, rep_frames)
+        scores, selected_indices = self._sparsify("rep", prop_item, rep_frames)
         self._print(f"number of groups selected: {len(selected_indices)}")
 
         _counter = 0
@@ -240,8 +240,9 @@ class PropertySelector(BaseSelector):
             curr_nframes = len(curr_frames)
 
             if curr_nframes > 0:
-                scores, selected_indices = self._sparsify(prop_item, curr_frames)
+                scores, selected_indices = self._sparsify(grp_name, prop_item, curr_frames)
                 self._print(f"group: {grp_name} -> number of structures: {len(selected_indices)}")
+                self._print("")
                 curr_selected_markers = [curr_markers[i] for i in selected_indices]
                 selected_markers.extend(curr_selected_markers)
 
@@ -308,7 +309,7 @@ class PropertySelector(BaseSelector):
 
         return prop_vals
 
-    def _statistics(self, prop_name, prop_vals, sparsify: ScalarSparsification):
+    def _statistics(self, prop_name, prop_vals, sparsify: ScalarSparsification, grp_name: str = ""):
         """Show statistics of the property and update the lower and upper limites of the sparsification."""
         # Get basic statistics for property values
         pmax = stat_str2val("max", prop_vals)
@@ -341,20 +342,30 @@ class PropertySelector(BaseSelector):
         content += f"# min {s_pmin:<12.4f} max {s_pmax:<12.4f}\n"
         for x, y in zip(hist, bin_edges[:-1]):
             content += f"{y:>12.4f}  {x:>12d}\n"
-        content += f"{bin_edges[-1]:>12.4f}  {'-':>12s}\n"
+        content += f"{bin_edges[-1]:>12.4f}  {'-':>12s}"
 
-        with open(
-            self.info_fpath.parent / (self.info_fpath.stem + f"-{prop_name}-stat.txt"),
-            "w",
-        ) as fopen:
-            fopen.write(content)
+        stat_fpath = self.info_fpath.parent / (self.info_fpath.stem + f"-{prop_name}-stat.txt")
+        if not grp_name:
+            with open(stat_fpath, "w") as fopen:
+                fopen.write(content+"\n")
+        else:
+            if stat_fpath.exists():
+                with open(stat_fpath, "a") as fopen:
+                    fopen.write(f"# --> {grp_name}\n")
+                    fopen.write(content+"\n")
+                    fopen.write("\n")
+            else:
+                with open(stat_fpath, "w") as fopen:
+                    fopen.write(f"# --> {grp_name}\n")
+                    fopen.write(content+"\n")
+                    fopen.write("\n")
 
         for l in content.split("\n"):
             self._print(l)
 
         return
 
-    def _sparsify(self, prop_item: PropertyItem, frames: list[Atoms]):
+    def _sparsify(self, grp_name: str, prop_item: PropertyItem, frames: list[Atoms]):
         """"""
         # Each structure is represented by one float/string value
         prop_vals = self._extract_property(frames, prop_item)
@@ -362,7 +373,7 @@ class PropertySelector(BaseSelector):
         # Show statistics of this property
         if prop_item.name in IMPLEMENTED_SCALAR_PROPERTIES and isinstance(prop_item._sparsify, ScalarSparsification):
             prop_type = "scalar"
-            self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
+            self._statistics(prop_item.name, prop_vals, prop_item._sparsify, grp_name=grp_name)
         elif prop_item.name in IMPLEMENTED_STRING_PROPERTIES:
             prop_type = "string"
             unique_types = sorted(list(set(prop_vals)))
@@ -373,7 +384,7 @@ class PropertySelector(BaseSelector):
             # These properties may be from describers.
             prop_type = "scalar"  # TODO: More property types?
             if prop_type == "scalar":
-                self._statistics(prop_item.name, prop_vals, prop_item._sparsify)
+                self._statistics(prop_item.name, prop_vals, prop_item._sparsify, grp_name=grp_name)
             self._print(f"{prop_item.name} does not support statistics.")
 
         if prop_type is None:
