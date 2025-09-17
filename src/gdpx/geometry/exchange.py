@@ -30,8 +30,8 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
 
     # decompose site_direction into xy plane and z direction
     site_direction_z = np.array([0.0, 0.0, site_direction[2]])
-    site_direction_z = site_direction_z / np.linalg.norm(site_direction_z)
     site_direction_xy = site_direction - site_direction_z
+    site_direction_z = site_direction_z / np.linalg.norm(site_direction_z)
     site_direction_xy = site_direction_xy / np.linalg.norm(site_direction_xy)
 
     # compute rotation for the adsorbate plane
@@ -51,8 +51,8 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
 
     # compute rotation for the surface (xy) plane
     angle = np.arccos(np.dot(site_direction_xy, anchor_direction)) / np.pi * 180.0
-    if site_direction_xy[1] < 0:  # TODO: correct site direction to pointing along +y?
-        angle = 360 - angle
+    if site_direction_xy[1] < 0:
+        angle = 360 - angle  # according to the y direction
     adsorbate.rotate(angle, "z", center=anchor_position)
 
     # move the adsorbate to the site
