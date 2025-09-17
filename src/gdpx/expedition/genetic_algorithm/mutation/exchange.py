@@ -9,13 +9,13 @@ from ase import Atoms
 from ase.ga.offspring_creator import OffspringCreator
 
 from gdpx.geometry.composition import convert_string_to_atoms
-from gdpx.geometry.exchange import insert_one_particle, remove_one_particle
+from gdpx.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
+from gdpx.group import evaluate_group_expression
 from gdpx.nodes.region import RegionVariable
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 
 class ExchangeMutation(OffspringCreator):
-
     """The exchange mutation inserts or removes particles from the given structure."""
 
     #: Maximum number of attempts to rattle atoms.
@@ -48,8 +48,6 @@ class ExchangeMutation(OffspringCreator):
 
         self.rng = rng
 
-        self.anchors = anchors
-
         self.nsel = nsel
 
         self.use_tags = use_tags
@@ -59,9 +57,7 @@ class ExchangeMutation(OffspringCreator):
         else:  # assume it is a list of chemical formulae
             self.species = species
 
-        self._species_instances = {
-            s: convert_string_to_atoms(s) for s in self.species
-        }
+        self._species_instances = {s: convert_string_to_atoms(s) for s in self.species}
 
         num_species = len(self.species)
         if num_min_max is None:
@@ -73,9 +69,7 @@ class ExchangeMutation(OffspringCreator):
                 else:
                     _num_min_max = [num_min_max] * num_species
             else:
-                raise Exception(
-                    f"num_min_max `{num_min_max}` must be a list of tuples."
-                )
+                raise Exception(f"num_min_max `{num_min_max}` must be a list of tuples.")
         assert len(_num_min_max) == num_species
 
         self.num_min_max = []
@@ -87,6 +81,17 @@ class ExchangeMutation(OffspringCreator):
             if n_min >= n_max:
                 raise Exception(f"n_min={n_min} >= n_max={n_max}")
             self.num_min_max.append((n_min, n_max))
+
+        # Use predefined adsorption sites
+        if anchors is not None:
+            if isinstance(anchors, list):
+                self.anchors = anchors
+                num_anchors = len(anchors)
+                assert num_anchors == num_species, f"num_anchors {num_anchors} != num_species {num_species}"
+            else:
+                self.anchors = [anchors] * num_species
+        else:
+            self.anchors = None
 
         return
 
@@ -102,9 +107,7 @@ class ExchangeMutation(OffspringCreator):
         indi.info["data"]["parents"] = [f.info["confid"]]
 
         # finalize_individual, add sub operation descriptor
-        indi.info["key_value_pairs"]["origin"] = (
-            self.descriptor + "_" + extra_info.split()[0]
-        )
+        indi.info["key_value_pairs"]["origin"] = self.descriptor + "_" + extra_info.split()[0]
 
         return indi, f"mutation: exchange {extra_info}"
 
@@ -121,9 +124,7 @@ class ExchangeMutation(OffspringCreator):
 
         # Check if the number of the selected species is within the tolerance
         species_to_exchange = str(self.rng.choice(self.species, replace=False))
-        num_species_to_exchange = len(
-            valid_identities.get(species_to_exchange, [])
-        )
+        num_species_to_exchange = len(valid_identities.get(species_to_exchange, []))
         num_min_max = self.num_min_max[self.species.index(species_to_exchange)]
 
         if num_species_to_exchange <= num_min_max[0]:
@@ -135,28 +136,39 @@ class ExchangeMutation(OffspringCreator):
 
         # We should only remove species existing in the system
         if op == "remove":
-            species_to_exchange = str(
-                self.rng.choice(list(valid_identities.keys()), replace=False)
-            )
+            species_to_exchange = str(self.rng.choice(list(valid_identities.keys()), replace=False))
         else:
             ...
 
         # Run the exchange
         extra_info = ""
         if op == "insert":
-            mutant, extra_info = insert_one_particle(
-                mutant,
-                self._species_instances[species_to_exchange],
-                region=self.region,
-                covalent_ratio=self.covalent_ratio,
-                bond_distance_dict=self.bond_distance_dict,
-                max_attempts=self.MAX_ATTEMPTS,
-                rng=self.rng,
-            )
+            if self.anchors is None:
+                # Insert the particle at a random position in the 3D space
+                mutant, extra_info = insert_one_particle(
+                    mutant,
+                    self._species_instances[species_to_exchange],
+                    region=self.region,
+                    covalent_ratio=self.covalent_ratio,
+                    bond_distance_dict=self.bond_distance_dict,
+                    max_attempts=self.MAX_ATTEMPTS,
+                    rng=self.rng,
+                )
+            else:
+                # Insert the particle at predefined adsorption sites
+                site_params = self.anchors[self.species.index(species_to_exchange)]
+                atomic_indices = evaluate_group_expression(mutant, grp_expr=site_params["group"])
+                mutant, extra_info = insert_one_particle_on_site(
+                    mutant,
+                    self._species_instances[species_to_exchange],
+                    atomic_indices,
+                    covalent_ratio=self.covalent_ratio,
+                    bond_distance_dict=self.bond_distance_dict,
+                    max_attempts=self.MAX_ATTEMPTS,
+                    rng=self.rng,
+                )
         elif op == "remove":
-            mutant, extra_info = remove_one_particle(
-                mutant, valid_identities, species_to_exchange, rng=self.rng
-            )
+            mutant, extra_info = remove_one_particle(mutant, valid_identities, species_to_exchange, rng=self.rng)
         else:
             ...  # Should not be here.
 

@@ -9,11 +9,62 @@ from typing import Callable, Optional
 
 import numpy as np
 from ase import Atoms
+from ase.neighborlist import NeighborList
 
 from gdpx.utils.atoms_tags import reassign_tags_by_species
 
 from .particle import translate_then_rotate
 from .spatial import check_atomic_distances
+
+
+def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+    """"""
+    # TODO: works for bidentate planar molecules such as CHOO only
+    adsorbate = adsorbate.copy()
+
+    anchor_position = np.mean(adsorbate.positions[[2, 3], :], axis=0)  # the middle point of two O atoms
+    anchor_direction = adsorbate.positions[2] - adsorbate.positions[3]  # from O to O
+
+    # normalise directions
+    anchor_direction = anchor_direction / np.linalg.norm(anchor_direction)
+    site_direction = site_direction / np.linalg.norm(site_direction)
+
+    # decompose site_direction into xy plane and z direction
+    site_direction_z = np.array([0.0, 0.0, site_direction[2]])
+    site_direction_z = site_direction_z / np.linalg.norm(site_direction_z)
+    site_direction_xy = site_direction - site_direction_z
+    site_direction_xy = site_direction_xy / np.linalg.norm(site_direction_xy)
+
+    # compute rotation for the surface (xy) plane
+    angle = np.arccos(np.dot(site_direction_xy, anchor_direction)) / np.pi * 180.0
+    if site_direction_xy[1] < 0:  # TODO: correct site direction to pointing along +y?
+        angle = 360 - angle
+    adsorbate.rotate(angle, "z", center=anchor_position)
+
+    # compute rotation for the adsorbate plane
+    # Get the adsorbate plane normal based on three atoms
+    if np.fabs(site_direction[2]) > 0.10:
+        v1 = adsorbate.positions[2] - adsorbate.positions[0]
+        v2 = adsorbate.positions[3] - adsorbate.positions[0]
+        plane_normal = np.cross(v1, v2)  # right hand rule
+        plane_normal = plane_normal / np.linalg.norm(plane_normal)
+
+        angle = 90 - np.arccos(np.dot(site_direction_z, site_direction)) / np.pi * 180.0
+        if site_direction_z[2] > 0:
+            angle = 360 - angle  # according to the plane normal direction
+        adsorbate.rotate(angle, plane_normal, center=anchor_position)
+    else:
+        ...
+
+    # move the adsorbate to the site
+    adsorbate.positions += site_position - anchor_position
+
+    # lift the adsorbate a bit
+    up_direction = adsorbate.positions[0] - site_position  # from site to C atom
+    up_direction = up_direction / np.linalg.norm(up_direction)
+    adsorbate.positions += zlift * up_direction
+
+    return adsorbate
 
 
 def remove_one_particle(
@@ -121,6 +172,100 @@ def insert_one_particle(
         state = "failure"
 
     return candidate, f"insert_{chemical_formula}_{state}_{num_attempts}"
+
+
+def insert_one_particle_on_site(
+    atoms: Atoms,
+    particle: Atoms,
+    atomic_indices_for_sites: list[int],
+    covalent_ratio,
+    bond_distance_dict,
+    particle_tag: Optional[int] = None,
+    sort_tags: bool = True,
+    max_attempts: int = 100,
+    check_distance_func: Optional[Callable] = check_atomic_distances,
+    rng: np.random.Generator = np.random.default_rng(),
+) -> tuple[Optional[Atoms], str]:
+    """"""
+    # Set the tag for the inserted particle,
+    # which should not be used in atoms.
+    if particle_tag is None:
+        particle_tag = int(np.max(atoms.get_tags()) + 17)
+    particle.set_tags(particle_tag)
+
+    # Check if we should check neighbour distances
+    num_atoms = len(atoms)
+
+    if check_distance_func is not None:
+        # Avoid distance check in the substrate and the particle to insert
+        intra_bond_pairs = list(itertools.permutations(range(0, num_atoms), 2))
+        intra_bond_pairs.extend(list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2)))
+        # We only check bond distances form by atoms in the particle,
+        # since the existing atoms may not statisfy our distance criteria.
+        atomic_indices_to_check = list(range(num_atoms, num_atoms + len(particle)))
+        # Build the function
+        post_func = functools.partial(
+            check_distance_func,
+            covalent_ratio=covalent_ratio,
+            bond_distance_dict=bond_distance_dict,
+            atomic_indices=atomic_indices_to_check,
+            excluded_pairs=intra_bond_pairs,
+            allow_isolated=False,
+        )
+    else:
+        post_func = lambda _: True
+
+    # TODO: move this section to graph submodule
+    nlist = NeighborList([1.8] * num_atoms, self_interaction=False, bothways=False)
+    nlist.update(atoms)
+
+    pairs = []
+    for i in atomic_indices_for_sites:
+        n_indices, n_offsets = nlist.get_neighbors(i)
+        for j, o in zip(n_indices, n_offsets):
+            if j in atomic_indices_for_sites:
+                pairs.append(((i, j), o))
+    num_pairs = len(pairs)
+
+    candidate = atoms
+    cell = atoms.get_cell()
+
+    used_indices = set()
+    for iattempt in range(max_attempts):
+        # TODO: works for bidentate sites only
+        # get one site
+        pair_index = rng.integers(num_pairs)
+        (i, j), o = pairs[pair_index]
+        if i in used_indices or j in used_indices:
+            continue
+        # get site information
+        pos_i = atoms.positions[i]
+        pos_j = atoms.positions[j] + np.dot(o, cell)
+        site_position = (pos_i + pos_j) / 2
+        site_direction = pos_j - pos_i
+        # insert adsorbate
+        new_particle = prepare_adsorbate(site_position, site_direction, particle)
+        candidate.extend(new_particle)
+        if post_func(candidate):  # geometric restraint
+            num_attempts = iattempt + 1
+            break
+        else:
+            del candidate[num_atoms:]  # revert
+            used_indices.add(i)
+            used_indices.add(j)
+    else:
+        candidate = None
+        num_attempts = max_attempts
+
+    chemical_formula = particle.get_chemical_formula()
+    state = "success"
+    if candidate is not None:
+        if sort_tags:
+            candidate = reassign_tags_by_species(candidate)
+    else:
+        state = "failure"
+
+    return candidate, f"ins_site_{chemical_formula}_{state}_{num_attempts}"
 
 
 if __name__ == "__main__":
