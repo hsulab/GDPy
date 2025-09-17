@@ -90,6 +90,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         max_times_size: int = 10,
         sort_by_tags: bool = True,
         sort_by_natoms_per_type: bool = True,
+        type_list: Optional[list[str]] = None,
         *args,
         **kwargs,
     ):
@@ -107,12 +108,16 @@ class RandomStructureImprovedModifier(StructureModifier):
             max_times_size=max_times_size,
             sort_by_tags=sort_by_tags,
             sort_by_natoms_per_type=sort_by_natoms_per_type,
+            type_list=type_list,
             **kwargs,
         )
 
         # Overwrite substrates if it is a file path
         if self._input_substrates is not None:
             self._init_params["substrates"] = self._input_substrates
+
+        # Additional types in the composition space
+        self.type_list = type_list if type_list is not None else []
 
         # Check composition
         self._compspec = CompositionSpace(composition)
@@ -176,6 +181,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         if self.substrates is not None:
             for substrate in self.substrates:
                 chemical_symbols.extend(substrate.get_chemical_symbols())
+        chemical_symbols.extend(self.type_list)
         chemical_symbols = sorted(list(set(chemical_symbols)))
 
         return chemical_symbols
