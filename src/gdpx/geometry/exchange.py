@@ -18,12 +18,11 @@ from .spatial import check_atomic_distances
 
 
 def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
-    """"""
-    # TODO: works for bidentate planar molecules such as CHOO only
+    """Translate and rotate the adsorbate to the site for bidentate adsorption."""
     adsorbate = adsorbate.copy()
 
-    anchor_position = np.mean(adsorbate.positions[[2, 3], :], axis=0)  # the middle point of two O atoms
-    anchor_direction = adsorbate.positions[2] - adsorbate.positions[3]  # from O to O
+    anchor_position = adsorbate.info["anchor_position"]
+    anchor_direction = adsorbate.info["anchor_direction"]
 
     # normalise directions
     anchor_direction = anchor_direction / np.linalg.norm(anchor_direction)
@@ -35,19 +34,13 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
     site_direction_xy = site_direction - site_direction_z
     site_direction_xy = site_direction_xy / np.linalg.norm(site_direction_xy)
 
-    # compute rotation for the surface (xy) plane
-    angle = np.arccos(np.dot(site_direction_xy, anchor_direction)) / np.pi * 180.0
-    if site_direction_xy[1] < 0:  # TODO: correct site direction to pointing along +y?
-        angle = 360 - angle
-    adsorbate.rotate(angle, "z", center=anchor_position)
-
     # compute rotation for the adsorbate plane
-    # Get the adsorbate plane normal based on three atoms
     if np.fabs(site_direction[2]) > 0.10:
-        v1 = adsorbate.positions[2] - adsorbate.positions[0]
-        v2 = adsorbate.positions[3] - adsorbate.positions[0]
-        plane_normal = np.cross(v1, v2)  # right hand rule
-        plane_normal = plane_normal / np.linalg.norm(plane_normal)
+        # v1 = adsorbate.positions[2] - adsorbate.positions[0]
+        # v2 = adsorbate.positions[3] - adsorbate.positions[0]
+        # plane_normal = np.cross(v1, v2)  # right hand rule
+        # plane_normal = plane_normal / np.linalg.norm(plane_normal)
+        plane_normal = adsorbate.info["molecular_plane_normal"]
 
         angle = 90 - np.arccos(np.dot(site_direction_z, site_direction)) / np.pi * 180.0
         if site_direction_z[2] > 0:
@@ -56,11 +49,18 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
     else:
         ...
 
+    # compute rotation for the surface (xy) plane
+    angle = np.arccos(np.dot(site_direction_xy, anchor_direction)) / np.pi * 180.0
+    if site_direction_xy[1] < 0:  # TODO: correct site direction to pointing along +y?
+        angle = 360 - angle
+    adsorbate.rotate(angle, "z", center=anchor_position)
+
     # move the adsorbate to the site
     adsorbate.positions += site_position - anchor_position
 
     # lift the adsorbate a bit
-    up_direction = adsorbate.positions[0] - site_position  # from site to C atom
+    anchor_index = adsorbate.info.get("anchor_index", 0)
+    up_direction = adsorbate.positions[anchor_index] - site_position  # from site to C atom
     up_direction = up_direction / np.linalg.norm(up_direction)
     adsorbate.positions += zlift * up_direction
 

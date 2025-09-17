@@ -34,6 +34,10 @@ def convert_string_to_atoms(species: str) -> Atoms:
                 [7.80, 9.73, 11.16],
             ],
         )
+        atoms.info["anchor_index"] = 0
+        atoms.info["anchor_position"] = np.mean(atoms.positions[[2, 3], :], axis=0)  # the middle point of two O atoms
+        atoms.info["anchor_direction"] = atoms.positions[2] - atoms.positions[3]  # from O to O, along +x
+        atoms.info["molecular_plane_normal"] = np.array([0.0, 1.0, 0.0])  # along +y
     elif species.endswith(".xyz"):
         frames = read(species, ":")  # TODO: check non-pbc molecule only?
         assert len(frames) == 1, f"Only one frame is expected in `{species}`."
