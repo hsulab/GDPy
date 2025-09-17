@@ -23,9 +23,9 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
 
     anchor_position = adsorbate.info["anchor_position"]
     anchor_direction = adsorbate.info["anchor_direction"]
+    assert np.allclose(anchor_direction, np.array([1.0, 0.0, 0.0])), "The anchor direction should point along +x."
 
     # normalise directions
-    anchor_direction = anchor_direction / np.linalg.norm(anchor_direction)
     site_direction = site_direction / np.linalg.norm(site_direction)
 
     # decompose site_direction into xy plane and z direction
@@ -41,6 +41,9 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
         # plane_normal = np.cross(v1, v2)  # right hand rule
         # plane_normal = plane_normal / np.linalg.norm(plane_normal)
         plane_normal = adsorbate.info["molecular_plane_normal"]
+        assert np.allclose(
+            plane_normal, np.array([0.0, 1.0, 0.0])
+        ), "The molecualr plane normal should point along +y."
 
         angle = 90 - np.arccos(np.dot(site_direction_z, site_direction)) / np.pi * 180.0
         if site_direction_z[2] > 0:
