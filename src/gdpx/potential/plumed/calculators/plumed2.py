@@ -1,17 +1,18 @@
 #!/usr3/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import copy
 import os
 import pathlib
 import shutil
-from typing import List
 
 import numpy as np
 import plumed
 from ase import units
 from ase.calculators.calculator import Calculator, all_changes
-from ase.units import fs, kJ, mol, nm
+
+from ..utils import update_input_value
 
 """A plumed wrapper for ase.
 
@@ -37,47 +38,13 @@ Notes:
 """
 
 
-def update_input_value(line: str, key: str, value, func: callable):
-    """Update the given key with the new value."""
-    shift = len(key) + 1  # key name and =
-    if line.find(key) != -1:
-        ini = line.find(key)
-        end = line.find(" ", ini)
-        if end == -1:
-            prev = line[ini + shift :]
-            line = line[: ini + shift] + func(prev, value)
-        else:
-            prev = line[ini + shift : end]
-            line = line[: ini + shift] + func(prev, value) + line[end:]
-    if not line.endswith("\n"):
-        line += "\n"
-
-    return line
-
-
-def update_plumed_input_lines_by_driver(
-    input_lines: List[str], wdir: str, stride: int, temperature: float
-) -> List[str]:
-    """Update the input lines with the some parameters from the driver setting."""
-    input_lines, parsed_lines = copy.deepcopy(input_lines), []
-    for line in input_lines:
-        # parsed_line = update_input_value(line, "FILE", wdir, func=lambda x, y: os.path.join(y, x))
-        parsed_line = update_input_value(line, "STRIDE", stride, func=lambda x, y: str(y))
-        # Some parameters in metadynamics
-        parsed_line = update_input_value(parsed_line, "PACE", stride, func=lambda x, y: str(y))
-        parsed_line = update_input_value(parsed_line, "TEMP", temperature, func=lambda x, y: str(y))
-        parsed_lines.append(parsed_line)
-
-    return parsed_lines
-
-
 class Plumed(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
     def __init__(
         self,
-        input: List[str],
+        input: list[str],
         atoms=None,
         kT=1.0,
         restart=False,
@@ -191,7 +158,7 @@ class Plumed(Calculator):
     def _prepare(
         self,
         natoms: int,
-        input_lines: List[str],
+        input_lines: list[str],
         timestep: float,
         restart: bool,
         kT: float,
@@ -200,9 +167,9 @@ class Plumed(Calculator):
         self.plumed = plumed.Plumed()
 
         # - basic configuration
-        ps = 1000 * fs
-        self.plumed.cmd("setMDEnergyUnits", mol / kJ)
-        self.plumed.cmd("setMDLengthUnits", 1 / nm)
+        ps = 1000 * units.fs
+        self.plumed.cmd("setMDEnergyUnits", units.mol / units.kJ)
+        self.plumed.cmd("setMDLengthUnits", 1 / units.nm)
         self.plumed.cmd("setMDTimeUnits", 1 / ps)
         self.plumed.cmd("setMDChargeUnits", 1.0)
         self.plumed.cmd("setMDMassUnits", 1.0)

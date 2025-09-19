@@ -554,7 +554,7 @@ class LmpDriver(BaseDriver):
         dynamics = self._create_dynamics(atoms, *args, **kwargs)
 
         if self.calc.plumed is not None:
-            from ..potential.plumed.calculators.plumed2 import update_plumed_input_lines_by_driver
+            from ..potential.plumed.utils import update_plumed_input_lines_by_driver
 
             plumed_inp_lines = copy.deepcopy(self.calc.plumed)
 
