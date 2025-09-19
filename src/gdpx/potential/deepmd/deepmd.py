@@ -11,7 +11,7 @@ from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 from gdpx.utils.logio import remove_extra_stream_handlers
 
 from ..manager import BasePotentialManager
-from ..utils import build_a_committee_calculator, canonicalise_input_models
+from ..utils import build_a_committee_calculator, canonicalise_input_models, canonicalise_plumed_for_lammps
 
 
 class DeepmdManager(BasePotentialManager):
@@ -165,10 +165,15 @@ class DeepmdManager(BasePotentialManager):
                     r_cut = pair_dispersion.get("r_cut", 30.0)  # [Ang]
                     r_cn_cut = pair_dispersion.get("r_cn_cut", 20.0)  # [Ang]
                     # To construct,
-                    pair_style = "hybrid/overlay " + pair_style + f" dispersion/{dispersion_name} {damping} {method} {r_cut} {r_cn_cut}"
+                    pair_style = (
+                        "hybrid/overlay "
+                        + pair_style
+                        + f" dispersion/{dispersion_name} {damping} {method} {r_cut} {r_cn_cut}"
+                    )
                     pair_coeff = "* * deepmd {type_list}\n"
                     pair_coeff += f"pair_coeff  * * dispersion/{dispersion_name}" + " {type_list}\n"
 
+                # Initialise the LAMMPS calculator
                 calc = Lammps(
                     command=command,
                     pair_style=pair_style,
@@ -184,6 +189,20 @@ class DeepmdManager(BasePotentialManager):
                     neighbor="2.0 bin",
                     neigh_modify="every 10 check yes",
                 )
+
+                # Check if auxiliary bias is provided
+                aux_dict = calc_params.pop("aux", {})
+                if aux_dict:
+                    aux_name = aux_dict.get("name", "plumed")
+                    if aux_name == "plumed":
+                        aux_params = canonicalise_plumed_for_lammps(aux_dict["params"])
+                        self.calc_params.update(aux=dict(name=aux_name, params=aux_params))
+                    else:
+                        raise Exception("Only plumed is supported.")
+                if aux_dict:
+                    calc.set(plumed=aux_dict["params"]["inp"])
+            else:
+                ...  # No models provided, use DummyCalculator
         else:
             ...  # The backend has already been checked.
 

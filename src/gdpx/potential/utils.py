@@ -59,6 +59,38 @@ def build_a_committee_calculator(calc_cls, params_list: list[dict], estimate_unc
     return calc
 
 
+def canonicalise_plumed_for_lammps(params: dict) -> dict:
+    """"""
+    inp = params.get("inp", "./plumed.inp")
+    if isinstance(inp, str) or isinstance(inp, pathlib.Path):
+        inp = pathlib.Path(inp)
+        if inp.exists():  # read input file and clean up comments and empty lines
+            input_lines = []
+            with open(inp, "r") as fopen:
+                lines = fopen.readlines()
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        if "#" in line:
+                            line = line[: line.index("#")]
+                        else:
+                            line = line
+                        input_lines.append(line + "\n")
+            params.update(inp=input_lines)
+        else:
+            raise FileNotFoundError(f"{inp} does not exist.")
+    elif isinstance(inp, list):
+        input_lines = inp
+    else:
+        raise Exception(f"Plumed input {inp} {type(inp)} is invalid.")
+
+    new_params = dict(
+        inp=input_lines,
+    )
+
+    return new_params
+
+
 def potter_from_dict(inp_dict: dict) -> "BasePotentialManager":
     """"""
     name = inp_dict.get("name", None)
