@@ -49,16 +49,23 @@ def update_input_value(line: str, key: str, value, func: callable):
         else:
             prev = line[ini + shift : end]
             line = line[: ini + shift] + func(prev, value) + line[end:]
+    if not line.endswith("\n"):
+        line += "\n"
 
     return line
 
 
-def update_stride_and_file(input_lines: List[str], wdir: str, stride: int) -> List[str]:
-    """"""
+def update_plumed_input_lines_by_driver(
+    input_lines: List[str], wdir: str, stride: int, temperature: float
+) -> List[str]:
+    """Update the input lines with the some parameters from the driver setting."""
     input_lines, parsed_lines = copy.deepcopy(input_lines), []
     for line in input_lines:
-        parsed_line = update_input_value(line, "FILE", wdir, func=lambda x, y: os.path.join(y, x))
-        parsed_line = update_input_value(parsed_line, "STRIDE", stride, func=lambda x, y: str(y))
+        # parsed_line = update_input_value(line, "FILE", wdir, func=lambda x, y: os.path.join(y, x))
+        parsed_line = update_input_value(line, "STRIDE", stride, func=lambda x, y: str(y))
+        # Some parameters in metadynamics
+        parsed_line = update_input_value(parsed_line, "PACE", stride, func=lambda x, y: str(y))
+        parsed_line = update_input_value(parsed_line, "TEMP", temperature, func=lambda x, y: str(y))
         parsed_lines.append(parsed_line)
 
     return parsed_lines

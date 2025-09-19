@@ -553,6 +553,22 @@ class LmpDriver(BaseDriver):
 
         dynamics = self._create_dynamics(atoms, *args, **kwargs)
 
+        if self.calc.plumed is not None:
+            from ..potential.plumed.calculators.plumed2 import update_plumed_input_lines_by_driver
+
+            plumed_inp_lines = copy.deepcopy(self.calc.plumed)
+
+            # TODO: We need constrain the FILE to be HILLS and COLVAR in PRINT and METAD,
+            #       and well-tempered metad should not be in annealing.
+            plumed_inp_lines = update_plumed_input_lines_by_driver(
+                plumed_inp_lines,
+                wdir=str(self.directory),
+                stride=self.setting.dump_period,
+                temperature=curr_temperature,
+            )
+            with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
+                fopen.write("".join(plumed_inp_lines))
+
         self.setting.temp = prev_temperature
         self.setting.press = prev_pressure
 
@@ -1175,24 +1191,10 @@ class Lammps(FileIOCalculator):
             if self.read_restart is not None:
                 # pop up velocity line
                 self.dynamics[0] = "#  use velocities in restart"
-
             content += "\n".join(self.dynamics) + "\n"
 
             if self.plumed is not None:
-                # TODO: We should better move this to driver setting.
-                try:
-                    from ..potential.managers.plumed.calculators.plumed2 import update_stride_and_file
-
-                    plumed_inp = update_stride_and_file(
-                        self.plumed,
-                        wdir=str(self.directory),
-                        stride=self.dump_period,
-                    )
-                    with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
-                        fopen.write("".join(plumed_inp))
-                    content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
-                except:
-                    raise RuntimeError("Plumed Bias is included but cannot be imported.")
+                content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
             content += f"run             {self.steps}\n"
         else:
             # TODO: NEB?
