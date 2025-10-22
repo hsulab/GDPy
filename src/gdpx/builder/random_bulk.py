@@ -15,10 +15,7 @@ from ase.ga.utilities import CellBounds
 
 from gdpx.geometry.composition import CompositionSpace
 from gdpx.geometry.spatial import get_bond_distance_dict
-from gdpx.utils.atoms_tags import (
-    sort_structures_by_natoms_per_type,
-    sort_structures_by_tags,
-)
+from gdpx.utils.atoms_tags import sort_structures_by_natoms_per_type, sort_structures_by_tags
 
 from .builder import StructureModifier
 
@@ -38,7 +35,7 @@ def get_random_cell_params(box_params: dict):
         # Get box_to_place_in
         box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
         if box_cell_dim > 0:
-            box_to_place_in[1][number_of_variable_cell_vectors:] = box_cell
+            box_to_place_in[1][number_of_variable_cell_vectors:, :] = box_cell
         box_to_place_in = box_to_place_in
 
         # Get cell_bounds
@@ -54,9 +51,7 @@ def get_random_cell_params(box_params: dict):
             cell_bounds = CellBounds(cell_bounds)
         else:
             cell_bounds = box_bounds
-        assert isinstance(
-            cell_bounds, CellBounds
-        ), f"{cell_bounds} is not a CellBounds."
+        assert isinstance(cell_bounds, CellBounds), f"{cell_bounds} is not a CellBounds."
 
         # Get cell_splits
         box_splits = box_params.get("splits", None)
@@ -98,10 +93,7 @@ def get_a_bulk_generator(
     rng=np.random,
 ) -> StartGenerator:
     """"""
-    composition_chemical_numbers = [
-        atomic_numbers[s]
-        for s in itertools.chain(*[[s] * n for s, n in composition])
-    ]
+    composition_chemical_numbers = [atomic_numbers[s] for s in itertools.chain(*[[s] * n for s, n in composition])]
 
     if number_of_variable_cell_vectors == 0:
         # Get the substrate and get random structures in a fixed box
@@ -109,12 +101,10 @@ def get_a_bulk_generator(
         substrate = box_to_place_in[1]
     else:
         # Get the substrate
-        substrate = Atoms("", pbc=True)
+        substrate = Atoms("", cell=box_to_place_in[1], pbc=True)
 
         # Get the cell volume
-        radii = np.array(
-            [covalent_radii[x] for x in composition_chemical_numbers]
-        )
+        radii = np.array([covalent_radii[x] for x in composition_chemical_numbers])
         regular_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
         if cell_volume is None:
             cell_volume = regular_volume * (atomic_radius_ratio**3)
@@ -235,9 +225,7 @@ class RandomBulkBuilder(StructureModifier):
         elif isinstance(box_params, dict):
             ...
         else:
-            raise Exception(
-                f"Invalid box `{box_params}` with type `{type(box_params)}`."
-            )
+            raise Exception(f"Invalid box `{box_params}` with type `{type(box_params)}`.")
 
         (
             self.number_of_variable_cell_vectors,
@@ -249,9 +237,7 @@ class RandomBulkBuilder(StructureModifier):
 
         self.pbc = pbc
         if not self.pbc:
-            raise Exception(
-                "The random_bulk does not support non-periodic boundary conditions (pbc=False)."
-            )
+            raise Exception("The random_bulk does not support non-periodic boundary conditions (pbc=False).")
 
         # Create region
         self.region = region
@@ -274,9 +260,7 @@ class RandomBulkBuilder(StructureModifier):
 
     def get_bond_distance_dict(self, ratio: float = 1.0) -> dict:
         """"""
-        bond_distance_dict = get_bond_distance_dict(
-            self._compspec.get_chemical_numbers(), ratio=ratio
-        )
+        bond_distance_dict = get_bond_distance_dict(self._compspec.get_chemical_numbers(), ratio=ratio)
 
         return bond_distance_dict
 
@@ -300,9 +284,7 @@ class RandomBulkBuilder(StructureModifier):
         super().run(substrates=substrates, *args, **kwargs)
 
         if self.substrates is not None:
-            raise Exception(
-                f"The random_bulk does not support substrates `{self.substrates}`."
-            )
+            raise Exception(f"The random_bulk does not support substrates `{self.substrates}`.")
         else:
             ...
 
@@ -327,26 +309,22 @@ class RandomBulkBuilder(StructureModifier):
         num_generators = len(bulk_generators)
 
         max_attempts = size * self.max_times_size
-        selected_generator_indices = self.rng.choice(
-            num_generators, size=max_attempts, replace=True
-        )
+        selected_generator_indices = self.rng.choice(num_generators, size=max_attempts, replace=True)
 
         # Generate structures
         frames, num_frames, num_attempts = [], 0, 0
         for i in range(max_attempts):
             num_frames = len(frames)
             if num_frames < size:
-                atoms = bulk_generators[
-                    selected_generator_indices[i]
-                ].get_new_candidate(maxiter=self.max_attempts_per_candidate)
+                atoms = bulk_generators[selected_generator_indices[i]].get_new_candidate(
+                    maxiter=self.max_attempts_per_candidate
+                )
                 if atoms is not None:
                     frames.append(atoms)
                     num_frames += 1
             else:
                 num_attempts = i
-                self._print(
-                    f"Succeeded to create {size} structures after {num_attempts} attempts."
-                )
+                self._print(f"Succeeded to create {size} structures after {num_attempts} attempts.")
                 break
         else:
             num_attempts = size * self.max_times_size
@@ -374,9 +352,7 @@ class RandomBulkBuilder(StructureModifier):
 
         return frames
 
-    def _build_tolerance(
-        self, unique_atom_types: list[int], ratio: float = 1.0
-    ):
+    def _build_tolerance(self, unique_atom_types: list[int], ratio: float = 1.0):
         """"""
         blmin = closest_distances_generator(
             atom_numbers=unique_atom_types,
@@ -406,13 +382,9 @@ class RandomBulkBuilder(StructureModifier):
 
         content = "Bond Distance Minimum\n"
         content += "  covalent ratio: {}\n".format(self.covalent_min)
-        content += (
-            "  " + " " * 4 + ("{:>6}  " * nelements).format(*symbols) + "\n"
-        )
+        content += "  " + " " * 4 + ("{:>6}  " * nelements).format(*symbols) + "\n"
         for i, s in enumerate(symbols):
-            content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(
-                s, *list(distance_map[i])
-            )
+            content += "  " + ("{:<4}" + "{:>8.4f}" * nelements + "\n").format(s, *list(distance_map[i]))
         content += "  note: too far tolerance is\n"
         content += "        2 times covalent bond distance\n"
 
