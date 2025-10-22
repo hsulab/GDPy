@@ -31,13 +31,12 @@ def get_random_cell_params(box_params: dict):
 
     number_of_variable_cell_vectors = 3 - box_cell_dim
 
-    if number_of_variable_cell_vectors > 0:
-        # Get box_to_place_in
-        box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
-        if box_cell_dim > 0:
-            box_to_place_in[1][number_of_variable_cell_vectors:, :] = box_cell
-        box_to_place_in = box_to_place_in
+    # Get box_to_place_in
+    box_to_place_in = [[0.0, 0.0, 0.0], np.zeros((3, 3))]
+    if box_cell_dim > 0:
+        box_to_place_in[1][number_of_variable_cell_vectors:, :] = box_cell
 
+    if number_of_variable_cell_vectors > 0:
         # Get cell_bounds
         box_bounds = box_params.get("bounds", {})
         if isinstance(box_bounds, dict):
@@ -66,8 +65,7 @@ def get_random_cell_params(box_params: dict):
         # Get cell_volume
         cell_volume = box_params.get("volume", None)
     else:
-        box_to_place_in = None
-        cell_bounds = None
+        cell_bounds = CellBounds()
         cell_splits = None
         cell_volume = None
 
@@ -95,13 +93,14 @@ def get_a_bulk_generator(
     """"""
     composition_chemical_numbers = [atomic_numbers[s] for s in itertools.chain(*[[s] * n for s, n in composition])]
 
+    substrate = Atoms("", cell=box_to_place_in[1], pbc=True)
     if number_of_variable_cell_vectors == 0:
         # Get the substrate and get random structures in a fixed box
         # similar to the ranomd_structure_improved
-        substrate = box_to_place_in[1]
+        ...
     else:
         # Get the substrate
-        substrate = Atoms("", cell=box_to_place_in[1], pbc=True)
+        ...
 
         # Get the cell volume
         radii = np.array([covalent_radii[x] for x in composition_chemical_numbers])
