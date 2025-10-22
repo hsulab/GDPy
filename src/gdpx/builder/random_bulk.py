@@ -45,10 +45,10 @@ def get_random_cell_params(box_params: dict):
         box_bounds = box_params.get("bounds", {})
         if isinstance(box_bounds, dict):
             cell_bounds = {}
-            angles = ["a", "b", "c"]
+            angles = ["phi", "chi", "psi"]
             for k in angles:
                 cell_bounds[k] = box_bounds.get(k, [15, 165])
-            lengths = ["phi", "chi", "psi"]
+            lengths = ["a", "b", "c"]
             for k in lengths:
                 cell_bounds[k] = box_bounds.get(k, [2, 60])
             cell_bounds = CellBounds(cell_bounds)
@@ -344,6 +344,9 @@ class RandomBulkBuilder(StructureModifier):
                     num_frames += 1
             else:
                 num_attempts = i
+                self._print(
+                    f"Succeeded to create {size} structures after {num_attempts} attempts."
+                )
                 break
         else:
             num_attempts = size * self.max_times_size
