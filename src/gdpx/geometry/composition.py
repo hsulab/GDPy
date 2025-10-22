@@ -3,7 +3,7 @@
 
 
 import itertools
-from typing import List, Union
+from typing import List, Union, Mapping
 
 import ase
 import numpy as np
@@ -74,7 +74,7 @@ class CompositionSpace:
     def __init__(self, composition):
         """"""
         _compositions = []
-        if isinstance(composition, dict):
+        if isinstance(composition, Mapping):
             entries = []
             for k, v in composition.items():
                 entries.append(get_chemical_species_from_kwpairs(name=k, number=v))
