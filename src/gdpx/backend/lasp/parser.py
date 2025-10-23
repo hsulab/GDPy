@@ -181,6 +181,24 @@ def read_lasp_structures(
     assert afrc_io is not None, f"Failed to get allfor.arc in {wdir.resolve()}."
     assert lout_io is not None, f"Failed to get lasp.out   in {wdir.resolve()}."
 
+    # Check extra files
+    vel_io = None
+    if archive_path is None:
+        if (wdir / "vel.arc").exists():
+            with open(wdir / "vel.arc", "r") as fopen:
+                vel_io = io.StringIO(fopen.read())
+    else:
+        rpath = wdir.relative_to(mdir.parent)
+        vel_tarname = str(rpath / "vel.arc")
+        with tarfile.open(archive_path, "r:gz") as tar:
+            for tarinfo in tar:
+                if tarinfo.name == vel_tarname:
+                    vel_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                else:
+                    ...
+            else:
+                ...
+
     # Parse arc structures, and ASE does not support read dmol-arc from stringIO
     with tempfile.NamedTemporaryFile(mode="w", suffix=".arc") as tmp:
         tmp.write(stru_io.getvalue())
@@ -236,6 +254,43 @@ def read_lasp_structures(
             break
     assert len(traj_frames) == len(traj_steps), f"Output number is inconsistent in {wdir.resolve()}."
 
+    # Read velocities if any
+    traj_velocities = []
+    if vel_io is not None:
+        while True:
+            line = vel_io.readline()
+            if "Time" in line:
+                data = line.strip().split()
+                time = float(data[3])  # in fs
+                timestep = float(data[7])  # in fs
+                step = int(time / timestep)
+                assert step in traj_steps, f"Step {step} in allvel.arc not in allstr.arc in {wdir.resolve()}."
+                # velocities
+                velocities = []
+                for _ in range(natoms):
+                    line = vel_io.readline()
+                    velocity_data = line.strip().split()[1:]
+                    if len(velocity_data) == 3:  # expect three numbers
+                        velocity_data_ = []
+                        for x in velocity_data:
+                            if not is_number(x):
+                                velocity_data_.append(np.inf)
+                            else:
+                                velocity_data_.append(float(x))
+                        velocity_data = velocity_data_
+                    else:  # too large velocities make out become ******
+                        velocity_data = [np.inf] * 3
+                    velocities.append(velocity_data)
+                velocities = np.array(velocities, dtype=float)
+                traj_velocities.append(velocities)
+            if line.strip() == "":
+                ...
+            if not line:  # if line == "":
+                break
+        assert len(traj_velocities) == len(traj_steps), f"Velocity number is inconsistent in {wdir.resolve()}."
+    else:
+        ...
+
     # Create the trajectory with spc
     for i, atoms in enumerate(traj_frames):
         calc = SinglePointCalculator(
@@ -245,6 +300,10 @@ def read_lasp_structures(
             stress=traj_stress[i],
         )
         atoms.calc = calc
+
+    if traj_velocities:
+        for i, atoms in enumerate(traj_frames):
+            atoms.set_velocities(traj_velocities[i])
 
     # Check if the structure is too bad.
     TOO_SHORT_BOND_TAG = "Warning: Minimum Structure with too short bond"  # v3.3.4
@@ -262,6 +321,8 @@ def read_lasp_structures(
     stru_io.close()
     afrc_io.close()
     lout_io.close()
+    if vel_io is not None:
+        vel_io.close()
 
     return traj_frames
 
