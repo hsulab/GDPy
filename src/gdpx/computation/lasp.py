@@ -499,14 +499,8 @@ class LaspDriver(BaseDriver):
 
 class LaspNN(FileIOCalculator):
 
-    #: Calculator name.
-    name: str = "LaspNN"
-
     #: Implemented properties.
     implemented_properties: List[str] = ["energy", "forces", "stress"]
-
-    #: LASP command.
-    command: str = "lasp"
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters = {
@@ -541,15 +535,19 @@ class LaspNN(FileIOCalculator):
         "constraint": None,  # str, lammps-like notation
     }
 
-    def __init__(self, *args, label="LASP", **kwargs):
+    def __init__(self, command="lasp", label="LaspNN", **kwargs):
         """Init calculator.
 
         The potential path would be resolved.
 
         """
-        FileIOCalculator.__init__(self, *args, label=label, **kwargs)
+        FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
 
-        # NOTE: need resolved pot path
+        # Complete command
+        command_ = self.profile.command
+        self.profile.command = command_
+
+        # Resolve potential paths
         pot_ = {}
         pot = self.parameters.get("pot", None)
         for k, v in pot.items():
