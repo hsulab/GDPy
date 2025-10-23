@@ -374,20 +374,14 @@ class LaspDriver(BaseDriver):
 
     name = "lasp"
 
-    #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
-    accept_bad_structure: bool = True
-
-    # - defaults
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
-        """"""
-        super().__init__(calc, params, directory=directory, *args, **kwargs)
+    #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
+    accept_bad_structure: bool = True
 
-        self.setting = LaspDriverSetting(**params)
-
-        return
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = LaspDriverSetting
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """"""
