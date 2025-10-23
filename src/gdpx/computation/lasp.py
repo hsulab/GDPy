@@ -223,6 +223,9 @@ class LaspDriverSetting(DriverSetting):
     #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
 
+    #: Whether initialise velocities by LASP itself.
+    use_lasp_vinit: bool = True
+
     #: Force tolerance in minimisation.
     fmax: Optional[float] = 0.05  # eV/Ang
 
@@ -265,6 +268,9 @@ class LaspDriverSetting(DriverSetting):
         cont = cont_cls(**_init_params)
 
         self._internals.update(**cont.conv_params)
+
+        if self.task == "md" and not self.use_lasp_vinit:
+            raise Exception("LASP Driver only supports initialising velocities by LASP itself.")
 
         return
 
@@ -353,17 +359,26 @@ class LaspDriver(BaseDriver):
                 lasp_random_seed = self.random_seed
                 self._print(f"MD Driver's rng: lasp-{lasp_random_seed}")
                 run_params.update(Ranseed=lasp_random_seed)
+                if self.setting.use_lasp_vinit:
+                    if not self.setting.ignore_atoms_velocities:
+                        raise Exception(
+                            "Cannot use atoms' velocties (ignore_atoms_velocities is false) when use_lasp_vinit is true."
+                        )
+                else:
+                    raise Exception("LASP Driver only supports use_lasp_vinit = True.")
 
             self.calc.set(**run_params)
         else:
-            # TODO: velocities?
             if cache_traj is None:
                 traj = self.read_trajectory()
             else:
                 traj = cache_traj
             nframes = len(traj)
             assert nframes > 0, "LaspDriver restarts with a zero-frame trajectory."
+
+            # TODO: velocities?
             atoms = traj[-1]
+
             target_steps = self.setting.steps
             dump_period = self.setting.dump_period
             if target_steps > 0:
