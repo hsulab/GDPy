@@ -178,7 +178,7 @@ class ParrinelloRahmanBarostat(MDController):
 
         pressure = self.pressure * 1e-4  # from bar to GPa
 
-        more_params = dict(explore_type="npt", nhmass=nhmass, prmass=prmass, target_P=pressure)
+        more_params = {"explore_type": "npt", "nhmass": nhmass, "prmass": prmass, "MD.target_P": pressure}
 
         if self.pressure_end is not None:
             raise RuntimeError("LASP does not support NPT with changing pressure.")
@@ -486,7 +486,7 @@ class LaspNN(FileIOCalculator):
         "MD.equit": 0,
         "MD.target_T": 300,  # K
         "MD.nhmass": 1000,  # eV*fs**2
-        "MD.target_P": 300,  # 1 bar = 1e-4 GPa
+        "MD.target_P": 1e-4,  # 1 bar = 1e-4 GPa
         "MD.prmass": 1000,  # eV*fs**2
         "MD.realmass": ".true.",
         "MD.print_freq": 10,
@@ -603,8 +603,6 @@ class LaspNN(FileIOCalculator):
             self.parameters["MD.ttotal"] = self.parameters["MD.dt"] * self.parameters["SSW.MaxOptstep"]
 
             for k, v in self.parameters.items():
-                if k == "MD.target_P":
-                    v *= 1e4  # from bar to GPa
                 if k in required_keys:
                     content += "{}  {}\n".format(k, v)
         else:
