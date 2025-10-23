@@ -575,11 +575,10 @@ class LaspNN(FileIOCalculator):
             parallel=False,
         )
 
-        # check symbols and corresponding potential file
-        atomic_types = set(self.atoms.get_chemical_symbols())  # TODO: sort by
+        # Check symbols and corresponding potential file
+        atomic_types = sorted(list(set(self.atoms.get_chemical_symbols())))
 
-        # - potential choice
-        # NOTE: only for LaspNN now
+        # Check potential choice and must be NN
         content = "potential {}\n".format(self.parameters["potential"])
         assert self.parameters["potential"] == "NN", "Lasp calculator only support NN now."
 
@@ -614,13 +613,13 @@ class LaspNN(FileIOCalculator):
                 content += "  {} {} xyz\n".format(s, e)
             content += "%endblock fixatom\n"
 
-        # - general settings
+        # General parameters
         seed = self.parameters["Ranseed"]
         if seed is None:
             seed = np.random.randint(1, 10000)
         content += "{}  {}".format("Ranseed", seed)
 
-        # - simulation task
+        # Simulation parameters
         explore_type = self.parameters["explore_type"]
         content += f"\nexplore_type {explore_type}\n"
         content += f"Run_Type {self.parameters['Run_Type']}\n"
@@ -659,7 +658,7 @@ class LaspNN(FileIOCalculator):
 
     def read_results(self):
         """Read LASP results."""
-        # have to read last structure
+        # Read the entire trajectory but only store the last frame
         traj_frames = read_lasp_structures(self.directory, self.directory)
 
         energy = traj_frames[-1].get_potential_energy()
@@ -677,11 +676,9 @@ class LaspNN(FileIOCalculator):
         if lasp_out.exists():
             with open(lasp_out, "r") as fopen:
                 lines = fopen.readlines()
-            if lines[-1].strip().startswith("elapse_time") or lines[  # NOTE: its a typo in LASP!!  # v3.3.4
-                -1
-            ].strip().startswith(
-                "Elapse_time"
-            ):  # v3.4.5
+            end_line = lines[-1].strip()
+            # Test on v3.3.4 (has a typo), v3.4.5, and v3.7.3
+            if end_line.startswith("elapse_time") or end_line.startswith("Elapse_time"):
                 converged = True
 
         return converged
