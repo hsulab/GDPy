@@ -11,7 +11,7 @@ import tempfile
 import traceback
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -152,20 +152,29 @@ def read_laspset(train_structures):
 
 
 def read_lasp_structures(
-    mdir: pathlib.Path,
-    wdir: pathlib.Path,
-    archive_path: pathlib.Path = None,
-    *args,
-    **kwargs,
-) -> List[Atoms]:
-    """Read simulation trajectory."""
-    wdir = pathlib.Path(wdir)
+    mdir: pathlib.Path, wdir: pathlib.Path, archive_path: Optional[pathlib.Path] = None
+) -> list[Atoms]:
+    """Read simulation trajectory in the dmol3 format.
 
-    # - check if output file exists...
+    Note:
+        The trajectory length may not equal to steps depending on the simulation tasks.
+        The LBFGS minimisation has steps+2 frames.
+
+    Args:
+        mdir: Main directory path.
+        wdir: Working directory path.
+        archive_path: Archive path if any.
+
+    Returns:
+        A list of ASE Atoms objects.
+
+    """
+    # Check if output file exists...
     if (not (wdir / "allstr.arc").exists()) and archive_path is None:
         return []
 
-    # - get IO
+    # Get IOs
+    stru_io, afrc_io, lout_io = None, None, None
     if archive_path is None:
         with open(wdir / "allstr.arc", "r") as fopen:
             stru_io = io.StringIO(fopen.read())
@@ -192,29 +201,29 @@ def read_lasp_structures(
             else:  # TODO: if not find target traj?
                 ...
 
-    # - parse data
-    # NOTE: ASE does not support read dmol-arc from stringIO
+    # Three IOs must either io.StringIO or _io.TextIOWrapper
+    assert stru_io is not None, f"Failed to get allstr.arc in {wdir.resolve()}."
+    assert afrc_io is not None, f"Failed to get allfor.arc in {wdir.resolve()}."
+    assert lout_io is not None, f"Failed to get lasp.out   in {wdir.resolve()}."
+
+    # Parse arc structures, and ASE does not support read dmol-arc from stringIO
     with tempfile.NamedTemporaryFile(mode="w", suffix=".arc") as tmp:
         tmp.write(stru_io.getvalue())
         tmp.seek(0)
         traj_frames = read(tmp.name, ":", format="dmol-arc")
     natoms = len(traj_frames[-1])
 
+    # Read energy, forces, stress from allfor.arc
     traj_steps = []
     traj_energies = []
     traj_stress = []
     traj_forces = []
-
-    # NOTE: for lbfgs opt, steps+2 frames would be output?
-
-    # have to read last structure
     while True:
         line = afrc_io.readline()
         if line.strip().startswith("For"):
             step = int(line.split()[1])
             traj_steps.append(step)
-            # NOTE: need check if energy is a number
-            #       some ill structure may result in large energy of ******
+            # Check if energy is a number, some ill structure may result in large energy of ******
             energy_data = line.split()[3]
             try:
                 energy = float(energy_data)
@@ -230,7 +239,7 @@ def read_lasp_structures(
             traj_stress.append(stress)
             # forces
             forces = []
-            for j in range(natoms):
+            for _ in range(natoms):
                 line = afrc_io.readline()
                 force_data = line.strip().split()
                 if len(force_data) == 3:  # expect three numbers
@@ -247,12 +256,12 @@ def read_lasp_structures(
             forces = np.array(forces, dtype=float)
             traj_forces.append(forces)
         if line.strip() == "":
-            pass
+            ...
         if not line:  # if line == "":
             break
-    assert len(traj_frames) == len(traj_steps), "Output number is inconsistent."
+    assert len(traj_frames) == len(traj_steps), f"Output number is inconsistent in {wdir.resolve()}."
 
-    # - create traj
+    # Create the trajectory with spc
     for i, atoms in enumerate(traj_frames):
         calc = SinglePointCalculator(
             atoms,
@@ -262,8 +271,8 @@ def read_lasp_structures(
         )
         atoms.calc = calc
 
-    # check if the structure is too bad... LASP v3.3.4
-    TOO_SHORT_BOND_TAG = "Warning: Minimum Structure with too short bond"
+    # Check if the structure is too bad.
+    TOO_SHORT_BOND_TAG = "Warning: Minimum Structure with too short bond"  # v3.3.4
     is_badstru = False
     lines = lout_io.readlines()
     for line in lines:
@@ -274,7 +283,7 @@ def read_lasp_structures(
             ...
     traj_frames[-1].info["is_badstru"] = is_badstru
 
-    # - close IO
+    # Close IOs
     stru_io.close()
     afrc_io.close()
     lout_io.close()
@@ -401,7 +410,7 @@ class LaspDriver(BaseDriver):
         self,
         atoms: Atoms,
         ckpt_wdir=None,
-        cache_traj: List[Atoms] = None,
+        cache_traj: list[Atoms] = None,
         *args,
         **kwargs,
     ) -> None:
@@ -451,13 +460,13 @@ class LaspDriver(BaseDriver):
 
     def _read_a_single_trajectory(
         self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """"""
         curr_frames = read_lasp_structures(self.directory, wdir, archive_path=archive_path)
 
         return curr_frames
 
-    def read_trajectory(self, archive_path: pathlib.Path = None, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, archive_path: pathlib.Path = None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
@@ -500,7 +509,7 @@ class LaspDriver(BaseDriver):
 class LaspNN(FileIOCalculator):
 
     #: Implemented properties.
-    implemented_properties: List[str] = ["energy", "forces", "stress"]
+    implemented_properties: list[str] = ["energy", "forces", "stress"]
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters = {
@@ -659,7 +668,8 @@ class LaspNN(FileIOCalculator):
     def read_results(self):
         """Read LASP results."""
         # Read the entire trajectory but only store the last frame
-        traj_frames = read_lasp_structures(self.directory, self.directory)
+        wdir = pathlib.Path(self.directory)
+        traj_frames = read_lasp_structures(wdir, wdir)
 
         energy = traj_frames[-1].get_potential_energy()
         forces = traj_frames[-1].get_forces().copy()
