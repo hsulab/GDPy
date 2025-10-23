@@ -20,7 +20,6 @@ from gdpx.utils.strconv import integers_to_string
 
 from .driver import BaseDriver, DriverSetting
 
-
 """Driver and calculator of LaspNN.
 
 Output files by LASP NVE-MD are 
@@ -156,44 +155,42 @@ class LaspDriver(BaseDriver):
         self,
         atoms: Atoms,
         ckpt_wdir=None,
-        cache_traj: list[Atoms] = None,
+        cache_traj: Optional[list[Atoms]] = None,
         *args,
         **kwargs,
     ) -> None:
         """"""
-        try:
-            if ckpt_wdir is None:  # start from the scratch
-                # - init params
-                run_params = self.setting.get_init_params()
-                run_params.update(**self.setting.get_run_params(**kwargs))
+        assert isinstance(self.calc, LaspNN), "LaspDriver needs LaspNN calculator."
+        if ckpt_wdir is None:  # start from the scratch
+            run_params = self.setting.get_init_params()
+            run_params.update(**self.setting.get_run_params(**kwargs))
 
-                self.calc.set(**run_params)
-                atoms.calc = self.calc
-
-                _ = atoms.get_forces()
+            self.calc.set(**run_params)
+        else:
+            # TODO: velocities?
+            if cache_traj is None:
+                traj = self.read_trajectory()
             else:
-                # TODO: velocities?
-                if cache_traj is None:
-                    traj = self.read_trajectory()
-                else:
-                    self._debug("use cache trajectory to restart...")
-                    traj = cache_traj
-                nframes = len(traj)
-                assert nframes > 0, "LaspDriver restarts with a zero-frame trajectory."
-                atoms = traj[-1]
-                target_steps = self.setting.steps
-                dump_period = self.setting.dump_period
-                if target_steps > 0:
-                    steps = target_steps + dump_period - nframes * dump_period
-                assert steps > 0, "Steps should be greater than 0."
-                run_params = self.setting.get_init_params()
-                run_params.update(**self.setting.get_run_params(steps=steps))
+                traj = cache_traj
+            nframes = len(traj)
+            assert nframes > 0, "LaspDriver restarts with a zero-frame trajectory."
+            atoms = traj[-1]
+            target_steps = self.setting.steps
+            dump_period = self.setting.dump_period
+            if target_steps > 0:
+                steps = target_steps + dump_period - nframes * dump_period
+            else:
+                raise Exception("LaspDriver restart needs a positive target steps.")
+            assert steps > 0, "Steps should be greater than 0."
 
-                self.calc.set(**run_params)
-                atoms.calc = self.calc
+            run_params = self.setting.get_init_params()
+            run_params.update(**self.setting.get_run_params(steps=steps))
 
-                _ = atoms.get_forces()
+            self.calc.set(**run_params)
 
+        try:
+            atoms.calc = self.calc
+            _ = atoms.get_forces()
         except Exception as e:
             self._debug(e)
             self._debug(traceback.print_exc())
