@@ -202,28 +202,32 @@ class LaspDriver(BaseDriver):
         return self.calc._is_converged()
 
     def _read_a_single_trajectory(
-        self, wdir: pathlib.Path, archive_path: pathlib.Path, *args, **kwargs
+        self, wdir: pathlib.Path, archive_path: Optional[pathlib.Path], *args, **kwargs
     ) -> list[Atoms]:
         """"""
         curr_frames = read_lasp_structures(self.directory, wdir, archive_path=archive_path)
 
         return curr_frames
 
-    def read_trajectory(self, archive_path: pathlib.Path = None, *args, **kwargs) -> list[Atoms]:
+    def read_trajectory(self, archive_path: Optional[pathlib.Path] = None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
+        # Find all previous working directories
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
+        # Even though arc file may be empty, the read can give a empty list.
         traj_list = []
         for w in prev_wdirs:
             curr_frames = self._read_a_single_trajectory(w, archive_path)
             traj_list.append(curr_frames)
 
-        # Even though arc file may be empty, the read can give a empty list...
-        laspstr = self.directory / "allstr.arc"
-        traj_list.append(self._read_a_single_trajectory(self.directory, archive_path))
+        curr_Frames = self._read_a_single_trajectory(self.directory, archive_path)
+        if not curr_Frames:
+            ...
+        else:
+            traj_list.append(curr_Frames)
 
-        # -- concatenate
+        # Concatenate trajectories
         traj_frames, ntrajs = [], len(traj_list)
         if ntrajs > 0:
             traj_frames.extend(traj_list[0])
@@ -242,7 +246,7 @@ class LaspDriver(BaseDriver):
         nframes = len(traj_frames)
         self._debug(f"LASP read_trajectory nframes: {nframes}")
 
-        # NOTE: LASP only save step info in MD simulations...
+        # Add step info, and LASP only save step info in md
         for i in range(nframes):
             traj_frames[i].info["step"] = i * self.setting.dump_period
 
