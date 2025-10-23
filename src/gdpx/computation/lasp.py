@@ -297,7 +297,8 @@ class LaspDriverSetting(DriverSetting):
             print_freq = self.dump_period * timestep  # freq has unit fs
             run_params.update(
                 **{
-                    "MD.ttotal": timestep * steps_,
+                    # No idea why NVE does not dump last step
+                    "MD.ttotal": timestep * steps_ + 1 if self.ensemble == "nve" else timestep * steps_,
                     "MD.print_freq": print_freq,
                     "MD.print_strfreq": print_freq,
                     "MD.print_velfreq": print_freq,
@@ -599,8 +600,6 @@ class LaspNN(FileIOCalculator):
                 required_keys.extend(["MD.initial_T", "MD.target_T", "MD.equit"])
             if explore_type == "npt":
                 required_keys.extend(["MD.target_P"])
-
-            self.parameters["MD.ttotal"] = self.parameters["MD.dt"] * self.parameters["SSW.MaxOptstep"]
 
             for k, v in self.parameters.items():
                 if k in required_keys:
