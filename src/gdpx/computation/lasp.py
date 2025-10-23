@@ -18,7 +18,7 @@ from gdpx.backend.lasp import compare_trajectory_continuity, read_lasp_structure
 from gdpx.group import evaluate_constraint_expression
 from gdpx.utils.strconv import integers_to_string
 
-from .driver import BaseDriver, DriverSetting
+from .driver import BaseDriver, Controller, DriverSetting
 
 """Driver and calculator of LaspNN.
 
@@ -37,64 +37,240 @@ class LaspEnergyError(Exception):
 
 
 @dataclasses.dataclass
+class SinglePointController(Controller):
+
+    name: str = "spc"
+
+    def __post_init__(self):
+        """"""
+        self.conv_params = {
+            "explore_type": "ssw",
+            "SSW.SSWsteps": 0,  # spc
+        }
+
+        return
+
+
+@dataclasses.dataclass
+class BFGSMinimiser(Controller):
+
+    name: str = "bfgs"
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", 0.2)
+
+        self.conv_params = {
+            "explore_type": "ssw",
+            "SSW.SSWsteps": 1,  # BFGS
+            "SSW.Bfgs_maxstepsize": maxstep,
+        }
+
+        return
+
+
+@dataclasses.dataclass
+class CellBFGSMinimiser(Controller):
+
+    name: str = "bfgs"
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", 0.2)
+
+        self.conv_params = {
+            "explore_type": "ssw",
+            "Run_Type": 15,
+            "SSW.SSWsteps": 1,  # BFGS
+            "SSW.Bfgs_maxstepsize": maxstep,
+        }
+
+        return
+
+
+@dataclasses.dataclass
+class MDController(Controller):
+
+    #: Controller name.
+    name: str = "md"
+
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Temperature in Kelvin.
+    temperature_end: Optional[float] = None
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Pressure in Kelvin.
+    pressure_end: Optional[float] = None
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+    def __post_init__(self):
+        """"""
+        basic_params = {
+            "MD.dt": self.timestep,
+            "MD.initial_T": self.temperature,
+            "MD.target_T": self.temperature_end,
+        }
+
+        # We need keywords: TEBEG and TEEND.
+        if self.temperature_end is not None:
+            basic_params.update(teend=self.temperature_end)
+
+        self.conv_params = basic_params
+
+        return
+
+
+@dataclasses.dataclass
+class VerletMD(MDController):
+
+    name: str = "verlet"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = dict(explore_type="nve")
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class NoseHooverThermostat(MDController):
+
+    name: str = "nose_hoover"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        nhmass = self.params.get("Tdamp", 1000)  # eV*fs**2
+
+        more_params = dict(explore_type="nvt", nhmass=nhmass)
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class ParrinelloRahmanBarostat(MDController):
+
+    name: str = "parrinello_rahman"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        nhmass = self.params.get("Tdamp", 1000)  # eV*fs**2
+
+        prmass = self.params.get("Pdamp", 1000)  # eV*fs**2
+
+        pressure = self.pressure * 1e-4  # from bar to GPa
+
+        more_params = dict(explore_type="npt", nhmass=nhmass, prmass=prmass, target_P=pressure)
+
+        if self.pressure_end is not None:
+            raise RuntimeError("LASP does not support NPT with changing pressure.")
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+controllers = dict(
+    # - spc
+    single_point_spc=SinglePointController,
+    # - min
+    bfgs_min=BFGSMinimiser,
+    # - cmin
+    bfgs_cmin=CellBFGSMinimiser,
+    # - md
+    verlet_nve=VerletMD,
+    nose_hoover_nvt=NoseHooverThermostat,
+    parrinello_rahman_npt=ParrinelloRahmanBarostat,
+)
+
+default_controllers = dict(
+    spc=SinglePointController,
+    min=BFGSMinimiser,
+    cmin=CellBFGSMinimiser,
+    nve=VerletMD,
+    nvt=NoseHooverThermostat,
+    npt=ParrinelloRahmanBarostat,
+)
+
+
+@dataclasses.dataclass
 class LaspDriverSetting(DriverSetting):
+
+    #: Simulation task.
+    task: str = "spc"
 
     #: MD ensemble.
     ensemble: str = "nve"
 
-    #: Temperature damping factor.
-    Tdamp: float = 100.0  # fs
+    #: Driver detailed controller setting.
+    controller: dict = dataclasses.field(default_factory=dict)
 
-    #: Pressure damping factor.
-    Pdamp: float = 100.0  # fs
+    #: Force tolerance in minimisation.
+    fmax: Optional[float] = 0.05  # eV/Ang
 
     #: Stress tolerance in minimisation.
     smax: Optional[float] = 0.10  # GPa
 
     def __post_init__(self):
         """"""
-        if self.task == "min":
-            self._internals.update(
-                **{
-                    "explore_type": "ssw",
-                    "SSW.SSWsteps": 1,  # BFGS
-                    "SSW.ftol": self.fmax,
-                }
-            )
-            assert self.dump_period == 1, "LaspDriver/min must have dump_period ==1."
+        _init_params = {}
+        if self.task == "spc":
+            suffix = self.task
+        elif self.task == "min":
+            suffix = self.task
         elif self.task == "cmin":
-            self._internals.update(
-                **{
-                    "explore_type": "ssw",
-                    "Run_Type": 15,
-                    "SSW.SSWsteps": 1,  # BFGS
-                    "SSW.ftol": self.fmax,
-                    "SSW.strtol": self.smax,  # GPa
-                }
-            )
-            assert self.dump_period == 1, "LaspDriver/cmin must have dump_period ==1."
+            suffix = self.task
         elif self.task == "md":
-            if self.tend is None:
-                self.tend = self.temp
-            self._internals.update(
-                **{
-                    "explore_type": self.ensemble,
-                    "Ranseed": self.velocity_seed,
-                    "MD.dt": self.timestep,
-                    "MD.initial_T": self.temp,
-                    "MD.target_T": self.tend,
-                    "nhmass": self.Tdamp,
-                    "MD.target_P": self.press,
-                    "MD.prmass": self.Pdamp,
-                }
+            suffix = self.ensemble
+            _init_params.update(
+                timestep=self.timestep,
+                temperature=self.temp,
+                temperature_end=self.temp,
+                pressure=self.press,
+                pressure_end=self.pend,
             )
+        elif self.task == "freq":
+            raise NotImplementedError("")
         else:
-            raise RuntimeError(f"Unknown task `{self.task}` for LaspDriver.")
+            raise RuntimeError(f"Unknown LASP task `{self.task}`.")
+
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = default_controllers[suffix]
+
+        _init_params.update(**self.controller)
+        cont = cont_cls(**_init_params)
+
+        self._internals.update(**cont.conv_params)
 
         return
 
     def get_run_params(self, *args, **kwargs):
         """"""
+        # convergence criteria
         steps_ = kwargs.get("steps", self.steps)
         fmax_ = kwargs.get("fmax", self.fmax)
         smax_ = kwargs.get("smax", self.smax)
@@ -104,20 +280,28 @@ class LaspDriverSetting(DriverSetting):
             "SSW.MaxOptstep": steps_,
         }
 
-        if self.task == "min":
+        if self.task == "spc":
+            ...
+        elif self.task == "min":
+            run_params.update(**{"SSW.ftol": fmax_})
+        elif self.task == "cmin":
             run_params.update(**{"SSW.ftol": fmax_, "SSW.strtol": smax_})
-
-        if self.task == "md":
+        elif self.task == "md":
             timestep = self._internals["MD.dt"]
+            print_freq = self.dump_period * timestep  # freq has unit fs
             run_params.update(
                 **{
                     "MD.ttotal": timestep * steps_,
-                    "MD.print_freq": self.dump_period * timestep,  # freq has unit fs
-                    "MD.print_strfreq": self.dump_period * timestep,
+                    "MD.print_freq": print_freq,
+                    "MD.print_strfreq": print_freq,
+                    "MD.print_velfreq": print_freq,
+                    # "MD.printevery": print_freq,  # default: equal to print_freq
                 }
             )
+        else:
+            raise NotImplementedError(f"LASP driver task `{self.task}` not implemented in get_run_params.")
 
-        # - add extra parameters
+        # add extra parameters
         run_params.update(**kwargs)
 
         return run_params
@@ -128,8 +312,8 @@ class LaspDriver(BaseDriver):
 
     name = "lasp"
 
-    default_task = "min"
-    supported_tasks = ["min", "md"]
+    default_task = "spc"
+    supported_tasks = ["spc", "min", "cmin", "md"]
 
     #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
     accept_bad_structure: bool = True
@@ -164,6 +348,11 @@ class LaspDriver(BaseDriver):
         if ckpt_wdir is None:  # start from the scratch
             run_params = self.setting.get_init_params()
             run_params.update(**self.setting.get_run_params(**kwargs))
+
+            if self.setting.task == "md":
+                lasp_random_seed = self.random_seed
+                self._print(f"MD Driver's rng: lasp-{lasp_random_seed}")
+                run_params.update(Ranseed=lasp_random_seed)
 
             self.calc.set(**run_params)
         else:
@@ -262,11 +451,11 @@ class LaspNN(FileIOCalculator):
     default_parameters = {
         # built-in parameters
         "potential": "NN",
-        # - general settings
+        # general settings
         "explore_type": "ssw",  # ssw, nve nvt npt rigidssw train
         "Run_Type": 5,  # 5 fixed-cell, 15 variable-cell
         "Ranseed": None,
-        # - ssw
+        # ssw
         "SSW.internal_LJ": True,
         "SSW.ftol": 0.05,  # fmax
         "SSW.strtol": 0.10,  # smax
