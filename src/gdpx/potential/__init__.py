@@ -44,6 +44,10 @@ from .mattersim import MatterSimManager
 
 REGISTER.register("mattersim")(MatterSimManager)
 
+from .tace import TaceManager
+
+REGISTER.register("tace")(TaceManager)
+
 # DFTs
 from .cp2k import Cp2kManager
 
