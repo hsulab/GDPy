@@ -20,6 +20,13 @@ try:
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
 
+try:
+    from .deepmd import DeepmdJaxXManager
+
+    REGISTER.register("deepmd_jax_x")(DeepmdJaxXManager)
+except ImportError as e:
+    config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
+
 from .reann.beann import BeannManager
 
 REGISTER.register("beann")(BeannManager)
