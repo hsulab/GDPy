@@ -8,7 +8,7 @@ import numpy as np
 from ase import Atoms
 from ase.ga.offspring_creator import OffspringCreator
 
-from gdpx.geometry.composition import convert_string_to_atoms
+from gdpx.geometry.composition import convert_string_to_adsorbate, convert_string_to_atoms
 from gdpx.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
 from gdpx.group import evaluate_group_expression
 from gdpx.nodes.region import RegionVariable
@@ -57,8 +57,6 @@ class ExchangeMutation(OffspringCreator):
         else:  # assume it is a list of chemical formulae
             self.species = species
 
-        self._species_instances = {s: convert_string_to_atoms(s) for s in self.species}
-
         num_species = len(self.species)
         if num_min_max is None:
             _num_min_max = [(0, np.inf)] * num_species
@@ -92,6 +90,17 @@ class ExchangeMutation(OffspringCreator):
                 self.anchors = [anchors] * num_species
         else:
             self.anchors = None
+
+        # Get atoms objects for each species
+        if self.anchors is not None:
+            self._species_instances = {}
+            for s, a in zip(self.species, self.anchors):
+                if a is not None:
+                    self._species_instances[s] = convert_string_to_adsorbate(s)
+                else:
+                    self._species_instances[s] = convert_string_to_atoms(s)
+        else:
+            self._species_instances = {s: convert_string_to_atoms(s) for s in self.species}
 
         return
 
