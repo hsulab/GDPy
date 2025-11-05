@@ -167,15 +167,22 @@ class ExchangeMutation(OffspringCreator):
                 # Insert the particle at predefined adsorption sites
                 site_params = self.anchors[self.species.index(species_to_exchange)]
                 atomic_indices = evaluate_group_expression(mutant, grp_expr=site_params["group"])
-                mutant, extra_info = insert_one_particle_on_site(
-                    mutant,
-                    self._species_instances[species_to_exchange],
-                    atomic_indices,
-                    covalent_ratio=self.covalent_ratio,
-                    bond_distance_dict=self.bond_distance_dict,
-                    max_attempts=self.MAX_ATTEMPTS,
-                    rng=self.rng,
-                )
+                particle = self._species_instances[species_to_exchange]
+                anchor_mode = site_params.get("anchor_mode")
+                if anchor_mode == "mono":
+                    raise NotImplementedError()
+                elif anchor_mode == "bi":
+                    mutant, extra_info = insert_one_particle_on_site(
+                        mutant,
+                        particle,
+                        atomic_indices,
+                        covalent_ratio=self.covalent_ratio,
+                        bond_distance_dict=self.bond_distance_dict,
+                        max_attempts=self.MAX_ATTEMPTS,
+                        rng=self.rng,
+                    )
+                else:
+                    raise Exception("Unknown anchor_mode `{anchor_mode}` should not happen.")
         elif op == "remove":
             mutant, extra_info = remove_one_particle(mutant, valid_identities, species_to_exchange, rng=self.rng)
         else:

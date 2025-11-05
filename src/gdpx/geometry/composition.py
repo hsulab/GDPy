@@ -41,7 +41,33 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
 
     """
     atoms = None
-    if species == "CHOO":
+    if species == "OH":
+        atoms = Atoms(
+            "OH",
+            positions=[
+                [10.00, 10.00, 10.00],
+                [10.00, 10.00, 10.98],
+            ],
+        )
+        atoms.info["anchor_mode"] = "mono"
+        atoms.info["anchor_index"] = 0
+        atoms.info["anchor_position"] = atoms.positions[0]  # O atom
+        atoms.info["anchor_direction"] = np.array([0.0, 0.0, 1.0])  # along +z
+        atoms.info["molecular_plane_normal"] = np.array([1.0, 0.0, 0.0])  # along +x
+    elif species == "CO":
+        atoms = Atoms(
+            "CO",
+            positions=[
+                [10.00, 10.00, 10.00],
+                [10.00, 10.00, 11.15],
+            ],
+        )
+        atoms.info["anchor_mode"] = "mono"
+        atoms.info["anchor_index"] = 0
+        atoms.info["anchor_position"] = atoms.positions[0]  # C atom
+        atoms.info["anchor_direction"] = np.array([0.0, 0.0, 1.0])  # along +z
+        atoms.info["molecular_plane_normal"] = np.array([1.0, 0.0, 0.0])  # along +x
+    elif species == "CHOO":
         atoms = Atoms(
             "CHOO",
             positions=[
@@ -51,6 +77,7 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
                 [7.80, 9.73, 11.16],
             ],
         )
+        atoms.info["anchor_mode"] = "bi"
         atoms.info["anchor_index"] = 0
         atoms.info["anchor_position"] = np.mean(atoms.positions[[2, 3], :], axis=0)  # the middle point of two O atoms
         atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # from O to O, along +x
