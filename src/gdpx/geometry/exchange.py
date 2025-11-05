@@ -17,6 +17,35 @@ from .particle import translate_then_rotate
 from .spatial import check_atomic_distances
 
 
+def prepare_monodentate_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+    """Translate and rotate the adsorbate to the site for monodentate adsorption."""
+    adsorbate = adsorbate.copy()
+
+    anchor_position = adsorbate.info["anchor_position"]
+    anchor_direction = adsorbate.info["anchor_direction"]
+    assert np.allclose(anchor_direction, np.array([1.0, 0.0, 0.0])), "The anchor direction should point along +x."
+
+    # normalise directions
+    site_direction = site_direction / np.linalg.norm(site_direction)
+
+    # compute rotation for the surface (xy) plane
+    angle = np.arccos(np.dot(site_direction, anchor_direction)) / np.pi * 180.0
+    if site_direction[1] < 0:
+        angle = 360 - angle  # according to the y direction
+    adsorbate.rotate(angle, "z", center=anchor_position)
+
+    # move the adsorbate to the site
+    adsorbate.positions += site_position - anchor_position
+
+    # lift the adsorbate a bit
+    anchor_index = adsorbate.info.get("anchor_index", 0)
+    up_direction = adsorbate.positions[anchor_index] - site_position  # from site to C atom
+    up_direction = up_direction / np.linalg.norm(up_direction)
+    adsorbate.positions += zlift * up_direction
+
+    return adsorbate
+
+
 def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
     """Translate and rotate the adsorbate to the site for bidentate adsorption."""
     adsorbate = adsorbate.copy()
@@ -196,6 +225,8 @@ def insert_one_particle_on_site(
         particle_tag = int(np.max(atoms.get_tags()) + 17)
     particle.set_tags(particle_tag)
 
+    anchor_mode = particle.info.get("anchor_mode")
+
     # Check if we should check neighbour distances
     num_atoms = len(atoms)
 
@@ -247,7 +278,12 @@ def insert_one_particle_on_site(
         site_position = (pos_i + pos_j) / 2
         site_direction = pos_j - pos_i
         # insert adsorbate
-        new_particle = prepare_adsorbate(site_position, site_direction, particle)
+        if anchor_mode == "mono":
+            new_particle = prepare_monodentate_adsorbate(site_position, site_direction, particle)
+        elif anchor_mode == "bi":
+            new_particle = prepare_adsorbate(site_position, site_direction, particle)
+        else:
+            raise Exception(f"Unknown anchor_mode `{anchor_mode}` should not happen.")
         candidate.extend(new_particle)
         if post_func(candidate):  # geometric restraint
             num_attempts = iattempt + 1

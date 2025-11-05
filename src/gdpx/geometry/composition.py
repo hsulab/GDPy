@@ -52,7 +52,7 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
         atoms.info["anchor_mode"] = "mono"
         atoms.info["anchor_index"] = 0
         atoms.info["anchor_position"] = atoms.positions[0]  # O atom
-        atoms.info["anchor_direction"] = np.array([0.0, 0.0, 1.0])  # along +z
+        atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # along +x
         atoms.info["molecular_plane_normal"] = np.array([1.0, 0.0, 0.0])  # along +x
     elif species == "CO":
         atoms = Atoms(
@@ -65,7 +65,7 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
         atoms.info["anchor_mode"] = "mono"
         atoms.info["anchor_index"] = 0
         atoms.info["anchor_position"] = atoms.positions[0]  # C atom
-        atoms.info["anchor_direction"] = np.array([0.0, 0.0, 1.0])  # along +z
+        atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # along +x
         atoms.info["molecular_plane_normal"] = np.array([1.0, 0.0, 0.0])  # along +x
     elif species == "CHOO":
         atoms = Atoms(

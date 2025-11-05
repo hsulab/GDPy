@@ -168,10 +168,8 @@ class ExchangeMutation(OffspringCreator):
                 site_params = self.anchors[self.species.index(species_to_exchange)]
                 atomic_indices = evaluate_group_expression(mutant, grp_expr=site_params["group"])
                 particle = self._species_instances[species_to_exchange]
-                anchor_mode = site_params.get("anchor_mode")
-                if anchor_mode == "mono":
-                    raise NotImplementedError()
-                elif anchor_mode == "bi":
+                anchor_mode = particle.info.get("anchor_mode")
+                if anchor_mode in ("mono", "bi"):
                     mutant, extra_info = insert_one_particle_on_site(
                         mutant,
                         particle,
@@ -182,7 +180,7 @@ class ExchangeMutation(OffspringCreator):
                         rng=self.rng,
                     )
                 else:
-                    raise Exception("Unknown anchor_mode `{anchor_mode}` should not happen.")
+                    raise Exception(f"Unknown anchor_mode `{anchor_mode}` should not happen.")
         elif op == "remove":
             mutant, extra_info = remove_one_particle(mutant, valid_identities, species_to_exchange, rng=self.rng)
         else:
