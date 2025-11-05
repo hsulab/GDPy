@@ -209,7 +209,7 @@ class AbstractPopulationManager:
         candidate_groups = {"paired": [], "random": [], "mutated": []}
         num_paired, num_mutated, num_random = 0, 0, 0
 
-        with CustomTimer(name="getting canidates in the current genection", func=self._print):
+        with CustomTimer(name="getting canidates in the current generation", func=self._print):
             unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0,generation={curr_gen}"))
         for row in unrelaxed_strus_gen_:
             if row.formula:
@@ -666,7 +666,7 @@ class AbstractPopulationManager:
         # restorre n_top, custom mutations should not have n_top...
         if hasattr(pairing, "n_top"):
             pairing.n_top = prev_ntop
-        
+
         if hasattr(pairing, "slab") and prev_substrate is not None:
             pairing.slab = prev_substrate
 
