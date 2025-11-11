@@ -39,7 +39,7 @@ def check_constraint_consistency(cons_expr: str, beg_atoms: Atoms, end_atoms: At
             beg_frozen_indices, inp_convention="ase"
         ):
             is_consistent = False
-        end_atoms._del_constraints()
+        end_atoms.set_constraint(constraint=None)
         end_atoms.set_constraint(FixAtoms(indices=beg_frozen_indices))
 
     return is_consistent
@@ -359,7 +359,7 @@ class BaseDriver(BaseComponent):
 
         """
         cons_expr = run_params.pop("constraint", None)
-        atoms._del_constraints()
+        atoms.set_constraint(constraint=None)
         _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
         if frozen_indices:
             atoms.set_constraint(FixAtoms(indices=frozen_indices))

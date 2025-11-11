@@ -197,8 +197,6 @@ class Cp2kStringReactor(BaseStringReactor):
                 cons_expr,
             )
             if frozen_indices:
-                # atoms._del_constraints()
-                # atoms.set_constraint(FixAtoms(indices=frozen_indices))
                 frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
                     "MOTION/CONSTRAINT/FIXED_ATOMS",

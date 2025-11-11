@@ -23,7 +23,7 @@ from gdpx.utils.comparision import get_properties, plot_distribution, plot_parit
 
 def set_constraint(atoms, cons_text):
     """"""
-    atoms._del_constraints()
+    atoms.set_constraint(constraint=None)
     _, frozen_indices = evaluate_constraint_expression(atoms, cons_text)
     if frozen_indices:
         atoms.set_constraint(FixAtoms(indices=frozen_indices))

@@ -561,8 +561,6 @@ class Cp2kDriver(BaseDriver):
             #         f"INVOLVED_ATOMS {' '.join([str(i+1) for i in mobile_indices])}",
             #     )
             if frozen_indices:
-                # atoms._del_constraints()
-                # atoms.set_constraint(FixAtoms(indices=frozen_indices))
                 frozen_indices = sorted(frozen_indices)
                 sec.add_keyword(
                     "MOTION/CONSTRAINT/FIXED_ATOMS",

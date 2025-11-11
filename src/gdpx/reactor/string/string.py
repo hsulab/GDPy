@@ -235,7 +235,7 @@ class BaseStringReactor(BaseReactor):
 
     def _preprocess_constraints(self, atoms, cons_expr: str) -> None:
         """"""
-        atoms._del_constraints()
+        atoms.set_constraint(constraint=None)
         _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
         if frozen_indices:
             atoms.set_constraint(FixAtoms(indices=frozen_indices))
@@ -360,7 +360,7 @@ class BaseStringReactor(BaseReactor):
             num_constraints = len(images[0].constraints)
 
             for atoms in images[1:]:
-                atoms._del_constraints()
+                atoms.set_constraint(constraint=None)
                 if num_constraints == 0:
                     ...
                 elif num_constraints == 1:
