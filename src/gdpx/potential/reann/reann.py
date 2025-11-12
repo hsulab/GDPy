@@ -126,7 +126,7 @@ class ReannManager(BasePotentialManager[CalcType]):
 
         return
 
-    def remove_loaded_models(self, *args, **kwargs):
+    def remove_loaded_models(self):
         """Loaded models should be removed before any copy.deepcopy operations."""
         self.calc.reset()
         if self.calc_backend == "ase":

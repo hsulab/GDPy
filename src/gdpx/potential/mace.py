@@ -141,8 +141,8 @@ class MaceManager(BasePotentialManager):
 
         return
 
-    def remove_loaded_models(self, *args, **kwargs):
-        """Loaded TF models should be removed before any copy.deepcopy operations."""
+    def remove_loaded_models(self):
+        """Loaded models should be removed before any copy.deepcopy operations."""
         self.calc.reset()
         if self.calc_backend == "ase":
             if isinstance(self.calc, CommitteeCalculator):

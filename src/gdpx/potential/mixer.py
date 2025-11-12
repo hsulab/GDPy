@@ -98,8 +98,8 @@ class MixerManager(BasePotentialManager):
 
         return params
 
-    def remove_loaded_models(self, *args, **kwargs):
-        """Loaded TF models should be removed before any copy.deepcopy operations."""
+    def remove_loaded_models(self):
+        """Loaded models should be removed before any copy.deepcopy operations."""
         if self.calc_backend == "ase":
             for potter in self.potters:
                 if hasattr(potter, "remove_loaded_models"):
