@@ -3,17 +3,38 @@
 
 
 import copy
+import importlib
+import importlib.util
+from typing import Union
+
+from ase.calculators.calculator import Calculator
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
+from gdpx.computation.lammps import Lammps
 from gdpx.utils.logio import remove_extra_stream_handlers
 
 from .manager import BasePotentialManager
 from .utils import build_a_committee_calculator, canonicalise_input_models
 
+try:
+    from mace.calculators import MACECalculator as MACELike
+except:
 
-class MaceManager(BasePotentialManager):
+    class MACECalculatorStub(Calculator):
+        """Placeholder MACECalculator class when mace is not installed."""
+
+        #: The placeholder of the model need remove in remove_loaded_models.
+        models = None
+
+    MACELike = MACECalculatorStub
+
+CalcType = Union[DummyCalculator, CommitteeCalculator, MACELike]
+
+
+class MaceManager(BasePotentialManager[CalcType]):
 
     name = "mace"
+
     implemented_backends = ("ase", "jax", "lammps")
 
     valid_combinations = (
@@ -21,6 +42,8 @@ class MaceManager(BasePotentialManager):
         ("lammps", "lammps"),
         ("jax", "ase"),
     )
+
+    _calc: CalcType
 
     def register_calculator(self, calc_params, *agrs, **kwargs):
         """Register the calculator."""
@@ -45,13 +68,18 @@ class MaceManager(BasePotentialManager):
 
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            try:
-                import torch
-                from mace.calculators import MACECalculator
-
-                remove_extra_stream_handlers()
-            except:
+            spec_macec = importlib.util.find_spec("mace.calculators")
+            spec_torch = importlib.util.find_spec("torch")
+            if spec_macec is None or spec_torch is None:
                 raise ModuleNotFoundError("Please install mace and torch to use the ase interface.")
+            else:
+                ...
+
+            torch = importlib.import_module("torch")
+            MACECalculator = importlib.import_module("mace.calculators").MACECalculator
+
+            remove_extra_stream_handlers()
+
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
             shared_params = dict(device=device, default_dtype=precision)
@@ -68,14 +96,17 @@ class MaceManager(BasePotentialManager):
                     estimate_uncertainty=estimate_uncertainty,
                 )
         elif self.calc_backend == "jax":
-            try:
-                import jax
-                from mace_jax.calculators.mace import MACEJAXCalculator
-            except:
+            spec_jax = importlib.util.find_spec("jax")
+            spec_macejax = importlib.util.find_spec("mace_jax.calculators")
+            if spec_macejax is None or spec_jax is None:
                 raise ModuleNotFoundError("Please install mace-jax and jax to use the jax interface.")
+            else:
+                ...
+
+            # MACEJAXCalculator = importlib.import_module("mace_jax.calculators.mace").MACEJAXCalculator
+
             raise NotImplementedError("The JAX backend for MACE is under development.")
         elif self.calc_backend == "lammps":
-            from gdpx.computation.lammps import Lammps
 
             command = calc_params.pop("command", "lmp")
 
@@ -109,16 +140,16 @@ class MaceManager(BasePotentialManager):
 
     def switch_uncertainty_estimation(self, status: bool = True):
         """Switch on/off the uncertainty estimation."""
-        # NOTE: Sometimes the manager loads several models and supports uncertainty
-        #       by committee but the user disables it. We need change the calc to
-        #       the correct one as the loaded one is just a single calculator.
+        # Sometimes the manager loads several models and supports uncertainty by committee
+        # but the user disables it. We need change the calc to the correct one as the loaded
+        # one is just a single calculator.
         if not hasattr(self, "calc"):
             raise RuntimeError("Fail to switch uncertainty status as it does not have a calc.")
 
-        # NOTE: make sure manager.as_dict() can have correct param
+        # Make sure manager.as_dict() can have correct param
         self.calc_params["estimate_uncertainty"] = status
 
-        # - convert calculator
+        # Convert calculator
         if self.calc_backend == "ase":
             if status:
                 if isinstance(self.calc, CommitteeCalculator):
@@ -127,16 +158,12 @@ class MaceManager(BasePotentialManager):
                     self.register_calculator(self.calc_params)
             else:
                 if isinstance(self.calc, CommitteeCalculator):
-                    # TODO: save previous calc?
-                    self.calc = self.calc.calcs[0]
+                    self.calc = self.calc.mixer.calcs[0]
                 else:
                     ...
         elif self.calc_backend == "lammps":
-            ...
+            raise NotImplementedError("Uncertainty estimation switching is not supported for LAMMPS backend.")
         else:
-            # TODO:
-            # Other backends cannot have uncertainty estimation,
-            # give a warning?
             ...
 
         return
@@ -145,8 +172,10 @@ class MaceManager(BasePotentialManager):
         """Loaded models should be removed before any copy.deepcopy operations."""
         self.calc.reset()
         if self.calc_backend == "ase":
-            if isinstance(self.calc, CommitteeCalculator):
-                for c in self.calc.calcs:
+            if isinstance(self.calc, DummyCalculator):
+                ...
+            elif isinstance(self.calc, CommitteeCalculator):
+                for c in self.calc.mixer.calcs:
                     c.models = None
             else:
                 self.calc.models = None
