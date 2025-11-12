@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*
 
 
-import pathlib
+import copy
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 
 from ..manager import BasePotentialManager
+from ..utils import build_a_committee_calculator, canonicalise_input_models
 
 
 class ReannManager(BasePotentialManager):
@@ -16,73 +17,59 @@ class ReannManager(BasePotentialManager):
 
     valid_combinations = (("ase", "ase"),)
 
-    def register_calculator(self, calc_params, *agrs, **kwargs):
+    def register_calculator(self, calc_params: dict, *agrs, **kwargs):
         """"""
-        super().register_calculator(calc_params, *agrs, **kwargs)
+        super().register_calculator(calc_params=calc_params, *agrs, **kwargs)
+
+        calc_params = copy.deepcopy(calc_params)
+
+        # Check if all models exist and update the self.calc_params
+        # as the potential may be used in other directories if submitted by a scheduler.
+        models = canonicalise_input_models(calc_params.pop("model", []))
+        self.calc_params.update(model=models)
 
         type_list = calc_params.pop("type_list", [])
 
-        # --- model files
-        model_ = calc_params.get("model", [])
-        if not isinstance(model_, list):
-            model_ = [model_]
-
-        models = []
-        for m in model_:
-            m = pathlib.Path(m).resolve()
-            if not m.exists():
-                raise FileNotFoundError(f"Cant find model file {str(m)}")
-            models.append(str(m))
-        self.calc_params.update(model=models)
-
         precision = calc_params.pop("precision", "float32")
-        assert precision in ["float32", "float64"]
+        assert precision in ("float32", "float64")
 
-        # TODO: make this a dataclass??
-        #       currently, default disable uncertainty estimation
         estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
-        # - misc
-        max_nneigh = calc_params.get("max_nneigh", 25000)
-
-        # - parse calc_params
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             try:
                 import torch
 
                 from .calculators.reann import REANN
-
-                device = torch.device("cuda" if torch.cuda.is_available() else torch.device("cpu"))
-                if precision == "float32":
-                    precision = torch.float32
-                elif precision == "float64":
-                    precision = torch.float64
-                else:
-                    ...
             except:
                 raise ModuleNotFoundError("Please install reann and torch to use the ase interface.")
 
-            calcs = []
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            # The official REANN calculator requires a fortran module to be compiled,
+            # and needs max_nneigh to be specified. Here we bypass these requirements
+            # by directly loading the torchscript model, and use the ase neighborlist
+            # instead.
+            shared_params = dict(atomtype=type_list, device=device, dtype=precision)
+            params_list = []
             for m in models:
-                calc = REANN(
-                    atomtype=type_list,
-                    nn=m,
-                    device=device,
-                    dtype=precision,
+                specific_params = copy.deepcopy(shared_params)
+                specific_params["nn"] = m
+                params_list.append(specific_params)
+
+            num_models = len(models)
+            if num_models > 0:
+                calc = build_a_committee_calculator(
+                    REANN,
+                    params_list=params_list,
+                    estimate_uncertainty=estimate_uncertainty,
                 )
-                calcs.append(calc)
-            if len(calcs) == 1:
-                calc = calcs[0]
-            elif len(calcs) > 1:
-                if estimate_uncertainty:
-                    calc = CommitteeCalculator(calcs=calcs)
-                else:
-                    calc = calcs[0]
-            else:
-                ...
+        elif self.calc_backend == "lammps":
+            raise NotImplementedError(
+                "The lammps backend is not implemented for the reann potential. Please use the ase backend."
+            )
         else:
-            ...
+            ...  # Backend has already been checked.
 
         self.calc = calc
 
@@ -90,17 +77,16 @@ class ReannManager(BasePotentialManager):
 
     def switch_uncertainty_estimation(self, status: bool = True):
         """Switch on/off the uncertainty estimation."""
-        # NOTE: Sometimes the manager loads several models and supports uncertainty
-        #       by committee but the user disables it. We need change the calc to
-        #       the correct one as the loaded one is just a single calculator.
+        # Sometimes the manager loads several models and supports uncertainty by committee
+        # but the user disables it. We need change the calc to the correct one as the loaded
+        # one is just a single calculator.
         if not hasattr(self, "calc"):
             raise RuntimeError("Fail to switch uncertainty status as it does not have a calc.")
-        # print(f"{self.calc}")
 
-        # NOTE: make sure manager.as_dict() can have correct param
+        # Make sure manager.as_dict() can have correct param
         self.calc_params["estimate_uncertainty"] = status
 
-        # - convert calculator
+        # Convert calculator
         if self.calc_backend == "ase":
             if status:
                 if isinstance(self.calc, CommitteeCalculator):
@@ -109,16 +95,12 @@ class ReannManager(BasePotentialManager):
                     self.register_calculator(self.calc_params)
             else:
                 if isinstance(self.calc, CommitteeCalculator):
-                    # TODO: save previous calc?
                     self.calc = self.calc.calcs[0]
                 else:
                     ...
         elif self.calc_backend == "lammps":
             ...
         else:
-            # TODO:
-            # Other backends cannot have uncertainty estimation,
-            # give a warning?
             ...
 
         return

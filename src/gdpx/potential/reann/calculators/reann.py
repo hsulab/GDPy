@@ -7,7 +7,6 @@ import torch
 from ase.calculators.calculator import Calculator, all_changes
 from ase.neighborlist import neighbor_list
 
-
 """Reann Calculator.
 
 This is the same as the official one. However, we use a lazy initialisation of 
@@ -22,15 +21,23 @@ class REANN(Calculator):
 
     def __init__(
         self,
-        atomtype,
-        nn="PES.pt",
-        device="cpu",
-        dtype=torch.float32,
+        atomtype: list[str],
+        nn: str = "PES.pt",
+        device: str = "cpu",
+        dtype: str = "float32",
         **kwargs,
     ):
         Calculator.__init__(self, **kwargs)
+
         self.device = torch.device(device)
-        self.dtype = dtype
+
+        if dtype == "float32":
+            self.dtype = torch.float32
+        elif dtype == "float64":
+            self.dtype = torch.float64
+        else:
+            raise Exception("dtype must be float32 or float64")
+
         self.atomtype = atomtype
 
         # lazy init
@@ -52,33 +59,16 @@ class REANN(Calculator):
 
         return
 
-    def calculate(
-        self, atoms=None, properties=["energy", "force"], system_changes=all_changes
-    ):
+    def calculate(self, atoms=None, properties=["energy", "force"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
         if self.pes is None:
             self._init_model()
 
-        positions = (
-            torch.from_numpy(atoms.positions)
-            .contiguous()
-            .to(self.device)
-            .to(self.dtype)
-        )
+        positions = torch.from_numpy(atoms.positions).contiguous().to(self.device).to(self.dtype)
 
         i, j, S = neighbor_list("ijS", atoms, cutoff=self.cutoff)
-        pairs = (
-            torch.from_numpy(np.vstack([i, j]))
-            .contiguous()
-            .to(self.device)
-            .to(torch.long)
-        )
-        shifts = (
-            torch.from_numpy(np.dot(S, atoms.cell))
-            .contiguous()
-            .to(self.device)
-            .to(self.dtype)
-        )
+        pairs = torch.from_numpy(np.vstack([i, j])).contiguous().to(self.device).to(torch.long)
+        shifts = torch.from_numpy(np.dot(S, atoms.cell)).contiguous().to(self.device).to(self.dtype)
 
         symbols = list(self.atoms.symbols)
         species = [self.atomtype.index(i) for i in symbols]
