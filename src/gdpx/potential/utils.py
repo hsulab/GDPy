@@ -15,7 +15,7 @@ from gdpx.utils.parser import parse_input_file
 from .manager import BasePotentialManager
 
 
-def canonicalise_input_models(model: Union[str, list[str]]) -> list[str]:
+def canonicalise_input_models(model: Union[str, list[str]], must_exist: bool = True) -> list[str]:
     """Convert input models to a list of resolved path strings.
 
     Args:
@@ -34,7 +34,7 @@ def canonicalise_input_models(model: Union[str, list[str]]) -> list[str]:
     models = []
     for m in model_:
         m = pathlib.Path(m).resolve()
-        if not m.exists():
+        if must_exist and not m.exists():
             raise FileNotFoundError(f"The model {str(m)} does not exist.")
         models.append(str(m))
 

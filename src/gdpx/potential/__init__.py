@@ -55,6 +55,10 @@ from .tace import TaceManager
 
 REGISTER.register("tace")(TaceManager)
 
+from .fairchem import FairChemManager
+
+REGISTER.register("fairchem")(FairChemManager)
+
 # DFTs
 from .cp2k import Cp2kManager
 
