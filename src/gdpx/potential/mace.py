@@ -11,7 +11,6 @@ from ase.calculators.calculator import Calculator
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 from gdpx.computation.lammps import Lammps
-from gdpx.utils.logio import remove_extra_stream_handlers
 
 from .manager import BasePotentialManager
 from .utils import build_a_committee_calculator, canonicalise_input_models
@@ -77,8 +76,6 @@ class MaceManager(BasePotentialManager[CalcType]):
 
             torch = importlib.import_module("torch")
             MACECalculator = importlib.import_module("mace.calculators").MACECalculator
-
-            remove_extra_stream_handlers()
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
 

@@ -25,7 +25,6 @@ from gdpx.computation.driver import BaseDriver
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
-from gdpx.utils.logio import remove_extra_stream_handlers
 from gdpx.utils.profiler import CustomTimer
 
 from .utils import copy_minimal_frames, get_file_md5
@@ -75,7 +74,6 @@ def run_computation_in_commandline(
             driver.setting.machine_prefix = machine_prefix
         if not share_wdir:
             for dirname, atoms, rs in zip(computation_dirnames, structures, rng_states):
-                remove_extra_stream_handlers()
                 driver.directory = directory / dirname
                 prev_random_seed = driver.random_seed
                 driver.set_rng(seed=rs)

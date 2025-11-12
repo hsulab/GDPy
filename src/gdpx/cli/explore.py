@@ -8,7 +8,6 @@ from typing import Optional, Union
 from gdpx import config
 from gdpx.nodes.expedition import ExpeditionVariable
 from gdpx.factory.scheduler import canonicalise_scheduler
-from gdpx.utils.logio import remove_extra_stream_handlers
 from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
 
@@ -53,9 +52,6 @@ def run_expedition(
     for curr_expedition in expedition:
         if hasattr(curr_expedition, "register_worker"):
             curr_expedition.register_worker(worker_params)
-
-    # Remove extra stream handlers to avoid duplicate logging
-    remove_extra_stream_handlers()
 
     num_expeditions = len(expedition)
     if spawn:  # Run expedition in commandline as input files are prepared by worker

@@ -11,7 +11,6 @@ from ase.data import atomic_numbers, covalent_radii
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 from gdpx.computation.lammps import Lammps
-from gdpx.utils.logio import remove_extra_stream_handlers
 
 from ..manager import BasePotentialManager
 from ..utils import build_a_committee_calculator, canonicalise_input_models, canonicalise_plumed_for_lammps
@@ -91,8 +90,6 @@ class DeepmdManager(BasePotentialManager[CalcType]):
                 from .calculator_v3 import DP
             else:
                 raise Exception(f"Unknown deepmd version {dp_version}.")
-
-            remove_extra_stream_handlers()
 
             shared_params = dict(type_dict=type_map)
             if head is not None:

@@ -10,6 +10,10 @@ import numpy as np
 logger = logging.getLogger("GDP")
 logger.setLevel(logging.INFO)
 
+# Some lazy-imported packages add a stream handler to root logger that we don't want,
+# thus, we disable the propagation.
+logger.propagate = False
+
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s: %(message)s",
     datefmt="%Y%b%d-%H:%M:%S",
