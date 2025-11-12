@@ -3,18 +3,38 @@
 
 
 import copy
+import importlib.util
+from typing import Optional, Union
 
 from ase.calculators.calculator import Calculator
 from ase.data import atomic_numbers, covalent_radii
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
+from gdpx.computation.lammps import Lammps
 from gdpx.utils.logio import remove_extra_stream_handlers
 
 from ..manager import BasePotentialManager
 from ..utils import build_a_committee_calculator, canonicalise_input_models, canonicalise_plumed_for_lammps
 
+try:
+    from .calculator import DP as DPv2
+    from .calculator_v3 import DP as DPv3
 
-class DeepmdManager(BasePotentialManager):
+    DPLike = Union[DPv2, DPv3]
+except:
+
+    class DPStub(Calculator):
+        """Placeholder DeepMD class when deepmd-kit is not installed."""
+
+        #: The placeholder of the model need remove in remove_loaded_models.
+        dp = None
+
+    DPLike = DPStub
+
+CalcType = Union[DummyCalculator, CommitteeCalculator, Lammps, DPLike]
+
+
+class DeepmdManager(BasePotentialManager[CalcType]):
 
     name = "deepmd"
 
@@ -28,13 +48,10 @@ class DeepmdManager(BasePotentialManager):
         ("lammps", "lammps"),
     )
 
-    def _create_calculator(self, calc_params: dict) -> Calculator:
-        """Create an ase calculator.
+    def register_calculator(self, calc_params: dict, *args, **kwargs) -> None:
+        """generate calculator with various backends"""
+        super().register_calculator(calc_params=calc_params, *args, **kwargs)
 
-        Todo:
-            In fact, uncertainty estimation has various backends as well.
-
-        """
         calc_params = copy.deepcopy(calc_params)
 
         # Some backends need a command for an external executable.
@@ -55,24 +72,18 @@ class DeepmdManager(BasePotentialManager):
         models = canonicalise_input_models(calc_params.pop("model", []))
         self.calc_params.update(model=models)
 
-        # TODO: make this a dataclass??
-        #       currently, default disable uncertainty estimation
         estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
-        # Create a specific calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            try:
-                import deepmd
-            except:
+            if importlib.util.find_spec("deepmd") is None:
                 raise ModuleNotFoundError("Please install deepmd-kit to use the ase interface.")
 
-            try:
-                from deepmd._version import version as dp_version
-            except:
-                # Some releases do not have _version, thus, fall back to v2,
-                # for example, v2.2.10
-                dp_version = "2"
+            # We need check deepmd version to decide which calculator to use.
+            # Some releases do not have _version, thus, fall back to v2, for example, v2.2.10.
+            dp_version = "2"
+            if importlib.util.find_spec("deepmd._version") is not None:
+                dp_version = getattr(importlib.import_module("deepmd._version"), "version", "2")
 
             if dp_version.startswith("2"):
                 from .calculator import DP
@@ -89,8 +100,8 @@ class DeepmdManager(BasePotentialManager):
             params_list = []
             for m in models:
                 specific_params = copy.deepcopy(shared_params)
-                specific_params["model"] = m
-                params_list.append(specific_params)
+                params_list.append(dict(model=m, **specific_params))
+
             num_models = len(models)
             if num_models > 0:
                 calc = build_a_committee_calculator(
@@ -98,9 +109,8 @@ class DeepmdManager(BasePotentialManager):
                     params_list=params_list,
                     estimate_uncertainty=estimate_uncertainty,
                 )
-        elif self.calc_backend == "lammps":
-            from gdpx.computation.lammps import Lammps
 
+        elif self.calc_backend == "lammps":
             # We only need the executable path of lammps and
             # the rest of command will be completed by itself.
             # The `lmp` will be `lmp -in in.lammps 2>&1 > lmp.out`.
@@ -206,17 +216,11 @@ class DeepmdManager(BasePotentialManager):
         else:
             ...  # The backend has already been checked.
 
-        return calc
-
-    def register_calculator(self, calc_params, *args, **kwargs) -> None:
-        """generate calculator with various backends"""
-        super().register_calculator(calc_params)
-
-        self.calc = self._create_calculator(self.calc_params)
+        self.calc = calc
 
         return
 
-    def switch_backend(self, backend: str = None) -> None:
+    def switch_backend(self, backend: Optional[str] = None) -> None:
         """Switch the potential's calculation backend."""
         if backend is None:
             return
@@ -248,50 +252,46 @@ class DeepmdManager(BasePotentialManager):
 
     def switch_uncertainty_estimation(self, status: bool = True):
         """Switch on/off the uncertainty estimation."""
-        # NOTE: Sometimes the manager loads several models and supports uncertainty
-        #       by committee but the user disables it. We need change the calc to
-        #       the correct one as the loaded one is just a single calculator.
+        # Sometimes the manager loads several models and supports uncertainty by committee
+        # but the user disables it. We need change the calc to the correct one as the loaded
+        # one is just a single calculator.
         if not hasattr(self, "calc"):
             raise RuntimeError("Fail to switch uncertainty status as it does not have a calc.")
-        # print(f"{self.calc}")
 
-        # NOTE: make sure manager.as_dict() can have correct param
+        # Make sure manager.as_dict() can have correct param
         self.calc_params["estimate_uncertainty"] = status
 
-        # - convert calculator
+        # Convert calculator
         if self.calc_backend == "ase":
             if status:
                 if isinstance(self.calc, CommitteeCalculator):
                     ...  # nothing to do
                 else:  # reload models
-                    self.calc = self._create_calculator(self.calc_params)
+                    self.register_calculator(self.calc_params)
             else:
                 if isinstance(self.calc, CommitteeCalculator):
-                    # TODO: save previous calc?
-                    self.calc = self.calc.calcs[0]
+                    self.calc = self.calc.mixer.calcs[0]
                 else:
                     ...
         elif self.calc_backend == "lammps":
-            models = self.calc.pair_style.split()[1:]  # model paths
-            nmodels = len(models)
-            if status:
-                if nmodels > 1:
-                    ...
+            if isinstance(self.calc, Lammps):
+                # The string is `pair_style deepmd m0 m1 m2 m3`
+                models = self.calc.pair_style.split()[1:]
+                num_models = len(models)
+                if status:
+                    if num_models > 1:
+                        ...
+                    else:
+                        self.register_calculator(self.calc_params)
                 else:
-                    self.calc = self._create_calculator(self.calc_params)
+                    if num_models > 1:
+                        self.calc.set(pair_style=f"deepmd {models[0]}")
+                    else:
+                        ...
             else:
-                # TODO: use self.calc_params? It should be protected?
-                # pair_style deepmd m0 m1 m2 m3
-                if nmodels > 1:
-                    self.calc.pair_style = f"deepmd {models[0]}"
-                else:
-                    ...
+                ...
         else:
-            # TODO:
-            # Other backends cannot have uncertainty estimation,
-            # give a warning?
             ...
-        # print(f"{self.calc}")
 
         return
 
@@ -299,9 +299,13 @@ class DeepmdManager(BasePotentialManager):
         """Loaded models should be removed before any copy.deepcopy operations."""
         self.calc.reset()
         if self.calc_backend == "ase":
-            if isinstance(self.calc, CommitteeCalculator):
-                for c in self.calc.calcs:
+            if isinstance(self.calc, DummyCalculator):
+                ...
+            elif isinstance(self.calc, CommitteeCalculator):
+                for c in self.calc.mixer.calcs:
                     c.dp = None
+            elif isinstance(self.calc, Lammps):
+                ...  # Lammps calculator does not load models in Python side
             else:
                 self.calc.dp = None
         else:
