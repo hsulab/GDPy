@@ -5,7 +5,7 @@
 import pathlib
 
 import numpy as np
-from ase.calculators.calculator import all_changes
+from ase.calculators.calculator import all_changes, Calculator
 from ase.calculators.mixing import LinearCombinationCalculator, MixedCalculator
 
 from gdpx import config as GDPCONFIG
@@ -101,7 +101,7 @@ class EnhancedCalculator(LinearCombinationCalculator):
         return
 
 
-class CommitteeCalculator(LinearCombinationCalculator):
+class CommitteeCalculator(Calculator, LinearCombinationCalculator):
 
     def __init__(self, calcs, use_avg=False, save_atomic=True, ddof=0, directory: str = "./"):
         """Init the committee calculator.

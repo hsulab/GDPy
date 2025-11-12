@@ -3,19 +3,40 @@
 
 
 import copy
+from typing import Union
+
+from ase.calculators.calculator import Calculator
 
 from gdpx.backend.ase import CommitteeCalculator, DummyCalculator
 
 from ..manager import BasePotentialManager
 from ..utils import build_a_committee_calculator, canonicalise_input_models
 
+try:
+    from .calculators.reann import REANN as REANNLike
+except:
 
-class ReannManager(BasePotentialManager):
+    class REANNStub(Calculator):
+        """Placeholder REANN class when reann is not installed."""
+
+        #: The placeholder of the model need remove in remove_loaded_models.
+        pes = None
+
+    REANNLike = REANNStub
+
+
+CalcType = Union[DummyCalculator, CommitteeCalculator, REANNLike]
+
+
+class ReannManager(BasePotentialManager[CalcType]):
 
     name = "reann"
+
     implemented_backends = ("ase",)
 
     valid_combinations = (("ase", "ase"),)
+
+    _calc: CalcType
 
     def register_calculator(self, calc_params: dict, *agrs, **kwargs):
         """"""
@@ -95,7 +116,7 @@ class ReannManager(BasePotentialManager):
                     self.register_calculator(self.calc_params)
             else:
                 if isinstance(self.calc, CommitteeCalculator):
-                    self.calc = self.calc.calcs[0]
+                    self.calc = self.calc.mixer.calcs[0]
                 else:
                     ...
         elif self.calc_backend == "lammps":
@@ -106,11 +127,13 @@ class ReannManager(BasePotentialManager):
         return
 
     def remove_loaded_models(self, *args, **kwargs):
-        """Loaded TF models should be removed before any copy.deepcopy operations."""
+        """Loaded models should be removed before any copy.deepcopy operations."""
         self.calc.reset()
         if self.calc_backend == "ase":
-            if isinstance(self.calc, CommitteeCalculator):
-                for c in self.calc.calcs:
+            if isinstance(self.calc, DummyCalculator):
+                ...
+            elif isinstance(self.calc, CommitteeCalculator):
+                for c in self.calc.mixer.calcs:
                     c.pes = None
             else:
                 self.calc.pes = None

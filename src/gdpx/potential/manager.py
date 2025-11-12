@@ -4,7 +4,7 @@
 
 import abc
 import copy
-from typing import Union
+from typing import Generic, TypeVar, Union, cast
 
 import numpy as np
 from ase.calculators.calculator import Calculator
@@ -20,7 +20,10 @@ DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "ts", "cmin", "md", "freq"]
 DYNAMICS_REACTOR_TASKS: list[str] = ["neb"]
 
 
-class BasePotentialManager(abc.ABC):
+CalcT = TypeVar("CalcT", bound=Calculator)
+
+
+class BasePotentialManager(abc.ABC, Generic[CalcT]):
     """
     Create various potential instances
     """
@@ -34,10 +37,13 @@ class BasePotentialManager(abc.ABC):
     #: Supported combinations of calculator backend and driver/engine.
     valid_combinations: tuple = ()
 
+    #: The attached calculator.
+    _calc: CalcT
+
     def __init__(self):
         """"""
         #: Attached calculator.
-        self._calc: Calculator = DummyCalculator()
+        self._calc: CalcT = cast(CalcT, DummyCalculator())
 
         #: The default backend.
         self._default_backend: str = self.implemented_backends[0]
@@ -45,13 +51,16 @@ class BasePotentialManager(abc.ABC):
         return
 
     @property
-    def calc(self) -> Calculator:
+    def calc(self) -> CalcT:
         """Attached calculator."""
+
         return self._calc
 
     @calc.setter
-    def calc(self, calc_):
-        self._calc = calc_
+    def calc(self, calc: CalcT) -> None:
+        """Set the attached calculator."""
+        self._calc = calc
+
         return
 
     @property
