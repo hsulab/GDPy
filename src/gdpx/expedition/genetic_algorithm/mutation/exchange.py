@@ -3,6 +3,7 @@
 
 
 import copy
+import functools
 
 import numpy as np
 from ase import Atoms
@@ -11,6 +12,7 @@ from ase.ga.offspring_creator import OffspringCreator
 from gdpx.geometry.composition import convert_string_to_adsorbate, convert_string_to_atoms
 from gdpx.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
 from gdpx.group import evaluate_group_expression
+from gdpx.graph.adsorption import find_adsorption_sites_by_graph
 from gdpx.nodes.region import RegionVariable
 from gdpx.region.region import BaseRegion
 from gdpx.utils.atoms_tags import get_tags_per_species
@@ -170,14 +172,20 @@ class ExchangeMutation(OffspringCreator):
             else:
                 # Insert the particle at predefined adsorption sites
                 site_params = self.anchors[self.species.index(species_to_exchange)]
-                atomic_indices = evaluate_group_expression(mutant, grp_expr=site_params["group"])
+                find_sites_func = functools.partial(
+                    find_adsorption_sites_by_graph,
+                    group_expr=site_params.get("group"),
+                    cutoff=site_params.get("cutoff", 3.0),
+                    max_order=site_params.get("max_order", 3),
+                    surf_index=site_params.get("surf_index", 2),
+                )
                 particle = self._species_instances[species_to_exchange]
                 anchor_mode = particle.info.get("anchor_mode")
                 if anchor_mode in ("mono", "bi"):
                     mutant, extra_info = insert_one_particle_on_site(
                         mutant,
                         particle,
-                        atomic_indices,
+                        find_sites_func=find_sites_func,
                         covalent_ratio=self.covalent_ratio,
                         bond_distance_dict=self.bond_distance_dict,
                         max_attempts=self.MAX_ATTEMPTS,

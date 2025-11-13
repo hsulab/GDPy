@@ -9,7 +9,6 @@ from typing import Callable, Optional
 
 import numpy as np
 from ase import Atoms
-from ase.neighborlist import NeighborList
 
 from gdpx.utils.atoms_tags import reassign_tags_by_species
 
@@ -17,7 +16,7 @@ from .particle import translate_then_rotate
 from .spatial import check_atomic_distances
 
 
-def prepare_monodentate_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+def prepare_monodentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
     """Translate and rotate the adsorbate to the site for monodentate adsorption."""
     adsorbate = adsorbate.copy()
 
@@ -25,14 +24,9 @@ def prepare_monodentate_adsorbate(site_position, site_direction, adsorbate: Atom
     anchor_direction = adsorbate.info["anchor_direction"]
     assert np.allclose(anchor_direction, np.array([1.0, 0.0, 0.0])), "The anchor direction should point along +x."
 
-    # normalise directions
-    site_direction = site_direction / np.linalg.norm(site_direction)
+    site_position = site["position"]
 
-    # no need for monodentate, compute rotation for the surface (xy) plane
-    # angle = np.arccos(np.dot(site_direction, anchor_direction)) / np.pi * 180.0
-    # if site_direction[1] < 0:
-    #     angle = 360 - angle  # according to the y direction
-    # adsorbate.rotate(angle, "z", center=anchor_position)
+    # For monodentate, no need to compute rotation for the surface (xy) plane.
 
     # move the adsorbate to the site
     adsorbate.positions += site_position - anchor_position
@@ -48,13 +42,16 @@ def prepare_monodentate_adsorbate(site_position, site_direction, adsorbate: Atom
     return adsorbate
 
 
-def prepare_bidentate_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+def prepare_bidentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
     """Translate and rotate the adsorbate to the site for bidentate adsorption."""
     adsorbate = adsorbate.copy()
 
     anchor_position = adsorbate.info["anchor_position"]
     anchor_direction = adsorbate.info["anchor_direction"]
     assert np.allclose(anchor_direction, np.array([1.0, 0.0, 0.0])), "The anchor direction should point along +x."
+
+    site_position = site["position"]
+    site_direction = site["direction"]
 
     # normalise directions
     site_direction = site_direction / np.linalg.norm(site_direction)
@@ -211,7 +208,7 @@ def insert_one_particle(
 def insert_one_particle_on_site(
     atoms: Atoms,
     particle: Atoms,
-    atomic_indices_for_sites: list[int],
+    find_sites_func: Callable,
     covalent_ratio,
     bond_distance_dict,
     particle_tag: Optional[int] = None,
@@ -226,6 +223,8 @@ def insert_one_particle_on_site(
     if particle_tag is None:
         particle_tag = int(np.max(atoms.get_tags()) + 17)
     particle.set_tags(particle_tag)
+
+    chemical_formula = particle.get_chemical_formula()
 
     anchor_mode = particle.info.get("anchor_mode")
 
@@ -251,56 +250,44 @@ def insert_one_particle_on_site(
     else:
         post_func = lambda _: True
 
-    # TODO: move this section to graph submodule
-    nlist = NeighborList([1.8] * num_atoms, self_interaction=False, bothways=False)
-    nlist.update(atoms)
-
-    pairs = []
-    for i in atomic_indices_for_sites:
-        n_indices, n_offsets = nlist.get_neighbors(i)
-        for j, o in zip(n_indices, n_offsets):
-            if j in atomic_indices_for_sites:
-                pairs.append(((i, j), o))
-    num_pairs = len(pairs)
-
     candidate = atoms
-    cell = atoms.get_cell()
 
-    max_attempts = 10
+    # Get valid sites for various anchor modes
+    sites = find_sites_func(candidate)
+    if anchor_mode == "mono":
+        anchor_func = prepare_monodentate_adsorbate
+    elif anchor_mode == "bi":
+        anchor_func = prepare_bidentate_adsorbate
+        # TODO: support bridge sites only
+        sites = [s for s in sites if s["type"] == "bridge"]
+    else:
+        raise Exception(f"Unknown anchor_mode `{anchor_mode}` should not happen.")
 
-    used_indices = set()
+    num_sites = len(sites)
+    if num_sites == 0:
+        return None, f"ins_site_{chemical_formula}_nosites"
+
+    print(f"{sites=}")
+
+    used_sites = set()
     for iattempt in range(max_attempts):
-        # TODO: works for bidentate sites only
-        # get one site
-        pair_index = rng.integers(num_pairs)
-        (i, j), o = pairs[pair_index]
-        if i in used_indices or j in used_indices:
+        site_index = rng.integers(num_sites)
+        site_identifier = tuple(sorted([n.idx for n in sites[site_index]["atoms"]]))
+        if site_identifier in used_sites:
             continue
-        # get site information
-        pos_i = atoms.positions[i]
-        pos_j = atoms.positions[j] + np.dot(o, cell)
-        site_position = (pos_i + pos_j) / 2
-        site_direction = pos_j - pos_i
         # insert adsorbate
-        if anchor_mode == "mono":
-            new_particle = prepare_monodentate_adsorbate(site_position, site_direction, particle)
-        elif anchor_mode == "bi":
-            new_particle = prepare_bidentate_adsorbate(site_position, site_direction, particle)
-        else:
-            raise Exception(f"Unknown anchor_mode `{anchor_mode}` should not happen.")
+        new_particle = anchor_func(sites[site_index], particle)
         candidate.extend(new_particle)
         if post_func(candidate):  # geometric restraint
             num_attempts = iattempt + 1
             break
         else:
             del candidate[num_atoms:]  # revert
-            used_indices.add(i)
-            used_indices.add(j)
+            used_sites.add(site_identifier)
     else:
         candidate = None
         num_attempts = max_attempts
 
-    chemical_formula = particle.get_chemical_formula()
     state = "success"
     if candidate is not None:
         if sort_tags:
