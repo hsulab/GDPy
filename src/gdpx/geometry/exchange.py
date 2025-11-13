@@ -28,25 +28,27 @@ def prepare_monodentate_adsorbate(site_position, site_direction, adsorbate: Atom
     # normalise directions
     site_direction = site_direction / np.linalg.norm(site_direction)
 
-    # compute rotation for the surface (xy) plane
-    angle = np.arccos(np.dot(site_direction, anchor_direction)) / np.pi * 180.0
-    if site_direction[1] < 0:
-        angle = 360 - angle  # according to the y direction
-    adsorbate.rotate(angle, "z", center=anchor_position)
+    # no need for monodentate, compute rotation for the surface (xy) plane
+    # angle = np.arccos(np.dot(site_direction, anchor_direction)) / np.pi * 180.0
+    # if site_direction[1] < 0:
+    #     angle = 360 - angle  # according to the y direction
+    # adsorbate.rotate(angle, "z", center=anchor_position)
 
     # move the adsorbate to the site
     adsorbate.positions += site_position - anchor_position
 
     # lift the adsorbate a bit
-    anchor_index = adsorbate.info.get("anchor_index", 0)
-    up_direction = adsorbate.positions[anchor_index] - site_position  # from site to C atom
+    eps = 0.1  # to avoid zero division in up_direction calculation
+    contact_index = adsorbate.info.get("anchor_index", 0)
+    contact_position = adsorbate.positions[contact_index] + np.array([0.0, 0.0, eps])
+    up_direction = contact_position - site_position  # from site to C atom
     up_direction = up_direction / np.linalg.norm(up_direction)
     adsorbate.positions += zlift * up_direction
 
     return adsorbate
 
 
-def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+def prepare_bidentate_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
     """Translate and rotate the adsorbate to the site for bidentate adsorption."""
     adsorbate = adsorbate.copy()
 
@@ -91,8 +93,8 @@ def prepare_adsorbate(site_position, site_direction, adsorbate: Atoms, zlift: fl
     adsorbate.positions += site_position - anchor_position
 
     # lift the adsorbate a bit
-    anchor_index = adsorbate.info.get("anchor_index", 0)
-    up_direction = adsorbate.positions[anchor_index] - site_position  # from site to C atom
+    contact_index = adsorbate.info.get("contact_index", 0)
+    up_direction = adsorbate.positions[contact_index] - site_position  # from site to C atom
     up_direction = up_direction / np.linalg.norm(up_direction)
     adsorbate.positions += zlift * up_direction
 
@@ -264,6 +266,8 @@ def insert_one_particle_on_site(
     candidate = atoms
     cell = atoms.get_cell()
 
+    max_attempts = 10
+
     used_indices = set()
     for iattempt in range(max_attempts):
         # TODO: works for bidentate sites only
@@ -281,7 +285,7 @@ def insert_one_particle_on_site(
         if anchor_mode == "mono":
             new_particle = prepare_monodentate_adsorbate(site_position, site_direction, particle)
         elif anchor_mode == "bi":
-            new_particle = prepare_adsorbate(site_position, site_direction, particle)
+            new_particle = prepare_bidentate_adsorbate(site_position, site_direction, particle)
         else:
             raise Exception(f"Unknown anchor_mode `{anchor_mode}` should not happen.")
         candidate.extend(new_particle)

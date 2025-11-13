@@ -50,10 +50,10 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
             ],
         )
         atoms.info["anchor_mode"] = "mono"
-        atoms.info["anchor_index"] = 0
         atoms.info["anchor_position"] = atoms.positions[0]  # O atom
         atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # along +x
         atoms.info["molecular_plane_normal"] = np.array([1.0, 0.0, 0.0])  # along +x
+        atoms.info["contact_index"] = 0
     elif species == "CO":
         atoms = Atoms(
             "CO",
@@ -63,10 +63,10 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
             ],
         )
         atoms.info["anchor_mode"] = "mono"
-        atoms.info["anchor_index"] = 0
         atoms.info["anchor_position"] = atoms.positions[0]  # C atom
         atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # along +x
         atoms.info["molecular_plane_normal"] = np.array([1.0, 0.0, 0.0])  # along +x
+        atoms.info["contact_index"] = 0
     elif species == "CHOO":
         atoms = Atoms(
             "CHOO",
@@ -78,10 +78,10 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
             ],
         )
         atoms.info["anchor_mode"] = "bi"
-        atoms.info["anchor_index"] = 0
         atoms.info["anchor_position"] = np.mean(atoms.positions[[2, 3], :], axis=0)  # the middle point of two O atoms
         atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # from O to O, along +x
         atoms.info["molecular_plane_normal"] = np.array([0.0, 1.0, 0.0])  # along +y
+        atoms.info["contact_index"] = 0
     else:
         raise RuntimeError(f"Cannot create adsorbate `{species}`.")
 
