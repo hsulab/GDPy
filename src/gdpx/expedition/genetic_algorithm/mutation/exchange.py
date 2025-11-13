@@ -12,6 +12,7 @@ from gdpx.geometry.composition import convert_string_to_adsorbate, convert_strin
 from gdpx.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
 from gdpx.group import evaluate_group_expression
 from gdpx.nodes.region import RegionVariable
+from gdpx.region.region import BaseRegion
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 
@@ -40,7 +41,10 @@ class ExchangeMutation(OffspringCreator):
         self.min_inputs = 1
 
         region = region if region is not None else {}
-        self.region = RegionVariable(**region).value
+        if not isinstance(region, BaseRegion):
+            self.region = RegionVariable(**region).value
+        else:
+            self.region = region
 
         self.bond_distance_dict = bond_distance_dict
 
