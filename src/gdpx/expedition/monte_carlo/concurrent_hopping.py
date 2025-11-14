@@ -553,12 +553,16 @@ class ConcurrentHopping(BaseExpedition):
         # Update print and debug functions
         self.population._print = self._print
         self.population._debug = self._debug
-        self._print(f"comparator: {self.population.comparator}")
+        self._print(f"comparator: {self.population.comparator.__class__.__name__}")
+        self._print("")
 
         for op in self.operators:
             op._print = self._print
             op._debug = self._debug
             op.indent = "  "
+            for l in str(op).splitlines():
+                self._print(l)
+            self._print("")
 
         # Register minimum covalent bond distance used by operators
         # TODO: Maker a better interface?

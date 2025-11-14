@@ -203,6 +203,12 @@ class AutoRegion(BaseRegion):
 
         return self._atoms.get_volume()
 
+    def __repr__(self) -> str:
+        """"""
+        content = f"{self.__class__.__name__} "
+
+        return content
+
     def as_dict(self) -> dict:
         """"""
         region_params = {}
