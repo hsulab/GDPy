@@ -201,6 +201,7 @@ class AdsorbateInsertionModifier(StructureModifier):
                         build_find_sites_func(particle.get_chemical_formula()),
                         covalent_ratio=self.covalent_ratio,
                         bond_distance_dict=bond_distance_dict,
+                        sort_tags=self.sort_by_tags,
                         rng=self.rng,
                     )
                     if _cand is not None:
@@ -214,8 +215,8 @@ class AdsorbateInsertionModifier(StructureModifier):
             chemical_types = self._infer_chemical_types_in_composition_space()
             frames = sort_structures_by_natoms_per_type(frames, chemical_types)
 
-        if self.sort_by_tags:
-            frames = sort_structures_by_tags(frames)
+        # if self.sort_by_tags:
+        #     frames = sort_structures_by_tags(frames)
 
         return frames
 
