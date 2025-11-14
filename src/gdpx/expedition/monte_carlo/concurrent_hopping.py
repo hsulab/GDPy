@@ -21,6 +21,7 @@ from gdpx.factory.builder import canonicalise_builder
 from gdpx.factory.computer import canonicalise_worker
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
+from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
 from .utils import parse_operators, select_operator
@@ -617,9 +618,12 @@ class ConcurrentHopping(BaseExpedition):
             # We save all mc trajectories in a centralised folder
             (gen_wdir / "mctrajs").mkdir(parents=True, exist_ok=True)
             # Try to generate new structures
-            candidates = self.population.get_current_generation(database=database, rng=self.rng, with_history=True)
+            candidates = sorted(
+                self.population.get_current_generation(database=database, rng=self.rng, with_history=True),
+                key=lambda a: a.info["confid"],
+            )
             candidates_confids = [a.info["confid"] for a in candidates]
-            self._print(f"{candidates_confids=}")
+            self._print(f"confids {integers_to_string(candidates_confids, inp_convention='lmp')}")
 
             for icand, candidate in enumerate(candidates):
                 self._print(f">>>>> cand{icand} confid {candidate.info['confid']}")
@@ -640,9 +644,11 @@ class ConcurrentHopping(BaseExpedition):
                 )
 
         # Run simulations in the generation folder
-        candidates_to_explore = database.get_all_unrelaxed_candidates(mark_as_queued=True)
+        candidates_to_explore = sorted(
+            database.get_all_unrelaxed_candidates(mark_as_queued=True), key=lambda a: a.info["confid"]
+        )
         candidates_confids = [a.info["confid"] for a in candidates_to_explore]
-        self._print(f"{candidates_confids=}")
+        self._print(f"confids {integers_to_string(candidates_confids, inp_convention='lmp')}")
 
         is_finished = run_worker(candidates_to_explore, self.worker, directory=gen_wdir)  # type: ignore
         if is_finished:
