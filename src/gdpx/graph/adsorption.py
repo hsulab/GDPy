@@ -37,6 +37,7 @@ def get_atop_sites(atoms: Atoms, graph: nx.Graph):
         site_info = {
             "type": "atop",
             "atoms": (node,),
+            "symbols": [atoms[node.idx].symbol],
             "position": atoms[node.idx].position,
         }
         sites.append(site_info)
@@ -54,8 +55,9 @@ def get_bridge_sites(atoms: Atoms, graph: nx.Graph):
         site_info = {
             "type": "bridge",
             "atoms": (u, v),
+            "symbols": [atoms[u.idx].symbol, atoms[v.idx].symbol],
             "position": (atoms[u.idx].position + atoms[v.idx].position) / 2 + d["shift"] / 2,
-            "direction": direction,
+            "direction": np.array([direction]),
         }
         sites.append(site_info)
 
@@ -81,10 +83,21 @@ def get_hollow_sites(atoms: Atoms, graph: nx.Graph):
             )
             / 3
         )
+        direction1 = (atoms[nodes[1].idx].position + np.array(nodes[1].shift) @ box) - (
+            atoms[nodes[0].idx].position + np.array(nodes[0].shift) @ box
+        )  # i -> j
+        direction2 = (atoms[nodes[2].idx].position + np.array(nodes[2].shift) @ box) - (
+            atoms[nodes[0].idx].position + np.array(nodes[0].shift) @ box
+        )  # i -> k
+        direction3 = (atoms[nodes[2].idx].position + np.array(nodes[2].shift) @ box) - (
+            atoms[nodes[1].idx].position + np.array(nodes[1].shift) @ box
+        )  # j -> k
         site_info = {
             "type": "hollow",
             "atoms": tuple(nodes),
+            "symbols": [atoms[node.idx].symbol for node in nodes],
             "position": position,
+            "direction": np.array([direction1, direction2, direction3]),
         }
         sites.append(site_info)
 
@@ -153,9 +166,6 @@ def find_adsorption_sites_by_graph(
                 # distance=distance,
             )
             use_edges.add(edge_index)
-
-    print(f"{num_atoms=}")
-    print(f"{graph.number_of_nodes()=} , {graph.number_of_edges()=}")
 
     # Determin surface normals of selected atoms
     surf_normals = np.zeros((num_atoms, 3))

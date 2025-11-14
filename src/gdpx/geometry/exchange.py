@@ -7,6 +7,7 @@ import functools
 import itertools
 from typing import Callable, Optional
 
+import ase.data
 import numpy as np
 from ase import Atoms
 
@@ -16,7 +17,7 @@ from .particle import translate_then_rotate
 from .spatial import check_atomic_distances
 
 
-def prepare_monodentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+def prepare_monodentate_adsorbate(site, adsorbate: Atoms, bond_distance_scale: float = 1.0) -> Atoms:
     """Translate and rotate the adsorbate to the site for monodentate adsorption."""
     adsorbate = adsorbate.copy()
 
@@ -49,12 +50,58 @@ def prepare_monodentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) ->
         up_direction = site_normal  # update up_direction
 
     # Lift the adsorbate
-    adsorbate.positions += zlift * up_direction
+    site_radii = np.array([ase.data.covalent_radii[ase.data.atomic_numbers[s]] for s in site["symbols"]])
+    contact_atom_radius = ase.data.covalent_radii[adsorbate[contact_index].number]
+    if site["type"] == "atop":
+        min_distance = contact_atom_radius + site_radii[0]
+    elif site["type"] == "bridge":
+        # Solve the triangle problem
+        site_length = np.linalg.norm(site["direction"])
+        r1 = contact_atom_radius + site_radii[0]
+        r2 = contact_atom_radius + site_radii[1]
+        # Using Heron's formula to compute the area of the triangle
+        s = (site_length + r1 + r2) / 2.0
+        area_squared = s * (s - site_length) * (s - r1) * (s - r2)
+        if area_squared < 0:
+            # Fall back to an equilateral triangle assumption
+            area_squared = (np.sqrt(3) / 4.0) * (site_length**2)
+        area = np.sqrt(area_squared)
+        min_distance = 2 * area / site_length
+    elif site["type"] == "hollow":
+        # Solve the tetrahedron problem
+        site_directions = site["direction"]  # three directions
+        a = np.linalg.norm(site_directions[0])
+        b = np.linalg.norm(site_directions[1])
+        c = np.linalg.norm(site_directions[2])
+        r1 = contact_atom_radius + site_radii[0]
+        r2 = contact_atom_radius + site_radii[1]
+        r3 = contact_atom_radius + site_radii[2]
+        # Using Cayley-Menger determinant to compute the volume of the tetrahedron
+        CM = np.array(
+            [
+                [0, a**2, b**2, c**2, 1],
+                [a**2, 0, r1**2, r2**2, 1],
+                [b**2, r1**2, 0, r3**2, 1],
+                [c**2, r2**2, r3**2, 0, 1],
+                [1, 1, 1, 1, 0],
+            ]
+        )
+        volume_squared = np.linalg.det(CM) / 288.0
+        if volume_squared < 0:
+            # Fall back to a regular tetrahedron assumption
+            l = (a + b + c) / 3.0
+            volume_squared = (l**3) / (6 * np.sqrt(2))
+        volume = np.sqrt(volume_squared)
+        min_distance = 3 * volume / (a * b * c) * (a + b + c)  # height from contact atom to the plane
+    else:
+        raise Exception(f"Monodentate adsorption does not support `{site['type']}`.")
+
+    adsorbate.positions += min_distance * bond_distance_scale * up_direction
 
     return adsorbate
 
 
-def prepare_bidentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) -> Atoms:
+def prepare_bidentate_adsorbate(site, adsorbate: Atoms, bond_distance_scale: float = 1.0) -> Atoms:
     """Translate and rotate the adsorbate to the site for bidentate adsorption."""
     adsorbate = adsorbate.copy()
 
@@ -63,7 +110,9 @@ def prepare_bidentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) -> A
     assert np.allclose(anchor_direction, np.array([1.0, 0.0, 0.0])), "The anchor direction should point along +x."
 
     site_position = site["position"]
-    site_direction = site["direction"]
+
+    # TODO: We currently only support bridge sites for bidentate adsorption
+    site_direction = site["direction"][0]
 
     # normalise directions
     site_direction = site_direction / np.linalg.norm(site_direction)
@@ -105,7 +154,9 @@ def prepare_bidentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) -> A
     contact_index = adsorbate.info.get("contact_index", 0)
     up_direction = adsorbate.positions[contact_index] - site_position  # from site to C atom
     up_direction = up_direction / np.linalg.norm(up_direction)
-    adsorbate.positions += zlift * up_direction
+
+    min_distance = 2.0  # TODO: to be improved by geometry and covalent radii
+    adsorbate.positions += bond_distance_scale * min_distance * up_direction
 
     return adsorbate
 
