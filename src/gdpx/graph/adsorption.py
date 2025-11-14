@@ -92,7 +92,12 @@ def get_hollow_sites(atoms: Atoms, graph: nx.Graph):
 
 
 def find_adsorption_sites_by_graph(
-    atoms: Atoms, group_expr: str, cutoff: float = 3.0, max_order: int = 2, surf_index: int = 2
+    atoms: Atoms,
+    group_expr: str,
+    cutoff: float = 3.0,
+    max_order: int = 2,
+    surf_index: int = 2,
+    surf_normal_threshold: float = 1.0,
 ):
     """Find adsorption sites on a surface based on graph components.
 
@@ -102,6 +107,7 @@ def find_adsorption_sites_by_graph(
         cutoff: The cutoff distance to consider neighbors.
         max_order: The maximum order of sites, 0 for atop, 1 for bridge, 2 for hollow.
         surf_index: The index of the surface normal direction (0 for x, 1 for y, 2 for z).
+        surf_normal_threshold: The threshold to determine surface normals.
 
     """
     graph = nx.Graph()
@@ -124,28 +130,46 @@ def find_adsorption_sites_by_graph(
                 NodeID(int(idx), canonicalize_shift(grid)),
             )
 
-    # Add edges
-    nl = NeighborList([cutoff / 2.0] * num_atoms, self_interaction=False, bothways=False)
+    # Build neighbor list
+    # We need self_interaction and bothways to determine surface normals but skip them in adding edges
+    nl = NeighborList([cutoff / 2.0] * num_atoms, skin=0.0, self_interaction=True, bothways=True)
     nl.update(atoms)
 
+    # Add edges
+    use_edges = set()
     for i in group_indices:
         indices, offsets = nl.get_neighbors(i)
         for j, offset in zip(indices, offsets):
-            if j not in group_indices:
+            edge_index = tuple(sorted((i, j)))
+            if i == j or j not in group_indices or edge_index in use_edges:
                 continue
             u = NodeID(int(i), canonicalize_shift((0, 0, 0)))
             v = NodeID(int(j), canonicalize_shift(offset))
             shift = offset @ box
-            # distance = np.linalg.norm(atoms[i].position - (atoms[j].position + shift))
             graph.add_edge(
                 u,
                 v,
                 shift=shift,
                 # distance=distance,
             )
+            use_edges.add(edge_index)
 
     print(f"{num_atoms=}")
     print(f"{graph.number_of_nodes()=} , {graph.number_of_edges()=}")
+
+    # Determin surface normals of selected atoms
+    surf_normals = np.zeros((num_atoms, 3))
+    for i in group_indices:
+        indices, offsets = nl.get_neighbors(i)
+        bond_vectors = []
+        for j, o in zip(indices, offsets):
+            shift = o @ box
+            vec = atoms[i].position - (atoms[j].position + shift)
+            bond_vectors.append(vec)
+        s_vec = np.sum(bond_vectors, axis=0)
+        s_norm = np.linalg.norm(s_vec)
+        if s_norm > surf_normal_threshold:
+            surf_normals[i] = s_vec / s_norm
 
     # Find sites
     sites = []
@@ -160,6 +184,20 @@ def find_adsorption_sites_by_graph(
     if max_order >= 2:
         hollow_sites = get_hollow_sites(atoms, graph)
         sites.extend(hollow_sites)
+
+    # Add normal information
+    default_surface_normal = np.zeros(3)
+    default_surface_normal[surf_index] = 1.0
+    for site in sites:
+        atom_indices = [node.idx for node in site["atoms"]]
+        normal_vectors = [surf_normals[idx] for idx in atom_indices]
+        avg_normal = np.mean(normal_vectors, axis=0)
+        norm = np.linalg.norm(avg_normal)
+        if norm > 1e-4:
+            avg_normal /= norm
+        else:  # fall back to default normal
+            avg_normal = default_surface_normal
+        site["normal"] = avg_normal
 
     return sites
 

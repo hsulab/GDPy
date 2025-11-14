@@ -37,7 +37,16 @@ def prepare_monodentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) ->
     contact_position = adsorbate.positions[contact_index] + np.array([0.0, 0.0, eps])
     up_direction = contact_position - site_position  # from site to C atom
     up_direction = up_direction / np.linalg.norm(up_direction)
-    adsorbate.positions += zlift * up_direction
+
+    # Align adsorbate direction to site normal if available
+    site_normal = site["normal"]
+    angle = np.arccos(np.dot(up_direction, site_normal)) / np.pi * 180.0
+    if np.dot(np.cross(up_direction, site_normal), anchor_direction) < 0:
+        angle = 360 - angle  # according to the anchor direction
+    adsorbate.rotate(angle, anchor_direction, center=contact_position)
+
+    # Lift the adsorbate
+    adsorbate.positions += zlift * site_normal
 
     return adsorbate
 
@@ -266,8 +275,6 @@ def insert_one_particle_on_site(
     num_sites = len(sites)
     if num_sites == 0:
         return None, f"ins_site_{chemical_formula}_nosites"
-
-    print(f"{sites=}")
 
     used_sites = set()
     for iattempt in range(max_attempts):
