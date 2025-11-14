@@ -3,7 +3,7 @@
 
 
 import itertools
-from typing import List, Union, Mapping
+from typing import List, Mapping, Union
 
 import ase
 import numpy as np
@@ -41,7 +41,14 @@ def convert_string_to_adsorbate(species: str) -> Atoms:
 
     """
     atoms = None
-    if species == "OH":
+    if species in ase.data.chemical_symbols:
+        atoms = Atoms(species, positions=[[10.0, 10.0, 10.0]])
+        atoms.info["anchor_mode"] = "mono"
+        atoms.info["anchor_position"] = atoms.positions[0]
+        atoms.info["anchor_direction"] = np.array([1.0, 0.0, 0.0])  # along +x
+        atoms.info["molecular_plane_normal"] = np.array([0.0, 1.0, 0.0])  # along +y
+        atoms.info["contact_index"] = 0
+    elif species == "OH":
         atoms = Atoms(
             "OH",
             positions=[

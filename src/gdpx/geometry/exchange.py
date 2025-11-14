@@ -38,15 +38,18 @@ def prepare_monodentate_adsorbate(site, adsorbate: Atoms, zlift: float = 2.0) ->
     up_direction = contact_position - site_position  # from site to C atom
     up_direction = up_direction / np.linalg.norm(up_direction)
 
-    # Align adsorbate direction to site normal if available
-    site_normal = site["normal"]
-    angle = np.arccos(np.dot(up_direction, site_normal)) / np.pi * 180.0
-    if np.dot(np.cross(up_direction, site_normal), anchor_direction) < 0:
-        angle = 360 - angle  # according to the anchor direction
-    adsorbate.rotate(angle, anchor_direction, center=contact_position)
+    # Align adsorbate direction to site normal if adsorbate is a molecule
+    num_atoms_in_adsorbate = len(adsorbate)
+    if num_atoms_in_adsorbate > 1:
+        site_normal = site["normal"]
+        angle = np.arccos(np.dot(up_direction, site_normal)) / np.pi * 180.0
+        if np.dot(np.cross(up_direction, site_normal), anchor_direction) < 0:
+            angle = 360 - angle  # according to the anchor direction
+        adsorbate.rotate(angle, anchor_direction, center=contact_position)
+        up_direction = site_normal  # update up_direction
 
     # Lift the adsorbate
-    adsorbate.positions += zlift * site_normal
+    adsorbate.positions += zlift * up_direction
 
     return adsorbate
 
