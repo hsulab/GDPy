@@ -46,7 +46,9 @@ class FairChemManager(BasePotentialManager):
         # Some parameters for pretrained models
         head = calc_params.get("head", None)
         if head is None:
-            raise Exception("Please specify the task_name head for fairchem model.")
+            # UMA needs head as task_name but esen does not
+            # raise Exception("Please specify the task_name head for fairchem model.")
+            ...
 
         calc = DummyCalculator()
         if self.calc_backend == "ase":
