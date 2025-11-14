@@ -272,8 +272,8 @@ def insert_one_particle_on_site(
     atoms: Atoms,
     particle: Atoms,
     find_sites_func: Callable,
-    covalent_ratio,
-    bond_distance_dict,
+    covalent_ratio: tuple[float, float],
+    bond_distance_dict: dict[tuple[int, int], float],
     particle_tag: Optional[int] = None,
     sort_tags: bool = True,
     max_attempts: int = 100,
@@ -356,7 +356,7 @@ def insert_one_particle_on_site(
     else:
         state = "failure"
 
-    return candidate, f"ins_site_{chemical_formula}_{state}_{num_attempts}"
+    return candidate, f"inssite_{chemical_formula}_{state}_{num_attempts}"
 
 
 if __name__ == "__main__":
