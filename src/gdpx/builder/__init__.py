@@ -53,6 +53,10 @@ from .random_structure import RandomStructureImprovedModifier
 
 REGISTER.register("random_structure_improved")(RandomStructureImprovedModifier)
 
+from .adsorb import AdsorbateInsertionModifier
+
+REGISTER.register("adsorbate_insertion")(AdsorbateInsertionModifier)
+
 from .cleave_surface import AddVacuumModifier, CleaveSurfaceModifier
 
 REGISTER.register("cleave_surface")(CleaveSurfaceModifier)

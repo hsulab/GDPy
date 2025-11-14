@@ -159,15 +159,20 @@ class CompositionSpace:
 
         return chemical_numbers
 
-    def get_fragments_from_one_composition(self, rng=np.random.default_rng()) -> List[Atoms]:
+    def get_fragments_from_one_composition(self, rng=np.random.default_rng(), use_ads: bool=False) -> List[Atoms]:
         """"""
+        if use_ads:
+            convert_func = convert_string_to_adsorbate
+        else:
+            convert_func = convert_string_to_atoms
+
         num_compositions = len(self._compositions)
         idx = rng.choice(num_compositions, size=1, replace=False)[0]
         composition = self._compositions[idx]
 
         fragments = list(
             itertools.chain(
-                *[[convert_string_to_atoms(name) for _ in range(number)] for (name, number) in composition]
+                *[[convert_func(name) for _ in range(number)] for (name, number) in composition]
             )
         )
 
