@@ -7,6 +7,7 @@ import pickle
 import numpy as np
 
 from .operators import (
+    AdsorbateExchangeOperator,
     BiasedVolumeExchangeOperator,
     BounceOperator,
     CavityExchangeOperator,
@@ -67,6 +68,8 @@ def parse_operators(op_params: list[dict]):
             op = BiasedVolumeExchangeOperator(**param)
         elif name == "cavity_exchange":
             op = CavityExchangeOperator(**param)
+        elif name == "adsorbate_exchange":
+            op = AdsorbateExchangeOperator(**param)
         elif name == "react":
             op = ReactOperator(**param)
         else:

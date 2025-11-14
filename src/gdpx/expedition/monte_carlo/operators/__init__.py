@@ -3,7 +3,7 @@
 
 
 from .bounce import BounceOperator
-from .exchange import BiasedVolumeExchangeOperator, CavityExchangeOperator, ExchangeOperator
+from .exchange import AdsorbateExchangeOperator, BiasedVolumeExchangeOperator, CavityExchangeOperator, ExchangeOperator
 from .move import MoveOperator
 from .react import ReactOperator
 from .swap import SwapOperator
@@ -17,6 +17,8 @@ __all__ = [
     "ReactOperator",
     "ExchangeOperator",
     "BiasedVolumeExchangeOperator",
+    "CavityExchangeOperator",
+    "AdsorbateExchangeOperator",
 ]
 
 

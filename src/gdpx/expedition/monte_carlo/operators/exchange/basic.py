@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms, units
 from ase.neighborlist import NeighborList
 
-from gdpx.geometry.composition import convert_string_to_atoms
+from gdpx.geometry.composition import convert_string_to_adsorbate, convert_string_to_atoms
 
 from ..operator import BaseMCOperator
 from ..statmech import compute_thermo_wavelength
@@ -27,10 +27,18 @@ class BasicExchangeOperator(BaseMCOperator):
         self,
         particles: list[str],
         chempots: list[float],
+        use_ads: bool = False,
         *args,
         **kwargs,
     ):
-        """"""
+        """Initialise the basic exchange operator.
+
+        Args:
+            particles: List of particle names to exchange.
+            chempots: List of chemical potentials for the particles [eV].
+            use_ads: Whether to use adsorbate conversion for particles.
+
+        """
         super().__init__(
             *args,
             **kwargs,
@@ -48,9 +56,11 @@ class BasicExchangeOperator(BaseMCOperator):
         self.chempots = chempots
 
         # Get exchangeable particle atoms based on its name
+        convert_func = convert_string_to_adsorbate if use_ads else convert_string_to_atoms
+
         _particle_instances = []
         for particle in self.particles:
-            _particle_instance = convert_string_to_atoms(particle)
+            _particle_instance = convert_func(particle)
             if _particle_instance is None:
                 raise Exception(f"Particle {particle} is not a valid chemical symbol or a molecule formula.")
             _particle_instances.append(_particle_instance)
