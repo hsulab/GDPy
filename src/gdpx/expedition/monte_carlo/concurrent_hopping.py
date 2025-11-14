@@ -335,12 +335,14 @@ def run_monte_carlo_steps(
     probabilities,
     mcsteps: int,
     rng: np.random.Generator,
-) -> Atoms:
+) -> tuple[Atoms, list[int]]:
     """"""
     mctraj_fpath = driver.directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
     energy_before = atoms.get_potential_energy()
     atoms.info["mcstep"] = 0
     write(mctraj_fpath, atoms, append=False)
+
+    mcstates = []
     for istep in range(1, mcsteps + 1):
         op = select_operator(operators, probabilities, rng=rng)  # type: ignore
         op._print(f"  >>> mcmove.{istep:>04d}")
@@ -363,17 +365,21 @@ def run_monte_carlo_steps(
                 energy_before = energy_after
                 write(mctraj_fpath, atoms, append=True)
                 op._print(f"  <<< success")
+                mcstates.append(0)
             else:
                 # atoms should be reverted in metropolis
                 op._print(f"  <<< revert")
+                mcstates.append(1)
 
             # Remove the computation results.
             shutil.rmtree(driver.directory)
         else:
             step_state = "MCOPFAILED"
+            mcstates.append(2)
+
     atoms.info.pop("mcstep")
 
-    return atoms
+    return atoms, mcstates
 
 
 def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dict] = None) -> None:
@@ -619,7 +625,7 @@ class ConcurrentHopping(BaseExpedition):
                 self._print(f">>>>> cand{icand} confid {candidate.info['confid']}")
                 self.mcworker.driver.directory = gen_wdir / f"mc_{icand}"
                 atoms = copy.deepcopy(candidate)
-                atoms_after_mc = run_monte_carlo_steps(
+                atoms_after_mc, mcstates = run_monte_carlo_steps(
                     atoms,
                     identifier=icand,
                     driver=self.mcworker.driver,
@@ -629,6 +635,9 @@ class ConcurrentHopping(BaseExpedition):
                     rng=self.rng,
                 )
                 database.add_unrelaxed_candidate(atoms_after_mc)
+                self._print(
+                    f"<<<<< cand{icand} confid {candidate.info['confid']} state {''.join([str(s) for s in mcstates])}"
+                )
 
         # Run simulations in the generation folder
         candidates_to_explore = database.get_all_unrelaxed_candidates(mark_as_queued=True)
