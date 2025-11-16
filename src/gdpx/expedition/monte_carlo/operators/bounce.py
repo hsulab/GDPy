@@ -23,6 +23,7 @@ class BounceOperator(BaseMCOperator):
         particles: list[str],
         direction: str = "",
         max_disp: float = 2.0,
+        repulsion_strength: float = 1.0,
         *args,
         **kwargs,
     ):
@@ -32,6 +33,7 @@ class BounceOperator(BaseMCOperator):
         self.particles = particles
         self.direction = direction
         self.max_disp = max_disp
+        self.repulsion_strength = repulsion_strength
 
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
@@ -72,6 +74,7 @@ class BounceOperator(BaseMCOperator):
             atom_index,
             biased_direction=self.direction,
             max_disp=self.max_disp,
+            strength=self.repulsion_strength,
             nlist=nlist,
             covalent_ratio=(self.covalent_min, self.covalent_max),
             bond_distance_dict=self.bond_distance_dict,  # type: ignore

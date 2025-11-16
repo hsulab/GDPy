@@ -6,7 +6,6 @@ import copy
 from typing import Callable
 
 import numpy as np
-
 from ase import Atoms
 from ase.neighborlist import NeighborList
 
@@ -52,9 +51,7 @@ def get_a_biased_direction(direction: str, rng: np.random.Generator) -> np.ndarr
         axis = vec
 
     norm_along_direction = np.dot(vec, axis)
-    biased_vec = (
-        vec - norm_along_direction * axis + np.fabs(norm_along_direction) * axis
-    )
+    biased_vec = vec - norm_along_direction * axis + np.fabs(norm_along_direction) * axis
 
     return biased_vec
 
@@ -64,11 +61,12 @@ def bounce_one_atom(
     atom_index: int,
     biased_direction: str,
     max_disp: float,
+    strength: float,
     nlist: NeighborList,
     covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     rng: np.random.Generator,
-    print_func: Callable=print,
+    print_func: Callable = print,
 ) -> tuple[Atoms, list[tuple[int, np.ndarray, np.ndarray]]]:
     """Bounce one atom and repel its neighbours if they are too close.
 
@@ -77,6 +75,7 @@ def bounce_one_atom(
         atom_index: The index of the atom to be bounced.
         biased_direction: The biased direction for the bounce.
         max_disp: The maximum displacement for the bounce.
+        strength: The maximum repulsion strength.
         nlist: The neighbor list for the atoms.
         covalent_ratio: The covalent distance ratio (min, max).
         bond_distance_dict: The bond distance dictionary.
@@ -106,19 +105,18 @@ def bounce_one_atom(
 
     repelled = []
 
+    cov_min = covalent_ratio[0]
+
     neigh_indices, neigh_offsets = nlist.get_neighbors(atom_index)
     for neigh_index, neigh_offset in zip(neigh_indices, neigh_offsets):
-        vec = new_atoms.positions[atom_index] - (
-            new_atoms.positions[neigh_index] + np.dot(neigh_offset, box)
-        )
+        vec = new_atoms.positions[atom_index] - (new_atoms.positions[neigh_index] + np.dot(neigh_offset, box))
         dis = np.linalg.norm(vec)
         atomic_numbers = new_atoms.get_atomic_numbers()
-        min_dis = bond_distance_dict[
-            (atomic_numbers[atom_index], atomic_numbers[neigh_index])
-        ]*covalent_ratio[0]
+        min_dis = bond_distance_dict[(atomic_numbers[atom_index], atomic_numbers[neigh_index])] * cov_min
         if dis < min_dis:
             prev_pos = copy.deepcopy(new_atoms[neigh_index].position)
-            curr_pos = prev_pos + min_dis * -vec / np.linalg.norm(vec)
+            disp_vec = -vec / np.linalg.norm(vec)
+            curr_pos = prev_pos + disp_vec * (min_dis - dis) * strength
             repelled.append(
                 (
                     neigh_index,
@@ -131,7 +129,7 @@ def bounce_one_atom(
     for neigh_index, _, neigh_position_curr in repelled:
         new_atoms[neigh_index].position = neigh_position_curr
 
-    return new_atoms, bounced+repelled
+    return new_atoms, bounced + repelled
 
 
 if __name__ == "__main__":
