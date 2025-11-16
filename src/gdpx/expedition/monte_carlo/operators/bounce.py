@@ -2,17 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 import functools
 from typing import Optional
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.bounce import bounce_one_atom
 
-from .operator import BaseMCOperator
+from .operator import BaseMCOperator, metropolis_by_energy_difference
 
 
 class BounceOperator(BaseMCOperator):
@@ -44,58 +43,82 @@ class BounceOperator(BaseMCOperator):
         super().run(atoms)
         self._extra_info = "-"
 
-        # BUG: If there is no species in the system...
-        species_indices = self._select_species(atoms, self.particles, rng=rng)
-        assert len(species_indices) == 1
+        # We need covalent bond distanes for neighbour check
+        assert hasattr(self, "bond_distance_dict")
 
-        species = atoms[species_indices]
-        assert isinstance(species, Atoms)
-        self._extra_info = f"Bounce({self.direction})_{species.get_chemical_formula()}_{species_indices}"
+        # Use the reference to avoid copying?
+        self._atoms = atoms
+        new_atoms = atoms
 
-        # get neighbour list
-        new_atoms = copy.deepcopy(atoms)
+        # Check if the particles are in the atoms
+        particle_indices = self._select_species(atoms, self.particles, rng=rng)
+        if len(particle_indices) == 0:
+            # Skip if no particles found
+            self._extra_info = "Bounce_Skipped"
+            return None
+
+        # Initialise the neighbor list
         nlist = self.nlist_prototype(self.covalent_max * np.array(natural_cutoffs(new_atoms)))
 
-        # bounce one atom
-        atom_index = species_indices[0]
-        new_atoms = bounce_one_atom(
+        # Find tag atoms
+        particle = new_atoms[particle_indices]
+        assert isinstance(particle, Atoms)
+        self._extra_info = f"Bounce({self.direction})_{particle.get_chemical_formula()}_{particle_indices}"
+
+        # Bounce the particle
+        atom_index = particle_indices[0]
+        new_atoms, bounced = bounce_one_atom(
             new_atoms,
             atom_index,
             biased_direction=self.direction,
             max_disp=self.max_disp,
             nlist=nlist,
-            covalent_ratio=[self.covalent_min, self.covalent_max],
+            covalent_ratio=(self.covalent_min, self.covalent_max),
             bond_distance_dict=self.bond_distance_dict,  # type: ignore
             rng=rng,
             print_func=self._print,
         )
 
+        # Save state for revert
+        picked_indices = [b[0] for b in bounced]
+        before_positions = np.array([b[1] for b in bounced])
+        self._state = {
+            "picked_indices": picked_indices,
+            "before_positions": np.array(before_positions),
+        }
+
         return new_atoms
 
-    def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
+    def revert_state(self, atoms: Atoms) -> Atoms:
+        """Revert the state of atoms."""
+        picked_indices = self._state.get("picked_indices")
+        before_positions = self._state.get("before_positions")
+        atoms.positions[picked_indices] = before_positions
+
+        return atoms
+
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
         """"""
-        # acceptance ratio
-        kBT_eV = units.kB * self.temperature
-        beta = 1.0 / kBT_eV  # 1/(kb*T), eV
-
-        coef = 1.0
-        ene_diff = curr_ene - prev_ene
-        acc_ratio = np.min([1.0, coef * np.exp(-beta * (ene_diff))])
-
-        content = "\nVolume %.4f Beta %.4f Coefficient %.4f\n" % (
-            self.region.get_volume(),
-            beta,
-            coef,
+        success = metropolis_by_energy_difference(
+            prev_ene=prev_ene,
+            curr_ene=curr_ene,
+            temperature=self.temperature,
+            region=self.region,
+            rng=rng,
+            indent=self.indent,
+            print_func=self._print,
         )
-        content += "Energy Difference %.4f [eV]\n" % ene_diff
-        content += "Accept Ratio %.4f\n" % acc_ratio
-        for x in content.split("\n"):
-            self._print(x)
 
-        rn_move = rng.uniform()
-        self._print(f"{self.__class__.__name__} Probability %.4f" % rn_move)
+        if not success:
+            assert self._atoms is not None, "Atoms should not be None when reverting state."
+            self.revert_state(self._atoms)
+        else:
+            ...
 
-        return rn_move < acc_ratio
+        self._state = {}
+        self._atoms = None
+
+        return success
 
     def as_dict(self) -> dict:
         """"""
@@ -116,6 +139,9 @@ class BounceOperator(BaseMCOperator):
         content += f"max disp: {self.max_disp}\n"
         content += f"particles: \n"
         content += f"  {self.particles}\n"
+
+        # add indent
+        content = self.indent + content.replace("\n", "\n" + self.indent)
 
         return content
 
