@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
-from typing import List, Callable
+from typing import Callable
 
 import numpy as np
 
@@ -23,7 +22,6 @@ def get_a_random_direction(rng: np.random.Generator):
 
 def get_a_biased_direction(direction: str, rng: np.random.Generator):
     """"""
-    # vec = np.array([-1.0, +1.0, +1.0]) / np.linalg.norm([-1.0, +1.0, +1.0])
     vec = get_a_random_direction(rng)
 
     if direction == "+x":
@@ -55,13 +53,13 @@ def bounce_one_atom(
     biased_direction: str,
     max_disp: float,
     nlist: NeighborList,
-    covalent_ratio: list,
+    covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     rng: np.random.Generator,
     print_func: Callable=print,
 ):
     """"""
-    # new_atoms = copy.deepcopy(atoms)
+    # Get a random displacement vector
     new_atoms = atoms
 
     disp_vec = get_a_biased_direction(biased_direction, rng)
@@ -69,7 +67,7 @@ def bounce_one_atom(
 
     new_atoms[atom_index].position += disp_vec * max_disp  # type: ignore
 
-    # repel neighbours
+    # Find neighbours should be repelled
     nlist.update(new_atoms)
 
     box = new_atoms.get_cell(complete=True)
@@ -82,11 +80,10 @@ def bounce_one_atom(
             new_atoms.positions[neigh_index] + np.dot(neigh_offset, box)
         )
         dis = np.linalg.norm(vec)
-        # print(neigh_index, neigh_offset, vec, dis)
         atomic_numbers = new_atoms.get_atomic_numbers()
         min_dis = bond_distance_dict[
             (atomic_numbers[atom_index], atomic_numbers[neigh_index])
-        ]*covalent_ratio[0]  # cov_min
+        ]*covalent_ratio[0]
         if dis < min_dis:
             repelled.append(
                 (
@@ -96,8 +93,8 @@ def bounce_one_atom(
                 )
             )
 
+    # Update positions of repelled neighbours
     for neigh_index, neigh_position in repelled:
-        # print(f"{neigh_index = }  {neigh_position = }")
         new_atoms[neigh_index].position = neigh_position  # type: ignore
 
     return new_atoms
