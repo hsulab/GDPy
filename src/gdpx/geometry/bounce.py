@@ -61,6 +61,7 @@ def get_a_biased_direction(direction: str, bias_ratio: float, rng: np.random.Gen
     vec_perp_direction = vec_perp_direction / norm_perp * norm_vec * (1 - bias_ratio)
 
     biased_vec = vec_along_direction + vec_perp_direction
+    biased_vec = biased_vec / np.linalg.norm(biased_vec)
 
     return biased_vec
 
@@ -75,7 +76,6 @@ def bounce_one_atom(
     covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     rng: np.random.Generator,
-    print_func: Callable = print,
 ) -> tuple[Atoms, list[tuple[int, np.ndarray, np.ndarray]]]:
     """Bounce one atom and repel its neighbours if they are too close.
 
@@ -89,7 +89,6 @@ def bounce_one_atom(
         covalent_ratio: The covalent distance ratio (min, max).
         bond_distance_dict: The bond distance dictionary.
         rng: A random number generator.
-        print_func: A function to print debug information.
 
     Returns:
         A tuple of the new Atoms object and a list of repelled neighbours.
@@ -101,7 +100,6 @@ def bounce_one_atom(
     bias_direction, bias_ratio = bias_mode
 
     disp_vec = get_a_biased_direction(bias_direction, bias_ratio, rng)
-    print_func(f"{disp_vec =}")
 
     prev_pos = copy.deepcopy(new_atoms[atom_index].position)
     curr_pos = prev_pos + disp_vec * max_disp

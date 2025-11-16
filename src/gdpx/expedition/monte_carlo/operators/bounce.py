@@ -94,8 +94,9 @@ class BounceOperator(BaseMCOperator):
             covalent_ratio=(self.covalent_min, self.covalent_max),
             bond_distance_dict=self.bond_distance_dict,  # type: ignore
             rng=rng,
-            print_func=self._print,
         )
+        bounced_vec = bounced[0][2] - bounced[0][1]
+        self._print(self.indent + f"bounced atom {atom_index} by " + ("{:>.4f} " * 3).format(*bounced_vec))
 
         # Save state for revert
         picked_indices = [b[0] for b in bounced]
