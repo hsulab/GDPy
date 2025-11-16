@@ -7,6 +7,7 @@ from typing import Optional
 
 import numpy as np
 from ase import Atoms
+from ase.formula import Formula
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.bounce import bounce_one_atom
@@ -22,6 +23,7 @@ class BounceOperator(BaseMCOperator):
         self,
         particles: list[str],
         direction: str = "",
+        bias_ratio: float = 0.8,
         max_disp: float = 2.0,
         repulsion_strength: float = 1.0,
         *args,
@@ -31,9 +33,22 @@ class BounceOperator(BaseMCOperator):
         super().__init__(*args, **kwargs)
 
         self.particles = particles
+        for ptype in self.particles:
+            formula = Formula(ptype)
+            if sum(formula.count().values()) != 1:
+                raise Exception(f"Bounce only works for a single atom instead of `{ptype}`.")
+
         self.direction = direction
-        self.max_disp = max_disp
+        if self.direction not in ["+x", "-x", "+y", "-y", "+z", "-z"]:
+            raise Exception(f"{self.__class__.__name__} direction should be one of +x, -x, +y, -y, +z, -z.")
+
+        self.bias_ratio = bias_ratio
+        if not (0.0 < self.bias_ratio <= 1.0):
+            raise Exception(f"{self.__class__.__name__} bias_ratio should be between 0.0 and 1.0.")
+
         self.repulsion_strength = repulsion_strength
+
+        self.max_disp = max_disp
 
         self.nlist_prototype = functools.partial(NeighborList, skin=0.0, self_interaction=False, bothways=True)
 
@@ -72,7 +87,7 @@ class BounceOperator(BaseMCOperator):
         new_atoms, bounced = bounce_one_atom(
             new_atoms,
             atom_index,
-            biased_direction=self.direction,
+            bias_mode=(self.direction, self.bias_ratio),
             max_disp=self.max_disp,
             strength=self.repulsion_strength,
             nlist=nlist,

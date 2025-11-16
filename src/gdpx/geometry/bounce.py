@@ -20,13 +20,14 @@ def get_a_random_direction(rng: np.random.Generator) -> np.ndarray:
     return rvec
 
 
-def get_a_biased_direction(direction: str, rng: np.random.Generator) -> np.ndarray:
+def get_a_biased_direction(direction: str, bias_ratio: float, rng: np.random.Generator) -> np.ndarray:
     """Get a random direction vector biased along a specified axis.
 
     The final vector will be in the same hemisphere as the specified axis.
 
     Args:
         direction: The biased direction, can be "+x", "-x", "+y", "-y", "+z", "-z", or "" for random.
+        bias_ratio: The bias ratio towards the specified direction.
         rng: A random number generator.
 
     Returns:
@@ -34,6 +35,7 @@ def get_a_biased_direction(direction: str, rng: np.random.Generator) -> np.ndarr
 
     """
     vec = get_a_random_direction(rng)
+    norm_vec = np.linalg.norm(vec)
 
     if direction == "+x":
         axis = np.array([1, 0, 0])
@@ -51,7 +53,14 @@ def get_a_biased_direction(direction: str, rng: np.random.Generator) -> np.ndarr
         axis = vec
 
     norm_along_direction = np.dot(vec, axis)
-    biased_vec = vec - norm_along_direction * axis + np.fabs(norm_along_direction) * axis
+
+    vec_perp_direction = vec - norm_along_direction * axis
+    norm_perp = np.linalg.norm(vec_perp_direction) + 1e-4  # Avoid zero division
+
+    vec_along_direction = axis * norm_vec * bias_ratio
+    vec_perp_direction = vec_perp_direction / norm_perp * norm_vec * (1 - bias_ratio)
+
+    biased_vec = vec_along_direction + vec_perp_direction
 
     return biased_vec
 
@@ -59,7 +68,7 @@ def get_a_biased_direction(direction: str, rng: np.random.Generator) -> np.ndarr
 def bounce_one_atom(
     atoms: Atoms,
     atom_index: int,
-    biased_direction: str,
+    bias_mode: tuple[str, float],
     max_disp: float,
     strength: float,
     nlist: NeighborList,
@@ -73,7 +82,7 @@ def bounce_one_atom(
     Args:
         atoms: The ASE Atoms object.
         atom_index: The index of the atom to be bounced.
-        biased_direction: The biased direction for the bounce.
+        bias_mode: A tuple of biased direction and bias ratio.
         max_disp: The maximum displacement for the bounce.
         strength: The maximum repulsion strength.
         nlist: The neighbor list for the atoms.
@@ -89,7 +98,9 @@ def bounce_one_atom(
     # Get a random displacement vector
     new_atoms = atoms
 
-    disp_vec = get_a_biased_direction(biased_direction, rng)
+    bias_direction, bias_ratio = bias_mode
+
+    disp_vec = get_a_biased_direction(bias_direction, bias_ratio, rng)
     print_func(f"{disp_vec =}")
 
     prev_pos = copy.deepcopy(new_atoms[atom_index].position)
