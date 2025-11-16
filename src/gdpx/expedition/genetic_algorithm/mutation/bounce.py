@@ -23,7 +23,9 @@ class BounceMutation(OffspringCreator):
         bond_distance_dict,
         neighlist=None,
         direction="",
+        bias_ratio=0.8,
         max_disp=2.0,
+        repulsion_strength=1.0,
         covalent_ratio=[0.8, 2.0],
         apply_on_buffer=False,
         num_muts=1,
@@ -42,6 +44,15 @@ class BounceMutation(OffspringCreator):
 
         # Bounce parameters
         self.direction = direction
+        if self.direction not in ["+x", "-x", "+y", "-y", "+z", "-z", ""]:
+            raise Exception(f"{self.__class__.__name__} direction should be one of +x, -x, +y, -y, +z, -z, or empty.")
+
+        self.bias_ratio = bias_ratio
+        if not (0.0 < self.bias_ratio <= 1.0):
+            raise Exception(f"{self.__class__.__name__} bias_ratio should be between 0.0 and 1.0.")
+
+        self.repulsion_strength = repulsion_strength
+
         self.max_disp = max_disp
 
         # Build a neighbour list
@@ -98,10 +109,10 @@ class BounceMutation(OffspringCreator):
 
             num_particle_types = len(valid_identities.keys())
 
+            valid_atomic_indices = []
             if num_particle_types > 0:
                 # Get one particle to bounce
                 # TODO: Support only atoms for now, thus, atomic_indices for each tag are extended
-                valid_atomic_indices = []
                 for identity_list in valid_identities.values():
                     for v in identity_list:
                         valid_atomic_indices.extend(v[1])
@@ -130,17 +141,21 @@ class BounceMutation(OffspringCreator):
             nlist = self.nlist_prototype(cov_max * np.array(natural_cutoffs(mutant)))
 
             # bounce the selected particle
-            mutant = bounce_one_atom(
+            mutant, bounced = bounce_one_atom(
                 mutant,
                 particle_index,
-                biased_direction=self.direction,
+                bias_mode=(self.direction, self.bias_ratio),
                 max_disp=self.max_disp,
+                strength=self.repulsion_strength,
                 nlist=nlist,
                 covalent_ratio=self.covalent_ratio,
                 bond_distance_dict=self.bond_distance_dict,
                 rng=self.rng,
-                print_func=print,
             )
+            # We need revert atoms not in valid_atomic_indices as they are in the substrate.
+            for i, prev_pos, _ in bounced:
+                if i not in valid_atomic_indices:
+                    mutant.positions[i] = prev_pos
             extra_info = f"idx_{particle_index}_from_{num_valid_atomic_indices}"
         else:
             mutant = None
