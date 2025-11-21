@@ -294,8 +294,8 @@ def insert_one_particle_on_site(
     anchor_mode = particle.info.get("anchor_mode")
 
     # Check if we should check neighbour distances
-    num_atoms = len(atoms)
-    num_atoms_in_substrate = len(atoms) if num_atoms_in_substrate is None else num_atoms_in_substrate
+    num_atoms = len(atoms)  # substrate + existing adsorbates
+    num_atoms_in_substrate = len(atoms) if num_atoms_in_substrate is None else num_atoms_in_substrate  # substrate only if provided
 
     post_func = lambda _: True
     custom_post_func = lambda _: True
@@ -303,8 +303,9 @@ def insert_one_particle_on_site(
         # We only check bond distances form by atoms in the particle,
         # since the existing atoms may not statisfy our distance criteria.
         atomic_indices_to_check = list(range(num_atoms_in_substrate, num_atoms + len(particle)))
-        # Avoid distance check in the substrate and the particle to insert
-        intra_bond_pairs = list(itertools.permutations(range(0, num_atoms_in_substrate), 2))
+        # Avoid distance check in the substrate and the particle to insert,
+        # as well as between existing adsorbates.
+        intra_bond_pairs = list(itertools.permutations(range(0, num_atoms), 2))
         intra_bond_pairs.extend(list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2)))
         # Build the function
         post_func = functools.partial(
