@@ -21,9 +21,7 @@ def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict:
                 continue
             if (i, j) in bond_distance_dict:
                 continue
-            bond_distance_dict[(i, j)] = bond_distance_dict[(j, i)] = ratio * (
-                covalent_radii[i] + covalent_radii[j]
-            )
+            bond_distance_dict[(i, j)] = bond_distance_dict[(j, i)] = ratio * (covalent_radii[i] + covalent_radii[j])
 
     return bond_distance_dict
 
@@ -75,7 +73,7 @@ def check_atomic_distances(
         covalent_ratio: Two-entry list with the minimum and the maximum ratio of the covalent bond.
         bond_distance_dict: A dict with the normal covalent bond distance.
         atomic_indices: The indices of atomic centres to check.
-        excluded_pairs: The atomic pairs not considered in too_close and forbidden.
+        excluded_pairs: The atomic pairs (should be symmetric) not considered in too_close and forbidden.
         forbidden_pairs: The forbidden atomic pairs.
         allow_isolated: Whether allow atoms without neighbours to exist.
 
@@ -90,9 +88,7 @@ def check_atomic_distances(
     chemical_numbers = atoms.get_atomic_numbers()
     cutoff = np.array([covalent_radii[c] for c in chemical_numbers]) * cov_max
 
-    first_indices, second_indices, distances = neighbor_list(
-        "ijd", atoms, cutoff, self_interaction=False
-    )
+    first_indices, second_indices, distances = neighbor_list("ijd", atoms, cutoff, self_interaction=False)
 
     num_atoms = len(atoms)
     if atomic_indices is None:
@@ -112,9 +108,7 @@ def check_atomic_distances(
         return is_valid
 
     # first_indices has been sorted so we can just groupby
-    for c_i, v in itertools.groupby(
-        zip(first_indices, second_indices, distances), key=lambda p: p[0]
-    ):
+    for c_i, v in itertools.groupby(zip(first_indices, second_indices, distances), key=lambda p: p[0]):
         if c_i not in atomic_indices:
             continue
         found_isolated, found_too_close, found_forbidden = True, False, False
@@ -159,7 +153,7 @@ def check_atomic_distances_by_neighbour_list(
     *,
     neighlist: NeighborList,
     atomic_indices: List[int],
-    covalent_ratio: list,
+    covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     excluded_pairs: list = [],
     allow_isolated: bool = False,
@@ -168,6 +162,7 @@ def check_atomic_distances_by_neighbour_list(
 
     Args:
         neighlist: This must be bothways and no self-interactions.
+        excluded_pairs: The atomic pairs (should be symmetric) not considered in too_close and forbidden.
 
     """
     # Some basic stuff
@@ -189,15 +184,16 @@ def check_atomic_distances_by_neighbour_list(
         found_too_close, found_isolated = False, True
         for ni, offset in zip(indices, offsets):
             if ni not in atomic_indices:  # Skip intra-molecular check
-                distance = np.linalg.norm(
-                    atoms.positions[idx_pick]
-                    - (atoms.positions[ni] + np.dot(offset, cell))
-                )
+                distance = np.linalg.norm(atoms.positions[idx_pick] - (atoms.positions[ni] + np.dot(offset, cell)))
                 atomic_pair = (chemical_numbers[idx_pick], chemical_numbers[ni])
-                if distance <= bond_distance_dict[atomic_pair] * cov_min:
-                    found_too_close = True
-                    break
-                elif distance <= bond_distance_dict[atomic_pair] * cov_max:
+                dmin = bond_distance_dict[atomic_pair] * cov_min
+                dmax = bond_distance_dict[atomic_pair] * cov_max
+                if distance <= dmin:
+                    # Avoid too close bonds in molecules
+                    if (idx_pick, ni) not in excluded_pairs:
+                        found_too_close = True
+                        break
+                elif distance <= dmax:
                     found_isolated = False
                 else:
                     ...

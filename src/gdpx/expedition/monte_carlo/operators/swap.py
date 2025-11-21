@@ -3,10 +3,12 @@
 
 
 import copy
-from typing import Optional
+import itertools
+from typing import Literal, Optional, Union
 
 import numpy as np
 from ase import Atoms
+from ase.formula import Formula
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.geometry.particle import translate_then_rotate
@@ -16,12 +18,12 @@ from .operator import BaseMCOperator, metropolis_by_energy_difference
 
 
 class SwapOperator(BaseMCOperator):
-
     name: str = "swap"
 
     def __init__(
         self,
         particles: list[str],
+        swap_mode: Union[Literal["atomic"], Literal["cop_z"]] = "atomic",
         *args,
         **kwargs,
     ):
@@ -37,6 +39,15 @@ class SwapOperator(BaseMCOperator):
         if len(set(self.particles)) != 2:
             raise Exception(f"{self.__class__.__name__} needs two different types of particles.")
 
+        # Chek if there are molecules in particles then swap must be cop_z
+        if swap_mode not in ["atomic", "cop_z"]:
+            raise Exception(f"swap_mode {swap_mode} not recognized.")
+        self.swap_mode = swap_mode
+
+        max_num_atoms_in_particle = max([sum(Formula(p).count().values()) for p in self.particles])
+        if max_num_atoms_in_particle > 1 and self.swap_mode != "cop_z":
+            raise Exception(f"swap_mode must be 'cop_z' when swapping molecules.")
+
         return
 
     def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
@@ -47,6 +58,15 @@ class SwapOperator(BaseMCOperator):
 
         # We need covalent bond distanes for neighbour check
         assert hasattr(self, "bond_distance_dict")
+
+        assert hasattr(self, "custom_pair_distance_dict")
+        custom_pair_distance_dict = self.custom_pair_distance_dict if self.custom_pair_distance_dict else None  # type: ignore
+
+        if custom_pair_distance_dict is not None:
+            custom_bond_distance_dict = copy.deepcopy(self.bond_distance_dict)  # type: ignore
+            custom_bond_distance_dict.update(custom_pair_distance_dict)
+        else:
+            custom_bond_distance_dict = self.bond_distance_dict  # type: ignore
 
         # Use the reference to avoid copying?
         self._atoms = atoms
@@ -77,7 +97,11 @@ class SwapOperator(BaseMCOperator):
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [self.particles[0]], rng=rng)
             pick_two = self._select_species(new_atoms, [self.particles[1]], rng=rng)
-            self._print(self.indent + f"1->{pick_one} 2->{pick_two}")
+            self._print(self.indent + f"attempt {i:>04d} "+ f"1->{pick_one} 2->{pick_two}")
+
+            excluded_pairs = []
+            excluded_pairs.extend(itertools.permutations(pick_one, 2))
+            excluded_pairs.extend(itertools.permutations(pick_two, 2))
 
             # Find particles by picked tags before swap
             particle_one = new_atoms[pick_one]  # default copy
@@ -112,11 +136,22 @@ class SwapOperator(BaseMCOperator):
 
             # Swap two positions with rotatation
             # TODO: how about velocity, charge, and magnetic moment?
-            particle_one_ = translate_then_rotate(particle_one, position=cop_one, use_com=False, rng=rng)
-            particle_two_ = translate_then_rotate(particle_two, position=cop_two, use_com=False, rng=rng)
 
-            new_atoms.positions[pick_one] = particle_two_.positions
-            new_atoms.positions[pick_two] = particle_one_.positions
+            if self.swap_mode == "atomic":
+                particle_one_ = translate_then_rotate(particle_one, position=cop_one, use_com=False, rng=rng)
+                particle_two_ = translate_then_rotate(particle_two, position=cop_two, use_com=False, rng=rng)
+                new_atoms.positions[pick_one] = particle_two_.positions
+                new_atoms.positions[pick_two] = particle_one_.positions
+            elif self.swap_mode == "cop_z":
+                # Use the position of the atom with the minimum z coordinate to align two particles
+                min_z_index_one = np.argmin(positions_one[:, 2])
+                min_z_index_two = np.argmin(positions_two[:, 2])
+                align_pos_one = positions_one[min_z_index_one]
+                align_pos_two = positions_two[min_z_index_two]
+                new_atoms.positions[pick_one] = positions_one - align_pos_one + cop_two
+                new_atoms.positions[pick_two] = positions_two - align_pos_two + cop_one
+            else:
+                raise Exception(f"swap_mode {self.swap_mode} not recognized.")
 
             # Find particles by picked tags after swap
             particle_one = new_atoms[pick_one]  # default copy
@@ -145,11 +180,12 @@ class SwapOperator(BaseMCOperator):
                 new_atoms,
                 neighlist=nl,
                 atomic_indices=atomic_indices,
-                covalent_ratio=[self.covalent_min, self.covalent_max],
-                bond_distance_dict=self.bond_distance_dict,  # type: ignore
+                covalent_ratio=(self.covalent_min, self.covalent_max),
+                bond_distance_dict=custom_bond_distance_dict,
+                excluded_pairs=excluded_pairs,
                 allow_isolated=False,
             ):
-                self._print(self.indent + f"succeed to random after {i+1} attempts...")
+                self._print(self.indent + f"succeed to random after {i + 1} attempts...")
                 self._extra_info = f"S_{particle_one.get_chemical_formula()}_{pick_one}^{particle_two.get_chemical_formula()}_{pick_two}"
                 break
             else:

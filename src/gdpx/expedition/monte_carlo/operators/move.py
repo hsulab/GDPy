@@ -3,6 +3,7 @@
 
 
 import copy
+import itertools
 from typing import Optional
 
 import numpy as np
@@ -17,7 +18,6 @@ from .operator import BaseMCOperator, metropolis_by_energy_difference
 
 
 class MoveOperator(BaseMCOperator):
-
     name: str = "move"
 
     def __init__(
@@ -54,6 +54,15 @@ class MoveOperator(BaseMCOperator):
         # We need covalent bond distanes for neighbour check
         assert hasattr(self, "bond_distance_dict")
 
+        assert hasattr(self, "custom_pair_distance_dict")
+        custom_pair_distance_dict = self.custom_pair_distance_dict if self.custom_pair_distance_dict else None  # type: ignore
+
+        if custom_pair_distance_dict is not None:
+            custom_bond_distance_dict = copy.deepcopy(self.bond_distance_dict) # type: ignore
+            custom_bond_distance_dict.update(custom_pair_distance_dict)
+        else:
+            custom_bond_distance_dict = self.bond_distance_dict  # type: ignore
+
         # Check if the particles are in the atoms
         particle_indices = self._select_species(atoms, self.particles, rng=rng)
         if len(particle_indices) == 0:
@@ -78,6 +87,8 @@ class MoveOperator(BaseMCOperator):
         assert isinstance(particle, Atoms)
         self._extra_info = f"Move_{particle.get_chemical_formula()}_{particle_indices}"
 
+        excluded_pairs = list(itertools.permutations(particle_indices, 2))
+
         # TODO: Deal with pbc for molecules
         org_cop = np.mean(particle.positions, axis=0)
         org_positions = particle.positions.copy()
@@ -100,10 +111,11 @@ class MoveOperator(BaseMCOperator):
                 neighlist=nl,
                 atomic_indices=particle_indices,
                 covalent_ratio=[self.covalent_min, self.covalent_max],
-                bond_distance_dict=self.bond_distance_dict,  # type: ignore
+                bond_distance_dict=custom_bond_distance_dict,
+                excluded_pairs=excluded_pairs,
                 allow_isolated=False,
             ):
-                self._print(self.indent + f"succeed to random after {i+1} attempts...")
+                self._print(self.indent + f"succeed to random after {i + 1} attempts...")
                 self._print(self.indent + "before pos: " + ("{:>12.4f} " * 3).format(*org_cop))
                 self._print(self.indent + "random pos: " + ("{:>12.4f} " * 3).format(*ran_pos))
                 new_cop = np.average(new_atoms.positions[particle_indices], axis=0)
