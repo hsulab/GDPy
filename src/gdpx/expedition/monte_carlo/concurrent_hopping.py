@@ -575,8 +575,16 @@ class ConcurrentHopping(BaseExpedition):
             operators=self.operators, custom_atomic_types=None, substrates=None
         )
         bond_distance_dict.update(get_bond_distance_dict(unique_atomic_numbers=unique_atomic_numbers, ratio=1.0))
+
+        custom_pair_distance_dict = {}
+        if hasattr(self.population.random_offspring_generator, "get_custom_pair_distance_dict"):
+            custom_pair_distance_dict.update(
+                self.population.random_offspring_generator.get_custom_pair_distance_dict()  # type: ignore
+            )
+
         for op in self.operators:
             op.bond_distance_dict = bond_distance_dict
+            op.custom_pair_distance_dict = custom_pair_distance_dict
 
         # Run generations
         for _ in range(1000):

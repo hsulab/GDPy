@@ -19,7 +19,6 @@ from .basic import BasicExchangeOperator
 
 
 class AdsorbateExchangeOperator(BasicExchangeOperator):
-
     name: str = "adsorbate_exchange"
 
     MIN_RANDOM_TAG: int = 10000
@@ -80,6 +79,9 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
         # We need covalent bond distanes for neighbour check
         assert hasattr(self, "bond_distance_dict")
 
+        assert hasattr(self, "custom_pair_distance_dict")
+        custom_pair_distance_dict = self.custom_pair_distance_dict if self.custom_pair_distance_dict else None  # type: ignore
+
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
         self._atoms = atoms
@@ -133,6 +135,7 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
             find_sites_func=find_sites_func,
             covalent_ratio=(self.covalent_min, self.covalent_max),
             bond_distance_dict=self.bond_distance_dict,  # type: ignore
+            custom_pair_distance_dict=custom_pair_distance_dict,
             particle_tag=adpart_tag,
             sort_tags=False,
             max_attempts=self.MAX_RANDOM_ATTEMPTS,
