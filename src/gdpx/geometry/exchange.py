@@ -130,9 +130,9 @@ def prepare_bidentate_adsorbate(site, adsorbate: Atoms, bond_distance_scale: flo
         # plane_normal = np.cross(v1, v2)  # right hand rule
         # plane_normal = plane_normal / np.linalg.norm(plane_normal)
         plane_normal = adsorbate.info["molecular_plane_normal"]
-        assert np.allclose(
-            plane_normal, np.array([0.0, 1.0, 0.0])
-        ), "The molecualr plane normal should point along +y."
+        assert np.allclose(plane_normal, np.array([0.0, 1.0, 0.0])), (
+            "The molecualr plane normal should point along +y."
+        )
 
         angle = 90 - np.arccos(np.dot(site_direction_z, site_direction)) / np.pi * 180.0
         if site_direction_z[2] > 0:
@@ -274,6 +274,8 @@ def insert_one_particle_on_site(
     find_sites_func: Callable,
     covalent_ratio: tuple[float, float],
     bond_distance_dict: dict[tuple[int, int], float],
+    custom_pair_distance_dict: Optional[dict[tuple[int, int], float]] = None,
+    num_atoms_in_substrate: Optional[int] = None,
     particle_tag: Optional[int] = None,
     sort_tags: bool = True,
     max_attempts: int = 100,
@@ -293,14 +295,17 @@ def insert_one_particle_on_site(
 
     # Check if we should check neighbour distances
     num_atoms = len(atoms)
+    num_atoms_in_substrate = len(atoms) if num_atoms_in_substrate is None else num_atoms_in_substrate
 
+    post_func = lambda _: True
+    custom_post_func = lambda _: True
     if check_distance_func is not None:
-        # Avoid distance check in the substrate and the particle to insert
-        intra_bond_pairs = list(itertools.permutations(range(0, num_atoms), 2))
-        intra_bond_pairs.extend(list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2)))
         # We only check bond distances form by atoms in the particle,
         # since the existing atoms may not statisfy our distance criteria.
-        atomic_indices_to_check = list(range(num_atoms, num_atoms + len(particle)))
+        atomic_indices_to_check = list(range(num_atoms_in_substrate, num_atoms + len(particle)))
+        # Avoid distance check in the substrate and the particle to insert
+        intra_bond_pairs = list(itertools.permutations(range(0, num_atoms_in_substrate), 2))
+        intra_bond_pairs.extend(list(itertools.permutations(range(num_atoms, num_atoms + len(particle)), 2)))
         # Build the function
         post_func = functools.partial(
             check_distance_func,
@@ -310,8 +315,21 @@ def insert_one_particle_on_site(
             excluded_pairs=intra_bond_pairs,
             allow_isolated=False,
         )
+        # Set some additional distance restraints
+        if custom_pair_distance_dict is not None:
+            custom_bond_distance_dict = copy.deepcopy(bond_distance_dict)
+            for k, v in custom_pair_distance_dict.items():
+                custom_bond_distance_dict[k] = v / covalent_ratio[0]  # scale by covalent min
+            custom_post_func = functools.partial(
+                check_distance_func,
+                covalent_ratio=covalent_ratio,
+                bond_distance_dict=custom_bond_distance_dict,
+                atomic_indices=atomic_indices_to_check,
+                excluded_pairs=intra_bond_pairs,
+                allow_isolated=False,
+            )
     else:
-        post_func = lambda _: True
+        ...
 
     candidate = atoms
 
@@ -339,7 +357,8 @@ def insert_one_particle_on_site(
         # insert adsorbate
         new_particle = anchor_func(sites[site_index], particle)
         candidate.extend(new_particle)
-        if post_func(candidate):  # geometric restraint
+        # geometric restraint
+        if post_func(candidate) and custom_post_func(candidate):
             num_attempts = iattempt + 1
             break
         else:

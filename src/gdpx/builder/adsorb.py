@@ -36,6 +36,7 @@ class AdsorbateInsertionModifier(StructureModifier):
         use_tags: bool = True,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
+        custom_pair_distances: Optional[list[tuple[str, str, float]]] = None,
         max_times_size: int = 10,
         sort_by_tags: bool = True,
         sort_by_natoms_per_type: bool = True,
@@ -54,6 +55,7 @@ class AdsorbateInsertionModifier(StructureModifier):
             pbc=pbc,
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
+            custom_pair_distances=custom_pair_distances,
             max_times_size=max_times_size,
             sort_by_tags=sort_by_tags,
             sort_by_natoms_per_type=sort_by_natoms_per_type,
@@ -119,6 +121,8 @@ class AdsorbateInsertionModifier(StructureModifier):
             molecular_distances[1] = np.inf
         self.molecular_distances = molecular_distances
 
+        self.custom_pair_distances = custom_pair_distances
+
         # Attempts
         self.max_times_size = max_times_size
 
@@ -158,6 +162,29 @@ class AdsorbateInsertionModifier(StructureModifier):
 
         return bond_distance_dict
 
+    def get_custom_pair_distance_dict(self) -> Optional[dict[tuple[int, int], float]]:
+        """Get custom pair distance dictionary.
+
+        Note:
+            Atomic pair distances.
+
+        Todo:
+            This should extend to molecular distances.
+
+        """
+        custom_pair_distance_dict = {}
+        if self.custom_pair_distances is not None:
+            # map chemical symbols to numbers
+            for (s0, s1, dist) in self.custom_pair_distances:
+                n0 = ase.data.atomic_numbers[s0]
+                n1 = ase.data.atomic_numbers[s1]
+                custom_pair_distance_dict[(n0, n1)] = dist
+                custom_pair_distance_dict[(n1, n0)] = dist
+        else:
+            ...
+
+        return custom_pair_distance_dict
+
     def run(self, substrates: Optional[list[Atoms]] = None, size: int = 1, *args, **kwargs) -> list[Atoms]:
         """"""
         super().run(substrates=substrates, *args, **kwargs)
@@ -169,6 +196,8 @@ class AdsorbateInsertionModifier(StructureModifier):
 
         # Infer chemical species may occur in structures
         bond_distance_dict = self.get_bond_distance_dict()
+
+        custom_pair_distance_dict = self.get_custom_pair_distance_dict()
 
         # Build find adsorption sites function
         def build_find_sites_func(species: str) -> Callable:
@@ -188,6 +217,7 @@ class AdsorbateInsertionModifier(StructureModifier):
         for isub, substrate in enumerate(self.substrates):
             self._print(f"generating structures based on substrate-{isub:>04d}.")
             st = time.time()
+            num_atoms_in_substrate = len(substrate)
             for _ in range(size):
                 fragments = self._compspec.get_fragments_from_one_composition(
                     rng=self.rng,
@@ -201,6 +231,8 @@ class AdsorbateInsertionModifier(StructureModifier):
                         build_find_sites_func(particle.get_chemical_formula()),
                         covalent_ratio=self.covalent_ratio,
                         bond_distance_dict=bond_distance_dict,
+                        custom_pair_distance_dict=custom_pair_distance_dict,
+                        num_atoms_in_substrate=num_atoms_in_substrate,  # Make inter-adsorbate distance checked
                         sort_tags=self.sort_by_tags,
                         rng=self.rng,
                     )
