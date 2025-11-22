@@ -364,7 +364,9 @@ def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:
         extinct_callbacks: A list of callback functions that determine extinction using 0 or 1.
 
     """
-    extinct = int(sum([cb(atoms) for cb in extinct_callbacks]) > 0)
+    extincts = [cb(atoms) for cb in extinct_callbacks]
+
+    extinct = int(sum(extincts) > 0)
     atoms.info["key_value_pairs"]["extinct"] = extinct
 
     return

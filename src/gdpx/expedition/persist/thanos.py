@@ -26,6 +26,9 @@ def extinct_by_small_pair_distance(atoms: Atoms, pair_distance_dict: dict[tuple[
             continue
 
         for (_, ind_i), (_, ind_j) in itertools.product(identities[s_i], identities[s_j]):
+            # remove self-interaction
+            if ind_i == ind_j:
+                continue
             raw_vectors = np.reshape(
                 atoms.positions[ind_i][:, np.newaxis, :] - atoms.positions[ind_j][np.newaxis, :, :], (-1, 3)
             )
