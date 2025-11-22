@@ -19,7 +19,11 @@ from .basic import BasicExchangeOperator
 
 
 class AdsorbateExchangeOperator(BasicExchangeOperator):
+    #: Operator name.
     name: str = "adsorbate_exchange"
+
+    #: Maximum attempts smaller than other operators as is highly biased on given sites.
+    MAX_RANDOM_ATTEMPTS = 100
 
     MIN_RANDOM_TAG: int = 10000
 
@@ -149,7 +153,7 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
             self._extra_info = f"Insert_{particle}_{adpart_tag}"  # type: ignore
         elif state == "failure":
             self._print(self.indent + f"failed to insert after {num_attempts} attempts...")
-            # If adsorb failed, 
+            # If adsorb failed,
             # no revert is needed as it has been done by the function above.
             # del new_atoms[atomic_indices]
             self._extra_info = f"Insert_Failed"
