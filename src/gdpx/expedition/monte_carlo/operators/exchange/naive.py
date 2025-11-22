@@ -40,6 +40,15 @@ class ExchangeOperator(BasicExchangeOperator):
         # We need covalent bond distanes for neighbour check
         assert hasattr(self, "bond_distance_dict")
 
+        assert hasattr(self, "custom_pair_distance_dict")
+        custom_pair_distance_dict = self.custom_pair_distance_dict if self.custom_pair_distance_dict else None  # type: ignore
+
+        if custom_pair_distance_dict is not None:
+            custom_bond_distance_dict = copy.deepcopy(self.bond_distance_dict) # type: ignore
+            custom_bond_distance_dict.update(custom_pair_distance_dict)
+        else:
+            custom_bond_distance_dict = self.bond_distance_dict  # type: ignore
+
         # We cannot use deepcopy here as ase does not delete some arrays,
         # for example, the forces.
         self._atoms = atoms
@@ -81,7 +90,7 @@ class ExchangeOperator(BasicExchangeOperator):
             particle=adpart,
             region=self.region,
             covalent_ratio=[self.covalent_min, self.covalent_max],
-            bond_distance_dict=self.bond_distance_dict,  # type: ignore
+            bond_distance_dict=custom_bond_distance_dict,
             particle_tag=adpart_tag,
             sort_tags=False,
             max_attempts=self.MAX_RANDOM_ATTEMPTS,
