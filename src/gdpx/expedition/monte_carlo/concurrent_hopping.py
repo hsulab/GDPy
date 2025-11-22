@@ -6,7 +6,7 @@ import copy
 import enum
 import itertools
 import shutil
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 from ase import Atoms
@@ -24,9 +24,18 @@ from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
 from ..persist.database import GlobalOptimisationDatabase
+from ..persist.thanos import THANOS_CALLBACKS
 from .utils import parse_operators, select_operator
 
-GenerationState = enum.Enum("GenerationState", ("BEG_OF_GEN", "MID_OF_GEN", "END_OF_GEN"))
+GenerationState = enum.Enum(
+    "GenerationState",
+    (
+        "BEG_OF_GEN",
+        "MID_OF_GEN",
+        "END_OF_GEN",
+        "EXTINCTED",
+    ),
+)
 
 
 def infer_unique_atomic_numbers(
@@ -81,6 +90,7 @@ class ConcurrentPopulation:
         generation_size: int,
         random_offspring_generator: dict,
         comparator: Optional[dict] = None,
+        thanos: Optional[dict] = None,
         population_size: Optional[int] = None,
         database_fname: str = "mydb.db",
         print_func=print,
@@ -123,6 +133,20 @@ class ConcurrentPopulation:
             name = comparator.pop("name", "interatomic_distance")
             self.comparator = registers.create("comparator", name, **comparator)
 
+        # Thanos (observer/describer) extincts structures in the population
+        extinct_callback = None
+        if thanos is not None:
+            thanos_dict = copy.deepcopy(thanos)
+            thanos_name = thanos_dict.pop("name")
+            if thanos_name not in THANOS_CALLBACKS:
+                raise RuntimeError(f"Thanos name {thanos_name} not in {list(THANOS_CALLBACKS.keys())}...")
+            else:
+                extinct_callback = THANOS_CALLBACKS[thanos_name](**thanos_dict)
+        else:
+            ...
+
+        self.extinct_callback = extinct_callback
+
         # Print and debug
         self._print = print_func
         self._debug = debug_func
@@ -147,15 +171,14 @@ class ConcurrentPopulation:
 
         return self._pop_size
 
-    def get_current_population(self, database: "GlobalOptimisationDatabase") -> list[Atoms]:
+    def get_current_population(self, database: "GlobalOptimisationDatabase", use_extinct: bool = False) -> list[Atoms]:
         """"""
-        all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=False)
+        all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=use_extinct)
         # The candidates have already been sorted by raw_score,
         # here, we just double check it.
         all_relaxed_candidates.sort(key=lambda cand: cand.info["key_value_pairs"]["raw_score"], reverse=True)
 
-        # We may not have enough structures for the population
-        # as some of them may look like.
+        # We may not have enough structures for the population as some of them may look like.
         # TODO: Cache candidates?
         selected_candidates = []
         for candidate in all_relaxed_candidates:
@@ -201,9 +224,10 @@ class ConcurrentPopulation:
         database: "GlobalOptimisationDatabase",
         rng: np.random.Generator,
         with_history: bool = True,
+        use_extinct: bool = False,
     ) -> list[Atoms]:
         """"""
-        popultion = self.get_current_population(database)
+        popultion = self.get_current_population(database, use_extinct=use_extinct)
         num_structures_in_population = len(popultion)
 
         if num_structures_in_population <= self.gen_size:
@@ -332,20 +356,40 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
     return
 
 
+def extinct_candidate(atoms: Atoms, extinct_callback: Callable) -> None:
+    """Extinct the candidate by given callback.
+
+    Args:
+        atoms: The candidate to be evaluated.
+        extinct_callback: The callback function to determine extinction using 0 or 1.
+
+    """
+    extinct = extinct_callback(atoms)
+    atoms.info["key_value_pairs"]["extinct"] = extinct
+
+    return
+
+
 def canonical_candidates_from_worker_results(
     relaxed_candidates: list[Atoms],
     gen_num: int,
-    extinct: int = 0,
     use_tags: bool = False,
     property: dict = {},
-):
+    extinct_callback: Optional[Callable] = None,
+) -> list[Atoms]:
     """"""
     target_property = property.get("target", "energy")
     chempot = property.get("chempot", None)
 
     for candidate in relaxed_candidates:
-        extra_info = dict(data={}, key_value_pairs={"generation": gen_num, "extinct": extinct})
+        extra_info = dict(
+            data={},
+            key_value_pairs={
+                "generation": gen_num,
+            },
+        )
         candidate.info.update(extra_info)
+        # update molecular identity tags
         if use_tags:
             # The worker respects tags in atom, thus, we do not need
             # get tags from the database.
@@ -368,6 +412,9 @@ def canonical_candidates_from_worker_results(
             candidate.info["identity_stats"] = identity_stats
         # add raw score
         evaluate_candidate(candidate, target_property=target_property, chempot=chempot)
+        # extinct if needed
+        if extinct_callback is not None:
+            extinct_candidate(candidate, extinct_callback=extinct_callback)
 
     return relaxed_candidates
 
@@ -427,6 +474,9 @@ class ConcurrentHopping(BaseExpedition):
 
         # The target optimised property
         self.property = property
+
+        # Whether perform extinction after generation
+        self.use_extinct = True if self.population.extinct_callback is not None else False
 
         # Whether archive results after run_worker
         self.use_archive = use_archive
@@ -526,11 +576,16 @@ class ConcurrentHopping(BaseExpedition):
             for atoms in structures:
                 database.add_unrelaxed_candidate(candidate=atoms)
         else:
+            # TODO: How about if we are in the middle of a generation?
+            # assert gen_state != GenerationState.MID_OF_GEN, "Cannot handle mid-generation yet."
+
             # We save all mc trajectories in a centralised folder
             (gen_wdir / "mctrajs").mkdir(parents=True, exist_ok=True)
             # Try to generate new structures
             candidates = sorted(
-                self.population.get_current_generation(database=database, rng=self.rng, with_history=True),
+                self.population.get_current_generation(
+                    database=database, rng=self.rng, with_history=True, use_extinct=self.use_extinct
+                ),
                 key=lambda a: a.info["confid"],
             )
             candidates_confids = [a.info["confid"] for a in candidates]
@@ -567,10 +622,15 @@ class ConcurrentHopping(BaseExpedition):
             explored_candidates = canonical_candidates_from_worker_results(
                 relaxed_candidates,  # type: ignore
                 gen_num=gen_num,
-                extinct=0,
                 use_tags=True,
                 property=self.property,
+                extinct_callback=self.population.extinct_callback,
             )
+            num_extincts = sum(
+                1 for candidate in explored_candidates if candidate.info["key_value_pairs"].get("extinct", 0) == 1
+            )
+            self._print(f"Extincted {num_extincts} candidates in generation {gen_num}.")
+            # Store relaxed candidates
             for candidate in explored_candidates:
                 database.add_relaxed_step(candidate)
 
@@ -595,10 +655,14 @@ class ConcurrentHopping(BaseExpedition):
             gen_num, gen_state = self.get_generation_info(database=database)
         else:
             assert gen_state is not None
+
         if gen_num == maximum_generation_number and gen_state == GenerationState.END_OF_GEN:
             converged = True
         elif gen_num > maximum_generation_number and gen_state == GenerationState.BEG_OF_GEN:
             assert gen_num == maximum_generation_number + 1, f"{gen_num=}  {gen_state=}"
+            converged = True
+        elif gen_state == GenerationState.EXTINCTED:
+            self._print(":( candidates are extincted...")
             converged = True
         else:
             converged = False
@@ -622,6 +686,7 @@ class ConcurrentHopping(BaseExpedition):
 
             return gen_state
 
+        # Determine the stage of the generation by number of relaxed candidates
         number_relaxed = database.get_number_of_relaxed_candidates()
         if number_relaxed <= ini_size:  # Still in the initial generation
             gen_state = get_generation_state(number_relaxed, ini_size)
@@ -635,18 +700,27 @@ class ConcurrentHopping(BaseExpedition):
             )
             gen_num = number_finished_generations + 1
 
+        # Check if all structures are extincted at the end of generation
+        if gen_state == GenerationState.END_OF_GEN and self.use_extinct:
+            all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=True)
+            num_survived = len(all_relaxed_candidates)
+            if num_survived == 0:
+                gen_state = GenerationState.EXTINCTED
+
         return gen_num, gen_state
 
     def report(self, database: Optional[GlobalOptimisationDatabase] = None):
         """"""
         if database is None:
             database_fpath = self.directory / self.population.database_fname
-            database = GlobalOptimisationDatabase(database_fpath)
+            db = GlobalOptimisationDatabase(database_fpath)
+        else:
+            db = database
 
         results_folder = self.directory / "results"
         results_folder.mkdir(parents=True, exist_ok=True)
 
-        all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=False)
+        all_relaxed_candidates = db.get_all_relaxed_candidates(use_extinct=False)
         write(results_folder / "all_candidates.xyz", all_relaxed_candidates)
 
         # Plot generations
