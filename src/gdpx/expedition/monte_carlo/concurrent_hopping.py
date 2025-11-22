@@ -75,7 +75,6 @@ def compute_population_fitness(structures: list[Atoms], with_history=True) -> li
 
 
 class ConcurrentPopulation:
-
     def __init__(
         self,
         initial_size: int,
@@ -226,7 +225,6 @@ class ConcurrentPopulation:
 
 
 class GlobalOptimisationDatabase:
-
     def __init__(self, database_fpath) -> None:
         """"""
         self.connection = ase.db.connect(database_fpath)
@@ -403,9 +401,9 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
         None.
 
     """
-    assert (
-        atoms.info["key_value_pairs"].get("raw_score", None) is None
-    ), "candidate already has raw_score before evaluation"
+    assert atoms.info["key_value_pairs"].get("raw_score", None) is None, (
+        "candidate already has raw_score before evaluation"
+    )
 
     # evaluate based on target property
     target = target_property
@@ -419,9 +417,9 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
         chempot_dict = chempot
         assert chempot is not None, "`chempot` must not be None for `formation_energy`."
         identity_stats = atoms.info.get("identity_stats", None)
-        assert (
-            identity_stats is not None
-        ), "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+        assert identity_stats is not None, (
+            "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+        )
 
         energy = atoms.get_potential_energy()
 
@@ -477,7 +475,6 @@ def canonical_candidates_from_worker_results(
 
 
 class ConcurrentHopping(BaseExpedition):
-
     def __init__(
         self,
         operators: list[dict],
@@ -487,6 +484,7 @@ class ConcurrentHopping(BaseExpedition):
         convergence: dict,
         property: dict,
         builder=None,
+        use_archive: bool = True,
         *args,
         **kwargs,
     ) -> None:
@@ -531,6 +529,9 @@ class ConcurrentHopping(BaseExpedition):
 
         # The target optimised property
         self.property = property
+
+        # Whether archive results after run_worker
+        self.use_archive = use_archive
 
         return
 
@@ -662,7 +663,7 @@ class ConcurrentHopping(BaseExpedition):
         candidates_confids = [a.info["confid"] for a in candidates_to_explore]
         self._print(f"confids {integers_to_string(candidates_confids, inp_convention='lmp')}")
 
-        is_finished = run_worker(candidates_to_explore, self.worker, directory=gen_wdir)  # type: ignore
+        is_finished = run_worker(candidates_to_explore, self.worker, archive=self.use_archive, directory=gen_wdir)  # type: ignore
         if is_finished:
             relaxed_candidates = read(gen_wdir / "results" / "end_frames.xyz", ":")
             explored_candidates = canonical_candidates_from_worker_results(
