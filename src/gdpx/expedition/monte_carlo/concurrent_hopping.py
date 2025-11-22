@@ -6,7 +6,7 @@ import copy
 import enum
 import itertools
 import shutil
-from typing import Callable, Optional
+from typing import Callable, Mapping, Optional
 
 import numpy as np
 from ase import Atoms
@@ -24,7 +24,7 @@ from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
 from ..persist.database import GlobalOptimisationDatabase
-from ..persist.thanos import THANOS_CALLBACKS
+from ..persist.thanos import dispatch_thanos
 from .utils import parse_operators, select_operator
 
 GenerationState = enum.Enum(
@@ -134,18 +134,17 @@ class ConcurrentPopulation:
             self.comparator = registers.create("comparator", name, **comparator)
 
         # Thanos (observer/describer) extincts structures in the population
-        extinct_callback = None
+        extinct_callbacks = None
         if thanos is not None:
-            thanos_dict = copy.deepcopy(thanos)
-            thanos_name = thanos_dict.pop("name")
-            if thanos_name not in THANOS_CALLBACKS:
-                raise RuntimeError(f"Thanos name {thanos_name} not in {list(THANOS_CALLBACKS.keys())}...")
-            else:
-                extinct_callback = THANOS_CALLBACKS[thanos_name](**thanos_dict)
+            thanos_config = copy.deepcopy(thanos)
+            # check whether dict or list by mapping
+            if isinstance(thanos_config, Mapping):
+                thanos_config = [thanos_config]
+            extinct_callbacks = [dispatch_thanos(**tc) for tc in thanos_config]
         else:
             ...
 
-        self.extinct_callback = extinct_callback
+        self.extinct_callbacks = extinct_callbacks
 
         # Print and debug
         self._print = print_func
@@ -356,15 +355,15 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
     return
 
 
-def extinct_candidate(atoms: Atoms, extinct_callback: Callable) -> None:
+def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:
     """Extinct the candidate by given callback.
 
     Args:
         atoms: The candidate to be evaluated.
-        extinct_callback: The callback function to determine extinction using 0 or 1.
+        extinct_callbacks: A list of callback functions that determine extinction using 0 or 1.
 
     """
-    extinct = extinct_callback(atoms)
+    extinct = int(sum([cb(atoms) for cb in extinct_callbacks]) > 0)
     atoms.info["key_value_pairs"]["extinct"] = extinct
 
     return
@@ -375,7 +374,7 @@ def canonical_candidates_from_worker_results(
     gen_num: int,
     use_tags: bool = False,
     property: dict = {},
-    extinct_callback: Optional[Callable] = None,
+    extinct_callbacks: Optional[list[Callable]] = None,
 ) -> list[Atoms]:
     """"""
     target_property = property.get("target", "energy")
@@ -413,8 +412,8 @@ def canonical_candidates_from_worker_results(
         # add raw score
         evaluate_candidate(candidate, target_property=target_property, chempot=chempot)
         # extinct if needed
-        if extinct_callback is not None:
-            extinct_candidate(candidate, extinct_callback=extinct_callback)
+        if extinct_callbacks is not None:
+            extinct_candidate(candidate, extinct_callbacks=extinct_callbacks)
 
     return relaxed_candidates
 
@@ -476,7 +475,7 @@ class ConcurrentHopping(BaseExpedition):
         self.property = property
 
         # Whether perform extinction after generation
-        self.use_extinct = True if self.population.extinct_callback is not None else False
+        self.use_extinct = True if self.population.extinct_callbacks is not None else False
 
         # Whether archive results after run_worker
         self.use_archive = use_archive
@@ -624,7 +623,7 @@ class ConcurrentHopping(BaseExpedition):
                 gen_num=gen_num,
                 use_tags=True,
                 property=self.property,
-                extinct_callback=self.population.extinct_callback,
+                extinct_callbacks=self.population.extinct_callbacks,
             )
             num_extincts = sum(
                 1 for candidate in explored_candidates if candidate.info["key_value_pairs"].get("extinct", 0) == 1
