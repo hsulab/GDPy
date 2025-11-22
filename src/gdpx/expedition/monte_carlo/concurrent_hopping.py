@@ -5,6 +5,7 @@
 import copy
 import enum
 import itertools
+import pathlib
 import shutil
 from typing import Callable, Mapping, Optional
 
@@ -538,6 +539,7 @@ class ConcurrentHopping(BaseExpedition):
         for _ in range(1000):
             gen_num, gen_state = self.get_generation_info(database=database)
             converged = self.read_convergence(database=database, gen_num=gen_num, gen_state=gen_state)
+            self._print(f"Generation info: {gen_num=}  {gen_state=}  {converged=}")
             if not converged:
                 is_finished = self._irun(database=database, gen_num=gen_num, gen_state=gen_state)
                 if not is_finished:
@@ -625,10 +627,11 @@ class ConcurrentHopping(BaseExpedition):
                 property=self.property,
                 extinct_callbacks=self.population.extinct_callbacks,
             )
-            num_extincts = sum(
-                1 for candidate in explored_candidates if candidate.info["key_value_pairs"].get("extinct", 0) == 1
-            )
-            self._print(f"Extincted {num_extincts} candidates in generation {gen_num}.")
+            if self.use_extinct:
+                num_extincts = sum(
+                    1 for candidate in explored_candidates if candidate.info["key_value_pairs"].get("extinct", 0) == 1
+                )
+                self._print(f"Extincted {num_extincts} candidates in generation {gen_num}.")
             # Store relaxed candidates
             for candidate in explored_candidates:
                 database.add_relaxed_step(candidate)
@@ -672,32 +675,63 @@ class ConcurrentHopping(BaseExpedition):
         """"""
         ini_size, gen_size = self.population.ini_size, self.population.gen_size
 
-        def get_generation_state(number_rest, number_target):
+        # def get_generation_state(number_rest, number_target):
+        #     """"""
+        #     if number_rest == 0:
+        #         gen_state = GenerationState.BEG_OF_GEN
+        #     elif number_rest < number_target:
+        #         gen_state = GenerationState.MID_OF_GEN
+        #     elif number_rest == number_target:
+        #         gen_state = GenerationState.END_OF_GEN
+        #     else:
+        #         raise Exception("This should not happen.")
+        #
+        #     return gen_state
+        #
+        # # Determine the stage of the generation by number of relaxed candidates
+        # number_relaxed = database.get_number_of_relaxed_candidates()
+        # if number_relaxed <= ini_size:  # Still in the initial generation
+        #     gen_state = get_generation_state(number_relaxed, ini_size)
+        #     gen_num = 0
+        # else:
+        #     number_finished_generations = int((number_relaxed - ini_size) / gen_size)
+        #     assert number_finished_generations >= 0
+        #     gen_state = get_generation_state(
+        #         number_relaxed - number_finished_generations * gen_size - ini_size,
+        #         gen_size,
+        #     )
+        #     gen_num = number_finished_generations + 1
+
+        # Since we may use extinction, we cannot infer generation by total number of candidates already relaxed.
+        def is_dir_nonempty(p: pathlib.Path) -> bool:
             """"""
-            if number_rest == 0:
-                gen_state = GenerationState.BEG_OF_GEN
-            elif number_rest < number_target:
-                gen_state = GenerationState.MID_OF_GEN
-            elif number_rest == number_target:
+            is_nonempty = False
+            for f in p.rglob("*"):
+                if f.is_file() and f.stat().st_size > 0:
+                    is_nonempty = True
+                    break
+
+            return is_nonempty
+
+        gen_num, gen_state = 0, GenerationState.BEG_OF_GEN
+        found_state = False
+
+        gen_wdirs = sorted((self.directory / "tmp_folder").glob("gen*"), key=lambda p: int(p.name[3:]), reverse=True)
+        for gen_wdir in gen_wdirs:
+            gen_num = int(gen_wdir.name[3:])
+            if (gen_wdir / "results" / "end_frames.xyz").exists():
                 gen_state = GenerationState.END_OF_GEN
+                found_state = True
             else:
-                raise Exception("This should not happen.")
-
-            return gen_state
-
-        # Determine the stage of the generation by number of relaxed candidates
-        number_relaxed = database.get_number_of_relaxed_candidates()
-        if number_relaxed <= ini_size:  # Still in the initial generation
-            gen_state = get_generation_state(number_relaxed, ini_size)
-            gen_num = 0
-        else:
-            number_finished_generations = int((number_relaxed - ini_size) / gen_size)
-            assert number_finished_generations >= 0
-            gen_state = get_generation_state(
-                number_relaxed - number_finished_generations * gen_size - ini_size,
-                gen_size,
-            )
-            gen_num = number_finished_generations + 1
+                # Have any non-empty cand folder?
+                cand_wdirs = sorted(gen_wdir.glob("cand*"), key=lambda p: int(p.name[4:]))
+                for cand_wdir in cand_wdirs:
+                    if is_dir_nonempty(cand_wdir):
+                        gen_state = GenerationState.MID_OF_GEN
+                        found_state = True
+                        break
+            if found_state:
+                break
 
         # Check if all structures are extincted at the end of generation
         if gen_state == GenerationState.END_OF_GEN and self.use_extinct:
