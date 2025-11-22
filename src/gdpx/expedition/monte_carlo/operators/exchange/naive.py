@@ -89,7 +89,7 @@ class ExchangeOperator(BasicExchangeOperator):
             atoms=new_atoms,
             particle=adpart,
             region=self.region,
-            covalent_ratio=[self.covalent_min, self.covalent_max],
+            covalent_ratio=(self.covalent_min, self.covalent_max),
             bond_distance_dict=custom_bond_distance_dict,
             particle_tag=adpart_tag,
             sort_tags=False,

@@ -110,7 +110,7 @@ class MoveOperator(BaseMCOperator):
                 new_atoms,
                 neighlist=nl,
                 atomic_indices=particle_indices,
-                covalent_ratio=[self.covalent_min, self.covalent_max],
+                covalent_ratio=(self.covalent_min, self.covalent_max),
                 bond_distance_dict=custom_bond_distance_dict,
                 excluded_pairs=excluded_pairs,
                 allow_isolated=False,
