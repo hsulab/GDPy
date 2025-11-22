@@ -149,8 +149,9 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
             self._extra_info = f"Insert_{particle}_{adpart_tag}"  # type: ignore
         elif state == "failure":
             self._print(self.indent + f"failed to insert after {num_attempts} attempts...")
-            # If insert failed, an immediate revert is necessary.
-            del new_atoms[atomic_indices]
+            # If adsorb failed, 
+            # no revert is needed as it has been done by the function above.
+            # del new_atoms[atomic_indices]
             self._extra_info = f"Insert_Failed"
         else:
             raise Exception("This should not happen.")
