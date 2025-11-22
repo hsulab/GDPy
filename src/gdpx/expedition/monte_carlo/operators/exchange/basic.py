@@ -205,6 +205,9 @@ class BasicExchangeOperator(BaseMCOperator):
         content += f"  {self.chempots}\n"
         content += f"within the region {self.region}\n"
 
+        # add indent
+        content = self.indent + content.replace("\n", "\n" + self.indent)
+
         return content
 
 
