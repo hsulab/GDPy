@@ -107,6 +107,7 @@ class ExchangeOperator(BasicExchangeOperator):
             self._print(self.indent + f"failed to insert after {num_attempts} attempts...")
             # If insert failed, an immediate revert is necessary.
             del new_atoms[atomic_indices]
+            new_atoms = None
             self._extra_info = f"Insert_Failed"
         else:
             raise Exception("This should not happen.")

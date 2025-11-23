@@ -156,6 +156,7 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
             # If adsorb failed,
             # no revert is needed as it has been done by the function above.
             # del new_atoms[atomic_indices]
+            new_atoms = None
             self._extra_info = f"Insert_Failed"
         else:
             raise Exception("This should not happen.")
