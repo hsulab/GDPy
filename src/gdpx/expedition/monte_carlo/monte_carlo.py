@@ -117,10 +117,10 @@ class MonteCarlo(BaseExpedition):
         `self.energy_stored`, and `self.start_step`.
 
         """
+        # Prepare the initial structure
         step_wdir = self.directory / f"{self.WDIR_PREFIX}0"
         if not step_wdir.exists():
-            # - prepare atoms
-            self._print("===== MonteCarlo Structure =====\n")
+            self._print("===== MonteCarlo Structure =====")
             tags = self.atoms.arrays.get("tags", None)
             if self.ignore_atoms_tags or tags is None:
                 # default is setting tags by elements
@@ -132,14 +132,13 @@ class MonteCarlo(BaseExpedition):
             else:
                 self._print("set attached tags from the structure...")
 
-        # - run init
-        self._print("===== MonteCarlo Initial Minimisation =====\n")
-        # NOTE: atoms lost tags in optimisation
-        #       TODO: move this part to driver?
+        # Run minimisation before any MC steps
+        self._print("===== MonteCarlo Initial Minimisation =====")
+        # TODO: atoms lost tags in optimisation, and may move this part to driver?
         curr_tags = self.atoms.get_tags()
 
         self.atoms.info["confid"] = 0
-        self.atoms.info["step"] = -1  # NOTE: remove step info
+        self.atoms.info["step"] = -1  # remove step info
 
         write(self.directory / "mc_attempts.xyz", self.atoms)
 
@@ -180,9 +179,9 @@ class MonteCarlo(BaseExpedition):
 
     def _attach_bond_length_minimum_list(self):
         """Find possible elements in the simulation and build a bond-distance list."""
+        # TODO: we need further unify the interface to get all atomic types in simulation
         type_list = []
         for op in self.operators:
-            # TODO: we need further unify the names here
             if hasattr(op, "particles"):
                 for p in op.particles:
                     type_list.extend(list(Formula(p).count().keys()))
@@ -190,6 +189,7 @@ class MonteCarlo(BaseExpedition):
                 type_list.extend(list(Formula(op.species).count().keys()))
             else:
                 ...
+
         type_list = sorted(list(set(type_list + self.atoms.get_chemical_symbols())))
         self._print(f"possible atomic types in simulation: {' '.join(type_list)}")
         unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
@@ -203,6 +203,13 @@ class MonteCarlo(BaseExpedition):
                 unique_atomic_numbers=unique_atomic_numbers,
                 ratio=1.0,
             )
+
+        # TODO: Do not support custom pair distance yet
+        custom_pair_distance_dict = None
+        if hasattr(self.builder, "get_custom_pair_distance_dict"):
+            raise Exception("Monte Carlo does not supported custom pair distance yet.")
+        for op in self.operators:
+            op.custom_pair_distance_dict = custom_pair_distance_dict
 
         return
 
@@ -237,20 +244,18 @@ class MonteCarlo(BaseExpedition):
         self._attach_bond_length_minimum_list()
 
         for op in self.operators:
-            for x in str(op).split("\n"):
-                self._print(x)
-            for l in convert_blmin_to_str(op.blmin).split("\n"):
-                self._print(l)
-        self._print(f"normalised probabilities {self.op_probs}\n")
-
-        # Add print function to operators
-        for op in self.operators:
             op._print = self._print
             op._debug = self._debug
             op.indent = "  "  # indent before any print or string
+            for l in str(op).split("\n"):
+                self._print(l)
+            for l in convert_blmin_to_str(op.blmin).split("\n"):
+                self._print(l)
+        self._print(f"normalised probabilities {self.op_probs}")
 
-        # NOTE: check if operators' regions are consistent
-        #       though it works, unexpected results may occur
+        # NOTE: Something about statmech
+        # Check if operators' regions are consistent
+        # Though it works, unexpected results may occur.
         # TODO: need rewrite eq function as compare array is difficult
         # noperators = len(self.operators)
         # for i in range(1,noperators):
@@ -492,7 +497,7 @@ class MonteCarlo(BaseExpedition):
         for op in self.operators:
             for x in str(op).split("\n"):
                 self._print(x)
-        self._print(f"normalised probabilities {self.op_probs}\n")
+        self._print(f"normalised probabilities {self.op_probs}")
 
         # Load random state
         self._print("Load random state.")
