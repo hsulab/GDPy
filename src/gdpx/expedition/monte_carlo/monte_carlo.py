@@ -56,7 +56,6 @@ def convert_blmin_to_str(blmin: dict) -> str:
 
 
 class MonteCarlo(BaseExpedition):
-
     restart = False
 
     #: Prefix of the working directory.
@@ -215,9 +214,9 @@ class MonteCarlo(BaseExpedition):
         if isinstance(self.worker, DriverBasedWorker):
             self._print("Convert a DriverBasedWorker to a SingleWorker.")
             self.worker = SingleWorker.from_a_worker(self.worker)
-        assert isinstance(
-            self.worker, SingleWorker
-        ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
+        assert isinstance(self.worker, SingleWorker), (
+            f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
+        )
         self.worker.directory = self.directory
 
         # Create an atoms during the run-time
@@ -509,10 +508,10 @@ class MonteCarlo(BaseExpedition):
 
         # Reset mctraj
         self._print("Reset `mc.xyz` and `mc_attempts.xyz`.")
-        mctraj = read(self.directory / self.TRAJ_NAME, f":{step+1}")
+        mctraj = read(self.directory / self.TRAJ_NAME, f":{step + 1}")
         write(self.directory / self.TRAJ_NAME, mctraj)
 
-        mctraj_attempts = read(self.directory / "mc_attempts.xyz", f":{step+1}")
+        mctraj_attempts = read(self.directory / "mc_attempts.xyz", f":{step + 1}")
         write(self.directory / "mc_attempts.xyz", mctraj_attempts)
 
         # Reset opstat.txt
