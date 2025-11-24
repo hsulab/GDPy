@@ -345,6 +345,8 @@ class MonteCarlo(BaseExpedition):
             curr_atoms.info["step"] = -1
             write(self.directory / "mc_attempts.xyz", curr_atoms, append=True)
         else:
+            success = False
+            self._save_step_info(curr_op, success, prev_ene=self.energy_stored, curr_ene=np.inf)
             self._print("  FAILED to run operation...")
 
         # Run postprocess
@@ -364,7 +366,7 @@ class MonteCarlo(BaseExpedition):
 
                 # run metropolis
                 success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-                self._save_step_info(curr_op, success)
+                self._save_step_info(curr_op, success, prev_ene=self.energy_stored, curr_ene=self.energy_operated)
 
                 if success:
                     self.energy_stored = self.energy_operated
@@ -551,7 +553,7 @@ class MonteCarlo(BaseExpedition):
 
         return
 
-    def _save_step_info(self, curr_op, success: bool):
+    def _save_step_info(self, curr_op, success: bool, prev_ene: float, curr_ene: float):
         """"""
         extra_info = getattr(curr_op, "_extra_info", "-")
 
@@ -562,8 +564,8 @@ class MonteCarlo(BaseExpedition):
                     extra_info,
                     len(self.atoms),
                     str(success),
-                    self.energy_stored,
-                    self.energy_operated,
+                    prev_ene,
+                    curr_ene,
                 )
             )
 
