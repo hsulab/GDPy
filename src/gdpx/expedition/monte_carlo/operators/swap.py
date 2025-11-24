@@ -24,6 +24,7 @@ class SwapOperator(BaseMCOperator):
         self,
         particles: list[str],
         swap_mode: Union[Literal["atomic"], Literal["cop_z"]] = "atomic",
+        check_used_pairs: bool = False,
         *args,
         **kwargs,
     ):
@@ -43,6 +44,8 @@ class SwapOperator(BaseMCOperator):
         if swap_mode not in ["atomic", "cop_z"]:
             raise Exception(f"swap_mode {swap_mode} not recognized.")
         self.swap_mode = swap_mode
+
+        self.check_used_pairs = check_used_pairs
 
         max_num_atoms_in_particle = max([sum(Formula(p).count().values()) for p in self.particles])
         if max_num_atoms_in_particle > 1 and self.swap_mode != "cop_z":
@@ -94,11 +97,18 @@ class SwapOperator(BaseMCOperator):
 
         # Swap the particles
         self._print(self.indent + f"check distance: {not self.skip_distance_check}")
+
+        used_pairs = set()
         for i in range(self.MAX_RANDOM_ATTEMPTS):
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [self.particles[0]], rng=rng)
             pick_two = self._select_species(new_atoms, [self.particles[1]], rng=rng)
             self._print(self.indent + f"attempt {i:>04d} " + f"1->{pick_one} 2->{pick_two}")
+
+            atomic_indices = tuple(sorted([*pick_one, *pick_two]))
+            if self.check_used_pairs and atomic_indices in used_pairs:
+                self._print(self.indent + f"  skip already used pair...")
+                continue
 
             excluded_pairs = []
             excluded_pairs.extend(itertools.permutations(pick_one, 2))
@@ -176,11 +186,10 @@ class SwapOperator(BaseMCOperator):
             )
 
             # Use neighbour list
-            atomic_indices = [*pick_one, *pick_two]
             if self.skip_distance_check or check_atomic_distances_by_neighbour_list(
                 new_atoms,
                 neighlist=nl,
-                atomic_indices=atomic_indices,
+                atomic_indices=list(atomic_indices),
                 covalent_ratio=(self.covalent_min, self.covalent_max),
                 bond_distance_dict=custom_bond_distance_dict,
                 excluded_pairs=excluded_pairs,
@@ -193,6 +202,8 @@ class SwapOperator(BaseMCOperator):
                 # restore original positions
                 new_atoms.positions[pick_one] = positions_one
                 new_atoms.positions[pick_two] = positions_two
+
+            used_pairs.add(atomic_indices)
         else:
             self._print(self.indent + f"failed to swap after {self.MAX_RANDOM_ATTEMPTS} attempts...")
             new_atoms = None
@@ -250,6 +261,8 @@ class SwapOperator(BaseMCOperator):
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"swapped groups: \n"
         content += f"  {self.particles[0]} <-> {self.particles[1]}\n"
+        content += f"swap_mode: {self.swap_mode}\n"
+        content += f"check_used_pairs: {self.check_used_pairs}\n"
 
         # add indent
         content = self.indent + content.replace("\n", "\n" + self.indent)
