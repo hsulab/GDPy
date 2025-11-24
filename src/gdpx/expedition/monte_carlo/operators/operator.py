@@ -18,7 +18,7 @@ class BaseMCOperator(abc.ABC):
     name: str = "abstract"
 
     #: Maximum attempts to generate the new position of a species.
-    MAX_RANDOM_ATTEMPTS = 1000
+    MAX_RANDOM_ATTEMPTS = 100
 
     #: Print function.
     _print: Callable = print
@@ -36,6 +36,7 @@ class BaseMCOperator(abc.ABC):
         allow_isolated: bool = False,
         skip_distance_check: bool = False,
         use_rotation=True,
+        max_random_attempts: int = 1000,
         prob: float = 1.0,
     ) -> None:
         """Initialise the modification operator.
@@ -73,6 +74,9 @@ class BaseMCOperator(abc.ABC):
 
         # Molecular rotation
         self.use_rotation = use_rotation
+
+        # Maximum attempts for random operations
+        self.MAX_RANDOM_ATTEMPTS = max_random_attempts
 
         # Some state information after mc attempts and before energy evaluation
         self._atoms = None
