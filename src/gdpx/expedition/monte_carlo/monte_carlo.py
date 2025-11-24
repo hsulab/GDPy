@@ -19,6 +19,7 @@ from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
 
 from ..expedition import BaseExpedition
+from .operators.operator import BaseMCOperator
 from .utils import load_operator, parse_operators, save_operator, select_operator
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
@@ -162,8 +163,9 @@ class MonteCarlo(BaseExpedition):
             # - log operator status
             with open(self.directory / self.INFO_NAME, "w") as fopen:
                 fopen.write(
-                    "{:<24s}  {:<24s}  {:<12s}  {:<12s}  {:<24s}  {:<24s}  \n".format(
-                        "#Operator",
+                    "{:<8s}  {:<24s}  {:<24s}  {:<12s}  {:<12s}  {:<24s}  {:<24s}  \n".format(
+                        "#Step",
+                        "Operator",
                         "Info",
                         "natoms",
                         "Success",
@@ -346,7 +348,7 @@ class MonteCarlo(BaseExpedition):
             write(self.directory / "mc_attempts.xyz", curr_atoms, append=True)
         else:
             success = False
-            self._save_step_info(curr_op, success, prev_ene=self.energy_stored, curr_ene=np.inf)
+            self._save_step_info(curr_op, istep, success, prev_ene=self.energy_stored, curr_ene=np.inf)
             self._print("  FAILED to run operation...")
 
         # Run postprocess
@@ -366,7 +368,9 @@ class MonteCarlo(BaseExpedition):
 
                 # run metropolis
                 success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-                self._save_step_info(curr_op, success, prev_ene=self.energy_stored, curr_ene=self.energy_operated)
+                self._save_step_info(
+                    curr_op, istep, success, prev_ene=self.energy_stored, curr_ene=self.energy_operated
+                )
 
                 if success:
                     self.energy_stored = self.energy_operated
@@ -553,20 +557,14 @@ class MonteCarlo(BaseExpedition):
 
         return
 
-    def _save_step_info(self, curr_op, success: bool, prev_ene: float, curr_ene: float):
+    def _save_step_info(self, curr_op: BaseMCOperator, istep: int, success: bool, prev_ene: float, curr_ene: float):
         """"""
         extra_info = getattr(curr_op, "_extra_info", "-")
 
+        num_atoms = len(self.atoms)
         with open(self.directory / self.INFO_NAME, "a") as fopen:
             fopen.write(
-                "{:<24s}  {:<24s}  {:<12d}  {:<12s}  {:<24.4f}  {:<24.4f}  \n".format(
-                    curr_op.name,
-                    extra_info,
-                    len(self.atoms),
-                    str(success),
-                    prev_ene,
-                    curr_ene,
-                )
+                f"{istep:<8d}  {curr_op.name:<24s}  {extra_info:<24s}  {num_atoms:<12d}  {str(success):<12s}  {prev_ene:<24.4f}  {curr_ene:<24.4f}  \n"
             )
 
         return
