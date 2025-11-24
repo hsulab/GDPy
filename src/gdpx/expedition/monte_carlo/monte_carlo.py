@@ -77,6 +77,7 @@ class MonteCarlo(BaseExpedition):
         dump_period: int = 1,
         ckpt_period: int = 100,
         ignore_atoms_tags: bool = True,
+        should_retry: bool = True,
         restart: bool = False,
         directory="./",
     ) -> None:
@@ -95,6 +96,8 @@ class MonteCarlo(BaseExpedition):
         self.ckpt_period = ckpt_period
 
         self.ignore_atoms_tags = ignore_atoms_tags
+
+        self.should_retry = should_retry
 
         self.restart = restart
 
@@ -394,7 +397,11 @@ class MonteCarlo(BaseExpedition):
                 step_state = MCStepState.UNFINISHED
         else:
             # Save the previous structure as the current operation gives no structure.
-            step_state = MCStepState.FAILED
+            if self.should_retry:
+                step_state = MCStepState.FAILED
+            else:
+                write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
+                step_state = MCStepState.FINISHED
 
         return step_state
 
