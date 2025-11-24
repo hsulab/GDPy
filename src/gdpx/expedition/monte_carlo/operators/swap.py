@@ -78,6 +78,7 @@ class SwapOperator(BaseMCOperator):
         if num_ptypes_in_region < 2:
             # Skip if no particles in the region and try later if other operators such as
             # exchange can insert particles
+            self._print(self.indent + f"skipped swap as no particles are found...")
             self._atoms = None
             self._state = {}
             self._extra_info = f"Swap_Skipped"
@@ -97,7 +98,7 @@ class SwapOperator(BaseMCOperator):
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [self.particles[0]], rng=rng)
             pick_two = self._select_species(new_atoms, [self.particles[1]], rng=rng)
-            self._print(self.indent + f"attempt {i:>04d} "+ f"1->{pick_one} 2->{pick_two}")
+            self._print(self.indent + f"attempt {i:>04d} " + f"1->{pick_one} 2->{pick_two}")
 
             excluded_pairs = []
             excluded_pairs.extend(itertools.permutations(pick_one, 2))
@@ -193,6 +194,7 @@ class SwapOperator(BaseMCOperator):
                 new_atoms.positions[pick_one] = positions_one
                 new_atoms.positions[pick_two] = positions_two
         else:
+            self._print(self.indent + f"failed to swap after {self.MAX_RANDOM_ATTEMPTS} attempts...")
             new_atoms = None
             self._extra_info = f"Swap_Failed"
 

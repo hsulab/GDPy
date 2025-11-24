@@ -250,7 +250,7 @@ class MonteCarlo(BaseExpedition):
             for l in str(op).split("\n"):
                 self._print(l)
             for l in convert_blmin_to_str(op.blmin).split("\n"):
-                self._print(l)
+                self._print("  " + l)
         self._print(f"normalised probabilities {self.op_probs}")
 
         # NOTE: Something about statmech
@@ -554,10 +554,11 @@ class MonteCarlo(BaseExpedition):
     def _save_step_info(self, curr_op, success: bool):
         """"""
         extra_info = getattr(curr_op, "_extra_info", "-")
+
         with open(self.directory / self.INFO_NAME, "a") as fopen:
             fopen.write(
                 "{:<24s}  {:<24s}  {:<12d}  {:<12s}  {:<24.4f}  {:<24.4f}  \n".format(
-                    curr_op.__class__.__name__,
+                    curr_op.name,
                     extra_info,
                     len(self.atoms),
                     str(success),

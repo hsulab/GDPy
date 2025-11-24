@@ -58,7 +58,7 @@ class MoveOperator(BaseMCOperator):
         custom_pair_distance_dict = self.custom_pair_distance_dict if self.custom_pair_distance_dict else None  # type: ignore
 
         if custom_pair_distance_dict is not None:
-            custom_bond_distance_dict = copy.deepcopy(self.bond_distance_dict) # type: ignore
+            custom_bond_distance_dict = copy.deepcopy(self.bond_distance_dict)  # type: ignore
             custom_bond_distance_dict.update(custom_pair_distance_dict)
         else:
             custom_bond_distance_dict = self.bond_distance_dict  # type: ignore
@@ -67,6 +67,7 @@ class MoveOperator(BaseMCOperator):
         particle_indices = self._select_species(atoms, self.particles, rng=rng)
         if len(particle_indices) == 0:
             # Skip if no particles found
+            self._print(self.indent + f"skipped move as no particles are found...")
             self._extra_info = "Move_Skipped"
             return None
 
@@ -124,6 +125,7 @@ class MoveOperator(BaseMCOperator):
             # Move failed and fallback to the original positions
             new_atoms.positions[particle_indices] = org_positions
         else:
+            self._print(self.indent + f"failed to move after {self.MAX_RANDOM_ATTEMPTS} attempts...")
             new_atoms = None
             self._extra_info = f"Move_Failed"
 
