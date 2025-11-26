@@ -29,7 +29,6 @@ CalcType = Union[DummyCalculator, CommitteeCalculator, REANNLike]
 
 
 class ReannManager(BasePotentialManager[CalcType]):
-
     name = "reann"
 
     implemented_backends = ("ase",)
@@ -54,6 +53,8 @@ class ReannManager(BasePotentialManager[CalcType]):
         precision = calc_params.pop("precision", "float32")
         assert precision in ("float32", "float64")
 
+        compute_stress = calc_params.pop("compute_stress", False)
+
         estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
 
         calc = DummyCalculator()
@@ -71,7 +72,7 @@ class ReannManager(BasePotentialManager[CalcType]):
             # and needs max_nneigh to be specified. Here we bypass these requirements
             # by directly loading the torchscript model, and use the ase neighborlist
             # instead.
-            shared_params = dict(atomtype=type_list, device=device, dtype=precision)
+            shared_params = dict(atomtype=type_list, compute_stress=compute_stress, device=device, dtype=precision)
             params_list = []
             for m in models:
                 specific_params = copy.deepcopy(shared_params)

@@ -25,6 +25,7 @@ class REANN(Calculator):
         self,
         atomtype: list[str],
         nn: str = "PES.pt",
+        compute_stress: bool = False,
         device: str = "cpu",
         dtype: str = "float32",
         **kwargs,
@@ -39,6 +40,8 @@ class REANN(Calculator):
             self.dtype = torch.float64
         else:
             raise Exception("dtype must be float32 or float64")
+
+        self.compute_stress = compute_stress
 
         self.atomtype = atomtype
 
@@ -63,6 +66,9 @@ class REANN(Calculator):
         if "disp_cell" in arg_names:
             self.with_stress = True
 
+        if self.compute_stress and not self.with_stress:
+            raise Exception(f"{self._nn_path} does not support stress.")
+
         return
 
     def calculate(self, atoms: Optional[Atoms] = None, properties=["energy", "force"], system_changes=all_changes):
@@ -73,7 +79,7 @@ class REANN(Calculator):
         if atoms is None:
             raise Exception("Atoms object should not be None when calling calculate.")
 
-        i, j, S = neighbor_list("ijS", atoms, cutoff=self.cutoff)
+        i, j, S = neighbor_list("ijS", atoms, cutoff=self.cutoff, self_interaction=False)
         pairs = torch.from_numpy(np.vstack([i, j])).contiguous().to(self.device).to(torch.long)
         shifts = torch.from_numpy(np.dot(S, atoms.cell)).contiguous().to(self.device).to(self.dtype)
 
@@ -88,12 +94,13 @@ class REANN(Calculator):
             tcell = torch.from_numpy(cell).to(self.dtype).to(self.device)
 
             disp_cell = torch.zeros_like(tcell)
+
             if "forces" in properties:
                 positions.requires_grad = True
             else:
                 positions.requires_grad = False
 
-            if "stress" in properties:
+            if "stress" in properties and self.compute_stress:
                 disp_cell.requires_grad = True
             else:
                 disp_cell.requires_grad = False
@@ -101,7 +108,7 @@ class REANN(Calculator):
             energy = self.pes(tcell, disp_cell, positions, pairs, shifts, species)
             self.results["energy"] = float(energy.detach().cpu().numpy())
 
-            if "forces" in properties and "stress" in properties:
+            if "forces" in properties and "stress" in properties and self.compute_stress:
                 forces, virial = torch.autograd.grad(energy, [positions, disp_cell])
                 forces = torch.neg(forces).detach().cpu().numpy()
                 self.results["forces"] = forces
@@ -111,7 +118,7 @@ class REANN(Calculator):
                 forces = torch.autograd.grad(energy, positions)[0]
                 forces = torch.neg(forces).detach().cpu().numpy()
                 self.results["forces"] = forces
-            elif "stress" in properties and "forces" not in properties:
+            elif "forces" not in properties and "stress" in properties and self.compute_stress:
                 virial = torch.autograd.grad(energy, disp_cell)[0]
                 virial = virial.detach().cpu().numpy()
                 self.results["stress"] = virial / atoms.get_volume()
