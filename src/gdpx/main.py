@@ -59,12 +59,7 @@ def main():
         type=float,
         help="waiting time between repeated running",
     )
-    parser_session.add_argument(
-        "--repeats",
-        default=1000,
-        type=int,
-        help="number of repeat times"
-    )
+    parser_session.add_argument("--repeats", default=1000, type=int, help="number of repeat times")
 
     # - build structures
     parser_build = subparsers.add_parser(
@@ -167,7 +162,7 @@ def main():
     parser_describe.add_argument("CONFIG", help="describer configuration")
     parser_describe.add_argument("-s", "--structures", required=True, help="structures")
 
-    # --- validation
+    # validation
     parser_validate = subparsers.add_parser(
         "validate",
         help="validate properties with trained models",
@@ -176,10 +171,10 @@ def main():
     )
     parser_validate.add_argument("CONFIG", help="validation configuration file")
 
-    # === execute
+    # Excute the parsed subcommand
     args = parser.parse_args()
 
-    # - update global configuration
+    # Update global configuration
     if args.debug:
         config.logger.setLevel(logging.DEBUG)
 
