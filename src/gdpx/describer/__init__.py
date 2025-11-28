@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
+from gdpx import config
 from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("describer")
@@ -30,6 +27,9 @@ from .formation_energy import FormationEnergyDescriber
 
 REGISTER.register("formation_energy")(FormationEnergyDescriber)
 
+try:
+    from .soap import SoapDescriber
 
-if __name__ == "__main__":
-    ...
+    REGISTER.register("soap")(SoapDescriber)
+except ImportError as err:
+    config._print(f"  {'Describer':<16s} {'`soap`':<16s} -> require `{err.name}`.")

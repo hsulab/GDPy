@@ -1,27 +1,19 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 
 import numpy as np
 import numpy.typing
 from ase import Atoms
-
-# NOTE: If there is no dscribe, this class will not be registered.
 from dscribe.descriptors import SOAP
 
-from gdpx.core.register import registers
+from gdpx.utils.profiler import CustomTimer
 
 from .describer import BaseDescriber
 
 
-@registers.describer.register("soap")
 class SoapDescriber(BaseDescriber):
+    cache_features: str = "soap_features.npy"
 
-    cache_features = "features.npy"
-
-    def __init__(self, params, *args, **kwargs) -> None:
+    def __init__(self, params: dict, *args, **kwargs) -> None:
         """"""
         super().__init__(*args, **kwargs)
 
@@ -29,25 +21,34 @@ class SoapDescriber(BaseDescriber):
 
         return
 
-    def run(self, dataset, *args, **kwargs):
+    def run(self, structures):
         """"""
         ...
-        self._debug(f"n_jobs: {self.njobs}")
+        self._print(f"soap is using n_jobs: {self.njobs}")
 
-        # - for single system
-        features = []
-        for system in dataset:
-            curr_frames = system._images
-            if not (self.directory / system.prefix).exists():
-                (self.directory / system.prefix).mkdir(parents=True)
-            cache_features = self.directory / system.prefix / self.cache_features
-            if not cache_features.exists():
-                curr_features = self._compute_descripter(frames=curr_frames)
-                np.save(cache_features, curr_features)
-            else:
-                curr_features = np.load(cache_features)
-            features.extend(curr_features.tolist())
-        features = np.array(features)
+        # For data systems,
+        # features = []
+        # for system in structures:
+        #     curr_frames = system._images
+        #     if not (self.directory / system.prefix).exists():
+        #         (self.directory / system.prefix).mkdir(parents=True)
+        #     cache_features = self.directory / system.prefix / self.cache_features
+        #     if not cache_features.exists():
+        #         curr_features = self._compute_descripter(frames=curr_frames)
+        #         np.save(cache_features, curr_features)
+        #     else:
+        #         curr_features = np.load(cache_features)
+        #     features.extend(curr_features.tolist())
+        # features = np.array(features)
+
+        # For list of Atoms
+        cache_features = self.directory / self.cache_features
+        if not cache_features.exists():
+            with CustomTimer("SOAP feature calculation", func=self._print):
+                features = self._compute_descripter(frames=structures)
+                np.save(cache_features, features)
+        else:
+            features = np.load(cache_features)
         self._debug(f"shape of features: {features.shape}")
 
         return features
@@ -67,11 +68,8 @@ class SoapDescriber(BaseDescriber):
         features = soap.create(frames, n_jobs=self.njobs)
         self._print("finished calculating features...")
 
-        # - save calculated features
+        # Save calculated features
+        assert isinstance(features, np.ndarray)
         features = features.reshape(-1, ndim)
 
         return features
-
-
-if __name__ == "__main__":
-    ...
