@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import pathlib
 
@@ -237,7 +233,3 @@ class DescriptorSelector(BaseSelector):
             ...  # Cannot plot PCA with only one structure...
 
         return
-
-
-if __name__ == "__main__":
-    ...

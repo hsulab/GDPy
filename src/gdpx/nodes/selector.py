@@ -1,10 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import pathlib
-from typing import Union
+from typing import Mapping, Union
 
 import omegaconf
 from ase.io import read, write
@@ -20,13 +16,12 @@ from gdpx.session.variable import Variable
 
 @registers.variable.register
 class SelectorVariable(Variable):
+    """A Variable that holds a Selector."""
 
     def __init__(
         self,
         selection: Union[dict, list[dict]],
-        directory="./",
-        *args,
-        **kwargs,
+        directory: Union[str, pathlib.Path] = "./",
     ) -> None:
         """Define a Variable that has a Selector."""
         # We can define a selector in two different ways:
@@ -36,17 +31,29 @@ class SelectorVariable(Variable):
         #   which will be converted into a composed one
         selection = copy.deepcopy(selection)
         if isinstance(selection, dict) or isinstance(selection, omegaconf.dictconfig.DictConfig):
-            selection = [selection]
+            selection_definitions = [selection]
         elif isinstance(selection, list) or isinstance(selection, omegaconf.listconfig.ListConfig):
-            ...
+            selection_definitions = selection
         else:
             raise TypeError(f"Unknown type of {selection =}.")
 
         selectors = []
-        for params in selection:
+        for params in selection_definitions:
+            # Check params type
+            assert isinstance(params, Mapping), f"Selector definition must be a Dict, got {type(params)}."
+            if isinstance(params, dict):
+                ...
+            elif isinstance(params, omegaconf.dictconfig.DictConfig):
+                params = omegaconf.OmegaConf.to_container(params, resolve=True)
+            else:
+                raise TypeError(f"Unknown type of {params =}.")
+            assert isinstance(params, dict), f"Selector definition must be a Dict, got {type(params)}."
             method = params.pop("method", None)
+            # Instantiate selector
             selector = registers.create("selector", method, convert_name=False, **params)
             selectors.append(selector)
+
+        # Compose selectors if there are multiple ones
         num_selectors = len(selectors)
         if num_selectors > 1:
             selector = ComposedSelector(selectors)
@@ -60,7 +67,6 @@ class SelectorVariable(Variable):
 
 @registers.operation.register
 class select(Operation):
-
     cache_fname = "selected_frames.xyz"
 
     def __init__(
@@ -159,7 +165,3 @@ class select(Operation):
     #        converged = False
 
     #    return converged
-
-
-if __name__ == "__main__":
-    ...

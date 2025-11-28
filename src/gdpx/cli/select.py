@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 from typing import Union
 
+from ase.io import write
+
+from gdpx.builder.builder import StructureBuilder
 from gdpx.data.array import AtomsNDArray
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.nodes.selector import SelectorVariable
@@ -29,25 +28,22 @@ def run_selection(
 
     params = parse_input_file(param_file)
 
-    selector: BaseSelector = SelectorVariable(directory=directory, **params).value  # type: ignore
+    # Instantiate selector
+    selector = SelectorVariable(directory=directory, **params).value
+    assert isinstance(selector, BaseSelector)
     selector.directory = directory
 
-    # - read structures
+    # Produce structures
     builder = canonicalise_builder(structure)
+    assert isinstance(builder, StructureBuilder)
     frames = builder.run()  # -> List[Atoms]
 
-    # TODO: convert to a bundle of atoms?
+    # Convert all builders' outputs to AtomsNDArray
     data = AtomsNDArray(frames)
 
-    # -
+    # Run selection and dump results
     selected_frames = selector.select(data)
-
-    from ase.io import write
 
     write(directory / "selected_frames.xyz", selected_frames)
 
     return
-
-
-if __name__ == "__main__":
-    ...
