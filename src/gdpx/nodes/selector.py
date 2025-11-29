@@ -72,11 +72,9 @@ class select(Operation):
     def __init__(
         self,
         structures,
-        selector,
+        selector: BaseSelector,
         ignore_previous_selections: bool = False,
-        directory="./",
-        *args,
-        **kwargs,
+        directory: Union[str, pathlib.Path] = "./",
     ):
         """"""
         super().__init__(input_nodes=[structures, selector], directory=directory)
@@ -115,12 +113,14 @@ class select(Operation):
 
         structures = AtomsNDArray(structures)
         self._print(f"{structures = }")
-        self._print(f"{type(structures) = }")
 
         # Sometimes we perform selections in parallel, thus,
         # we can ignore previous selections (markers).
         if self.ignore_previous_selections:
             structures.reset_markers()
+
+        num_valid_structures = len(structures.get_marked_structures())
+        self._print(f"-> num_valid_structures: {num_valid_structures}")
 
         cache_fpath = self.directory / self.cache_fname
         if not cache_fpath.exists():
@@ -133,7 +133,7 @@ class select(Operation):
                 new_frames = read(cache_fpath, ":")
             else:  # sometimes selection gives no structures and writes empty file
                 new_frames = []
-        self._print(f"nframes: {len(new_frames)}")
+        self._print(f"-> num_selected_structures: {len(new_frames)}")
 
         num_new_frames = len(new_frames)
         if num_new_frames > 0:
