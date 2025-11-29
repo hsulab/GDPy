@@ -150,7 +150,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_select.add_argument("CONFIG", help="selection configuration file")
-    parser_select.add_argument("-s", "--structure", required=True, help="structure generator")
+    parser_select.add_argument("-s", "--structures", required=True, nargs="*", help="structure generator")
 
     # describer
     parser_describe = subparsers.add_parser(
@@ -244,7 +244,7 @@ def main():
     elif args.subcommand == "select":
         from .cli.select import run_selection
 
-        run_selection(args.CONFIG, args.structure, args.directory)
+        run_selection(args.CONFIG, structures=args.structures, directory=args.directory)
     elif args.subcommand == "describe":
         from .cli.describe import describe_structures
 

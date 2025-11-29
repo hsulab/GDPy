@@ -3,6 +3,7 @@ from typing import Union
 
 from ase.io import write
 
+from gdpx import config
 from gdpx.builder.builder import StructureBuilder
 from gdpx.data.array import AtomsNDArray
 from gdpx.factory.builder import canonicalise_builder
@@ -13,7 +14,7 @@ from gdpx.utils.parser import parse_input_file
 
 def run_selection(
     param_file: Union[str, pathlib.Path],
-    structure: Union[str, dict],
+    structures: Union[str, dict],
     directory: Union[str, pathlib.Path] = "./",
 ) -> None:
     """Run selection with input selector and input structures.
@@ -34,14 +35,20 @@ def run_selection(
     selector.directory = directory
 
     # Produce structures
-    builder = canonicalise_builder(structure)
-    assert isinstance(builder, StructureBuilder)
-    frames = builder.run()  # -> List[Atoms]
+    config._print("Producing structures for selection...")
+    frames_list = []
+    for structure in structures:
+        builder = canonicalise_builder(structure)
+        assert isinstance(builder, StructureBuilder)
+        frames = builder.run()  # -> List[Atoms]
+        frames_list.append(frames)
 
     # Convert all builders' outputs to AtomsNDArray
-    data = AtomsNDArray(frames)
+    data = AtomsNDArray(frames_list)
+    config._print(f"  input_data_structure: {data}")
 
     # Run selection and dump results
+    config._print("Performing selection...")
     selected_frames = selector.select(data)
 
     write(directory / "selected_frames.xyz", selected_frames)
