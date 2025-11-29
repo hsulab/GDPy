@@ -60,7 +60,6 @@ def parse_type_list(atoms):
 
 @dataclasses.dataclass
 class CGMinimiser(Controller):
-
     name: str = "cg"
 
     def __post_init__(self):
@@ -80,7 +79,6 @@ class CGMinimiser(Controller):
 
 @dataclasses.dataclass
 class FireMinimizer(Controller):
-
     name: str = "fire"
 
     def __post_init__(self):
@@ -100,7 +98,6 @@ class FireMinimizer(Controller):
 
 @dataclasses.dataclass
 class MDController(Controller):
-
     #: Controller name.
     name: str = "md"
 
@@ -161,7 +158,6 @@ class MDController(Controller):
 
 @dataclasses.dataclass
 class Verlet(MDController):
-
     name: str = "verlet"
 
     def __post_init__(self):
@@ -176,7 +172,6 @@ class Verlet(MDController):
 
 @dataclasses.dataclass
 class LangevinThermostat(MDController):
-
     name: str = "langevin"
 
     def __post_init__(self):
@@ -207,7 +202,6 @@ class LangevinThermostat(MDController):
 
 @dataclasses.dataclass
 class NoseHooverChainThermostat(MDController):
-
     name: str = "nose_hoover_chain"
 
     def __post_init__(self):
@@ -228,7 +222,6 @@ class NoseHooverChainThermostat(MDController):
 
 @dataclasses.dataclass
 class ParrinelloRahmanBarostat(MDController):
-
     name: str = "parrinello_rahman"
 
     def __post_init__(self):
@@ -279,7 +272,6 @@ default_controllers = dict(
 
 @dataclasses.dataclass
 class LmpDriverSetting(DriverSetting):
-
     #: LAMMPS units.
     units: str = "metal"
 
@@ -827,7 +819,6 @@ class LmpDriver(BaseDriver):
 
 
 class Lammps(FileIOCalculator):
-
     #: Calculator name.
     name: str = "Lammps"
 
@@ -1044,7 +1035,7 @@ class Lammps(FileIOCalculator):
         # Particle charges
         if self.atom_style == "charge" and self.type_charges:
             for itype, charge in enumerate(self.type_charges):
-                content += f"set type {itype+1} charge {charge}\n"
+                content += f"set type {itype + 1} charge {charge}\n"
             content += "\n"
 
         # Pair styles
