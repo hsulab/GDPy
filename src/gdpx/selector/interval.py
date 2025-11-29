@@ -13,6 +13,8 @@ class IntervalSelector(BaseSelector):
 
     default_parameters = dict(
         period=1,
+        start=0,
+        end=None,
         include_first=True,
         include_last=False,
     )
@@ -32,25 +34,25 @@ class IntervalSelector(BaseSelector):
         selected_markers = []
         for curr_grpname, curr_markers in marker_groups.items():
             curr_markers = sorted(np.array(curr_markers).tolist())
-            nstructures = len(curr_markers)
+            num_structures = len(curr_markers)
 
-            _, last = 0, nstructures - 1
+            start, last = self.start, num_structures
             if self.include_first:
-                curr_indices = list(range(0, nstructures, self.period))
-                if self.include_last:
-                    if last not in curr_indices:
-                        curr_indices.append(last)
-                else:
-                    if last in curr_indices:
-                        curr_indices.remove(last)
+                ...
             else:
-                curr_indices = list(range(1, nstructures, self.period))
-                if self.include_last:
-                    if last not in curr_indices:
-                        curr_indices.append(last)
-                else:
-                    if last in curr_indices:
-                        curr_indices.remove(last)
+                start += 1
+
+            if self.end is not None:
+                last = min(self.end, last)
+
+            curr_indices = list(range(start, num_structures, self.period))
+            if self.include_last:
+                if last not in curr_indices:
+                    curr_indices.append(last)
+            else:
+                if last in curr_indices:
+                    curr_indices.remove(last)
+
             curr_selected_markers = [curr_markers[i] for i in curr_indices]
             selected_markers.extend(curr_selected_markers)
 
