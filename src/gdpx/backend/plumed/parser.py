@@ -5,7 +5,7 @@ import numpy as np
 from ase import Atoms
 
 
-def parse_colvar_data(file_io: io.TextIOBase) -> tuple[dict[str, np.ndarray], int]:
+def parse_colvar_data(file_io: io.TextIOBase) -> tuple[np.ndarray, list[str]]:
     """Read COLVAR with one simulation data."""
     # Read column names
     col_names = file_io.readline().split()[2:]
@@ -13,22 +13,19 @@ def parse_colvar_data(file_io: io.TextIOBase) -> tuple[dict[str, np.ndarray], in
 
     colvars = np.loadtxt(file_io)
 
-    num_entries = colvars.shape[0]
-    cv_dict = {name: colvars[:, idx] for idx, name in enumerate(col_names)}
-
-    return cv_dict, num_entries
+    return colvars, col_names
 
 
 def add_colvar_to_atoms_info(
     file_io: io.TextIOBase, frames: list[Atoms], ignored_columns: Optional[list[str]] = None
 ) -> None:
     """Add colvar data to atoms.info."""
-    cv_dict, num_entries = parse_colvar_data(file_io)
+    colvars, col_names = parse_colvar_data(file_io)
 
     ignored_columns = ignored_columns or []
 
-    num = min(num_entries, len(frames))
-    for k, v in cv_dict.items():
+    num = min(colvars.shape[0], len(frames))
+    for k, v in zip(col_names, colvars.transpose()):
         if k in ignored_columns:
             continue
         for i in range(num):
