@@ -1,20 +1,25 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 import pathlib
 
 from gdpx.backend.ase import DummyCalculator
+from gdpx.computation.lammps import Lammps
 
 from .manager import BasePotentialManager
+from .utils import canonicalise_input_models
+
+EAM_FLAVOURS = (
+    "eam",
+    "eam/alloy",
+    "eam/cd",
+    "eam/fs",
+    "eam/he",
+)
 
 
 class EamManager(BasePotentialManager):
-
     name = "eam"
 
     implemented_backends = ("lammps",)
-    valid_combinations = ("lammps", "lammps")
+    valid_combinations = (("lammps", "lammps"),)
 
     """See LAMMPS documentation for calculator parameters.
     """
@@ -23,10 +28,8 @@ class EamManager(BasePotentialManager):
         """"""
         super().register_calculator(calc_params, *agrs, **kwargs)
 
-        calc = DummyCalculator()
-
-        # - some shared params
-        command = calc_params.pop("command", None)
+        # Some shared params
+        command = calc_params.pop("command", "lmp")
         directory = calc_params.pop("directory", pathlib.Path.cwd())
 
         type_list = calc_params.pop("type_list", [])
@@ -34,28 +37,22 @@ class EamManager(BasePotentialManager):
         for i, a in enumerate(type_list):
             type_map[a] = i
 
-        # --- model files
-        model_ = calc_params.get("model", [])
-        if not isinstance(model_, list):
-            model_ = [model_]
+        # eam have several formats, default to "eam"
+        flavour = calc_params.pop("flavour", "eam")
+        if flavour not in EAM_FLAVOURS:
+            raise ValueError(f"Flavour {flavour} is not supported for EAM potential.")
 
-        models = []
-        for m in model_:
-            m = pathlib.Path(m).resolve()
-            if not m.exists():
-                raise FileNotFoundError(f"Cant find model file {str(m)}")
-            models.append(str(m))
+        # Check if all models exist and update the self.calc_params
+        # as the potential may be used in other directories if submitted by a scheduler.
+        models = canonicalise_input_models(calc_params.pop("model", []))
+        self.calc_params.update(model=models)
 
+        calc = DummyCalculator()
         if self.calc_backend == "lammps":
-            from gdpx.computation.lammps import Lammps
-
             if models:
-                pair_style = "eam"
+                pair_style = flavour
                 pair_coeff = calc_params.pop("pair_coeff", "* *")
-                pair_coeff += " {} ".format(models[0])
-
-                pair_style_name = pair_style.split()[0]
-                assert pair_style_name == "eam", "Incorrect pair_style for lammps eam..."
+                pair_coeff += f" {models[0]} " + "{type_list}"
 
                 calc = Lammps(
                     command=command,
@@ -64,7 +61,7 @@ class EamManager(BasePotentialManager):
                     pair_coeff=pair_coeff,
                     **calc_params,
                 )
-                # - update several params
+                # Update several params
                 calc.set(units="metal", atom_style="atomic")
         else:
             ...
@@ -72,7 +69,3 @@ class EamManager(BasePotentialManager):
         self.calc = calc
 
         return
-
-
-if __name__ == "__main__":
-    ...
