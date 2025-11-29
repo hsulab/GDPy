@@ -20,7 +20,7 @@ from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
-from gdpx.backend.lammps import parse_thermo_data_by_pattern
+from gdpx.backend.lammps import add_model_deviation_to_atoms_info, parse_thermo_data_by_pattern
 from gdpx.backend.plumed import add_colvar_to_atoms_info
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
@@ -714,43 +714,24 @@ class LmpDriver(BaseDriver):
             sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
             atoms.calc = sp_calc
 
-        # Check model_devi.out if any
-        # TODO: convert units?
-        if devi_io is not None:
-            lines = devi_io.readlines()
-            if "#" in lines[0]:  # the first file
-                dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-                dkeys = [x.strip() for x in dkeys][1:]
-            else:
-                ...
-            devi_io.seek(0)
-            data = np.loadtxt(devi_io, dtype=float)
-            ncols = data.shape[-1]
-            data = data.reshape(-1, ncols)
-            # For some minimisers, dp gives several deviations as
-            # multiple force evluations are performed in one step.
-            # Thus, we only take the last occurance of the deviation in each step.
-            step_indices = []
-            steps = data[:, 0].astype(np.int32).tolist()
-            for k, v in itertools.groupby(enumerate(steps), key=lambda x: x[1]):
-                v = sorted(v, key=lambda x: x[0])
-                step_indices.append(v[-1][0])
-            data = data.transpose()[1:, step_indices[:nframes]]
-
-            for i, atoms in enumerate(curr_traj_frames):
-                for j, k in enumerate(dkeys):
-                    try:
-                        atoms.info[k] = data[j, i]
-                    except IndexError:
-                        # Some potentials donot print last frames of min
-                        # for example, lammps
-                        atoms.info[k] = 0.0
-        else:
-            ...
+        # Check model_devi.out if any, frames may not have deviations as the simulation can stop in the middle
+        _ = (
+            add_model_deviation_to_atoms_info(
+                devi_io,
+                curr_traj_frames,
+                units=units,
+            )
+            if devi_io is not None
+            else None
+        )
 
         # Add COLVAR if any, frames may not have colvars as the simulation can stop in the middle
         _ = (
-            add_colvar_to_atoms_info(colvar_io, curr_traj_frames, ignored_columns=["time"])
+            add_colvar_to_atoms_info(
+                colvar_io,
+                curr_traj_frames,
+                ignored_columns=["time"],
+            )
             if colvar_io is not None
             else None
         )
