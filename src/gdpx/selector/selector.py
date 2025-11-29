@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import copy
 import itertools
@@ -210,7 +206,7 @@ class BaseSelector(BaseComponent):
 
         return
 
-    def _parse_selection_number(self, nframes: int) -> int:
+    def _parse_selection_number(self, num_frames: int) -> int:
         """Compute number of selection based on the input number.
 
         Args:
@@ -228,10 +224,10 @@ class BaseSelector(BaseComponent):
             num_fixed, num_percent = number_info
 
         if num_fixed is not None:
-            if num_fixed > nframes:
-                num_fixed = int(nframes * num_percent)
+            if num_fixed > num_frames:
+                num_fixed = int(num_frames * num_percent)
         else:
-            num_fixed = int(nframes * num_percent)
+            num_fixed = int(num_frames * num_percent)
 
         return num_fixed
 
@@ -273,7 +269,3 @@ class BaseSelector(BaseComponent):
                 fopen.write(content)
 
         return
-
-
-if __name__ == "__main__":
-    ...
