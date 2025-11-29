@@ -36,7 +36,7 @@ class IntervalSelector(BaseSelector):
             curr_markers = sorted(np.array(curr_markers).tolist())
             num_structures = len(curr_markers)
 
-            start, last = self.start, num_structures
+            start, last = self.start, num_structures - 1
             if self.include_first:
                 ...
             else:
