@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import itertools
 import pathlib
@@ -51,7 +47,6 @@ def merge_driver_params(params: dict):
 
 @registers.variable.register
 class DriverVariable(Variable):
-
     def __init__(self, **kwargs):
         """"""
         # Check broadcast method either product or bijection
@@ -478,7 +473,7 @@ class compute(Operation):
                 if worker.get_number_of_running_jobs() == 0:
                     # -- save flag
                     with open(flag_fpath, "w") as fopen:
-                        fopen.write(f"FINISHED AT {time.asctime( time.localtime(time.time()) )}.")
+                        fopen.write(f"FINISHED AT {time.asctime(time.localtime(time.time()))}.")
                     worker_status.append(True)
                 else:
                     worker_status.append(False)
@@ -595,7 +590,7 @@ def run_chain_step(
                 curr_structures = [res[-1] for res in results]
                 write(worker.directory / "end_frames.xyz", curr_structures)
                 with open(flag_fpath, "w") as fopen:
-                    fopen.write(f"{flag_fpath.name} AT {time.asctime( time.localtime(time.time()) )}.")
+                    fopen.write(f"{flag_fpath.name} AT {time.asctime(time.localtime(time.time()))}.")
                 # Check whether we should stop at this chainstep.
                 # The chain stops when there is one structure statisfying one of the observers.
                 try:
@@ -612,7 +607,7 @@ def run_chain_step(
                 except ChainStepEarlystop as e:
                     print_func(str(e))
                     is_finished, is_earlystopped = True, True
-                    content = f"{stop_fpath} AT {time.asctime( time.localtime(time.time()) )}."
+                    content = f"{stop_fpath} AT {time.asctime(time.localtime(time.time()))}."
                     with open(stop_fpath, "w") as fopen:
                         fopen.write(content)
                     print_func(content)
@@ -673,7 +668,6 @@ def run_chain_step(
 
 @registers.operation.register
 class compute_chain(Operation):
-
     def __init__(
         self,
         structures,
@@ -761,7 +755,6 @@ def extract_results_from_worker_chain(workers, use_archive: bool = True, print_f
 
 @registers.operation.register
 class extract_chain(Operation):
-
     def __init__(self, compute, merge_workers: bool = False, directory="./") -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
@@ -820,12 +813,14 @@ class extract_cache(Operation):
         self,
         compute,
         cache_wdirs: list[Union[str, pathlib.Path]],
-        directory="./",
+        directory: Union[str, pathlib.Path] = "./",
+        n_jobs: int = config.NJOBS,
     ) -> None:
         """"""
         super().__init__(input_nodes=[compute], directory=directory)
 
         self.cache_wdirs = cache_wdirs
+        self.n_jobs = n_jobs
 
         return
 
@@ -834,18 +829,19 @@ class extract_cache(Operation):
         """"""
         super().forward()
 
-        # - broadcast workers
-        nwdirs = len(self.cache_wdirs)
-        nworkers = len(workers)
-        assert (nwdirs == nworkers) or nworkers == 1, "Found inconsistent number of cache dirs and workers."
+        # Broadcast workers
+        num_wdirs = len(self.cache_wdirs)
+        num_workers = len(workers)
+        assert (num_wdirs == num_workers) or num_workers == 1, "Found inconsistent number of cache dirs and workers."
 
-        # - use driver to read results
+        # Use driver to read results
         cache_data = self.directory / "cache_data.h5"
         if not cache_data.exists():
             from joblib import Parallel, delayed
 
             # TODO: whether check convergence?
-            trajectories = Parallel(n_jobs=config.NJOBS)(
+            self._print(f"read trajectories from cache wdirs using {self.n_jobs}...")
+            trajectories = Parallel(n_jobs=self.n_jobs)(
                 delayed(self._read_trajectory)(curr_wdir, curr_worker)
                 for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
             )
@@ -957,7 +953,3 @@ class extract(Operation):
         self.status = status
 
         return computed_structures
-
-
-if __name__ == "__main__":
-    ...
