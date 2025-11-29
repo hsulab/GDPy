@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import dataclasses
 import io
@@ -25,6 +21,7 @@ from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
 from gdpx.backend.lammps import parse_thermo_data_by_pattern
+from gdpx.backend.plumed import add_colvar_to_atoms_info
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
 
@@ -615,7 +612,8 @@ class LmpDriver(BaseDriver):
         **kwargs,
     ):
         """"""
-        # - get FileIO
+        # Get all file handles
+        traj_io, log_io = None, None
         if archive_path is None:
             traj_io = open(wdir / ASELMPCONFIG.trajectory_filename, "r")
             log_io = open(wdir / ASELMPCONFIG.log_filename, "r")
@@ -662,7 +660,11 @@ class LmpDriver(BaseDriver):
                 else:  # TODO: if not find target traj?
                     ...
 
-        # - read timesteps
+        # Must have (traj, log), others (prism, devi, colvar) are optional
+        assert traj_io is not None
+        assert log_io is not None
+
+        # Get timesteps
         timesteps = []
         while True:
             line = traj_io.readline()
@@ -688,20 +690,15 @@ class LmpDriver(BaseDriver):
         nframes_traj = len(curr_traj_frames_)
         timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
-        # - read thermo data
+        # Read thermo data
         thermo_dict = parse_thermo_data_by_pattern(log_io.readlines(), print_func=print_func, debug_func=debug_func)
 
-        # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        #       if there were any error,
+        # The last frame would not be dumpped if timestep not equals multiple*dump_period
+        # or if there were any error,
         pot_energies = [unitconvert.convert(p, "energy", units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
         debug_func(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
-
-        # NOTE: check whether steps in thermo and traj are consistent
-        # pot_energies = pot_energies[:nframes]
-        # curr_traj_frames = curr_traj_frames[:nframes]
-        # assert len(pot_energies) == len(curr_traj_frames), f"Number of pot energies and frames are inconsistent at {str(wdir)}."
 
         curr_traj_frames, curr_energies = [], []
         for i, t in enumerate(timesteps):
@@ -713,11 +710,11 @@ class LmpDriver(BaseDriver):
 
         for pot_eng, atoms in zip(curr_energies, curr_traj_frames):
             forces = atoms.get_forces()
-            # NOTE: forces have already been converted in ase read, so velocities are
+            # forces have already been converted in ase read, so are velocities
             sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
             atoms.calc = sp_calc
 
-        # - check model_devi.out
+        # Check model_devi.out if any
         # TODO: convert units?
         if devi_io is not None:
             lines = devi_io.readlines()
@@ -730,9 +727,9 @@ class LmpDriver(BaseDriver):
             data = np.loadtxt(devi_io, dtype=float)
             ncols = data.shape[-1]
             data = data.reshape(-1, ncols)
-            # NOTE: For some minimisers, dp gives several deviations as
-            #       multiple force evluations are performed in one step.
-            #       Thus, we only take the last occurance of the deviation in each step.
+            # For some minimisers, dp gives several deviations as
+            # multiple force evluations are performed in one step.
+            # Thus, we only take the last occurance of the deviation in each step.
             step_indices = []
             steps = data[:, 0].astype(np.int32).tolist()
             for k, v in itertools.groupby(enumerate(steps), key=lambda x: x[1]):
@@ -745,25 +742,20 @@ class LmpDriver(BaseDriver):
                     try:
                         atoms.info[k] = data[j, i]
                     except IndexError:
-                        # NOTE: Some potentials donot print last frames of min
-                        #       for example, lammps
+                        # Some potentials donot print last frames of min
+                        # for example, lammps
                         atoms.info[k] = 0.0
         else:
             ...
 
-        # - check COLVAR
-        if colvar_io is not None:
-            # - read latest COLVAR Files
-            names = colvar_io.readline().split()[2:]
-            colvar_io.seek(0)
-            colvars = np.loadtxt(colvar_io)
-            # print("colvars: ", colvars.shape)
-            curr_colvars = colvars[-nframes_traj:, :]
-            for i, atoms in enumerate(curr_traj_frames):
-                for k, v in zip(names, curr_colvars[i, :]):
-                    atoms.info[k] = v
+        # Add COLVAR if any, frames may not have colvars as the simulation can stop in the middle
+        _ = (
+            add_colvar_to_atoms_info(colvar_io, curr_traj_frames, ignored_columns=["time"])
+            if colvar_io is not None
+            else None
+        )
 
-        # - Close IO
+        # Close all file handles
         traj_io.close()
         log_io.close()
         if prism_io is not None:
@@ -1197,7 +1189,3 @@ class Lammps(FileIOCalculator):
             fopen.write(content)
 
         return
-
-
-if __name__ == "__main__":
-    ...
