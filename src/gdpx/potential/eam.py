@@ -1,5 +1,7 @@
 import pathlib
 
+from ase.calculators.eam import EAM
+
 from gdpx.backend.ase import DummyCalculator
 from gdpx.computation.lammps import Lammps
 
@@ -18,8 +20,14 @@ EAM_FLAVOURS = (
 class EamManager(BasePotentialManager):
     name = "eam"
 
-    implemented_backends = ("lammps",)
-    valid_combinations = (("lammps", "lammps"),)
+    implemented_backends = (
+        "ase",
+        "lammps",
+    )
+    valid_combinations = (
+        ("ase", "ase"),
+        ("lammps", "lammps"),
+    )
 
     """See LAMMPS documentation for calculator parameters.
     """
@@ -48,7 +56,12 @@ class EamManager(BasePotentialManager):
         self.calc_params.update(model=models)
 
         calc = DummyCalculator()
-        if self.calc_backend == "lammps":
+        if self.calc_backend == "ase":
+            if models:
+                calc = EAM(
+                    potential=models[0],
+                )
+        elif self.calc_backend == "lammps":
             if models:
                 pair_style = flavour
                 pair_coeff = calc_params.pop("pair_coeff", "* *")
