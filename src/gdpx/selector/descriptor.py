@@ -18,7 +18,7 @@ def plot_configuration_map(png_fpath: pathlib.Path, group_features: list) -> Non
     import matplotlib.pyplot as plt
 
     try:
-        plt.style.use("presentation")
+        plt.style.use("presentation")  # type: ignore
     except Exception:
         ...
 
@@ -117,6 +117,7 @@ class DescriptorSelector(BaseSelector):
                 raise RuntimeError(f"Unknown descriptor {desc_name}.")
             self._print("finished calculating features...")
 
+            assert isinstance(features, np.ndarray)
             features = features.reshape((-1, ndim))
 
             # Save calculated features only when we need features for further analysis
@@ -152,7 +153,7 @@ class DescriptorSelector(BaseSelector):
             selected_markers.extend(curr_selected_markers)
 
             # Prepare for plotting
-            if curr_selected_indices:
+            if curr_selected_indices and curr_features is not None:
                 if features is None:
                     curr_nframes = 0
                     features = curr_features
@@ -164,14 +165,14 @@ class DescriptorSelector(BaseSelector):
                 # Other ones
                 oind_grps[grp_name] = [x + curr_nframes for x in range(len(markers))]
 
-        if any([len(v) for k, v in sind_grps.items()]):
+        if any([len(v) for _, v in sind_grps.items()]):
             self._plot_results(features, sind_grps, oind_grps)
 
         data.markers = np.array(selected_markers)
 
         return
 
-    def _select_structures(self, frames: list[Atoms]):
+    def _select_structures(self, frames: list[Atoms]) -> tuple[numpy.typing.NDArray | None, list[int]]:
         """"""
         nframes = len(frames)
         num_fixed = self._parse_selection_number(nframes)

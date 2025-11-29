@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import dataclasses
 from typing import Callable, Optional, Union
@@ -32,7 +28,7 @@ def cur_selection(
     num: int,
     zeta: float = 2,
     strategy: str = "descent",
-    rng=np.random,
+    rng: np.random.Generator = np.random.default_rng(),
 ):
     """Performa a CUR selection.
 
@@ -68,9 +64,7 @@ def cur_selection(
     c_scores = np.sum(vt**2, axis=0) / vt.shape[0]
 
     if strategy == "stochastic":
-        selected = sorted(
-            rng.choice(range(nframes), size=num, replace=False, p=c_scores)
-        )
+        selected = sorted(rng.choice(range(nframes), size=num, replace=False, p=c_scores))
     elif strategy == "descent":
         selected = sorted(np.argsort(c_scores)[-num:])
     else:
@@ -85,7 +79,7 @@ def fps_selection(
     min_distance=0.1,
     metric="euclidean",
     metric_params={},
-    rng=np.random,
+    rng: np.random.Generator = np.random.default_rng(),
 ):
     """Farthest point sampling on vector-based features.
 
@@ -122,9 +116,7 @@ def fps_selection(
     return scores, selected_indices
 
 
-def select_by_filter(
-    props: list[float], pmin: float, pmax: float, reverse: bool
-) -> tuple[list[float], list[int]]:
+def select_by_filter(props: list[float], pmin: float, pmax: float, reverse: bool) -> tuple[list[float], list[int]]:
     """"""
     num_points = len(props)
 
@@ -159,9 +151,7 @@ def select_by_sort(
         An exception will be raised if the property type is invalid.
 
     """
-    sorted_indices = sorted(
-        range(len(props)), key=lambda i: props[i], reverse=reverse
-    )
+    sorted_indices = sorted(range(len(props)), key=lambda i: props[i], reverse=reverse)
     if not reverse:
         selected_indices = sorted_indices[:num_selected]
     else:
@@ -325,7 +315,6 @@ def select_by_hist(
 
 @dataclasses.dataclass
 class Sparsification:
-
     method: str
 
     def reset(self):
@@ -341,9 +330,7 @@ class ScalarSparsification(Sparsification):
     method: str
 
     #: Property range to filter, which should be two strings or two numbers or mixed.
-    range: list[Optional[Union[float, str]]] = dataclasses.field(
-        default_factory=lambda: [None, None]
-    )
+    range: list[Optional[Union[float, str]]] = dataclasses.field(default_factory=lambda: [None, None])
 
     #: Number of bins for histogram.
     nbins: int = 20
@@ -437,7 +424,6 @@ class SortSparsify(ScalarSparsification):
 
 @dataclasses.dataclass
 class HistSparsify(ScalarSparsification):
-
     method: str = "hist"
 
     run: Callable = select_by_hist
@@ -458,7 +444,6 @@ class HistSparsify(ScalarSparsification):
 
 @dataclasses.dataclass
 class BoltzSparsify(ScalarSparsification):
-
     method: str = "boltz"
 
     #: Boltzmann temperature [K].
@@ -478,9 +463,7 @@ class BoltzSparsify(ScalarSparsification):
             if self.kBT is not None:
                 self.temperature = self.kBT / units.kB
             else:
-                raise Exception(
-                    "Either temperature or kBT should be provided."
-                )
+                raise Exception("Either temperature or kBT should be provided.")
 
         return
 
@@ -503,7 +486,3 @@ IMPLEMENTED_SPARSIFY_METHODS = dict(
     hist=HistSparsify,
     boltz=BoltzSparsify,
 )
-
-
-if __name__ == "__main__":
-    ...
