@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import numpy as np
 
 from gdpx.data.array import AtomsNDArray
@@ -58,15 +54,8 @@ class IntervalSelector(BaseSelector):
             curr_selected_markers = [curr_markers[i] for i in curr_indices]
             selected_markers.extend(curr_selected_markers)
 
-            self._print(
-                f"group: {curr_grpname} -> "
-                + f"number of structures: {len(curr_selected_markers)}"
-            )
+            self._print(f"group: {curr_grpname} -> " + f"number of structures: {len(curr_selected_markers)}")
 
         data.markers = np.array(selected_markers)
 
         return
-
-
-if __name__ == "__main__":
-    ...
