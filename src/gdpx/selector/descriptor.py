@@ -7,10 +7,26 @@ from ase import Atoms
 from dscribe.descriptors import SOAP
 
 from gdpx.data.array import AtomsNDArray
+from gdpx.group import evaluate_group_expression
 
 from .clustering import group_structures
 from .selector import BaseSelector
 from .sparsification import cur_selection, fps_selection
+
+
+def cleave_structures_by_group(structures: list[Atoms], grp_expr: str) -> tuple[list[Atoms], list[int]]:
+    """"""
+    new_structures, mapping_indices = [], []
+    for i, atoms in enumerate(structures):
+        group_indices = evaluate_group_expression(atoms, grp_expr)
+        if group_indices:
+            cleaved = atoms[group_indices]
+            new_structures.append(cleaved)
+            mapping_indices.append(i)
+        else:
+            ...
+
+    return new_structures, mapping_indices
 
 
 def plot_configuration_map(png_fpath: pathlib.Path, group_features: list) -> None:
@@ -79,6 +95,7 @@ class DescriptorSelector(BaseSelector):
         ),
         number=[4, 0.2],
         use_cache=False,
+        cluster_group=None,
     )
 
     def __init__(self, *args, **kwargs):
@@ -178,17 +195,34 @@ class DescriptorSelector(BaseSelector):
         num_fixed = self._parse_selection_number(nframes)
 
         if num_fixed > 0:
-            features = self._compute_descripter(frames)
-            if nframes == 1:
-                scores, selected_indices = [np.NaN], [0]
+            if self.cluster_group is None:
+                features = self._compute_descripter(frames)
+                if nframes == 1:
+                    scores, selected_indices = [np.NaN], [0]
+                else:
+                    scores, selected_indices = self._sparsify(features, num_fixed)
+                    scores = scores[selected_indices]
             else:
-                scores, selected_indices = self._sparsify(features, num_fixed)
-                scores = scores[selected_indices]
+                cleaved_frames, mapping_indices = cleave_structures_by_group(frames, self.cluster_group)
+                if cleaved_frames:
+                    features = self._compute_descripter(cleaved_frames)
+                    if len(cleaved_frames) == 1:
+                        scores, selected_indices = [np.NaN], mapping_indices
+                    else:
+                        scores, selected_indices = self._sparsify(features, num_fixed)
+                        scores = scores[selected_indices]
+                    # Map back to original indices
+                    selected_indices = [mapping_indices[i] for i in selected_indices]
+                else:
+                    features, scores, selected_indices = None, [], []
+                num_atoms_in_cluster = len(cleaved_frames[0]) if cleaved_frames else 0
+                self._print(
+                    f"  number of atoms in the cleaved cluster of structure 0 changed from {len(frames[0])} to {num_atoms_in_cluster}."
+                )
         else:
             features, scores, selected_indices = None, [], []
 
-        # - add score to atoms
-        #   only save scores from last property
+        # Add score to atoms and only save scores from last property
         for score, i in zip(scores, selected_indices):
             frames[i].info["score"] = score
 
