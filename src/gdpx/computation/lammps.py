@@ -505,7 +505,9 @@ class LmpDriver(BaseDriver):
         run_params.update(**self.setting.get_run_params(**kwargs))
 
         prev_temperature, prev_pressure = self.setting.temp, self.setting.press
-        if ckpt_wdir is None:  # start from the scratch
+
+        is_continue = ckpt_wdir is not None
+        if not is_continue:  # start from the scratch
             curr_temperature, curr_pressure = (
                 self.setting.temp,
                 self.setting.press,
@@ -547,6 +549,7 @@ class LmpDriver(BaseDriver):
                     dump_period=self.setting.dump_period,
                     temperature=curr_temperature,
                 ),
+                is_continue=is_continue,
             )
 
         self.setting.temp = prev_temperature

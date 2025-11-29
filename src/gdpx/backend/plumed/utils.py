@@ -35,7 +35,9 @@ def update_plumed_input_lines_by_driver(input_lines: list[str], stride: int, tem
     return parsed_lines
 
 
-def write_plumed_input_file(plumed_inp_fpath: str, input_lines: list[str], driver_params: dict) -> None:
+def write_plumed_input_file(
+    plumed_inp_fpath: str, input_lines: list[str], driver_params: dict, is_continue: bool = False
+) -> None:
     """Write the plumed input file."""
     # We must have those parameters from the host driver
     dump_period = driver_params.get("dump_period")
@@ -53,6 +55,12 @@ def write_plumed_input_file(plumed_inp_fpath: str, input_lines: list[str], drive
         stride=dump_period,
         temperature=temperature,
     )
+
+    # Add RESTART line if necessary
+    if is_continue:
+        restart_line = "RESTART\n"
+        plumed_inp_lines.insert(0, restart_line)
+
     with open(plumed_inp_fpath, "w") as fopen:
         fopen.write("".join(plumed_inp_lines))
 
