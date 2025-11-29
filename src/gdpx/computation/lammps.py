@@ -21,7 +21,7 @@ from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
 from gdpx.backend.lammps import add_model_deviation_to_atoms_info, parse_thermo_data_by_pattern
-from gdpx.backend.plumed import add_colvar_to_atoms_info
+from gdpx.backend.plumed import add_colvar_to_atoms_info, write_plumed_input_file
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
 
@@ -520,9 +520,6 @@ class LmpDriver(BaseDriver):
             finish_steps = int(checkpoints[-1].name.split(".")[1])
             remain_steps = target_steps - finish_steps
             run_params.update(read_restart=str(checkpoints[-1].resolve()), steps=remain_steps)
-            # shutil.move(
-            #     checkpoints[-1].parent / "traj.dump", self.directory / "traj.dump"
-            # )
             if self.setting.tend is not None:
                 curr_temperature = (
                     self.setting.temp + (self.setting.tend - self.setting.temp) / target_steps * finish_steps
@@ -543,20 +540,14 @@ class LmpDriver(BaseDriver):
         dynamics = self._create_dynamics(atoms, *args, **kwargs)
 
         if self.calc.plumed is not None:
-            from ..potential.plumed.utils import update_plumed_input_lines_by_driver
-
-            plumed_inp_lines = copy.deepcopy(self.calc.plumed)
-
-            # TODO: We need constrain the FILE to be HILLS and COLVAR in PRINT and METAD,
-            #       and well-tempered metad should not be in annealing.
-            plumed_inp_lines = update_plumed_input_lines_by_driver(
-                plumed_inp_lines,
-                wdir=str(self.directory),
-                stride=self.setting.dump_period,
-                temperature=curr_temperature,
+            write_plumed_input_file(
+                os.path.join(self.directory, "plumed.inp"),
+                copy.deepcopy(self.calc.plumed),
+                dict(
+                    dump_period=self.setting.dump_period,
+                    temperature=curr_temperature,
+                ),
             )
-            with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
-                fopen.write("".join(plumed_inp_lines))
 
         self.setting.temp = prev_temperature
         self.setting.press = prev_pressure
