@@ -1,7 +1,6 @@
 import copy
 import dataclasses
 import io
-import itertools
 import os
 import pathlib
 import pickle
@@ -21,7 +20,7 @@ from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
 from gdpx.backend.lammps import add_model_deviation_to_atoms_info, parse_thermo_data_by_pattern
-from gdpx.backend.plumed import add_colvar_to_atoms_info, write_plumed_input_file
+from gdpx.backend.plumed import add_colvar_to_atoms_info, clap_plumed_file_by_number, write_plumed_input_file
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
 
@@ -512,6 +511,7 @@ class LmpDriver(BaseDriver):
                 self.setting.temp,
                 self.setting.press,
             )
+            finish_steps = 0  # For plumed
         else:
             checkpoints = sorted(
                 list(ckpt_wdir.glob("restart.*")),
@@ -551,6 +551,24 @@ class LmpDriver(BaseDriver):
                 ),
                 is_continue=is_continue,
             )
+            if is_continue:  # clean up COLVAR and HILLS
+                assert finish_steps > 0
+                required_num_lines = int(finish_steps / self.setting.dump_period)
+                assert required_num_lines - finish_steps / self.setting.dump_period == 0, (
+                    "The finished steps must be multiple of dump_period."
+                )
+                clap_plumed_file_by_number(
+                    ckpt_wdir / "COLVAR",
+                    self.directory / "COLVAR",
+                    required_num_lines,
+                    0,
+                )
+                clap_plumed_file_by_number(
+                    ckpt_wdir / "HILLS",
+                    self.directory / "HILLS",
+                    required_num_lines,
+                    0,
+                )
 
         self.setting.temp = prev_temperature
         self.setting.press = prev_pressure

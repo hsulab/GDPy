@@ -65,3 +65,44 @@ def write_plumed_input_file(
         fopen.write("".join(plumed_inp_lines))
 
     return
+
+
+def clap_plumed_file_by_number(
+    prev_fpath: pathlib.Path, curr_fpath: pathlib.Path, num_steps: int, offset: int = 0
+) -> None:
+    """Clap COLVAR or HILLS by the number of steps.
+
+    Note:
+        HILLS does not dump the first step (step 0).
+
+    Args:
+        prev_fpath: The previous COLVAR or HILLS file path.
+        curr_fpath: The current COLVAR or HILLS file path to be written.
+        num_steps: The number of steps to clap to.
+        offset: The offset number of lines to add (0 for COLVAR and HILLS).
+
+    Returns:
+        None
+
+    """
+    # Check if there are multiple comment lines due to multiple restarts
+    with open(prev_fpath, "r") as fopen:
+        lines = fopen.readlines()
+    comment_lines = [i for i, line in enumerate(lines) if line.startswith("#")]
+    num_comments = len(comment_lines)  # COLVAR has 1 per restart, HILLS has 3
+
+    # TODO: If there is no outputs after the latest restart?
+
+    num_lines_needed = num_steps + num_comments + offset
+
+    # Check if the previous COLVAR has enough lines
+    num_lines = len(lines)
+    assert num_lines >= num_lines_needed, (
+        f"The previous COLVAR file {prev_fpath} has {num_lines} lines and the last line is `{lines[-1].strip()}`, "
+        f"which is less than the required {num_lines_needed} lines by step {num_steps}."
+    )
+
+    with open(curr_fpath, "w") as fopen:
+        fopen.writelines(lines[:num_lines_needed])
+
+    return
