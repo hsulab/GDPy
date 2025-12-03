@@ -20,7 +20,6 @@ MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
 
 class HybridMonteCarlo(MonteCarlo):
-
     def __init__(self, procedure, num_mcmoves: int, extra_workers={}, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
@@ -47,9 +46,9 @@ class HybridMonteCarlo(MonteCarlo):
                     if isinstance(subworker, DriverBasedWorker):
                         self._print("Convert a DriverBasedWorker to a SingleWorker.")
                         subworker = SingleWorker.from_a_worker(subworker)
-                    assert isinstance(
-                        subworker, SingleWorker
-                    ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
+                    assert isinstance(subworker, SingleWorker), (
+                        f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
+                    )
                     subworker.directory = self.directory / "mc"
                     subproc_func = functools.partial(self._irun_metropolis, worker=subworker)
                     procedure_steps.append(("mc", subproc_func))
@@ -208,13 +207,14 @@ class HybridMonteCarlo(MonteCarlo):
                 curr_atoms.info["confid"] = int(f"{step}")
                 curr_atoms.info["step"] = -1
             else:
-                self._save_step_info(curr_op, False)
+                self._save_step_info(curr_op, step + i, False, self.energy_stored, self.energy_stored)
                 self._print(
                     "  FAILED to run operation..."
                 )  # Due to absence of particles in the region or neighbour distance restraints
 
             # Run single-point-calculation and metropolis
             if curr_atoms is not None:
+                assert isinstance(curr_atoms, Atoms), "Operator must return an Atoms object."
                 # Save tags
                 curr_tags = curr_atoms.get_tags()
 
@@ -230,7 +230,9 @@ class HybridMonteCarlo(MonteCarlo):
 
                     # run metropolis
                     success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-                    self._save_step_info(curr_op, success)  # TODO: save step info in step folder only
+                    self._save_step_info(
+                        curr_op, step + i, success, self.energy_stored, self.energy_operated
+                    )  # save step info in one global file
 
                     if success:
                         self.energy_stored = self.energy_operated
@@ -258,7 +260,7 @@ class HybridMonteCarlo(MonteCarlo):
 
     def get_workers(self):
         """Get all workers used by this expedition."""
-        # This function can be called without running the expedition, 
+        # This function can be called without running the expedition,
         # so we need to check if _protype_workers is None.
         if not hasattr(self, "_protype_workers"):
             _, self._protype_workers = self._parse_procedure()
