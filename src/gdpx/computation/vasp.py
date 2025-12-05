@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import dataclasses
 import io
 import pathlib
@@ -31,7 +27,6 @@ ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 @dataclasses.dataclass
 class SinglePointController(Controller):
-
     name: str = "spc"
 
     def __post_init__(self):
@@ -44,7 +39,6 @@ class SinglePointController(Controller):
 
 @dataclasses.dataclass
 class BFGSMinimiser(Controller):
-
     name: str = "bfgs"  # RMM-DIIS
 
     def __post_init__(self):
@@ -59,7 +53,6 @@ class BFGSMinimiser(Controller):
 
 @dataclasses.dataclass
 class CGMinimiser(Controller):
-
     name: str = "cg"
 
     def __post_init__(self):
@@ -74,7 +67,6 @@ class CGMinimiser(Controller):
 
 @dataclasses.dataclass
 class CellBFGSMinimiser(BFGSMinimiser):
-
     def __post_init__(self):
         """"""
         super().__post_init__()
@@ -88,7 +80,6 @@ class CellBFGSMinimiser(BFGSMinimiser):
 
 @dataclasses.dataclass
 class CellCGMinimiser(CGMinimiser):
-
     def __post_init__(self):
         """"""
         super().__post_init__()
@@ -102,7 +93,6 @@ class CellCGMinimiser(CGMinimiser):
 
 @dataclasses.dataclass
 class MDController(Controller):
-
     #: Controller name.
     name: str = "md"
 
@@ -144,7 +134,6 @@ class MDController(Controller):
 
 @dataclasses.dataclass
 class Verlet(MDController):
-
     name: str = "verlet"
 
     def __post_init__(self):
@@ -163,7 +152,6 @@ class Verlet(MDController):
 
 @dataclasses.dataclass
 class LangevinThermostat(MDController):
-
     name: str = "langevin"
 
     def __post_init__(
@@ -189,7 +177,6 @@ class LangevinThermostat(MDController):
 
 @dataclasses.dataclass
 class NoseHooverThermostat(MDController):
-
     name: str = "nose_hoover"
 
     def __post_init__(self):
@@ -210,7 +197,6 @@ class NoseHooverThermostat(MDController):
 
 @dataclasses.dataclass
 class ParrinelloRahmanBarostat(MDController):
-
     name: str = "parrinello_rahman"
 
     def __post_init__(self):
@@ -284,7 +270,6 @@ default_controllers = dict(
 
 @dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
-
     #: Simulation task.
     task: str = "spc"
 
@@ -378,7 +363,6 @@ class VaspDriverSetting(DriverSetting):
 
 
 class VaspDriver(BaseDriver):
-
     name = "vasp"
 
     default_task = "min"
@@ -460,9 +444,9 @@ class VaspDriver(BaseDriver):
                 3,
                 4,
             ]:
-                assert self.calc.bool_params[
-                    "ldipol"
-                ], f"Use dipole correction {use_dipole_correction} but LDIPOL is False."
+                assert self.calc.bool_params["ldipol"], (
+                    f"Use dipole correction {use_dipole_correction} but LDIPOL is False."
+                )
                 # TODO: Check whether the scaled COM is wrapped?
                 dipole_centre = atoms.get_center_of_mass(scaled=True)
                 self.calc.set(dipol=dipole_centre)
@@ -640,7 +624,7 @@ class VaspDriver(BaseDriver):
             elif num_scfconvs == num_frames - 1:
                 if num_frames != 1:
                     # The LAST SCF failed due to some error, for example, too small distance.
-                    # So we manually set conv to false for the last step and also set frames energy and forces 
+                    # So we manually set conv to false for the last step and also set frames energy and forces
                     # to a very large value for the future selection.
                     # We need check whether the last step unfinished is due to exceed wall time or some other errors,
                     # Otherwise, a normal structure will be considered as an error.
@@ -657,7 +641,7 @@ class VaspDriver(BaseDriver):
                     frames[-1].calc = calc
                 else:
                     # For SPC, vasprun has a structure even when SCF is unfinished.
-                    # We clear frames to make calculation restart from scratch if the unfinished SCF is not due to 
+                    # We clear frames to make calculation restart from scratch if the unfinished SCF is not due to
                     # some fatal errors.
                     frames = []
                     scf_convergences = []
@@ -724,16 +708,16 @@ class VaspDriver(BaseDriver):
                     # FIXME: ase does not always give a 3x3 array for the box?
                     prev_box = traj_list[i - 1][-1].get_cell(complete=True)
                     curr_box = traj_list[i][0].get_cell(complete=True)
-                    assert np.allclose(
-                        prev_box, curr_box
-                    ), f"Traj {i-1} and traj {i} are not consecutive in cell at {str(self.directory)}."
+                    assert np.allclose(prev_box, curr_box), (
+                        f"Traj {i - 1} and traj {i} are not consecutive in cell at {str(self.directory)}."
+                    )
 
                     prev_pos = traj_list[i - 1][-1].positions
                     curr_pos = traj_list[i][0].positions
                     pos_vec, _ = find_mic(prev_pos - curr_pos, traj_list[i - 1][-1].get_cell())
-                    assert np.allclose(
-                        pos_vec, np.zeros(pos_vec.shape)
-                    ), f"Traj {i-1} and traj {i} are not consecutive at {str(self.directory)}."
+                    assert np.allclose(pos_vec, np.zeros(pos_vec.shape)), (
+                        f"Traj {i - 1} and traj {i} are not consecutive at {str(self.directory)}."
+                    )
                     traj_frames_.extend(traj_list[i][1:])
             elif self.setting.task == "md":
                 # Vasp md does restart from the last frame as the velocities in CONTCAR will give a new structure
@@ -775,7 +759,3 @@ class VaspDriver(BaseDriver):
             ...
 
         return traj_frames
-
-
-if __name__ == "__main__":
-    ...
