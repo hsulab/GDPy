@@ -38,6 +38,27 @@ class SinglePointController(Controller):
 
 
 @dataclasses.dataclass
+class FrequencyController(Controller):
+    #: Controller name.
+    name: str = "frequency"
+
+    #: The finite difference.
+    maxstep: float = 0.015
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", self.maxstep)
+
+        self.conv_params = dict(
+            ibrion=5,
+            nfree=2,
+            potim=maxstep,  # angstrom, vasp5 default
+        )
+
+        return
+
+
+@dataclasses.dataclass
 class BFGSMinimiser(Controller):
     name: str = "bfgs"  # RMM-DIIS
 
@@ -246,6 +267,8 @@ class ParrinelloRahmanBarostat(MDController):
 controllers = dict(
     # - spc
     single_point_spc=SinglePointController,
+    # - freq
+    finite_difference_freq=FrequencyController,
     # - min
     bfgs_min=BFGSMinimiser,
     cg_min=CGMinimiser,
@@ -265,6 +288,7 @@ default_controllers = dict(
     nve=Verlet,
     nvt=LangevinThermostat,
     npt=ParrinelloRahmanBarostat,
+    freq=FrequencyController,
 )
 
 
@@ -318,8 +342,7 @@ class VaspDriverSetting(DriverSetting):
                 pressure_end=self.pend,
             )
         elif self.task == "freq":
-            # ibrion, nfree, potim
-            raise NotImplementedError("")
+            suffix = "freq"
         else:
             raise RuntimeError(f"Unknown VASP task `{self.task}`.")
 
