@@ -53,6 +53,7 @@ class FrequencyController(Controller):
             ibrion=5,
             nfree=2,
             potim=maxstep,  # angstrom, vasp5 default
+            nsw=1,  # cannot be zero
         )
 
         return
