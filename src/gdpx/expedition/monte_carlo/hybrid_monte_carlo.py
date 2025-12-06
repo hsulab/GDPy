@@ -208,7 +208,7 @@ class HybridMonteCarlo(MonteCarlo):
                 curr_atoms.info["step"] = -1
             else:
                 self._save_step_info(
-                    curr_op, step * self.num_mcmoves + i, False, self.energy_stored, self.energy_stored
+                    curr_op, (step - 1) * self.num_mcmoves + i, False, self.energy_stored, self.energy_stored
                 )
                 self._print(
                     "  FAILED to run operation..."
@@ -233,7 +233,7 @@ class HybridMonteCarlo(MonteCarlo):
                     # run metropolis
                     success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
                     self._save_step_info(
-                        curr_op, step * self.num_mcmoves + i, success, self.energy_stored, self.energy_operated
+                        curr_op, (step - 1) * self.num_mcmoves + i, success, self.energy_stored, self.energy_operated
                     )  # save step info in one global file
 
                     if success:
