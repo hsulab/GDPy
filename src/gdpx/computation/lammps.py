@@ -542,33 +542,61 @@ class LmpDriver(BaseDriver):
         dynamics = self._create_dynamics(atoms, *args, **kwargs)
 
         if self.calc.plumed is not None:
-            write_plumed_input_file(
-                os.path.join(self.directory, "plumed.inp"),
-                copy.deepcopy(self.calc.plumed),
-                dict(
-                    dump_period=self.setting.dump_period,
-                    temperature=curr_temperature,
-                ),
-                is_continue=is_continue,
-            )
             if is_continue:  # clean up COLVAR and HILLS
                 assert finish_steps > 0
                 required_num_lines = int(finish_steps / self.setting.dump_period)
                 assert required_num_lines - finish_steps / self.setting.dump_period == 0, (
                     "The finished steps must be multiple of dump_period."
                 )
-                clap_plumed_file_by_number(
-                    ckpt_wdir / "COLVAR",
-                    self.directory / "COLVAR",
-                    required_num_lines,
-                    0,
-                )
-                clap_plumed_file_by_number(
-                    ckpt_wdir / "HILLS",
-                    self.directory / "HILLS",
-                    required_num_lines,
-                    0,
-                )
+                # Find files with names starting with COLVAR
+                colvar_files = list(ckpt_wdir.glob("COLVAR*"))
+                for fpath in colvar_files:
+                    clap_plumed_file_by_number(
+                        fpath,
+                        self.directory / fpath.name,
+                        required_num_lines,
+                        0,
+                    )
+                # Find enhanced sampling-related files, HILLS or KERNELS
+                hills_fpath = ckpt_wdir / "HILLS"
+                if hills_fpath.exists():
+                    clap_plumed_file_by_number(
+                        hills_fpath,
+                        self.directory / "HILLS",
+                        required_num_lines,
+                        0,
+                    )
+                kernels_fpath = ckpt_wdir / "KERNELS"
+                if kernels_fpath.exists():
+                    clap_plumed_file_by_number(
+                        kernels_fpath,
+                        self.directory / "KERNELS",
+                        required_num_lines,
+                        # TODO: check adaptive_sigma_stride
+                        -9,  # opes_metd use 10xpace to estimate sigmas
+                    )
+                # copy STATE if we have the exact state at the checkpoint
+                state_fpath = ckpt_wdir / "STATE"
+                if state_fpath.exists():
+                    dst_state_fpath = self.directory / "STATE"
+                    with open(state_fpath, "r") as fopen:
+                        lines = fopen.readlines()
+                    last_line = lines[-1]
+                    time_in_state = int(last_line.strip().split()[0])
+                    finished_time = finish_steps * self.setting.timestep / 1000.0  # in ps
+                    if np.fabs(time_in_state - finished_time) < 1e-4:  # should be equal
+                        with open(dst_state_fpath, "w") as fopen:
+                            fopen.write("".join(lines))
+            write_plumed_input_file(
+                pathlib.Path(self.directory),
+                copy.deepcopy(self.calc.plumed),
+                dict(
+                    dump_period=self.setting.dump_period,
+                    ckpt_period=self.setting.ckpt_period,
+                    temperature=curr_temperature,
+                ),
+                is_continue=is_continue,
+            )
 
         self.setting.temp = prev_temperature
         self.setting.press = prev_pressure

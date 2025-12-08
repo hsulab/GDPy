@@ -21,27 +21,33 @@ def update_input_value(line: str, key: str, value, func: Callable[[str, str], st
     return line
 
 
-def update_plumed_input_lines_by_driver(input_lines: list[str], stride: int, temperature: float) -> list[str]:
+def update_plumed_input_lines_by_driver(
+    input_lines: list[str], stride: int, ckpt_stride: int, temperature: float
+) -> list[str]:
     """Update the input lines with the some parameters from the driver setting."""
     input_lines, parsed_lines = copy.deepcopy(input_lines), []
     for line in input_lines:
-        # parsed_line = update_input_value(line, "FILE", wdir, func=lambda x, y: os.path.join(y, x))
-        parsed_line = update_input_value(line, "STRIDE", stride, func=lambda x, y: str(y))
+        parsed_line = update_input_value(line, "STRIDE", stride, func=lambda _, y: str(y))
         # Some parameters in metadynamics
-        parsed_line = update_input_value(parsed_line, "PACE", stride, func=lambda x, y: str(y))
-        parsed_line = update_input_value(parsed_line, "TEMP", temperature, func=lambda x, y: str(y))
+        parsed_line = update_input_value(parsed_line, "PACE", stride, func=lambda _, y: str(y))
+        parsed_line = update_input_value(parsed_line, "TEMP", temperature, func=lambda _, y: str(y))
+        # For opes,
+        parsed_line = update_input_value(parsed_line, "STATE_WSTRIDE", ckpt_stride, func=lambda _, y: str(y))
         parsed_lines.append(parsed_line)
 
     return parsed_lines
 
 
 def write_plumed_input_file(
-    plumed_inp_fpath: str, input_lines: list[str], driver_params: dict, is_continue: bool = False
+    working_directory: pathlib.Path, input_lines: list[str], driver_params: dict, is_continue: bool = False
 ) -> None:
     """Write the plumed input file."""
     # We must have those parameters from the host driver
     dump_period = driver_params.get("dump_period")
     assert isinstance(dump_period, int), f"dump_period must be an integer instead of {type(dump_period)}."
+
+    ckpt_period = driver_params.get("ckpt_period")
+    assert isinstance(ckpt_period, int), f"ckpt_period must be an integer instead of {type(ckpt_period)}."
 
     temperature = driver_params.get("temperature")
     assert isinstance(temperature, int) or isinstance(temperature, float), (
@@ -53,15 +59,31 @@ def write_plumed_input_file(
     plumed_inp_lines = update_plumed_input_lines_by_driver(
         input_lines,
         stride=dump_period,
+        ckpt_stride=ckpt_period,
         temperature=temperature,
     )
 
     # Add RESTART line if necessary
     if is_continue:
+        # Add global restart line
         restart_line = "RESTART\n"
         plumed_inp_lines.insert(0, restart_line)
+        # Check if we have OPES_METAD, if so, we need to add STORE_STATES if not present
+        line_index_opes_metad = [i for i, line in enumerate(plumed_inp_lines) if "OPES_METAD" in line]
+        if line_index_opes_metad:
+            line_index = line_index_opes_metad[0]
+            input_arguments = plumed_inp_lines[line_index].split()
+            extra_arguments = ""
+            if "STORE_STATES" not in input_arguments:
+                extra_arguments = "STORE_STATES"
+            if "STATE_RFILE" not in input_arguments:
+                # check if we do have STATE, sometimes it is broken and not copied from the previous simulation
+                if (working_directory / "STATE").is_file():
+                    extra_arguments += " STATE_RFILE=STATE"
+            # extra_arguments += " RESTART"
+            plumed_inp_lines[line_index] = plumed_inp_lines[line_index].strip() + " " + extra_arguments + "\n"
 
-    with open(plumed_inp_fpath, "w") as fopen:
+    with open(working_directory / "plumed.inp", "w") as fopen:
         fopen.write("".join(plumed_inp_lines))
 
     return
