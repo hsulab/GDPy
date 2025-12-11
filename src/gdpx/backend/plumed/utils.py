@@ -2,6 +2,8 @@ import copy
 import pathlib
 from typing import Callable
 
+import numpy as np
+
 
 def update_input_value(line: str, key: str, value, func: Callable[[str, str], str]) -> str:
     """Update the given key with the new value."""
@@ -126,5 +128,28 @@ def clap_plumed_file_by_number(
 
     with open(curr_fpath, "w") as fopen:
         fopen.writelines(lines[:num_lines_needed])
+
+    return
+
+
+def clap_plumed_file_by_simulations(prev_fpath: pathlib.Path, curr_fpath: pathlib.Path, finished_time: float):
+    """Split STATE by simulations and take the last one."""
+    with open(prev_fpath, "r") as fopen:
+        lines = fopen.readlines()
+
+    # Find all the indices start with '#! FIELDS time'
+    field_lines = [i for i, line in enumerate(lines) if line.startswith("#! FIELDS time")]
+    num_simulations = len(field_lines)
+    if num_simulations > 0:
+        last_sim_lines = lines[field_lines[-1] :]
+        last_line = last_sim_lines[-1]
+        time_in_state = int(last_line.strip().split()[0])
+        if np.fabs(time_in_state - finished_time) < 1e-4:  # should be equal
+            with open(curr_fpath, "w") as fopen:
+                fopen.writelines(last_sim_lines)
+        else:
+            ...  # skip state write if not match
+    else:
+        ...  # skip state write if no simulations found
 
     return

@@ -20,7 +20,12 @@ from ase.io.lammpsdata import write_lammps_data
 
 from gdpx import config
 from gdpx.backend.lammps import add_model_deviation_to_atoms_info, parse_thermo_data_by_pattern
-from gdpx.backend.plumed import add_colvar_to_atoms_info, clap_plumed_file_by_number, write_plumed_input_file
+from gdpx.backend.plumed import (
+    add_colvar_to_atoms_info,
+    clap_plumed_file_by_number,
+    clap_plumed_file_by_simulations,
+    write_plumed_input_file,
+)
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
 from gdpx.utils.strconv import integers_to_string
 
@@ -578,15 +583,12 @@ class LmpDriver(BaseDriver):
                 # copy STATE if we have the exact state at the checkpoint
                 state_fpath = ckpt_wdir / "STATE"
                 if state_fpath.exists():
-                    dst_state_fpath = self.directory / "STATE"
-                    with open(state_fpath, "r") as fopen:
-                        lines = fopen.readlines()
-                    last_line = lines[-1]
-                    time_in_state = int(last_line.strip().split()[0])
                     finished_time = finish_steps * self.setting.timestep / 1000.0  # in ps
-                    if np.fabs(time_in_state - finished_time) < 1e-4:  # should be equal
-                        with open(dst_state_fpath, "w") as fopen:
-                            fopen.write("".join(lines))
+                    clap_plumed_file_by_simulations(
+                        state_fpath,
+                        self.directory / "STATE",
+                        finished_time,
+                    )
             write_plumed_input_file(
                 pathlib.Path(self.directory),
                 copy.deepcopy(self.calc.plumed),
