@@ -24,6 +24,7 @@ from gdpx.backend.plumed import (
     add_colvar_to_atoms_info,
     clap_plumed_file_by_number,
     clap_plumed_file_by_simulations,
+    find_input_key_value,
     write_plumed_input_file,
 )
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
@@ -573,12 +574,31 @@ class LmpDriver(BaseDriver):
                     )
                 kernels_fpath = ckpt_wdir / "KERNELS"
                 if kernels_fpath.exists():
+                    opes_sigma = find_input_key_value(
+                        self.calc.plumed,
+                        "OPES_METAD",
+                        "SIGMA",
+                    )
+                    adaptive_sigma_stride = find_input_key_value(
+                        self.calc.plumed,
+                        "OPES_METAD",
+                        "ADAPTIVE_SIGMA_STRIDE",
+                    )
+                    if opes_sigma is None or opes_sigma == "ADAPTIVE":
+                        adaptive_sigma_stride = (
+                            int(adaptive_sigma_stride) if adaptive_sigma_stride is not None else 10
+                        )  # opes_metad use 10xpace to estimate sigmas
+                    else:
+                        assert adaptive_sigma_stride is None, (
+                            "If SIGMA is initialised, ADAPTIVE_SIGMA_STRIDE should not be set."
+                        )
+                        adaptive_sigma_stride = 1
                     clap_plumed_file_by_number(
                         kernels_fpath,
                         self.directory / "KERNELS",
                         required_num_lines,
                         # TODO: check adaptive_sigma_stride
-                        -9,  # opes_metd use 10xpace to estimate sigmas
+                        -adaptive_sigma_stride + 1,  # opes_metd use 10xpace to estimate sigmas
                     )
                 # copy STATE if we have the exact state at the checkpoint
                 state_fpath = ckpt_wdir / "STATE"

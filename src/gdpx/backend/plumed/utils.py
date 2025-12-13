@@ -5,6 +5,22 @@ from typing import Callable
 import numpy as np
 
 
+def find_input_key_value(input_lines: list[str], action: str, key: str) -> str | None:
+    """Find the key-value pair of the given action in the plumed input lines."""
+    value = None
+    for line in input_lines:
+        arguments = line.split()
+        if action in arguments:
+            for arg in arguments:
+                if arg.startswith(f"{key}="):
+                    value = arg.split("=")[1]
+                    break
+        if value is not None:
+            break
+
+    return value
+
+
 def update_input_value(line: str, key: str, value, func: Callable[[str, str], str]) -> str:
     """Update the given key with the new value."""
     shift = len(key) + 1  # key name and =
