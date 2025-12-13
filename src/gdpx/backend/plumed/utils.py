@@ -24,15 +24,13 @@ def find_input_key_value(input_lines: list[str], action: str, key: str) -> str |
 def update_input_value(line: str, key: str, value, func: Callable[[str, str], str]) -> str:
     """Update the given key with the new value."""
     shift = len(key) + 1  # key name and =
-    if line.find(key) != -1:
-        ini = line.find(key)
-        end = line.find(" ", ini)
-        if end == -1:
-            prev = line[ini + shift :]
-            line = line[: ini + shift] + func(prev, value)
-        else:
-            prev = line[ini + shift : end]
-            line = line[: ini + shift] + func(prev, value) + line[end:]
+    arguments = line.split()
+    for i, arg in enumerate(arguments):
+        if arg.startswith(f"{key}="):
+            prev = arg[shift:]
+            arguments[i] = f"{key}={func(prev, value)}"
+            break
+    line = " ".join(arguments)
     if not line.endswith("\n"):
         line += "\n"
 
