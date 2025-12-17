@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 
+from .band import read_cp2k_output_from_band
 from .calculators import Cp2kFileIO
 from .parser import (
     read_cp2k_energy_force,
-    read_cp2k_output_from_band,
     read_cp2k_output_from_energy_force,
     read_cp2k_outputs,
     read_cp2k_program_convergence,
