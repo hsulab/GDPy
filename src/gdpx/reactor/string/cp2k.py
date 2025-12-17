@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import dataclasses
 import os
 import pathlib
@@ -10,7 +6,6 @@ import traceback
 import numpy as np
 from ase import Atoms, units
 from ase.calculators.cp2k import InputSection, parse_input
-from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
 from gdpx.backend.cp2k import read_cp2k_output_from_band
@@ -44,7 +39,7 @@ def run_cp2k(name, command, directory):
 
     if errorcode:
         path = os.path.abspath(directory)
-        msg = 'Calculator "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+        msg = 'Calculator "{}" failed with command "{}" failed in {} with error code {}'.format(
             name, command, path, errorcode
         )
         raise CalculationFailed(msg)
@@ -54,7 +49,6 @@ def run_cp2k(name, command, directory):
 
 @dataclasses.dataclass
 class Cp2kStringReactorSetting(StringReactorSetting):
-
     backend: str = "cp2k"
 
     #: Number of tasks/processors/cpus for each image.
@@ -79,7 +73,7 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 ("MOTION/BAND", f"NUMBER_OF_REPLICA {self.nimages}"),
                 (
                     "MOTION/BAND",
-                    f"K_SPRING {self.kspring/(units.Hartree/units.Bohr**2)}",
+                    f"K_SPRING {self.kspring / (units.Hartree / units.Bohr**2)}",
                 ),
                 ("MOTION/BAND", "ROTATE_FRAMES F"),
                 ("MOTION/BAND", "ALIGN_FRAMES F"),
@@ -120,19 +114,19 @@ class Cp2kStringReactorSetting(StringReactorSetting):
                 [
                     (
                         "MOTION/BAND/CONVERGENCE_CONTROL",
-                        f"MAX_FORCE {fmax_/(units.Hartree/units.Bohr)}",
+                        f"MAX_FORCE {fmax_ / (units.Hartree / units.Bohr)}",
                     ),
                     (
                         "MOTION/BAND/CONVERGENCE_CONTROL",
-                        f"MAX_DR {rmax_/(units.Bohr)}",
+                        f"MAX_DR {rmax_ / (units.Bohr)}",
                     ),
                     (
                         "MOTION/BAND/CONVERGENCE_CONTROL",
-                        f"RMS_FORCE {frms_/(units.Hartree/units.Bohr)}",
+                        f"RMS_FORCE {frms_ / (units.Hartree / units.Bohr)}",
                     ),
                     (
                         "MOTION/BAND/CONVERGENCE_CONTROL",
-                        f"RMS_DR {rrms_/(units.Bohr)}",
+                        f"RMS_DR {rrms_ / (units.Bohr)}",
                     ),
                 ]
             )
@@ -147,7 +141,6 @@ class Cp2kStringReactorSetting(StringReactorSetting):
 
 
 class Cp2kStringReactor(BaseStringReactor):
-
     name: str = "cp2k"
 
     traj_name: str = "cp2k.out"
@@ -211,7 +204,9 @@ class Cp2kStringReactor(BaseStringReactor):
                     cur_rep.add_keyword("COORD", ("{:.18e} " * 3).format(*pos), unique=False)
                 band_section.subsections.append(cur_rep)
         else:  # start from a checkpoint
-            atoms = read(self.directory / "0000.run" / "images.xyz", "0")  # The images are saved only in the first run.
+            atoms = read(
+                self.directory / "0000.run" / "images.xyz", "0"
+            )  # The images are saved only in the first run.
             with open(ckpt_wdir / "cp2k.inp", "r") as fopen:
                 inp = "".join(fopen.readlines())
             sec = parse_input(inp)
@@ -332,7 +327,7 @@ class Cp2kStringReactor(BaseStringReactor):
                     is_continuous = True
                 if not is_continuous:
                     raise Exception(
-                        f"Traj {i-1} and traj {i} are not consecutive in positions at image {discontinuous_index}."
+                        f"Traj {i - 1} and traj {i} are not consecutive in positions at image {discontinuous_index}."
                     )  # This should not happen if the output is correct.
                 # If the restart file is written correctly, the first image of the next trajectory should be the last
                 # image of the previous trajectory.
@@ -341,7 +336,3 @@ class Cp2kStringReactor(BaseStringReactor):
             ...
 
         return traj_frames
-
-
-if __name__ == "__main__":
-    ...
