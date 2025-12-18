@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 from typing import Optional, Union
 
@@ -12,7 +8,7 @@ from ase.formula import Formula
 from joblib import Parallel, delayed
 
 try:
-    plt.style.use("presentation")
+    plt.style.use("presentation")  # type: ignore
 except Exception as e:
     ...
 
@@ -141,8 +137,14 @@ def compute_mean_squared_displacement(
 
     return lagtimes, timeseries
 
+
 def compute_mean_squared_displacement_over_trajectories(
-    frames_list: list[list[Atoms]], group_indices: list[int], lagmax: int, start: int, end: int, timeintv: float
+    frames_list: list[list[Atoms]],
+    group_indices: list[int],
+    lagmax: int,
+    start: Optional[int],
+    end: Optional[int],
+    timeintv: float,
 ):
     """Compute mean squared displacement (MSD) for a group of atoms.
 
@@ -255,14 +257,16 @@ class MeanSquaredDisplacementValidator(BaseValidator):
 
         return data
 
-    def run(self, dataset: dict, worker=None, *args, **kwargs):
+    def run(self, dataset: dict, worker=None, *args, **kwargs) -> bool:
         """"""
         super().run()
 
-        # - find some optional parameters
+        is_finished = True
+
+        # Find some optional parameters
         labels = kwargs.get("labels", None)
 
-        # -
+        # Process reference and prediction data
         self._print("process reference ->")
         reference = dataset.get("reference")
         if reference is not None:
@@ -273,7 +277,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         if prediction is not None:
             self._irun(prediction, "pre-", labels)
 
-        return
+        return is_finished
 
     def _irun(self, data, prefix="", labels=None):
         """Test the first trajectory.
@@ -331,7 +335,3 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         )
 
         return
-
-
-if __name__ == "__main__":
-    ...
