@@ -6,6 +6,7 @@ import numpy as np
 from ase import Atoms
 from ase.formula import Formula
 from joblib import Parallel, delayed
+from scipy.stats import linregress
 
 try:
     plt.style.use("presentation")  # type: ignore
@@ -30,9 +31,7 @@ def plot_msd(
     print_func=print,
 ):
     """"""
-    # - get self-diffusivity
-    from scipy.stats import linregress
-
+    # get self-diffusivity
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 9))
     fig.suptitle("MSD")
 
@@ -71,6 +70,7 @@ def plot_msd(
             msd_avg, msd_std = y
             (p1,) = ax.plot(time, msd_avg, label=f"{name}")
             intv = time.shape[0] // 10
+            intv = 1 if intv < 1 else intv
             ax.errorbar(
                 time[::intv],
                 msd_avg[::intv],
@@ -98,6 +98,7 @@ def compute_mean_squared_displacement(
     lagmax: int,
     start: int,
     end: int,
+    intv: Optional[int],
     timeintv: float,
     get_group_positions: Callable,
 ):
@@ -116,9 +117,12 @@ def compute_mean_squared_displacement(
         timeseries: Array of mean squared displacements for each lag time.
 
     """
+    if intv is None:
+        intv = 1
+
     # Wrap the trajectory to avoid jump across periodic boundaries.
     frames = wrap_traj(frames)
-    frames = frames[start:end:]
+    frames = frames[start:end:intv]
 
     positions = []
     for atoms in frames:
@@ -137,7 +141,7 @@ def compute_mean_squared_displacement(
         msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
     timeseries = msds_by_particle.mean(axis=1)
 
-    timeintv = timeintv / 1000.0  # fs to ps
+    timeintv = intv * timeintv / 1000.0  # fs to ps
     lagtimes = np.arange(lagmax) * timeintv
 
     return lagtimes, timeseries
@@ -148,6 +152,7 @@ def compute_mean_squared_displacement_over_trajectories(
     lagmax: int,
     start: Optional[int],
     end: Optional[int],
+    intv: Optional[int],
     timeintv: float,
     get_group_positions: Callable,
 ):
@@ -166,11 +171,14 @@ def compute_mean_squared_displacement_over_trajectories(
         timeseries: Array of mean squared displacements for each lag time.
 
     """
+    if intv is None:
+        intv = 1
+
     # Wrap the trajectory to avoid jump across periodic boundaries.
     positions_list = []
     for frames in frames_list:
         frames = wrap_traj(frames)
-        frames = frames[start:end:]
+        frames = frames[start:end:intv]
 
         positions = []
         for atoms in frames:
@@ -200,7 +208,7 @@ def compute_mean_squared_displacement_over_trajectories(
     msd_avg = msd_avg.flatten()
     msd_std = msd_std.flatten()
 
-    timeintv = timeintv / 1000.0  # fs to ps
+    timeintv = intv * timeintv / 1000.0  # fs to ps
     lagtimes = np.arange(lagmax) * timeintv
 
     return lagtimes, (msd_avg, msd_std)
@@ -220,6 +228,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         lagmax: int,
         start: Optional[int] = None,
         end: Optional[int] = None,
+        intv: Optional[int] = None,
         d_start: int = -1,
         d_end: int = 20,
         merge_trajs: bool = False,
@@ -237,6 +246,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
 
         self.start = start
         self.end = end
+        self.intv = intv
 
         self.lagmax = lagmax
         self.timeintv = timeintv
@@ -336,6 +346,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                         lagmax=self.lagmax,
                         start=self.start,
                         end=self.end,
+                        intv=self.intv,
                         timeintv=self.timeintv,
                         get_group_positions=get_group_positions,
                     )
@@ -348,6 +359,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     lagmax=self.lagmax,
                     start=self.start,
                     end=self.end,
+                    intv=self.intv,
                     timeintv=self.timeintv,
                     get_group_positions=get_group_positions,
                 )
