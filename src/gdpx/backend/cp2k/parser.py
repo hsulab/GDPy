@@ -246,7 +246,7 @@ def read_cp2k_outputs(wdir: pathlib.Path, prefix: str = "cp2k", task: str = "min
 
     # Check consistency in num_frames
     num_frames = min((num_frames_by_pos, num_frames_by_frc, num_frames_by_box))
-    if task == "min" or task == "cmin":
+    if task == "min" or task == "cmin" or task == "ts":
         # The cp2k optimisation will reevaluate the structure when converged,
         # thus, positions and forces are written for the reevaluated one but cell is not,
         # which means we have equal or greater number of frames in positions and forces.
