@@ -6,7 +6,6 @@ from typing import Optional, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing
-from scipy.interpolate import make_interp_spline
 
 try:
     plt.style.use("presentation")  # type: ignore
@@ -19,38 +18,8 @@ from joblib import Parallel, delayed
 
 from gdpx.data.array import AtomsNDArray
 
+from .utils import smooth_curve
 from .validator import BaseValidator
-
-
-def smooth_curve(
-    bins: numpy.typing.NDArray,
-    points: numpy.typing.NDArray,
-    bspline_degree: int = 3,
-    smooth_bin_interval: float = 0.01,
-) -> tuple[numpy.typing.NDArray, numpy.typing.NDArray]:
-    """Smooth the curve using B-spline interpolation.
-
-    Args:
-        bins: The bin centers.
-        points: The values at the bin centers.
-        bspline_degree: Degree of the B-spline.
-        smooth_bin_interval: Interval for the smoothed bins.
-
-    Returns:
-        A tuple of smoothed bins and corresponding points.
-
-    """
-    # Get the spline representation of the data
-    spl = make_interp_spline(bins, points, k=bspline_degree)
-
-    # Create new bins with the specified interval
-    new_bins = np.arange(bins.min(), bins.max() + smooth_bin_interval, smooth_bin_interval)
-
-    # Evaluate the spline at the new bins
-    new_points = spl(new_bins)
-    new_points = np.where(new_points < 1e-6, 0, new_points)  # avoid very small values
-
-    return new_bins, new_points
 
 
 def compute_distance_histogram(
