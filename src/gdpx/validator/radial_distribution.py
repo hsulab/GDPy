@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import itertools
 import pathlib
@@ -13,7 +9,7 @@ import numpy.typing
 from scipy.interpolate import make_interp_spline
 
 try:
-    plt.style.use("presentation")
+    plt.style.use("presentation")  # type: ignore
 except Exception as e:
     ...
 
@@ -57,36 +53,37 @@ def smooth_curve(
     return new_bins, new_points
 
 
-def calc_rdf(
-    wdir: pathlib.Path,
-    frames,
-    custom_pairs,
+def compute_radial_distribution(
+    working_directory: pathlib.Path,
+    frames: list[Atoms],
+    custom_pairs: list[str],
     volume: Optional[float] = None,
     nbins: int = 60,
     cutoff: float = 6.0,
-    n_jobs=1,
+    n_jobs: int = 1,
 ) -> dict:
     """Calculate radial distribution.
 
     Args:
-        wdir: Working directory that stores RDF results.
+        working_directory: Working directory that stores RDF results.
         frames: A List of Atoms objects.
-        pairs: Target species pairs, for example, ["Cu-Cu", "Cu-O"].
+        custom_pairs: Target species pairs, for example, ["Cu-Cu", "Cu-O"].
         volume: System volume.
         nbins: Number of bins for histogram.
         cutoff: Cut-off radius in Angstrom.
+        n_jobs: Number of parallel jobs.
 
     """
-    if not wdir.exists():
-        wdir.mkdir(parents=True)
+    if not working_directory.exists():
+        working_directory.mkdir(parents=True)
 
-    # --- parse system
-    # NOTE: We assume the system volume does not change along the trajectory!
+    # Parse RDF definition
+    # We assume the system volume does not change along the trajectory!
     # if volume is None:
     #     volume = frames[0].get_volume()
 
-    # NOTE: the atom order should be consistent in the entire trajectory
-    #       i.e. this does not work for variable-composition system
+    # The atom order should be consistent in the entire trajectory
+    # i.e. this does not work for variable-composition system
     chemical_symbols = frames[0].get_chemical_symbols()
     species = list(set(chemical_symbols))
     sym_dict = {k: [] for k in species}
@@ -109,15 +106,14 @@ def calc_rdf(
             num_pairs = num_first * num_second
         pair_dict[pair] = num_pairs
 
-    # ---
+    # Set up bins
     binwidth = cutoff / nbins
     bincentres = np.linspace(binwidth / 2.0, cutoff + binwidth / 2.0, nbins + 1)
     left_edges = np.copy(bincentres) - binwidth / 2.0
-    right_edges = np.copy(bincentres) + binwidth / 2.0
+    _ = np.copy(bincentres) + binwidth / 2.0  # right_edges
     bins = np.linspace(0.0, cutoff + binwidth, nbins + 2)
 
-    # ---
-    def compute_distance_histogram(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth):
+    def compute_distance_histogram(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth) -> dict:
         """"""
         i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff + binwidth)
 
@@ -133,7 +129,7 @@ def calc_rdf(
 
         dis_hist = {}
         for k, v in distance_dict.items():
-            hist_, edges_ = np.histogram(v, bins)
+            hist_, _ = np.histogram(v, bins)
             dis_hist[k] = hist_
 
         return dis_hist
@@ -144,6 +140,7 @@ def calc_rdf(
 
     dis_hist = {k: [] for k in custom_pairs}
     for curr_dis_hist in ret:
+        assert isinstance(curr_dis_hist, dict)
         for k, v in curr_dis_hist.items():
             dis_hist[k].append(v)
 
@@ -156,7 +153,7 @@ def calc_rdf(
             else:
                 density_dict[k].append(num_pairs / volume)
 
-    # - reformat data
+    # Reformat results
     results = {}
     for k, v in dis_hist.items():
         curr_dis_hist = np.array(v)
@@ -176,7 +173,7 @@ def calc_rdf(
 
         data = np.vstack((bincentres, rdf_avg, rdf_svar, rdf_min, rdf_max)).T
         np.savetxt(
-            wdir / f"{k}.dat",
+            working_directory / f"{k}.dat",
             data,
             fmt="%8.4f  %8.4f  %8.4f  %8.4f  %8.4f",
             header=("{:<8s}  " * 5).format("r", "rdf", "svar", "min", "max"),
@@ -234,7 +231,6 @@ def plot_radial_distribution_function(
 
 
 class RdfValidator(BaseValidator):
-
     def __init__(
         self,
         pairs: list[str],
@@ -266,7 +262,7 @@ class RdfValidator(BaseValidator):
 
         return
 
-    def _process_data(self, data) -> list[list[Atoms]]:
+    def _process_data(self, data) -> list[Atoms]:
         """"""
         data = AtomsNDArray(data)
 
@@ -284,7 +280,7 @@ class RdfValidator(BaseValidator):
 
         return data[0]  # TODO: support several trajectories
 
-    def run(self, dataset, worker=None, *args, **kwargs):
+    def run(self, dataset, worker=None, *args, **kwargs) -> bool:
         """Process reference and prediction data separately.
 
         TODO:
@@ -292,16 +288,20 @@ class RdfValidator(BaseValidator):
             Support average over several trajectories.
 
         """
-        # - get custom volume
+        is_finished = True
+
+        # Get custom volume, useful for surface with variable vacuum height
         volume = kwargs.get("volume", None)
 
-        # - process dataset
+        # Canonicalise input data format
         self._print("process reference ->")
         reference = dataset.get("reference", None)
+
+        # Process reference and prediction data
         if reference is not None:
             ref_frames = self._process_data(reference)
             self._debug(f"reference  nframes: {len(ref_frames)}")
-            ref_data = self._compute_rdf(
+            ref_data = self._compute_radial_distribution(
                 self.directory / "reference", ref_frames, self.pairs, self.cutoff, self.nbins, volume=volume
             )
         else:
@@ -312,7 +312,7 @@ class RdfValidator(BaseValidator):
         if prediction is not None:
             pre_frames = self._process_data(prediction)
             self._debug(f"prediction nframes: {len(pre_frames)}")
-            pre_data = self._compute_rdf(
+            pre_data = self._compute_radial_distribution(
                 self.directory / "prediction", pre_frames, self.pairs, self.cutoff, self.nbins, volume=volume
             )
         else:
@@ -323,15 +323,25 @@ class RdfValidator(BaseValidator):
         # compare results
         self._compare_results(ref_data, pre_data)
 
-        return
+        return is_finished
 
-    def _compute_rdf(self, wdir, frames: list[Atoms], pairs, cutoff, nbins, volume: float = None):
+    def _compute_radial_distribution(
+        self,
+        working_directory: pathlib.Path,
+        frames: list[Atoms],
+        pairs,
+        cutoff,
+        nbins,
+        volume: Optional[float] = None,
+    ):
         """"""
-        if not wdir.exists():
-            data = calc_rdf(wdir, frames, pairs, volume, nbins, cutoff, n_jobs=self.njobs)
+        if not working_directory.exists():
+            data = compute_radial_distribution(
+                working_directory, frames, pairs, volume, nbins, cutoff, n_jobs=self.njobs
+            )
         else:
             data = {}
-            saved_files = list(wdir.glob("*.dat"))
+            saved_files = list(working_directory.glob("*.dat"))
             for p in saved_files:
                 data[p.name[:-4]] = np.loadtxt(p)
 
@@ -360,7 +370,3 @@ class RdfValidator(BaseValidator):
                     )
 
         return
-
-
-if __name__ == "__main__":
-    ...
