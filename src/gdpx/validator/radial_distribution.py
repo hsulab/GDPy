@@ -1,7 +1,7 @@
 import copy
 import itertools
 import pathlib
-from typing import Optional
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,6 +51,43 @@ def smooth_curve(
     new_points = np.where(new_points < 1e-6, 0, new_points)  # avoid very small values
 
     return new_bins, new_points
+
+
+def compute_distance_histogram(
+    atoms: Atoms, all_pairs: list[str], custom_pairs: list[str], cutoff: float, bins: list[float], binwidth: float
+) -> dict:
+    """Compute distance histogram for given atom pairs.
+
+    Args:
+        atoms: An Atoms object.
+        all_pairs: All possible atom pairs in the system.
+        custom_pairs: Target atom pairs for histogram.
+        cutoff: Cutoff radius in Angstrom.
+        bins: Bin edges for histogram.
+        binwidth: Width of each bin.
+
+    Returns:
+        A dictionary with atom pairs as keys and their distance histograms as values.
+
+    """
+    i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff + binwidth)
+
+    symbols = atoms.get_chemical_symbols()
+    num_pairs = len(d)
+
+    distance_dict_ = {k: [] for k in all_pairs}
+    for p in range(num_pairs):
+        pair = f"{symbols[i[p]]}-{symbols[j[p]]}"
+        distance_dict_[pair].append(d[p])
+
+    distance_dict = {k: distance_dict_[k] for k in custom_pairs}
+
+    dis_hist = {}
+    for k, v in distance_dict.items():
+        hist_, _ = np.histogram(v, bins)
+        dis_hist[k] = hist_
+
+    return dis_hist
 
 
 def compute_radial_distribution(
@@ -112,27 +149,6 @@ def compute_radial_distribution(
     left_edges = np.copy(bincentres) - binwidth / 2.0
     _ = np.copy(bincentres) + binwidth / 2.0  # right_edges
     bins = np.linspace(0.0, cutoff + binwidth, nbins + 2)
-
-    def compute_distance_histogram(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth) -> dict:
-        """"""
-        i, j, d = neighbor_list("ijd", atoms, cutoff=cutoff + binwidth)
-
-        symbols = atoms.get_chemical_symbols()
-        num_pairs = len(d)
-
-        distance_dict_ = {k: [] for k in all_pairs}
-        for p in range(num_pairs):
-            pair = f"{symbols[i[p]]}-{symbols[j[p]]}"
-            distance_dict_[pair].append(d[p])
-
-        distance_dict = {k: distance_dict_[k] for k in custom_pairs}
-
-        dis_hist = {}
-        for k, v in distance_dict.items():
-            hist_, _ = np.histogram(v, bins)
-            dis_hist[k] = hist_
-
-        return dis_hist
 
     ret = Parallel(n_jobs=n_jobs)(
         delayed(compute_distance_histogram)(atoms, all_pairs, custom_pairs, cutoff, bins, binwidth) for atoms in frames
@@ -237,7 +253,7 @@ class RdfValidator(BaseValidator):
         cutoff: float = 6.0,
         nbins: int = 60,
         smooth_kwargs: Optional[dict] = None,
-        directory="./",
+        directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
     ) -> None:
