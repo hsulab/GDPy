@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import pathlib
 from typing import Any, Optional, Union
@@ -49,13 +45,13 @@ def canonicalise_structures_to_validate(structures) -> dict[str, Any]:
 
 
 class BaseValidator(BaseComponent):
-
     def __init__(
         self,
         structures: Optional[Any] = None,
         worker: Optional[DriverBasedWorker] = None,
         directory: Union[str, pathlib.Path] = "./",
         random_seed: Optional[Union[int, dict]] = None,
+        n_jobs: Optional[int] = None,
     ) -> None:
         """Base class for validators.
 
@@ -63,7 +59,7 @@ class BaseValidator(BaseComponent):
             structures: The reference structures to validate.
 
         """
-        super().__init__(directory=directory, random_seed=random_seed)
+        super().__init__(directory=directory, random_seed=random_seed, n_jobs=n_jobs)
 
         if structures is not None:
             if isinstance(structures, (list, tuple)):
@@ -91,7 +87,3 @@ class BaseValidator(BaseComponent):
             self.directory.mkdir(parents=True)
 
         ...
-
-
-if __name__ == "__main__":
-    ...
