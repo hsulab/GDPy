@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import dataclasses
 import pathlib
@@ -9,13 +5,17 @@ from typing import List, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.transforms
 import numpy as np
-from scipy.interpolate import BPoly, CubicSpline
+from scipy.interpolate import BPoly
 
-plt.style.use("presentation")
+try:
+    plt.style.use("presentation")  # type: ignore
+except:
+    ...
 
-from ase import units
-from ase.io import read, write
+from ase import Atoms, units
+from ase.io import read
 from ase.thermochemistry import HarmonicThermo, IdealGasThermo
 
 
@@ -48,7 +48,6 @@ def read_vibrations(wdir):
 
 @dataclasses.dataclass
 class ThermoStructure:
-
     structure: str
 
     frequency: str = ""
@@ -60,7 +59,11 @@ class ThermoStructure:
 
     def __post_init__(self):
         """"""
-        self.atoms = read(self.structure, "-1")
+        if isinstance(self.structure, str):
+            self.atoms = read(self.structure, "-1")
+        else:
+            self.atoms = read(self.structure["fname"], self.structure.get("index", -1))
+        assert isinstance(self.atoms, Atoms)
         self.energy = self.atoms.get_potential_energy()
         self.energy += self.energy_shift
 
@@ -111,7 +114,6 @@ class ThermoStructure:
 
 @dataclasses.dataclass
 class ReactionData:
-
     eps: float = 0.25
 
     names: List[str] = dataclasses.field(default_factory=list)
@@ -144,6 +146,8 @@ class ReactionData:
         else:
             self.free_energies = copy.deepcopy(self.energies)
 
+        assert isinstance(self.structures, list)
+
         if self.reverse:
             self.structures = self.structures[::-1]
             self.energies = self.energies[::-1]
@@ -164,6 +168,7 @@ class ReactionData:
     def _convert_structures(self):
         """Take three structures: IS, TS if it has, and FS."""
         structures = self.structures  # TODO: at least 3 structures
+        assert isinstance(structures, list)
         energies = [a.get_potential_energy() for a in structures]
         # print(f"energies: {energies}")
         imax = 1 + np.argsort(energies[1:-1])[-1]
@@ -216,7 +221,7 @@ class ReactionData:
         prev_npoints = self.npoints
         self.npoints = len(self.energies)
 
-        self.pathways.append(range(prev_npoints - 1, self.npoints))
+        self.pathways.append(list(range(prev_npoints - 1, self.npoints)))
 
         # consistent
         num_names, num_energies = len(self.names), len(self.energies)
@@ -263,7 +268,6 @@ class ReactionData:
 
 
 class EnergyDiagram:
-
     def __init__(self, units: str = "eV") -> None:
         """"""
         self.units = units
@@ -381,7 +385,6 @@ class EnergyDiagram:
         ylimit = yhigh - ylow
         ax.set_ylim([ylow, yhigh])
 
-
         mediates = set(mediates)
         lines = []
         for i in mediates:
@@ -438,7 +441,7 @@ class EnergyDiagram:
                     transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                     horizontalalignment="center",
                     verticalalignment="top",
-                    fontsize="x-large"
+                    fontsize="x-large",
                 )
 
         if add_ticks:
@@ -452,7 +455,3 @@ class EnergyDiagram:
         # ax.legend(custom_lines, [label])
 
         return
-
-
-if __name__ == "__main__":
-    ...
