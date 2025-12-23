@@ -241,9 +241,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Worker will be lazily checked in run
         self.worker = None
 
-        # Population
-        self.pop_manager = AbstractPopulationManager(ga_dict["population"], rng=self.rng)
-
         # Sanity check on target property
         self.prop_dict = ga_dict.get("property", dict(target="energy"))
         target = self.prop_dict.get("target", None)
@@ -259,6 +256,17 @@ class GeneticAlgorithmEngine(BaseExpedition):
             ...
 
         self.target = target
+
+        # Population and check target-population consistency
+        self.pop_manager = AbstractPopulationManager(ga_dict["population"], rng=self.rng)
+        if self.pop_manager.name == "variable":
+            if self.target not in ("cohesive_energy", "formation_energy"):
+                raise RuntimeError(
+                    f"Population manager `{self.pop_manager.name}` is only compatible with "
+                    + "formation energy or cohesive energy target."
+                )
+        else:
+            ...
 
         # The ase built-in cut_and_splice reinits tags from 0 if use_tags is false,
         # Here, no matter what type of system is explored, we enforce the builder's use_tags
