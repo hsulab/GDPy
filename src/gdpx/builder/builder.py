@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import pathlib
 from typing import Optional, Union
@@ -10,13 +6,11 @@ from ase import Atoms
 from ase.io import read
 
 from gdpx.core.component import BaseComponent
-
 from gdpx.data.array import AtomsNDArray
 from gdpx.utils.strconv import dictionary_to_string
 
 
 class StructureBuilder(BaseComponent):
-
     name = "builder"
 
     def __init__(
@@ -49,9 +43,13 @@ class StructureBuilder(BaseComponent):
 
         ...
 
+    def get_bond_distance_dict(self, ratio: float = 1.0) -> dict:
+        """"""
+        ratio = float(ratio)
+        raise NotImplementedError("Modifiers do not have bond distance dicts.")
+
 
 class StructureModifier(StructureBuilder):
-
     name = "modifier"
 
     def __init__(self, substrates=None, *args, **kwargs):
@@ -104,7 +102,3 @@ class StructureModifier(StructureBuilder):
         # self.substrates = [copy.deepcopy(s) for s in self.substrates]
 
         ...
-
-
-if __name__ == "__main__":
-    ...

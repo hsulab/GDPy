@@ -2,7 +2,7 @@ import collections
 import copy
 import itertools
 import pathlib
-from typing import Union
+from typing import Any, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -340,16 +340,18 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         return
 
-    def update_active_params(self, prev_wdir, *args, **kwargs):
+    def update_active_params(self, prev_wdir: pathlib.Path) -> None:
         """"""
         candidates = read(prev_wdir / "results" / "all_candidates.xyz", ":")
+        selected_candidates = candidates[: self.pop_manager.init_size]
+        assert isinstance(selected_candidates, list)
+        assert all(isinstance(c, Atoms) for c in selected_candidates)
 
-        init_size = self.pop_manager.init_size
-        self.pop_manager.init_seed_file = candidates[:init_size]
+        self.pop_manager.init_seed_file = selected_candidates
 
         return
 
-    def run(self, *args, **kwargs):
+    def run(self) -> None:
         """Run the GA procedure several steps.
 
         Default setting would run the algorithm many times until its convergence.
@@ -367,6 +369,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self._print("===== register builder =====")
         for l in str(self.generator).split("\n"):
             self._print(l)
+        assert self.generator is not None, "GA has not set its builder properly."
         self._print(f"random_state: {self.generator.random_seed}")
 
         # Check worker
@@ -472,7 +475,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         for l in content.split("\n"):
             self._print(l)
 
-        # - minimise
+        # Relax structures
+        assert self.worker is not None, "GA has not set its worker properly."
         if self.cur_gen == 0:
             self._print("===== Initial Population Calculation =====")
             frames_to_work = []
@@ -606,13 +610,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 self._print(f"calculation directory for generation {self.cur_gen} exists.")
 
         # Check if there were finished jobs
+        assert self.generator is not None, "GA has not set its builder properly."
         curr_convergence = False
         self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("===== Retrieve Relaxed Population =====")
-            whethre_reduce_cell = hasattr(self.generator, "cell_bounds")
-            if whethre_reduce_cell:
+            whether_reduce_cell = hasattr(self.generator, "cell_bounds")
+            if whether_reduce_cell:
                 self._print("The candidates will be reduced by cell bounds.")
             converged_candidates = [t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)]
             for cand in converged_candidates:
@@ -645,7 +650,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     ...
                 # evaluate raw score
                 self.evaluate_candidate(cand)
-                if whethre_reduce_cell:
+                if whether_reduce_cell:
                     cand = reduce_cell_by_bounds(cand, self.generator.cell_bounds)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
                 cand_stat = f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f} "
@@ -674,6 +679,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         if self.end_of_gen:
             num_gen += 1
 
+        assert self.worker is not None, "GA has not set its worker properly."
         if hasattr(self.worker.potter, "remove_loaded_models"):
             self.worker.potter.remove_loaded_models()
 
@@ -715,7 +721,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             else:
                 ...
 
-        specific_params = dict(
+        specific_params: dict[str, Any] = dict(
             slab=self.da.get_slab(),
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=0,  # We will determine `n_top` on-the-fly when crossover and mutation.
@@ -748,8 +754,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Thus, be careful when using random structure generator and operator in a
         # mixed way, either old generator with new operator or vice versa,
         # leading inconsistency in bond distance check.
+        assert self.generator is not None, "GA has not set its builder properly."
         if hasattr(self.generator, "get_bond_distance_dict"):
-            blmin = self.generator.get_bond_distance_dict(ratio=self.generator.covalent_ratio[0])
+            if hasattr(self.generator, "covalent_ratio"):
+                # make sure it is a tuple of two floats
+                cov_min = self.generator.covalent_ratio[0]  # type: ignore
+            else:
+                cov_min = 0.8  # default value
+            blmin = self.generator.get_bond_distance_dict(ratio=cov_min)
             bond_distance_dict = self.generator.get_bond_distance_dict(ratio=1.0)
             specific_params.update(
                 blmin=blmin,
