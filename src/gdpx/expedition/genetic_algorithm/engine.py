@@ -238,6 +238,21 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {self.random_seed}")
 
+        # The ase built-in cut_and_splice reinits tags from 0 if use_tags is false,
+        # Here, no matter what type of system is explored, we enforce the builder's use_tags
+        # to be true as it retains the tags information.
+        assert self.generator is not None, "Builder is not properly initialised."
+        if hasattr(self.generator, "use_tags"):
+            if self.generator.use_tags:
+                ...
+            else:
+                self.generator.use_tags = True
+                self._print(
+                    f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation."
+                )
+        else:
+            raise RuntimeError(f"Builder `{self.generator.name}` does not have true `use_tags`.")
+
         # Worker will be lazily checked in run
         self.worker = None
 
@@ -267,20 +282,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 )
         else:
             ...
-
-        # The ase built-in cut_and_splice reinits tags from 0 if use_tags is false,
-        # Here, no matter what type of system is explored, we enforce the builder's use_tags
-        # to be true as it retains the tags information.
-        if hasattr(self.generator, "use_tags"):
-            if self.generator.use_tags:
-                ...
-            else:
-                self.generator.use_tags = True
-                self._print(
-                    f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation."
-                )
-        else:
-            raise RuntimeError(f"Builder `{self.generator.name}` does not have true `use_tags`.")
 
         # Convergence
         self.conv_dict = ga_dict["convergence"]
