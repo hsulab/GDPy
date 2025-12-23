@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import collections
 import copy
 import itertools
@@ -103,9 +99,7 @@ def reduce_cell_by_bounds(atoms: Atoms, cell_bounds: CellBounds) -> Atoms:
     raw_score = atoms.info["key_value_pairs"]["raw_score"]
 
     niggli_reduce(atoms)
-    calc = SinglePointCalculator(
-        atoms, energy=energy, forces=forces, stress=stress
-    )
+    calc = SinglePointCalculator(atoms, energy=energy, forces=forces, stress=stress)
     atoms.calc = calc
     if cell_bounds.is_within_bounds(atoms.get_cell()):
         atoms.info["key_value_pairs"]["raw_score"] = raw_score
@@ -224,9 +218,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             if "init" in population_params:
                 seed_file = population_params["init"].get("seed_file", None)
                 if seed_file is not None:
-                    self.ga_dict["population"]["init"]["seed_file"] = str(
-                        pathlib.Path(seed_file).resolve()
-                    )
+                    self.ga_dict["population"]["init"]["seed_file"] = str(pathlib.Path(seed_file).resolve())
 
         # Check random consistency, generator and population
         self._print(f"GA RANDOM SEED {self.random_seed}")
@@ -244,17 +236,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
         builder_params.update(random_seed=self.random_seed)
         self.generator = canonicalise_builder(builder_params)
 
-        self._print(
-            f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {self.random_seed}"
-        )
+        self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {self.random_seed}")
 
         # Worker will be lazily checked in run
         self.worker = None
 
         # Population
-        self.pop_manager = AbstractPopulationManager(
-            ga_dict["population"], rng=self.rng
-        )
+        self.pop_manager = AbstractPopulationManager(ga_dict["population"], rng=self.rng)
 
         # Sanity check on target property
         self.prop_dict = ga_dict.get("property", dict(target="energy"))
@@ -266,9 +254,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         ), f"Target `{target}` is not supported yet."
         if target == "cohesive_energy" or target == "formation_energy":
             if "chempot" not in self.prop_dict:
-                raise RuntimeError(
-                    "The `chempot` is not provided in the property section."
-                )
+                raise RuntimeError("The `chempot` is not provided in the property section.")
         else:
             ...
 
@@ -286,9 +272,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation."
                 )
         else:
-            raise RuntimeError(
-                f"Builder `{self.generator.name}` does not have true `use_tags`."
-            )
+            raise RuntimeError(f"Builder `{self.generator.name}` does not have true `use_tags`.")
 
         # Convergence
         self.conv_dict = ga_dict["convergence"]
@@ -325,24 +309,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # plot population evolution
         data = []
-        gen_num = get_generation_number(
-            self.da
-        )  # equals finished generation plus one
-        self._print(
-            f"Genetic Algorithm Statistics with {gen_num-1} generations: "
-        )
+        gen_num = get_generation_number(self.da)  # equals finished generation plus one
+        self._print(f"Genetic Algorithm Statistics with {gen_num - 1} generations: ")
         for i in range(gen_num):
             current_candidates = [
-                atoms
-                for atoms in all_relaxed_candidates
-                if atoms.info["key_value_pairs"]["generation"] == i
+                atoms for atoms in all_relaxed_candidates if atoms.info["key_value_pairs"]["generation"] == i
             ]
-            properties = np.array(
-                [
-                    a.info["key_value_pairs"]["target"]
-                    for a in current_candidates
-                ]
-            )
+            properties = np.array([a.info["key_value_pairs"]["target"] for a in current_candidates])
             stats = dict(
                 min=np.min(properties),
                 max=np.max(properties),
@@ -392,27 +365,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
         assert self.worker is not None, "GA has not set its worker properly."
         self.worker.directory = self.directory / self.CALC_DIRNAME
 
-        if (
-            self.generator.name == "random_bulk"
-            and self.worker.driver.setting.task != "cmin"
-        ):
+        if self.generator.name == "random_bulk" and self.worker.driver.setting.task != "cmin":
             content = "*" * 50 + "\n"
             content += "*    " + f"{'':<44s}" + "*\n"
-            content += (
-                "*    "
-                + f"{'YOU ARE EXPLORING RANDOM BULK STRUCTURES':<44s}"
-                + "*\n"
-            )
-            content += (
-                "*    "
-                + f"{'BETTER USE `task: cmin` IN THE DRIVER':<44s}"
-                + "*\n"
-            )
-            content += (
-                "*    "
-                + f"{'OTHERWISE THE CELL WILL NOT BE CHANGED':<44s}"
-                + "*\n"
-            )
+            content += "*    " + f"{'YOU ARE EXPLORING RANDOM BULK STRUCTURES':<44s}" + "*\n"
+            content += "*    " + f"{'BETTER USE `task: cmin` IN THE DRIVER':<44s}" + "*\n"
+            content += "*    " + f"{'OTHERWISE THE CELL WILL NOT BE CHANGED':<44s}" + "*\n"
             content += "*    " + f"{'':<44s}" + "*\n"
             content += "*" * 50 + "\n"
             for l in content.split("\n"):
@@ -457,9 +415,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         self.cur_gen = get_generation_number(self.da)
 
-        unrelaxed_strus_gen_ = list(
-            self.da.c.select("relaxed=0,generation=%d" % self.cur_gen)
-        )
+        unrelaxed_strus_gen_ = list(self.da.c.select("relaxed=0,generation=%d" % self.cur_gen))
         unrelaxed_strus_gen = []
         for row in unrelaxed_strus_gen_:
             # NOTE: mark_as_queue unrelaxed_candidate will have relaxed field too...
@@ -468,68 +424,42 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
         self.num_unrelaxed_gen = len(self.unrelaxed_confids)
 
-        relaxed_strus_gen = list(
-            self.da.c.select("relaxed=1,generation=%d" % self.cur_gen)
-        )
+        relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" % self.cur_gen))
         for row in relaxed_strus_gen:
             self._debug(row)
         self.relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
         self.num_relaxed_gen = len(self.relaxed_confids)
 
         # check if this is the begin or the end of the current generation
-        self.beg_of_gen = (
-            self.num_relaxed_gen == self.num_unrelaxed_gen
-        ) and (self.num_relaxed_gen == 0)
-        self.end_of_gen = (
-            self.num_relaxed_gen == self.num_unrelaxed_gen
-        ) and (self.num_relaxed_gen != 0)
+        self.beg_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen == 0)
+        self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen != 0)
 
         return
 
     def _irun(self):
         """main procedure"""
         if not hasattr(self, "cur_gen"):
-            raise RuntimeError(
-                "The current genertion is unknown. Check generation before."
-            )
+            raise RuntimeError("The current genertion is unknown. Check generation before.")
         # - generation
         self._print("===== Generation Info =====")
         self._print(f"current generation number: {self.cur_gen}")
-        self._print(
-            f"number of relaxed in current generation: {self.num_relaxed_gen}"
-        )
-        self._print(
-            "confids: "
-            + integers_to_string(
-                sorted(self.relaxed_confids), inp_convention="lmp"
-            )
-        )
-        self._print(
-            f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}"
-        )
-        self._print(
-            "confids: "
-            + integers_to_string(
-                sorted(self.unrelaxed_confids), inp_convention="lmp"
-            )
-        )
+        self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
+        self._print("confids: " + integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
+        self._print(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
+        self._print("confids: " + integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
         self._print(f"end of current generation: {self.end_of_gen}")
 
         # - population
         self._print("===== Population Info =====")
         content = "For generation > 0,\n"
-        content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format(
-            "Reprod", "Random", "Mutate", "Total"
-        )
+        content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format("Reprod", "Random", "Mutate", "Total")
         content += "{:>8d}  {:>8d}  {:>8d}  {:>8d}\n".format(
             self.pop_manager.gen_rep_size,
             self.pop_manager.gen_ran_size,
             self.pop_manager.gen_mut_size,
             self.pop_manager.gen_size,
         )
-        content += (
-            "Note: Reproduced structure has a chance (pmut) to mutate.\n"
-        )
+        content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
         for l in content.split("\n"):
             self._print(l)
 
@@ -537,33 +467,23 @@ class GeneticAlgorithmEngine(BaseExpedition):
         if self.cur_gen == 0:
             self._print("===== Initial Population Calculation =====")
             frames_to_work = []
-            while (
-                self.da.get_number_of_unrelaxed_candidates()
-            ):  # NOTE: this uses GADB get_atoms which adds extra_info
+            while self.da.get_number_of_unrelaxed_candidates():  # NOTE: this uses GADB get_atoms which adds extra_info
                 # calculate structures from init population
                 atoms = self.da.get_an_unrelaxed_candidate()
                 frames_to_work.append(atoms)
-                self.da.mark_as_queued(
-                    atoms
-                )  # this marks relaxation is in the queue
+                self.da.mark_as_queued(atoms)  # this marks relaxation is in the queue
             confids = [a.info["confid"] for a in frames_to_work]
-            self._print(
-                f"start to run structure {integers_to_string(confids, inp_convention='lmp')}"
-            )
+            self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
             # NOTE: provide unified interface to mlp and dft
             if frames_to_work:
-                self.worker.directory = (
-                    self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
-                )
+                self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
                 _ = self.worker.run(frames_to_work)  # retrieve later
         else:
             # --- update population
             self._print("===== Update Population =====")
             # Check candidate origin for the current generation
-            candidate_groups, num_paired, num_mutated, num_random = (
-                self.pop_manager._get_current_candidates(
-                    database=self.da, curr_gen=self.cur_gen
-                )
+            candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+                database=self.da, curr_gen=self.cur_gen
             )
             self._print("candidate origin distribution:")
             for k, v in candidate_groups.items():
@@ -594,12 +514,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")
 
             pop_confids = [a.info["confid"] for a in current_population.pop]
-            self._print(
-                f"number of structures in population: {len(pop_confids)}"
-            )
-            self._print(
-                f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}"
-            )
+            self._print(f"number of structures in population: {len(pop_confids)}")
+            self._print(f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}")
 
             self.pop_manager._update_generation_settings(
                 current_population,
@@ -610,52 +526,42 @@ class GeneticAlgorithmEngine(BaseExpedition):
             # ----
             current_candidates = []
             if self.beg_of_gen:  # (num_relaxed == num_unrelaxed == 0)
-                current_candidates = (
-                    self.pop_manager._prepare_current_population(
-                        database=self.da,
-                        curr_gen=self.cur_gen,
-                        population=current_population,
-                        generator=self.generator,
-                        operators=self.operators,
-                    )
+                current_candidates = self.pop_manager._prepare_current_population(
+                    database=self.da,
+                    curr_gen=self.cur_gen,
+                    population=current_population,
+                    generator=self.generator,
+                    operators=self.operators,
                 )
             else:
                 self._print("Current generation has not finished...")
                 # NOTE: The current candidates have not been created completely.
                 #       For example, num_relaxed != num_unrelaxed,
                 #       need create more candidates...
-                if self.num_relaxed_gen == 0 and (
-                    self.num_unrelaxed_gen < self.pop_manager.gen_size
-                ):
-                    current_candidates = (
-                        self.pop_manager._prepare_current_population(
-                            database=self.da,
-                            curr_gen=self.cur_gen,
-                            population=current_population,
-                            generator=self.generator,
-                            operators=self.operators,
-                            candidate_groups=candidate_groups,
-                            num_paired=num_paired,
-                            num_mutated=num_mutated,
-                            num_random=num_random,
-                        )
+                if self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen < self.pop_manager.gen_size):
+                    current_candidates = self.pop_manager._prepare_current_population(
+                        database=self.da,
+                        curr_gen=self.cur_gen,
+                        population=current_population,
+                        generator=self.generator,
+                        operators=self.operators,
+                        candidate_groups=candidate_groups,
+                        num_paired=num_paired,
+                        num_mutated=num_mutated,
+                        num_random=num_random,
                     )
-                elif self.num_relaxed_gen == 0 and (
-                    self.num_unrelaxed_gen == self.pop_manager.gen_size
-                ):
+                elif self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen == self.pop_manager.gen_size):
                     # no relaxed, and finished creation, num_relaxed == gen_size?
-                    current_candidates = (
-                        self.pop_manager._prepare_current_population(
-                            database=self.da,
-                            curr_gen=self.cur_gen,
-                            population=current_population,
-                            generator=self.generator,
-                            operators=self.operators,
-                            candidate_groups=candidate_groups,
-                            num_paired=num_paired,
-                            num_mutated=num_mutated,
-                            num_random=num_random,
-                        )
+                    current_candidates = self.pop_manager._prepare_current_population(
+                        database=self.da,
+                        curr_gen=self.cur_gen,
+                        population=current_population,
+                        generator=self.generator,
+                        operators=self.operators,
+                        candidate_groups=candidate_groups,
+                        num_paired=num_paired,
+                        num_mutated=num_mutated,
+                        num_random=num_random,
                     )
                 else:
                     ...
@@ -673,52 +579,33 @@ class GeneticAlgorithmEngine(BaseExpedition):
             for ia, a in enumerate(current_candidates):
                 parents = "none"
                 if "parents" in a.info["data"]:
-                    parents = " ".join(
-                        [str(x) for x in a.info["data"]["parents"]]
-                    )
+                    parents = " ".join([str(x) for x in a.info["data"]["parents"]])
                 self._print(
                     f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
                 )
-            if not (
-                self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
-            ).exists():
+            if not (self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}").exists():
                 frames_to_work = []
                 for atoms in current_candidates:
                     frames_to_work.append(atoms)
-                    self.da.mark_as_queued(
-                        atoms
-                    )  # this marks relaxation is in the queue
+                    self.da.mark_as_queued(atoms)  # this marks relaxation is in the queue
                 if frames_to_work:
                     confids = [a.info["confid"] for a in frames_to_work]
-                    self._print(
-                        f"start to run structure {integers_to_string(confids, inp_convention='lmp')}"
-                    )
-                    self.worker.directory = (
-                        self.directory
-                        / self.CALC_DIRNAME
-                        / f"gen{self.cur_gen}"
-                    )
+                    self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
+                    self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
                     _ = self.worker.run(frames_to_work)  # retrieve later
             else:
-                self._print(
-                    f"calculation directory for generation {self.cur_gen} exists."
-                )
+                self._print(f"calculation directory for generation {self.cur_gen} exists.")
 
         # Check if there were finished jobs
         curr_convergence = False
-        self.worker.directory = (
-            self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
-        )
+        self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("===== Retrieve Relaxed Population =====")
             whethre_reduce_cell = hasattr(self.generator, "cell_bounds")
             if whethre_reduce_cell:
                 self._print("The candidates will be reduced by cell bounds.")
-            converged_candidates = [
-                t[-1]
-                for t in self.worker.retrieve(use_archive=self.use_archive)
-            ]
+            converged_candidates = [t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)]
             for cand in converged_candidates:
                 # update extra info
                 extra_info = dict(
@@ -735,14 +622,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
                         key=lambda row: row.mtime,
                     )
                     if len(rows) > 0:
-                        previous_atoms = rows[-1].toatoms(
-                            add_additional_information=True
-                        )
+                        previous_atoms = rows[-1].toatoms(add_additional_information=True)
                         previous_tags = previous_atoms.get_tags()
                     else:
-                        raise RuntimeError(
-                            f"Cannot find tags for candidate {confid}"
-                        )
+                        raise RuntimeError(f"Cannot find tags for candidate {confid}")
                     cand.set_tags(previous_tags)
                     identities = get_tags_per_species(cand)
                     identity_stats = {}
@@ -754,18 +637,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 # evaluate raw score
                 self.evaluate_candidate(cand)
                 if whethre_reduce_cell:
-                    cand = reduce_cell_by_bounds(
-                        cand, self.generator.cell_bounds
-                    )
+                    cand = reduce_cell_by_bounds(cand, self.generator.cell_bounds)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
                 cand_stat = f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f} "
                 if "identity_stats" in cand.info:
-                    identity_info = "  " + " ".join(
-                        [
-                            f"{k}: {v}"
-                            for k, v in cand.info["identity_stats"].items()
-                        ]
-                    )
+                    identity_info = "  " + " ".join([f"{k}: {v}" for k, v in cand.info["identity_stats"].items()])
                     cand_stat += identity_info
                 self._print(cand_stat)
                 self.da.add_relaxed_step(
@@ -795,9 +671,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         workers = []
         for i in range(num_gen):
             curr_worker = copy.deepcopy(self.worker)
-            curr_worker.directory = (
-                self.directory / self.CALC_DIRNAME / (f"{self.GEN_PREFIX}{i}")
-            )
+            curr_worker.directory = self.directory / self.CALC_DIRNAME / (f"{self.GEN_PREFIX}{i}")
             workers.append(curr_worker)
 
         return workers
@@ -808,9 +682,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self.da = DataConnection(self.db_path)
             self._check_generation()
         max_gen = self.conv_dict["generation"]
-        if self.cur_gen > max_gen and (
-            self.num_relaxed_gen == self.num_unrelaxed_gen
-        ):
+        if self.cur_gen > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
             return True
         else:
             return False
@@ -838,9 +710,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             slab=self.da.get_slab(),
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=0,  # We will determine `n_top` on-the-fly when crossover and mutation.
-            used_modes_file=self.directory
-            / self.CALC_DIRNAME
-            / "used_modes.json",  # SoftMutation
+            used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
             # rng = self.rng # TODO: ase operators need np.random
         )
 
@@ -870,12 +740,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # mixed way, either old generator with new operator or vice versa,
         # leading inconsistency in bond distance check.
         if hasattr(self.generator, "get_bond_distance_dict"):
-            blmin = self.generator.get_bond_distance_dict(
-                ratio=self.generator.covalent_ratio[0]
-            )
-            bond_distance_dict = self.generator.get_bond_distance_dict(
-                ratio=1.0
-            )
+            blmin = self.generator.get_bond_distance_dict(ratio=self.generator.covalent_ratio[0])
+            bond_distance_dict = self.generator.get_bond_distance_dict(ratio=1.0)
             specific_params.update(
                 blmin=blmin,
                 bond_distance_dict=bond_distance_dict,
@@ -897,9 +763,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             g_op_dict = op_dict.get(g, None)
             if g_op_dict is not None:
                 self._print(f"operators for group {g} ->")
-                group_operators = self._parse_group_operators(
-                    g_op_dict, specific_params
-                )
+                group_operators = self._parse_group_operators(g_op_dict, specific_params)
                 self.operators[g] = group_operators
             else:
                 ...
@@ -916,9 +780,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # --- comparator
         comp_params = op_dict.get("comparator", None)
         if comp_params is not None:
-            comparing = instantiate_a_genetic_operator(
-                "comparator", comp_params, specific_params
-            )
+            comparing = instantiate_a_genetic_operator("comparator", comp_params, specific_params)
 
             self._print("  --- comparator ---")
             self._print(f"  Use comparator {comparing.__class__.__name__}.")
@@ -942,9 +804,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
             self._print("  --- crossover ---")
             self._print(f"  Use crossover {pairing.__class__.__name__}.")
-            self._print(
-                f"  allow_variable_composition: {pairing.allow_variable_composition}."
-            )
+            self._print(f"  allow_variable_composition: {pairing.allow_variable_composition}.")
         else:
             pairing = None
 
@@ -961,32 +821,24 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 specific_params_ = copy.deepcopy(specific_params)
                 sys_use_tags = specific_params_.pop("use_tags", True)
                 mut_params["use_tags"] = sys_use_tags and mut_use_tags
-                mut = instantiate_a_genetic_operator(
-                    "mutation", mut_params, specific_params_
-                )
+                mut = instantiate_a_genetic_operator("mutation", mut_params, specific_params_)
                 # Check whether mutation accepts molecules
                 if hasattr(mut, "use_tags"):
                     if mut_use_tags:
-                        assert (
-                            mut.use_tags
-                        ), f"use_tags `{mut.use_tags}` in mutation `{mut}` must be true."
+                        assert mut.use_tags, f"use_tags `{mut.use_tags}` in mutation `{mut}` must be true."
                     else:
                         # HACK: We may disbale the use_tags in the mutation if all our fragments
                         # are just atoms, and the mutation does not mess up with tags.
                         ...
                 else:
-                    raise RuntimeError(
-                        f"Mutation `{mut}` cannot be used in a search with tags."
-                    )
+                    raise RuntimeError(f"Mutation `{mut}` cannot be used in a search with tags.")
                 assert "Mutation" in mut.descriptor, f"{mut} must have `Mutation` in its descriptor."
                 mutations.append(mut)
 
             self._print("  --- mutations ---")
             # self._print(f"mutation probability: {self.pmut}")
             for mut, prob in zip(mutations, probs):
-                self._print(
-                    f"  Use mutation {mut.descriptor} with prob {prob}."
-                )
+                self._print(f"  Use mutation {mut.descriptor} with prob {prob}.")
             mutations = OperationSelector(probs, mutations, rng=np.random)
         else:
             mutations = OperationSelector([], [], rng=np.random)
@@ -1006,9 +858,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         if tags.shape[0] == 0:
             num_atoms_substrate = num_atoms
         else:
-            substrate_atomic_indices = [
-                i for i in range(num_atoms) if tags[i] == 0
-            ]
+            substrate_atomic_indices = [i for i in range(num_atoms) if tags[i] == 0]
             if sorted(substrate_atomic_indices) == list(
                 range(
                     min(substrate_atomic_indices),
@@ -1017,9 +867,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             ):
                 ...
             else:
-                raise Exception(
-                    "The atoms (tag == 0) in the substrate must be consecutive."
-                )
+                raise Exception("The atoms (tag == 0) in the substrate must be consecutive.")
             num_atoms_substrate = len(substrate_atomic_indices)
 
         canonicalised_substrate = substrate[:num_atoms_substrate]
@@ -1031,9 +879,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         )
 
         # Generate structures for the initial population
-        starting_population = self.pop_manager._prepare_initial_population(
-            generator=self.generator
-        )
+        starting_population = self.pop_manager._prepare_initial_population(generator=self.generator)
 
         self._print(f"save population {len(starting_population)} to database")
         for a in starting_population:
@@ -1073,9 +919,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
             None.
 
         """
-        assert (
-            atoms.info["key_value_pairs"].get("raw_score", None) is None
-        ), "candidate already has raw_score before evaluation"
+        assert atoms.info["key_value_pairs"].get("raw_score", None) is None, (
+            "candidate already has raw_score before evaluation"
+        )
 
         # evaluate based on target property
         if self.target == "energy":
@@ -1086,23 +932,19 @@ class GeneticAlgorithmEngine(BaseExpedition):
             chempot_dict = self.prop_dict["chempot"]
 
             energy = atoms.get_potential_energy()
-            cohesive_energy = energy - np.sum(
-                [chempot_dict[s] for s in atoms.get_chemical_symbols()]
-            )
+            cohesive_energy = energy - np.sum([chempot_dict[s] for s in atoms.get_chemical_symbols()])
             atoms.info["key_value_pairs"]["raw_score"] = -cohesive_energy
             atoms.info["key_value_pairs"]["target"] = cohesive_energy
         elif self.target == "formation_energy":
             identity_stats = atoms.info.get("identity_stats", None)
-            assert (
-                identity_stats is not None
-            ), "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+            assert identity_stats is not None, (
+                "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+            )
             chempot_dict = self.prop_dict["chempot"]
 
             energy = atoms.get_potential_energy()
 
-            formation_energy = energy - np.sum(
-                [chempot_dict[k] * v for k, v in identity_stats.items()]
-            )
+            formation_energy = energy - np.sum([chempot_dict[k] * v for k, v in identity_stats.items()])
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
             atoms.info["key_value_pairs"]["target"] = formation_energy
         elif self.target == "reaction_energy":
@@ -1124,7 +966,3 @@ class GeneticAlgorithmEngine(BaseExpedition):
         engine_params = copy.deepcopy(engine_params)
 
         return engine_params
-
-
-if __name__ == "__main__":
-    ...
