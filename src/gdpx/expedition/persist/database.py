@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 
 import ase.db
@@ -114,7 +110,3 @@ class GlobalOptimisationDatabase:
         ]
 
         return confids
-
-
-if __name__ == "__main__":
-    ...
