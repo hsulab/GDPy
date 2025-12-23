@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import pathlib
 from typing import Optional, Union
@@ -24,8 +20,8 @@ RETAINED_KEYS: list[str] = ["extinct", "origin"]
 def clean_seed_structures(prev_frames: list[Atoms]) -> list[Atoms]:
     """"""
     curr_frames = []
-    energies, forces = [], []
-    for i, prev_atoms in enumerate(prev_frames):
+    # energies, forces = [], []
+    for _, prev_atoms in enumerate(prev_frames):
         # copy geometry
         curr_atoms = Atoms(
             symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
@@ -80,7 +76,7 @@ def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20) ->
         # Check the positions of the substrate atoms. The cell should be checked before.
         a0_substrate_positions = a0.get_positions()[a0_substrate_indices]
         a1_substrate_positions = a1.get_positions()[a1_substrate_indices]
-        mic_vectors, mic_distances = find_mic(a1_substrate_positions - a0_substrate_positions, a0.get_cell())
+        _, mic_distances = find_mic(a1_substrate_positions - a0_substrate_positions, a0.get_cell())
         dmax = np.max(mic_distances)
         a0.info["dmax"] = dmax
         if dmax <= dtol:
@@ -173,18 +169,18 @@ class AbstractPopulationManager:
         self.gen_rep_max_try = gen_params.get("max_reprod_try", self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER)
 
         # Check all numbers are valid
-        assert (
-            self.gen_rep_size + self.gen_ran_size + self.gen_mut_size
-        ) == self.gen_size, "In each generation, the sum of each component does not equal the total size."
-        assert (
-            self.gen_ran_size <= self.gen_size
-        ), "In each generation, the random size should not be larger than the total size."
-        assert (
-            self.gen_rep_size <= self.gen_size
-        ), "In each generation, the reprod size should not be larger than the total size."
-        assert (
-            self.gen_mut_size <= self.gen_size
-        ), "In each generation, the mutate size should not be larger than the total size."
+        assert (self.gen_rep_size + self.gen_ran_size + self.gen_mut_size) == self.gen_size, (
+            "In each generation, the sum of each component does not equal the total size."
+        )
+        assert self.gen_ran_size <= self.gen_size, (
+            "In each generation, the random size should not be larger than the total size."
+        )
+        assert self.gen_rep_size <= self.gen_size, (
+            "In each generation, the reprod size should not be larger than the total size."
+        )
+        assert self.gen_mut_size <= self.gen_size, (
+            "In each generation, the mutate size should not be larger than the total size."
+        )
 
         # Mutation probabilities
         self.pmut = params.get("pmut", 0.5)
@@ -266,6 +262,9 @@ class AbstractPopulationManager:
                 seed_frames = self.init_seed_file
             else:
                 raise RuntimeError(f"Init_seed_file {self.init_seed_file} formst is unsuppoted.")
+            if isinstance(seed_frames, Atoms):
+                seed_frames = [seed_frames]
+            assert all(isinstance(atoms, Atoms) for atoms in seed_frames), "Some seed structures are invalid."
             seed_frames = clean_seed_structures(seed_frames)
             seed_size = len(seed_frames)
             self._print(f"number of seed frames: {seed_size}")
@@ -284,7 +283,7 @@ class AbstractPopulationManager:
         self._print(f"number of seed structures: {len(seed_frames)}")
         starting_population.extend(seed_frames)
 
-        # - generate random structures
+        # Generate random structures
         self._print("----- try to generate random structures -----")
         random_frames = generator.run(size=self.init_size - seed_size)
         self._print(f"number of random structures: {len(random_frames)}")
@@ -336,6 +335,7 @@ class AbstractPopulationManager:
 
         # We need adjust n_top for the variable composition search.
         num_atoms_substrate = database.get_param("num_atoms_substrate")
+        assert isinstance(num_atoms_substrate, int)
 
         # Produce structures by reproduction plus mutation
         rest_rep_size = self.gen_rep_size - num_paired
@@ -437,9 +437,10 @@ class AbstractPopulationManager:
         for i in range(gen_mut_max_try):
             self._print(f"Mutation attempt {i} ->")
             parent = population.get_one_candidate(with_history=True)
+            assert isinstance(parent, Atoms)
             atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
             if atoms is not None:
-                t, desc = desc.split(":")
+                _, desc = desc.split(":")
                 atoms.info["key_value_pairs"]["generation"] = curr_gen
                 atoms.info["data"] = {"parents": [parent.info["confid"]]}
                 confid = database.c.write(
@@ -677,7 +678,3 @@ class AbstractPopulationManager:
                 mutation.slab = prev_substrate
 
         return a3
-
-
-if __name__ == "__main__":
-    ...
