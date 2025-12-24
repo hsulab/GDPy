@@ -17,7 +17,7 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
-from ..persist.database import GenerationInfo
+from ..persist.database import GenerationInfo, GenerationState
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
 from .population.manager import PopulationManager
@@ -365,17 +365,17 @@ class GeneticAlgorithmEngine(BaseExpedition):
         for _ in range(1000):
             gen_info = self.da.get_generation_info()
             if self.read_convergence(gen_info):
-                self._print("reach maximum generation...")
+                self._print("The search reaches maximum generation or extinction...")
                 self.report()
                 break
-            curr_convergence = self._irun(gen_info)
-            if not curr_convergence:
-                self._print("current generation does not converge...")
+            gen_state = self._irun(gen_info)
+            if gen_state == GenerationState.OPT_UNFINISHED:
+                self._print("The optimisation has not finished yet.")
                 break
 
         return
 
-    def _irun(self, gen_info: GenerationInfo) -> bool:
+    def _irun(self, gen_info: GenerationInfo) -> GenerationState:
         """main procedure"""
         # Generation information
         gen_num = gen_info.num
@@ -385,6 +385,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self._print("  confids: " + integers_to_string(sorted(gen_info.relaxed_confids), inp_convention="lmp"))
         self._print(f"  num_unrelaxed: {gen_info.num_unrelaxed}")
         self._print("  confids: " + integers_to_string(sorted(gen_info.unrelaxed_confids), inp_convention="lmp"))
+
+        if gen_info.state == GenerationState.EXTINCTED:
+            self._print("All candidates extincted, cannot proceed further.")
+            return GenerationState.EXTINCTED
 
         # Relax structures
         assert self.worker is not None, "GA has not set its worker properly."
@@ -464,7 +468,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # Check if there were finished jobs
         assert self.generator is not None, "GA has not set its builder properly."
-        curr_convergence = False
+        gen_state = GenerationState.OPT_UNFINISHED
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print(">>>>> Evaluation >>>>>")
@@ -503,20 +507,23 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     ...
                 # evaluate raw score
                 self.evaluate_candidate(cand)
+                self.pop_manager._extinct_candidate(cand)
                 if whether_reduce_cell:
                     cand = reduce_cell_by_bounds(cand, self.generator.cell_bounds)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
-                cand_stat = f"{ia:>4d} confid {confid:<6d} fitness {fitness:>16.4f} "
+                cand_stat = f"{ia:>4d} confid {confid:<6d} fitness {fitness:>16.4f} extinct {cand.info['key_value_pairs']['extinct']:<2d}"
                 if "identity_stats" in cand.info:
                     identity_info = "  " + " ".join([f"{k}: {v}" for k, v in cand.info["identity_stats"].items()])
                     cand_stat += identity_info
                 self._print(cand_stat)
                 self.da.add_relaxed_step(cand)
-            curr_convergence = True
+            num_extincted = sum([cand.info["key_value_pairs"]["extinct"] for cand in converged_candidates])
+            self._print(f"extinct {num_extincted} candidates.")
+            gen_state = GenerationState.OPT_FINISHED
         else:
             self._print("Worker is unfinished.")
 
-        return curr_convergence
+        return gen_state
 
     def get_workers(self, gen_info: Optional[GenerationInfo] = None) -> list:
         """Get all workers used by this expedition."""
@@ -545,7 +552,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         is_converged = False
 
         max_gen = self.conv_dict["generation"]
-        if gen_info.num > max_gen:
+        if gen_info.num > max_gen or gen_info.state == GenerationState.EXTINCTED:
             is_converged = True
         else:
             is_converged = False

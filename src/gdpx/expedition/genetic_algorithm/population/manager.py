@@ -1,6 +1,6 @@
 import copy
 import pathlib
-from typing import Optional, Union
+from typing import Callable, Mapping, Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -8,6 +8,7 @@ from ase.geometry import find_mic
 from ase.io import read
 
 from gdpx.expedition.persist.database import GlobalOptimisationDatabase as GODB
+from gdpx.expedition.persist.thanos import dispatch_thanos
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.profiler import CustomTimer
 
@@ -109,6 +110,22 @@ def is_reproduction_isolation(candidates: Optional[tuple[Atoms, Atoms]]) -> bool
     return is_isolation
 
 
+def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:
+    """Extinct the candidate by given callback.
+
+    Args:
+        atoms: The candidate to be evaluated.
+        extinct_callbacks: A list of callback functions that determine extinction using 0 or 1.
+
+    """
+    extincts = [cb(atoms) for cb in extinct_callbacks]
+
+    extinct = int(sum(extincts) > 0)
+    atoms.info["key_value_pairs"]["extinct"] = extinct
+
+    return
+
+
 class PopulationManager:
     """An abstract population manager for evolutionary algorithms.
 
@@ -192,6 +209,21 @@ class PopulationManager:
         substrate_params = params.get("substrate", dict(dtol=-1.0))
         self.substrate_dtol = substrate_params.get("dtol", -1.0)  # Ang
 
+        # Thanos (observer/describer) extincts structures in the population
+        thanos = params.get("thanos", None)
+        extinct_callbacks = None
+        if thanos is not None:
+            thanos_config = copy.deepcopy(thanos)
+            # check whether dict or list by mapping
+            if isinstance(thanos_config, Mapping):
+                thanos_config = [thanos_config]
+            extinct_callbacks = [dispatch_thanos(**tc) for tc in thanos_config]
+        else:
+            ...
+
+        self.extinct_callbacks = extinct_callbacks
+        self.use_extinct = True if extinct_callbacks is not None else False
+
         # Lazy attributes
         self.population = None
 
@@ -210,6 +242,7 @@ class PopulationManager:
                 data_connection=database,
                 population_size=self.gen_size,
                 comparator=comparing,
+                use_extinct=self.use_extinct,
                 rng=self.rng,
                 print_func=self._print,
                 debug_func=self._debug,
@@ -220,6 +253,7 @@ class PopulationManager:
                 data_connection=database,
                 population_size=self.gen_size,
                 comparator=comparing,
+                use_extinct=self.use_extinct,
                 rng=self.rng,
                 print_func=self._print,
                 debug_func=self._debug,
@@ -230,6 +264,18 @@ class PopulationManager:
             raise RuntimeError(f"Population name `{self.name}` is not supported.")
 
         self.population = population
+
+        return
+
+    def _extinct_candidate(self, atoms: Atoms) -> None:
+        """Extinct the candidate by given callback.
+
+        Args:
+            atoms: The candidate to be evaluated.
+
+        """
+        if self.use_extinct and self.extinct_callbacks is not None:
+            extinct_candidate(atoms, self.extinct_callbacks)
 
         return
 

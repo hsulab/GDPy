@@ -14,6 +14,8 @@ GenerationState = enum.Enum(
         "MID_OF_GEN",
         "END_OF_GEN",
         "EXTINCTED",
+        "OPT_UNFINISHED",
+        "OPT_FINISHED",
     ),
 )
 
@@ -305,6 +307,13 @@ class GlobalOptimisationDatabase:
                 gen_state = GenerationState.MID_OF_GEN
             else:
                 gen_state = GenerationState.END_OF_GEN
+
+        if gen_num > 0:
+            unextincted_relaxed_candidate_rows = list(self.connection.select(f"relaxed=1,extinct=0"))
+            unextincted_relaxed_confids = {row.confid for row in unextincted_relaxed_candidate_rows}
+            num_unextincted_relaxed = len(unextincted_relaxed_confids)
+            if num_unextincted_relaxed == 0:
+                gen_state = GenerationState.EXTINCTED
 
         gen_info = GenerationInfo(
             num=gen_num,
