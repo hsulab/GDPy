@@ -4,10 +4,10 @@ from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
-from ase.ga.data import DataConnection
 from ase.geometry import find_mic
 from ase.io import read
 
+from gdpx.expedition.persist.database import GlobalOptimisationDatabase as GODB
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.profiler import CustomTimer
 
@@ -192,13 +192,13 @@ class AbstractPopulationManager:
 
         return
 
-    def _get_current_candidates(self, database: DataConnection, curr_gen: int):
+    def _get_current_candidates(self, database: GODB, curr_gen: int):
         """Get offsprings in the current generation.
 
         Mutataed candidates do not have `generation` keyword.
 
         Args:
-            database: DataConnection.
+            database: GODB.
             curr_gen: The current generation number.
 
         """
@@ -206,17 +206,17 @@ class AbstractPopulationManager:
         num_paired, num_mutated, num_random = 0, 0, 0
 
         with CustomTimer(name="getting canidates in the current generation", func=self._print):
-            unrelaxed_strus_gen_ = list(database.c.select(f"relaxed=0,generation={curr_gen}"))
+            unrelaxed_strus_gen_ = list(database.connection.select(f"relaxed=0,generation={curr_gen}"))
         for row in unrelaxed_strus_gen_:
             if row.formula:
-                confid = row["gaid"]
+                confid = row["confid"]
                 curr_rows = sorted(
-                    database.c.select(f"relaxed=0,gaid={confid}"),
+                    database.connection.select(f"relaxed=0,confid={confid}"),
                     key=lambda x: x.mtime,
                 )
                 curr_rows = [x for x in curr_rows if x.formula]
                 # get latest atoms, if pairing+mutation, the latest atoms should be the mutated one
-                curr_atoms = database.get_atoms(curr_rows[-1].id, add_info=True)
+                curr_atoms = database.connection.get_atoms(curr_rows[-1].id, add_additional_information=True)
                 # NOTE: candidates should not have description info...
                 #       otherwise, queued row also has them and failed in
                 #       database.c.get_participation_in_pairing()
@@ -287,6 +287,10 @@ class AbstractPopulationManager:
         self._print("----- try to generate random structures -----")
         random_frames = generator.run(size=self.init_size - seed_size)
         self._print(f"number of random structures: {len(random_frames)}")
+        for atoms in random_frames:
+            key_value_pairs = {}
+            key_value_pairs["origin"] = "StartingRandom"
+            atoms.info["key_value_pairs"] = key_value_pairs
         starting_population.extend(random_frames)
 
         if len(starting_population) != self.init_size:
@@ -300,7 +304,7 @@ class AbstractPopulationManager:
 
     def _prepare_current_population(
         self,
-        database: DataConnection,
+        database: GODB,
         curr_gen: int,
         population: Population,
         generator,
@@ -393,7 +397,7 @@ class AbstractPopulationManager:
                         "origin": "RandomCandidateUnrelaxed",
                     }
                     atoms.info["data"] = {}
-                    confid = database.c.write(
+                    confid = database.connection.write(
                         atoms,
                         relaxed=0,
                         extinct=0,
@@ -403,7 +407,7 @@ class AbstractPopulationManager:
                         key_value_pairs=atoms.info["key_value_pairs"],
                         data=atoms.info["data"],
                     )
-                    database.c.update(confid, gaid=confid)
+                    database.connection.update(confid, confid=confid)
                     atoms.info["confid"] = confid
 
                     random_structures.append(atoms)
@@ -443,7 +447,7 @@ class AbstractPopulationManager:
                 _, desc = desc.split(":")
                 atoms.info["key_value_pairs"]["generation"] = curr_gen
                 atoms.info["data"] = {"parents": [parent.info["confid"]]}
-                confid = database.c.write(
+                confid = database.connection.write(
                     atoms,
                     relaxed=0,
                     extinct=0,
@@ -453,7 +457,7 @@ class AbstractPopulationManager:
                     key_value_pairs=atoms.info["key_value_pairs"],
                     data=atoms.info["data"],
                 )
-                database.c.update(confid, gaid=confid)
+                database.connection.update(confid, confid=confid)
                 atoms.info["confid"] = confid
 
                 mutated_structures.append(atoms)
@@ -496,7 +500,7 @@ class AbstractPopulationManager:
 
     def _reproduce(
         self,
-        database: DataConnection,
+        database: GODB,
         curr_gen: int,
         population,
         operators: dict,
@@ -574,7 +578,7 @@ class AbstractPopulationManager:
         prev_substrate = None
         curr_substrate = None
         if self.substrate_dtol > 0.0:
-            prev_substrate = database.get_slab()
+            prev_substrate = database.get_substrate()
             substrate_indices = [i for i, tag in enumerate(parents[0].get_tags()) if tag == 0]
             curr_substrate = copy.deepcopy(parents[0][substrate_indices])
 

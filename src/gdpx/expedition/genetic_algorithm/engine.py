@@ -9,7 +9,6 @@ import numpy as np
 from ase import Atoms
 from ase.build import niggli_reduce
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.ga.data import DataConnection, PrepareDB
 from ase.ga.offspring_creator import OperationSelector
 from ase.ga.utilities import CellBounds
 from ase.io import read, write
@@ -19,6 +18,7 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
+from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
 from .population.manager import AbstractPopulationManager
 from .population.population import (
@@ -27,7 +27,7 @@ from .population.population import (
 )
 
 
-def get_generation_number(da: DataConnection) -> int:
+def get_generation_number(da: GODB) -> int:
     """Check the number of generation based on the number of relaxed candidates.
 
     The population size of the first generation can be different from the following ones.
@@ -42,7 +42,7 @@ def get_generation_number(da: DataConnection) -> int:
     init_pop_size: int = da.get_param("initial_population_size")  # type: ignore
     pop_size: int = da.get_param("population_size")  # type: ignore
 
-    all_candidates = list(da.c.select(relaxed=1))
+    all_candidates = list(da.connection.select(relaxed=1))
     counter = collections.Counter([c.generation for c in all_candidates])
     generations = sorted(list(counter.keys()))
     num_generations = len(generations)
@@ -184,11 +184,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
     #: Prefix of each generation's directory.
     GEN_PREFIX: str = "gen"
 
-    # TODO: Neighbor list and parametrization parameters to screen
-    # candidates before relaxation can be added. Default is not to use.
-    find_neighbors = None
-    perform_parametrization = None
-
     def __init__(
         self,
         builder: dict,
@@ -307,7 +302,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         """
         self._print("restart the database...")
-        self.da = DataConnection(self.db_path)
+        self.da = GODB(self.db_path)
         results = self.directory / "results"
         if not results.exists():
             results.mkdir()
@@ -398,7 +393,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self._create_initial_population()
         else:
             self._print("restart the database...")
-            self.da = DataConnection(self.db_path)
+            self.da = GODB(self.db_path)
 
         num_atoms_substrate = self.da.get_param("num_atoms_substrate")
         self._print(f"{num_atoms_substrate=}")
@@ -427,19 +422,19 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         self.cur_gen = get_generation_number(self.da)
 
-        unrelaxed_strus_gen_ = list(self.da.c.select("relaxed=0,generation=%d" % self.cur_gen))
+        unrelaxed_strus_gen_ = list(self.da.connection.select("relaxed=0,generation=%d" % self.cur_gen))
         unrelaxed_strus_gen = []
         for row in unrelaxed_strus_gen_:
-            # NOTE: mark_as_queue unrelaxed_candidate will have relaxed field too...
+            # mark_as_queue unrelaxed_candidate will have relaxed field too...
             if "queued" not in row:
                 unrelaxed_strus_gen.append(row)
-        self.unrelaxed_confids = [row["gaid"] for row in unrelaxed_strus_gen]
+        self.unrelaxed_confids = [row["confid"] for row in unrelaxed_strus_gen]
         self.num_unrelaxed_gen = len(self.unrelaxed_confids)
 
-        relaxed_strus_gen = list(self.da.c.select("relaxed=1,generation=%d" % self.cur_gen))
+        relaxed_strus_gen = list(self.da.connection.select("relaxed=1,generation=%d" % self.cur_gen))
         for row in relaxed_strus_gen:
             self._debug(row)
-        self.relaxed_confids = [row["gaid"] for row in relaxed_strus_gen]
+        self.relaxed_confids = [row["confid"] for row in relaxed_strus_gen]
         self.num_relaxed_gen = len(self.relaxed_confids)
 
         # check if this is the begin or the end of the current generation
@@ -450,50 +445,24 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def _irun(self):
         """main procedure"""
+        # Generation information
         if not hasattr(self, "cur_gen"):
             raise RuntimeError("The current genertion is unknown. Check generation before.")
-        # - generation
-        self._print("===== Generation Info =====")
-        self._print(f"current generation number: {self.cur_gen}")
-        self._print(f"number of relaxed in current generation: {self.num_relaxed_gen}")
-        self._print("confids: " + integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
-        self._print(f"number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
-        self._print("confids: " + integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
-        self._print(f"end of current generation: {self.end_of_gen}")
-
-        # - population
-        self._print("===== Population Info =====")
-        content = "For generation > 0,\n"
-        content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format("Reprod", "Random", "Mutate", "Total")
-        content += "{:>8d}  {:>8d}  {:>8d}  {:>8d}\n".format(
-            self.pop_manager.gen_rep_size,
-            self.pop_manager.gen_ran_size,
-            self.pop_manager.gen_mut_size,
-            self.pop_manager.gen_size,
-        )
-        content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
-        for l in content.split("\n"):
-            self._print(l)
+        self._print(f"===== Generation {self.cur_gen:>04d} =====")
+        self._print(f"  current generation number: {self.cur_gen}")
+        self._print(f"  number of relaxed in current generation: {self.num_relaxed_gen}")
+        self._print("  confids: " + integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
+        self._print(f"  number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
+        self._print("  confids: " + integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
+        self._print(f"  end of current generation: {self.end_of_gen}")
 
         # Relax structures
         assert self.worker is not None, "GA has not set its worker properly."
         if self.cur_gen == 0:
-            self._print("===== Initial Population Calculation =====")
-            frames_to_work = []
-            while self.da.get_number_of_unrelaxed_candidates():  # NOTE: this uses GADB get_atoms which adds extra_info
-                # calculate structures from init population
-                atoms = self.da.get_an_unrelaxed_candidate()
-                frames_to_work.append(atoms)
-                self.da.mark_as_queued(atoms)  # this marks relaxation is in the queue
-            confids = [a.info["confid"] for a in frames_to_work]
-            self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
-            # NOTE: provide unified interface to mlp and dft
-            if frames_to_work:
-                self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
-                _ = self.worker.run(frames_to_work)  # retrieve later
+            # mark_as_queued later before optimisation
+            current_candidates = self.da.get_all_unrelaxed_candidates(mark_as_queued=False)
         else:
             # --- update population
-            self._print("===== Update Population =====")
             # Check candidate origin for the current generation
             candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
                 database=self.da, curr_gen=self.cur_gen
@@ -587,32 +556,32 @@ class GeneticAlgorithmEngine(BaseExpedition):
             # for k, v in candidate_groups.items():
             #     self._print(f"  {k}: {len(v)}")
 
-            # TODO: send candidates directly to worker that respects the batchsize
-            self._print("===== Optimisation =====")
-            for ia, a in enumerate(current_candidates):
-                parents = "none"
-                if "parents" in a.info["data"]:
-                    parents = " ".join([str(x) for x in a.info["data"]["parents"]])
-                self._print(
-                    f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
-                )
-            if not (self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}").exists():
-                frames_to_work = []
-                for atoms in current_candidates:
-                    frames_to_work.append(atoms)
-                    self.da.mark_as_queued(atoms)  # this marks relaxation is in the queue
-                if frames_to_work:
-                    confids = [a.info["confid"] for a in frames_to_work]
-                    self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
-                    self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
-                    _ = self.worker.run(frames_to_work)  # retrieve later
-            else:
-                self._print(f"calculation directory for generation {self.cur_gen} exists.")
+        # TODO: send candidates directly to worker that respects the batchsize
+        self._print("===== Optimisation =====")
+        generation_directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
+        self.worker.directory = generation_directory
+
+        for ia, a in enumerate(current_candidates):
+            parents = "none"
+            if "parents" in a.info["data"]:
+                parents = " ".join([str(x) for x in a.info["data"]["parents"]])
+            self._print(
+                f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
+            )
+
+        if not generation_directory.exists():
+            for atoms in current_candidates:
+                self.da.mark_as_queued(atoms)
+            if current_candidates:
+                confids = [a.info["confid"] for a in current_candidates]
+                self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
+                _ = self.worker.run(current_candidates)  # retrieve later
+        else:
+            self._print(f"calculation directory for generation {self.cur_gen} exists.")
 
         # Check if there were finished jobs
         assert self.generator is not None, "GA has not set its builder properly."
         curr_convergence = False
-        self.worker.directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print("===== Retrieve Relaxed Population =====")
@@ -630,7 +599,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 # get tags
                 confid = cand.info["confid"]
                 if self.generator.use_tags:
-                    rows = list(self.da.c.select(f"relaxed=0,gaid={confid}"))
+                    rows = list(self.da.connection.select(f"relaxed=0,confid={confid}"))
                     rows = sorted(
                         [row for row in rows if row.formula],
                         key=lambda row: row.mtime,
@@ -658,11 +627,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     identity_info = "  " + " ".join([f"{k}: {v}" for k, v in cand.info["identity_stats"].items()])
                     cand_stat += identity_info
                 self._print(cand_stat)
-                self.da.add_relaxed_step(
-                    cand,
-                    find_neighbors=self.find_neighbors,
-                    perform_parametrization=self.perform_parametrization,
-                )
+                self.da.add_relaxed_step(cand)
             curr_convergence = True
         else:
             self._print("Worker is unfinished.")
@@ -672,7 +637,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def get_workers(self):
         """Get all workers used by this expedition."""
         if not hasattr(self, "da"):
-            self.da = DataConnection(self.db_path)
+            self.da = GODB(self.db_path)
             self._check_generation()
 
         num_gen = self.cur_gen
@@ -694,7 +659,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def read_convergence(self):
         """check whether the search is converged"""
         if not hasattr(self, "cur_gen"):
-            self.da = DataConnection(self.db_path)
+            self.da = GODB(self.db_path)
             self._check_generation()
         max_gen = self.conv_dict["generation"]
         if self.cur_gen > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
@@ -722,7 +687,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 ...
 
         specific_params: dict[str, Any] = dict(
-            slab=self.da.get_slab(),
+            slab=self.da.get_substrate(),
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=0,  # We will determine `n_top` on-the-fly when crossover and mutation.
             used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
@@ -869,6 +834,19 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def _create_initial_population(
         self,
     ):
+        self._print("===== Population Info =====")
+        content = "For generation > 0,\n"
+        content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format("Reprod", "Random", "Mutate", "Total")
+        content += "{:>8d}  {:>8d}  {:>8d}  {:>8d}\n".format(
+            self.pop_manager.gen_rep_size,
+            self.pop_manager.gen_ran_size,
+            self.pop_manager.gen_mut_size,
+            self.pop_manager.gen_size,
+        )
+        content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
+        for l in content.split("\n"):
+            self._print(l)
+
         # For all targets, we must have tags to infer num_atoms_substrate.
         # Thus, we can have a crystal substrate and include part of its atoms
         # for further crossover and mutation.
@@ -893,10 +871,15 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         canonicalised_substrate = substrate[:num_atoms_substrate]
 
-        # Create the database to store information in
-        da = PrepareDB(
-            db_file_name=self.db_path,
-            simulation_cell=canonicalised_substrate,
+        # Initialise database
+        da = GODB(self.db_path)
+        da.init_task(
+            canonicalised_substrate,
+            data=dict(
+                population_size=self.pop_manager.gen_size,
+                initial_population_size=self.pop_manager.init_size,
+                num_atoms_substrate=num_atoms_substrate,
+            ),
         )
 
         # Generate structures for the initial population
@@ -904,19 +887,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         self._print(f"save population {len(starting_population)} to database")
         for a in starting_population:
-            da.add_unrelaxed_candidate(a)
+            da.add_unrelaxed_candidate(a, generation=0)
 
-        # Save some global information in the database
-        # TODO: change this to the DB interface
-        row = da.c.get(1)
-        new_data = row["data"].copy()
-        new_data["population_size"] = self.pop_manager.gen_size
-        new_data["initial_population_size"] = self.pop_manager.init_size
-        new_data["num_atoms_substrate"] = num_atoms_substrate
-
-        da.c.update(1, data=new_data)
-
-        self.da = DataConnection(self.db_path)
+        self.da = da
 
         return
 

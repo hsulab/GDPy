@@ -1,7 +1,16 @@
 import pathlib
+from typing import Optional
 
 import ase.db
 from ase import Atoms
+
+
+def split_description(desc: str) -> tuple[str, str]:
+    """Split a description."""
+    d = desc.split(":")
+    assert len(d) == 2, desc
+
+    return d[0], d[1]
 
 
 class GlobalOptimisationDatabase:
@@ -17,11 +26,76 @@ class GlobalOptimisationDatabase:
 
         return
 
-    def add_unrelaxed_candidate(self, candidate: Atoms, **kwargs):
+    def init_task(self, substrate: Atoms, data: dict[str, int]) -> None:
         """"""
-        confid = self.connection.write(candidate, relaxed=0, queued=0, extinct=0, **kwargs)
+        # We must have three integers, population_size, initial_population_size, and num_atoms_substrate in data
+        if "population_size" not in data or "initial_population_size" not in data or "num_atoms_substrate" not in data:
+            raise RuntimeError(
+                "Data dictionary must contain 'population_size', 'initial_population_size', and 'num_atoms_substrate' keys."
+            )
+
+        self.connection.write(
+            substrate,
+            data=data,
+            substrate=True,
+        )
+
+        return
+
+    def get_param(self, parameter: str) -> Optional[int]:
+        """Get a parameter saved when creating the database."""
+        param = None
+        if self.connection.get(1).get("data"):
+            param = self.connection.get(1).data.get(parameter, None)
+
+        return param
+
+    def get_substrate(self):
+        """Get the substrate."""
+        return self.connection.get_atoms(substrate=True)
+
+    def add_unrelaxed_candidate(self, candidate: Atoms, description: str = "", **kwargs):
+        """"""
+        if description:
+            t, desc = split_description(description)
+            kwargs.update(**{t: 1, "description": desc})
+
+        key_value_pairs = candidate.info.get("key_value_pairs", {})
+        data = candidate.info.get("data", {})
+
+        confid = self.connection.write(
+            candidate,
+            key_value_pairs=key_value_pairs,
+            data=data,
+            relaxed=0,
+            queued=0,
+            extinct=0,
+            **kwargs,
+        )
         self.connection.update(confid, confid=confid)
         candidate.info["confid"] = confid
+
+        return
+
+    def add_unrelaxed_step(self, candidate: Atoms, description: str = "", **kwargs) -> None:
+        """"""
+        confid = candidate.info["confid"]
+        if description:
+            t, desc = split_description(description)
+            kwargs.update(**{t: 1, "description": desc})
+
+        key_value_pairs = candidate.info.get("key_value_pairs", {})
+        data = candidate.info.get("data", {})
+
+        self.connection.write(
+            candidate,
+            key_value_pairs=key_value_pairs,
+            data=data,
+            confid=confid,
+            relaxed=0,
+            extinct=0,
+            **kwargs,
+        )
 
         return
 
@@ -29,9 +103,9 @@ class GlobalOptimisationDatabase:
         """"""
         assert "raw_score" in atoms.info["key_value_pairs"]
 
+        # We may have several entries due to add_unrelaxed_step
         confid = atoms.info["confid"]
-        rows = list(self.connection.select(confid=confid, relaxed=0))
-        assert len(rows) == 1
+        # rows = list(self.connection.select(confid=confid, relaxed=0))
 
         relax_id = self.connection.write(
             atoms,
@@ -71,13 +145,13 @@ class GlobalOptimisationDatabase:
 
         return candidates
 
-    def get_number_of_relaxed_candidates(self):
+    def get_number_of_relaxed_candidates(self) -> int:
         """"""
         confids = self._get_all_relaxed_confids()
 
         return len(confids)
 
-    def _get_all_relaxed_confids(self):
+    def _get_all_relaxed_confids(self) -> list[int]:
         """"""
         relaxed_confids = {row.confid for row in self.connection.select(relaxed=1)}
 
@@ -99,10 +173,16 @@ class GlobalOptimisationDatabase:
 
         return candidates
 
-    def _get_all_unrelaxed_confids(self):
+    def get_number_of_unrelaxed_candidates(self) -> int:
         """"""
-        relaxed_confids = {row.confid for row in self.connection.select(relaxed=1)}
+        confids = self._get_all_unrelaxed_confids()
+
+        return len(confids)
+
+    def _get_all_unrelaxed_confids(self) -> list[int]:
+        """"""
         unrelaxed_confids = {row.confid for row in self.connection.select(relaxed=0)}
+        relaxed_confids = {row.confid for row in self.connection.select(relaxed=1)}
         queued_confids = {row.confid for row in self.connection.select(queued=1)}
 
         confids = [
@@ -110,3 +190,40 @@ class GlobalOptimisationDatabase:
         ]
 
         return confids
+
+    def mark_as_queued(self, candidate: Atoms) -> None:
+        """"""
+        confid = candidate.info["confid"]
+        key_value_pairs = candidate.info.get("key_value_pairs", {})
+
+        self.connection.write(
+            None,
+            confid=confid,
+            queued=1,
+            key_value_pairs=key_value_pairs,
+        )
+
+        return
+
+    def get_participation_in_pairing(self) -> tuple[dict[int, int], list[tuple[int, int]]]:
+        """Get how many times each candidate has participated in pairing.
+
+        Note:
+            doi.org/10.1021/ja305004a
+
+        """
+        entries = self.connection.select(pairing=1)
+
+        frequency = {}
+        pairs = []
+        for e in entries:
+            c1, c2 = e.data["parents"]
+            pairs.append(tuple(sorted([c1, c2])))
+            if c1 not in frequency.keys():
+                frequency[c1] = 0
+            frequency[c1] += 1
+            if c2 not in frequency.keys():
+                frequency[c2] = 0
+            frequency[c2] += 1
+
+        return (frequency, pairs)

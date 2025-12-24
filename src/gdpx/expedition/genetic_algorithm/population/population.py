@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import itertools
 import time
@@ -9,8 +5,8 @@ from typing import Optional
 
 import numpy as np
 from ase import Atoms
-from ase.ga.data import DataConnection
 
+from gdpx.expedition.persist.database import GlobalOptimisationDatabase as GODB
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.profiler import CustomTimer
 
@@ -55,7 +51,7 @@ class Population:
 
     def __init__(
         self,
-        data_connection: DataConnection,
+        data_connection: GODB,
         population_size: int,
         comparator=None,
         use_extinct: bool = False,
@@ -297,7 +293,6 @@ def delete_fingerprints(structures: list[Atoms], comparator, print_func) -> None
 
 
 class PopulationWithVariableComposition(Population):
-
     def __initialise_population__(self) -> None:
         """Private method that initialises the population when the population is created."""
         super().__initialise_population__()
@@ -379,7 +374,3 @@ class PopulationWithVariableComposition(Population):
             ...
 
         return c1
-
-
-if __name__ == "__main__":
-    ...
