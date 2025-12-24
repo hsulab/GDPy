@@ -1,9 +1,43 @@
 import collections
+import dataclasses
+import enum
 import pathlib
 from typing import Optional
 
 import ase.db
 from ase import Atoms
+
+GenerationState = enum.Enum(
+    "GenerationState",
+    (
+        "BEG_OF_GEN",
+        "MID_OF_GEN",
+        "END_OF_GEN",
+        "EXTINCTED",
+    ),
+)
+
+
+@dataclasses.dataclass
+class GenerationInfo:
+    #: The generation number.
+    num: int
+
+    #: The generation state.
+    state: GenerationState
+
+    #: The unrelaxed candidate confids.
+    unrelaxed_confids: list[int]
+
+    #: The relaxed candidate confids.
+    relaxed_confids: list[int]
+
+    def __post_init__(self) -> None:
+        """"""
+        self.num_unrelaxed = len(self.unrelaxed_confids)
+        self.num_relaxed = len(self.relaxed_confids)
+
+        return
 
 
 def split_description(desc: str) -> tuple[str, str]:
@@ -242,6 +276,40 @@ class GlobalOptimisationDatabase:
                     gen_num += 1
 
         return gen_num
+
+    def get_generation_info(self) -> GenerationInfo:
+        """Get the current generation state.
+
+        Returns:
+            GenerationState: generation state
+
+        """
+        gen_num = self.get_generation_number()
+
+        unrelaxed_candidate_rows = list(self.connection.select(f"relaxed=0,generation={gen_num}"))
+        unrelaxed_confids = {row.confid for row in unrelaxed_candidate_rows}
+        num_unrelaxed = len(unrelaxed_confids)
+
+        relaxed_candidate_rows = list(self.connection.select(f"relaxed=1,generation={gen_num}"))
+        relaxed_confids = {row.confid for row in relaxed_candidate_rows}
+        num_relaxed = len(relaxed_confids)
+
+        if num_relaxed == 0:
+            gen_state = GenerationState.BEG_OF_GEN
+        else:
+            if num_relaxed < num_unrelaxed:
+                gen_state = GenerationState.MID_OF_GEN
+            else:
+                gen_state = GenerationState.END_OF_GEN
+
+        gen_info = GenerationInfo(
+            num=gen_num,
+            state=gen_state,
+            unrelaxed_confids=list(unrelaxed_confids),
+            relaxed_confids=list(relaxed_confids),
+        )
+
+        return gen_info
 
     def get_participation_in_pairing(self) -> tuple[dict[int, int], list[tuple[int, int]]]:
         """Get how many times each candidate has participated in pairing.

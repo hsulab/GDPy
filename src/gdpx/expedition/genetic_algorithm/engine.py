@@ -1,8 +1,7 @@
-import collections
 import copy
 import itertools
 import pathlib
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,6 +17,7 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
+from ..persist.database import GenerationInfo, GenerationState
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
 from .population.manager import AbstractPopulationManager
@@ -364,66 +364,41 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self._register_operators()
 
         # Run genetic
+        gen_info = None
         for _ in range(1000):
-            self._check_generation()
-            if self.read_convergence():
+            gen_info = self.da.get_generation_info()
+            if self.read_convergence(gen_info):
                 self._print("reach maximum generation...")
                 self.report()
                 break
-            curr_convergence = self._irun()
+            curr_convergence = self._irun(gen_info)
             if not curr_convergence:
                 self._print("current generation does not converge...")
                 break
 
         return
 
-    def _check_generation(self):
-        """Check the generation status."""
-        self.gen_num = self.da.get_generation_number()
-
-        unrelaxed_strus_gen_ = list(self.da.connection.select("relaxed=0,generation=%d" % self.gen_num))
-        unrelaxed_strus_gen = []
-        for row in unrelaxed_strus_gen_:
-            # mark_as_queue unrelaxed_candidate will have relaxed field too...
-            if "queued" not in row:
-                unrelaxed_strus_gen.append(row)
-        self.unrelaxed_confids = [row["confid"] for row in unrelaxed_strus_gen]
-        self.num_unrelaxed_gen = len(self.unrelaxed_confids)
-
-        relaxed_strus_gen = list(self.da.connection.select("relaxed=1,generation=%d" % self.gen_num))
-        for row in relaxed_strus_gen:
-            self._debug(row)
-        self.relaxed_confids = [row["confid"] for row in relaxed_strus_gen]
-        self.num_relaxed_gen = len(self.relaxed_confids)
-
-        # check if this is the begin or the end of the current generation
-        self.beg_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen == 0)
-        self.end_of_gen = (self.num_relaxed_gen == self.num_unrelaxed_gen) and (self.num_relaxed_gen != 0)
-
-        return
-
-    def _irun(self):
+    def _irun(self, gen_info: GenerationInfo) -> bool:
         """main procedure"""
         # Generation information
-        if not hasattr(self, "gen_num"):
-            raise RuntimeError("The current genertion is unknown. Check generation before.")
-        self._print(f"===== Generation {self.gen_num:>04d} =====")
-        self._print(f"  num_relaxed: {self.num_relaxed_gen}")
-        self._print("  confids: " + integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
-        self._print(f"  num_unrelaxed: {self.num_unrelaxed_gen}")
-        self._print("  confids: " + integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
-        self._print(f"  end of generation? {self.end_of_gen}")
+        gen_num = gen_info.num
+        self._print(f"===== Generation {gen_num:>04d} =====")
+        self._print(f"  {gen_info.state}")
+        self._print(f"  num_relaxed: {gen_info.num_relaxed}")
+        self._print("  confids: " + integers_to_string(sorted(gen_info.relaxed_confids), inp_convention="lmp"))
+        self._print(f"  num_unrelaxed: {gen_info.num_unrelaxed}")
+        self._print("  confids: " + integers_to_string(sorted(gen_info.unrelaxed_confids), inp_convention="lmp"))
 
         # Relax structures
         assert self.worker is not None, "GA has not set its worker properly."
-        if self.gen_num == 0:
+        if gen_num == 0:
             # mark_as_queued later before optimisation
             current_candidates = self.da.get_all_unrelaxed_candidates(mark_as_queued=False)
         else:
             # --- update population
             # Check candidate origin for the current generation
             candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-                database=self.da, curr_gen=self.gen_num
+                database=self.da, curr_gen=gen_num
             )
             self._print("candidate origin distribution before:")
             for k, v in candidate_groups.items():
@@ -464,59 +439,33 @@ class GeneticAlgorithmEngine(BaseExpedition):
             )
 
             # Generate candidates for the current generation
-            current_candidates = []
-            if self.beg_of_gen:  # (num_relaxed == num_unrelaxed == 0)
-                current_candidates = self.pop_manager._prepare_current_population(
-                    database=self.da,
-                    curr_gen=self.gen_num,
-                    population=current_population,
-                    generator=self.generator,
-                    operators=self.operators,
-                )
-            else:
+            is_prodcution_complete = (num_paired + num_mutated + num_random) >= self.pop_manager.gen_size
+            if not is_prodcution_complete:
                 self._print("Current generation has not finished...")
-                # NOTE: The current candidates have not been created completely.
-                #       For example, num_relaxed != num_unrelaxed,
-                #       need create more candidates...
-                if self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen < self.pop_manager.gen_size):
-                    current_candidates = self.pop_manager._prepare_current_population(
-                        database=self.da,
-                        curr_gen=self.gen_num,
-                        population=current_population,
-                        generator=self.generator,
-                        operators=self.operators,
-                        candidate_groups=candidate_groups,
-                        num_paired=num_paired,
-                        num_mutated=num_mutated,
-                        num_random=num_random,
-                    )
-                elif self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen == self.pop_manager.gen_size):
-                    # no relaxed, and finished creation, num_relaxed == gen_size?
-                    current_candidates = self.pop_manager._prepare_current_population(
-                        database=self.da,
-                        curr_gen=self.gen_num,
-                        population=current_population,
-                        generator=self.generator,
-                        operators=self.operators,
-                        candidate_groups=candidate_groups,
-                        num_paired=num_paired,
-                        num_mutated=num_mutated,
-                        num_random=num_random,
-                    )
-                else:
-                    ...
+            # The current candidates have not been created completely.
+            # For example, num_relaxed != num_unrelaxed, need create more candidates...
+            current_candidates = self.pop_manager._prepare_current_population(
+                database=self.da,
+                curr_gen=gen_num,
+                population=current_population,
+                generator=self.generator,
+                operators=self.operators,
+                candidate_groups=candidate_groups,
+                num_paired=num_paired,
+                num_mutated=num_mutated,
+                num_random=num_random,
+            )
 
             # Validate candidate origins for the current generation
             candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-                database=self.da, curr_gen=self.gen_num
+                database=self.da, curr_gen=gen_num
             )
             self._print("candidate origin distribution after:")
             for k, v in candidate_groups.items():
                 self._print(f"  {k}: {len(v)}")
 
-        # TODO: send candidates directly to worker that respects the batchsize
-        self._print("===== Optimisation =====")
-        generation_directory = self.directory / self.CALC_DIRNAME / f"gen{self.gen_num}"
+        self._print(">>>>> Optimisation >>>>>")
+        generation_directory = self.directory / self.CALC_DIRNAME / f"gen{gen_num}"
         self.worker.directory = generation_directory
 
         for ia, a in enumerate(current_candidates):
@@ -527,6 +476,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
             )
 
+        # TODO: We need check if optimisation task is already created,
+        #       and also if the current candidates are correctly queued.
         if not generation_directory.exists():
             for atoms in current_candidates:
                 self.da.mark_as_queued(atoms)
@@ -535,23 +486,24 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
                 _ = self.worker.run(current_candidates)  # retrieve later
         else:
-            self._print(f"calculation directory for generation {self.gen_num} exists.")
+            self._print(f"calculation directory for generation {gen_num} exists.")
 
         # Check if there were finished jobs
         assert self.generator is not None, "GA has not set its builder properly."
         curr_convergence = False
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
-            self._print("===== Retrieve Relaxed Population =====")
+            self._print(">>>>> Evaluation >>>>>")
+            # TODO: If stop during evaluation?
             whether_reduce_cell = hasattr(self.generator, "cell_bounds")
             if whether_reduce_cell:
                 self._print("The candidates will be reduced by cell bounds.")
             converged_candidates = [t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)]
-            for cand in converged_candidates:
+            for ia, cand in enumerate(converged_candidates):
                 # update extra info
                 extra_info = dict(
                     data={},
-                    key_value_pairs={"generation": self.gen_num, "extinct": 0},
+                    key_value_pairs={"generation": gen_num, "extinct": 0},
                 )
                 cand.info.update(extra_info)
                 # get tags
@@ -580,7 +532,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 if whether_reduce_cell:
                     cand = reduce_cell_by_bounds(cand, self.generator.cell_bounds)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
-                cand_stat = f"confid {confid:<6d} relaxed with fitness {fitness:>16.4f} "
+                cand_stat = f"{ia:>4d} confid {confid:<6d} fitness {fitness:>16.4f} "
                 if "identity_stats" in cand.info:
                     identity_info = "  " + " ".join([f"{k}: {v}" for k, v in cand.info["identity_stats"].items()])
                     cand_stat += identity_info
@@ -592,38 +544,39 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         return curr_convergence
 
-    def get_workers(self):
+    def get_workers(self, gen_info: Optional[GenerationInfo] = None) -> list:
         """Get all workers used by this expedition."""
-        if not hasattr(self, "da"):
-            self.da = GODB(self.db_path)
-            self._check_generation()
-
-        num_gen = self.gen_num
-        if self.end_of_gen:
-            num_gen += 1
+        if gen_info is None:
+            da = self.da if hasattr(self, "da") else GODB(self.db_path)
+            gen_info = da.get_generation_info()
 
         assert self.worker is not None, "GA has not set its worker properly."
         if hasattr(self.worker.potter, "remove_loaded_models"):
             self.worker.potter.remove_loaded_models()
 
         workers = []
-        for i in range(num_gen):
+        for i in range(gen_info.num):
             curr_worker = copy.deepcopy(self.worker)
             curr_worker.directory = self.directory / self.CALC_DIRNAME / (f"{self.GEN_PREFIX}{i}")
             workers.append(curr_worker)
 
         return workers
 
-    def read_convergence(self):
+    def read_convergence(self, gen_info: Optional[GenerationInfo] = None) -> bool:
         """check whether the search is converged"""
-        if not hasattr(self, "cur_gen"):
-            self.da = GODB(self.db_path)
-            self._check_generation()
+        if gen_info is None:
+            da = self.da if hasattr(self, "da") else GODB(self.db_path)
+            gen_info = da.get_generation_info()
+
+        is_converged = False
+
         max_gen = self.conv_dict["generation"]
-        if self.gen_num > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
-            return True
+        if gen_info.num > max_gen:
+            is_converged = True
         else:
-            return False
+            is_converged = False
+
+        return is_converged
 
     def _register_operators(self):
         """"""
