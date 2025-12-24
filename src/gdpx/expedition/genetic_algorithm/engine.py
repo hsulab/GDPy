@@ -345,13 +345,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # Check database existence and generation number to determine restart
         self._print("===== register database =====")
-        self._debug(f"database path: {str(self.db_path)}")
-        if not self.db_path.exists():
-            self._print("create a new database...")
-            self._create_initial_population()
-        else:
-            self._print("restart the database...")
-            self.da = GODB(self.db_path)
+        self._register_database()
+        assert self.da is not None, "GA has not set its database properly."
 
         num_atoms_substrate = self.da.get_param("num_atoms_substrate")
         self._print(f"{num_atoms_substrate=}")
@@ -390,10 +385,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self._print("All candidates extincted, cannot proceed further.")
             return GenerationState.EXTINCTED
 
-        # Relax structures
+        # Get structures for the current generation
         assert self.worker is not None, "GA has not set its worker properly."
         if gen_num == 0:
-            current_candidates = self._get_candidates_for_the_first_generation()
+            current_candidates = self._get_candidates_for_the_first_generation(gen_num)
         else:
             current_candidates = self._get_candidates_for_the_other_generation(gen_num)
 
@@ -479,12 +474,23 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         return gen_state
 
-    def _get_candidates_for_the_first_generation(self) -> list[Atoms]:
+    def _get_candidates_for_the_first_generation(self, gen_num: int) -> list[Atoms]:
         """The main procedure for the first generation."""
-        # mark_as_queued later before optimisation
-        candidates = self.da.get_all_unrelaxed_candidates(mark_as_queued=False)
+        assert gen_num == 0, "This function is only for the first generation."
 
-        return candidates
+        # Generate structures for the initial population
+        starting_population = self.pop_manager._prepare_initial_population(generator=self.generator)
+        for a in starting_population:
+            self.da.add_unrelaxed_candidate(a, generation=gen_num)
+
+        # Validate candidate origins for the current generation
+        candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+            database=self.da, curr_gen=gen_num
+        )
+        self._print("candidate origin distribution after:")
+        self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
+
+        return starting_population
 
     def _get_candidates_for_the_other_generation(self, gen_num: int) -> list[Atoms]:
         """The main procedure for other generations."""
@@ -734,7 +740,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         return dict(comparing=comparing, pairing=pairing, mutations=mutations)
 
-    def _create_initial_population(
+    def _register_database(
         self,
     ):
         self._print("===== Population Info =====")
@@ -784,13 +790,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 num_atoms_substrate=num_atoms_substrate,
             ),
         )
-
-        # Generate structures for the initial population
-        starting_population = self.pop_manager._prepare_initial_population(generator=self.generator)
-
-        self._print(f"save population {len(starting_population)} to database")
-        for a in starting_population:
-            da.add_unrelaxed_candidate(a, generation=0)
 
         self.da = da
 

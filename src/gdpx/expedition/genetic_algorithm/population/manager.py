@@ -332,7 +332,7 @@ class PopulationManager:
         return candidate_groups, num_paired, num_mutated, num_random
 
     def _prepare_initial_population(self, generator) -> list[Atoms]:
-        self._print("===== Prepare Initial Population =====")
+        """"""
         starting_population = []
 
         # Try to read seed structures and them into database.
@@ -364,9 +364,11 @@ class PopulationManager:
         # TODO: check geometric convergence if energy and forces are provided
         for i, atoms in enumerate(seed_frames):
             atoms.info["data"] = {}
-            atoms.info["key_value_pairs"] = {}
-            atoms.info["key_value_pairs"]["origin"] = "seed {}".format(i)
-            # atoms.info["key_value_pairs"]["raw_score"] = -atoms.get_potential_energy()
+            atoms.info["key_value_pairs"] = dict(
+                origin=f"StartingSeed_{i:>04df}",
+                extinct=0,
+                # raw_score=-atoms.get_potential_energy(),
+            )
         self._print(f"number of seed structures: {len(seed_frames)}")
         starting_population.extend(seed_frames)
 
@@ -375,9 +377,11 @@ class PopulationManager:
         random_frames = generator.run(size=self.init_size - seed_size)
         self._print(f"number of random structures: {len(random_frames)}")
         for atoms in random_frames:
-            key_value_pairs = {}
-            key_value_pairs["origin"] = "StartingRandom"
-            atoms.info["key_value_pairs"] = key_value_pairs
+            atoms.info["data"] = {}
+            atoms.info["key_value_pairs"] = dict(
+                origin="StartingRandom",
+                extinct=0,
+            )
         starting_population.extend(random_frames)
 
         if len(starting_population) != self.init_size:
