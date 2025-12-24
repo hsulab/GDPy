@@ -401,8 +401,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 database=self.da, curr_gen=gen_num
             )
             self._print("candidate origin distribution before:")
-            for k, v in candidate_groups.items():
-                self._print(f"  {k:<8s}: {len(v):<8d}")
+            self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
             # TODO: random seed...
             if self.pop_manager.name == "constant":
@@ -461,8 +460,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 database=self.da, curr_gen=gen_num
             )
             self._print("candidate origin distribution after:")
-            for k, v in candidate_groups.items():
-                self._print(f"  {k}: {len(v)}")
+            self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
         self._print(">>>>> Optimisation >>>>>")
         generation_directory = self.directory / self.CALC_DIRNAME / f"gen{gen_num}"
