@@ -393,55 +393,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Relax structures
         assert self.worker is not None, "GA has not set its worker properly."
         if gen_num == 0:
-            # mark_as_queued later before optimisation
-            current_candidates = self.da.get_all_unrelaxed_candidates(mark_as_queued=False)
+            current_candidates = self._get_candidates_for_the_first_generation()
         else:
-            # --- update population
-            # Check candidate origin for the current generation
-            candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-                database=self.da, curr_gen=gen_num
-            )
-            self._print("candidate origin distribution before:")
-            self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
-
-            self.pop_manager.update_population(
-                database=self.da,
-                comparing=self.operators["mobile"]["comparing"],
-            )
-            assert self.pop_manager.population is not None
-
-            pop_confids = [a.info["confid"] for a in self.pop_manager.population.pop]
-            self._print(f"number of structures in population: {len(pop_confids)}")
-            self._print(f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}")
-
-            self.pop_manager._update_generation_settings(
-                self.operators["mobile"]["mutations"],
-                self.operators["mobile"]["pairing"],
-            )
-
-            # Generate candidates for the current generation
-            is_prodcution_complete = (num_paired + num_mutated + num_random) >= self.pop_manager.gen_size
-            if not is_prodcution_complete:
-                self._print("Current generation has not finished...")
-            # The current candidates have not been created completely.
-            # For example, num_relaxed != num_unrelaxed, need create more candidates...
-            current_candidates = self.pop_manager._prepare_current_population(
-                database=self.da,
-                curr_gen=gen_num,
-                generator=self.generator,
-                operators=self.operators,
-                candidate_groups=candidate_groups,
-                num_paired=num_paired,
-                num_mutated=num_mutated,
-                num_random=num_random,
-            )
-
-            # Validate candidate origins for the current generation
-            candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-                database=self.da, curr_gen=gen_num
-            )
-            self._print("candidate origin distribution after:")
-            self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
+            current_candidates = self._get_candidates_for_the_other_generation(gen_num)
 
         self._print(">>>>> Optimisation >>>>>")
         generation_directory = self.directory / self.CALC_DIRNAME / f"gen{gen_num}"
@@ -524,6 +478,63 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self._print("Worker is unfinished.")
 
         return gen_state
+
+    def _get_candidates_for_the_first_generation(self) -> list[Atoms]:
+        """The main procedure for the first generation."""
+        # mark_as_queued later before optimisation
+        candidates = self.da.get_all_unrelaxed_candidates(mark_as_queued=False)
+
+        return candidates
+
+    def _get_candidates_for_the_other_generation(self, gen_num: int) -> list[Atoms]:
+        """The main procedure for other generations."""
+        # Check candidate origin for the current generation
+        candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+            database=self.da, curr_gen=gen_num
+        )
+        self._print("candidate origin distribution before:")
+        self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
+
+        self.pop_manager.update_population(
+            database=self.da,
+            comparing=self.operators["mobile"]["comparing"],
+        )
+        assert self.pop_manager.population is not None
+
+        pop_confids = [a.info["confid"] for a in self.pop_manager.population.pop]
+        self._print(f"number of structures in population: {len(pop_confids)}")
+        self._print(f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}")
+
+        self.pop_manager._update_generation_settings(
+            self.operators["mobile"]["mutations"],
+            self.operators["mobile"]["pairing"],
+        )
+
+        # Generate candidates for the current generation
+        is_prodcution_complete = (num_paired + num_mutated + num_random) >= self.pop_manager.gen_size
+        if not is_prodcution_complete:
+            self._print("Current generation has not finished...")
+        # The current candidates have not been created completely.
+        # For example, num_relaxed != num_unrelaxed, need create more candidates...
+        current_candidates = self.pop_manager._prepare_current_population(
+            database=self.da,
+            curr_gen=gen_num,
+            generator=self.generator,
+            operators=self.operators,
+            candidate_groups=candidate_groups,
+            num_paired=num_paired,
+            num_mutated=num_mutated,
+            num_random=num_random,
+        )
+
+        # Validate candidate origins for the current generation
+        candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+            database=self.da, curr_gen=gen_num
+        )
+        self._print("candidate origin distribution after:")
+        self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
+
+        return current_candidates
 
     def get_workers(self, gen_info: Optional[GenerationInfo] = None) -> list:
         """Get all workers used by this expedition."""
