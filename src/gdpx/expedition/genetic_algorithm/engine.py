@@ -476,11 +476,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
             )
 
-        # TODO: We need check if optimisation task is already created,
-        #       and also if the current candidates are correctly queued.
+        # TODO: We need check if optimisation task is already created.
         if not generation_directory.exists():
             for atoms in current_candidates:
-                self.da.mark_as_queued(atoms)
+                self.da.mark_as_queued(atoms)  # It only marks when not queued before.
             if current_candidates:
                 confids = [a.info["confid"] for a in current_candidates]
                 self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
