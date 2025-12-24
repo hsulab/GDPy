@@ -379,11 +379,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def _check_generation(self):
         """Check the generation status."""
-        # self._print(f"{self.cur_gen =}")
+        self.gen_num = self.da.get_generation_number()
 
-        self.cur_gen = self.da.get_generation_number()
-
-        unrelaxed_strus_gen_ = list(self.da.connection.select("relaxed=0,generation=%d" % self.cur_gen))
+        unrelaxed_strus_gen_ = list(self.da.connection.select("relaxed=0,generation=%d" % self.gen_num))
         unrelaxed_strus_gen = []
         for row in unrelaxed_strus_gen_:
             # mark_as_queue unrelaxed_candidate will have relaxed field too...
@@ -392,7 +390,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.unrelaxed_confids = [row["confid"] for row in unrelaxed_strus_gen]
         self.num_unrelaxed_gen = len(self.unrelaxed_confids)
 
-        relaxed_strus_gen = list(self.da.connection.select("relaxed=1,generation=%d" % self.cur_gen))
+        relaxed_strus_gen = list(self.da.connection.select("relaxed=1,generation=%d" % self.gen_num))
         for row in relaxed_strus_gen:
             self._debug(row)
         self.relaxed_confids = [row["confid"] for row in relaxed_strus_gen]
@@ -407,28 +405,27 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def _irun(self):
         """main procedure"""
         # Generation information
-        if not hasattr(self, "cur_gen"):
+        if not hasattr(self, "gen_num"):
             raise RuntimeError("The current genertion is unknown. Check generation before.")
-        self._print(f"===== Generation {self.cur_gen:>04d} =====")
-        self._print(f"  current generation number: {self.cur_gen}")
-        self._print(f"  number of relaxed in current generation: {self.num_relaxed_gen}")
+        self._print(f"===== Generation {self.gen_num:>04d} =====")
+        self._print(f"  num_relaxed: {self.num_relaxed_gen}")
         self._print("  confids: " + integers_to_string(sorted(self.relaxed_confids), inp_convention="lmp"))
-        self._print(f"  number of unrelaxed in current generation: {self.num_unrelaxed_gen}")
+        self._print(f"  num_unrelaxed: {self.num_unrelaxed_gen}")
         self._print("  confids: " + integers_to_string(sorted(self.unrelaxed_confids), inp_convention="lmp"))
-        self._print(f"  end of current generation: {self.end_of_gen}")
+        self._print(f"  end of generation? {self.end_of_gen}")
 
         # Relax structures
         assert self.worker is not None, "GA has not set its worker properly."
-        if self.cur_gen == 0:
+        if self.gen_num == 0:
             # mark_as_queued later before optimisation
             current_candidates = self.da.get_all_unrelaxed_candidates(mark_as_queued=False)
         else:
             # --- update population
             # Check candidate origin for the current generation
             candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-                database=self.da, curr_gen=self.cur_gen
+                database=self.da, curr_gen=self.gen_num
             )
-            self._print("candidate origin distribution:")
+            self._print("candidate origin distribution before:")
             for k, v in candidate_groups.items():
                 self._print(f"  {k:<8s}: {len(v):<8d}")
 
@@ -466,12 +463,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 self.operators["mobile"]["pairing"],
             )
 
-            # ----
+            # Generate candidates for the current generation
             current_candidates = []
             if self.beg_of_gen:  # (num_relaxed == num_unrelaxed == 0)
                 current_candidates = self.pop_manager._prepare_current_population(
                     database=self.da,
-                    curr_gen=self.cur_gen,
+                    curr_gen=self.gen_num,
                     population=current_population,
                     generator=self.generator,
                     operators=self.operators,
@@ -484,7 +481,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 if self.num_relaxed_gen == 0 and (self.num_unrelaxed_gen < self.pop_manager.gen_size):
                     current_candidates = self.pop_manager._prepare_current_population(
                         database=self.da,
-                        curr_gen=self.cur_gen,
+                        curr_gen=self.gen_num,
                         population=current_population,
                         generator=self.generator,
                         operators=self.operators,
@@ -497,7 +494,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     # no relaxed, and finished creation, num_relaxed == gen_size?
                     current_candidates = self.pop_manager._prepare_current_population(
                         database=self.da,
-                        curr_gen=self.cur_gen,
+                        curr_gen=self.gen_num,
                         population=current_population,
                         generator=self.generator,
                         operators=self.operators,
@@ -510,16 +507,16 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     ...
 
             # Validate candidate origins for the current generation
-            # candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-            #    database=self.da, curr_gen=self.cur_gen
-            # )
-            # self._print("candidate origin distribution:")
-            # for k, v in candidate_groups.items():
-            #     self._print(f"  {k}: {len(v)}")
+            candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
+                database=self.da, curr_gen=self.gen_num
+            )
+            self._print("candidate origin distribution after:")
+            for k, v in candidate_groups.items():
+                self._print(f"  {k}: {len(v)}")
 
         # TODO: send candidates directly to worker that respects the batchsize
         self._print("===== Optimisation =====")
-        generation_directory = self.directory / self.CALC_DIRNAME / f"gen{self.cur_gen}"
+        generation_directory = self.directory / self.CALC_DIRNAME / f"gen{self.gen_num}"
         self.worker.directory = generation_directory
 
         for ia, a in enumerate(current_candidates):
@@ -538,7 +535,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
                 _ = self.worker.run(current_candidates)  # retrieve later
         else:
-            self._print(f"calculation directory for generation {self.cur_gen} exists.")
+            self._print(f"calculation directory for generation {self.gen_num} exists.")
 
         # Check if there were finished jobs
         assert self.generator is not None, "GA has not set its builder properly."
@@ -554,7 +551,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 # update extra info
                 extra_info = dict(
                     data={},
-                    key_value_pairs={"generation": self.cur_gen, "extinct": 0},
+                    key_value_pairs={"generation": self.gen_num, "extinct": 0},
                 )
                 cand.info.update(extra_info)
                 # get tags
@@ -601,7 +598,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self.da = GODB(self.db_path)
             self._check_generation()
 
-        num_gen = self.cur_gen
+        num_gen = self.gen_num
         if self.end_of_gen:
             num_gen += 1
 
@@ -623,7 +620,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self.da = GODB(self.db_path)
             self._check_generation()
         max_gen = self.conv_dict["generation"]
-        if self.cur_gen > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
+        if self.gen_num > max_gen and (self.num_relaxed_gen == self.num_unrelaxed_gen):
             return True
         else:
             return False
