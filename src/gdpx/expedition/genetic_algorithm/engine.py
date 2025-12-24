@@ -27,45 +27,6 @@ from .population.population import (
 )
 
 
-def get_generation_number(da: GODB) -> int:
-    """Check the number of generation based on the number of relaxed candidates.
-
-    The population size of the first generation can be different from the following ones.
-
-    Args:
-        da: The ga data connection.
-
-    Returns:
-        The generation number.
-
-    """
-    init_pop_size: int = da.get_param("initial_population_size")  # type: ignore
-    pop_size: int = da.get_param("population_size")  # type: ignore
-
-    all_candidates = list(da.connection.select(relaxed=1))
-    counter = collections.Counter([c.generation for c in all_candidates])
-    generations = sorted(list(counter.keys()))
-    num_generations = len(generations)
-    if num_generations == 0:
-        curr_gen = 0
-    else:
-        if num_generations == 1:
-            if counter[0] < init_pop_size:
-                curr_gen = 0
-            else:
-                assert counter[0] == init_pop_size
-                curr_gen = 1
-        else:
-            curr_gen = max(generations)
-            if counter[curr_gen] < pop_size:
-                ...
-            else:
-                assert counter[curr_gen] == pop_size
-                curr_gen += 1
-
-    return curr_gen
-
-
 def plot_evolution_figure(rdir, data, gen_num, target):
     """"""
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 9))
@@ -313,7 +274,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # plot population evolution
         data = []
-        gen_num = get_generation_number(self.da)  # equals finished generation plus one
+        gen_num = self.da.get_generation_number()  # equals finished generation plus one
         self._print(f"Genetic Algorithm Statistics with {gen_num - 1} generations: ")
         for i in range(gen_num):
             current_candidates = [
@@ -420,7 +381,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """Check the generation status."""
         # self._print(f"{self.cur_gen =}")
 
-        self.cur_gen = get_generation_number(self.da)
+        self.cur_gen = self.da.get_generation_number()
 
         unrelaxed_strus_gen_ = list(self.da.connection.select("relaxed=0,generation=%d" % self.cur_gen))
         unrelaxed_strus_gen = []

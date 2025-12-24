@@ -1,3 +1,4 @@
+import collections
 import pathlib
 from typing import Optional
 
@@ -204,6 +205,43 @@ class GlobalOptimisationDatabase:
         )
 
         return
+
+    def get_generation_number(self) -> int:
+        """Get the current generation number.
+
+        The population size of the first generation can be different from the following ones.
+
+        Returns:
+            int: generation number
+
+        """
+        init_pop_size = self.get_param("initial_population_size")
+        assert isinstance(init_pop_size, int)
+        pop_size = self.get_param("population_size")
+        assert isinstance(pop_size, int)
+
+        all_candidates = list(self.connection.select(relaxed=1))
+        counter = collections.Counter([c.generation for c in all_candidates])
+        generations = sorted(list(counter.keys()))
+        num_generations = len(generations)
+        if num_generations == 0:
+            gen_num = 0
+        else:
+            if num_generations == 1:
+                if counter[0] < init_pop_size:
+                    gen_num = 0
+                else:
+                    assert counter[0] == init_pop_size
+                    gen_num = 1
+            else:
+                gen_num = max(generations)
+                if counter[gen_num] < pop_size:
+                    ...
+                else:
+                    assert counter[gen_num] == pop_size
+                    gen_num += 1
+
+        return gen_num
 
     def get_participation_in_pairing(self) -> tuple[dict[int, int], list[tuple[int, int]]]:
         """Get how many times each candidate has participated in pairing.
