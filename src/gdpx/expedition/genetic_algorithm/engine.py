@@ -17,14 +17,10 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
-from ..persist.database import GenerationInfo, GenerationState
+from ..persist.database import GenerationInfo
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
-from .population.manager import AbstractPopulationManager
-from .population.population import (
-    Population,
-    PopulationWithVariableComposition,
-)
+from .population.manager import PopulationManager
 
 
 def plot_evolution_figure(rdir, data, gen_num, target):
@@ -229,7 +225,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.target = target
 
         # Population and check target-population consistency
-        self.pop_manager = AbstractPopulationManager(ga_dict["population"], rng=self.rng)
+        self.pop_manager = PopulationManager(ga_dict["population"], rng=self.rng)
         if self.pop_manager.name == "variable":
             if self.target not in ("cohesive_energy", "formation_energy"):
                 raise RuntimeError(
@@ -320,6 +316,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # Update output functions
         self.pop_manager._print = self._print
+        self.pop_manager._debug = self._debug
 
         # Check random structure builder (generator)
         self._print("===== register builder =====")
@@ -403,36 +400,17 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self._print("candidate origin distribution before:")
             self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
-            # TODO: random seed...
-            if self.pop_manager.name == "constant":
-                current_population = Population(
-                    data_connection=self.da,
-                    population_size=self.pop_manager.gen_size,
-                    comparator=self.operators["mobile"]["comparing"],
-                    rng=self.rng,
-                    print_func=self._print,
-                    debug_func=self._debug,
-                )
-                self._print(f"population number: {len(current_population.pop)}")
-            else:
-                assert self.pop_manager.name == "variable"
-                current_population = PopulationWithVariableComposition(
-                    data_connection=self.da,
-                    population_size=self.pop_manager.gen_size,
-                    comparator=self.operators["mobile"]["comparing"],
-                    rng=self.rng,
-                    print_func=self._print,
-                    debug_func=self._debug,
-                )
-                for tribe in current_population.tribes:
-                    self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")
+            self.pop_manager.update_population(
+                database=self.da,
+                comparing=self.operators["mobile"]["comparing"],
+            )
+            assert self.pop_manager.population is not None
 
-            pop_confids = [a.info["confid"] for a in current_population.pop]
+            pop_confids = [a.info["confid"] for a in self.pop_manager.population.pop]
             self._print(f"number of structures in population: {len(pop_confids)}")
             self._print(f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}")
 
             self.pop_manager._update_generation_settings(
-                current_population,
                 self.operators["mobile"]["mutations"],
                 self.operators["mobile"]["pairing"],
             )
@@ -446,7 +424,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
             current_candidates = self.pop_manager._prepare_current_population(
                 database=self.da,
                 curr_gen=gen_num,
-                population=current_population,
                 generator=self.generator,
                 operators=self.operators,
                 candidate_groups=candidate_groups,

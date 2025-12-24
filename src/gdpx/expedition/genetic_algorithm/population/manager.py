@@ -11,7 +11,7 @@ from gdpx.expedition.persist.database import GlobalOptimisationDatabase as GODB
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.profiler import CustomTimer
 
-from .population import Population
+from .population import Population, PopulationWithVariableComposition
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: list[str] = ["extinct", "origin"]
@@ -109,7 +109,7 @@ def is_reproduction_isolation(candidates: Optional[tuple[Atoms, Atoms]]) -> bool
     return is_isolation
 
 
-class AbstractPopulationManager:
+class PopulationManager:
     """An abstract population manager for evolutionary algorithms.
 
     For structure exploration, there are generally two formulations. ASE forms
@@ -134,6 +134,8 @@ class AbstractPopulationManager:
     """
 
     _print = print
+
+    _debug = print
 
     #: Maximum attempts to generate new structures.
     MAX_ATTEMPTS_MULTIPLIER: int = 10
@@ -189,6 +191,45 @@ class AbstractPopulationManager:
         # Get the tolerance for comparing two atoms by substrates
         substrate_params = params.get("substrate", dict(dtol=-1.0))
         self.substrate_dtol = substrate_params.get("dtol", -1.0)  # Ang
+
+        # Lazy attributes
+        self.population = None
+
+        return
+
+    def update_population(self, database: GODB, comparing) -> None:
+        """Update population.
+
+        Args:
+            database: GODB.
+            comparing: A comparing operator.
+
+        """
+        if self.name == "constant":
+            population = Population(
+                data_connection=database,
+                population_size=self.gen_size,
+                comparator=comparing,
+                rng=self.rng,
+                print_func=self._print,
+                debug_func=self._debug,
+            )
+            # self._print(f"population number: {len(current_population.pop)}")
+        elif self.name == "variable":
+            population = PopulationWithVariableComposition(
+                data_connection=database,
+                population_size=self.gen_size,
+                comparator=comparing,
+                rng=self.rng,
+                print_func=self._print,
+                debug_func=self._debug,
+            )
+            # for tribe in population.tribes:
+            #     self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")
+        else:
+            raise RuntimeError(f"Population name `{self.name}` is not supported.")
+
+        self.population = population
 
         return
 
@@ -306,7 +347,6 @@ class AbstractPopulationManager:
         self,
         database: GODB,
         curr_gen: int,
-        population: Population,
         generator,
         operators: dict,
         candidate_groups: dict = {},
@@ -322,7 +362,6 @@ class AbstractPopulationManager:
         Args:
             database: database
             curr_gen: current generation
-            population: current population
             generator: generator
             pairing: pairing
             mutations: mutations
@@ -335,6 +374,9 @@ class AbstractPopulationManager:
             A list of Atoms.
 
         """
+        assert self.population is not None
+        population = self.population
+
         current_candidates = []
 
         # We need adjust n_top for the variable composition search.
@@ -481,19 +523,20 @@ class AbstractPopulationManager:
 
         return current_candidates
 
-    def _update_generation_settings(self, population, mutations, pairing):
+    def _update_generation_settings(self, mutations, pairing):
         """Update some generation-specific attributes of the operators."""
-        cur_pop = population.get_current_population()
+        assert self.population is not None
+        candidates = self.population.get_current_population()
 
         # mutations
         for mut in mutations.oplist:
             if hasattr(mut, "update_scaling_volume"):
-                mut.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
+                mut.update_scaling_volume(candidates, w_adapt=0.5, n_adapt=0)
                 self._print(f"{mut.__class__.__name__:<32s} scaling volume: {mut.scaling_volume:>12.4f}")
 
         # crossover
         if hasattr(pairing, "update_scaling_volume"):
-            pairing.update_scaling_volume(cur_pop, w_adapt=0.5, n_adapt=0)
+            pairing.update_scaling_volume(candidates, w_adapt=0.5, n_adapt=0)
             self._print(f"{pairing.__class__.__name__:<32s} scaling volume: {pairing.scaling_volume:>12.4f}")
 
         return
