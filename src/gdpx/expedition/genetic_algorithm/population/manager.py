@@ -279,7 +279,7 @@ class PopulationManager:
 
         return
 
-    def _get_current_candidates(self, database: GODB, curr_gen: int):
+    def _get_current_candidates(self, database: GODB, curr_gen: int) -> dict[str, list[Atoms]]:
         """Get offsprings in the current generation.
 
         Mutataed candidates do not have `generation` keyword.
@@ -289,12 +289,11 @@ class PopulationManager:
             curr_gen: The current generation number.
 
         """
-        candidate_groups = {"paired": [], "random": [], "mutated": []}
-        num_paired, num_mutated, num_random = 0, 0, 0
+        candidate_groups = {"paired": [], "random": [], "mutated": [], "seed": []}
 
         with CustomTimer(name="getting canidates in the current generation", func=self._print):
-            unrelaxed_strus_gen_ = list(database.connection.select(f"relaxed=0,generation={curr_gen}"))
-        for row in unrelaxed_strus_gen_:
+            unrelaxed_candidate_rows = list(database.connection.select(f"relaxed=0,generation={curr_gen}"))
+        for row in unrelaxed_candidate_rows:
             if row.formula:
                 confid = row["confid"]
                 curr_rows = sorted(
@@ -318,18 +317,17 @@ class PopulationManager:
                 # but it should be considered still from the pairing.
                 origin = curr_rows[0]["origin"]
                 if "Pairing" in origin:
-                    num_paired += 1
                     candidate_groups["paired"].append(curr_atoms)
                 elif "Mutation" in origin:
-                    num_mutated += 1
                     candidate_groups["mutated"].append(curr_atoms)
                 elif "Random" in origin:
-                    num_random += 1
                     candidate_groups["random"].append(curr_atoms)
+                elif "Seed" in origin:
+                    candidate_groups["seed"].append(curr_atoms)
                 else:
                     ...
 
-        return candidate_groups, num_paired, num_mutated, num_random
+        return candidate_groups
 
     def _prepare_initial_population(self, generator) -> list[Atoms]:
         """"""
@@ -365,7 +363,7 @@ class PopulationManager:
         for i, atoms in enumerate(seed_frames):
             atoms.info["data"] = {}
             atoms.info["key_value_pairs"] = dict(
-                origin=f"StartingSeed_{i:>04df}",
+                origin=f"StartingSeed_{i:>04d}",
                 extinct=0,
                 # raw_score=-atoms.get_potential_energy(),
             )

@@ -484,9 +484,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self.da.add_unrelaxed_candidate(a, generation=gen_num)
 
         # Validate candidate origins for the current generation
-        candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-            database=self.da, curr_gen=gen_num
-        )
+        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         self._print("candidate origin distribution after:")
         self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
@@ -495,9 +493,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def _get_candidates_for_the_other_generation(self, gen_num: int) -> list[Atoms]:
         """The main procedure for other generations."""
         # Check candidate origin for the current generation
-        candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-            database=self.da, curr_gen=gen_num
-        )
+        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         self._print("candidate origin distribution before:")
         self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
@@ -517,6 +513,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         )
 
         # Generate candidates for the current generation
+        num_paired = len(candidate_groups.get("paired", []))
+        num_mutated = len(candidate_groups.get("mutated", []))
+        num_random = len(candidate_groups.get("random", []))
         is_prodcution_complete = (num_paired + num_mutated + num_random) >= self.pop_manager.gen_size
         if not is_prodcution_complete:
             self._print("Current generation has not finished...")
@@ -534,9 +533,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         )
 
         # Validate candidate origins for the current generation
-        candidate_groups, num_paired, num_mutated, num_random = self.pop_manager._get_current_candidates(
-            database=self.da, curr_gen=gen_num
-        )
+        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         self._print("candidate origin distribution after:")
         self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
